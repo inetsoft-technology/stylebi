@@ -41,6 +41,7 @@ import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.ChartTypeState;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
+import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -56,6 +57,7 @@ import static org.mockito.Mockito.*;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.model.BindingModel;
 
+@WizAgentTestSupport
 @Tag("core")
 class ChartBindingServiceTest {
    @Test
@@ -1392,6 +1394,72 @@ class ChartBindingServiceTest {
 
       assertTrue(thrown.getMessage().contains("not a chart"),
                  "must say it is not a chart, got: " + thrown.getMessage());
+   }
+
+   // ── a refused CHANGE-calculator write restores the CURRENT checkpoint (bug #78403) ──────
+
+   private static String refusedCalculatorWrite(RuntimeViewsheet rvs) throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartDimensionRefModel date = new ChartDimensionRefModel();
+      date.setColumnValue("Order Date");
+      date.setName("Order Date");
+      model.setXFields(List.<inetsoft.web.binding.model.graph.ChartRefModel>of(date));
+
+      // The runtime nulled the calculator's columnName, as ChangeChartProcessor does.
+      inetsoft.uql.viewsheet.graph.DefaultVSChartInfo info =
+         new inetsoft.uql.viewsheet.graph.DefaultVSChartInfo();
+      VSChartAggregateRef sales = new VSChartAggregateRef();
+      sales.setCalculator(new inetsoft.report.composition.graph.calc.ChangeCalc());
+      info.addYField(sales);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(chart);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ((ViewsheetSessionService.Mutation) invocation.getArgument(2)).run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      VSBindingService binding = mock(VSBindingService.class);
+      when(binding.createModel(any())).thenReturn(model);
+      ChartBindingService service = new ChartBindingService(
+         sessions, binding, mock(ChangeChartRefService.class), mock(ChangeChartTypeService.class),
+         mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class),
+         mock(inetsoft.web.binding.service.DataRefModelFactoryService.class));
+
+      inetsoft.web.binding.model.graph.calc.ChangeCalcInfo calc =
+         new inetsoft.web.binding.model.graph.calc.ChangeCalcInfo();
+      calc.setColumnName("Order Date");
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.setShelf("tok", principal(), "Chart1", "y",
+            List.of(new FieldRef("Sales", "measure", "Sum", null, null, null, null, null, calc)),
+            null, ""));
+      return e.getMessage();
+   }
+
+   @Test
+   void refusedCalculatorWriteRestoresTheCurrentCheckpointNotTheNewest() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.restoreCurrentCheckpoint()).thenReturn(true);
+
+      String message = refusedCalculatorWrite(rvs);
+
+      verify(rvs).restoreCurrentCheckpoint();
+      verify(rvs, never()).rollback();
+      assertTrue(message.contains("calculateInfo.columnName") && message.contains("rolled back"),
+                 message);
+   }
+
+   @Test
+   void refusedCalculatorWriteWhoseRestoreFailsSaysItMayBeApplied() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.restoreCurrentCheckpoint()).thenThrow(new IllegalStateException("boom"));
+
+      String message = refusedCalculatorWrite(rvs);
+
+      assertTrue(message.contains("may be applied") && !message.contains("rolled back"), message);
    }
 
    private static ChartBindingService harness(BindingModel model,

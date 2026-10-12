@@ -123,10 +123,8 @@ public class ChartBindingService {
             boolean restored = false;
 
             try {
-               if(rvs.size() > 0) {
-                  rvs.rollback();
-                  restored = true;
-               }
+               // The current checkpoint, not the newest: after an undo they differ.
+               restored = rvs.restoreCurrentCheckpoint();
             }
             catch(RuntimeException ignore) {
             }
@@ -205,7 +203,7 @@ public class ChartBindingService {
                "calculator would store no dimension. " + (names.isEmpty()
                   ? "No dimension is bound; bind the dimension first."
                   : "Use one of the bound dimensions' full names: " + String.join(", ", names) +
-                    ".") + "");
+                    "."));
          }
       }
    }
