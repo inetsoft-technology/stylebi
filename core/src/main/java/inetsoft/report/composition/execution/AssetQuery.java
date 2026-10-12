@@ -40,6 +40,8 @@ import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
+import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -527,6 +529,24 @@ public abstract class AssetQuery extends PreAssetQuery {
 
          // includes the session variables
          if(query != null && query.getAllDefinedVariables().hasMoreElements()) {
+            return true;
+         }
+      }
+      // the query and data source properties of a tabular (connector) query are
+      // substituted with the variables at runtime (TabularHandler)
+      else if(table instanceof TabularTableAssembly) {
+         TabularQuery query = ((TabularTableAssemblyInfo) table.getInfo()).getQuery();
+
+         try {
+            if(query != null && (!TabularUtil.findVariables(query).isEmpty() ||
+               query.getDataSource() != null &&
+               !TabularUtil.findVariables(query.getDataSource()).isEmpty()))
+            {
+               return true;
+            }
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to find the variables of the tabular query: {}", table.getName(), ex);
             return true;
          }
       }
