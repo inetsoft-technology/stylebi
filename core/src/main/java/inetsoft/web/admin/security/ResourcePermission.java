@@ -95,9 +95,41 @@ public class ResourcePermission {
       this.grants = grants;
    }
 
+   /**
+    * Gets whether the resource derives its permission from its parent for the organization (the
+    * "Derive Permissions from Parent" option in the Enterprise Manager).
+    *
+    * @return {@code true} if the resource derives from its parent, {@code false} if only its own
+    *         grants apply, or {@code null} if not set.
+    */
+   @Schema(
+      description = "Whether the resource derives its permission from its parent resource (the " +
+         "\"Derive Permissions from Parent\" option in the Enterprise Manager). When true, the " +
+         "grants of the resource only add to those of its parent (or, for some action types, to " +
+         "the default of allowing everyone), so they restrict nobody. When false, only the " +
+         "grants of the resource apply, and false with no grants denies everyone without an " +
+         "administrator permission. On a write, an omitted (null) value means false when any " +
+         "grant applies to the resource after the write and true otherwise. Always set on a " +
+         "read.",
+      example = "false")
+   public Boolean getInheritFromParent() {
+      return inheritFromParent;
+   }
+
+   /**
+    * Sets whether the resource derives its permission from its parent for the organization.
+    *
+    * @param inheritFromParent {@code true} to derive from the parent, {@code false} to apply only
+    *                          the resource's own grants, or {@code null} to derive only when no
+    *                          grant applies after the write.
+    */
+   public void setInheritFromParent(Boolean inheritFromParent) {
+      this.inheritFromParent = inheritFromParent;
+   }
+
    @Override
    public int hashCode() {
-      return Objects.hash(resource, resourceType, grants);
+      return Objects.hash(resource, resourceType, grants, inheritFromParent);
    }
 
    @Override
@@ -106,10 +138,12 @@ public class ResourcePermission {
          "resource='" + resource + '\'' +
          ", resourceType='" + resourceType + '\'' +
          ", grants=" + grants +
+         ", inheritFromParent=" + inheritFromParent +
          '}';
    }
 
    String resource;
    String resourceType;
    List<PermissionGrant> grants;
+   Boolean inheritFromParent;
 }

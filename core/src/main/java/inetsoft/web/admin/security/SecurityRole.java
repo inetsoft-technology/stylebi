@@ -76,7 +76,15 @@ public class SecurityRole {
     *
     * @return the users assigned this role.
     */
-   @Schema(description = "The list of users that will be assigned this role.",
+   @Schema(description = "The list of users that will be assigned this role. For a global " +
+      "role, a user of another organization than the current one is given as " +
+      "name~;~organizationID, as getting the role reports it; one that the caller may not " +
+      "administer is not reported and is kept on update. An update replaces the role's users " +
+      "in the current organization, in each organization named by key and in each " +
+      "organization of assigneeOrganizations, and keeps them in every other organization. " +
+      "So the last user of another organization is removed by leaving it out only when " +
+      "assigneeOrganizations names its organization, as it does in a role that was got, and " +
+      "an empty list without assigneeOrganizations clears only the current organization.",
       example = "[ \"user0\", \"user1\" ]")
    public List<String> getAssignedUsers() {
       return assignedUsers;
@@ -96,7 +104,15 @@ public class SecurityRole {
     *
     * @return the groups assigned this role.
     */
-   @Schema(description = "The list of groups that will be assigned this role.",
+   @Schema(description = "The list of groups that will be assigned this role. For a global " +
+      "role, a group of another organization than the current one is given as " +
+      "name~;~organizationID, as getting the role reports it; one that the caller may not " +
+      "administer is not reported and is kept on update. An update replaces the role's groups " +
+      "in the current organization, in each organization named by key and in each " +
+      "organization of assigneeOrganizations, and keeps them in every other organization. " +
+      "So the last group of another organization is removed by leaving it out only when " +
+      "assigneeOrganizations names its organization, as it does in a role that was got, and " +
+      "an empty list without assigneeOrganizations clears only the current organization.",
       example = "[ \"group0\", \"group1\" ]")
    public List<String> getAssignedGroups() {
       return assignedGroups;
@@ -109,6 +125,39 @@ public class SecurityRole {
     */
    public void setAssignedGroups(List<String> assignedGroups) {
       this.assignedGroups = assignedGroups;
+   }
+
+   /**
+    * Gets the organizations whose users and groups a global role's assigned user and group
+    * lists replace on update.
+    *
+    * @return the organization ids, or <tt>null</tt> to replace only those of the current
+    *         organization and of the organizations named by key.
+    */
+   @ArraySchema(arraySchema = @Schema(description = "For a global role, the organizations " +
+      "whose users and groups assignedUsers and assignedGroups replace on update, in addition " +
+      "to the current organization and the organizations named by key. Getting or listing a " +
+      "global role fills it with the organizations of the users and groups it reports, so " +
+      "that leaving out the last user or group of an organization removes the role from it. " +
+      "A user or group that the caller may not administer is still kept, and an " +
+      "organization without users or groups that hold the role changes nothing. When a role " +
+      "that was got is reused with a replaced list, the role is removed from the users and " +
+      "groups of these organizations that the new list leaves out, including an organization " +
+      "named only for the other list; set this to null to keep them. It is ignored for a " +
+      "role of an organization, for which getting the role gives null.",
+      example = "[ \"organization0\", \"organization1\" ]"))
+   public List<String> getAssigneeOrganizations() {
+      return assigneeOrganizations;
+   }
+
+   /**
+    * Sets the organizations whose users and groups a global role's assigned user and group
+    * lists replace on update.
+    *
+    * @param assigneeOrganizations the organization ids.
+    */
+   public void setAssigneeOrganizations(List<String> assigneeOrganizations) {
+      this.assigneeOrganizations = assigneeOrganizations;
    }
 
    /**
@@ -196,7 +245,17 @@ public class SecurityRole {
     *
     * @return the identities.
     */
-   @Schema(description = "A list of identities with admin permission over the user.")
+   @Schema(description = "The identities that may assign this role to users and groups (the " +
+      "ASSIGN permission on the role). An update replaces them; a role created with this list " +
+      "gives the listed identities ASSIGN and the creator admin permission. Identities given " +
+      "admin permission on the role by a create before this field was stored as ASSIGN are " +
+      "not listed and are not changed by an update. List and remove them with the permission " +
+      "API on the resource name~;~organizationID of type SECURITY_ROLE, with orgId set to the " +
+      "role's organization: GET /api/public/security/permissions/SECURITY_ROLE?resource=..." +
+      "&orgId=..., then PUT /api/public/security/permissions?orgId=... or DELETE " +
+      "/api/public/security/permissions/SECURITY_ROLE/{idType}/{idName}?resource=...&orgId=.... " +
+      "For a global role, including the global roles in the role list, these are the " +
+      "identities of the caller's current organization.")
    public AdminIdentities getAdminIdentities() {
       return adminIdentities;
    }
@@ -250,6 +309,8 @@ public class SecurityRole {
          (theme == null || theme.equals(that.theme)) &&
          (assignedUsers == null || assignedUsers.equals(that.assignedUsers)) &&
          (assignedGroups == null || assignedGroups.equals(that.assignedGroups)) &&
+         (assigneeOrganizations == null ||
+            assigneeOrganizations.equals(that.assigneeOrganizations)) &&
          (inheritedRoles == null || inheritedRoles.equals(that.inheritedRoles)) &&
          (adminIdentities == null || adminIdentities.equals(that.adminIdentities)) &&
          (defaultRole == null || defaultRole.equals(that.defaultRole)) &&
@@ -260,7 +321,7 @@ public class SecurityRole {
    @Override
    public int hashCode() {
       return Objects.hash(identityID.name, description, theme, assignedUsers, assignedGroups,
-                          inheritedRoles, adminIdentities, defaultRole, sysAdmin, orgAdmin);
+                          assigneeOrganizations, inheritedRoles, adminIdentities, defaultRole, sysAdmin, orgAdmin);
    }
 
    @Override
@@ -272,6 +333,7 @@ public class SecurityRole {
          ", theme='" + theme + '\'' +
          ", assignedUsers=" + assignedUsers +
          ", assignedGroups=" + assignedGroups +
+         ", assigneeOrganizations=" + assigneeOrganizations +
          ", inheritedRoles=" + inheritedRoles +
          ", adminIdentities=" + adminIdentities +
          ", defaultRole=" + defaultRole +
@@ -285,6 +347,7 @@ public class SecurityRole {
    private String theme;
    private List<String> assignedUsers;
    private List<String> assignedGroups;
+   private List<String> assigneeOrganizations;
    private List<IdentityID> inheritedRoles;
    private AdminIdentities adminIdentities;
    private Boolean defaultRole;

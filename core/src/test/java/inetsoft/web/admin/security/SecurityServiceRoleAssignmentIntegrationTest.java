@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /*
- * Bug #77381: a caller that is neither a site nor an organization administrator, holding ADMIN
+ * Bug #77381 / Bug #77498: a caller that is neither a site nor an organization administrator, holding ADMIN
  * over a user, could add the Organization Administrator role (or a role or parent group leading
  * to an organization administrator role) to that user through the public API.
  *
@@ -225,6 +225,53 @@ class SecurityServiceRoleAssignmentIntegrationTest {
       assertEquals(Set.of(PLAIN, OTHER), roles(VICTIM));
    }
 
+   /**
+    * Bug #77498, a delegate that is not an organization administrator has no permission over a
+    * user that is one, through the global or an org-scoped organization administrator role or a
+    * group holding one, even with an explicit ADMIN grant on that user: it can't update it,
+    * change its password or delete it. An organization administrator still can.
+    */
+   @Test
+   void delegate_putPasswordAndDeleteOnOrgAdminUser_areRefused() throws Exception {
+      List<Runnable> makeOrgAdmin = List.of(
+         () -> setRoles(VICTIM, PLAIN, OA),
+         () -> setRoles(VICTIM, PLAIN, BOSS_ROLE),
+         () -> {
+            setRoles(VICTIM, PLAIN);
+            setGroups(VICTIM, BOSSES.name);
+         });
+
+      for(Runnable setup : makeOrgAdmin) {
+         setup.run();
+         Set<IdentityID> rolesBefore = roles(VICTIM);
+         List<String> groupsBefore = Arrays.asList(fileProvider.getUser(VICTIM).getGroups());
+
+         // updateUser() reports its permission refusal before any write as
+         // PreMutationRefusalException, with the original exception as its cause
+         SecurityService.PreMutationRefusalException refusal = assertThrows(
+            SecurityService.PreMutationRefusalException.class,
+            () -> updateUser(delegate, userBody(new ArrayList<>(rolesBefore), null)),
+            "delegate updated org admin user " + VICTIM + " " + rolesBefore + groupsBefore);
+         assertInstanceOf(UnauthorizedAccessException.class, refusal.getCause());
+         assertThrows(UnauthorizedAccessException.class,
+                      () -> changePassword(delegate, "Str0ng!Passw0rd77498"),
+                      "delegate changed the password of org admin user " + VICTIM);
+         assertThrows(UnauthorizedAccessException.class, () -> deleteUser(delegate),
+                      "delegate deleted org admin user " + VICTIM);
+
+         assertNotNull(fileProvider.getUser(VICTIM), "the org admin user must not be deleted");
+         assertEquals(rolesBefore, roles(VICTIM), "the org admin user's roles must be unchanged");
+         assertEquals(groupsBefore, Arrays.asList(fileProvider.getUser(VICTIM).getGroups()));
+         setGroups(VICTIM);
+      }
+
+      // control: an organization administrator keeps permission over an org admin user
+      setRoles(VICTIM, PLAIN, OA);
+      changePassword(boss, "Str0ng!Passw0rd77498");
+      updateUser(boss, userBody(List.of(PLAIN, OA), null));
+      assertEquals(Set.of(PLAIN, OA), roles(VICTIM));
+   }
+
    @Test
    void orgAdmin_putAddingOrgAdminRole_isSaved() throws Exception {
       updateUser(boss, userBody(List.of(OA, BOSS_ROLE), null));
@@ -271,6 +318,22 @@ class SecurityServiceRoleAssignmentIntegrationTest {
       });
    }
 
+   private void changePassword(SRPrincipal caller, String password) throws Exception {
+      ThreadContext.setContextPrincipal(caller);
+      OrganizationManager.runInOrgScope(ORG_ID, () -> {
+         service.changeUserPassword(VICTIM, password, caller);
+         return null;
+      });
+   }
+
+   private void deleteUser(SRPrincipal caller) throws Exception {
+      ThreadContext.setContextPrincipal(caller);
+      OrganizationManager.runInOrgScope(ORG_ID, () -> {
+         service.deleteUser(VICTIM, caller);
+         return null;
+      });
+   }
+
    private void createUser(SRPrincipal caller, List<IdentityID> roles) throws Exception {
       SecurityUser body = new SecurityUser();
       body.setIdentityID(NEW_USER);
@@ -302,6 +365,12 @@ class SecurityServiceRoleAssignmentIntegrationTest {
       fileProvider.setUser(userId, user);
    }
 
+   private void setGroups(IdentityID userId, String... groups) {
+      FSUser user = (FSUser) fileProvider.getUser(userId);
+      user.setGroups(groups);
+      fileProvider.setUser(userId, user);
+   }
+
    private void grant(ResourceType type, IdentityID id, ResourceAction action, String... users) {
       Permission permission = new Permission();
       permission.setUserGrantsForOrg(action, Set.of(users), ORG_ID);
@@ -310,7 +379,7 @@ class SecurityServiceRoleAssignmentIntegrationTest {
    }
 
    // same construction as SecurityServiceOmittedFieldsIntegrationTest.newIdentityService()
-   private static IdentityService newIdentityService() throws Exception {
+   static IdentityService newIdentityService() throws Exception {
       java.lang.reflect.Constructor<?> ctor = IdentityService.class.getConstructors()[0];
       Object[] args = new Object[ctor.getParameterCount()];
       Class<?>[] types = ctor.getParameterTypes();

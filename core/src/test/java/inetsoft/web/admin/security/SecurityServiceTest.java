@@ -1093,6 +1093,11 @@ class SecurityServiceTest {
    @Test
    void updateUser_emptyValues_clearStoredValuesAndGrant() throws Exception {
       FSUser oldUser = storedSalesUser();
+      // Bug #77519: [] removes only the groups the caller can administer
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
+                                            new IdentityID("g1", "org2").convertToKey(),
+                                            ResourceAction.ADMIN))
+         .thenReturn(true);
       SecurityUser request = userRequest(SALES_USER);
       request.setRoles(List.of());
       request.setGroups(List.of());
@@ -3521,6 +3526,9 @@ class SecurityServiceTest {
    @Test
    void getPermissionGrant_claimedGroupButActuallyRole_throwsIllegalArgumentException() {
       when(securityProvider.getRole(EVERYONE_ROLE)).thenReturn(new FSRole(EVERYONE_ROLE));
+      // Bug #77913, a plain name is resolved in the current org (the org the permission is read
+      // from), no longer in the caller's own org
+      when(orgManager.getCurrentOrgID()).thenReturn(EVERYONE_ROLE.orgID);
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.getPermissionGrant("Examples/Census", "ASSET", "Everyone", "GROUP",
@@ -3769,6 +3777,17 @@ class SecurityServiceTest {
       return oldRole;
    }
 
+   // Bug #77519: an explicit member list keeps the stored members the caller can't administer,
+   // so a test that clears or replaces m1@org2 and sub1@org2 gives the caller ADMIN on them
+   private void allowAdminOnMembers() {
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                            MEMBER_USER.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
+                                            MEMBER_GROUP.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+   }
+
    private static Set<String> memberKeys(List<IdentityModel> members) {
       Set<String> keys = new HashSet<>();
 
@@ -3813,6 +3832,7 @@ class SecurityServiceTest {
    @Test
    void updateGroup_memberUsersNull_keepsUsers_emptyMemberGroupsClearsGroups() throws Exception {
       FSGroup oldGroup = stubSalesGroupMembers();
+      allowAdminOnMembers();
       SecurityGroup request = groupRequest(SALES_GROUP);
       request.setMemberGroups(List.of());
 
@@ -3824,6 +3844,7 @@ class SecurityServiceTest {
    @Test
    void updateGroup_memberGroupsNull_keepsGroups_emptyMemberUsersClearsUsers() throws Exception {
       FSGroup oldGroup = stubSalesGroupMembers();
+      allowAdminOnMembers();
       SecurityGroup request = groupRequest(SALES_GROUP);
       request.setMemberUsers(List.of());
 
@@ -3835,6 +3856,7 @@ class SecurityServiceTest {
    @Test
    void updateGroup_emptyMemberLists_stillClearMembers() throws Exception {
       FSGroup oldGroup = stubSalesGroupMembers();
+      allowAdminOnMembers();
       SecurityGroup request = groupRequest(SALES_GROUP);
       request.setMemberUsers(List.of());
       request.setMemberGroups(List.of());
@@ -3867,6 +3889,7 @@ class SecurityServiceTest {
    @Test
    void updateRole_assignedUsersNull_keepsUsers_emptyAssignedGroupsClearsGroups() throws Exception {
       FSRole oldRole = stubAnalystRoleAssignees();
+      allowAdminOnMembers();
       SecurityRole request = roleRequest(ANALYST_ROLE);
       request.setAssignedGroups(List.of());
 
@@ -3878,6 +3901,7 @@ class SecurityServiceTest {
    @Test
    void updateRole_assignedGroupsNull_keepsGroups_emptyAssignedUsersClearsUsers() throws Exception {
       FSRole oldRole = stubAnalystRoleAssignees();
+      allowAdminOnMembers();
       SecurityRole request = roleRequest(ANALYST_ROLE);
       request.setAssignedUsers(List.of());
 
@@ -3889,6 +3913,7 @@ class SecurityServiceTest {
    @Test
    void updateRole_emptyAssignedLists_stillClearAssignees() throws Exception {
       FSRole oldRole = stubAnalystRoleAssignees();
+      allowAdminOnMembers();
       SecurityRole request = roleRequest(ANALYST_ROLE);
       request.setAssignedUsers(List.of());
       request.setAssignedGroups(List.of());
@@ -4041,6 +4066,235 @@ class SecurityServiceTest {
                    captureRoleMembers(oldRole));
    }
 
+   // getRole reads a role's members through IdentityInfo and the security provider; make both
+   // see the editable provider's users and groups, so the real getRoleMembers() lists the holders
+   // of every org, as the chain does for an editable provider
+   private void stubGlobalRoleGet(FSRole role) {
+      when(securityProvider.getUsers()).thenAnswer(i -> editableProvider.getUsers());
+      when(securityProvider.getGroups()).thenAnswer(i -> editableProvider.getGroups());
+      when(securityProvider.getUser(any()))
+         .thenAnswer(i -> editableProvider.getUser(i.getArgument(0)));
+      when(securityProvider.getGroup(any()))
+         .thenAnswer(i -> editableProvider.getGroup(i.getArgument(0)));
+      doAnswer(i -> editableProvider.getUsers()).when(authenticationProvider).getUsers();
+      doAnswer(i -> editableProvider.getGroups()).when(authenticationProvider).getGroups();
+      doAnswer(i -> editableProvider.getUser(i.getArgument(0)))
+         .when(authenticationProvider).getUser(any());
+      doAnswer(i -> editableProvider.getGroup(i.getArgument(0)))
+         .when(authenticationProvider).getGroup(any());
+      doReturn(new String[0]).when(authenticationProvider).getOrganizationIDs();
+      // built on each call, since it reads the provider stubs
+      when(identityService.getIdentityInfo(GLOBAL_ROLE_PATH, Identity.ROLE, securityProvider))
+         .thenAnswer(i -> new IdentityInfo(role, authenticationProvider));
+      when(identityService.getPermission(any(), eq(ResourceType.SECURITY_ROLE), any(),
+                                         eq(principal)))
+         .thenReturn(List.of());
+   }
+
+   private static List<String> sorted(List<String> names) {
+      return names.stream().sorted().toList();
+   }
+
+   @Test
+   void getRole_globalRoleKey_reportsOtherOrgAssigneesByKey() throws Exception {
+      FSRole oldRole = stubGlobalRoleAssignees();
+      stubGlobalRoleGet(oldRole);
+
+      SecurityRole got = service.getRole(GLOBAL_ROLE_PATH, principal);
+
+      // the current org1's holders by name, the other orgs' holders by key, as updateRole takes
+      assertEquals(List.of("u1", G_ORG2_HOLDER.convertToKey(), G_ORG3_HOLDER.convertToKey()),
+                   sorted(got.getAssignedUsers()));
+      assertEquals(List.of("g1", G_ORG2_GROUP.convertToKey()), sorted(got.getAssignedGroups()));
+   }
+
+   @Test
+   void updateRole_globalRoleKey_getRoleRoundTrip_leavesAssigneesUnchanged() throws Exception {
+      FSRole oldRole = stubGlobalRoleAssignees();
+      stubGlobalRoleGet(oldRole);
+
+      SecurityRole got = service.getRole(GLOBAL_ROLE_PATH, principal);
+      SecurityRole request = roleRequest(GLOBAL_ROLE_PATH);
+      request.setAssignedUsers(got.getAssignedUsers());
+      request.setAssignedGroups(got.getAssignedGroups());
+      service.updateRole(GLOBAL_ROLE_PATH, request, principal);
+
+      assertEquals(Set.of(userKey(G_ORG1_HOLDER), userKey(G_ORG2_HOLDER), userKey(G_ORG3_HOLDER),
+                          groupKey(G_ORG1_GROUP), groupKey(G_ORG2_GROUP)),
+                   captureRoleMembers(oldRole));
+   }
+
+   @Test
+   void updateRole_globalRoleKey_getRoleRoundTrip_sameNamedCurrentOrgIdentitiesNotGranted()
+      throws Exception
+   {
+      FSRole oldRole = stubGlobalRoleAssignees();
+      // identities of the current org1 named like other orgs' holders that don't hold the role:
+      // the round trip must not grant it to them
+      IdentityID org1U2 = new IdentityID("u2", "org1");
+      IdentityID org1U3 = new IdentityID("u3", "org1");
+      IdentityID org1G2 = new IdentityID("g2", "org1");
+      providerUser(org1U2, new IdentityID[0]);
+      providerUser(org1U3, new IdentityID[0]);
+      providerGroup(org1G2, new IdentityID[0]);
+      doReturn(new IdentityID[] { G_ORG1_HOLDER, G_ORG1_OTHER, G_ORG2_HOLDER, G_ORG2_OTHER,
+                                  G_ORG3_HOLDER, org1U2, org1U3 })
+         .when(editableProvider).getUsers();
+      doReturn(new IdentityID[] { G_ORG1_GROUP, G_ORG2_GROUP, org1G2 })
+         .when(editableProvider).getGroups();
+      stubGlobalRoleGet(oldRole);
+
+      SecurityRole got = service.getRole(GLOBAL_ROLE_PATH, principal);
+      SecurityRole request = roleRequest(GLOBAL_ROLE_PATH);
+      request.setAssignedUsers(got.getAssignedUsers());
+      request.setAssignedGroups(got.getAssignedGroups());
+      service.updateRole(GLOBAL_ROLE_PATH, request, principal);
+
+      assertEquals(Set.of(userKey(G_ORG1_HOLDER), userKey(G_ORG2_HOLDER), userKey(G_ORG3_HOLDER),
+                          groupKey(G_ORG1_GROUP), groupKey(G_ORG2_GROUP)),
+                   captureRoleMembers(oldRole));
+   }
+
+   // a holder of another org that the caller can't administer is not reported, so its org isn't
+   // disclosed, and the round trip keeps it; the current org's holders are reported as before
+   @Test
+   void getRole_globalRoleKey_otherOrgAssigneeCallerCannotAdminister_leftOutAndKept()
+      throws Exception
+   {
+      FSRole oldRole = stubGlobalRoleAssignees();
+      stubGlobalRoleGet(oldRole);
+      denyAdmin(ResourceType.SECURITY_USER, G_ORG1_HOLDER);
+      denyAdmin(ResourceType.SECURITY_USER, G_ORG2_HOLDER);
+      denyAdmin(ResourceType.SECURITY_GROUP, G_ORG2_GROUP);
+
+      SecurityRole got = service.getRole(GLOBAL_ROLE_PATH, principal);
+
+      assertEquals(List.of("u1", G_ORG3_HOLDER.convertToKey()), sorted(got.getAssignedUsers()));
+      assertEquals(List.of("g1"), got.getAssignedGroups());
+
+      SecurityRole request = roleRequest(GLOBAL_ROLE_PATH);
+      request.setAssignedUsers(got.getAssignedUsers());
+      request.setAssignedGroups(got.getAssignedGroups());
+      service.updateRole(GLOBAL_ROLE_PATH, request, principal);
+
+      assertEquals(Set.of(userKey(G_ORG1_HOLDER), userKey(G_ORG2_HOLDER), userKey(G_ORG3_HOLDER),
+                          groupKey(G_ORG1_GROUP), groupKey(G_ORG2_GROUP)),
+                   captureRoleMembers(oldRole));
+   }
+
+   // holders with the same name in the current org and another org are both reported and kept
+   @Test
+   void getRole_globalRoleKey_sameNameInTwoOrgs_bothReportedAndKept() throws Exception {
+      FSRole oldRole = stubGlobalRoleAssignees();
+      IdentityID org2U1 = new IdentityID("u1", "org2");
+      providerUser(org2U1, new IdentityID[] { GLOBAL_ROLE });
+      doReturn(new IdentityID[] { G_ORG1_HOLDER, G_ORG1_OTHER, G_ORG2_HOLDER, G_ORG2_OTHER,
+                                  G_ORG3_HOLDER, org2U1 })
+         .when(editableProvider).getUsers();
+      stubGlobalRoleGet(oldRole);
+
+      SecurityRole got = service.getRole(GLOBAL_ROLE_PATH, principal);
+
+      assertEquals(List.of("u1", org2U1.convertToKey(), G_ORG2_HOLDER.convertToKey(),
+                           G_ORG3_HOLDER.convertToKey()),
+                   sorted(got.getAssignedUsers()));
+
+      SecurityRole request = roleRequest(GLOBAL_ROLE_PATH);
+      request.setAssignedUsers(got.getAssignedUsers());
+      request.setAssignedGroups(got.getAssignedGroups());
+      service.updateRole(GLOBAL_ROLE_PATH, request, principal);
+
+      assertEquals(Set.of(userKey(G_ORG1_HOLDER), userKey(org2U1), userKey(G_ORG2_HOLDER),
+                          userKey(G_ORG3_HOLDER), groupKey(G_ORG1_GROUP), groupKey(G_ORG2_GROUP)),
+                   captureRoleMembers(oldRole));
+   }
+
+   // listRoles reports a global role's members the same way getRole does
+   @Test
+   void getRoles_globalRole_reportsOtherOrgAssigneesByKey() throws Exception {
+      FSRole oldRole = stubGlobalRoleAssignees();
+      stubGlobalRoleGet(oldRole);
+      when(securityProvider.getRoles()).thenReturn(new IdentityID[] { GLOBAL_ROLE });
+      doReturn(oldRole).when(authenticationProvider).getRole(GLOBAL_ROLE);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                            GLOBAL_ROLE.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(identityService.getIdentityInfo(GLOBAL_ROLE, Identity.ROLE, securityProvider))
+         .thenAnswer(i -> new IdentityInfo(oldRole, authenticationProvider));
+
+      List<SecurityRole> roles = service.getRoles(null, principal).getRoles();
+
+      assertEquals(1, roles.size());
+      assertEquals(List.of("u1", G_ORG2_HOLDER.convertToKey(), G_ORG3_HOLDER.convertToKey()),
+                   sorted(roles.get(0).getAssignedUsers()));
+      assertEquals(List.of("g1", G_ORG2_GROUP.convertToKey()),
+                   sorted(roles.get(0).getAssignedGroups()));
+   }
+
+   // an org role's members are still reported by bare name, unfiltered, also to a caller whose
+   // current org is not the role's org
+   @Test
+   void getRole_orgRole_callerInOtherOrg_reportsMembersByBareName() throws Exception {
+      FSRole role = stubUpdatableRole(ANALYST_ROLE);
+      when(orgManager.getCurrentOrgID()).thenReturn("org1");
+      when(orgManager.getCurrentOrgID(any())).thenReturn("org1");
+      IdentityID user = new IdentityID("u7", ANALYST_ROLE.orgID);
+      IdentityID group = new IdentityID("g7", ANALYST_ROLE.orgID);
+      denyAdmin(ResourceType.SECURITY_USER, user);
+      denyAdmin(ResourceType.SECURITY_GROUP, group);
+      doReturn(new Identity[] { new FSUser(user), new FSGroup(group) })
+         .when(authenticationProvider).getRoleMembers(ANALYST_ROLE);
+      IdentityInfo info = new IdentityInfo(role, authenticationProvider);
+      when(identityService.getIdentityInfo(ANALYST_ROLE, Identity.ROLE, securityProvider))
+         .thenReturn(info);
+      when(identityService.getPermission(any(), eq(ResourceType.SECURITY_ROLE), any(),
+                                         eq(principal)))
+         .thenReturn(List.of());
+
+      SecurityRole got = service.getRole(ANALYST_ROLE, principal);
+
+      assertEquals(List.of("u7"), got.getAssignedUsers());
+      assertEquals(List.of("g7"), got.getAssignedGroups());
+   }
+
+   // Bug #77519: a listed assignee list keeps every stored assignee the caller can't administer,
+   // in the current org and in every other org the request lists by key, once each
+   @Test
+   void updateRole_globalRoleKey_listedOrgs_keepAssigneesCallerCannotAdminister() throws Exception {
+      FSRole oldRole = stubGlobalRoleAssignees();
+      denyAdmin(ResourceType.SECURITY_USER, G_ORG1_HOLDER);
+      denyAdmin(ResourceType.SECURITY_USER, G_ORG2_HOLDER);
+      denyAdmin(ResourceType.SECURITY_GROUP, G_ORG1_GROUP);
+      SecurityRole request = roleRequest(GLOBAL_ROLE_PATH);
+      // u1 is listed although the caller can't administer it, u5~;~org2 lists org2
+      request.setAssignedUsers(List.of("u1", "u4", G_ORG2_OTHER.convertToKey()));
+      request.setAssignedGroups(List.of());
+
+      service.updateRole(GLOBAL_ROLE_PATH, request, principal);
+
+      // memberKeys() fails on a duplicate, so u1 is saved once
+      assertEquals(Set.of(userKey(G_ORG1_HOLDER), userKey(G_ORG1_OTHER), userKey(G_ORG2_HOLDER),
+                          userKey(G_ORG2_OTHER), userKey(G_ORG3_HOLDER),
+                          groupKey(G_ORG1_GROUP), groupKey(G_ORG2_GROUP)),
+                   captureRoleMembers(oldRole));
+   }
+
+   // Bug #77519: a not administrable identity that doesn't hold the role is still left out
+   @Test
+   void updateRole_globalRoleKey_notAdministrableNonAssignee_stillLeftOut() throws Exception {
+      FSRole oldRole = stubGlobalRoleAssignees();
+      denyAdmin(ResourceType.SECURITY_USER, G_ORG1_OTHER);
+      SecurityRole request = roleRequest(GLOBAL_ROLE_PATH);
+      request.setAssignedUsers(List.of("u1", "u4"));
+
+      service.updateRole(GLOBAL_ROLE_PATH, request, principal);
+
+      assertEquals(Set.of(userKey(G_ORG1_HOLDER), userKey(G_ORG2_HOLDER), userKey(G_ORG3_HOLDER),
+                          groupKey(G_ORG1_GROUP), groupKey(G_ORG2_GROUP)),
+                   captureRoleMembers(oldRole));
+   }
+
    @Test
    void updateRole_globalRoleKey_unresolvableName_rejectedWithoutChange() throws Exception {
       stubGlobalRoleAssignees();
@@ -4071,6 +4325,7 @@ class SecurityServiceTest {
    void updateRole_orgRole_unknownBareName_stillDropped() throws Exception {
       // the org role path is unchanged: names are resolved in the role's org and filtered
       FSRole oldRole = stubAnalystRoleAssignees();
+      allowAdminOnMembers();
       SecurityRole request = roleRequest(ANALYST_ROLE);
       request.setAssignedUsers(List.of("nobody"));
       request.setAssignedGroups(List.of());
@@ -4226,6 +4481,32 @@ class SecurityServiceTest {
       assertNull(captor.getValue()[0].identityID().orgID);
    }
 
+   // Bug #77834: a delete whose permissions may remain is reported to the REST caller as an
+   // error whose message says the identity was deleted
+   @Test
+   void deleteRole_permissionsMayRemain_throwsDeletedWarning() throws Exception {
+      FSRole globalRole = new FSRole(GLOBAL_ROLE);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                            GLOBAL_ROLE_PATH.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getRole(GLOBAL_ROLE_PATH)).thenReturn(globalRole);
+      SystemAdminService systemAdminService = mock(SystemAdminService.class);
+      when(systemAdminService.hasOrgAdminAfterDelete(any())).thenReturn(true);
+      when(systemAdminService.hasSystemAdminAfterDelete(any())).thenReturn(true);
+      String warning = "gRole was deleted, but some of its permissions may not have been removed.";
+      when(identityService.deleteIdentities(any(), any(), any())).thenReturn(List.of(warning));
+      SecurityService deleteService = new SecurityService(
+         SecurityEngine.getSecurity(), identityService, mock(ActionPermissionService.class),
+         mock(LocalizationSettingsService.class), themeService, systemAdminService,
+         userTreeService, customThemesManager);
+
+      Exception error = assertThrows(Exception.class,
+                                     () -> deleteService.deleteRole(GLOBAL_ROLE_PATH, principal));
+
+      assertEquals(warning, error.getMessage());
+      verify(identityService).deleteIdentities(any(), any(), eq(principal));
+   }
+
    // Bug #77186: the plain create keyed member users, groups and roles by the org *name*, so
    // they were created under a non-existent org id (or over another org's identities when the
    // name equaled that org's id), and add* silently replaced any existing identity.
@@ -4307,6 +4588,201 @@ class SecurityServiceTest {
       ArgumentCaptor<Organization> org = ArgumentCaptor.forClass(Organization.class);
       verify(editableProvider).addOrganization(org.capture());
       assertEquals("blue", ((FSOrganization) org.getValue()).getTheme());
+   }
+
+   // Bug #77800: the plain create wrote the org record (listing every requested member) before
+   // any member, did not undo anything when a member add failed, and its finally block audited
+   // the create as SUCCESS however the try ended. The members are now written first and the org
+   // record last; a failure up to the org write removes only the identities this call attempted
+   // (never provider.removeOrganization(), which sweeps every identity keyed to the org id).
+
+   private static final IdentityID ALICE_77800 = new IdentityID("alice", "o2");
+   private static final IdentityID BOB_77800 = new IdentityID("bob", "o2");
+   private static final IdentityID STAFF_77800 = new IdentityID("staff", "o2");
+   private static final IdentityID ANALYST_77800 = new IdentityID("analyst", "o2");
+
+   private SecurityOrganization request77800() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org" });
+      // SUtil is a static mock, without this no IdentityInfo record could be audited at all
+      sUtilStatic.when(() -> SUtil.getIdentityInfoRecord(any(), anyInt(), any(), any(), any()))
+         .thenReturn(mock(inetsoft.util.audit.IdentityInfoRecord.class));
+      SecurityOrganization request = newOrgRequest("o2", "Org Two");
+      request.setMemberUsers(List.of("alice", "bob"));
+      request.setMemberGroups(List.of("staff"));
+      request.setRoles(List.of("analyst"));
+      request.setDefaultPassword("Str0ng!Passw0rd");
+      return request;
+   }
+
+   private ActionRecord auditedAction77800() {
+      ArgumentCaptor<ActionRecord> captor = ArgumentCaptor.forClass(ActionRecord.class);
+      verify(Audit.getInstance()).auditAction(captor.capture(), any());
+      return captor.getValue();
+   }
+
+   private void assertFailedBeforeOrg77800(Exception original, Exception thrown) {
+      assertSame(original, thrown);
+      ActionRecord record = auditedAction77800();
+      assertEquals(ActionRecord.ACTION_STATUS_FAILURE, record.getActionStatus());
+      assertTrue(record.getActionError().contains(original.getMessage()),
+                 record.getActionError());
+      // the org does not exist, so no IdentityInfo create record
+      verify(Audit.getInstance(), never()).auditIdentityInfo(any(), any());
+      verify(editableProvider, never()).removeOrganization(any());
+      verifyNoInteractions(identityService);
+   }
+
+   @Test
+   void createOrganization_memberUserAddFails_attemptedMembersRemovedAndAuditedFailure() {
+      SecurityOrganization request = request77800();
+      MessageException failure = new MessageException("Failed to add user bob");
+      doThrow(failure).when(editableProvider)
+         .addUser(argThat(u -> u != null && BOB_77800.equals(u.getIdentityID())));
+
+      Exception thrown = assertThrows(MessageException.class,
+         () -> service.createOrganization(request, null, principal));
+
+      assertFailedBeforeOrg77800(failure, thrown);
+      verify(editableProvider, never()).addOrganization(any());
+      verify(editableProvider, never()).addGroup(any());
+      verify(editableProvider, never()).addRole(any());
+      verify(editableProvider).removeUser(ALICE_77800);
+      // bob's add threw and bob was not stored, so no remove is attempted for bob
+      verify(editableProvider, never()).removeUser(BOB_77800);
+      verify(editableProvider, never()).removeGroup(any());
+      verify(editableProvider, never()).removeRole(any());
+   }
+
+   @Test
+   void createOrganization_memberAddThrowsButWasStored_thatMemberAlsoRemoved() {
+      SecurityOrganization request = request77800();
+      MessageException failure = new MessageException("Timed out adding user bob");
+      // the write is stored, then the add reports a failure (a timed-out write that completed)
+      doAnswer(inv -> {
+         doReturn(new FSUser(BOB_77800)).when(editableProvider).getUser(BOB_77800);
+         throw failure;
+      }).when(editableProvider)
+         .addUser(argThat(u -> u != null && BOB_77800.equals(u.getIdentityID())));
+
+      Exception thrown = assertThrows(MessageException.class,
+         () -> service.createOrganization(request, null, principal));
+
+      assertFailedBeforeOrg77800(failure, thrown);
+      InOrder order = inOrder(editableProvider);
+      order.verify(editableProvider).removeUser(BOB_77800);
+      order.verify(editableProvider).removeUser(ALICE_77800);
+   }
+
+   @Test
+   void createOrganization_memberRoleAddFails_earlierMembersRemovedInReverseOrder() {
+      SecurityOrganization request = request77800();
+      MessageException failure = new MessageException("Failed to add role analyst");
+      doThrow(failure).when(editableProvider).addRole(any());
+
+      Exception thrown = assertThrows(MessageException.class,
+         () -> service.createOrganization(request, null, principal));
+
+      assertFailedBeforeOrg77800(failure, thrown);
+      verify(editableProvider, never()).addOrganization(any());
+      verify(editableProvider, never()).removeRole(any());
+      InOrder order = inOrder(editableProvider);
+      order.verify(editableProvider).removeGroup(STAFF_77800);
+      order.verify(editableProvider).removeUser(BOB_77800);
+      order.verify(editableProvider).removeUser(ALICE_77800);
+   }
+
+   @Test
+   void createOrganization_addOrganizationFails_allMembersRemovedAndAuditedFailure() {
+      SecurityOrganization request = request77800();
+      MessageException failure = new MessageException("Failed to add organization o2");
+      doThrow(failure).when(editableProvider).addOrganization(any());
+
+      Exception thrown = assertThrows(MessageException.class,
+         () -> service.createOrganization(request, null, principal));
+
+      assertFailedBeforeOrg77800(failure, thrown);
+      InOrder order = inOrder(editableProvider);
+      order.verify(editableProvider).removeRole(ANALYST_77800);
+      order.verify(editableProvider).removeGroup(STAFF_77800);
+      order.verify(editableProvider).removeUser(BOB_77800);
+      order.verify(editableProvider).removeUser(ALICE_77800);
+      // no theme was assigned before the org existed, so there is nothing to undo there
+      verify(customThemesManager, never()).updateCustomThemes(any());
+   }
+
+   @Test
+   void createOrganization_rollbackRemoveFails_originalRethrownAndRollbackIncompleteAudited() {
+      SecurityOrganization request = request77800();
+      MessageException failure = new MessageException("Failed to add organization o2");
+      RuntimeException removeFailure = new RuntimeException("Failed to remove user bob");
+      doThrow(failure).when(editableProvider).addOrganization(any());
+      doThrow(removeFailure).when(editableProvider).removeUser(BOB_77800);
+
+      Exception thrown = assertThrows(MessageException.class,
+         () -> service.createOrganization(request, null, principal));
+
+      assertSame(failure, thrown);
+      assertArrayEquals(new Throwable[]{ removeFailure }, thrown.getSuppressed());
+      // a failed remove does not stop the rest of the rollback
+      verify(editableProvider).removeUser(ALICE_77800);
+      ActionRecord record = auditedAction77800();
+      assertEquals(ActionRecord.ACTION_STATUS_FAILURE, record.getActionStatus());
+      assertTrue(record.getActionError().contains("Failed to add organization o2"),
+                 record.getActionError());
+      assertTrue(record.getActionError().contains("rollback incomplete: bob"),
+                 record.getActionError());
+   }
+
+   @Test
+   void createOrganization_stepAfterOrgFails_orgKeptAuditedFailureWithIdentityInfo() {
+      SecurityOrganization request = request77800();
+      AuthorizationProvider authz = stubAuthz();
+      IdentityID admin = new IdentityID("alice", "o2");
+      allowUserAdmin(admin);
+      request.setAdminIdentities(adminUsers(admin));
+      MessageException failure = new MessageException("Failed to write permission");
+      doThrow(failure).when(authz).setPermission(any(ResourceType.class), any(IdentityID.class),
+                                                 any(Permission.class), any());
+
+      Exception thrown = assertThrows(MessageException.class,
+         () -> service.createOrganization(request, null, principal));
+
+      assertSame(failure, thrown);
+      verify(editableProvider).addOrganization(any());
+      // the org and its members exist and agree, nothing is rolled back
+      verify(editableProvider, never()).removeOrganization(any());
+      verify(editableProvider, never()).removeUser(any());
+      verify(editableProvider, never()).removeGroup(any());
+      verify(editableProvider, never()).removeRole(any());
+      ActionRecord record = auditedAction77800();
+      assertEquals(ActionRecord.ACTION_STATUS_FAILURE, record.getActionStatus());
+      assertTrue(record.getActionError().contains("was created"), record.getActionError());
+      assertTrue(record.getActionError().contains("Failed to write permission"),
+                 record.getActionError());
+      // the org was created, so its IdentityInfo create record is true and is written
+      verify(Audit.getInstance()).auditIdentityInfo(any(), any());
+   }
+
+   @Test
+   void createOrganization_success_membersBeforeOrgAndAuditedSuccess() throws Exception {
+      SecurityOrganization request = request77800();
+
+      service.createOrganization(request, null, principal);
+
+      InOrder order = inOrder(editableProvider);
+      order.verify(editableProvider, times(2)).addUser(any());
+      order.verify(editableProvider).addGroup(any());
+      order.verify(editableProvider).addRole(any());
+      order.verify(editableProvider).addOrganization(any());
+      ArgumentCaptor<Organization> org = ArgumentCaptor.forClass(Organization.class);
+      verify(editableProvider).addOrganization(org.capture());
+      assertArrayEquals(new String[]{ "alice", "bob", "staff", "analyst" },
+                        org.getValue().getMembers());
+      ActionRecord record = auditedAction77800();
+      assertEquals(ActionRecord.ACTION_STATUS_SUCCESS, record.getActionStatus());
+      verify(Audit.getInstance()).auditIdentityInfo(any(), any());
+      verify(editableProvider, never()).removeUser(any());
    }
 
    // Bug #77083: the requested-theme lookup parsed as (name matches && global) || orgID equals

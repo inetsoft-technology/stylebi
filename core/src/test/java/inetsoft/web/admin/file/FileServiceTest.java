@@ -77,15 +77,18 @@ class FileServiceTest {
       // simulates a fresh storage restore where the schedule task root folder does not
       // exist yet -- getXMLSerializable() returns null, matching the primary repair loop's
       // own null-is-"not found" precedent
-      when(indexedStorage.getXMLSerializable("1^6^__NULL__^/", null)).thenReturn(null);
+      // the root key has the org suffix and the folder is read in that org (Bug #77391)
+      when(indexedStorage.getXMLSerializable("1^6^__NULL__^/^host-org", null, "host-org"))
+         .thenReturn(null);
 
       Method method = FileService.class.getDeclaredMethod(
          "repairScheduleTaskFolder", IndexedStorage.class, boolean.class, Set.class,
-         String.class);
+         String.class, String.class);
       method.setAccessible(true);
 
       assertDoesNotThrow(() -> method.invoke(
-         service, indexedStorage, false, new HashSet<AssetEntry>(), "1^6^__NULL__^/"));
+         service, indexedStorage, false, new HashSet<AssetEntry>(), "1^6^__NULL__^/^host-org",
+         "host-org"));
 
       verify(indexedStorage, never()).putXMLSerializable(anyString(), any());
    }

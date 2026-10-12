@@ -35,7 +35,8 @@ import java.util.Objects;
 )
 @JsonSubTypes({
    @JsonSubTypes.Type(value = ViewsheetAction.class, name = "viewsheet"),
-   @JsonSubTypes.Type(value = BatchAction.class, name = "batch")
+   @JsonSubTypes.Type(value = BatchAction.class, name = "batch"),
+   @JsonSubTypes.Type(value = IndividualAssetBackupAction.class, name = "backup")
 })
 @Validated
 @Schema(description = "An action to be performed when a schedule task runs.")

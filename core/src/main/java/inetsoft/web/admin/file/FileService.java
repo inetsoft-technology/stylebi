@@ -242,8 +242,10 @@ public class FileService {
          String parentIdentifier = parentEntry.toIdentifier();
          AssetFolder folder;
 
-         if(parentEntry.isScheduleTaskFolder() && parentIdentifier.equals("1^6^__NULL__^")) {
-            parentIdentifier = "1^6^__NULL__^/";
+         // Bug #77391, root-level schedule tasks have a parent with an empty path, redirect them
+         // to the schedule task root folder of the same org
+         if(parentEntry.isScheduleTaskFolder() && "".equals(parentEntry.getPath())) {
+            parentIdentifier = getScheduleTaskRootEntry(parentEntry.getOrgID()).toIdentifier();
          }
 
          if(metadataAware) {
@@ -368,12 +370,21 @@ public class FileService {
 
    private void repairScheduleTaskFolders(IndexedStorage indexedStorage, boolean metadataAware) throws Exception {
       Set<AssetEntry> tasks = new HashSet<>();
-      String rootIdentifier = "1^6^__NULL__^/";
-      repairScheduleTaskFolder(indexedStorage, metadataAware, tasks, rootIdentifier);
+      // Bug #77391, build the root identifier the same way the stored root folder key is
+      // created, the identifier always ends with the org id
+      AssetEntry rootEntry = getScheduleTaskRootEntry(null);
+      repairScheduleTaskFolder(indexedStorage, metadataAware, tasks, rootEntry.toIdentifier(),
+                               rootEntry.getOrgID());
+   }
+
+   private static AssetEntry getScheduleTaskRootEntry(String orgId) {
+      return new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "/", null, orgId);
    }
 
    private void repairScheduleTaskFolder(IndexedStorage indexedStorage, boolean metadataAware,
-                                         Set<AssetEntry> tasks, String parentIdentifier) throws Exception
+                                         Set<AssetEntry> tasks, String parentIdentifier,
+                                         String orgId) throws Exception
    {
       AssetFolder folder;
       List<AssetEntry> newTasks = new ArrayList<>();
@@ -382,9 +393,10 @@ public class FileService {
          folder = ((MetadataAwareStorage) indexedStorage).getAssetFolder(parentIdentifier);
       }
       else {
-         folder = (AssetFolder) indexedStorage.getXMLSerializable(parentIdentifier, null);
+         folder = (AssetFolder) indexedStorage.getXMLSerializable(parentIdentifier, null, orgId);
       }
 
+      // the folder may not exist, e.g. an org without any schedule tasks
       if(folder == null) {
          return;
       }
@@ -401,7 +413,8 @@ public class FileService {
       }
 
       for(AssetEntry childFolder : folders) {
-         repairScheduleTaskFolder(indexedStorage, metadataAware, tasks, childFolder.toIdentifier());
+         repairScheduleTaskFolder(indexedStorage, metadataAware, tasks, childFolder.toIdentifier(),
+                                  orgId);
       }
 
       for(AssetEntry task : newTasks) {

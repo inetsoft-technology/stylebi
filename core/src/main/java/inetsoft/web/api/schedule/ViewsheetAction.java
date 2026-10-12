@@ -19,11 +19,13 @@ package inetsoft.web.api.schedule;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.RepletRequest;
 import inetsoft.sree.schedule.ServerPathInfo;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
+import inetsoft.util.Tool;
 import io.swagger.v3.oas.annotations.extensions.Extension;
 import io.swagger.v3.oas.annotations.extensions.ExtensionProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -1053,7 +1055,10 @@ public class ViewsheetAction extends ScheduleAction {
          }
          else {
             this.username = info.getUsername();
-            this.password = info.getPassword();
+            // Bug #77937, never send a stored password back to the client, only a placeholder
+            // that tells it a password is set
+            this.password = Tool.isEmptyString(info.getPassword()) ?
+               null : Util.PLACEHOLDER_PASSWORD;
          }
       }
 
@@ -1125,7 +1130,10 @@ public class ViewsheetAction extends ScheduleAction {
        * @return the password used to access the ftp server.
        */
       @Schema(
-         description = "The password used to access the ftp server.")
+         description = "The password used to access the ftp server. A stored password is " +
+            "returned as " + Util.PLACEHOLDER_PASSWORD + ". Sending the placeholder back keeps " +
+            "the stored password of the same format, but only when the path logs in to the same " +
+            "server as the same user; a user name in the path overrides the user name field.")
       public String getPassword() {
          return password;
       }
@@ -1193,10 +1201,6 @@ public class ViewsheetAction extends ScheduleAction {
          else {
             if(username != null) {
                authString.append(", username='" + username + '\'');
-            }
-
-            if(password != null) {
-               authString.append(", password='" + password + '\'');
             }
          }
 

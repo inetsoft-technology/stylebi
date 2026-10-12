@@ -28,14 +28,18 @@ package inetsoft.web.admin.ai.schedule;
  * types.
  */
 
+import inetsoft.report.internal.Util;
 import inetsoft.sree.*;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.XSessionService;
+import inetsoft.util.MessageException;
 import inetsoft.web.admin.schedule.ScheduleConditionService;
 import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.ScheduleTaskService;
 import inetsoft.web.api.schedule.BatchAction;
+import inetsoft.web.api.schedule.IndividualAssetBackupAction;
 import inetsoft.web.api.schedule.ScheduleAction;
 import inetsoft.web.api.schedule.ScheduleActionList;
 import inetsoft.web.api.schedule.ScheduleCondition;
@@ -75,8 +79,12 @@ class AdminScheduleGatewayTest {
          .thenReturn(true);
       when(repository.getScheduleTask(anyString())).thenReturn(null);
 
+      // security disabled, so the owner and execute-as identity checks of Bug #77281 don't
+      // restrict the caller; the tests below are about the ADMIN and org-boundary checks
+      securityEngine = mock(SecurityEngine.class, withSettings().lenient());
       gateway = new AdminScheduleGateway(
-         repository, scheduleManager, scheduleService, scheduleConditionService, scheduleTaskService);
+         repository, scheduleManager, scheduleService, scheduleConditionService, scheduleTaskService,
+         securityEngine);
 
       callerOwner = new IdentityID("caller", "host-org");
       otherOwner = new IdentityID("admin", "host-org");
@@ -649,6 +657,116 @@ class AdminScheduleGatewayTest {
       }
    }
 
+   // -------------------------------------------------------------------------
+   // fixes of the public schedule API ported to this gateway
+   // -------------------------------------------------------------------------
+
+   // Bug #77297: a create request without endDate has 0, which must not become an end date in
+   // 1970 that keeps the task from ever being scheduled
+   @Test
+   void addScheduleTask_omittedEndDateMeansNoEndDate() throws Exception {
+      ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+      gateway.addScheduleTask(
+         taskMetaData, true, false, -1, 0, null, null, null,
+         Collections.emptyList(), Collections.emptyList(), null, "", user);
+
+      org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+         org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleManager).setScheduleTask(anyString(), captor.capture(), eq(user));
+      assertNull(captor.getValue().getEndDate());
+   }
+
+   // Bug #77531: an internal task may only be the target of a batch action of a site admin
+   @Test
+   void addScheduleTask_rejectsBatchActionTargetingInternalTaskForNonSiteAdmin() throws Exception {
+      try(MockedStatic<OrganizationManager> orgManagerStatic = mockOrg()) {
+         when(OrganizationManager.getInstance().isSiteAdmin((Principal) any())).thenReturn(false);
+
+         BatchAction action = new BatchAction();
+         action.setOwner("batchOwner");
+         action.setTaskName(InternalScheduledTaskService.ASSET_FILE_BACKUP);
+
+         ScheduleTaskMetaData taskMetaData =
+            new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+         assertThrows(UnauthorizedAccessException.class, () -> gateway.addScheduleTask(
+            taskMetaData, true, false, -1, -1, null, null, null,
+            Collections.emptyList(), List.of(action), null, "", user));
+
+         verify(scheduleManager, never()).setScheduleTask(anyString(), any(), any());
+      }
+   }
+
+   // Bug #77954: an identifier that names no asset would be stored as a null asset
+   @Test
+   void addScheduleTask_rejectsInvalidBackupAssetIdentifier() throws Exception {
+      IndividualAssetBackupAction action = new IndividualAssetBackupAction();
+      action.setAssetIdentifiers(List.of("no.such.AssetClass^x"));
+
+      ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+      assertThrows(MissingResourceException.class, () -> gateway.addScheduleTask(
+         taskMetaData, true, false, -1, -1, null, null, null,
+         Collections.emptyList(), List.of(action), null, "", user));
+
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(), any());
+   }
+
+   // Bug #77937: the API returns a stored password as a placeholder, which an added task has no
+   // stored password for, so it must not be stored as the password itself
+   @Test
+   void addScheduleTask_doesNotStorePlaceholderPassword() throws Exception {
+      ViewsheetAction.SaveToServerFilePath filePath =
+         new ViewsheetAction.SaveToServerFilePath(ViewsheetAction.Format.PDF, "ftp://host/dir");
+      filePath.setUsername("ftpuser");
+      filePath.setPassword(Util.PLACEHOLDER_PASSWORD);
+
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet("1^128^__NULL__^Examples/Census^host-org");
+      action.setSaveToServerFilePaths(List.of(filePath));
+
+      ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+      gateway.addScheduleTask(
+         taskMetaData, true, false, -1, -1, null, null, null,
+         Collections.emptyList(), List.of(action), null, "", user);
+
+      org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+         org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleManager).setScheduleTask(anyString(), captor.capture(), eq(user));
+      inetsoft.sree.schedule.ViewsheetAction stored =
+         (inetsoft.sree.schedule.ViewsheetAction) captor.getValue().getAction(0);
+      inetsoft.sree.schedule.ServerPathInfo info =
+         stored.getFilePathInfo(ViewsheetAction.Format.PDF.getTypeValue());
+      assertEquals("ftpuser", info.getUsername());
+      assertNull(info.getPassword());
+   }
+
+   // Bug #78125: an execute-as identity that doesn't resolve must be refused, not stored as no
+   // identity, which would make the task run as its owner
+   @Test
+   void addScheduleTask_rejectsUnresolvableExecuteAsIdentity() throws Exception {
+      IdentityID group = new IdentityID("missingGroup", "host-org");
+      when(repository.checkPermission(user, ResourceType.SECURITY_GROUP, group, ResourceAction.ADMIN))
+         .thenReturn(true);
+      ScheduleTask.ExecuteAsID executeAs =
+         new ScheduleTask.ExecuteAsID(ScheduleTask.ExecuteAsID.Type.GROUP, group);
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         sutil.when(() -> SUtil.getIdentity(any(IdentityID.class), anyInt())).thenReturn(null);
+         ScheduleTaskMetaData taskMetaData =
+            new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+         assertThrows(MessageException.class, () -> gateway.addScheduleTask(
+            taskMetaData, true, false, -1, -1, null, null, executeAs,
+            Collections.emptyList(), Collections.emptyList(), null, "", user));
+         assertFalse(gateway.hasOwnerAdminPermission(callerOwner, executeAs, user),
+                     "the re-create of the preflight would be refused the same way");
+         verify(scheduleManager, never()).setScheduleTask(anyString(), any(), any());
+      }
+   }
+
    private static void mockSession(MockedStatic<XSessionService> sessionStatic) {
       // SRPrincipal's constructor calls XSessionService.getService().createSessionID(), which
       // requires a Spring context. Mock it to avoid that dependency.
@@ -667,6 +785,7 @@ class AdminScheduleGatewayTest {
    private ScheduleService scheduleService;
    private ScheduleConditionService scheduleConditionService;
    private ScheduleTaskService scheduleTaskService;
+   private SecurityEngine securityEngine;
    private AdminScheduleGateway gateway;
    private Principal user;
    private IdentityID callerOwner;

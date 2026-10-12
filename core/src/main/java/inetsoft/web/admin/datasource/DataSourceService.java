@@ -26,9 +26,11 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.service.DataSourceRenameException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.web.admin.InvalidResourceException;
 import inetsoft.web.admin.content.database.DatabaseTypeService;
 import inetsoft.web.admin.content.database.types.CustomDatabaseType;
 import inetsoft.web.admin.idgen.MD5IdentifierGenerator;
@@ -63,6 +65,7 @@ public class DataSourceService {
       this.securityEngine = securityEngine;
       this.databaseTypeService = databaseTypeService;
       this.ids = ids;
+      this.dataSourceRegistry = dataSourceRegistry;
       this.secretIdAuthorizer = new SecretIdAuthorizer(securityEngine, dataSourceRegistry);
    }
 
@@ -144,6 +147,10 @@ public class DataSourceService {
          "");
 
       try {
+         // name the data source before anything that can throw, so a refused edit is recorded
+         // with its name (Bug #77819)
+         String name = ids.getName(id);
+         record.setObjectName(name != null ? name : id);
          IdentityID pId = IdentityID.getIdentityIDFromKey(user.getName());
          XDataSource ds = getXDataSource(id, user);
          String oldName = ds.getFullName();
@@ -155,14 +162,50 @@ public class DataSourceService {
             properties.setName(newName);
          }
 
-         if(!oldName.equals(newName) && repository.getDataSource(newName) != null) {
-            throw new ResourceExistsException(newName);
+         if(!oldName.equals(newName)) {
+            // Bug #77673, a data source moved onto the path of a data source or a data source
+            // folder would overwrite it, or take the data sources of the folder as its
+            // additional connections
+            if(dataSourceRegistry.isDataSourcePathInUse(newName)) {
+               throw new ResourceExistsException(newName);
+            }
+
+            // a parent folder can't be created at the path of a data source, the moved data
+            // source would become an additional connection of that data source
+            String dataSource = dataSourceRegistry.getDataSourceAncestor(newName);
+
+            if(dataSource != null) {
+               throw new ResourceExistsException(dataSource);
+            }
+
+            // Bug #77841, Bug #77725, Bug #77820, a rename that XEngine refuses, checked here
+            // because the parent folders are created before XEngine is called
+            dataSourceRegistry.checkDataSourceMovePathClash(oldName);
          }
 
          checkMovePermissions(user, oldName, newName);
+         String password = null;
 
          if(XDataSource.JDBC.equals(ds.getType())) {
             checkSecretId((JDBCDataSource) ds, (JdbcDataSourceProperties) properties, user);
+            password = resolvePassword((JDBCDataSource) ds, (JdbcDataSourceProperties) properties);
+         }
+
+         switch(ds.getType()) {
+         case XDataSource.JDBC:
+            updateDataSource((JDBCDataSource) ds, (JdbcDataSourceProperties) properties, password);
+            break;
+         default:
+            updateDataSource(ds, (TabularDataSourceProperties) properties);
+         }
+
+         RenameDependencyInfo dinfo = null;
+
+         // Bug #60289, rename transform task is submitted in updateDataSource() for REST
+         if(!oldName.equals(newName) && !((ds instanceof ListedDataSource) ||
+            ds.getType().startsWith(SourceInfo.REST_PREFIX)))
+         {
+            dinfo = DependencyTransformer.createDependencyInfo(oldName, ds.getFullName());
          }
 
          //Create parent datasource folders
@@ -173,26 +216,30 @@ public class DataSourceService {
             idx = newName.indexOf('/', idx + 1);
          }
 
-         switch(ds.getType()) {
-         case XDataSource.JDBC:
-            updateDataSource((JDBCDataSource) ds, (JdbcDataSourceProperties) properties);
-            break;
-         default:
-            updateDataSource(ds, (TabularDataSourceProperties) properties);
+         // Bug #77841, the dependencies are renamed once the data source is moved, a refused
+         // rename must not rewrite them (Bug #77704)
+         try {
+            repository.updateDataSource(ds, oldName, false);
+         }
+         catch(DataSourceRenameException e) {
+            if(dinfo != null && e.isMoved(oldName)) {
+               RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+            }
+
+            throw e;
          }
 
-         // Bug #60289, rename transform task is submitted in updateDataSource() for REST
-         if(!oldName.equals(newName) && !((ds instanceof ListedDataSource) ||
-            ds.getType().startsWith(SourceInfo.REST_PREFIX)))
-         {
-            RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
-               oldName, ds.getFullName());
+         if(dinfo != null) {
             RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
          }
 
-         repository.updateDataSource(ds, oldName, false);
          ids.updateName(id, oldName, newName);
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
+      }
+      catch(Exception e) {
+         record.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+         record.setActionError(e.getMessage());
+         throw e;
       }
       finally {
          Audit.getInstance().auditAction(record, user);
@@ -297,6 +344,10 @@ public class DataSourceService {
          "");
 
       try {
+         // name the data source before anything that can throw, so a refused delete is recorded
+         // with its name (Bug #77819)
+         String name = ids.getName(id);
+         record.setObjectName(name != null ? name : id);
          XDataSource ds = getXDataSource(id, ResourceAction.DELETE, user);
          String dxname = ds.getFullName();
          record.setObjectName(dxname);
@@ -313,9 +364,16 @@ public class DataSourceService {
             }
          }
 
+         // the registry removes the data source's own permission best-effort, so a data source
+         // created later with the same name doesn't inherit it (Bug #77690, #78217)
          repository.removeDataSource(dxname, force);
          ids.removeName(dxname);
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
+      }
+      catch(Exception e) {
+         record.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+         record.setActionError(e.getMessage());
+         throw e;
       }
       finally {
          Audit.getInstance().auditAction(record, user);
@@ -400,7 +458,47 @@ public class DataSourceService {
       }
    }
 
-   private void updateDataSource(JDBCDataSource ds, JdbcDataSourceProperties properties) {
+   /**
+    * Bug #77968, gets the password to store for a JDBC data source. The API returns the stored
+    * password as {@link Util#PLACEHOLDER_PASSWORD}, so a client that gets a data source, changes
+    * it and sends it back sends the placeholder (or {@link JdbcDataSourceProperties#PASSWORD_MASK},
+    * the mask older versions returned). It keeps the stored password only for the same URL and
+    * user name, so that the stored password isn't sent to another database, and is never stored
+    * as the password itself. This is done before the data source is changed, so that the stored
+    * URL and user name are still known.
+    *
+    * @return the password to store.
+    *
+    * @throws InvalidResourceException if the placeholder is sent with another URL or user name.
+    */
+   private static String resolvePassword(JDBCDataSource ds, JdbcDataSourceProperties properties)
+      throws InvalidResourceException
+   {
+      String password = properties.getPassword();
+
+      // a data source that uses a credential id gets its password from the secret
+      if(!properties.isRequireLogin() || ds.isUseCredentialId() ||
+         !JdbcDataSourceProperties.PASSWORD_MASK.equals(password) &&
+         !Util.PLACEHOLDER_PASSWORD.equals(password))
+      {
+         return password;
+      }
+
+      if(!Tool.equals(Tool.defaultIfNull(properties.getUrl(), ""),
+                      Tool.defaultIfNull(ds.getURL(), "")) ||
+         !Tool.equals(Tool.defaultIfNull(properties.getUser(), ""),
+                      Tool.defaultIfNull(ds.getUser(), "")))
+      {
+         throw new InvalidResourceException(
+            "The stored password is only kept for the same URL and user name, enter the password");
+      }
+
+      return ds.getPassword();
+   }
+
+   private void updateDataSource(JDBCDataSource ds, JdbcDataSourceProperties properties,
+                                 String password)
+   {
       ds.setName(properties.getName());
       ds.setURL(properties.getUrl());
       ds.setDriver(properties.getDriver());
@@ -418,8 +516,8 @@ public class DataSourceService {
       if(properties.isRequireLogin()) {
          ds.setUser(properties.getUser());
 
-         if(!Util.PLACEHOLDER_PASSWORD.equals(properties.getPassword())) {
-            ds.setPassword(properties.getPassword());
+         if(!ds.isUseCredentialId()) {
+            ds.setPassword(password);
          }
 
          ds.setRequireLogin(true);
@@ -463,5 +561,6 @@ public class DataSourceService {
    private final SecurityEngine securityEngine;
    private final DatabaseTypeService databaseTypeService;
    private final MD5IdentifierGenerator ids;
+   private final DataSourceRegistry dataSourceRegistry;
    private final SecretIdAuthorizer secretIdAuthorizer;
 }

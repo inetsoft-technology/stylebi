@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.schedule;
 
+import inetsoft.report.internal.Util;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
@@ -26,10 +27,12 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.AbstractSheetAsset;
 import inetsoft.util.dep.XAsset;
 import inetsoft.util.dep.XAssetUtil;
+import inetsoft.web.admin.deploy.XAssetExportPermission;
 import inetsoft.web.admin.schedule.*;
 import inetsoft.web.admin.schedule.model.AddParameterDialogModel;
 import inetsoft.web.api.schedule.*;
@@ -94,13 +97,15 @@ public class AdminScheduleGateway {
    public AdminScheduleGateway(AnalyticRepository repository, ScheduleManager scheduleManager,
                                ScheduleService scheduleService,
                                ScheduleConditionService scheduleConditionService,
-                               ScheduleTaskService scheduleTaskService)
+                               ScheduleTaskService scheduleTaskService,
+                               SecurityEngine securityEngine)
    {
       this.repository = repository;
       this.scheduleManager = scheduleManager;
       this.scheduleService = scheduleService;
       this.scheduleConditionService = scheduleConditionService;
       this.scheduleTaskService = scheduleTaskService;
+      this.identityChecker = new ScheduleTaskIdentityChecker(securityEngine);
    }
 
    /**
@@ -143,8 +148,8 @@ public class AdminScheduleGateway {
       }
 
       String name = taskMetaData.getTaskName();
-      checkOwnerPermission(user, owner, executeAsID);
-      task = convertTask(new ScheduleTask(name, owner, enabled, deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID));
+      Identity identity = checkOwnerPermission(user, owner, executeAsID);
+      task = convertTask(new ScheduleTask(name, owner, enabled, deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID), identity);
 
       conditions.stream()
          .map(ScheduleConditionConverter::convertCondition)
@@ -155,6 +160,7 @@ public class AdminScheduleGateway {
 
       for(ScheduleAction action : actions) {
          checkActionOrgBoundary(action, user);
+         checkBackupAssetsPermitted(action, user);
       }
 
       actions.stream()
@@ -388,7 +394,8 @@ public class AdminScheduleGateway {
          checkOwnerPermission(user, owner, executeAsID);
          return true;
       }
-      catch(UnauthorizedAccessException e) {
+      // an execute-as identity that doesn't resolve is refused by addScheduleTask (Bug #78125)
+      catch(UnauthorizedAccessException | MessageException e) {
          return false;
       }
    }
@@ -411,17 +418,31 @@ public class AdminScheduleGateway {
     * executed as, so that a task cannot be created to run under another identity's privileges
     * without authorization. A caller is always allowed to own and/or execute as their own identity.
     * Mirrors {@code ScheduleApiService}'s private {@code checkOwnerPermission(Principal,
-    * IdentityID, ScheduleTask.ExecuteAsID)}.
+    * IdentityID, ScheduleTask.ExecuteAsID, ScheduleTask)} for an added task (no stored task),
+    * including the identity checks of Bug #77281 and Bug #78125.
+    *
+    * @return the execute-as identity to store on the task, {@code null} for none.
     */
-   private void checkOwnerPermission(Principal user, IdentityID owner,
-                                     ScheduleTask.ExecuteAsID executeAsID)
+   private Identity checkOwnerPermission(Principal user, IdentityID owner,
+                                         ScheduleTask.ExecuteAsID executeAsID)
       throws Exception
    {
+      // Bug #78125, the identity is derived once here and the same value is checked and stored
+      Identity identity = executeAsID == null ? null :
+         SUtil.getIdentity(executeAsID.getIdentityID(), getIdentityType(executeAsID));
       IdentityID callerID = IdentityID.getIdentityIDFromKey(user.getName());
 
       if(!Tool.equals(callerID, owner) &&
          !repository.checkPermission(user, ResourceType.SECURITY_USER, owner,
                                      ResourceAction.ADMIN))
+      {
+         throw new UnauthorizedAccessException();
+      }
+
+      // Bug #77281, a caller that isn't a site admin may only assign an owner and execute-as
+      // identity the task editor offers
+      if(!identityChecker.isOwnerAllowed(owner, user) ||
+         !identityChecker.isRunAsOwnerAllowed(null, null, owner, identity, user))
       {
          throw new UnauthorizedAccessException();
       }
@@ -440,7 +461,38 @@ public class AdminScheduleGateway {
                throw new UnauthorizedAccessException();
             }
          }
+
+         if(!identityChecker.isExecuteAsAllowed(executeAsID.getIdentityID(),
+                                                getIdentityType(executeAsID), owner, user))
+         {
+            throw new UnauthorizedAccessException();
+         }
+
+         // Bug #78125, an execute-as identity that doesn't resolve is refused instead of being
+         // stored as no identity, which would make the task run as its owner. The owner itself
+         // is accepted, a task without an execute-as identity runs as its owner.
+         if(identity == null && !(executeAsID.getType() == ScheduleTask.ExecuteAsID.Type.USER &&
+            Tool.equals(owner, executeAsID.getIdentityID())))
+         {
+            String type = executeAsID.getType() == ScheduleTask.ExecuteAsID.Type.USER ?
+               "user" : "group";
+            String reason = scheduleService.isSecurityEnabled() ?
+               "does not exist in the security provider" :
+               "cannot be validated while security is disabled";
+            throw new MessageException(
+               "The execute-as " + type + " " + executeAsID.getIdentityID() + " " + reason);
+         }
       }
+
+      return identity;
+   }
+
+   /**
+    * Gets the Identity type (USER or GROUP) of an execute-as identity.
+    */
+   private static int getIdentityType(ScheduleTask.ExecuteAsID executeAsID) {
+      return executeAsID.getType() == ScheduleTask.ExecuteAsID.Type.USER ?
+         Identity.USER : Identity.GROUP;
    }
 
    /**
@@ -454,11 +506,18 @@ public class AdminScheduleGateway {
       }
       else if(action instanceof BatchAction batchAction) {
          checkAssetOrgBoundary(batchAction.getQueryEntry(), user);
+         checkBatchActionInternalTaskTarget(batchAction, user);
       }
       else if(action instanceof IndividualAssetBackupAction backupAction &&
               backupAction.getAssetIdentifiers() != null)
       {
          for(String identifier : backupAction.getAssetIdentifiers()) {
+            // Bug #77954, an identifier that names no asset would be stored as a null asset
+            if(identifier == null || XAssetUtil.createXAsset(identifier) == null) {
+               throw new MissingResourceException(
+                  "The backup asset " + identifier + " is not a valid asset identifier");
+            }
+
             // Only sheet-type assets (worksheet/viewsheet) expose a reliable per-org identity --
             // see ScheduleApiService#checkActionOrgBoundary's own comment for why the org must be
             // read from the raw identifier rather than XAsset.parseIdentifier()'s AssetEntry.
@@ -470,6 +529,49 @@ public class AdminScheduleGateway {
                }
             }
          }
+      }
+   }
+
+   /**
+    * Bug #77954, checks the assets of a backup action as the EM and portal task editors do: the
+    * caller must be permitted to export every asset. Mirrors {@code
+    * ScheduleApiService#checkBackupAssetsPermitted} for an added task, which has no stored assets.
+    */
+   private void checkBackupAssetsPermitted(ScheduleAction action, Principal user)
+      throws UnauthorizedAccessException
+   {
+      if(!(action instanceof IndividualAssetBackupAction backupAction) ||
+         backupAction.getAssetIdentifiers() == null)
+      {
+         return;
+      }
+
+      for(String identifier : backupAction.getAssetIdentifiers()) {
+         // not null, checkActionOrgBoundary() is called first and rejects an invalid identifier
+         XAsset asset = XAssetUtil.createXAsset(identifier);
+         // the same resource path as the task editor and the run-time check use
+         String path = asset.getPath() == null ? null : SUtil.getUnscopedPath(asset.getPath());
+
+         if(!XAssetExportPermission.isPermitted(asset, path, true, user)) {
+            throw new UnauthorizedAccessException(
+               "The backup asset " + identifier + " may not be exported by " +
+               (user == null ? null : user.getName()));
+         }
+      }
+   }
+
+   /**
+    * Bug #77531, refuses a BatchAction whose target is one of the internal tasks unless the
+    * caller is a site admin. Mirrors {@code ScheduleApiService#checkBatchActionInternalTaskTarget},
+    * checked against the raw, client-supplied task name.
+    */
+   private void checkBatchActionInternalTaskTarget(BatchAction batchAction, Principal user)
+      throws Exception
+   {
+      if(ScheduleManager.isInternalTask(batchAction.getTaskName()) &&
+         !OrganizationManager.getInstance().isSiteAdmin(user))
+      {
+         throw new UnauthorizedAccessException();
       }
    }
 
@@ -489,16 +591,19 @@ public class AdminScheduleGateway {
       }
    }
 
-   private inetsoft.sree.schedule.ScheduleTask convertTask(ScheduleTask task) {
-      ScheduleTask.ExecuteAsID executeAsID = task.getExecuteAsID();
-
+   /**
+    * @param identity the execute-as identity returned by checkOwnerPermission().
+    */
+   private inetsoft.sree.schedule.ScheduleTask convertTask(ScheduleTask task, Identity identity) {
       inetsoft.sree.schedule.ScheduleTask output = new inetsoft.sree.schedule.ScheduleTask();
       output.setName(task.getName());
       output.setOwner(task.getOwner());
       output.setDescription(task.getDescription());
       output.setLocale(task.getLocale());
 
-      if(task.getEndDate() >= 0) {
+      // Bug #77297, an omitted end date is 0 in a create request, which is no end date rather
+      // than an end in 1970 that keeps the task from ever being scheduled
+      if(task.getEndDate() > 0) {
          output.setEndDate(new Date(task.getEndDate()));
       }
 
@@ -509,9 +614,8 @@ public class AdminScheduleGateway {
       output.setEnabled(task.isEnabled());
       output.setDeleteIfNoMoreRun(task.isDeleteIfNotScheduledToRun());
 
-      if(executeAsID != null) {
-         Identity id = SUtil.getIdentity(executeAsID.getIdentityID(), executeAsID.getType().ordinal());
-         output.setIdentity(id);
+      if(identity != null) {
+         output.setIdentity(identity);
       }
 
       return output;
@@ -741,7 +845,6 @@ public class AdminScheduleGateway {
 
       if(pathInfo != null) {
          inetsoft.sree.schedule.ServerPathInfo info = new inetsoft.sree.schedule.ServerPathInfo();
-         info.setPath(pathInfo.getPath());
 
          if(pathInfo.isUseCredential()) {
             info.setUseCredential(true);
@@ -749,9 +852,12 @@ public class AdminScheduleGateway {
          }
          else {
             info.setUsername(pathInfo.getUserName());
-            info.setPassword(pathInfo.getPassword());
+            info.setPassword(getNewPassword(pathInfo.getPassword()));
          }
 
+         // Bug #77957, set the path last, so that a password in the path wins over the fields as
+         // it does when the file is uploaded
+         info.setPath(pathInfo.getPath());
          output.setServerPaths(info);
       }
 
@@ -774,13 +880,16 @@ public class AdminScheduleGateway {
             inetsoft.sree.schedule.ServerPathInfo info;
 
             if(filePath.isUseCredential()) {
-               info = new inetsoft.sree.schedule.ServerPathInfo(filePath.getPath(), null, null);
+               // Bug #77957, set the path last, so that a password in the path wins over the
+               // secret as it does when the file is uploaded
+               info = new inetsoft.sree.schedule.ServerPathInfo();
                info.setUseCredential(true);
                info.setSecretId(filePath.getSecretId());
+               info.setPath(filePath.getPath());
             }
             else {
-               info = new inetsoft.sree.schedule.ServerPathInfo(filePath.getPath(),
-                                                                filePath.getUsername(), filePath.getPassword());
+               info = new inetsoft.sree.schedule.ServerPathInfo(
+                  filePath.getPath(), filePath.getUsername(), getNewPassword(filePath.getPassword()));
             }
 
             output.setFilePath(filePath.getFormat().getTypeValue(), info);
@@ -790,6 +899,16 @@ public class AdminScheduleGateway {
             }
          }
       }
+   }
+
+   /**
+    * Bug #77937, the API returns a stored password as {@link Util#PLACEHOLDER_PASSWORD}. A task
+    * added here has no stored password to keep, so the placeholder is never stored as the
+    * password itself. Mirrors {@code ScheduleApiService#resolvePlaceholderPassword} for an added
+    * task.
+    */
+   private static String getNewPassword(String password) {
+      return Util.PLACEHOLDER_PASSWORD.equals(password) ? null : password;
    }
 
    private void populateScheduleAlerts(ViewsheetAction action,
@@ -950,4 +1069,5 @@ public class AdminScheduleGateway {
    private final ScheduleService scheduleService;
    private final ScheduleConditionService scheduleConditionService;
    private final ScheduleTaskService scheduleTaskService;
+   private final ScheduleTaskIdentityChecker identityChecker;
 }

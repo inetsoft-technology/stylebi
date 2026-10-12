@@ -229,12 +229,8 @@ class SecurityServiceRenameSelfGrantIntegrationTest {
    void roleGetThenPutWithNewName_assignGrantNamesRenamedRole() throws Exception {
       IdentityID r = new IdentityID("r", ORG_ID);
       IdentityID r3 = new IdentityID("r3", ORG_ID);
-      selfGrant(ResourceType.SECURITY_ROLE, r, Identity.ROLE);
-      // the REST role GET reads the ASSIGN grantees of a non-root role, which is the action the PUT
-      // writes (Bug #77868), so the self grant is also seeded as ASSIGN for the GET to return it
-      Permission seeded = chain.getPermission(ResourceType.SECURITY_ROLE, r, ORG_ID);
-      seeded.setRoleGrantsForOrg(ResourceAction.ASSIGN, Set.of(r.name), ORG_ID);
-      chain.setPermission(ResourceType.SECURITY_ROLE, r, seeded, ORG_ID);
+      // a non-root role's grant is ASSIGN, which the PUT writes and the GET reads (Bug #77868)
+      selfGrant(ResourceType.SECURITY_ROLE, r, Identity.ROLE, ResourceAction.ASSIGN);
 
       SecurityRole body = OrganizationManager.runInOrgScope(
          ORG_ID, () -> service.getRole(r, siteAdmin));
@@ -249,29 +245,61 @@ class SecurityServiceRenameSelfGrantIntegrationTest {
       assertNotNull(fileProvider.getRole(r3), "precondition: the role was renamed");
       Permission permission = chain.getPermission(ResourceType.SECURITY_ROLE, r3, ORG_ID);
       assertNotNull(permission, "the self grant moves to the new key");
-      // The REST role GET reads the ADMIN grantees, but the PUT writes them as ASSIGN for a non-root
-      // role (IdentityService.setIdentityPermissions). The seeded ADMIN self grant is renamed by
-      // setIdentity() and left in place by the PUT, so both actions name the renamed role.
       assertEquals(Set.of(r3), permission.getOrgScopedRoleGrants(ResourceAction.ASSIGN, ORG_ID),
                    "the renamed role's ASSIGN grant names the renamed role");
+      assertEquals(Set.of(), permission.getOrgScopedRoleGrants(ResourceAction.ADMIN, ORG_ID),
+                   "the PUT writes no ADMIN grant");
+      assertNull(chain.getPermission(ResourceType.SECURITY_ROLE, r, ORG_ID),
+                 "the old key is removed");
+   }
+
+   // a legacy ADMIN grant on a non-root role is not shown by the GET and not written by the PUT,
+   // but setIdentity() still renames it with the role (Bug #77868)
+   @Test
+   void roleGetThenPutWithNewName_legacyAdminGrantHiddenAndRenamed() throws Exception {
+      IdentityID r = new IdentityID("r", ORG_ID);
+      IdentityID r3 = new IdentityID("r3", ORG_ID);
+      selfGrant(ResourceType.SECURITY_ROLE, r, Identity.ROLE, ResourceAction.ADMIN);
+
+      SecurityRole body = OrganizationManager.runInOrgScope(
+         ORG_ID, () -> service.getRole(r, siteAdmin));
+      assertEquals(List.of(), body.getAdminIdentities().getRoles(),
+                   "the GET does not show the ADMIN grant");
+      body.setIdentityID(r3);
+      OrganizationManager.runInOrgScope(ORG_ID, () -> {
+         service.updateRole(r, body, siteAdmin);
+         return null;
+      });
+
+      assertNotNull(fileProvider.getRole(r3), "precondition: the role was renamed");
+      Permission permission = chain.getPermission(ResourceType.SECURITY_ROLE, r3, ORG_ID);
+      assertNotNull(permission, "the grant moves to the new key");
       assertEquals(Set.of(r3), permission.getOrgScopedRoleGrants(ResourceAction.ADMIN, ORG_ID),
-                   "the seeded ADMIN self grant names the renamed role");
+                   "the legacy ADMIN grant names the renamed role");
+      assertEquals(Set.of(), permission.getOrgScopedRoleGrants(ResourceAction.ASSIGN, ORG_ID),
+                   "the GET's empty list writes no ASSIGN grant");
       assertNull(chain.getPermission(ResourceType.SECURITY_ROLE, r, ORG_ID),
                  "the old key is removed");
    }
 
    private void selfGrant(ResourceType type, IdentityID id, int identityType) {
+      selfGrant(type, id, identityType, ResourceAction.ADMIN);
+   }
+
+   private void selfGrant(ResourceType type, IdentityID id, int identityType,
+                          ResourceAction action)
+   {
       Permission permission = new Permission();
 
       switch(identityType) {
       case Identity.USER:
-         permission.setUserGrantsForOrg(ResourceAction.ADMIN, Set.of(id.name), ORG_ID);
+         permission.setUserGrantsForOrg(action, Set.of(id.name), ORG_ID);
          break;
       case Identity.GROUP:
-         permission.setGroupGrantsForOrg(ResourceAction.ADMIN, Set.of(id.name), ORG_ID);
+         permission.setGroupGrantsForOrg(action, Set.of(id.name), ORG_ID);
          break;
       default:
-         permission.setRoleGrantsForOrg(ResourceAction.ADMIN, Set.of(id.name), ORG_ID);
+         permission.setRoleGrantsForOrg(action, Set.of(id.name), ORG_ID);
       }
 
       permission.updateGrantAllByOrg(ORG_ID, true);

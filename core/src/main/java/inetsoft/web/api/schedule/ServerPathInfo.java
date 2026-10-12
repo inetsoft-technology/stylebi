@@ -18,6 +18,8 @@
 
 package inetsoft.web.api.schedule;
 
+import inetsoft.report.internal.Util;
+import inetsoft.util.Tool;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "The server path info for backup action.")
@@ -38,7 +40,9 @@ public class ServerPathInfo {
          }
          else {
             this.userName = info.getUsername();
-            this.password = info.getPassword();
+            // Bug #77937, never send a stored password back to the client, only a placeholder
+            // that tells it a password is set
+            this.password = Tool.isEmptyString(info.getPassword()) ? null : Util.PLACEHOLDER_PASSWORD;
          }
       }
    }
@@ -77,6 +81,10 @@ public class ServerPathInfo {
       this.userName = userName;
    }
 
+   @Schema(description = "The password for the server. A stored password is returned as " +
+      Util.PLACEHOLDER_PASSWORD + ". Sending the placeholder back keeps the stored password, " +
+      "but only when the path logs in to the same server as the same user; a user name in the " +
+      "path overrides the user name field.")
    public String getPassword() {
       return password;
    }

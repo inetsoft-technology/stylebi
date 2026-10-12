@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import inetsoft.web.security.auth.ResourceExistsException;
 import inetsoft.web.security.auth.UnauthorizedAccessException;
@@ -280,11 +281,18 @@ public class SecurityService {
          members.add(id.name);
          org.setMembers(members.toArray(new String[0]));
          provider.setOrganization(id.orgID, org);
-         themeService.assignTheme(id.name, id.name, id.orgID, request.getTheme(), CustomTheme::getUsers);
-         setIdentityPermissions(id, ResourceType.SECURITY_USER, securityProvider, principal,
-            request.getAdminIdentities());
+         IdentityInfoRecord createdRecord = identityInfoRecord;
+         // the user is already created, so a failed permission write must not skip the theme
+         // or the identity audit; the failure is reported after them (Bug #77798)
+         writePermissionsThen(
+            () -> setIdentityPermissions(id, ResourceType.SECURITY_USER, securityProvider,
+                                         principal, request.getAdminIdentities()),
+            () -> {
+               themeService.assignTheme(id.name, id.name, id.orgID, request.getTheme(),
+                                        CustomTheme::getUsers);
+               Audit.getInstance().auditIdentityInfo(createdRecord, principal);
+            });
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
-         Audit.getInstance().auditIdentityInfo(identityInfoRecord, principal);
       }
       finally {
          Audit.getInstance().auditAction(record, principal);
@@ -294,7 +302,9 @@ public class SecurityService {
    /**
     * Updates a user. A property or list that the request omits ({@code null}) leaves that
     * property of the user unchanged. A value that is present replaces the current one, and an
-    * empty list or string clears it.
+    * empty list or string clears it. A group list replaces only the groups the caller may
+    * administer: the user stays in a group the caller may not administer, and an empty list
+    * removes the user from only the groups the caller may administer.
     */
    public void updateUser(IdentityID id, SecurityUser request, Principal principal) throws Exception {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
@@ -319,6 +329,13 @@ public class SecurityService {
             throw new InvalidResourceException();
          }
 
+         // A password that the request sets is applied by setIdentity() like the EM user pane
+         // (Bug #77504). Check its strength here, as createUser() does, because setIdentity()
+         // renames the org member before it validates the password.
+         if(request.getPassword() != null) {
+            IdentityService.validatePasswordStrength(request.getPassword());
+         }
+
          // Use the validated org from the path/query, not the request body, so a caller can't
          // smuggle a different org into the body and pull in members from another tenant.
          List<IdentityID> groupIds = request.getGroups() == null ? null : request.getGroups().stream()
@@ -326,11 +343,15 @@ public class SecurityService {
 
          // A property that the request omits (null) keeps the user's current value, taken from
          // the editable provider (Bug #77326). An omitted group list keeps the current groups,
-         // which are not filtered by the caller's permissions, because they do not change.
-         Collection<IdentityID> groups = groupIds == null ?
+         // which are not filtered by the caller's permissions, because they do not change. A
+         // listed group list keeps the groups the caller may not administer (Bug #77519).
+         List<IdentityID> storedGroups =
             Arrays.stream(currentUser.getGroups() == null ? new String[0] : currentUser.getGroups())
-               .map(n -> new IdentityID(n, id.orgID)).toList() :
-            filterPermittedIds(groupIds, ResourceType.SECURITY_GROUP, securityProvider, principal);
+               .map(n -> new IdentityID(n, id.orgID)).toList();
+         Collection<IdentityID> groups = groupIds == null ? storedGroups :
+            keepNotAdministrableMembers(
+               filterPermittedIds(groupIds, ResourceType.SECURITY_GROUP, securityProvider, principal),
+               storedGroups, ResourceType.SECURITY_GROUP, securityProvider, principal);
          List<IdentityModel> parentGroups =
             groups
                .stream()
@@ -359,6 +380,11 @@ public class SecurityService {
             builder.email(String.join(",", emails));
          }
 
+         // an omitted password (null) keeps the current one (Bug #77504)
+         if(request.getPassword() != null) {
+            builder.password(request.getPassword());
+         }
+
          if(request.getRoles() != null) {
             builder = builder.roles(new ArrayList<>(resolveRoleReferencesOrThrow(
                filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider)));
@@ -384,25 +410,29 @@ public class SecurityService {
       themeService.assignTheme(oldUser.getName(), userModel.name(), userModel.organization(),
                                userModel.theme(), CustomTheme::getUsers);
 
-      if(request.getAdminIdentities() == null) {
-         keepIdentityPermissions(oldId, newId, ResourceType.SECURITY_USER, securityProvider);
-      }
-      else {
-         identityService.setIdentityPermissions(
-            oldId, newId, ResourceType.SECURITY_USER, principal,
-            renameOwnPermittedEntry(userModel.permittedIdentities(), Identity.USER, oldId, newId),
-            "");
-      }
+      // the rename is already saved, so a failed permission write must not skip the rename
+      // migrations; the failure is reported after them (Bug #77798)
+      writePermissionsThen(() -> {
+         if(request.getAdminIdentities() == null) {
+            keepIdentityPermissions(oldId, newId, ResourceType.SECURITY_USER, securityProvider);
+         }
+         else {
+            identityService.setIdentityPermissions(
+               oldId, newId, ResourceType.SECURITY_USER, principal,
+               renameOwnPermittedEntry(userModel.permittedIdentities(), Identity.USER, oldId, newId),
+               "");
+         }
+      }, () -> {
+         // Run the same rename migrations as EM (assets, MV, data cycles, recycle bin, ...), on
+         // the stored user's org, and only after the provider rename succeeded.
+         String userOrgID = oldUser.getOrganizationID() != null ? oldUser.getOrganizationID() : id.orgID;
+         IdentityID oldUserID = new IdentityID(id.name, userOrgID);
+         IdentityID newUserID = new IdentityID(userModel.name(), userOrgID);
 
-      // Run the same rename migrations as EM (assets, MV, data cycles, recycle bin, ...), on the
-      // stored user's org, and only after the provider rename succeeded.
-      String userOrgID = oldUser.getOrganizationID() != null ? oldUser.getOrganizationID() : id.orgID;
-      IdentityID oldUserID = new IdentityID(id.name, userOrgID);
-      IdentityID newUserID = new IdentityID(userModel.name(), userOrgID);
-
-      if(!oldUserID.equals(newUserID)) {
-         userTreeService.migrateUserRename(oldUserID, newUserID);
-      }
+         if(!oldUserID.equals(newUserID)) {
+            userTreeService.migrateUserRename(oldUserID, newUserID);
+         }
+      });
    }
 
    public void deleteUser(IdentityID user, Principal principal) throws Exception {
@@ -600,12 +630,18 @@ public class SecurityService {
          String state = IdentityInfoRecord.STATE_ACTIVE;
          identityInfoRecord = SUtil.getIdentityInfoRecord(identityID, Identity.GROUP,
             IdentityInfoRecord.ACTION_TYPE_CREATE, null, state);
-         themeService.updateIdentityTheme(identityID.name, identityID.name, identityID.orgID,
-                                          request.getTheme(), CustomTheme::getGroups, principal);
-         setIdentityPermissions(identityID, ResourceType.SECURITY_GROUP, securityProvider, principal,
-                                request.getAdminIdentities());
+         IdentityInfoRecord createdRecord = identityInfoRecord;
+         // the group is already created, so a failed permission write must not skip the theme
+         // or the identity audit; the failure is reported after them (Bug #77798)
+         writePermissionsThen(
+            () -> setIdentityPermissions(identityID, ResourceType.SECURITY_GROUP, securityProvider,
+                                         principal, request.getAdminIdentities()),
+            () -> {
+               themeService.updateIdentityTheme(identityID.name, identityID.name, identityID.orgID,
+                                                request.getTheme(), CustomTheme::getGroups, principal);
+               Audit.getInstance().auditIdentityInfo(createdRecord, principal);
+            });
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
-         Audit.getInstance().auditIdentityInfo(identityInfoRecord, principal);
       }
       finally {
          Audit.getInstance().auditAction(record, principal);
@@ -616,7 +652,9 @@ public class SecurityService {
     * Updates a group. A property or list that the request omits ({@code null}) leaves that
     * property of the group unchanged. A value that is present replaces the current one, and an
     * empty list or string clears it, except for the parent groups: a parent group list is added to
-    * the group's current parent groups, and an empty one removes none.
+    * the group's current parent groups, and an empty one removes none. A member user or member
+    * group list replaces only the members the caller may administer: a member the caller may not
+    * administer is kept, and an empty list removes only the members the caller may administer.
     */
    public void updateGroup(IdentityID identityID, SecurityGroup request, Principal principal) throws Exception {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
@@ -654,7 +692,10 @@ public class SecurityService {
          // a member list that the request omits leaves the group's members of that type unchanged
          Collection<IdentityID> memberGroups = memberIds == null ?
             getGroupMembers(identityID, provider.getGroups(), provider::getGroup) :
-            filterPermittedIds(memberIds, ResourceType.SECURITY_GROUP, securityProvider, principal);
+            keepNotAdministrableMembers(
+               filterPermittedIds(memberIds, ResourceType.SECURITY_GROUP, securityProvider, principal),
+               getGroupMembers(identityID, provider.getGroups(), provider::getGroup),
+               ResourceType.SECURITY_GROUP, securityProvider, principal);
          List<IdentityModel> members =
             memberGroups
                .stream()
@@ -671,7 +712,11 @@ public class SecurityService {
 
          Collection<IdentityID> memberUsers = memberUserIds == null ?
             getGroupMembers(identityID, provider.getUsers(), provider::getUser) :
-            filterPermittedIds(memberUserIds, ResourceType.SECURITY_USER, securityProvider, principal);
+            keepNotAdministrableMembers(
+               filterPermittedIds(memberUserIds, ResourceType.SECURITY_USER, securityProvider,
+                                  principal),
+               getGroupMembers(identityID, provider.getUsers(), provider::getUser),
+               ResourceType.SECURITY_USER, securityProvider, principal);
          members.addAll(
             memberUsers
                .stream()
@@ -726,30 +771,35 @@ public class SecurityService {
                                        groupModel.organization(), groupModel.theme(),
                                        CustomTheme::getGroups, principal);
 
-      if(request.getAdminIdentities() == null) {
-         keepIdentityPermissions(oldId, newId, ResourceType.SECURITY_GROUP, securityProvider);
-      }
-      else {
-         identityService.setIdentityPermissions(
-            oldId, newId, ResourceType.SECURITY_GROUP, principal,
-            renameOwnPermittedEntry(groupModel.permittedIdentities(), Identity.GROUP, oldId, newId),
-            identityID.orgID);
-      }
+      // the rename is already saved, so a failed permission write must not skip the parent
+      // group move or the rename migrations; the failure is reported after them (Bug #77798)
+      writePermissionsThen(() -> {
+         if(request.getAdminIdentities() == null) {
+            keepIdentityPermissions(oldId, newId, ResourceType.SECURITY_GROUP, securityProvider);
+         }
+         else {
+            identityService.setIdentityPermissions(
+               oldId, newId, ResourceType.SECURITY_GROUP, principal,
+               renameOwnPermittedEntry(groupModel.permittedIdentities(), Identity.GROUP, oldId, newId),
+               identityID.orgID);
+         }
+      }, () -> {
+         // oldId/newId already carry the validated org (from groupModel.organization()); using
+         // the raw request body identity here would let a caller move the group into another org.
+         updateParentGroups(oldId, newId, request.getParentGroups(), securityProvider, principal);
 
-      // oldId/newId already carry the validated org (from groupModel.organization()); using the
-      // raw request body identity here would let a caller move the group into another org.
-      updateParentGroups(oldId, newId, request.getParentGroups(), securityProvider, principal);
+         // Run the same rename migrations as EM (assets, data cycles), on the stored group's
+         // org. Keep this last so a migration failure can't skip the provider-level parent-group
+         // move.
+         String groupOrgID = oldGroup.getOrganizationID() != null ?
+            oldGroup.getOrganizationID() : identityID.orgID;
+         IdentityID oldGroupID = new IdentityID(identityID.name, groupOrgID);
+         IdentityID newGroupID = new IdentityID(groupModel.name(), groupOrgID);
 
-      // Run the same rename migrations as EM (assets, data cycles), on the stored group's org.
-      // Keep this last so a migration failure can't skip the provider-level parent-group move.
-      String groupOrgID = oldGroup.getOrganizationID() != null ?
-         oldGroup.getOrganizationID() : identityID.orgID;
-      IdentityID oldGroupID = new IdentityID(identityID.name, groupOrgID);
-      IdentityID newGroupID = new IdentityID(groupModel.name(), groupOrgID);
-
-      if(!oldGroupID.equals(newGroupID)) {
-         userTreeService.migrateGroupRename(oldGroupID, newGroupID);
-      }
+         if(!oldGroupID.equals(newGroupID)) {
+            userTreeService.migrateGroupRename(oldGroupID, newGroupID);
+         }
+      });
    }
 
    public void deleteGroup(IdentityID group, Principal principal) throws Exception {
@@ -917,7 +967,14 @@ public class SecurityService {
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
       ActionRecord record = null;
+      // the clone's record, audited only if a step after the clone failed
+      ActionRecord cloneFailureRecord = null;
       IdentityInfoRecord identityInfoRecord = null;
+      // set once provider.addOrganization() (or the clone) returned, after that nothing is
+      // rolled back
+      boolean orgCreated = false;
+      // member identities a failed create could not remove again
+      List<String> rollbackLeft = new ArrayList<>();
 
       try {
          if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
@@ -938,9 +995,7 @@ public class SecurityService {
          checkOrganizationIdentityConflict(securityProvider, null, request);
 
          // Validated ahead of both branches so an invalid code is rejected consistently whether or
-         // not copyFrom was supplied, and before the ActionRecord exists -- this method's finally
-         // block stamps ACTION_STATUS_SUCCESS unconditionally, so a throw after that point would
-         // be audited as a successful create.
+         // not copyFrom was supplied, and before any write or ActionRecord exists.
          String orgLocale = validateLocale(request.getLocale());
 
          // runs before both the clone and the plain create below; the clone path's own
@@ -948,8 +1003,18 @@ public class SecurityService {
          OrganizationIdRules.checkCreate(request.getId());
 
          if(!Tool.isEmptyString(copyFromOrgID)) {
+            // UserTreeService audits the clone itself, as success or failure, so only a failure
+            // of the steps below is recorded here. The record is built before the clone, which
+            // switches the current org to the new org, so it carries the caller's org as the
+            // plain path's record does (Bug #77835)
+            cloneFailureRecord = new ActionRecord(
+               SUtil.getUserName(principal), ActionRecord.ACTION_NAME_CREATE, request.getId(),
+               ActionRecord.OBJECT_TYPE_USERPERMISSION, actionTimestamp,
+               ActionRecord.ACTION_STATUS_FAILURE, "");
+            // UserTreeService.createOrganization(copyFromOrgID, providerName, orgName, orgID, ...)
             userTreeService.createOrganization(
                copyFromOrgID, provider.getProviderName(), request.getName(), request.getId(), principal, request.getDefaultPassword());
+            orgCreated = true;
             // the copy branch must apply the requested admins too, in the org's own bucket. The
             // copy does not apply request.getName() (the new org is named by its id) and the
             // copied self grant is keyed by the org as created, so key the requested admins by
@@ -1019,28 +1084,53 @@ public class SecurityService {
          CustomTheme currentTheme =
             findOrganizationTheme(request.getTheme(), oid).orElse(null);
          organization.setTheme(currentTheme == null ? null : currentTheme.getId());
-         provider.addOrganization(organization);
-         applyOrganizationProperties(oid, request.getProperties());
 
-         for(IdentityID memberUser : memberUserIds) {
-            FSUser user = new FSUser(memberUser);
-            SUtil.setPassword(user, request.getDefaultPassword());
-            provider.addUser(user);
+         // the members are written first and the org record last, so the stored org lists only
+         // members that exist, and a failure up to the org write is undone by removing just the
+         // identities this call attempted. provider.removeOrganization() must not be used for
+         // that, it removes every identity keyed to the org id, not only this call's (Bug #77800)
+         List<Identity> attempted = new ArrayList<>();
+         boolean membersAdded = false;
+
+         try {
+            for(IdentityID memberUser : memberUserIds) {
+               FSUser user = new FSUser(memberUser);
+               SUtil.setPassword(user, request.getDefaultPassword());
+               // recorded before the add, a write that threw may still have been stored
+               attempted.add(user);
+               provider.addUser(user);
+            }
+
+            for(IdentityID memberGroup : memberGroupIds) {
+               FSGroup group = new FSGroup(memberGroup);
+               attempted.add(group);
+               provider.addGroup(group);
+            }
+
+            for(IdentityID memberGroup : memberRoleIds) {
+               FSRole role = new FSRole(memberGroup);
+               attempted.add(role);
+               provider.addRole(role);
+            }
+
+            membersAdded = true;
+            provider.addOrganization(organization);
+         }
+         catch(Exception e) {
+            Identity failedAdd = membersAdded || attempted.isEmpty() ?
+               null : attempted.get(attempted.size() - 1);
+            rollbackLeft.addAll(removeAttemptedMembers(provider, attempted, failedAdd, e));
+            throw e;
          }
 
-         for(IdentityID memberGroup : memberGroupIds) {
-            FSGroup group = new FSGroup(memberGroup);
-            provider.addGroup(group);
-         }
-
-         for(IdentityID memberGroup : memberRoleIds) {
-            FSRole role = new FSRole(memberGroup);
-            provider.addRole(role);
-         }
-
+         orgCreated = true;
          String state = IdentityInfoRecord.STATE_ACTIVE;
          identityInfoRecord = SUtil.getIdentityInfoRecord(organization.getIdentityID(), Identity.ORGANIZATION,
                                                           IdentityInfoRecord.ACTION_TYPE_CREATE, null, state);
+         // the org's properties are stored in its own scope, so they are written once the org
+         // exists; a failure is reported as a failed later step
+         applyOrganizationProperties(oid, request.getProperties());
+
          if(currentTheme != null) {
             addOrganizationToTheme(currentTheme.getId(), oid);
          }
@@ -1055,10 +1145,35 @@ public class SecurityService {
          setIdentityPermissions(organization.getIdentityID(),
                                 ResourceType.SECURITY_ORGANIZATION, securityProvider, principal,
                                 request.getAdminIdentities());
+
+         if(record != null) {
+            record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
+         }
+      }
+      catch(Exception e) {
+         if(record == null && orgCreated) {
+            record = cloneFailureRecord;
+         }
+
+         if(record != null) {
+            String error = e.getMessage() == null ? e.getClass().getName() : e.getMessage();
+
+            if(orgCreated) {
+               // a step after the org write failed, the org and its members are kept
+               error = "Organization " + request.getId() + " was created, but a later step " +
+                  "failed: " + error;
+            }
+            else if(!rollbackLeft.isEmpty()) {
+               error = error + "; rollback incomplete: " + String.join(", ", rollbackLeft);
+            }
+
+            record.setActionError(error);
+         }
+
+         throw e;
       }
       finally {
          if(record != null) {
-            record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
             Audit.getInstance().auditAction(record, principal);
          }
 
@@ -1066,6 +1181,62 @@ public class SecurityService {
             Audit.getInstance().auditIdentityInfo(identityInfoRecord, principal);
          }
       }
+   }
+
+   /**
+    * Removes the member identities a failed {@link #createOrganization} attempted, in reverse
+    * order. The identity whose add threw ({@code failedAdd}, null when every add returned) is
+    * removed only if it was stored anyway. A failed remove is logged and added to
+    * {@code cause} as suppressed, so the original error is still the one reported (Bug #77800).
+    *
+    * @return the names of the identities that could not be removed.
+    */
+   private static List<String> removeAttemptedMembers(EditableAuthenticationProvider provider,
+                                                      List<Identity> attempted,
+                                                      Identity failedAdd, Exception cause)
+   {
+      List<String> left = new ArrayList<>();
+
+      for(int i = attempted.size() - 1; i >= 0; i--) {
+         Identity identity = attempted.get(i);
+         IdentityID id = identity.getIdentityID();
+         boolean checkExists = identity == failedAdd;
+
+         try {
+            switch(identity.getType()) {
+            case Identity.USER:
+               if(!checkExists || provider.getUser(id) != null) {
+                  provider.removeUser(id);
+               }
+               break;
+            case Identity.GROUP:
+               if(!checkExists || provider.getGroup(id) != null) {
+                  provider.removeGroup(id);
+               }
+               break;
+            case Identity.ROLE:
+               if(!checkExists || provider.getRole(id) != null) {
+                  provider.removeRole(id);
+               }
+               break;
+            default:
+               break;
+            }
+         }
+         catch(Exception ex) {
+            org.slf4j.LoggerFactory.getLogger(SecurityService.class).warn(
+               "Failed to remove {} after a failed create of organization {}",
+               id.getName(), id.getOrgID(), ex);
+
+            if(ex != cause) {
+               cause.addSuppressed(ex);
+            }
+
+            left.add(id.getName());
+         }
+      }
+
+      return left;
    }
 
    /**
@@ -1385,6 +1556,45 @@ public class SecurityService {
    }
 
    /**
+    * Writes the permissions of an identity that is already created or renamed, then runs the
+    * steps that follow even if the write failed, so that they are not skipped (Bug #77798). A
+    * permission write failure is thrown after those steps, with any of their failures attached
+    * to it. A failure of the later steps alone is thrown as is.
+    */
+   private static void writePermissionsThen(Step permissionStep, Step laterSteps)
+      throws Exception
+   {
+      RuntimeException permissionFailure = null;
+
+      try {
+         permissionStep.run();
+      }
+      catch(RuntimeException e) {
+         permissionFailure = e;
+      }
+
+      try {
+         laterSteps.run();
+      }
+      catch(Exception e) {
+         if(permissionFailure == null) {
+            throw e;
+         }
+
+         permissionFailure.addSuppressed(e);
+      }
+
+      if(permissionFailure != null) {
+         throw permissionFailure;
+      }
+   }
+
+   @FunctionalInterface
+   private interface Step {
+      void run() throws Exception;
+   }
+
+   /**
     * Keeps the grant of who may administer (or assign) a user, group or role, for an update that
     * omits adminIdentities (Bug #77326). IdentityService.setIdentityPermissions() treats an
     * omitted list like an empty one and drops every grantee the caller can administer, so it is
@@ -1511,29 +1721,44 @@ public class SecurityService {
    /**
     * Gets the users or groups that a global role is assigned to for a role update that lists
     * them. A listed name is a key ({@code name~;~orgID}) or a bare name of the current
-    * organization. The list replaces the role's assignees in the current organization and in
-    * the organizations it names by key, and the role's assignees in any other organization are
-    * kept, because a global role's assignees store only their names and a bare name must not
-    * remove the role from every other organization. A name that is not a user or group of the
-    * editable provider is rejected rather than dropped, since a dropped name would remove the
-    * role from that assignee. A name that the caller may not administer is left out, as for an
-    * org role.
+    * organization. The list replaces the role's assignees in the current organization, in
+    * the organizations it names by key and in the organizations the request lists in
+    * {@link SecurityRole#getAssigneeOrganizations()}, and the role's assignees in any other
+    * organization are kept, because a global role's assignees store only their names and a bare
+    * name must not remove the role from every other organization. A listed organization is not
+    * looked up, so that an unknown one changes nothing instead of telling whether it exists.
+    * A name that is not a user or group of the editable provider is rejected rather than
+    * dropped, since a dropped name would remove the role from that assignee. A name that the
+    * caller may not administer is left out, as for an org role.
     *
-    * @param roleId      the current id of the role.
-    * @param names       the user or group names in the request.
-    * @param currentIds  the users or groups in the editable provider.
-    * @param getIdentity gets a user or group from the editable provider.
-    * @param idType      the resource type used to check the caller's permission.
-    * @param typeLabel   the identity type named in the error message.
+    * @param roleId       the current id of the role.
+    * @param names        the user or group names in the request.
+    * @param assigneeOrgs the organizations whose assignees the request replaces, or
+    *                     <tt>null</tt>.
+    * @param currentIds   the users or groups in the editable provider.
+    * @param getIdentity  gets a user or group from the editable provider.
+    * @param idType       the resource type used to check the caller's permission.
+    * @param typeLabel    the identity type named in the error message.
     */
    private Collection<IdentityID> getGlobalRoleAssignees(
-      IdentityID roleId, List<String> names, IdentityID[] currentIds,
+      IdentityID roleId, List<String> names, List<String> assigneeOrgs, IdentityID[] currentIds,
       Function<IdentityID, ? extends Identity> getIdentity, ResourceType idType, String typeLabel,
       SecurityProvider securityProvider, Principal principal) throws MissingResourceException
    {
-      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      // the org that getRoleModel() reports a global role's members by name in
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       Set<String> listedOrgs = new HashSet<>();
       listedOrgs.add(currentOrgID);
+
+      if(assigneeOrgs != null) {
+         // the global org key decodes to the null org, which no assignee has (Bug #77894)
+         assigneeOrgs.stream()
+            .filter(org -> !Tool.isEmptyString(org))
+            .map(SecurityService::decodeGlobalOrgKey)
+            .filter(Objects::nonNull)
+            .forEach(listedOrgs::add);
+      }
+
       List<IdentityID> ids = new ArrayList<>();
       List<String> missing = new ArrayList<>();
 
@@ -1935,12 +2160,18 @@ public class SecurityService {
          String state = IdentityInfoRecord.STATE_ACTIVE;
          identityInfoRecord = SUtil.getIdentityInfoRecord(id, Identity.ROLE,
             IdentityInfoRecord.ACTION_TYPE_CREATE, null, state);
-         themeService.updateIdentityTheme(id.name, id.name, id.orgID, request.getTheme(),
-                                          CustomTheme::getRoles, principal);
-         setIdentityPermissions(id, ResourceType.SECURITY_ROLE, securityProvider, principal,
-            request.getAdminIdentities());
+         IdentityInfoRecord createdRecord = identityInfoRecord;
+         // the role is already created, so a failed permission write must not skip the theme
+         // or the identity audit; the failure is reported after them (Bug #77798)
+         writePermissionsThen(
+            () -> setIdentityPermissions(id, ResourceType.SECURITY_ROLE, securityProvider,
+                                         principal, request.getAdminIdentities()),
+            () -> {
+               themeService.updateIdentityTheme(id.name, id.name, id.orgID, request.getTheme(),
+                                                CustomTheme::getRoles, principal);
+               Audit.getInstance().auditIdentityInfo(createdRecord, principal);
+            });
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
-         Audit.getInstance().auditIdentityInfo(identityInfoRecord, principal);
       }
       finally {
          Audit.getInstance().auditAction(record, principal);
@@ -1950,7 +2181,14 @@ public class SecurityService {
    /**
     * Updates a role. A property or list that the request omits ({@code null}) leaves that
     * property of the role unchanged. A value that is present replaces the current one, and an
-    * empty list or string clears it.
+    * empty list or string clears it. An assigned user or group list replaces only the assignees
+    * the caller may administer: the role stays assigned to a user or group the caller may not
+    * administer, and an empty list removes the role from only the assignees the caller may
+    * administer. For a global role, a list replaces the assignees of the current organization,
+    * of the organizations it names by key and of the organizations in
+    * {@link SecurityRole#getAssigneeOrganizations()}, and keeps the role's assignees in every
+    * other organization, so an empty list without assignee organizations clears only the
+    * current organization.
     */
    public void updateRole(IdentityID roleId, SecurityRole request, Principal principal) throws Exception {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
@@ -1993,22 +2231,34 @@ public class SecurityService {
          List<String> assignedUsers = request.getAssignedUsers();
          List<String> assignedGroups = request.getAssignedGroups();
          // a member list that the request omits leaves the role's assignees of that type unchanged
+         // A listed assignee list keeps the stored assignees the caller may not administer, in
+         // every organization, on top of the other organizations a global role keeps (Bug #77519).
          Collection<IdentityID> userIds = assignedUsers == null ?
             getRoleAssignees(roleId, provider.getUsers(), provider::getUser) :
-            globalRole ?
-               getGlobalRoleAssignees(roleId, assignedUsers, provider.getUsers(), provider::getUser,
-                                      ResourceType.SECURITY_USER, "User", securityProvider,
-                                      principal) :
-            filterPermittedIds(assignedUsers.stream().map(n -> new IdentityID(n, orgID)).toList(),
-                               ResourceType.SECURITY_USER, securityProvider, principal);
+            keepNotAdministrableMembers(
+               globalRole ?
+                  getGlobalRoleAssignees(roleId, assignedUsers, request.getAssigneeOrganizations(),
+                                         provider.getUsers(), provider::getUser,
+                                         ResourceType.SECURITY_USER, "User",
+                                         securityProvider, principal) :
+                  filterPermittedIds(
+                     assignedUsers.stream().map(n -> new IdentityID(n, orgID)).toList(),
+                     ResourceType.SECURITY_USER, securityProvider, principal),
+               getRoleAssignees(roleId, provider.getUsers(), provider::getUser),
+               ResourceType.SECURITY_USER, securityProvider, principal);
          Collection<IdentityID> groupIds = assignedGroups == null ?
             getRoleAssignees(roleId, provider.getGroups(), provider::getGroup) :
-            globalRole ?
-               getGlobalRoleAssignees(roleId, assignedGroups, provider.getGroups(),
-                                      provider::getGroup, ResourceType.SECURITY_GROUP, "Group",
-                                      securityProvider, principal) :
-            filterPermittedIds(assignedGroups.stream().map(n -> new IdentityID(n, orgID)).toList(),
-                               ResourceType.SECURITY_GROUP, securityProvider, principal);
+            keepNotAdministrableMembers(
+               globalRole ?
+                  getGlobalRoleAssignees(roleId, assignedGroups, request.getAssigneeOrganizations(),
+                                         provider.getGroups(), provider::getGroup,
+                                         ResourceType.SECURITY_GROUP, "Group",
+                                         securityProvider, principal) :
+                  filterPermittedIds(
+                     assignedGroups.stream().map(n -> new IdentityID(n, orgID)).toList(),
+                     ResourceType.SECURITY_GROUP, securityProvider, principal),
+               getRoleAssignees(roleId, provider.getGroups(), provider::getGroup),
+               ResourceType.SECURITY_GROUP, securityProvider, principal);
 
          List<IdentityModel> asssignedIDs =
             userIds
@@ -2081,30 +2331,36 @@ public class SecurityService {
                                        roleModel.organization(), roleModel.theme(),
                                        CustomTheme::getRoles, principal);
 
-      if(request.getAdminIdentities() == null) {
-         keepIdentityPermissions(oldId, newId, ResourceType.SECURITY_ROLE, securityProvider);
-      }
-      else {
-         identityService.setIdentityPermissions(
-            oldId, newId, ResourceType.SECURITY_ROLE, principal,
-            renameOwnPermittedEntry(roleModel.permittedIdentities(), Identity.ROLE, oldId, newId),
-            permOrgId);
-      }
+      // the rename is already saved, so a failed permission write must not skip the rename
+      // migration; the failure is reported after it (Bug #77798)
+      final String grantOrgId = permOrgId;
+      writePermissionsThen(() -> {
+         if(request.getAdminIdentities() == null) {
+            keepIdentityPermissions(oldId, newId, ResourceType.SECURITY_ROLE, securityProvider);
+         }
+         else {
+            identityService.setIdentityPermissions(
+               oldId, newId, ResourceType.SECURITY_ROLE, principal,
+               renameOwnPermittedEntry(roleModel.permittedIdentities(), Identity.ROLE, oldId, newId),
+               grantOrgId);
+         }
+      }, () -> {
+         // Run the same rename migration as EM (VPM hidden-column roles), on the stored role's
+         // name and org, falling back to the path's. A global role has a null org or the global
+         // org key, and both update every org's VPMs. Keep this last so a migration failure
+         // can't skip the permission update. setIdentityPermissions above uses the path org; the
+         // two can only diverge for a hypothetical provider whose stored role org differs from
+         // the path org.
+         String roleOrgID = oldRole.getOrganizationID() != null ?
+            oldRole.getOrganizationID() : roleId.orgID;
+         String oldRoleName = oldRole.getName() != null ? oldRole.getName() : roleId.name;
+         IdentityID oldRoleID = new IdentityID(oldRoleName, roleOrgID);
+         IdentityID newRoleID = new IdentityID(roleModel.name(), roleOrgID);
 
-      // Run the same rename migration as EM (VPM hidden-column roles), on the stored role's name
-      // and org, falling back to the path's. A global role has a null org or the global org key,
-      // and both update every org's VPMs. Keep this last so a migration failure can't skip the
-      // permission update. setIdentityPermissions above uses the path org; the two can only
-      // diverge for a hypothetical provider whose stored role org differs from the path org.
-      String roleOrgID = oldRole.getOrganizationID() != null ?
-         oldRole.getOrganizationID() : roleId.orgID;
-      String oldRoleName = oldRole.getName() != null ? oldRole.getName() : roleId.name;
-      IdentityID oldRoleID = new IdentityID(oldRoleName, roleOrgID);
-      IdentityID newRoleID = new IdentityID(roleModel.name(), roleOrgID);
-
-      if(!oldRoleID.equals(newRoleID)) {
-         userTreeService.migrateRoleRename(oldRoleID, newRoleID);
-      }
+         if(!oldRoleID.equals(newRoleID)) {
+            userTreeService.migrateRoleRename(oldRoleID, newRoleID);
+         }
+      });
    }
 
    public void deleteRole(IdentityID role, Principal principal) throws Exception {
@@ -2132,7 +2388,7 @@ public class SecurityService {
    }
 
    private SecurityRole getRoleModel(IdentityID identityID, Principal principal,
-                                     AuthenticationProvider provider)
+                                     SecurityProvider provider)
    {
 
       IdentityInfo info = identityService.getIdentityInfo(identityID, Identity.ROLE, provider);
@@ -2140,30 +2396,95 @@ public class SecurityService {
       // compare (Bug #77327)
       IdentityID roleID = new IdentityID(identityID.name, decodeGlobalOrgKey(identityID.orgID));
 
-      List<String> assignedUsers = info.getMembers().stream()
-         .filter(id -> id.type() == Identity.USER)
-         .map(IdentityModel::identityID)
-         .map(id -> id.name)
-         .collect(Collectors.toList());
-      List<String> assignedGroups = info.getMembers().stream()
-         .filter(id -> id.type() == Identity.GROUP)
-         .map(IdentityModel::identityID)
-         .map(id -> id.name)
-         .collect(Collectors.toList());
+      List<IdentityID> users = getRoleMembers(info, Identity.USER, roleID, principal, provider);
+      List<IdentityID> groups = getRoleMembers(info, Identity.GROUP, roleID, principal, provider);
 
       SecurityRole roleModel = new SecurityRole();
       roleModel.setIdentityID(roleID);
       roleModel.setDescription(((Role) info.getIdentity()).getDescription());
       roleModel.setTheme(themeService.getTheme(roleID, CustomTheme::getRoles));
-      roleModel.setAssignedUsers(assignedUsers);
-      roleModel.setAssignedGroups(assignedGroups);
+      roleModel.setAssignedUsers(getRoleMemberNames(users, roleID, principal));
+      roleModel.setAssignedGroups(getRoleMemberNames(groups, roleID, principal));
+
+      // a global role reports the orgs of the members it reports, so that an update replaces
+      // the members of each of them, also one whose last member the request leaves out, and
+      // no org is disclosed that the reported keys don't already show (Bug #77894)
+      if(roleID.orgID == null) {
+         roleModel.setAssigneeOrganizations(new ArrayList<>(
+            Stream.concat(users.stream(), groups.stream())
+               .map(id -> id.orgID)
+               .filter(Objects::nonNull)
+               .collect(Collectors.toCollection(TreeSet::new))));
+      }
+
       roleModel.setInheritedRoles(Arrays.asList(info.getRoles()));
-      roleModel.setAdminIdentities(getIdentityPermissions(identityID, ResourceType.SECURITY_ROLE, principal));
+      // updateRole() writes a global role's grant in the ambient current org's storage with that
+      // org as the grantee scope, so it is read there with the same org (Bug #77868)
+      String grantOrgID = roleID.orgID != null ? roleID.orgID :
+         OrganizationManager.getInstance().getCurrentOrgID();
+      roleModel.setAdminIdentities(
+         getIdentityPermissions(roleID, ResourceType.SECURITY_ROLE, grantOrgID, principal));
       roleModel.setDefaultRole(info.isDefaultRole());
       roleModel.setSysAdmin(provider.isSystemAdministratorRole(identityID));
       roleModel.setOrgAdmin(provider.isOrgAdministratorRole(identityID));
 
       return roleModel;
+   }
+
+   /**
+    * Gets the users or groups of a role that getting the role reports. A global role's members
+    * may belong to any organization, and a member of another organization than the caller's
+    * current one that the caller may not administer is left out, so that its organization is
+    * not disclosed; updateRole() keeps such a member (Bug #77327).
+    *
+    * @param info   the role's identity info.
+    * @param type   the member type, {@link Identity#USER} or {@link Identity#GROUP}.
+    * @param roleID the role, with the <tt>null</tt> organization of a global role.
+    */
+   private List<IdentityID> getRoleMembers(IdentityInfo info, int type, IdentityID roleID,
+                                          Principal principal, SecurityProvider provider)
+   {
+      List<IdentityID> members = info.getMembers().stream()
+         .filter(id -> id.type() == type)
+         .map(IdentityModel::identityID)
+         .toList();
+
+      if(roleID.orgID != null) {
+         return members;
+      }
+
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      ResourceType idType = type == Identity.USER ?
+         ResourceType.SECURITY_USER : ResourceType.SECURITY_GROUP;
+
+      return members.stream()
+         .filter(id -> Tool.equals(currentOrgID, id.orgID) ||
+            provider.checkPermission(principal, idType, id.convertToKey(), ResourceAction.ADMIN))
+         .toList();
+   }
+
+   /**
+    * Gets the names of a role's reported users or groups as updateRole() takes them. A global
+    * role's members of the caller's current organization are given by name, and the ones of
+    * another organization by key ({@code name~;~orgID}), so that a get and update round trip
+    * leaves them unchanged instead of resolving their names in the current organization
+    * (Bug #77327).
+    *
+    * @param members the members from {@link #getRoleMembers}.
+    * @param roleID  the role, with the <tt>null</tt> organization of a global role.
+    */
+   private List<String> getRoleMemberNames(List<IdentityID> members, IdentityID roleID,
+                                           Principal principal)
+   {
+      if(roleID.orgID != null) {
+         return members.stream().map(id -> id.name).collect(Collectors.toList());
+      }
+
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
+      return members.stream()
+         .map(id -> Tool.equals(currentOrgID, id.orgID) ? id.name : id.convertToKey())
+         .collect(Collectors.toList());
    }
 
    /**
@@ -2349,6 +2670,36 @@ public class SecurityService {
          provider.isSystemAdministratorRole(new IdentityID(role.name, null));
    }
 
+   /**
+    * Gets the members to save for an update that lists the members of a type: the listed
+    * members the caller may administer, and the stored members the caller may not administer
+    * (Bug #77519). A GET returns every member, and setIdentity() saves the list as the complete
+    * membership, so without the stored ones an unchanged GET then PUT would silently remove the
+    * members the caller can't administer. A listed member the caller may not administer that is
+    * not already a member is still left out. A member the caller may administer that the list
+    * leaves out is removed. The result is a set, so a member is not saved twice.
+    *
+    * @param permitted the listed members the caller may administer.
+    * @param stored    the current members of that type, from the editable provider.
+    * @param idType    the resource type used to check the caller's permission.
+    */
+   private static Set<IdentityID> keepNotAdministrableMembers(
+      Collection<IdentityID> permitted, Collection<IdentityID> stored, ResourceType idType,
+      SecurityProvider securityProvider, Principal principal)
+   {
+      Set<IdentityID> result = new LinkedHashSet<>(permitted);
+
+      for(IdentityID id : stored) {
+         if(!result.contains(id) && !securityProvider.checkPermission(
+            principal, idType, id.convertToKey(), ResourceAction.ADMIN))
+         {
+            result.add(id);
+         }
+      }
+
+      return result;
+   }
+
    private Set<IdentityID> filterPermittedIds(List<IdentityID> identities, ResourceType idType,
                                               SecurityProvider securityProvider, Principal principal)
    {
@@ -2415,13 +2766,13 @@ public class SecurityService {
                                        Principal principal,
                                        AdminIdentities ids)
    {
-      ResourceAction action;
-
       if(ids == null) {
          return;
       }
 
-      action = ResourceAction.ADMIN;
+      // the listed grantees get the action IdentityService.setIdentityPermissions() writes,
+      // ASSIGN for a role (Bug #77868); the creator's self grant stays ADMIN
+      ResourceAction action = getGrantAction(identityID, resourceType);
 
       AuthorizationProvider authzProvider = securityProvider.getAuthorizationProvider();
       Permission permission = new Permission();
@@ -2441,7 +2792,9 @@ public class SecurityService {
             .collect(Collectors.toSet());
       }
 
-      if(pId != null && Tool.equals(pId.getOrgID(), identityID.getOrgID())) {
+      boolean selfGrant = pId != null && Tool.equals(pId.getOrgID(), identityID.getOrgID());
+
+      if(selfGrant && action == ResourceAction.ADMIN) {
          userGrants.add(pId.name);
       }
 
@@ -2478,16 +2831,39 @@ public class SecurityService {
       permission.setGroupGrantsForOrg(action, groupGrants, orgId);
       permission.setRoleGrantsForOrg(action, roleGrants, orgId);
       permission.setOrganizationGrantsForOrg(action, organizationGrants, orgId);
+
+      if(selfGrant && action != ResourceAction.ADMIN) {
+         permission.setUserGrantsForOrg(ResourceAction.ADMIN, Set.of(pId.name), orgId);
+      }
+
       // Pass orgId explicitly so the storage key itself is scoped to the org's own id, not
       // whatever org happens to be ambient at write time (bug #76866) -- otherwise a later
       // org rename's migration filter (which matches on storage-key orgId) can never find it.
       authzProvider.setPermission(resourceType, identityID, permission, orgId);
    }
 
+   /**
+    * Gets the action a grant on the identity is stored under: ASSIGN for a role other than the
+    * {@code Roles} and {@code Organization Roles} roots, ADMIN otherwise. This is the rule of
+    * {@code IdentityService.setIdentityPermissions()} and {@code getPermission()} (Bug #77868).
+    */
+   private static ResourceAction getGrantAction(IdentityID identityID, ResourceType resourceType) {
+      return resourceType == ResourceType.SECURITY_ROLE && !"Roles".equals(identityID.name) &&
+         !"Organization Roles".equals(identityID.name) ? ResourceAction.ASSIGN : ResourceAction.ADMIN;
+   }
+
    private AdminIdentities getIdentityPermissions(IdentityID resourceID, ResourceType resourceType,
                                                   Principal principal)
    {
-      String orgID = resourceID.orgID;
+      return getIdentityPermissions(resourceID, resourceType, resourceID.orgID, principal);
+   }
+
+   /**
+    * @param orgID the org whose permission storage holds the grant, also the grantee scope.
+    */
+   private AdminIdentities getIdentityPermissions(IdentityID resourceID, ResourceType resourceType,
+                                                  String orgID, Principal principal)
+   {
       AdminIdentities ids = new AdminIdentities();
 
       List<IdentityModel> permittedIds =
@@ -2717,14 +3093,21 @@ public class SecurityService {
       SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       List<Tuple4<ResourceType, String, String, Permission>> permissions = securityProvider.getPermissions();
       ArrayList<ResourcePermission> permissionModels = new ArrayList<>();
+      // Bug #77946, the provider returns the permissions of every organization, list only those
+      // of the organization the get/set permission methods read and write
+      String orgID = securityProvider.getResourceOrgID(null);
 
       for(Tuple4<ResourceType, String, String, Permission> tuple : permissions) {
+         if(!Tool.equals(tuple.getSecond(), orgID)) {
+            continue;
+         }
+
          if(!checkPermissionAccess(tuple.getThird(), tuple.getFirst(), principal)) {
             continue;
          }
 
          ResourcePermission resourcePermission =
-            convertPermission(tuple.getFirst(), tuple.getThird(), tuple.getForth());
+            convertPermission(tuple.getFirst(), tuple.getThird(), tuple.getForth(), principal);
          permissionModels.add(resourcePermission);
       }
 
@@ -2744,10 +3127,23 @@ public class SecurityService {
       }
 
       Permission permission = securityProvider.getPermission(type, resourcePath);
-      return convertPermission(type, resourcePath, permission);
+      return convertPermission(type, resourcePath, permission, principal);
    }
 
-   private ResourcePermission convertPermission(ResourceType type, String path, Permission permission) {
+   /**
+    * Builds the permission view returned by every permission read (listPermissions,
+    * getPermission and, through it, the grant endpoints). Bug #77404, as in EM
+    * (ResourcePermissionService.getIdentityActions), the view only contains the grantees the
+    * caller administers, and global (org-less) roles only for a site admin. The grantees are
+    * filtered on their stored (name, org) key, before organization grants are relabeled, with the
+    * same rule that the write keeps them by (callerAdministers).
+    */
+   private ResourcePermission convertPermission(ResourceType type, String path,
+                                                Permission permission, Principal principal)
+   {
+      SecurityProvider securityProvider = securityEngine.getSecurityProvider();
+      // a site admin administers every identity (DefaultCheckPermissionStrategy), so it sees all
+      boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
       ArrayList<PermissionGrant> permissionGrants = new ArrayList<>();
       HashMap<IdentityID, ArrayList<String>> userGrants = new HashMap<>();
       HashMap<IdentityID, ArrayList<String>> groupGrants = new HashMap<>();
@@ -2760,6 +3156,12 @@ public class SecurityService {
             Set<IdentityID> idGrants = permission.getOrgScopedUserGrants(action, orgId);
 
             for(IdentityID user : idGrants) {
+               if(!siteAdmin && !callerAdministers(
+                  user, ResourceType.SECURITY_USER, securityProvider, principal))
+               {
+                  continue;
+               }
+
                ArrayList<String> actions = userGrants.computeIfAbsent(user, key -> new ArrayList<>());
                actions.add(action.name());
             }
@@ -2767,6 +3169,12 @@ public class SecurityService {
             idGrants = permission.getOrgScopedGroupGrants(action, orgId);
 
             for(IdentityID group : idGrants) {
+               if(!siteAdmin && !callerAdministers(
+                  group, ResourceType.SECURITY_GROUP, securityProvider, principal))
+               {
+                  continue;
+               }
+
                ArrayList<String> actions = groupGrants.computeIfAbsent(group, key -> new ArrayList<>());
                actions.add(action.name());
             }
@@ -2774,6 +3182,13 @@ public class SecurityService {
             idGrants = permission.getOrgScopedOrganizationGrants(action, orgId);
 
             for(IdentityID organization : idGrants) {
+               // keyed on the stored org name, not on the display name set below
+               if(!siteAdmin && !callerAdministers(
+                  organization, ResourceType.SECURITY_ORGANIZATION, securityProvider, principal))
+               {
+                  continue;
+               }
+
                ArrayList<String> actions = organizationGrants.computeIfAbsent(organization.getOrgID(), key -> new ArrayList<>());
                actions.add(action.name());
             }
@@ -2781,6 +3196,13 @@ public class SecurityService {
             idGrants = permission.getOrgScopedRoleGrants(action, orgId);
 
             for(IdentityID role : idGrants) {
+               // a global role is only shown to a site admin, the only caller that writes it
+               if(!siteAdmin && (role.getOrgID() == null || !callerAdministers(
+                  role, ResourceType.SECURITY_ROLE, securityProvider, principal)))
+               {
+                  continue;
+               }
+
                ArrayList<String> actions = roleGrants.computeIfAbsent(role, key -> new ArrayList<>());
                actions.add(action.name());
             }
@@ -2803,8 +3225,6 @@ public class SecurityService {
          permissionGrants.add(grant);
       }
 
-      SecurityProvider securityProvider = securityEngine.getSecurityProvider();
-
       for(String organizationId : organizationGrants.keySet()) {
          PermissionGrant grant = new PermissionGrant();
          grant.setIdentityID(new IdentityID(securityProvider.getOrgNameFromID(organizationId), organizationId));
@@ -2825,6 +3245,10 @@ public class SecurityService {
       permissionModel.setResource(path);
       permissionModel.setResourceType(type.name());
       permissionModel.setPermissionGrants(permissionGrants);
+      // Bug #78041, whether the node derives from its parent for the org (EM's "Derive
+      // Permissions from Parent" box), so a GET -> PUT round trip keeps it
+      permissionModel.setInheritFromParent(
+         permission == null || !permission.hasOrgEditedGrantAll(orgId));
 
       return permissionModel;
    }
@@ -2844,6 +3268,11 @@ public class SecurityService {
       boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
       // the null-org (global) role grants of the request, the other grants are in orgId
       Set<PermissionGrant> globalRoleRequests = new HashSet<>();
+      // whether the request gives a grantee an action the stored permission does not give it
+      boolean addsGrant = false;
+      // Bug #78041, whether the request has a grant that the write stores, the caller's own view
+      // of the grants after the write (without the kept grantees hidden from it)
+      boolean requestGrants = false;
 
       Permission permission = securityProvider.getPermission(type, resourcePath);
       permission = permission == null ? new Permission() : permission;
@@ -2868,17 +3297,30 @@ public class SecurityService {
          String grantBucket = globalRole ? null : orgId;
 
          if(node != null) {
+            // Bug #77425, the stored grants of a grantee the caller cannot administer (or of a
+            // global role, for a non site admin) are not in the caller's view and are kept by the
+            // write anyway. They are not read here, a row for such a grantee is validated as if
+            // nothing were stored for it, so the response does not depend on them.
+            boolean administered = siteAdmin || !globalRole &&
+               callerAdministersGrantee(grant, orgId, securityProvider, principal);
+
             for(String action : grant.getActions()) {
+               boolean stored = administered &&
+                  isStoredGrantAction(permission, grant, action, grantBucket);
+
                // Bug #77376, an action the node does not offer that the grantee already holds
                // (for example a default grant) is kept by EM, which writes only the node's
                // actions. Here it may only be sent back for that same stored grantee, where the
                // write puts it, but may not be added or moved.
-               if(node.actions().stream().noneMatch(a -> a.name().equals(action)) &&
-                  !isStoredGrantAction(permission, grant, action, grantBucket))
-               {
+               if(node.actions().stream().noneMatch(a -> a.name().equals(action)) && !stored) {
                   throw new UnauthorizedAccessException(
                      "Unauthorized action " + action + " for action permission " + type + ":" +
                      resourcePath);
+               }
+
+               // a non site admin's global role rows are ignored by the write below
+               if(!globalRole && !stored) {
+                  addsGrant = true;
                }
             }
          }
@@ -2886,7 +3328,24 @@ public class SecurityService {
          if(globalRole) {
             globalRoleRequests.add(grant);
          }
+
+         // a non site admin's global role rows are ignored by the write below
+         if((siteAdmin || !globalRole) && grant.getActions() != null &&
+            !grant.getActions().isEmpty())
+         {
+            requestGrants = true;
+         }
       }
+
+      // the grants of each action after the write, built before the stored permission is changed
+      Map<ResourceAction, Set<String>> userGrantsAfter = new EnumMap<>(ResourceAction.class);
+      Map<ResourceAction, Set<String>> groupGrantsAfter = new EnumMap<>(ResourceAction.class);
+      Map<ResourceAction, Set<String>> organizationGrantsAfter = new EnumMap<>(ResourceAction.class);
+      Map<ResourceAction, Set<String>> roleGrantsAfter = new EnumMap<>(ResourceAction.class);
+      Map<ResourceAction, Set<String>> globalRoleGrantsAfter = new EnumMap<>(ResourceAction.class);
+      // Bug #78041, whether any grant applies to the org after the write: the org's grants,
+      // including the kept grantees the caller cannot administer, and the global role grants
+      boolean grantsAfterWrite = false;
 
       for(ResourceAction action : ResourceAction.values()) {
          Set<String> userGrants = new HashSet<>();
@@ -2911,16 +3370,16 @@ public class SecurityService {
 
          for(PermissionGrant grant : permissionModel.grants) {
             if(grant.getActions().contains(action.name())) {
-               if(grant.getType().equals("USER")) {
+               if("USER".equals(grant.getType())) {
                   userGrants.add(grant.getIdentityID().name);
                }
-               else if(grant.getType().equals("GROUP")) {
+               else if("GROUP".equals(grant.getType())) {
                   groupGrants.add(grant.getIdentityID().name);
                }
-               else if(grant.getType().equals("ORGANIZATION")) {
+               else if("ORGANIZATION".equals(grant.getType())) {
                   organizationGrants.add(grant.getIdentityID().name);
                }
-               else if(grant.getType().equals("ROLE")) {
+               else if("ROLE".equals(grant.getType())) {
                   if(globalRoleRequests.contains(grant)) {
                      globalRoleGrants.add(grant.getIdentityID().name);
                   }
@@ -2931,22 +3390,118 @@ public class SecurityService {
             }
          }
 
-         permission.setUserGrantsForOrg(action, userGrants, orgId);
-         permission.setGroupGrantsForOrg(action, groupGrants, orgId);
-         permission.setRoleGrantsForOrg(action, roleGrants, orgId);
-         permission.setOrganizationGrantsForOrg(action, organizationGrants, orgId);
+         userGrantsAfter.put(action, userGrants);
+         groupGrantsAfter.put(action, groupGrants);
+         organizationGrantsAfter.put(action, organizationGrants);
+         roleGrantsAfter.put(action, roleGrants);
+         globalRoleGrantsAfter.put(action, globalRoleGrants);
+
+         // a non site admin leaves the stored global role grants unchanged (see below)
+         boolean globalRolesAfter = siteAdmin ? !globalRoleGrants.isEmpty() :
+            permission.getRoleGrants(action, orgId).stream()
+               .anyMatch(g -> g.getOrganizationID() == null);
+
+         grantsAfterWrite |= !userGrants.isEmpty() || !groupGrants.isEmpty() ||
+            !organizationGrants.isEmpty() || !roleGrants.isEmpty() || globalRolesAfter;
+      }
+
+      // Bug #78041, the org's edited flag is EM's inverted "Derive Permissions from Parent" box:
+      // without it the node's grants only add to its parent's (or to a default allow), so they
+      // restrict nobody. An explicit inheritFromParent is honoured (false with no grants is EM's
+      // "nobody" state). Otherwise the node is edited when any grant applies to the org after the
+      // write, and a write that leaves none derives from the parent again, as DELETE does.
+      boolean storedEdited = permission.hasOrgEditedGrantAll(orgId);
+      Boolean inheritFromParent = permissionModel.getInheritFromParent();
+      boolean edited = inheritFromParent != null ? !inheritFromParent : grantsAfterWrite;
+
+      // Bug #77385, as in EM (ActionPermissionController.setPermissions, Bug #77362), a caller who
+      // is neither a site admin nor an org admin (e.g. a user who only holds ACCESS on
+      // settings/security/actions) may only hand out the action permissions they already hold,
+      // or change whether the node derives from its parent (the org's edited flag, in either
+      // direction, as EM's isGrantOrUseParentChange). Removing grants without changing the flag
+      // needs no hold, as in EM. Checked before the stored permission is changed below.
+      if(node != null && !siteAdmin && !OrganizationManager.getInstance().isOrgAdmin(principal)) {
+         // Bug #77425, the response must not depend on the grantees hidden from the caller, so
+         // the flag change is judged on the caller's own request
+         boolean editedSeen = inheritFromParent != null ? !inheritFromParent : requestGrants;
+         boolean change = addsGrant || storedEdited != editedSeen;
+
+         if((change || edited != storedEdited) && !holdsNodeActions(node, principal)) {
+            if(change) {
+               throw new UnauthorizedAccessException(
+                  "Unauthorized grant of action permission " + type + ":" + resourcePath +
+                  " not held by user " + principal.getName());
+            }
+
+            // only the kept hidden grantees would change the flag, which the caller may not do
+            edited = storedEdited;
+         }
+      }
+
+      for(ResourceAction action : ResourceAction.values()) {
+         permission.setUserGrantsForOrg(action, userGrantsAfter.get(action), orgId);
+         permission.setGroupGrantsForOrg(action, groupGrantsAfter.get(action), orgId);
+         permission.setRoleGrantsForOrg(action, roleGrantsAfter.get(action), orgId);
+         permission.setOrganizationGrantsForOrg(action, organizationGrantsAfter.get(action), orgId);
 
          // only a site admin may change global (org-less) role grants (as in EM, Bug #77254).
          // A non site admin keeps the existing ones unchanged and its global role rows are
          // ignored.
          if(siteAdmin) {
-            permission.setRoleGrantsForOrg(action, globalRoleGrants, null);
+            permission.setRoleGrantsForOrg(action, globalRoleGrantsAfter.get(action), null);
          }
       }
 
-      // as before, a permission written through this API is not marked as edited for the org
-      permission.removeGrantAllByOrg(orgId);
+      if(edited) {
+         permission.updateGrantAllByOrg(orgId, true);
+      }
+      else {
+         permission.removeGrantAllByOrg(orgId);
+      }
+
       securityProvider.setPermission(type, resourcePath, permission);
+   }
+
+   /**
+    * Checks if the caller administers a permission grantee, that is holds ADMIN on the grantee's
+    * identity resource. Bug #77404, this is the single rule for both sides of the permission API:
+    * the reads (convertPermission) hide the grantees for which it is false, and the writes
+    * (keepGranteesCallerCannotAdminister) keep them, so a GET then PUT round trip never drops a
+    * grantee the caller cannot see.
+    *
+    * @param grantee      the stored grantee, keyed by its stored name and org.
+    * @param identityType the SECURITY_* resource type of the grantee.
+    */
+   private static boolean callerAdministers(IdentityID grantee, ResourceType identityType,
+                                            SecurityProvider securityProvider,
+                                            Principal principal)
+   {
+      return securityProvider.checkAnyPermission(
+         principal, identityType, grantee.convertToKey(), EnumSet.of(ResourceAction.ADMIN));
+   }
+
+   /**
+    * Checks if the caller administers the grantee of a requested grant, keyed as the write stores
+    * or keeps it: its requested name in the current org (for an organization grant, the stored
+    * org name, not the display name). Bug #77425, the same key as keepGranteesCallerCannotAdminister,
+    * so only the stored grants of the grantees the caller administers are read when a request is
+    * validated. A grant of an unknown type is not administered.
+    */
+   private static boolean callerAdministersGrantee(PermissionGrant grant, String orgId,
+                                                   SecurityProvider securityProvider,
+                                                   Principal principal)
+   {
+      ResourceType identityType = switch(String.valueOf(grant.getType())) {
+         case "USER" -> ResourceType.SECURITY_USER;
+         case "GROUP" -> ResourceType.SECURITY_GROUP;
+         case "ROLE" -> ResourceType.SECURITY_ROLE;
+         case "ORGANIZATION" -> ResourceType.SECURITY_ORGANIZATION;
+         default -> null;
+      };
+
+      return identityType != null && callerAdministers(
+         new IdentityID(grant.getIdentityID().name, orgId), identityType, securityProvider,
+         principal);
    }
 
    /**
@@ -2958,12 +3513,10 @@ public class SecurityService {
       Set<Permission.PermissionIdentity> grants, ResourceType identityType, Set<String> orgGrants,
       Set<String> globalGrants, SecurityProvider securityProvider, Principal principal)
    {
-      EnumSet<ResourceAction> adminAction = EnumSet.of(ResourceAction.ADMIN);
-
       for(Permission.PermissionIdentity grant : grants) {
-         if(!securityProvider.checkAnyPermission(
-            principal, identityType,
-            new IdentityID(grant.getName(), grant.getOrganizationID()).convertToKey(), adminAction))
+         if(!callerAdministers(
+            new IdentityID(grant.getName(), grant.getOrganizationID()), identityType,
+            securityProvider, principal))
          {
             if(grant.getOrganizationID() == null && globalGrants != null) {
                globalGrants.add(grant.getName());
@@ -3006,6 +3559,22 @@ public class SecurityService {
    }
 
    /**
+    * Checks if the caller holds every action of an action tree node, the same check as
+    * ActionPermissionController.holdsNodeActions in EM (Bug #77385).
+    */
+   private boolean holdsNodeActions(ActionTreeNode node, Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      for(ResourceAction action : node.actions()) {
+         if(!securityEngine.checkPermission(principal, node.type(), node.resource(), action)) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
     * Checks if a role requested without an organization is a global (org-less) role, that is a
     * global role of that name exists and the current organization has no role of that name.
     */
@@ -3019,8 +3588,9 @@ public class SecurityService {
    public void deletePermission(String resourcePath, String resourceType, Principal principal) throws Exception {
       SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       ResourceType type = convertResourceType(resourceType);
+      ActionTreeNode node = getActionTreeNode(resourcePath, type, principal);
 
-      if(!checkPermissionAccess(resourcePath, type, principal)) {
+      if(!checkPermissionAccess(resourcePath, type, node, principal)) {
          throw new UnauthorizedAccessException("Permission denied to access permission");
       }
 
@@ -3035,18 +3605,66 @@ public class SecurityService {
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
 
-      for(ResourceAction action : ResourceAction.values()) {
-         for(Identity.Type identityType : Identity.Type.values()) {
-            if(identityType == Identity.Type.ROLE && siteAdmin) {
-               permission.setGrantsOrgScoped(action, identityType.code(),
-                                             Collections.emptySet(), null);
-            }
+      // Bug #77385, clearing the org's edited flag below makes an org edited action tree node
+      // inherit from its parent again, which a caller who is neither a site admin nor an org
+      // admin may only do on a node they hold (see setPermission)
+      if(node != null && !siteAdmin && !OrganizationManager.getInstance().isOrgAdmin(principal) &&
+         permission.hasOrgEditedGrantAll(orgId) && !holdsNodeActions(node, principal))
+      {
+         throw new UnauthorizedAccessException(
+            "Unauthorized change of action permission " + type + ":" + resourcePath +
+            " not held by user " + principal.getName());
+      }
 
-            permission.setGrantsOrgScoped(action, identityType.code(),
-                                          Collections.emptySet(), orgId);
+      // Bug #77426, on an action tree node a caller who is not a site admin clears only the
+      // grants of the grantees it administers (the ones it sees in the GET view) and keeps the
+      // others, as setPermission does and as EM's action pane does for a delegate. Unlike EM,
+      // this also applies to an org admin, so no API write drops a grantee hidden from the
+      // caller.
+      if(node != null && !siteAdmin) {
+         for(ResourceAction action : ResourceAction.values()) {
+            Set<String> userGrants = new HashSet<>();
+            Set<String> groupGrants = new HashSet<>();
+            Set<String> organizationGrants = new HashSet<>();
+            Set<String> roleGrants = new HashSet<>();
+
+            // global (org-less) role grants stay unchanged for a non site admin, so the ones
+            // kept go to a set that is never written, not into the org's role grants
+            keepGranteesCallerCannotAdminister(
+               permission.getUserGrants(action, orgId), ResourceType.SECURITY_USER,
+               userGrants, null, securityProvider, principal);
+            keepGranteesCallerCannotAdminister(
+               permission.getGroupGrants(action, orgId), ResourceType.SECURITY_GROUP,
+               groupGrants, null, securityProvider, principal);
+            keepGranteesCallerCannotAdminister(
+               permission.getRoleGrants(action, orgId), ResourceType.SECURITY_ROLE,
+               roleGrants, new HashSet<>(), securityProvider, principal);
+            keepGranteesCallerCannotAdminister(
+               permission.getOrganizationGrants(action, orgId), ResourceType.SECURITY_ORGANIZATION,
+               organizationGrants, null, securityProvider, principal);
+
+            permission.setUserGrantsForOrg(action, userGrants, orgId);
+            permission.setGroupGrantsForOrg(action, groupGrants, orgId);
+            permission.setRoleGrantsForOrg(action, roleGrants, orgId);
+            permission.setOrganizationGrantsForOrg(action, organizationGrants, orgId);
+         }
+      }
+      else {
+         for(ResourceAction action : ResourceAction.values()) {
+            for(Identity.Type identityType : Identity.Type.values()) {
+               if(identityType == Identity.Type.ROLE && siteAdmin) {
+                  permission.setGrantsOrgScoped(action, identityType.code(),
+                                                Collections.emptySet(), null);
+               }
+
+               permission.setGrantsOrgScoped(action, identityType.code(),
+                                             Collections.emptySet(), orgId);
+            }
          }
       }
 
+      // as EM's "Derive Permissions from Parent" box, the node is not marked as edited for the
+      // org and inherits from its parent (Bug #78041, a PUT may set it, see setPermission)
       permission.removeGrantAllByOrg(orgId);
 
       if(permission.isBlank()) {
@@ -3061,7 +3679,10 @@ public class SecurityService {
                                              String idName, String idType,
                                              Principal principal) throws Exception
    {
-      IdentityID id = new IdentityID(idName, IdentityID.getIdentityIDFromKey(principal.getName()).orgID);
+      // Bug #77913, a plain name is in the current org, the one the permission is read from, and
+      // a name~;~org key is matched as is, as the grant update and delete do. The caller's own
+      // org is not the current one when a site admin reads another org's permission.
+      IdentityID id = IdentityID.getIdentityIDFromKey(IdentityID.getConvertKey(idName));
       checkIdType(idType, id);
       ResourcePermission permission = this.getPermission(resourcePath, resourceType, principal);
       PermissionGrant grant = permission.grants.stream()
@@ -3088,6 +3709,9 @@ public class SecurityService {
       }
 
       permission.grants.add(grant);
+      // Bug #78041, a grant edit is not a derive change, the write marks the node edited when
+      // grants remain (see setPermission)
+      permission.setInheritFromParent(null);
       setPermission(resourcePath, resourceType, permission, principal);
    }
 
@@ -3121,6 +3745,8 @@ public class SecurityService {
 
       permission.grants.remove(oldGrant);
       permission.grants.add(newGrant);
+      // Bug #78041, see createPermissionGrant
+      permission.setInheritFromParent(null);
       setPermission(resourcePath, resourceType, permission, principal);
    }
 
@@ -3141,6 +3767,9 @@ public class SecurityService {
       }
 
       permission.grants.remove(grant);
+      // Bug #78041, see createPermissionGrant, removing the last grant derives from the parent
+      // again, as an empty PUT and DELETE do
+      permission.setInheritFromParent(null);
       setPermission(resourcePath, resourceType, permission, principal);
    }
 

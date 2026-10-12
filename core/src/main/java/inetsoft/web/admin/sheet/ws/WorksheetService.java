@@ -206,7 +206,9 @@ public class WorksheetService {
          assetRepository.checkAssetPermission(user, entry, action);
       }
       catch(Exception e) {
-         throw new UnauthorizedAccessException(entry.toIdentifier());
+         // answer a refused asset like a missing one (404), so a client-chosen id cannot tell
+         // whether another user's private worksheet exists (Bug #78075)
+         throw new MissingResourceException(entry.toIdentifier());
       }
    }
 

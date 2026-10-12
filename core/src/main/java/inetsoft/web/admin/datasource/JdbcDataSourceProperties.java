@@ -177,7 +177,11 @@ public class JdbcDataSourceProperties extends DataSourceProperties {
     * @return the password.
     */
    @Schema(
-      description = "The password used to authenticate with the database. Required if `requireLogin` is `true`.",
+      description = "The password used to authenticate with the database. Required if " +
+         "`requireLogin` is `true`. A stored password is returned as " +
+         Util.PLACEHOLDER_PASSWORD + ". Sending it back (or " + PASSWORD_MASK + ") keeps the " +
+         "stored password, but only when the URL and the user name are unchanged, otherwise " +
+         "the update is refused. It is ignored when the data source uses a credential id.",
       example = "secret")
    public String getPassword() {
       return password;
@@ -385,6 +389,11 @@ public class JdbcDataSourceProperties extends DataSourceProperties {
    private boolean useCredentialId = false;
    private String credentialID;
 
+   /**
+    * The mask returned in place of the stored password before the API returned
+    * {@link Util#PLACEHOLDER_PASSWORD}, still accepted in its place (Bug #77968).
+    */
+   public static final String PASSWORD_MASK = "******";
    public static final String DEFAULT_OPTION = "Default";
    public static final String CATALOG_SCHEMA_OPTION = "Catalog.Schema.Table";
    public static final String SCHEMA_OPTION = "Schema.Table";

@@ -18,6 +18,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.database.DatabaseTypeService;
+import inetsoft.web.admin.InvalidResourceException;
 import inetsoft.web.admin.idgen.MD5IdentifierGenerator;
 import inetsoft.web.security.auth.ResourceExistsException;
 import inetsoft.web.security.auth.UnauthorizedAccessException;
@@ -73,8 +74,9 @@ class DataSourceServiceTest {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       DatabaseTypeService databaseTypeService = mock(DatabaseTypeService.class);
       ids = mock(MD5IdentifierGenerator.class);
+      registry = mock(DataSourceRegistry.class);
       service = new DataSourceService(repository, securityEngine, databaseTypeService, ids,
-                                      mock(DataSourceRegistry.class));
+                                      registry);
 
       ds = mock(JDBCDataSource.class);
       when(ds.getType()).thenReturn(XDataSource.JDBC);
@@ -104,11 +106,27 @@ class DataSourceServiceTest {
          (JdbcDataSourceProperties) service.getDataSource(DS_ID, principal);
       assertEquals(Util.PLACEHOLDER_PASSWORD, properties.getPassword());
 
-      properties.setUrl("jdbc:derby:classpath:orders2;user=SA");
+      properties.setDefaultDatabase("otherDatabase");
 
       service.updateDataSource(DS_ID, properties, principal);
 
       assertEquals(REAL_PASSWORD, passwordHolder[0]);
+   }
+
+   // Bug #77968: the stored password is only kept for the same URL and user name, so that it
+   // isn't sent to another database
+   @Test
+   void updateDataSourceRefusesPlaceholderWithChangedUrl() throws Exception {
+      JdbcDataSourceProperties properties =
+         (JdbcDataSourceProperties) service.getDataSource(DS_ID, principal);
+      assertEquals(Util.PLACEHOLDER_PASSWORD, properties.getPassword());
+
+      properties.setUrl("jdbc:derby:classpath:orders2;user=SA");
+
+      assertThrows(InvalidResourceException.class,
+                   () -> service.updateDataSource(DS_ID, properties, principal));
+      assertEquals(REAL_PASSWORD, passwordHolder[0]);
+      verify(ds, never()).setURL(any());
    }
 
    @Test
@@ -131,6 +149,7 @@ class DataSourceServiceTest {
          (JdbcDataSourceProperties) service.getDataSource(DS_ID, principal);
       properties.setName("SomeOtherExistingName");
       when(repository.getDataSource("SomeOtherExistingName")).thenReturn(mock(XDataSource.class));
+      when(registry.isDataSourcePathInUse("SomeOtherExistingName")).thenReturn(true);
 
       try(MockedStatic<Audit> auditStatic = mockStatic(Audit.class)) {
          Audit audit = mock(Audit.class);
@@ -324,6 +343,7 @@ class DataSourceServiceTest {
    private static final String DS_NAME = "MyDataSource";
    private static final String REAL_PASSWORD = "realSecretPassword";
 
+   private DataSourceRegistry registry;
    private XRepository repository;
    private MD5IdentifierGenerator ids;
    private JDBCDataSource ds;
