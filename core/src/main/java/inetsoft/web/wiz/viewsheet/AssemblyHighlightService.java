@@ -496,7 +496,7 @@ public class AssemblyHighlightService {
     *   read when the element var resolves to no field, which the Composer never creates), and it
     *   must resolve to a field whose value labels are drawn: the bound text field, an x/y
     *   measure, a radar/treemap/relation dimension, a map geo field, or a candle/stock/gantt
-    *   field.</li>
+    *   field that a bound text field labels.</li>
     * </ul>
     *
     * <p>Only {@code set} calls it, so a stray highlight already stored that way can still be
@@ -642,7 +642,8 @@ public class AssemblyHighlightService {
 
    /**
     * Full names of the fields whose text highlight group {@code GraphGenerator} reads for value
-    * labels: the bound text field(s), x/y measures, and the per-type element fields.
+    * labels: the bound text field(s), x/y measures, and the per-type element fields. A
+    * candle/stock/gantt field counts only when a text field labels it.
     */
    private static Set<String> textFields(VSChartInfo info) {
       Set<String> names = new LinkedHashSet<>();
@@ -652,14 +653,48 @@ public class AssemblyHighlightService {
       }
 
       List<ChartRef> fields = new ArrayList<>();
-      addText(fields, info.getTextField());
+      AestheticRef chartText = info.getTextField();
+      addText(fields, chartText);
+
+      // Candle/stock and gantt (MergedGraphGenerator) draw no value labels of their own: a label
+      // exists only when a text field is bound, and its highlight is read from that text field,
+      // which is where HighlightDialogService.getMeasure redirects a write naming the field.
+      List<ChartRef> labelOnlyFields = new ArrayList<>();
+
+      if(info instanceof CandleChartInfo candle) {
+         addAll(labelOnlyFields, candle.getHighField(), candle.getLowField(),
+                candle.getOpenField(), candle.getCloseField(), candle.getRTHighField(),
+                candle.getRTLowField(), candle.getRTOpenField(), candle.getRTCloseField());
+      }
+
+      if(info instanceof GanttChartInfo gantt) {
+         addAll(labelOnlyFields, gantt.getStartField(), gantt.getEndField(),
+                gantt.getMilestoneField(), gantt.getRTStartField(), gantt.getRTEndField(),
+                gantt.getRTMilestoneField());
+      }
 
       if(info.isMultiAesthetic()) {
-         for(ChartRef field : axisCandidates(info)) {
-            if(field instanceof ChartBindable bindable) {
+         // Per-field text fields (multi-style charts, and gantt, which is always multi-aesthetic).
+         List<ChartRef> bindables = new ArrayList<>(axisCandidates(info));
+         bindables.addAll(labelOnlyFields);
+
+         for(ChartRef field : bindables) {
+            if(field instanceof ChartBindable bindable &&
+               bindable.getTextField() != null &&
+               bindable.getTextField().getDataRef() instanceof ChartRef)
+            {
                addText(fields, bindable.getTextField());
+
+               // Naming the field itself is redirected to its text field, so it is valid too.
+               if(labelOnlyFields.contains(field)) {
+                  fields.add(field);
+               }
             }
          }
+      }
+      else if(chartText != null) {
+         // Redirected to the chart's text field.
+         fields.addAll(labelOnlyFields);
       }
 
       boolean radar = isRadar(info);
@@ -685,17 +720,6 @@ public class AssemblyHighlightService {
       if(info instanceof MapInfo map) {
          addAll(fields, map.getGeoFields());
          addAll(fields, map.getRTGeoFields());
-      }
-
-      if(info instanceof CandleChartInfo candle) {
-         addAll(fields, candle.getHighField(), candle.getLowField(), candle.getOpenField(),
-                candle.getCloseField(), candle.getRTHighField(), candle.getRTLowField(),
-                candle.getRTOpenField(), candle.getRTCloseField());
-      }
-
-      if(info instanceof GanttChartInfo gantt) {
-         addAll(fields, gantt.getStartField(), gantt.getEndField(), gantt.getMilestoneField(),
-                gantt.getRTStartField(), gantt.getRTEndField(), gantt.getRTMilestoneField());
       }
 
       for(ChartRef field : fields) {

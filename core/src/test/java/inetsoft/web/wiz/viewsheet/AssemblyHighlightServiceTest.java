@@ -477,6 +477,71 @@ class AssemblyHighlightServiceTest {
       assertSetAccepted(chartHarness(mapChart()), text("State"));
    }
 
+   /** Gantt: y Task, start Sum(Start) (optionally labelled by a per-field text field Lbl). */
+   private static GanttVSChartInfo ganttChart(boolean labelled) {
+      GanttVSChartInfo info = new GanttVSChartInfo();
+      info.setChartDescriptor(new ChartDescriptor());
+      info.setChartType(GraphTypes.CHART_GANTT);
+      info.addYField(dimension("Task"));
+      VSChartAggregateRef start = sum("Start");
+
+      if(labelled) {
+         start.setTextField(aesthetic(dimension("Lbl")));
+      }
+
+      info.setStartField(start);
+      return withRuntime(info);
+   }
+
+   /**
+    * A gantt draws labels only from a text field bound on its start/end/milestone shelf, and
+    * reads the highlight from that text field -- where a write naming either field lands.
+    */
+   @Test
+   void acceptsATextHighlightOnAGanttFieldLabelledByItsTextField() throws Exception {
+      GanttVSChartInfo info = ganttChart(true);
+      ChartRef label = (ChartRef) ((VSChartAggregateRef) info.getStartField())
+         .getTextField().getDataRef();
+
+      for(String colName : new String[]{ "Sum(Start)", "Lbl" }) {
+         assertSame(label, HighlightDialogService.resolveChartHighlightRef(
+            info, colName, false, true), colName);
+         assertSetAccepted(chartHarness(info), text(colName));
+      }
+   }
+
+   /** Candle/gantt (MergedGraphGenerator) draw no value labels without a text field. */
+   @Test
+   void refusesATextHighlightOnAnUnlabelledGanttOrCandleField() throws Exception {
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> chartHarness(ganttChart(false)).service.set(
+            "tok", principal(), "Chart1", text("Sum(Start)"), highlight("X"), false, ""));
+      assertTrue(thrown.getMessage().contains("Sum(Start)"), thrown.getMessage());
+      // The list of valid names must not offer what was just refused.
+      assertFalse(thrown.getMessage().contains("are: Sum(Start)"), thrown.getMessage());
+
+      assertSetRefused(chartHarness(candleChart(false)), text("Sum(High)"), "Sum(High)");
+   }
+
+   @Test
+   void acceptsATextHighlightOnACandleFieldWhenATextFieldLabelsIt() throws Exception {
+      assertSetAccepted(chartHarness(candleChart(true)), text("Sum(High)"));
+   }
+
+   private static CandleVSChartInfo candleChart(boolean labelled) {
+      CandleVSChartInfo info = new CandleVSChartInfo();
+      info.setChartDescriptor(new ChartDescriptor());
+      info.setChartType(GraphTypes.CHART_CANDLE);
+      info.addXField(dimension("Day"));
+      info.setHighField(sum("High"));
+
+      if(labelled) {
+         info.setTextField(aesthetic(sum("Price")));
+      }
+
+      return withRuntime(info);
+   }
+
    @Test
    void axisWithNoColNameIsNotRefusedOnListOrDelete() throws Exception {
       Harness h = chartHarness(existing("Stray"));
