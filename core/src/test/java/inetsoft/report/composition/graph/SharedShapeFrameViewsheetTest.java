@@ -32,6 +32,8 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalShapeFrameWrapper;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TipVSAssemblyInfo;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -120,6 +122,7 @@ class SharedShapeFrameViewsheetTest {
    void tipViewWithTheSamePaletteBorrowsTheParentShapes() throws Exception {
       ChartVSAssembly parent = addChart("ParentChart", OTHER);
       ChartVSAssembly tip = addChart("TipChart", OTHER);
+      setTipView(parent, tip);
       Map<String, GShape> full = shapes(parent, null);
       assertEquals(expected(OTHER), full);
 
@@ -131,6 +134,7 @@ class SharedShapeFrameViewsheetTest {
    void tipViewWithADifferentPaletteBorrowsTheParentShapes() throws Exception {
       ChartVSAssembly parent = addChart("CustomParent", OTHER);
       ChartVSAssembly tip = addChart("DefaultTip", DEFAULT);
+      setTipView(parent, tip);
       Map<String, GShape> full = shapes(parent, null);
       assertEquals(expected(OTHER), full);
 
@@ -138,6 +142,35 @@ class SharedShapeFrameViewsheetTest {
       // shape of the palette
       tip.setTipConditionList(unnamedCondition());
       assertEquals(full.get("UNNAMED"), shapes(tip, null).get("UNNAMED"));
+   }
+
+   @Test
+   void tipViewBorrowsItsParentNotTheLastChartOnTheColumn() throws Exception {
+      ChartVSAssembly parent = addChart("TipParent", OTHER);
+      ChartVSAssembly tip = addChart("ParentTip", DEFAULT);
+      ChartVSAssembly other = addChart("UnrelatedNullChart", NULL);
+      setTipView(parent, tip);
+      tip.setTipConditionList(unnamedCondition());
+
+      // the unrelated chart on the same column renders before and after the parent
+      assertEquals(expected(NULL), shapes(other, null));
+      Map<String, GShape> full = shapes(parent, null);
+      assertEquals(expected(OTHER), full);
+      assertEquals(full.get("UNNAMED"), shapes(tip, null).get("UNNAMED"));
+
+      assertEquals(expected(NULL), shapes(other, null));
+      assertEquals(full.get("UNNAMED"), shapes(tip, null).get("UNNAMED"));
+   }
+
+   @Test
+   void chartFilteredLikeATipViewWithoutAParentKeepsItsOwnPalette() throws Exception {
+      ChartVSAssembly chart = addChart("OtherChart", OTHER);
+      ChartVSAssembly filtered = addChart("NoParentChart", DEFAULT);
+      shapes(chart, null);
+
+      // not a tip view of any chart, so it doesn't borrow a frame with another palette
+      filtered.setTipConditionList(unnamedCondition());
+      assertEquals(expected(DEFAULT).get("NAMED"), shapes(filtered, null).get("UNNAMED"));
    }
 
    @Test
@@ -282,6 +315,14 @@ class SharedShapeFrameViewsheetTest {
       }
 
       return shapes;
+   }
+
+   private static void setTipView(ChartVSAssembly parent, ChartVSAssembly tip) {
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) parent.getInfo();
+      info.setTipOptionValue(TipVSAssemblyInfo.VIEWTIP_OPTION);
+      info.setTipOption(TipVSAssemblyInfo.VIEWTIP_OPTION);
+      info.setTipViewValue(tip.getName());
+      info.setTipView(tip.getName());
    }
 
    private static ConditionList unnamedCondition() {

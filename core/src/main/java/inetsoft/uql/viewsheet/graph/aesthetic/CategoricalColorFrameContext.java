@@ -71,17 +71,36 @@ public class CategoricalColorFrameContext {
    }
 
    /**
-    * Get the shape frame last shared on the same column, whatever its palette. Only for a
-    * chart that never renders its full data (e.g. a data tip view), which has no full data
-    * frame of its own to keep its value to shape mapping stable.
+    * Get the shape frame a chart last shared on the column, whatever its palette. Only for a
+    * data tip view, which never renders its full data, to borrow the frame of its parent chart.
+    *
+    * @param chart the absolute name of the chart that shared the frame.
     */
-   public VisualFrame getColumnSharedShapeFrame(String columnName, DataRef ref) {
-      return sharedFrames.get(getShapeParameters(columnName, ref, null));
+   public VisualFrame getChartSharedShapeFrame(String columnName, DataRef ref, String chart) {
+      return sharedFrames.get(getChartShapeParameters(columnName, ref, chart));
    }
 
-   public void addSharedShapeFrame(String columnName, CategoricalShapeFrame frame, DataRef ref) {
+   /**
+    * @param chart the absolute name of the chart sharing the frame, null if unknown.
+    */
+   public void addSharedShapeFrame(String columnName, CategoricalShapeFrame frame, DataRef ref,
+                                   String chart)
+   {
       sharedFrames.put(getShapeParameters(columnName, ref, frame), frame);
-      sharedFrames.put(getShapeParameters(columnName, ref, null), frame);
+
+      if(chart != null) {
+         sharedFrames.put(getChartShapeParameters(columnName, ref, chart), frame);
+      }
+   }
+
+   private SharedFrameParameters getChartShapeParameters(String columnName, DataRef ref,
+                                                         String chart)
+   {
+      final SharedFrameParameters params = new SharedFrameParameters();
+      addParameters(columnName, ref, params);
+      params.addParameter(FrameType.SHAPE);
+      params.addParameter(new ChartName(chart));
+      return params;
    }
 
    /**
@@ -95,18 +114,14 @@ public class CategoricalColorFrameContext {
       final SharedFrameParameters params = new SharedFrameParameters();
       addParameters(columnName, ref, params);
       params.addParameter(FrameType.SHAPE);
+      final List<String> palette = new ArrayList<>();
 
-      if(frame != null) {
-         final List<String> palette = new ArrayList<>();
-
-         for(int i = 0; i < frame.getShapeCount(); i++) {
-            final GShape shape = frame.getShape(i);
-            palette.add(shape == null ? "null" : shape.getLegendId() + ":" + shape.isFill());
-         }
-
-         params.addParameter(palette);
+      for(int i = 0; i < frame.getShapeCount(); i++) {
+         final GShape shape = frame.getShape(i);
+         palette.add(shape == null ? "null" : shape.getLegendId() + ":" + shape.isFill());
       }
 
+      params.addParameter(palette);
       return params;
    }
 
@@ -120,6 +135,8 @@ public class CategoricalColorFrameContext {
    }
 
    private enum FrameType { SHAPE }
+
+   private record ChartName(String name) { }
 
    private static final ThreadLocal<CategoricalColorFrameContext> context =
       ThreadLocal.withInitial(CategoricalColorFrameContext::new);

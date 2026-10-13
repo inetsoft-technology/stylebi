@@ -343,7 +343,9 @@ public abstract class GraphGenerator {
          // Pass hasFullData=false for filtered renders (data tip / flyover) so that a depleted
          // CategoricalShapeFrame cmap is not written back to the shared context.
          shpvisitor = new VSFrameVisitor(info, fdata, shpstrategy, global,
-            vdata, cubeType, vsrc, sourceType, hasFullData, getFrameInitializer());
+            vdata, cubeType, vsrc, sourceType, hasFullData,
+            assembly == null ? null : assembly.getAbsoluteName(),
+            hasFullData ? null : getTipParent(assembly), getFrameInitializer());
          // create texture frame
          tstrategy = new VSTextureFrameStrategy(info);
          tvisitor = new VSFrameVisitor(info, fdata, tstrategy, global, vdata,
@@ -1880,6 +1882,37 @@ public abstract class GraphGenerator {
    /**
     * Find the time scale type of a date dimension.
     */
+   /**
+    * Get the absolute name of the assembly that shows the specified assembly (or a container
+    * of it) as its data tip view.
+    */
+   private static String getTipParent(VSAssembly assembly) {
+      Viewsheet vs = assembly == null ? null : assembly.getViewsheet();
+
+      if(vs == null) {
+         return null;
+      }
+
+      for(Assembly obj : vs.getAssemblies()) {
+         if(!(obj.getInfo() instanceof TipVSAssemblyInfo tipInfo) ||
+            tipInfo.getTipOption() != TipVSAssemblyInfo.VIEWTIP_OPTION ||
+            tipInfo.getTipView() == null)
+         {
+            continue;
+         }
+
+         Assembly tipView = vs.getAssembly(tipInfo.getTipView());
+
+         for(VSAssembly view = assembly; view != null; view = view.getContainer()) {
+            if(view == tipView) {
+               return ((VSAssembly) obj).getAbsoluteName();
+            }
+         }
+      }
+
+      return null;
+   }
+
    private static int getDateType(DataSet data, String dim) {
       VSDataSet vs = data instanceof VSDataSet ? (VSDataSet) data : null;
       DataSet oodata = data;
