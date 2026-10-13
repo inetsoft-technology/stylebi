@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.*;
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "/inetsoft/report/composition/EmbeddedVS1.zip")
-@Tag("core")
+@Tag("slow")
 @Tag("integration")
 class SharedShapeFrameViewsheetTest {
    @BeforeEach
@@ -123,14 +123,44 @@ class SharedShapeFrameViewsheetTest {
       Map<String, GShape> full = shapes(parent, null);
       assertEquals(expected(OTHER), full);
 
-      ConditionList conds = new ConditionList();
-      Condition cond = new Condition(XSchema.STRING);
-      cond.setOperation(XCondition.EQUAL_TO);
-      cond.addValue("UNNAMED");
-      conds.append(new ConditionItem(new ColumnRef(new AttributeRef(null, "type")), cond, 0));
-      tip.setTipConditionList(conds);
-
+      tip.setTipConditionList(unnamedCondition());
       assertEquals(full.get("UNNAMED"), shapes(tip, null).get("UNNAMED"));
+   }
+
+   @Test
+   void tipViewWithADifferentPaletteBorrowsTheParentShapes() throws Exception {
+      ChartVSAssembly parent = addChart("CustomParent", OTHER);
+      ChartVSAssembly tip = addChart("DefaultTip", DEFAULT);
+      Map<String, GShape> full = shapes(parent, null);
+      assertEquals(expected(OTHER), full);
+
+      // the tip view only renders filtered data, its own palette would give UNNAMED the first
+      // shape of the palette
+      tip.setTipConditionList(unnamedCondition());
+      assertEquals(full.get("UNNAMED"), shapes(tip, null).get("UNNAMED"));
+   }
+
+   @Test
+   void flyoverTargetWithADifferentPaletteKeepsItsOwnShapes() throws Exception {
+      ChartVSAssembly source = addChart("FlyoverSource", OTHER);
+      ChartVSAssembly target = addChart("FlyoverTarget", GOOD);
+      assertEquals(expected(OTHER), shapes(source, null));
+      Map<String, GShape> full = shapes(target, null);
+      assertEquals(expected(GOOD), full);
+
+      target.setTipConditionList(unnamedCondition());
+      assertEquals(full.get("UNNAMED"), shapes(target, null).get("UNNAMED"));
+   }
+
+   @Test
+   void filledAndHollowPalettesAreNotShared() throws Exception {
+      ChartVSAssembly hollow = addChart("HollowChart", GOOD);
+      ChartVSAssembly filled = addChart("FilledChart", FILLED);
+      assertNotEquals(expected(GOOD), expected(FILLED));
+
+      assertEquals(expected(GOOD), shapes(hollow, null));
+      assertEquals(expected(FILLED), shapes(filled, null));
+      assertEquals(expected(GOOD), shapes(hollow, null));
    }
 
    @Test
@@ -189,11 +219,14 @@ class SharedShapeFrameViewsheetTest {
       shape.setDataRef(dim);
       CategoricalShapeFrameWrapper wrapper = new CategoricalShapeFrameWrapper();
 
-      for(int i = 0; i < 16; i++) {
-         wrapper.setShape(i, shapeId(palette, i));
+      if(!DEFAULT.equals(palette)) {
+         for(int i = 0; i < 16; i++) {
+            wrapper.setShape(i, shapeId(palette, i));
+         }
+
+         wrapper.setChanged(true);
       }
 
-      wrapper.setChanged(true);
       shape.setVisualFrameWrapper(wrapper);
       return shape;
    }
@@ -202,6 +235,8 @@ class SharedShapeFrameViewsheetTest {
       return switch(palette) {
          case NULL -> "null";
          case OTHER -> String.valueOf(900 + (i + 2) % 16);
+         // the filled circle and triangle in place of the hollow ones, the same shape classes
+         case FILLED -> String.valueOf(i < 2 ? 907 + i : 900 + i);
          default -> String.valueOf(900 + i);
       };
    }
@@ -249,6 +284,15 @@ class SharedShapeFrameViewsheetTest {
       return shapes;
    }
 
+   private static ConditionList unnamedCondition() {
+      ConditionList conds = new ConditionList();
+      Condition cond = new Condition(XSchema.STRING);
+      cond.setOperation(XCondition.EQUAL_TO);
+      cond.addValue("UNNAMED");
+      conds.append(new ConditionItem(new ColumnRef(new AttributeRef(null, "type")), cond, 0));
+      return conds;
+   }
+
    private static CategoricalShapeFrameWrapper designWrapper(ChartVSAssembly chart) {
       return (CategoricalShapeFrameWrapper)
          chart.getVSChartInfo().getShapeField().getVisualFrameWrapper();
@@ -280,4 +324,6 @@ class SharedShapeFrameViewsheetTest {
    private static final String NULL = "null palette";
    private static final String GOOD = "900 palette";
    private static final String OTHER = "rotated palette";
+   private static final String FILLED = "filled palette";
+   private static final String DEFAULT = "default palette";
 }

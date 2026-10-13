@@ -70,8 +70,18 @@ public class CategoricalColorFrameContext {
       return sharedFrames.get(getShapeParameters(columnName, ref, palette));
    }
 
+   /**
+    * Get the shape frame last shared on the same column, whatever its palette. Only for a
+    * chart that never renders its full data (e.g. a data tip view), which has no full data
+    * frame of its own to keep its value to shape mapping stable.
+    */
+   public VisualFrame getColumnSharedShapeFrame(String columnName, DataRef ref) {
+      return sharedFrames.get(getShapeParameters(columnName, ref, null));
+   }
+
    public void addSharedShapeFrame(String columnName, CategoricalShapeFrame frame, DataRef ref) {
       sharedFrames.put(getShapeParameters(columnName, ref, frame), frame);
+      sharedFrames.put(getShapeParameters(columnName, ref, null), frame);
    }
 
    /**
@@ -85,14 +95,18 @@ public class CategoricalColorFrameContext {
       final SharedFrameParameters params = new SharedFrameParameters();
       addParameters(columnName, ref, params);
       params.addParameter(FrameType.SHAPE);
-      final List<String> palette = new ArrayList<>();
 
-      for(int i = 0; i < frame.getShapeCount(); i++) {
-         final GShape shape = frame.getShape(i);
-         palette.add(shape == null ? "null" : shape.getLegendId() + ":" + shape.isFill());
+      if(frame != null) {
+         final List<String> palette = new ArrayList<>();
+
+         for(int i = 0; i < frame.getShapeCount(); i++) {
+            final GShape shape = frame.getShape(i);
+            palette.add(shape == null ? "null" : shape.getLegendId() + ":" + shape.isFill());
+         }
+
+         params.addParameter(palette);
       }
 
-      params.addParameter(palette);
       return params;
    }
 
