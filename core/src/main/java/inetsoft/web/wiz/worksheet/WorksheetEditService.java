@@ -2882,8 +2882,8 @@ public class WorksheetEditService {
        * Inserts a new empty row into an embedded table.
        *
        * @param table the assembly name (must be an embedded table, and not a snapshot)
-       * @param index the 0-based data row index at which to insert
-       * @throws PairingException if the table is not editable
+       * @param index the 0-based data row index at which to insert; the data row count appends
+       * @throws PairingException if the table is not editable or the index is out of range
        */
       public void insertRow(String table, int index) throws PairingException {
          EmbeddedTableAssembly embedded = requireEditableEmbedded(table, "insert_row");
@@ -2899,8 +2899,10 @@ public class WorksheetEditService {
 
          int dataRow = index + 1; // +1 for header row
 
+         // index == data rows (dataRow == getRowCount()) appends at the end
          if(dataRow > data.getRowCount()) {
-            dataRow = data.getRowCount();
+            throw new PairingException("Row index out of range: " + index + " (valid 0.." +
+                                       (data.getRowCount() - 1) + ")");
          }
 
          data.insertRow(dataRow);
