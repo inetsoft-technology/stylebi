@@ -291,19 +291,23 @@ class ComposerObjectServiceTest {
    void aDraggedMarkedListStoresTheRowsItsBoxHolds(String density, int height) throws Exception {
       Viewsheet vs = tierViewsheet(density);
       SelectionListVSAssembly list = markedList(vs);
+      list.getSelectionListInfo().setListHeight(10);
 
       resize(vs, "SelectionList1", list.getPixelSize().width, height);
 
       assertEquals(6, list.getSelectionListInfo().getListHeight());
    }
 
+   // ten rows would rebuild 342, and a box nobody sized 202
    @Test
    void aDraggedMarkedListRebuildsTheBoxItWasDraggedTo() throws Exception {
       Viewsheet vs = tierViewsheet("comfortable");
       SelectionListVSAssembly list = markedList(vs);
+      list.getSelectionListInfo().setListHeight(10);
 
       resize(vs, "SelectionList1", 132, 230);
 
+      assertTrue(list.getSelectionListInfo().isUserSize());
       assertEquals(230, list.getSelectionListInfo().getContainedListHeight(),
                    "what a container expand and a switch back from Dropdown rebuild");
    }
@@ -346,9 +350,10 @@ class ComposerObjectServiceTest {
       assertEquals(10, info.getListHeight());
    }
 
-   // the lane grows by 10 and the box with it: 212 - 40 - 32 still holds five 28px rows
+   // the lane grows by 10 and the box with it: 212 - 40 - 32 holds five 28px rows, which rebuild
+   // the box as dragged
    @Test
-   void aTitleLaneDragKeepsAMarkedListsRows() throws Exception {
+   void aTitleLaneDragFitsAMarkedListsRowsToItsBox() throws Exception {
       Viewsheet vs = tierViewsheet("comfortable");
       SelectionListVSAssembly list = markedList(vs);
       when(engine.getViewsheet(any(), any())).thenReturn(rvs);
@@ -365,6 +370,7 @@ class ComposerObjectServiceTest {
                                 "/test");
 
       assertEquals(5, list.getSelectionListInfo().getListHeight());
+      assertEquals(212, list.getSelectionListInfo().getContainedListHeight());
    }
 
    // the list's own mark decides, not the dashboard's density: (230 - 20) / 20, written even for

@@ -15,7 +15,7 @@ steps are in the enterprise root's `density-deferred-fixes-repro.md`.
 1. A composer resize of a marked selection list stores its row count in legacy 20px rows. A 230px drag at
    comfortable stores 10 rows where 6 fit, so Dropdown→List rebuilds a 342px box, the dropdown opens 280px tall and
    a container expand grows to 342. A fresh marked list already disagrees with its own box: it stores 6 rows while
-   its seeded box holds 5.
+   its seeded box holds 5. *(Amended 2026-10-13: the 6 against 5 is legacy parity, not a defect — see D1.)*
 2. A marked table with an author cell padding drifts its rows 2–6px after a density change, and 6–12px when the
    padding was set before Modernize. A 1px padding moved from comfortable to dense draws a 10px row that clips its
    text.
@@ -31,16 +31,35 @@ steps are in the enterprise root's `density-deferred-fixes-repro.md`.
 
 A marked list's `listHeight` is the number of whole rows its box holds under its title lane and inside its card
 inset, at its effective cell height, never fewer than one. It is written by a composer resize that changes the
-height, by the density size seed (so a fresh, Modernized, re-seeded or Reverted box stores the rows it holds), and
-by ticking "Follow the default density" in the list and tree dialogs. It is never written while the design show
+height~~, by the density size seed (so a fresh, Modernized, re-seeded or Reverted box stores the rows it holds), and
+by ticking "Follow the default density" in the list and tree dialogs~~ *(seed and tick withdrawn 2026-10-13; see
+the amendment below)*. It is never written while the design show
 type is Dropdown, because a dropdown's box is its title lane and its rows are the author's Height. Align,
 Distribute and a width-only drag resend an unchanged height and leave the rows alone. An author-sized box keeps its
 rows through a density change: rows stay the same at every tier, and the popup and Dropdown→List rebuild them at
 the new density.
 
-Unmarked lists keep the legacy arithmetic exactly, including rewriting the rows on Align. Revert re-boxes a list to
-the legacy 100×120 and stores the 5 rows that box holds, so a reverted list round-trips to its own box; a list that
-was never marked still stores 6.
+Unmarked lists keep the legacy arithmetic exactly, including rewriting the rows on Align. ~~Revert re-boxes a list
+to the legacy 100×120 and stores the 5 rows that box holds, so a reverted list round-trips to its own box; a list
+that was never marked still stores 6.~~ *(Withdrawn 2026-10-13: Revert re-boxes a list to 100×120 and leaves its
+rows alone.)*
+
+**Amended 2026-10-13.** The density seed's and the tick's row writes are withdrawn; the composer resize refit stays.
+A list's `listHeight` is the dropdown's own row count — the dialog's Height, editable only in Dropdown mode, default
+6, as legacy's dropdown shows 6 while its 100×120 box shows 5. The density size seed and "Follow the default
+density" never write it: a fresh marked list keeps 6, and Modernize, a density change, `reseedAfterRestore` and
+Revert leave it alone. The rule for a marked list or tree (`getVizMark() != null`) wherever its List box is rebuilt —
+Dropdown→List in the list and tree property dialogs, a selection container's expand, a move into a container, a
+device layout:
+
+- **The author never sized the box** (`!isUserSize()`): the List box is the density box for its tier,
+  `VSDensityDefaults.selectionSize(VizContext.of(info)).height` (202 / 170 / 136), whatever its rows, cell height or
+  title visibility. A mode round trip cannot resize it.
+- **The author sized the box** (`isUserSize()`): it is rebuilt from rows, `title + listHeight × effective cell +
+  inset`; the composer resize refit keeps those rows what the box holds.
+
+The rule keys on `isUserSize()`, not `followsDensitySize()`, because a dropdown's box is its title lane and never a
+recognised tier size. Unmarked lists and trees are unchanged from `c66a5aca51`.
 
 ### D2 — A row under an author cell padding sits on the tier in force
 
@@ -95,6 +114,16 @@ freehand table share the path.
 
 Whole rows mean some heights do not round-trip exactly: 160 at dense stores 6 rows and rebuilds 156.
 
+**Amended 2026-10-13.** The second and fourth bullets are withdrawn: `seedChromeDefaults` no longer calls
+`fitListHeightToBox()` (the size seed itself stays), and the dialogs no longer fit the rows when the size box is
+ticked. `getFittingListHeight` and `fitListHeightToBox` remain for the resize, which is unchanged. D1's rule lives in
+one method, `SelectionBaseVSAssemblyInfo.getContainedListHeight()`: unmarked, `listHeight × defh + title` as before;
+marked and `!isUserSize()`, the tier box; marked and `isUserSize()`, `title + getListBodyHeight()`. Every rebuild
+calls it — the list dialog's and the tree dialog's marked Dropdown→List (the tree keeps its `max` with the current
+box), `VSSelectionContainerService.applySelection` (the expand and its overflow estimate), `GroupingService` (a move
+into a container) and `AbstractLayout.applySelection` (device layouts) — so the dialogs and the container cannot
+disagree. The dialogs' unmarked branches are unchanged.
+
 ## 4. Item 2 — author cell padding
 
 - `VSDensityDefaults.excludedCellPaddingHeight(VizContext, TableDataVSAssemblyInfo)` (stored side, guarded by
@@ -139,7 +168,7 @@ every container and need nothing; HTML range sliders follow through `getBounds`.
 
 | Item | Tests |
 |---|---|
-| 1 | `ContainedListHeightTest`, `SelectionDensitySizeTest`, `ComposerObjectServiceTest`, `SelectionPaddingDialogTest`, `SelectionTreeShowTypeSizeTest` |
+| 1 | `ContainedListHeightTest`, `SelectionDensitySizeTest`, `ComposerObjectServiceTest`, `SelectionPaddingDialogTest`, `SelectionTreeShowTypeSizeTest`; from 2026-10-13 also `GroupingServiceTest`, `VSSelectionContainerServiceTest`, `AbstractLayoutTest` |
 | 2 | `DensityRowHeightInvariantTest`, `TableCellPaddingCssCoverageTest`, `TableCellPaddingSeedTest`, `TableViewPropertyDialogServiceTest`, new `CalcTablePropertyDialogServiceTest` |
 | 3 | `ContainerChildTopTest`, `SelectionContainerChildExportTest`, `SelectionContainerOutRowsExportTest`, new `HTMLHiddenContainerTitleTest` |
 | 4 | new `table/base-table.spec.ts`, `vs-object-container.component.spec.ts` |
@@ -154,8 +183,10 @@ compact and dense, using the `DFX1`–`DFX4` fixtures. The unmarked fixtures (`D
 
 ## 8. Risks and accepted costs
 
-1. Content saved before this branch keeps its stored 6 rows in the composer until a height drag, the tick, a density
-   change, Modernize or Revert; a composer open does not seed.
+1. ~~Content saved before this branch keeps its stored 6 rows in the composer until a height drag, the tick, a
+   density change, Modernize or Revert; a composer open does not seed.~~ *(Replaced 2026-10-13: only the dropdown's
+   Height and a height drag write the rows now, so saved content needs no seed.)* A Height typed in Dropdown mode on a list the
+   author never sized does not size its List box — the List box is the density box until the author sizes it.
 2. A typed Height in Size & Position does not refit the rows (unchanged).
 3. A marked container with a hidden title saves child y values the composer canvas does not draw.
 4. Under full stylesheet coverage with an author padding and an author row height, a tier change now moves the row

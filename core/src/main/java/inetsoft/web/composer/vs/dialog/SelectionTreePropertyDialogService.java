@@ -333,8 +333,8 @@ public class SelectionTreePropertyDialogService {
          int minListHeight;
 
          if(streeInfo.getVizMark() != null) {
-            // a marked tree's rows sit under its title lane and inside its card inset, as a list's do
-            minListHeight = streeInfo.getTitleHeight() + streeInfo.getListBodyHeight();
+            // the box a list's switch and a container expand rebuild too
+            minListHeight = streeInfo.getContainedListHeight();
          }
          else {
             minListHeight = streeInfo.getListHeight() * AssetUtil.defh;
@@ -417,12 +417,6 @@ public class SelectionTreePropertyDialogService {
       }
       else {
          streeInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
-      }
-
-      // a box put back on its density size holds that size's rows; last, after the title, cell
-      // height, inset and show type above
-      if(Boolean.TRUE.equals(sizePositionPaneModel.getSizeFollowsDensity())) {
-         streeInfo.fitListHeightToBox();
       }
 
       setAssemblyInfoTables(streeInfo, selectionTreePaneModel, principal);

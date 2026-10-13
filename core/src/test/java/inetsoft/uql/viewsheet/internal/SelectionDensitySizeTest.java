@@ -157,24 +157,24 @@ class SelectionDensitySizeTest {
       SreeEnv.setProperty("viewsheet.density", null);
    }
 
-   // the tier box holds five rows; storing six made a Dropdown to List rebuild 230 / 194 / 156
+   // the rows are the dropdown's own six, as legacy's; the box it opens to is the tier box
    @ParameterizedTest
    @CsvSource({ "comfortable, 202", "compact, 170", "dense, 136" })
-   void aFreshMarkedListStoresTheRowsItsBoxHolds(String density, int height) {
+   void aFreshMarkedListKeepsSixRows(String density, int height) {
       SelectionListVSAssemblyInfo info = created(density, VizMark.MODERN_LIGHT);
 
-      assertEquals(5, info.getListHeight());
-      assertEquals(height, info.getContainedListHeight(), "the rows rebuild the box they came from");
+      assertEquals(6, info.getListHeight());
+      assertEquals(height, info.getContainedListHeight());
    }
 
    @Test
-   void aFreshMarkedTreeStoresTheRowsItsBoxHolds() {
+   void aFreshMarkedTreeKeepsSixRows() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       SelectionTreeVSAssemblyInfo info = new SelectionTreeVSAssemblyInfo();
       info.setVizMark(VizMark.MODERN_LIGHT);
       info.initDefaultFormat();
 
-      assertEquals(5, info.getListHeight());
+      assertEquals(6, info.getListHeight());
    }
 
    @Test
@@ -185,19 +185,21 @@ class SelectionDensitySizeTest {
       assertEquals(6, info.getListHeight(), "legacy creation is unchanged");
    }
 
+   // a density change moves the box, not the rows
    @Test
-   void aDensityChangeCarriesTheRowsWithTheBox() {
+   void aDensityChangeLeavesTheRowsAlone() {
       SelectionListVSAssemblyInfo info = created("comfortable", VizMark.MODERN_LIGHT);
-      info.setListHeight(6);
 
       SreeEnv.setProperty("viewsheet.density", "dense");
       info.seedChromeDefaults(VizContext.of(info));
 
       assertEquals(new Dimension(116, 136), info.getPixelSize());
-      assertEquals(5, info.getListHeight());
+      assertEquals(6, info.getListHeight());
+      assertEquals(136, info.getContainedListHeight());
    }
 
-   // a density change moves pixels, not rows: an author's box keeps its size and its row count
+   // a density change moves pixels, not rows: an author's box keeps its size and its row count,
+   // and rebuilds them at the new tier: 20 + 6 x 20 + 8 + 8
    @Test
    void aDensityChangeLeavesAnAuthorSizedListsRows() {
       SelectionListVSAssemblyInfo info = created("comfortable", VizMark.MODERN_LIGHT);
@@ -210,6 +212,7 @@ class SelectionDensitySizeTest {
 
       assertEquals(new Dimension(132, 230), info.getPixelSize());
       assertEquals(6, info.getListHeight());
+      assertEquals(156, info.getContainedListHeight());
    }
 
    // a dropdown's rows are the author's, even when its box still carries a seeded size
@@ -227,28 +230,27 @@ class SelectionDensitySizeTest {
    }
 
    @Test
-   void modernizeFitsALegacyListsRowsToItsTierBox() {
+   void modernizeLeavesALegacyListsRowsAlone() {
       SelectionListVSAssemblyInfo info = created("comfortable", null);
 
       info.setVizMark(VizMark.MODERN_LIGHT);
       info.seedChromeDefaults(VizContext.ofTransition(null, VizMark.MODERN_LIGHT));
 
       assertEquals(new Dimension(132, 202), info.getPixelSize());
-      assertEquals(5, info.getListHeight());
+      assertEquals(6, info.getListHeight());
    }
 
-   // the legacy 100x120 holds five 20px rows under its 20px lane, so Revert stores five
+   // the box goes back to 100x120 and the rows stay; unmarked, it opens to the legacy 20 + 6 x 20
    @Test
-   void revertFitsTheRowsToTheLegacyBox() {
+   void revertLeavesTheRowsAlone() {
       SelectionListVSAssemblyInfo info = created("comfortable", VizMark.MODERN_LIGHT);
-      info.setListHeight(6);
 
       info.setVizMark(null);
       info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(new Dimension(100, 120), info.getPixelSize());
-      assertEquals(5, info.getListHeight());
-      assertEquals(120, info.getContainedListHeight());
+      assertEquals(6, info.getListHeight());
+      assertEquals(140, info.getContainedListHeight());
    }
 
    @Test
@@ -260,9 +262,8 @@ class SelectionDensitySizeTest {
       assertEquals(6, info.getListHeight());
    }
 
-   // an author cell height takes its rows from the same box: (202 - 30 - 32) / 40
    @Test
-   void aSeededBoxWithAnAuthorCellHeightStoresTheRowsThatFit() {
+   void theSeedLeavesTheRowsAloneUnderAnAuthorCellHeight() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
       info.setVizMark(VizMark.MODERN_LIGHT);
@@ -271,7 +272,8 @@ class SelectionDensitySizeTest {
 
       info.seedChromeDefaults(VizContext.of(info));
 
-      assertEquals(3, info.getListHeight());
+      assertEquals(new Dimension(132, 202), info.getPixelSize());
+      assertEquals(6, info.getListHeight());
    }
 
    private SelectionListVSAssemblyInfo created(String density, VizMark mark) {

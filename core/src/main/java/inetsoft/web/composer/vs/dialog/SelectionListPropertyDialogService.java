@@ -301,10 +301,12 @@ public class SelectionListPropertyDialogService {
          size.height = selectionListAssemblyInfo.getTitleHeight();
       }
       else if(showType != oldShowType) {
-         // the rows a marked list draws follow the density and sit inside its card inset; both
-         // reduce to the stored cell height and zero for an unmarked list
-         size.height = selectionListAssemblyInfo.getTitleHeight() +
-            selectionListAssemblyInfo.getListBodyHeight();
+         // marked, the box a container expand rebuilds too; unmarked, its rows at the stored cell
+         // height
+         size.height = selectionListAssemblyInfo.getVizMark() != null ?
+            selectionListAssemblyInfo.getContainedListHeight() :
+            selectionListAssemblyInfo.getTitleHeight() +
+               selectionListAssemblyInfo.getListBodyHeight();
       }
 
       VSAssembly container = selectionListAssembly.getContainer();
@@ -378,12 +380,6 @@ public class SelectionListPropertyDialogService {
       }
       else {
          selectionListAssemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
-      }
-
-      // a box put back on its density size holds that size's rows; last, after the title, cell
-      // height, inset and show type above
-      if(Boolean.TRUE.equals(sizePositionPaneModel.getSizeFollowsDensity())) {
-         selectionListAssemblyInfo.fitListHeightToBox();
       }
 
       setAssemblyInfoTables(selectionListAssemblyInfo, selectionListPaneModel, principal);
