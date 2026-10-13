@@ -1056,6 +1056,188 @@ class RowFetchFailureTest {
                  String.valueOf(box.getExportScriptError()));
    }
 
+   // Bug #78445: through the real ViewsheetAction save to disk (CSV), a scheduled task whose
+   // onLoad reads a hidden table that failed to load fails with the database error, and neither
+   // the target file nor the task's temp file is left behind. A plain onLoad error still warns,
+   // and the task finishes and saves the file
+   @Test
+   void scheduledSaveToDiskFailsOnAnOnLoadLoadFailure() throws Exception {
+      String read = "var n = TableV.table.length; parameter.r = 'rows=' + n;";
+      java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("vsaction78445");
+
+      try {
+         java.util.Set<String> cache = cacheListing();
+         java.util.List<String> saved = new java.util.ArrayList<>();
+         Throwable ex = runSaveToDisk(hiddenFailedTableSandbox(true, read), dir, saved);
+         assertLoadFailure(ex, DB_MESSAGE);
+         assertTrue(hasSqlException(TableLoadException.find(ex)), String.valueOf(ex));
+         assertTrue(saved.isEmpty(), String.valueOf(saved));
+         assertEquals(0, dir.toFile().list().length);
+         assertEquals(cache, cacheListing());
+
+         ViewsheetSandbox plain = hiddenFailedTableSandbox(true, "throw 'PLAINX';");
+         assertNull(runSaveToDisk(plain, dir, saved));
+         assertEquals(1, saved.size(), String.valueOf(saved));
+      }
+      finally {
+         Tool.deleteFile(dir.toFile());
+      }
+   }
+
+   // Bug #78445: a load failure in the onLoad of a viewsheet embedded two levels down fails the
+   // scheduled export; interactive, the same sheet exports without an error
+   @Test
+   void embeddedLoadFailureTwoLevelsDownFails() throws Exception {
+      for(boolean scheduler : new boolean[] { true, false }) {
+         Worksheet ws = new Worksheet();
+         sqlTable(ws, "T1", true);
+         Viewsheet leaf = embeddedViewsheet(ws, "Leaf", true,
+                                            "var n = TableV.table.length; parameter.n = n;");
+         Viewsheet mid = embeddedViewsheet(ws, "Mid", false, "parameter.m = 1;");
+         mid.addAssembly(leaf);
+         Viewsheet host = viewsheet(ws);
+         host.getViewsheetInfo().setOnLoad("parameter.h = 1;");
+         host.addAssembly(mid);
+         ViewsheetSandbox box = viewsheetSandbox(host, querySandbox(ws, scheduler));
+         assertNotNull(box.getSandbox("Mid"));
+         assertNotNull(box.getSandbox("Mid.Leaf"));
+
+         if(scheduler) {
+            assertLoadFailure(assertThrows(TableLoadException.class, box::prepareForExport),
+                              DB_MESSAGE);
+         }
+         else {
+            box.prepareForExport();
+            assertNull(box.getExportScriptError());
+         }
+      }
+   }
+
+   // Bug #78445: a host onLoad load failure followed by a plain error in an embedded onLoad
+   // still fails the scheduled export, and the host's failure stays the recorded error
+   @Test
+   void hostLoadFailureThenEmbeddedPlainErrorFails() throws Exception {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", true);
+      ViewsheetSandbox box = vsTable(ws, querySandbox(ws, true));
+      Viewsheet host = box.getViewsheet();
+      host.getViewsheetInfo().setOnLoad("var n = TableV.table.length; parameter.n = n;");
+      host.addAssembly(embeddedViewsheet(ws, "Viewsheet1", false, "throw 'CHILDX';"));
+      assertNotNull(box.getSandbox("Viewsheet1"));
+
+      assertLoadFailure(assertThrows(TableLoadException.class, box::prepareForExport),
+                        DB_MESSAGE);
+      assertNotNull(TableLoadException.find(box.getExportScriptError()));
+   }
+
+   // an embedded viewsheet named name over ws, with the table TableV bound to T1 if table
+   private static Viewsheet embeddedViewsheet(Worksheet ws, String name, boolean table,
+                                              String onLoad)
+      throws Exception
+   {
+      Viewsheet child = viewsheet(ws);
+      child.setEntry(new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         "test/RowFetchFailureTest/" + name, null,
+         OrganizationManager.getInstance().getCurrentOrgID()));
+      child.createVSAssembly(name);
+
+      if(table) {
+         TableVSAssembly tableV = new TableVSAssembly(child, "TableV");
+         tableV.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "T1"));
+         ColumnSelection cols = new ColumnSelection();
+
+         for(String col : new String[] { "id", "g", "x" }) {
+            cols.addAttribute(new ColumnRef(new AttributeRef(null, col)));
+         }
+
+         tableV.setColumnSelection(cols);
+         child.addAssembly(tableV);
+      }
+
+      child.getViewsheetInfo().setOnLoad(onLoad);
+      return child;
+   }
+
+   private static java.util.Set<String> cacheListing() throws Exception {
+      java.nio.file.Path cdir =
+         java.nio.file.Paths.get(FileSystemService.getInstance().getCacheDirectory());
+
+      try(java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.list(cdir)) {
+         return files.map(f -> f.getFileName().toString())
+            .collect(java.util.stream.Collectors.toCollection(java.util.TreeSet::new));
+      }
+   }
+
+   // runs a real ViewsheetAction that saves the home bookmark of the sandbox's viewsheet as CSV
+   // to dir, with only the viewsheet open/close, the bookmark list and the external storage
+   // stood in for; returns what the task threw, and adds each saved file to saved
+   private static Throwable runSaveToDisk(ViewsheetSandbox box, java.nio.file.Path dir,
+                                          java.util.List<String> saved)
+      throws Exception
+   {
+      inetsoft.sree.security.IdentityID pid = new inetsoft.sree.security.IdentityID(
+         "admin", OrganizationManager.getInstance().getCurrentOrgID());
+      java.security.Principal principal = new inetsoft.sree.security.SRPrincipal(pid);
+      java.security.Principal oldPrincipal = ThreadContext.getContextPrincipal();
+      Viewsheet vs = box.getViewsheet();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn("rvs-78445");
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(rvs.getEntry()).thenReturn(box.getAssetEntry());
+      when(rvs.getOriginalBookmark(any(), any())).thenReturn(vs);
+
+      inetsoft.sree.schedule.ViewsheetAction action =
+         new inetsoft.sree.schedule.ViewsheetAction(box.getAssetEntry().toIdentifier(), null)
+      {
+         @Override
+         public RuntimeViewsheet getRuntimeViewsheet(
+            java.security.Principal user, inetsoft.sree.schedule.ScheduleViewsheetService service)
+         {
+            return rvs;
+         }
+
+         @Override
+         public void closeViewsheet(String id, java.security.Principal user,
+                                    inetsoft.sree.schedule.ScheduleViewsheetService service)
+         {
+         }
+      };
+      action.setBookmarks(new String[] { VSBookmark.HOME_BOOKMARK });
+      action.setBookmarkTypes(new int[] { 0 });
+      action.setBookmarkUsers(new inetsoft.sree.security.IdentityID[] { pid });
+      action.setFilePath(FileFormatInfo.EXPORT_TYPE_CSV, dir.resolve("out78445").toString());
+
+      VSBookmarkInfo home = new VSBookmarkInfo(VSBookmark.HOME_BOOKMARK, 0, pid, false, 0L);
+      inetsoft.storage.ExternalStorageService storage =
+         mock(inetsoft.storage.ExternalStorageService.class);
+      doAnswer(inv -> saved.add(inv.getArgument(0)))
+         .when(storage).write(any(), any(java.nio.file.Path.class), any());
+
+      try(MockedStatic<inetsoft.uql.viewsheet.internal.VSUtil> vsUtil =
+             mockStatic(inetsoft.uql.viewsheet.internal.VSUtil.class, CALLS_REAL_METHODS);
+          MockedStatic<inetsoft.sree.schedule.ScheduleViewsheetService> service =
+             mockStatic(inetsoft.sree.schedule.ScheduleViewsheetService.class);
+          MockedStatic<inetsoft.storage.ExternalStorageService> external =
+             mockStatic(inetsoft.storage.ExternalStorageService.class))
+      {
+         vsUtil.when(() -> inetsoft.uql.viewsheet.internal.VSUtil.getBookmarks(
+            any(AssetEntry.class), any())).thenReturn(new VSBookmarkInfo[] { home });
+         service.when(inetsoft.sree.schedule.ScheduleViewsheetService::getInstance)
+            .thenReturn(mock(inetsoft.sree.schedule.ScheduleViewsheetService.class));
+         external.when(inetsoft.storage.ExternalStorageService::getInstance).thenReturn(storage);
+         action.run(principal);
+         return null;
+      }
+      catch(Throwable ex) {
+         return ex;
+      }
+      finally {
+         ThreadContext.setContextPrincipal(oldPrincipal);
+      }
+   }
+
    // the table TableV bound to the failing T1, hidden, and the text Text1, with the onLoad script
    private static ViewsheetSandbox hiddenFailedTableSandbox(boolean scheduler, String script)
       throws Exception
