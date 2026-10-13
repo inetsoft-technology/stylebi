@@ -791,7 +791,7 @@ public class SQLHelper implements KeywordProvider {
             // table clause, the ANSI join sides and the column lookups use this text. They
             // used to generate it again each, so the generation time grew about 4x (or more)
             // per nesting level of derived tables (Bug #78119).
-            UniformSQL ssql = (UniformSQL) getFromTable(tobj);
+            UniformSQL ssql = (UniformSQL) getFromTable(tobj, null);
             ssql.setDataSource(uniformSql.getDataSource());
             ssql.setParent(uniformSql);
             subqueryTexts.put(ssql, ssql.toString());
@@ -953,7 +953,9 @@ public class SQLHelper implements KeywordProvider {
     */
    protected String generateTableClause(SelectTable table) {
       Object tobj = table.getName();
-      Object tname = getFromTable(tobj);
+      // the table hint (with (nolock)) of a table, null if it's not written (Bug #78382)
+      String hint = tobj instanceof UniformSQL || !emitTableHint() ? null : table.getHint();
+      Object tname = getFromTable(tobj, hint);
       String namestr = tname instanceof UniformSQL ?
          getSubqueryText((UniformSQL) tname).trim() : tname.toString().trim();
       String alias = table.getAlias();
@@ -1015,7 +1017,46 @@ public class SQLHelper implements KeywordProvider {
          }
       }
 
+      // the hint follows the alias. A table wrapped for the input max rows has it inside
+      // the wrapper instead (see getFromTable), a derived table has none (Bug #78382)
+      if(hint != null && !(tname instanceof UniformSQL) && !XUtil.isSubQuery(namestr)) {
+         sb.append(" WITH (").append(hint).append(")");
+      }
+
       return formatSubquery(sb);
+   }
+
+   /**
+    * Check if the table hints (from t with (nolock)) are written. The parser keeps a hint
+    * only for a SQL Server or Sybase data source (Bug #78382), so it is written for those.
+    * A subquery's sql has no data source until it's generated, so the data source is looked
+    * up through the queries that contain it. A hint is dropped on another known dialect
+    * (e.g. the data source of a saved query was changed), where with (...) is an error, and
+    * written when no query has a data source (e.g. the plan text), where it can only have
+    * come from a T-SQL parse.
+    */
+   protected boolean emitTableHint() {
+      Set<UniformSQL> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+      UniformSQL sql = uniformSql;
+      JDBCDataSource source = null;
+
+      while(sql != null && visited.add(sql)) {
+         source = sql.getDataSource();
+
+         if(source != null) {
+            break;
+         }
+
+         sql = sql.getParent() != null ? sql.getParent() : sql.getOuterSQL();
+      }
+
+      if(source == null) {
+         return true;
+      }
+
+      SQLHelper helper = getSQLHelper(source, (Principal) null);
+      String type = helper != null ? helper.getSQLHelperType() : null;
+      return "sql server".equals(type) || "sybase".equals(type);
    }
 
    /**
@@ -2063,7 +2104,7 @@ public class SQLHelper implements KeywordProvider {
    /**
     * Get the string (or UniformSQL) to use for the table name on FROM clause.
     */
-   private Object getFromTable(Object tbl) {
+   private Object getFromTable(Object tbl, String tableHint) {
       if(tbl instanceof UniformSQL) {
          UniformSQL sql = (UniformSQL) tbl;
          Object hint = sql.getHint(UniformSQL.HINT_INPUT_MAXROWS, false);
@@ -2091,6 +2132,18 @@ public class SQLHelper implements KeywordProvider {
 
       if(sqlstr == null && uniformSql.hasVPMCondition()) {
          return tbl;
+      }
+
+      // the table hint goes on the table inside the wrapper (select top n * from t with
+      // (nolock)), never after the alias of the wrapper, where it's an error. A wrapper
+      // that doesn't end with the table isn't used, the table is read without the limit
+      // (Bug #78382)
+      if(tableHint != null && ostr == null) {
+         if(sqlstr == null || !sqlstr.endsWith(getQuotedTableName(str))) {
+            return str;
+         }
+
+         sqlstr += " WITH (" + tableHint + ")";
       }
 
       if(ostr != null) {
