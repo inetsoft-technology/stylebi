@@ -699,6 +699,94 @@ class CalcFieldAgentServiceTest {
       verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
    }
 
+   /** Bug #78441: a dot-form or case-different reference is a dependent on remove. */
+   @Test
+   void removeRefusesWhenADotFormOrCaseDifferentReferenceReadsIt() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      CalculateRef duty = calc("Duty", "field['Total']", true);
+      CalculateRef dot = calc("Dot", "field.Duty * 2", true);
+      CalculateRef lower = calc("Lower", "field['duty'] * 3", true);
+      CalculateRef other = calc("Other", "field.Total", true);
+      when(vs.getCalcField("ORDERS", "Duty")).thenReturn(duty);
+      when(vs.getCalcFields("ORDERS")).thenReturn(new CalculateRef[] { duty, dot, lower, other });
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Duty", null, null, null, null, null, true, false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> serviceOver(vs, proxy).modify("tok", principal(), req, ""));
+      String msg = thrown.getMessage();
+      assertTrue(msg.contains("'Dot'"), msg);
+      assertTrue(msg.contains("'Lower'"), msg);
+      assertFalse(msg.contains("'Other'"), msg);
+      verifyNoInteractions(proxy);
+   }
+
+   @Test
+   void removeRefusesWhenACaseDifferentReferenceIsAmbiguous() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      CalculateRef duty = calc("Duty", "field['Total']", true);
+      CalculateRef twin = calc("duty", "field['Total']", true);
+      CalculateRef amb = calc("Amb", "field['DUTY']", true);
+      when(vs.getCalcField("ORDERS", "Duty")).thenReturn(duty);
+      when(vs.getCalcFields("ORDERS")).thenReturn(new CalculateRef[] { duty, twin, amb });
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Duty", null, null, null, null, null, true, false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> serviceOver(vs, proxy).modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("'Amb'"), thrown.getMessage());
+      verifyNoInteractions(proxy);
+   }
+
+   @Test
+   void removeIsNotBlockedByAReferenceThatNamesAnotherFieldExactly() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      CalculateRef duty = calc("Duty", "field['Total']", true);
+      CalculateRef twin = calc("duty", "field['Total']", true);
+      CalculateRef reader = calc("Reader", "field['duty']", true);
+      when(vs.getCalcField("ORDERS", "Duty")).thenReturn(duty);
+      when(vs.getCalcFields("ORDERS")).thenReturn(new CalculateRef[] { duty, twin, reader });
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Duty", null, null, null, null, null, true, false);
+
+      serviceOver(vs, proxy).modify("tok", principal(), req, "");
+
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+   }
+
+   /** Bug #78441: a rename reports the dot-form, case-different and ambiguous dependents. */
+   @Test
+   void renameReportsDotFormCaseDifferentAndAmbiguousDependents() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      CalculateRef fee = calc("Fee", "field['Total']", true);
+      CalculateRef dot = calc("Dot", "field.Fee * 2", true);
+      CalculateRef lower = calc("Lower", "field['fee']", true);
+      CalculateRef unrelated = calc("Unrelated", "field.Total", true);
+      when(vs.getCalcField("ORDERS", "Fee")).thenReturn(fee);
+      when(vs.getCalcFields("ORDERS")).thenReturn(new CalculateRef[] { fee, dot, lower, unrelated });
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Fee", "FeeR",
+         "field['Total']", null, null, true, false, false);
+
+      assertEquals(List.of("Dot", "Lower"),
+         serviceOver(vs, mock(ModifyCalculateFieldServiceProxy.class))
+            .modify("tok", principal(), req, "").rewrittenDependents());
+
+      CalculateRef twin = calc("FEE", "field['Total']", true);
+      CalculateRef amb = calc("Amb", "field['fEe']", true);
+      when(vs.getCalcFields("ORDERS")).thenReturn(new CalculateRef[] { fee, twin, amb });
+
+      assertEquals(List.of("Amb"),
+         serviceOver(vs, mock(ModifyCalculateFieldServiceProxy.class))
+            .modify("tok", principal(), req, "").rewrittenDependents());
+   }
+
    private CalcFieldAgentService serviceOver(Viewsheet vs, ModifyCalculateFieldServiceProxy proxy)
       throws Exception
    {

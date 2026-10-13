@@ -220,6 +220,21 @@ class ModifyCalculateFieldServiceTest {
       assertEquals("double", aggrs[0].getDataRef().getDataType());
    }
 
+   /** Bug #78441: the dot form is rewritten, and an ambiguous case-different name is not. */
+   @Test
+   void renameRewritesTheDotFormAndLeavesAnAmbiguousNameAlone() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("Fee R", "field['Total']", true));
+      vs.addCalcField("Orders", calc("fee", "field['Total']", true));
+      vs.addCalcField("Orders", calc("Dot", "field.Fee * 2", true));
+      vs.addCalcField("Orders", calc("Amb", "field['FEE']", true));
+
+      ModifyCalculateFieldService.renameCalcFieldDependents(vs, "Orders", "Fee", "Fee R");
+
+      assertEquals("field['Fee R'] * 2", expression(vs, "Orders", "Dot"));
+      assertEquals("field['FEE']", expression(vs, "Orders", "Amb"));
+   }
+
    /** A formula-only edit renames nothing, so it must leave the dependents exactly as they are. */
    @Test
    void editWithoutRenameLeavesDependentCalcFieldsUntouched() throws Exception {
