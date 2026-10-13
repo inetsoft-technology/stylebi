@@ -1803,6 +1803,21 @@ class AssemblyPropertyServiceTest {
       verify(lastDataOutput, never()).getOutputSelectionColumns(any(), any(), any());
    }
 
+   /** Same candidate set as set_selection_source (#78472): the table plus its additional tables. */
+   @Test
+   void checksTheMeasureAcrossTheAdditionalTablesAndRefusesOneTheyDoNotShare() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+      model.getSelectionListPaneModel().setAdditionalTables(List.of("CUSTOMERS"));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> setList(model, Map.of("measure", "AMOUNT_ONLY_IN_ORDERS")));
+
+      assertTrue(thrown.getMessage().contains("AMOUNT_ONLY_IN_ORDERS"));
+      verify(lastDataOutput).getOutputSelectionColumns(
+         eq("rt1"), eq(List.of("ORDERS", "CUSTOMERS")), any());
+      verifyNothingWritten();
+   }
+
    @Test
    void checksTheMeasureAgainstATableSetInTheSamePatch() throws Exception {
       SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
