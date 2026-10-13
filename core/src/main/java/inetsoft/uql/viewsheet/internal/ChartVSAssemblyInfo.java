@@ -931,7 +931,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
 
       VSChartInfo cinfo = getVSChartInfo();
-      VSDataRef[] refs = cinfo.getRTFields();
+      // include the relation chart node color/size dimension, which a legend item selects on
+      VSDataRef[] refs = cinfo.getRTSelectionFields();
       DataRef ref = findDataRef(refs, val);
 
       if(ref != null) {

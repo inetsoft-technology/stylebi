@@ -681,6 +681,44 @@ public class RelationVSChartInfo extends MergedVSChartInfo implements RelationCh
       return rsourceField != null && rtargetField != null;
    }
 
+   /**
+    * Append the dimension bound to node color/size. getRTFields() leaves it out because
+    * ChartVSAQuery adds it to the query as a MAX aggregate (#75253), but a node legend item
+    * still selects (brush, zoom, exclude, show details) on that dimension.
+    */
+   @Override
+   public VSDataRef[] getRTSelectionFields() {
+      VSDataRef[] refs = super.getRTSelectionFields();
+      List<VSDataRef> list = null;
+
+      for(AestheticRef aref : new AestheticRef[] { nodeColorField, nodeSizeField }) {
+         if(aref == null || !(aref.getDataRef() instanceof VSDimensionRef)) {
+            continue;
+         }
+
+         DataRef nodeRef = aref.getRTDataRef() != null ? aref.getRTDataRef() : aref.getDataRef();
+
+         if(!(nodeRef instanceof VSDimensionRef)) {
+            continue;
+         }
+
+         String name = ((VSDimensionRef) nodeRef).getFullName();
+         List<VSDataRef> current = list == null ? Arrays.asList(refs) : list;
+
+         if(current.stream().anyMatch(r -> Objects.equals(r.getFullName(), name))) {
+            continue;
+         }
+
+         if(list == null) {
+            list = new ArrayList<>(Arrays.asList(refs));
+         }
+
+         list.add((VSDimensionRef) nodeRef);
+      }
+
+      return list == null ? refs : list.toArray(new VSDataRef[0]);
+   }
+
    private VSChartRef sourceField;
    private VSChartRef targetField;
    private VSChartRef rsourceField;
