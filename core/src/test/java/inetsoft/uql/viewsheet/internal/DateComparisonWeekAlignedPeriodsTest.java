@@ -129,6 +129,45 @@ class DateComparisonWeekAlignedPeriodsTest {
       assertEquals(date("2018-01-01"), dc.getStartDate());
    }
 
+   /**
+    * The toDate conditions are unchanged, but with Change the threshold must hide only the
+    * extra 2017: the calendar-anchored 2019-01-01 also hid 2018, one of the compared years.
+    */
+   @Test
+   void toDateChangeStartDateHidesOnlyTheExtraYear() {
+      DateComparisonInfo dc = weekToDate(XConstants.YEAR_DATE_GROUP, "2021-01-02");
+      ((StandardPeriods) dc.getPeriods()).setToDate(true);
+      dc.setComparisonOption(DateComparisonInfo.CHANGE_VALUE);
+
+      assertEquals(Set.of("2017", "2018", "2019"), weeksPerPeriod(dc).keySet());
+      assertEquals(date("2018-01-01"), dc.getStartDate());
+   }
+
+   /**
+    * Compare Data Of: All has no interval list, so the periods range alone decides what is
+    * fetched. It follows the same week-start anchor: the week of 2021-01-02 belongs to 2020,
+    * so the previous 2 years are 2018 and 2019 (this used to give 2019 and 2020, putting the
+    * End Date's own week in a "previous" year).
+    */
+   @Test
+   void compareAllUsesTheWeekStartAnchor() {
+      assertEquals(Map.of("2018", 52, "2019", 52),
+                   weeksPerPeriod(compareAllByWeek("2021-01-02")));
+      assertEquals(Map.of("2018", 52, "2019", 52),
+                   weeksPerPeriod(compareAllByWeek("2020-12-31")));
+      assertEquals(Map.of("2019", 52, "2020", 52),
+                   weeksPerPeriod(compareAllByWeek("2021-01-05")));
+   }
+
+   /** Inclusive Compare All gets the full current year: it used to get only two years. */
+   @Test
+   void inclusiveCompareAllGetsThreeFullYears() {
+      DateComparisonInfo dc = compareAllByWeek("2021-01-02");
+      ((StandardPeriods) dc.getPeriods()).setInclusive(true);
+
+      assertEquals(Map.of("2018", 52, "2019", 52, "2020", 52), weeksPerPeriod(dc));
+   }
+
    /** Without week alignment the End Date's calendar period is still the anchor. */
    @Test
    void monthGranularityKeepsTheCalendarAnchor() {
@@ -170,6 +209,22 @@ class DateComparisonWeekAlignedPeriodsTest {
       interval.setInclusive(true);
       dc.setDateComparisonInterval(interval);
       dc.setComparisonOption(DateComparisonInfo.VALUE);
+
+      return dc;
+   }
+
+   /** Previous 2 years ending at {@code endDay}, Compare Data Of: All, by week. */
+   private static DateComparisonInfo compareAllByWeek(String endDay) {
+      DateComparisonInfo dc = new DateComparisonInfo();
+      dc.setDateComparisonPeriods(periods(XConstants.YEAR_DATE_GROUP, endDay));
+
+      DateComparisonInterval interval = new DateComparisonInterval();
+      interval.setLevel(DateComparisonInfo.ALL);
+      interval.setGranularity(DateComparisonInfo.WEEK);
+      dc.setDateComparisonInterval(interval);
+      dc.setComparisonOption(DateComparisonInfo.VALUE);
+
+      assertTrue(dc.alignWeek());
 
       return dc;
    }
