@@ -451,24 +451,32 @@ public final class XUtil {
             talias + "." + column;
       }
 
-      if(!sql.isTableColumn(column)) {
-         return column;
-      }
+      boolean tableColumn = sql.isTableColumn(column);
 
       for(int i = 0; i < sql.getTableCount(); i++) {
          SelectTable stable = sql.getSelectTable(i);
          Object name = stable.getName();
          String alias = stable.getAlias();
          alias = alias == null || alias.length() == 0 ? name.toString() : alias;
+         // the column of a table is output by its own name. On a case-sensitive helper the
+         // parser stores the qualifier quoted in the text ("c".CITY for alias c), and a
+         // column whose table didn't resolve (no metadata) is still qualified by the table
+         // (Bug #78409)
+         String prefix = getSubQueryColumnPrefix(column, alias);
 
-         if(column.startsWith(alias + ".")) {
-            column = column.substring(alias.length() + 1);
-            return talias == null || talias.length() == 0 ? column :
-               talias + "." + column;
+         if(prefix == null && name instanceof String) {
+            prefix = getSubQueryColumnPrefix(column, (String) name);
          }
 
-         if((name instanceof String) && column.startsWith(name + ".")) {
-            column = column.substring(((String) name).length() + 1);
+         // an expression (c.a || c.b) is not a column of the table
+         if(prefix != null && !tableColumn &&
+            !SUB_QUERY_COLUMN_NAME.matcher(column.substring(prefix.length())).matches())
+         {
+            prefix = null;
+         }
+
+         if(prefix != null) {
+            column = column.substring(prefix.length());
             return talias == null || talias.length() == 0 ? column :
                talias + "." + column;
          }
@@ -476,6 +484,28 @@ public final class XUtil {
 
       return column;
    }
+
+   /**
+    * Get the qualifier of a column, with its dot, if it is the table, written as is or
+    * quoted.
+    */
+   private static String getSubQueryColumnPrefix(String column, String table) {
+      if(table == null || table.isEmpty()) {
+         return null;
+      }
+
+      for(String prefix : new String[] { table + ".", "\"" + table + "\"." }) {
+         if(column.startsWith(prefix) && column.length() > prefix.length()) {
+            return prefix;
+         }
+      }
+
+      return null;
+   }
+
+   // one identifier, bare or quoted
+   private static final Pattern SUB_QUERY_COLUMN_NAME =
+      Pattern.compile("[\\p{L}\\p{N}_$#@]+|\"[^\"]+\"");
 
    /**
     * Use different path split for data model folder to distinguish
