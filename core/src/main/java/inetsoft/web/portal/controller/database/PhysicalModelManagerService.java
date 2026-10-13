@@ -101,22 +101,15 @@ public class PhysicalModelManagerService {
             + (folder == null ? "" : "/" + folder) + "\" by user " + principal);
       }
 
+      // for table location of portal <--- studio, shrunk before the runtime is stored so that
+      // every reader of the runtime id sees the compact Portal positions
       RuntimePartitionService.RuntimeXPartition runtimeXPartition =
-         this.runtimePartitionService.openModel(dataModel, name, parent);
+         this.runtimePartitionService.openModel(
+            dataModel, name, parent, graphService::shrinkColumnHeight);
 
       if(runtimeXPartition == null) {
          throw new FileNotFoundException(dataSource + "/" + name);
       }
-
-      // for table location of portal <--- studio
-      graphService.shrinkColumnHeight(runtimeXPartition);
-
-      // RuntimePartitionService.openModel() cached runtimeXPartition before the shrink
-      // above was applied, and the cache stores a serialized copy -- so without saving
-      // again here, every other reader of this runtime id (e.g. the graph-model fetch
-      // the client issues right after opening the view) would see the un-shrunk,
-      // Studio-scale positions instead of the compact Portal ones.
-      this.runtimePartitionService.saveRuntimePartition(runtimeXPartition);
 
       return physicalModelService.createModel(dataModel, runtimeXPartition);
    }
@@ -166,16 +159,9 @@ public class PhysicalModelManagerService {
       }
 
       partition = (XPartition) partition.deepClone(true);
-      RuntimePartitionService.RuntimeXPartition rp =
-         this.runtimePartitionService.createModel(partition, dataSource);
-
-      // for table location of portal <--- studio
-      graphService.shrinkColumnHeight(rp);
-
-      // see the identical comment in openModel(): the cache entry for rp was written
-      // before this shrink, and stores a serialized copy, so it must be re-saved here
-      // or other readers of this runtime id will see the un-shrunk positions.
-      this.runtimePartitionService.saveRuntimePartition(rp);
+      // for table location of portal <--- studio, see openModel()
+      RuntimePartitionService.RuntimeXPartition rp = this.runtimePartitionService.createModel(
+         partition, dataSource, graphService::shrinkColumnHeight);
 
       return physicalModelService.createModel(dataModel, rp);
    }
@@ -234,8 +220,33 @@ public class PhysicalModelManagerService {
 
       RuntimePartitionService.RuntimeXPartition p = getRuntimeToSave(
          dataSource, model.getId(), model.getName(), folder, !isExtended, principal);
+      long version = p.getVersion();
       createAndSaveModel(dataModel, p, path, parent, isExtended, principal);
-      runtimePartitionService.saveRuntimePartition(p);
+      updateSavedRuntime(p, version);
+   }
+
+   /**
+    * Shows the saved layout in the runtime after a save. The save writes a copy of the runtime
+    * to storage, outside a transaction, and the runtime may have been changed meanwhile; such a
+    * change is kept, it is saved by the next save.
+    *
+    * @param saved   the copy of the runtime that was saved, holding the saved partition.
+    * @param version the version of the runtime the copy was read at.
+    */
+   private void updateSavedRuntime(RuntimePartitionService.RuntimeXPartition saved,
+                                   long version)
+   {
+      XPartition partition = saved.getPartition();
+
+      // Bug #78428, don't write the copy back over the runtime
+      runtimePartitionService.update(saved.getId(), rp -> {
+         if(rp.getVersion() == version) {
+            rp.setPartition(partition);
+            rp.clearMovedTables();
+         }
+
+         return null;
+      });
    }
 
    private void createAndSaveModel(XDataModel dataModel,
@@ -346,6 +357,7 @@ public class PhysicalModelManagerService {
 
       RuntimePartitionService.RuntimeXPartition p = getRuntimeToSave(
          dsName, model.getId(), name, storedPartition.getFolder(), !isExtended, principal);
+      long version = p.getVersion();
 
       for(PhysicalTableModel table: model.getTables()) {
          if(!Tool.equals(table.getOldAlias(), table.getAlias())) {
@@ -367,7 +379,7 @@ public class PhysicalModelManagerService {
       AssetEntry entry = dataSourceService.getModelAssetEntry(
          new AssetEntry(AssetRepository.QUERY_SCOPE, entryType, path, null));
       updateAndSaveModel(dataModel, p, parent, name, entry, isExtended);
-      runtimePartitionService.saveRuntimePartition(p);
+      updateSavedRuntime(p, version);
    }
 
    /**
@@ -762,23 +774,43 @@ public class PhysicalModelManagerService {
       return table;
    }
 
+   /**
+    * Adds a table to an open physical model.
+    *
+    * @param rp a copy of the runtime of the open physical model.
+    */
    private String addTable(RuntimePartitionService.RuntimeXPartition rp, PhysicalTableModel table,
                            boolean fixBounds)
    {
-      XPartition partition = rp.getPartition();
-      String tableName = null;
-
-      if(table != null) {
-         tableName = physicalModelService.addPartitionTable(partition, table);
-         runtimePartitionService.saveRuntimePartition(rp);
-
-         if(fixBounds) {
-            fixTableBounds(rp.getId(), partition, tableName);
-            runtimePartitionService.saveRuntimePartition(rp);
-         }
+      if(table == null) {
+         return null;
       }
 
-      return tableName;
+      // adding the table may change this flag of the table model, add it with the same model
+      // to the copy and to the runtime
+      boolean autoAliasesEnabled = table.isAutoAliasesEnabled();
+      Rectangle bounds = null;
+
+      if(fixBounds) {
+         // Bug #78428, fixing the bounds reads meta-data, so they are computed on the copy
+         XPartition partition = rp.getPartition();
+         String tableName = physicalModelService.addPartitionTable(partition, table);
+         bounds = fixTableBounds(rp.getId(), partition, tableName);
+      }
+
+      Rectangle tableBounds = bounds;
+
+      return runtimePartitionService.update(rp.getId(), runtime -> {
+         XPartition partition = runtime.getPartition();
+         table.setAutoAliasesEnabled(autoAliasesEnabled);
+         String tableName = physicalModelService.addPartitionTable(partition, table);
+
+         if(tableBounds != null && partition.getPartitionTable(tableName) != null) {
+            partition.setBounds(tableName, tableBounds.getBounds());
+         }
+
+         return tableName;
+      });
    }
 
    /**
@@ -790,9 +822,9 @@ public class PhysicalModelManagerService {
     */
    public void removeTable(String runtimeId, String qualifiedName, String tableName) {
       if(!StringUtils.isBlank(qualifiedName)) {
-         getRuntimePartition(runtimeId).ifPresent(p -> {
+         runtimePartitionService.update(runtimeId, p -> {
             removeTable(p, qualifiedName, tableName);
-            runtimePartitionService.saveRuntimePartition(p);
+            return null;
          });
       }
    }
@@ -820,7 +852,6 @@ public class PhysicalModelManagerService {
 
       rp.forgetRemovedIncomingJoins(qualifiedName);
       rp.forgetRemovedIncomingJoins(tableName);
-      runtimePartitionService.saveRuntimePartition(rp);
    }
 
    /**
@@ -830,14 +861,7 @@ public class PhysicalModelManagerService {
     * @param table     the view definition.
     */
    public void createInlineView(String runtimeId, PhysicalTableModel table) {
-      String tableName = addTable(runtimeId, table, false);
-
-      if(tableName != null) {
-         getPartition(runtimeId).ifPresent(p -> {
-            fixTableBounds(runtimeId, p, tableName);
-            runtimePartitionService.updatePartition(runtimeId, p);
-         });
-      }
+      addTable(runtimeId, table, true);
    }
 
    /**
@@ -849,9 +873,9 @@ public class PhysicalModelManagerService {
     */
    public void updateInlineView(String runtimeId, String oldName, PhysicalTableModel table) {
       if(table != null && !StringUtils.isBlank(oldName)) {
-         getRuntimePartition(runtimeId).ifPresent(p -> {
+         runtimePartitionService.update(runtimeId, p -> {
             updateInlineView(p, oldName, table);
-            runtimePartitionService.saveRuntimePartition(p);
+            return null;
          });
       }
    }
@@ -900,7 +924,6 @@ public class PhysicalModelManagerService {
       }
 
       updateAliasMap(partition, oldName, table.getName());
-      runtimePartitionService.saveRuntimePartition(rp);
    }
 
    /**
@@ -988,14 +1011,7 @@ public class PhysicalModelManagerService {
          return invalidMessage;
       }
 
-      String tableName = addTable(runtimeId, table, false);
-
-      if(tableName != null) {
-         getPartition(runtimeId).ifPresent(p -> {
-            fixTableBounds(runtimeId, p, tableName);
-            runtimePartitionService.updatePartition(runtimeId, p);
-         });
-      }
+      addTable(runtimeId, table, true);
 
       return null;
    }
@@ -1009,9 +1025,9 @@ public class PhysicalModelManagerService {
     */
    public void updateAlias(String runtimeId, String oldName, PhysicalTableModel table) {
       if(table != null && !StringUtils.isBlank(oldName)) {
-         getRuntimePartition(runtimeId).ifPresent(p -> {
+         runtimePartitionService.update(runtimeId, p -> {
             updateAlias(p, oldName, table);
-            runtimePartitionService.saveRuntimePartition(p);
+            return null;
          });
       }
    }
@@ -1063,8 +1079,6 @@ public class PhysicalModelManagerService {
       if(runtimePartition.removeMovedTable(oldAlias)) {
          runtimePartition.addMovedTable(alias);
       }
-
-      runtimePartitionService.saveRuntimePartition(runtimePartition);
    }
 
    /**
@@ -1075,7 +1089,12 @@ public class PhysicalModelManagerService {
     */
    public void updateAutoAliasing(String runtimeId, PhysicalTableModel table) {
       if(table != null) {
-         getRuntimePartition(runtimeId).ifPresent(rp -> {
+         // addRemoveAutoAlias may change this flag of the table model, apply the same model
+         // if the update runs again
+         boolean autoAliasesEnabled = table.isAutoAliasesEnabled();
+
+         runtimePartitionService.update(runtimeId, rp -> {
+            table.setAutoAliasesEnabled(autoAliasesEnabled);
             physicalModelService.addRemoveAutoAlias(rp.getPartition(), table);
             // the user set the auto-aliases of the table explicitly, don't restore old ones
             rp.forgetRemovedIncomingJoins(table.getQualifiedName());
@@ -1084,7 +1103,7 @@ public class PhysicalModelManagerService {
                rp.forgetRemovedIncomingJoins(table.getAlias());
             }
 
-            runtimePartitionService.saveRuntimePartition(rp);
+            return null;
          });
       }
    }
@@ -1244,17 +1263,23 @@ public class PhysicalModelManagerService {
     */
    public void addAutoJoin(String runtimeId, JoinModel join, String tableName, Principal principal)
    {
-      getRuntimePartition(runtimeId).ifPresent(p -> {
-         boolean firstJoin =
-            p.getPartition().findRelationship(tableName, join.getForeignTable()) == null;
-         addAutoJoin(p, join, tableName, principal);
-         restoreRemovedIncomingJoins(p, tableName, join.getForeignTable(), firstJoin);
-         runtimePartitionService.saveRuntimePartition(p);
+      getRuntimePartition(runtimeId).ifPresent(copy -> {
+         // Bug #78428, the cardinality is read from meta-data, so it is set from a copy of the
+         // runtime, and the join is then added to the runtime
+         setAutoJoinCardinality(copy, join, tableName);
+
+         runtimePartitionService.update(runtimeId, p -> {
+            boolean firstJoin =
+               p.getPartition().findRelationship(tableName, join.getForeignTable()) == null;
+            p.getPartition().addRelationship(convertJoin(join, tableName));
+            restoreRemovedIncomingJoins(p, tableName, join.getForeignTable(), firstJoin);
+            return null;
+         });
       });
    }
 
-   private void addAutoJoin(RuntimePartitionService.RuntimeXPartition rp, JoinModel join,
-                            String tableName, Principal principal)
+   private void setAutoJoinCardinality(RuntimePartitionService.RuntimeXPartition rp,
+                                       JoinModel join, String tableName)
    {
       String database = rp.getDataSource();
       XPartition xPartition = rp.getPartition();
@@ -1306,9 +1331,6 @@ public class PhysicalModelManagerService {
       catch(Exception ex) {
          LoggerFactory.getLogger(this.getClass()).warn(ex.getMessage(), ex);
       }
-
-      XRelationship relationship = convertJoin(join, tableName);
-      xPartition.addRelationship(relationship);
    }
 
    /**
@@ -1344,12 +1366,12 @@ public class PhysicalModelManagerService {
     * @param tableName the name of the independent table.
     */
    public void addJoin(String runtimeId, JoinModel join, String tableName) {
-      getRuntimePartition(runtimeId).ifPresent(rp -> {
+      runtimePartitionService.update(runtimeId, rp -> {
          boolean firstJoin =
             rp.getPartition().findRelationship(tableName, join.getForeignTable()) == null;
          addJoin(rp.getPartition(), join, tableName);
          restoreRemovedIncomingJoins(rp, tableName, join.getForeignTable(), firstJoin);
-         runtimePartitionService.saveRuntimePartition(rp);
+         return null;
       });
    }
 
@@ -1367,9 +1389,9 @@ public class PhysicalModelManagerService {
     * @param tableName the name of the independent table.
     */
    public void updateJoin(String runtimeId, JoinModel join, JoinModel oldJoin, String tableName) {
-      getPartition(runtimeId).ifPresent(p -> {
-         updateJoin(p, join, oldJoin, tableName);
-         runtimePartitionService.updatePartition(runtimeId, p);
+      runtimePartitionService.update(runtimeId, rp -> {
+         updateJoin(rp.getPartition(), join, oldJoin, tableName);
+         return null;
       });
    }
 
@@ -1405,9 +1427,9 @@ public class PhysicalModelManagerService {
    public void removeJoin(String runtimeId, JoinModel join, String foreignTable,
                           String tableName)
    {
-      getRuntimePartition(runtimeId).ifPresent(rp -> {
+      runtimePartitionService.update(runtimeId, rp -> {
          removeJoin(rp, join, foreignTable, tableName);
-         runtimePartitionService.saveRuntimePartition(rp);
+         return null;
       });
    }
 
@@ -1835,9 +1857,9 @@ public class PhysicalModelManagerService {
       return cols.stream().map(GraphColumnInfo::getName).collect(Collectors.toList());
    }
 
-   private void fixTableBounds(String runtimeId, XPartition partition, String tableName) {
+   private Rectangle fixTableBounds(String runtimeId, XPartition partition, String tableName) {
       try {
-         physicalModelService.fixTableBounds(runtimeId, partition, tableName);
+         return physicalModelService.fixTableBounds(runtimeId, partition, tableName);
       }
       catch(Exception e) {
          throw new RuntimeException("Failed to fix table bounds", e);
