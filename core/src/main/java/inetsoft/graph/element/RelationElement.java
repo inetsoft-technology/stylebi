@@ -147,7 +147,8 @@ public class RelationElement extends GraphElement {
       // fields. (76417)
       //
       // Root nodes keep the pre-existing structural precedence -- among all rows sharing a
-      // source (fromDim) value, the one with the earliest target (toDim) value wins -- and
+      // source (fromDim) value, the one with the earliest target (toDim) value in the sorted
+      // (display) order wins, not the natural-order smallest target (78457) -- and
       // only break ties *within* that earliest-target group using whichever frame
       // RelationGeometry.getColor() would actually consult for a root: when
       // isApplyAestheticsToSource() is true, that method's general-Color fallback branch
@@ -583,11 +584,13 @@ public class RelationElement extends GraphElement {
     *   <li>If {@code rankField} is non-null (used for root nodes, to preserve the existing
     *       "earliest target dimension wins" structural rule -- a root fans out across many
     *       target values, and only the earliest-target subgroup is eligible to be its
-    *       representative row), a later row with a strictly smaller {@code rankField}
-    *       value replaces the candidate outright, establishing a new, smaller-rank
-    *       baseline.</li>
-    *   <li>Among rows tied on {@code rankField} (or, when {@code rankField} is null -- used
-    *       for leaf nodes, which have no such secondary structural dimension since
+    *       representative row), a later row is eligible only if its {@code rankField}
+    *       value equals the first row's. "Earliest" means first in the sorted (display)
+    *       order, which follows the dataset's own comparators (sort by value, descending,
+    *       manual order, original order for brushing), not the natural order, so the first
+    *       row seen is never replaced by a row with a different target (78457).</li>
+    *   <li>Among rows with that same {@code rankField} value (or, when {@code rankField}
+    *       is null -- used for leaf nodes, which have no such secondary structural dimension since
     *       {@code toDim} alone already fully identifies a leaf -- among *all* rows sharing
     *       the group id), a later row whose {@code tieField} value compares as "more
     *       recent" (greater, via {@link DefaultComparator}'s natural ordering) than the
@@ -630,22 +633,12 @@ public class RelationElement extends GraphElement {
             continue;
          }
 
-         if(rankField != null) {
-            Object newRank = data.getData(rankField, i);
-            int rc = comp.compare(newRank, ranks.get(id));
-
-            if(rc < 0) {
-               // new smallest rank seen for this group -- replace the candidate outright
-               result.put(id, sidx);
-               ranks.put(id, newRank);
-               tieValues.put(id, tieField != null ? data.getData(tieField, i) : null);
-               continue;
-            }
-            else if(rc > 0) {
-               // not part of the (tied-for-)smallest rank group -- not eligible
-               continue;
-            }
-            // rc == 0: tied on rank, fall through to the tie-break below
+         // the data is sorted with the dataset's own comparators (e.g. sort by value), so the
+         // first row seen already has the earliest target in display order. only later rows
+         // with that same target value compete in the tie-break below. don't use the
+         // dataset's comparator here, it may tie distinct targets (e.g. equal sums). (78457)
+         if(rankField != null && comp.compare(data.getData(rankField, i), ranks.get(id)) != 0) {
+            continue;
          }
 
          if(tieField != null) {
