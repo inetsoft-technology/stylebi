@@ -36,7 +36,9 @@ package inetsoft.web.portal.controller;
  *  ├─ [C] org sub-domain, org cookie = host-org  -> cookie wins over the host
  *  ├─ [D] host-org sub-domain, no cookies        -> global page, signup link shown
  *  ├─ [E] unknown sub-domain, no cookies         -> global page, signup link shown
- *  └─ [F] single-tenant, org sub-domain, no/unrelated cookies -> global page, signup link shown
+ *  ├─ [F] single-tenant, org sub-domain, no/unrelated cookies -> global page, signup link shown
+ *  ├─ [G] org with no welcome page of its own, no cookies -> global page, signup link hidden
+ *  └─ [H] orgLocation=path, org in the path, no cookies -> org banner, signup link hidden
  *
  * Real LoginController and real SUtil.getLoginOrganization; SUtil is a CALLS_REAL_METHODS static
  * mock with only isMultiTenant stubbed, SecurityEngine.getSecurity() returns a mock that lists the
@@ -44,6 +46,7 @@ package inetsoft.web.portal.controller;
  */
 
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.*;
 import inetsoft.sree.security.*;
@@ -73,6 +76,7 @@ import static org.mockito.Mockito.*;
 class LoginControllerRecordedOrgTest {
    private static final String HOST_ORG = "host-org";
    private static final String TENANT_ORG = "org1";
+   private static final String NO_PAGE_ORG = "org3";
    private static final String GLOBAL_BANNER = "GLOBAL banner";
    private static final String TENANT_BANNER = "org1 banner";
    private static final String ORG_COOKIE = "X-INETSOFT-ORGID";
@@ -91,12 +95,13 @@ class LoginControllerRecordedOrgTest {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       SecurityProvider provider = mock(SecurityProvider.class);
       when(securityEngine.getSecurityProvider()).thenReturn(provider);
-      when(securityEngine.getOrganizations()).thenReturn(new String[] { HOST_ORG, TENANT_ORG });
+      when(securityEngine.getOrganizations()).thenReturn(new String[] { HOST_ORG, TENANT_ORG, NO_PAGE_ORG });
       when(securityEngine.isSecurityEnabled()).thenReturn(true);
       when(securityEngine.isSelfSignupEnabled()).thenReturn(true);
       when(provider.getOrgNameFromID(HOST_ORG))
          .thenReturn(Organization.getDefaultOrganizationName());
       when(provider.getOrgNameFromID(TENANT_ORG)).thenReturn("Org One");
+      when(provider.getOrgNameFromID(NO_PAGE_ORG)).thenReturn("Org Three");
 
       securityEngineStatic = mockStatic(SecurityEngine.class, CALLS_REAL_METHODS);
       securityEngineStatic.when(SecurityEngine::getSecurity).thenReturn(securityEngine);
@@ -206,6 +211,39 @@ class LoginControllerRecordedOrgTest {
       assertSignupLink(noCookies, true);
       assertEquals(GLOBAL_BANNER, banner(unrelatedCookie));
       assertSignupLink(unrelatedCookie, true);
+   }
+
+   // [G] the signup flag alone: the banner is global either way, but the tenant host must still
+   // hide the self-signup link when the request has no cookies
+   @Test
+   void orgWithoutWelcomePage_noCookies_showsGlobalBannerAndHidesSignup() throws Exception {
+      ModelAndView noCookies = showLoginPage("org3.example.com");
+      ModelAndView unrelatedCookie = showLoginPage("org3.example.com", new Cookie("foo", "bar"));
+
+      assertEquals(GLOBAL_BANNER, banner(noCookies));
+      assertSignupLink(noCookies, false);
+      assertEquals(GLOBAL_BANNER, banner(unrelatedCookie));
+      assertSignupLink(unrelatedCookie, false);
+   }
+
+   // [H] orgLocation=path: the org named by the first path segment is used without cookies
+   @Test
+   void pathMode_orgInPath_noCookies_showsOrgBannerAndHidesSignup() throws Exception {
+      String oldLocation = SreeEnv.getProperty("security.login.orgLocation");
+      SreeEnv.setProperty("security.login.orgLocation", "path");
+
+      try {
+         MockHttpServletRequest request = request("example.com");
+         request.setPathInfo("/org1/login.html");
+         assertNull(request.getCookies());
+         ModelAndView model = showLoginPage(request);
+
+         assertEquals(TENANT_BANNER, banner(model));
+         assertSignupLink(model, false);
+      }
+      finally {
+         SreeEnv.setProperty("security.login.orgLocation", oldLocation);
+      }
    }
 
    private ModelAndView showLoginPage(String host, Cookie... cookies) throws Exception {
