@@ -373,6 +373,14 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
 
       this.form.get("locale").setValue(orgModel.locale);
 
+      // right after this organization was saved, show the properties the save wrote. The reload
+      // can be answered by a cluster node that doesn't have them yet (Bug #78447)
+      const savedProperties = this.orgBusy.takeSavedOrgProperties(orgModel.id);
+
+      if(savedProperties != null) {
+         orgModel.properties = savedProperties;
+      }
+
       this.properties = orgModel.properties;
    }
 

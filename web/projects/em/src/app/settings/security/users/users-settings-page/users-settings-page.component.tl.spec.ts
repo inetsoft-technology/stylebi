@@ -39,6 +39,8 @@
  *                       (Design Gap)
  *   Group 10 [Risk 2] — setOrganization(): the message returned by the save must be shown as is,
  *                       not replaced by the fixed rename issue
+ *   Group 11 [Risk 2] — setOrganization(): a successful save remembers the properties it wrote for
+ *                       the reload, which another cluster node may answer with the old ones
  *
  * KEY contracts:
  *   - clearIncompleteNewUser(false) must NOT trigger refreshTree.
@@ -57,7 +59,7 @@ import { render } from "@testing-library/angular";
 import { provideHttpClient } from "@angular/common/http";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { firstValueFrom, of, Subject } from "rxjs";
+import { EMPTY, firstValueFrom, of, Subject } from "rxjs";
 import { http, HttpResponse } from "msw";
 
 import { server } from "@test-mocks/server";
@@ -152,7 +154,7 @@ async function renderComponent(opts: RenderOpts = {}) {
 
    const snackBarSpy = { open: vi.fn() };
    const usersServiceSpy = { loadScheduleUsers: vi.fn() };
-   const orgBusySpy = { beginOrgSave: vi.fn(), endOrgSave: vi.fn() };
+   const orgBusySpy = { beginOrgSave: vi.fn(), endOrgSave: vi.fn(), setSavedOrgProperties: vi.fn() };
    const errorServiceSpy = { showSnackBar: vi.fn() };
    const pageHeaderSpy = { title: "" };
 
@@ -185,7 +187,7 @@ async function renderComponent(opts: RenderOpts = {}) {
    });
 
    const comp = result.fixture.componentInstance;
-   return { fixture: result.fixture, comp, dialogSpy, snackBarSpy, orgDropdownSpy, usersServiceSpy, errorServiceSpy, onRefreshSubject };
+   return { fixture: result.fixture, comp, dialogSpy, snackBarSpy, orgDropdownSpy, usersServiceSpy, errorServiceSpy, orgBusySpy, onRefreshSubject };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1003,5 +1005,61 @@ describe("UsersSettingsPageComponent — setOrganization(): save message", () =>
 
       await vi.waitFor(() => expect(openSpy).toHaveBeenCalledWith("../logout?fromEm=true", "_self"));
       expect(dialogSpy.open).toHaveBeenCalledTimes(1);
+   });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Group 11 [Risk 2] — setOrganization(): saved properties for the reload
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("UsersSettingsPageComponent — setOrganization(): saved properties", () => {
+
+   const properties = [{ name: "max.row.count", value: "100" }];
+
+   const makeOrgModel = (): EditOrganizationPaneModel => ({
+      name: "OtherOrg",
+      oldName: "OtherOrg",
+      id: "renamedorg",
+      organization: "otherorg",
+      root: false,
+      identityNames: [],
+      members: [],
+      roles: [],
+      permittedIdentities: [],
+      editable: true,
+      properties,
+      localesList: [],
+      currentUserName: "admin",
+   });
+
+   // 🔁 Regression-sensitive (Bug #78447): the reload after the save can be answered by a
+   // cluster node that still has the old properties, so the saved ones must be remembered,
+   // under the id the reload uses (the new id when the save changes it)
+   it("should remember the saved properties under the saved organization id", async () => {
+      server.use(
+         http.post("*/api/em/security/users/edit-organization/*", () => HttpResponse.json("")),
+      );
+      const { comp, orgBusySpy } = await renderComponent();
+
+      comp.setOrganization(makeOrgModel());
+
+      await vi.waitFor(() => expect(comp.loading).toBe(false));
+      expect(orgBusySpy.setSavedOrgProperties).toHaveBeenCalledTimes(1);
+      expect(orgBusySpy.setSavedOrgProperties).toHaveBeenCalledWith("renamedorg", properties);
+   });
+
+   it("should not remember the properties when the save fails", async () => {
+      server.use(
+         http.post("*/api/em/security/users/edit-organization/*", () =>
+            HttpResponse.json({ message: "refused" }, { status: 500 }),
+         ),
+      );
+      const { comp, orgBusySpy, errorServiceSpy } = await renderComponent();
+      errorServiceSpy.showSnackBar.mockReturnValue(EMPTY);
+
+      comp.setOrganization(makeOrgModel());
+
+      await vi.waitFor(() => expect(errorServiceSpy.showSnackBar).toHaveBeenCalled());
+      expect(orgBusySpy.setSavedOrgProperties).not.toHaveBeenCalled();
    });
 });

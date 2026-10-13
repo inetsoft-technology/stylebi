@@ -360,7 +360,12 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                this.identityEditable.next(true);
                return this.errorService.showSnackBar(error);
             }),
-            tap(() => this.refreshTree({name: model.name, orgID: (model as EditOrganizationPaneModel).id}, IdentityType.ORGANIZATION)),
+            tap(() => {
+               const orgModel = model as EditOrganizationPaneModel;
+               // the reload below may return the properties from before the save (Bug #78447)
+               this.orgBusy.setSavedOrgProperties(orgModel.id, orgModel.properties);
+               this.refreshTree({name: model.name, orgID: orgModel.id}, IdentityType.ORGANIZATION);
+            }),
             finalize(() => this.orgBusy.endOrgSave())
          ).subscribe((msg: string) => {
             // no need to subscribe: dialog.open() shows the message right away and there is
