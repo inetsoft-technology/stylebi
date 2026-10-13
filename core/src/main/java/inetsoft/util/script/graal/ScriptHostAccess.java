@@ -597,7 +597,18 @@ public final class ScriptHostAccess {
                   .deny(inetsoft.graph.internal.GDebug.class)
                   .deny(inetsoft.report.internal.graph.MapHelper.class)
                   .deny(inetsoft.report.afm.afm.AFMGenerator.class)
-                  .deny(inetsoft.uql.erm.transform.ERMExporter.class);
+                  .deny(inetsoft.uql.erm.transform.ERMExporter.class)
+                  // -- confirmed reproduced: mxSvgCanvas.drawShape on an embedded canvas
+                  // (setEmbedded, declared here) copies the raw body of any URL whose
+                  // string ends in .png/.jpg/.gif (getResource -> URL.openStream, e.g.
+                  // http://... or file:/<any path>#.png) into the script-readable SVG
+                  // DOM; the deny also closes getResource's getResourceAsStream classpath
+                  // fallback. mxGraphViewImageReader.convert(String) opens any path with
+                  // FileInputStream, a server-file existence oracle. Neither has a script
+                  // API; mxCellRenderer.createSvgDocument builds a non-embedded canvas
+                  // from Java and is unaffected
+                  .deny(inetsoft.graph.mxgraph.canvas.mxSvgCanvas.class)
+                  .deny(inetsoft.graph.mxgraph.reader.mxGraphViewImageReader.class);
 
                builder
                   // legacy convenience: scripts pass JS numbers to Java APIs.
