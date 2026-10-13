@@ -31,6 +31,8 @@ import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.viewsheet.SelectionRuntimeService;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -99,6 +101,9 @@ public class SelectionBindingService {
     *                 untouched, as the dialog does: the caller (the plugin) is responsible for
     *                 validating a {@code "$(ComponentName)"} resolves to a real,
     *                 dynamic-reference-capable assembly before this method ever sees it (#76768).
+    *                 A blank value clears the stored measure. When omitted, a stored literal
+    *                 measure the final table set no longer offers is cleared and disclosed in
+    *                 {@code droppedMeasure} (#78472).
     * @param parentIdColumn  selection tree only — the column holding each row's parent's
     *                        {@code idColumn} value, for an arbitrary-depth tree built from one
     *                        flat, self-referencing table ({@code SelectionTreeVSAssemblyInfo.ID}
@@ -190,11 +195,8 @@ public class SelectionBindingService {
 
             pane.setSelectedColumn(columnRef(resolvedTable, resolvedColumns.get(0)));
 
-            if(measure != null && !measure.isBlank()) {
-               pane.getSelectionMeasurePaneModel().setMeasure(resolveMeasure(
-                  runtimeId, user, assemblyName, resolvedTable, pane.getAdditionalTables(),
-                  measure));
-            }
+            applyMeasure(pane.getSelectionMeasurePaneModel(), runtimeId, user, assemblyName,
+                         resolvedTable, pane.getAdditionalTables(), measure, result);
 
             selectionListService.setSelectionListPropertyModel(
                runtimeId, assemblyName, model, linkUri, user, dispatcher);
@@ -219,13 +221,11 @@ public class SelectionBindingService {
 
             result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
 
-            // Resolved here, once for both modes and before anything is applied, so an unknown
-            // measure throws without a partial write.
-            if(measure != null && !measure.isBlank()) {
-               pane.getSelectionMeasurePaneModel().setMeasure(resolveMeasure(
-                  runtimeId, user, assemblyName, resolvedTable, pane.getAdditionalTables(),
-                  measure));
-            }
+            // Resolved here, once for both modes, after the final additional-table set is known
+            // and before anything is applied, so an unknown measure throws without a partial
+            // write.
+            applyMeasure(pane.getSelectionMeasurePaneModel(), runtimeId, user, assemblyName,
+                         resolvedTable, pane.getAdditionalTables(), measure, result);
 
             if(idMode) {
                // #76768: an arbitrary-depth tree from one flat, self-referencing table, distinct
@@ -901,6 +901,107 @@ public class SelectionBindingService {
 
       return TimeInfo.MONTH;
    }
+
+   /**
+    * Writes a selection list's or tree's measure from the final table set (#78472). The pane is
+    * pre-filled with the stored measure, which used to be written back unchanged unless
+    * {@code measure} was non-blank: a repoint or an additional-table change left a measure the
+    * table set no longer offers, and {@code ""} could not clear it.
+    *
+    * <ul>
+    *   <li>Non-blank: resolved by {@link #resolveMeasure}, unchanged (throws on an unknown one).</li>
+    *   <li>Sent but blank: cleared; {@code clearedMeasure} names the old value.</li>
+    *   <li>Omitted: a stored dynamic value ({@code $(…)}/{@code =…}, resolveMeasure's test) is
+    *       kept. A stored literal is re-checked against the measure dropdown on every call, as
+    *       the dialog does on every open; one it no longer offers is cleared and named in
+    *       {@code droppedMeasure}. A failed lookup keeps the measure (fail open).</li>
+    * </ul>
+    */
+   private void applyMeasure(SelectionMeasurePaneModel measurePane, String runtimeId,
+                             Principal user, String assemblyName, String table,
+                             List<String> additionalTables, String measure,
+                             Map<String, Object> result)
+      throws Exception
+   {
+      if(measure != null) {
+         if(!measure.isBlank()) {
+            measurePane.setMeasure(resolveMeasure(
+               runtimeId, user, assemblyName, table, additionalTables, measure));
+            return;
+         }
+
+         String old = measurePane.getMeasure();
+         measurePane.setMeasure(null);
+
+         if(old != null && !old.isBlank()) {
+            result.put("clearedMeasure", old);
+         }
+
+         return;
+      }
+
+      String stored = measurePane.getMeasure();
+
+      if(stored == null || stored.isBlank() || isDynamicMeasure(stored)) {
+         return;
+      }
+
+      String offered;
+
+      try {
+         offered = offeredMeasure(runtimeId, user, table, additionalTables, stored);
+      }
+      catch(Exception e) {
+         // The caller never mentioned the measure, so a failed lookup must not fail the rebind.
+         LOG.debug("Could not re-check the stored measure '{}' of '{}'", stored, assemblyName, e);
+         return;
+      }
+
+      if(offered == null) {
+         measurePane.setMeasure(null);
+         result.put("droppedMeasure", stored);
+      }
+   }
+
+   /** resolveMeasure's dynamic test: {@code $(…)} or {@code =…}. A bare {@code $Foo} is literal. */
+   private static boolean isDynamicMeasure(String measure) {
+      String trimmed = measure.trim();
+      return (trimmed.startsWith("$(") && trimmed.endsWith(")")) || trimmed.startsWith("=");
+   }
+
+   /**
+    * The measure dropdown's candidate matching {@code literal} (case-insensitive), or null when
+    * the dropdown does not offer it. Unlike {@link #resolveMeasure}, never refuses.
+    */
+   private String offeredMeasure(String runtimeId, Principal user, String table,
+                                 List<String> additionalTables, String literal)
+      throws Exception
+   {
+      List<String> measureTables = new ArrayList<>();
+      measureTables.add(table);
+
+      if(additionalTables != null) {
+         measureTables.addAll(additionalTables);
+      }
+
+      OutputColumnRefModel[] candidates =
+         dataOutputService.getOutputSelectionColumns(runtimeId, measureTables, user);
+      String trimmed = literal.trim();
+
+      for(OutputColumnRefModel candidate : candidates == null ? new OutputColumnRefModel[0]
+         : candidates)
+      {
+         if(candidate != null && candidate.getName() != null &&
+            candidate.getName().equalsIgnoreCase(trimmed))
+         {
+            return candidate.getName();
+         }
+      }
+
+      return null;
+   }
+
+   private static final Logger LOG = LoggerFactory.getLogger(SelectionBindingService.class);
 
    private final ViewsheetSessionService sessions;
    private final BindableFieldsService fieldsService;

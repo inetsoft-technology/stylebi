@@ -1122,6 +1122,303 @@ class SelectionBindingServiceTest {
          any(), any(), any(), any(), any(), any());
    }
 
+   // ── stored measure re-checked against the final table set (Bug #78472) ────
+
+   /**
+    * A table-aware measure dropdown: the names offered for an exact table list, and only the
+    * leading "None" for any other list.
+    */
+   private static DataOutputService dropdown(Map<List<String>, List<String>> offered)
+      throws Exception
+   {
+      DataOutputService dataOutput = mock(DataOutputService.class);
+      when(dataOutput.getOutputSelectionColumns(eq("rt1"), any(), any())).thenAnswer(inv -> {
+         List<String> tables = inv.getArgument(1);
+         List<OutputColumnRefModel> columns = new ArrayList<>();
+         columns.add(new OutputColumnRefModel());
+
+         for(String name : offered.getOrDefault(tables, List.of())) {
+            OutputColumnRefModel column = new OutputColumnRefModel();
+            column.setName(name);
+            columns.add(column);
+         }
+
+         return columns.toArray(new OutputColumnRefModel[0]);
+      });
+      return dataOutput;
+   }
+
+   /** ORDERS offers STATE, CITY, AMOUNT; CUSTOMERS offers NAME, CITY; together they share CITY. */
+   private static DataOutputService ordersCustomersDropdown() throws Exception {
+      return dropdown(Map.of(
+         List.of("ORDERS"), List.of("STATE", "CITY", "AMOUNT"),
+         List.of("CUSTOMERS"), List.of("NAME", "CITY"),
+         List.of("ORDERS", "CUSTOMERS"), List.of("CITY"),
+         List.of("CUSTOMERS", "ORDERS"), List.of("CITY")));
+   }
+
+   private static SelectionListPropertyDialogModel listWithMeasure(String table,
+                                                                    List<String> additional,
+                                                                    String stored)
+   {
+      SelectionListPropertyDialogModel model = listBoundTo(table, additional);
+      model.getSelectionListPaneModel().getSelectionMeasurePaneModel().setMeasure(stored);
+      return model;
+   }
+
+   private static SelectionTreePropertyDialogModel treeWithMeasure(String table,
+                                                                    List<String> additional,
+                                                                    String stored)
+   {
+      SelectionTreePropertyDialogModel model = treeBoundTo(table, additional);
+      model.getSelectionTreePaneModel().getSelectionMeasurePaneModel().setMeasure(stored);
+      return model;
+   }
+
+   private static String listMeasure(SelectionListPropertyDialogModel model) {
+      return model.getSelectionListPaneModel().getSelectionMeasurePaneModel().getMeasure();
+   }
+
+   /** Rebinds List1 to {@code table}.{@code column}, forced. */
+   private static Map<String, Object> rebindList(SelectionListPropertyDialogModel model,
+                                                 DataOutputService dataOutput, String table,
+                                                 String column, List<String> additional,
+                                                 String measure)
+      throws Exception
+   {
+      return harness(mock(SelectionListVSAssembly.class), listService(model), null, null, null,
+                     dataOutput)
+         .setSource("tok", principal(), "List1", table, List.of(column), additional, measure,
+                    null, null, null, true, "");
+   }
+
+   /** Rebinds Tree1 to {@code table}.{@code column} in COLUMN mode, forced. */
+   private static Map<String, Object> rebindTree(SelectionTreePropertyDialogModel model,
+                                                 DataOutputService dataOutput, String table,
+                                                 String column, List<String> additional,
+                                                 String measure)
+      throws Exception
+   {
+      return harness(mock(SelectionTreeVSAssembly.class), null, treeService(model), null, null,
+                     dataOutput)
+         .setSource("tok", principal(), "Tree1", table, List.of(column), additional, measure,
+                    null, null, null, true, "");
+   }
+
+   @Test
+   void dropsAStoredMeasureTheNewTableDoesNotOfferOnARepoint() throws Exception {
+      SelectionListPropertyDialogModel list = listWithMeasure("ORDERS", null, "AMOUNT");
+      Map<String, Object> listResult =
+         rebindList(list, ordersCustomersDropdown(), "CUSTOMERS", "NAME", null, null);
+      assertNull(listMeasure(list));
+      assertEquals("AMOUNT", listResult.get("droppedMeasure"));
+
+      SelectionTreePropertyDialogModel tree = treeWithMeasure("ORDERS", null, "AMOUNT");
+      Map<String, Object> treeResult =
+         rebindTree(tree, ordersCustomersDropdown(), "CUSTOMERS", "NAME", null, null);
+      assertNull(treeMeasure(tree));
+      assertEquals("AMOUNT", treeResult.get("droppedMeasure"));
+   }
+
+   @Test
+   void keepsAStoredMeasureTheNewTableStillOffers() throws Exception {
+      SelectionListPropertyDialogModel list = listWithMeasure("ORDERS", null, "CITY");
+      Map<String, Object> listResult =
+         rebindList(list, ordersCustomersDropdown(), "CUSTOMERS", "NAME", null, null);
+      assertEquals("CITY", listMeasure(list));
+      assertFalse(listResult.containsKey("droppedMeasure"));
+
+      SelectionTreePropertyDialogModel tree = treeWithMeasure("ORDERS", null, "CITY");
+      Map<String, Object> treeResult =
+         rebindTree(tree, ordersCustomersDropdown(), "CUSTOMERS", "NAME", null, null);
+      assertEquals("CITY", treeMeasure(tree));
+      assertFalse(treeResult.containsKey("droppedMeasure"));
+   }
+
+   @Test
+   void keepsAStoredDynamicOrExpressionMeasureWithoutLookingItUp() throws Exception {
+      for(String stored : List.of("$(Combo1)", "=field['AMOUNT'] * 2")) {
+         DataOutputService dataOutput = ordersCustomersDropdown();
+
+         SelectionListPropertyDialogModel list = listWithMeasure("ORDERS", null, stored);
+         Map<String, Object> listResult =
+            rebindList(list, dataOutput, "CUSTOMERS", "NAME", null, null);
+         assertEquals(stored, listMeasure(list));
+         assertFalse(listResult.containsKey("droppedMeasure"));
+
+         SelectionTreePropertyDialogModel tree = treeWithMeasure("ORDERS", null, stored);
+         Map<String, Object> treeResult =
+            rebindTree(tree, dataOutput, "CUSTOMERS", "NAME", null, null);
+         assertEquals(stored, treeMeasure(tree));
+         assertFalse(treeResult.containsKey("droppedMeasure"));
+
+         verify(dataOutput, never()).getOutputSelectionColumns(any(), any(), any());
+      }
+   }
+
+   /** A bare {@code $Foo} is a literal (#78158), so it is checked like one. */
+   @Test
+   void checksAStoredBareDollarMeasureAsALiteral() throws Exception {
+      SelectionListPropertyDialogModel list = listWithMeasure("ORDERS", null, "$Foo");
+
+      Map<String, Object> result =
+         rebindList(list, ordersCustomersDropdown(), "CUSTOMERS", "NAME", null, null);
+
+      assertNull(listMeasure(list));
+      assertEquals("$Foo", result.get("droppedMeasure"));
+   }
+
+   @Test
+   void aBlankMeasureClearsTheStoredOne() throws Exception {
+      for(String blank : List.of("", "   ")) {
+         SelectionListPropertyDialogModel list = listWithMeasure("CUSTOMERS", null, "NAME");
+         Map<String, Object> listResult =
+            rebindList(list, ordersCustomersDropdown(), "CUSTOMERS", "NAME", null, blank);
+         assertNull(listMeasure(list));
+         assertEquals("NAME", listResult.get("clearedMeasure"));
+         assertFalse(listResult.containsKey("droppedMeasure"));
+
+         SelectionTreePropertyDialogModel tree = treeWithMeasure("CUSTOMERS", null, "NAME");
+         Map<String, Object> treeResult =
+            rebindTree(tree, ordersCustomersDropdown(), "CUSTOMERS", "NAME", null, blank);
+         assertNull(treeMeasure(tree));
+         assertEquals("NAME", treeResult.get("clearedMeasure"));
+      }
+
+      SelectionListPropertyDialogModel none = listWithMeasure("CUSTOMERS", null, null);
+      Map<String, Object> noneResult =
+         rebindList(none, ordersCustomersDropdown(), "CUSTOMERS", "NAME", null, "");
+      assertNull(listMeasure(none));
+      assertFalse(noneResult.containsKey("clearedMeasure"));
+   }
+
+   @Test
+   void dropsAStoredMeasureThatANewAdditionalTableNoLongerShares() throws Exception {
+      SelectionListPropertyDialogModel list = listWithMeasure("ORDERS", null, "AMOUNT");
+      Map<String, Object> listResult = harness(mock(SelectionListVSAssembly.class),
+                                               listService(list), null, null, null,
+                                               ordersCustomersDropdown())
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"),
+                    List.of("CUSTOMERS"), null, null, null, null, false, "");
+      assertNull(listMeasure(list));
+      assertEquals("AMOUNT", listResult.get("droppedMeasure"));
+
+      SelectionTreePropertyDialogModel tree = treeWithMeasure("ORDERS", null, "AMOUNT");
+      Map<String, Object> treeResult = harness(mock(SelectionTreeVSAssembly.class), null,
+                                               treeService(tree), null, null,
+                                               ordersCustomersDropdown())
+         .setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE"),
+                    List.of("CUSTOMERS"), null, null, null, null, false, "");
+      assertNull(treeMeasure(tree));
+      assertEquals("AMOUNT", treeResult.get("droppedMeasure"));
+   }
+
+   /** A measure stored stale before this fix is healed on the next rebind, as the dialog does. */
+   @Test
+   void healsAnAlreadyStaleStoredMeasureOnASameTableRebind() throws Exception {
+      SelectionListPropertyDialogModel list = listWithMeasure("CUSTOMERS", null, "AMOUNT");
+
+      Map<String, Object> result = harness(mock(SelectionListVSAssembly.class),
+                                           listService(list), null, null, null,
+                                           ordersCustomersDropdown())
+         .setSource("tok", principal(), "List1", "CUSTOMERS", List.of("NAME"), null, null, null,
+                    null, null, false, "");
+
+      assertNull(listMeasure(list));
+      assertEquals("AMOUNT", result.get("droppedMeasure"));
+   }
+
+   @Test
+   void dropsAStaleMeasureOnAnIdModeTree() throws Exception {
+      SelectionTreePropertyDialogModel tree = treeWithMeasure("ORDERS", null, "NAME");
+
+      Map<String, Object> result = harness(mock(SelectionTreeVSAssembly.class), null,
+                                           treeService(tree), null, null,
+                                           ordersCustomersDropdown())
+         .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY", "STATE",
+                    "ORDER_DATE", false, "");
+
+      assertNull(treeMeasure(tree));
+      assertEquals("NAME", result.get("droppedMeasure"));
+   }
+
+   /** An explicit measure is resolved against the table set after the inherited prune. */
+   @Test
+   void resolvesAnExplicitMeasureAfterPruningInheritedTables() throws Exception {
+      DataOutputService dataOutput = dropdown(Map.of(List.of("CUSTOMERS"), List.of("CITY")));
+      SelectionListPropertyDialogModel list = listWithMeasure("CUSTOMERS", List.of("PRODUCTS"), null);
+
+      Map<String, Object> result = harness(mock(SelectionListVSAssembly.class),
+                                           listService(list), null, null, null, dataOutput)
+         .setSource("tok", principal(), "List1", "CUSTOMERS", List.of("STATE"), null, "CITY",
+                    null, null, null, false, "");
+
+      assertEquals("CITY", listMeasure(list));
+      assertEquals(List.of("PRODUCTS"), result.get("droppedAdditionalTables"));
+      verify(dataOutput).getOutputSelectionColumns(eq("rt1"), eq(List.of("CUSTOMERS")), any());
+   }
+
+   /** An omitted measure is re-checked after the prune too, so it is not wrongly dropped. */
+   @Test
+   void reChecksAnOmittedMeasureAfterPruningInheritedTables() throws Exception {
+      DataOutputService dataOutput = dropdown(Map.of(List.of("CUSTOMERS"), List.of("CITY")));
+      SelectionListPropertyDialogModel list =
+         listWithMeasure("CUSTOMERS", List.of("PRODUCTS"), "CITY");
+
+      Map<String, Object> result = harness(mock(SelectionListVSAssembly.class),
+                                           listService(list), null, null, null, dataOutput)
+         .setSource("tok", principal(), "List1", "CUSTOMERS", List.of("STATE"), null, null,
+                    null, null, null, false, "");
+
+      assertEquals("CITY", listMeasure(list));
+      assertEquals(List.of("PRODUCTS"), result.get("droppedAdditionalTables"));
+      assertFalse(result.containsKey("droppedMeasure"));
+      verify(dataOutput).getOutputSelectionColumns(eq("rt1"), eq(List.of("CUSTOMERS")), any());
+   }
+
+   /** A failed lookup for a measure the caller never mentioned must not fail the rebind. */
+   @Test
+   void keepsAnOmittedMeasureWhenTheDropdownLookupFails() throws Exception {
+      DataOutputService dataOutput = mock(DataOutputService.class);
+      when(dataOutput.getOutputSelectionColumns(any(), any(), any()))
+         .thenThrow(new IllegalStateException("boom"));
+      SelectionListPropertyDialogModel list = listWithMeasure("ORDERS", null, "AMOUNT");
+      SelectionListPropertyDialogService listService = listService(list);
+
+      Map<String, Object> result = harness(mock(SelectionListVSAssembly.class), listService,
+                                           null, null, null, dataOutput)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"), null, null, null,
+                    null, null, false, "");
+
+      assertEquals("AMOUNT", listMeasure(list));
+      assertFalse(result.containsKey("droppedMeasure"));
+      verify(listService).setSelectionListPropertyModel(
+         eq("rt1"), eq("List1"), any(), eq(""), any(), any());
+   }
+
+   @Test
+   void aBlankMeasureOnARangeSliderOrCalendarAddsNoMeasureKeys() throws Exception {
+      RangeSliderPropertyDialogService sliderService = mock(RangeSliderPropertyDialogService.class);
+      when(sliderService.getRangeSliderPropertyModel(eq("rt1"), eq("Slider1"), any()))
+         .thenReturn(new RangeSliderPropertyDialogModel());
+      Map<String, Object> slider = harness(mock(TimeSliderVSAssembly.class), null, null,
+                                           sliderService, null)
+         .setSource("tok", principal(), "Slider1", "ORDERS", List.of("AMOUNT"), null, "", null,
+                    null, null, false, "");
+      assertFalse(slider.containsKey("clearedMeasure"));
+      assertFalse(slider.containsKey("droppedMeasure"));
+
+      CalendarPropertyDialogService calendarService = mock(CalendarPropertyDialogService.class);
+      when(calendarService.getCalendarPropertyModel(eq("rt1"), eq("Cal1"), any()))
+         .thenReturn(new CalendarPropertyDialogModel());
+      Map<String, Object> calendar = harness(mock(CalendarVSAssembly.class), null, null, null,
+                                             calendarService)
+         .setSource("tok", principal(), "Cal1", "ORDERS", List.of("ORDER_DATE"), null, "", null,
+                    null, null, false, "");
+      assertFalse(calendar.containsKey("clearedMeasure"));
+      assertFalse(calendar.containsKey("droppedMeasure"));
+   }
+
    // ── Logical Model column resolution (regression for Bug #76700) ────────────
 
    /**
