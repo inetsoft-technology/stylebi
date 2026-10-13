@@ -194,6 +194,28 @@ class VSChartRelationNodeLegendTest {
    }
 
    /**
+    * Show Details on a date-part node legend item (MonthOfYear, integer values). The detail
+    * query adds the node's date range column hidden, so it filters the rows but never shows
+    * up in the detail table, which keeps the base table's five columns.
+    */
+   @Test
+   void nodeDatePartShowDetailsKeepsColumns() throws Exception {
+      build(GraphTypes.CHART_NETWORK, "nodeColor", true, DateRangeRef.MONTH_OF_YEAR_PART);
+      checkLegendIsDimension("MonthOfYear(Date)");
+
+      assertEquals(1, showDetails("MonthOfYear(Date)^VALUE:7"));
+      TableLens table = (TableLens) box.getData("Chart1", true, DataMap.DETAIL | DataMap.BRUSH);
+      List<String> headers = new ArrayList<>();
+
+      for(int c = 0; c < table.getColCount(); c++) {
+         headers.add(Tool.getDataString(table.getObject(0, c)));
+      }
+
+      assertEquals(List.of("Source", "Target", "State", "Date", "Sales"), headers);
+      assertEquals("2021-07-01", Tool.getDataString(table.getObject(1, 3)));
+   }
+
+   /**
     * Chart3 brushes the relation chart. The node column must stay a measure in the chart
     * data set, or BrushDataSet drops pair C->D, whose MAX(State) is TX for all data but CA
     * for the brushed 2020 rows.
@@ -301,6 +323,12 @@ class VSChartRelationNodeLegendTest {
    }
 
    private void build(int chartType, String slot, boolean date) throws Exception {
+      build(chartType, slot, date, DateRangeRef.YEAR_INTERVAL);
+   }
+
+   private void build(int chartType, String slot, boolean date, int dateLevel)
+      throws Exception
+   {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "D");
       table.setEmbeddedData(new XEmbeddedTable(
@@ -323,7 +351,13 @@ class VSChartRelationNodeLegendTest {
       info.setSourceField(dim("Source", XSchema.STRING));
       info.setTargetField(dim("Target", XSchema.STRING));
       VSAestheticRef aes = new VSAestheticRef();
-      aes.setDataRef(date ? dim("Date", XSchema.DATE) : dim("State", XSchema.STRING));
+      ChartRef nodeRef = date ? dim("Date", XSchema.DATE) : dim("State", XSchema.STRING);
+
+      if(date) {
+         ((VSChartDimensionRef) nodeRef).setDateLevelValue(String.valueOf(dateLevel));
+      }
+
+      aes.setDataRef(nodeRef);
 
       if("nodeSize".equals(slot)) {
          aes.setVisualFrameWrapper(new CategoricalSizeFrameWrapper());
