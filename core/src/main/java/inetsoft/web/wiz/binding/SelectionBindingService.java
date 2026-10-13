@@ -698,56 +698,12 @@ public class SelectionBindingService {
       }
    }
 
-   /**
-    * Resolves a selection list's literal {@code measure} against the same list the property
-    * dialog's measure dropdown offers ({@code selection-measure-pane} → {@code DataOutputService.
-    * getOutputSelectionColumns}: the columns the table shares with every additional table), and
-    * returns the canonical name. Raw, it was written straight onto the model, so a typo or a
-    * column of some other table was accepted and left the bars/aggregate silently broken. A
-    * {@code "$(…)"}/{@code "=…"} value is passed through (trimmed), exactly as the dialog passes
-    * it; a bare {@code "$Foo"} is a literal column name, as in {@code VSUtil.isVariableValue}/
-    * {@code isScriptValue}.
-    */
    private String resolveMeasure(String runtimeId, Principal user, String assemblyName,
                                  String table, List<String> additionalTables, String measure)
       throws Exception
    {
-      String trimmed = measure.trim();
-
-      // Same test as VSUtil.isVariableValue/isScriptValue, hand-rolled -- see refuseIfDynamic.
-      if((trimmed.startsWith("$(") && trimmed.endsWith(")")) || trimmed.startsWith("=")) {
-         return trimmed;
-      }
-
-      List<String> measureTables = new ArrayList<>();
-      measureTables.add(table);
-
-      if(additionalTables != null) {
-         measureTables.addAll(additionalTables);
-      }
-
-      OutputColumnRefModel[] candidates =
-         dataOutputService.getOutputSelectionColumns(runtimeId, measureTables, user);
-      List<String> available = new ArrayList<>();
-
-      for(OutputColumnRefModel candidate : candidates == null ? new OutputColumnRefModel[0]
-         : candidates)
-      {
-         // The dialog's leading "None" entry has a null name.
-         if(candidate == null || candidate.getName() == null) {
-            continue;
-         }
-
-         if(candidate.getName().equalsIgnoreCase(trimmed)) {
-            return candidate.getName();
-         }
-
-         available.add(candidate.getName());
-      }
-
-      throw new IllegalArgumentException(
-         "'" + measure + "' is not a measure '" + assemblyName + "' can use from " +
-         measureTables + ". Available: " + String.join(", ", available) + ".");
+      return SelectionMeasureResolver.resolve(
+         dataOutputService, runtimeId, user, assemblyName, table, additionalTables, measure);
    }
 
    private static List<BindableField> resolveColumns(List<BindableTable> tables,
@@ -977,28 +933,8 @@ public class SelectionBindingService {
                                  List<String> additionalTables, String literal)
       throws Exception
    {
-      List<String> measureTables = new ArrayList<>();
-      measureTables.add(table);
-
-      if(additionalTables != null) {
-         measureTables.addAll(additionalTables);
-      }
-
-      OutputColumnRefModel[] candidates =
-         dataOutputService.getOutputSelectionColumns(runtimeId, measureTables, user);
-      String trimmed = literal.trim();
-
-      for(OutputColumnRefModel candidate : candidates == null ? new OutputColumnRefModel[0]
-         : candidates)
-      {
-         if(candidate != null && candidate.getName() != null &&
-            candidate.getName().equalsIgnoreCase(trimmed))
-         {
-            return candidate.getName();
-         }
-      }
-
-      return null;
+      return SelectionMeasureResolver.offered(
+         dataOutputService, runtimeId, user, table, additionalTables, literal);
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(SelectionBindingService.class);

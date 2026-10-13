@@ -45,6 +45,7 @@ import inetsoft.web.composer.model.vs.ImageGeneralPaneModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.StaticImagePaneModel;
+import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.RangeSliderPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionContainerPropertyDialogModel;
@@ -67,7 +68,9 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -1645,6 +1648,185 @@ class AssemblyPropertyServiceTest {
       service.set("tok", principal(), "SelectionTree1", Map.of("mode", 2), "");
 
       assertEquals(SelectionTreeVSAssemblyInfo.ID, model.getSelectionTreePaneModel().getMode());
+   }
+
+   // ── #78396: selection measure written through set_assembly_properties ──────
+
+   private static DataOutputService lastDataOutput;
+   private static SelectionListPropertyDialogService lastSelectionList;
+   private static SelectionTreePropertyDialogService lastSelectionTree;
+
+   private static void verifyNothingWritten() throws Exception {
+      verify(lastSelectionList, never())
+         .setSelectionListPropertyModel(any(), any(), any(), any(), any(), any());
+      verify(lastSelectionTree, never())
+         .setSelectionTreePropertyModel(any(), any(), any(), any(), any(), any());
+   }
+
+   private static void offerMeasures(String... names) throws Exception {
+      List<OutputColumnRefModel> columns = new ArrayList<>();
+      columns.add(new OutputColumnRefModel());
+
+      for(String name : names) {
+         OutputColumnRefModel column = new OutputColumnRefModel();
+         column.setName(name);
+         columns.add(column);
+      }
+
+      when(lastDataOutput.getOutputSelectionColumns(eq("rt1"), any(), any()))
+         .thenReturn(columns.toArray(new OutputColumnRefModel[0]));
+   }
+
+   private static SelectionListPropertyDialogModel boundList() {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      model.getSelectionListPaneModel().setSelectedTable("ORDERS");
+      model.getSelectionListPaneModel().getSelectionMeasurePaneModel().setMeasure("AMOUNT");
+      return model;
+   }
+
+   private static String listMeasure(SelectionListPropertyDialogModel model) {
+      return model.getSelectionListPaneModel().getSelectionMeasurePaneModel().getMeasure();
+   }
+
+   private static String treeMeasure(SelectionTreePropertyDialogModel model) {
+      return model.getSelectionTreePaneModel().getSelectionMeasurePaneModel().getMeasure();
+   }
+
+   private static SelectionTreePropertyDialogModel boundTree() {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      model.getSelectionTreePaneModel().setSelectedTable("ORDERS");
+      model.getSelectionTreePaneModel().getSelectionMeasurePaneModel().setMeasure("AMOUNT");
+      return model;
+   }
+
+   private static void setList(SelectionListPropertyDialogModel model, Map<String, Object> patch)
+      throws Exception
+   {
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+      offerMeasures("STATE", "AMOUNT");
+      service.set("tok", principal(), "List1", patch, "");
+   }
+
+   @Test
+   void refusesAnUnknownSelectionListMeasureAndWritesNothing() throws Exception {
+      for(String bad : new String[] {"$Foo", "Foo"}) {
+         SelectionListPropertyDialogModel model = boundList();
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> setList(model, Map.of("measure", bad)));
+
+         assertTrue(thrown.getMessage().contains(bad));
+         verifyNothingWritten();
+      }
+   }
+
+   @Test
+   void refusesAnUnknownSelectionTreeMeasureOnTheRawPath() throws Exception {
+      SelectionTreePropertyDialogModel model = boundTree();
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+      offerMeasures("STATE", "AMOUNT");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Tree1",
+            Map.of("selectionTreePaneModel.selectionMeasurePaneModel.measure", "$Foo"), ""));
+
+      assertTrue(thrown.getMessage().contains("$Foo"));
+      verifyNothingWritten();
+   }
+
+   @Test
+   void refusesAnUnknownMeasureOnACapitalisedRawPath() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+
+      assertThrows(IllegalArgumentException.class, () -> setList(model, Map.of(
+         "SelectionListPaneModel.SelectionMeasurePaneModel.Measure", "$Foo")));
+      verifyNothingWritten();
+   }
+
+   @Test
+   void refusesABareEqualsSelectionMeasureOnTheAlias() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> setList(model, Map.of("measure", "=")));
+
+      assertTrue(thrown.getMessage().contains("measure"));
+      verifyNothingWritten();
+   }
+
+   @Test
+   void canonicalisesASelectionMeasureToTheColumnName() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+      model.getSelectionListPaneModel().getSelectionMeasurePaneModel().setMeasure(null);
+
+      setList(model, Map.of("measure", "amount"));
+
+      assertEquals("AMOUNT", listMeasure(model));
+      ArgumentCaptor<SelectionListPropertyDialogModel> written =
+         ArgumentCaptor.forClass(SelectionListPropertyDialogModel.class);
+      verify(lastSelectionList).setSelectionListPropertyModel(
+         any(), any(), written.capture(), any(), any(), any());
+      assertEquals("AMOUNT", listMeasure(written.getValue()));
+   }
+
+   @Test
+   void passesDynamicSelectionMeasuresThroughWithoutALookup() throws Exception {
+      for(String ok : new String[] {"$(x)", "=1+1"}) {
+         SelectionListPropertyDialogModel model = boundList();
+         setList(model, Map.of("measure", ok));
+
+         assertEquals(ok, listMeasure(model));
+         verify(lastDataOutput, never()).getOutputSelectionColumns(any(), any(), any());
+      }
+   }
+
+   @Test
+   void aBlankSelectionMeasureStillClears() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+
+      setList(model, Map.of("measure", ""));
+
+      assertEquals("", listMeasure(model));
+      verify(lastDataOutput, never()).getOutputSelectionColumns(any(), any(), any());
+   }
+
+   @Test
+   void refusesANonBlankSelectionMeasureWhenNoTableIsBound() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> setList(model, Map.of("measure", "AMOUNT")));
+
+      assertTrue(thrown.getMessage().contains("set_selection_source"));
+      verifyNothingWritten();
+      verify(lastDataOutput, never()).getOutputSelectionColumns(any(), any(), any());
+   }
+
+   /** Same candidate set as set_selection_source (#78472): the table plus its additional tables. */
+   @Test
+   void checksTheMeasureAcrossTheAdditionalTablesAndRefusesOneTheyDoNotShare() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+      model.getSelectionListPaneModel().setAdditionalTables(List.of("CUSTOMERS"));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> setList(model, Map.of("measure", "AMOUNT_ONLY_IN_ORDERS")));
+
+      assertTrue(thrown.getMessage().contains("AMOUNT_ONLY_IN_ORDERS"));
+      verify(lastDataOutput).getOutputSelectionColumns(
+         eq("rt1"), eq(List.of("ORDERS", "CUSTOMERS")), any());
+      verifyNothingWritten();
+   }
+
+   @Test
+   void checksTheMeasureAgainstATableSetInTheSamePatch() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+
+      setList(model, Map.of("selectionListPaneModel.selectedTable", "ORDERS",
+                            "measure", "amount"));
+
+      assertEquals("AMOUNT", listMeasure(model));
+      verify(lastDataOutput).getOutputSelectionColumns(eq("rt1"), eq(List.of("ORDERS")), any());
    }
 
    // ── selectionGeneralPaneModel.sortType alias/domain (bug #76925) ──────────
@@ -3230,6 +3412,7 @@ class AssemblyPropertyServiceTest {
       GaugePropertyDialogService gauge, VSOutputService outputService,
       VSColumnHandler columnHandler)
    {
+      lastDataOutput = mock(DataOutputService.class);
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
       when(vs.getBaseWorksheet()).thenReturn(baseWorksheet);
@@ -3265,6 +3448,7 @@ class AssemblyPropertyServiceTest {
 
       SelectionListPropertyDialogService selectionList =
          mock(SelectionListPropertyDialogService.class);
+      lastSelectionList = selectionList;
 
       if(model instanceof SelectionListPropertyDialogModel selectionListModel) {
          try {
@@ -3279,6 +3463,7 @@ class AssemblyPropertyServiceTest {
 
       SelectionTreePropertyDialogService selectionTree =
          mock(SelectionTreePropertyDialogService.class);
+      lastSelectionTree = selectionTree;
 
       if(model instanceof SelectionTreePropertyDialogModel selectionTreeModel) {
          try {
@@ -3430,7 +3615,7 @@ class AssemblyPropertyServiceTest {
          mock(RectanglePropertyDialogService.class),
          selectionContainer,
          mock(SubmitPropertyDialogService.class),
-         outputService, columnHandler);
+         outputService, columnHandler, lastDataOutput);
    }
 
    // ── calendar viewMode / chart line-style int-enum domains (bug #78194) ───

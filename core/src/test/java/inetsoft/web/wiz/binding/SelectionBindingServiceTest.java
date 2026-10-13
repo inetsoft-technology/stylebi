@@ -995,6 +995,25 @@ class SelectionBindingServiceTest {
       assertTrue(thrown.getMessage().contains("$Foo"));
    }
 
+   /** #78396 B: a bare "=" is an empty script, not a measure. */
+   @Test
+   void refusesABareEqualsMeasure() throws Exception {
+      DataOutputService dataOutput = measures("AMOUNT");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> boundMeasure(dataOutput, null, "="));
+      assertTrue(thrown.getMessage().contains("measure"));
+      assertThrows(IllegalArgumentException.class, () -> boundMeasure(dataOutput, null, "=   "));
+   }
+
+   @Test
+   void refusesABlankVariableReferenceMeasure() throws Exception {
+      DataOutputService dataOutput = measures("AMOUNT");
+
+      assertThrows(IllegalArgumentException.class, () -> boundMeasure(dataOutput, null, "$()"));
+      assertThrows(IllegalArgumentException.class, () -> boundMeasure(dataOutput, null, "$(  )"));
+   }
+
    @Test
    void refusesAMalformedVariableMeasure() throws Exception {
       DataOutputService dataOutput = measures("AMOUNT");
