@@ -2411,4 +2411,60 @@ class ChartAestheticMutatorTest {
       assertEquals("Region", model.getColorField().getFullName());
       assertEquals("Region", ((ChartDimensionRefModel) model.getColorField().getDataInfo()).getName());
    }
+
+   // ---- #77024 ----
+
+   @Test
+   void refusesADimensionOnTheSizeChannelOfAnIntervalChartAndRollsBack() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(inetsoft.uql.viewsheet.graph.GraphTypes.CHART_INTERVAL);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setField(model, "size", dimension("Category")));
+
+      assertTrue(thrown.getMessage().contains("interval"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("measure"), thrown.getMessage());
+      assertNull(model.getSizeField());
+   }
+
+   @Test
+   void allowsADimensionOnTheSizeChannelOfANonIntervalChart() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(inetsoft.uql.viewsheet.graph.GraphTypes.CHART_BAR);
+
+      ChartAestheticMutator.setField(model, "size", dimension("Category"));
+
+      assertNotNull(model.getSizeField());
+   }
+
+   @Test
+   void allowsAMeasureOnTheSizeChannelOfAnIntervalChart() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(inetsoft.uql.viewsheet.graph.GraphTypes.CHART_INTERVAL);
+
+      ChartAestheticMutator.setField(model, "size", measure("Sales", "Sum"));
+
+      assertNotNull(model.getSizeField());
+   }
+
+   @Test
+   void describeReportsShapeFamilyChannelsAsNotAcceptedWhenUnsupported() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      // stock: no shape family (field refused) but its frames are not refused
+      Map<String, Object> stock =
+         ChartAestheticMutator.describe(model, false, java.util.List.of(), true, true, false);
+      assertEquals(false, ((Map<?, ?>) stock.get("shape")).get("acceptsField"));
+      assertEquals(true, ((Map<?, ?>) stock.get("shape")).get("acceptsFrame"));
+
+      // contour: shape/line/texture frames refused, color/size frames still accepted
+      Map<String, Object> out =
+         ChartAestheticMutator.describe(model, false, java.util.List.of(), true, false, false);
+      assertEquals(false, ((Map<?, ?>) out.get("shape")).get("acceptsFrame"));
+      assertEquals(false, ((Map<?, ?>) out.get("line")).get("acceptsFrame"));
+      assertEquals(false, ((Map<?, ?>) out.get("texture")).get("acceptsFrame"));
+      assertEquals(true, ((Map<?, ?>) out.get("color")).get("acceptsFrame"));
+      assertEquals(true, ((Map<?, ?>) out.get("size")).get("acceptsFrame"));
+   }
 }

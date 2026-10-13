@@ -40,7 +40,10 @@ public final class AestheticChannels {
    /** Channels that accept a field binding, on every chart type. */
    public static final List<String> FIELD_CHANNELS = List.of("color", "shape", "size", "text");
 
-   /** Channels that accept a visual frame, on every chart type. */
+   /**
+    * Channels that accept a visual frame. Shape, line and texture frames are refused on contour
+    * charts, which render none of them (#77024).
+    */
    public static final List<String> FRAME_CHANNELS =
       List.of("color", "shape", "size", "line", "texture");
 
@@ -98,6 +101,21 @@ public final class AestheticChannels {
    public static String requireFieldChannel(String channel, boolean relationChart,
                                             boolean sizeSupported, boolean colorShapeSupported)
    {
+      return requireFieldChannel(channel, relationChart, sizeSupported, colorShapeSupported, true);
+   }
+
+   /**
+    * @param shapeFamilySupported whether the target chart type renders the shape slot at all, as
+    *                             a shape or a texture ({@code GraphTypes.supportsShape ||
+    *                             supportsTexture}). False for stock (and contour): a shape field
+    *                             there is stored and never drawn, only splitting the marks as a
+    *                             grouping side effect (#77024). Mekko stays true -- its shape
+    *                             slot renders as a texture.
+    */
+   public static String requireFieldChannel(String channel, boolean relationChart,
+                                            boolean sizeSupported, boolean colorShapeSupported,
+                                            boolean shapeFamilySupported)
+   {
       String name = normalize(channel);
 
       if(NODE_CHANNELS.contains(name)) {
@@ -125,6 +143,13 @@ public final class AestheticChannels {
             String.join(", ", FIELD_CHANNELS) + ".");
       }
 
+      if("shape".equals(name) && !shapeFamilySupported) {
+         throw new IllegalArgumentException(
+            "Channel 'shape' is not supported on this chart type -- it renders no shape or " +
+            "texture for a field to vary, so a binding here would never be rendered. " +
+            "Field channels: " + String.join(", ", FIELD_CHANNELS) + ".");
+      }
+
       if(FIELD_CHANNELS.contains(name)) {
          return name;
       }
@@ -146,7 +171,29 @@ public final class AestheticChannels {
 
    /** @param relationChart see {@link #requireFieldChannel(String, boolean)}. */
    public static String requireFrameChannel(String channel, boolean relationChart) {
+      return requireFrameChannel(channel, relationChart, true);
+   }
+
+   /**
+    * @param relationChart        see {@link #requireFieldChannel(String, boolean)}.
+    * @param shapeFamilySupported whether the chart renders shape/line/texture frames --
+    *                             {@code false} for a contour chart, where such a frame is stored
+    *                             and never drawn (#77024 P6). Colour and size frames are
+    *                             unaffected. Only for writes; resetting is always allowed.
+    */
+   public static String requireFrameChannel(String channel, boolean relationChart,
+                                            boolean shapeFamilySupported)
+   {
       String name = normalize(channel);
+
+      if(!shapeFamilySupported &&
+         ("shape".equals(name) || "line".equals(name) || "texture".equals(name)))
+      {
+         throw new IllegalArgumentException(
+            "Channel '" + channel + "' frames are not supported on this chart type -- it " +
+            "renders no shape or texture, so a frame here would never be drawn. Use the color " +
+            "or size channel instead.");
+      }
 
       if(NODE_CHANNELS.contains(name)) {
          if(relationChart) {

@@ -83,4 +83,29 @@ class AestheticChannelsTest {
       assertEquals(AestheticChannels.requireFieldChannel("color", false, true),
                    AestheticChannels.requireFieldChannel("color", false, true, true));
    }
+
+   // ---- #77024 ----
+
+   @Test
+   void refusesAShapeFieldWhenTheChartRendersNoShapeFamily() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> AestheticChannels.requireFieldChannel("shape", false, false, true, false));
+      assertTrue(thrown.getMessage().contains("shape"), thrown.getMessage());
+      assertEquals("color", AestheticChannels.requireFieldChannel("color", false, false, true, false));
+   }
+
+   @Test
+   void refusesShapeLineAndTextureFramesWhenNoShapeFamilyButKeepsColorAndSize() {
+      for(String channel : new String[] {"shape", "line", "texture"}) {
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> AestheticChannels.requireFrameChannel(channel, false, false));
+         assertTrue(thrown.getMessage().contains(channel), thrown.getMessage());
+      }
+
+      assertEquals("color", AestheticChannels.requireFrameChannel("color", false, false));
+      assertEquals("size", AestheticChannels.requireFrameChannel("size", false, false));
+      assertEquals("shape", AestheticChannels.requireFrameChannel("shape", false, true));
+   }
 }

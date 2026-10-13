@@ -234,6 +234,91 @@ class ChartAestheticAgentServiceTest {
       assertEquals("Sales", captureEvent(aesthetics).getModel().getSizeField().getFullName());
    }
 
+   // ---- #77024 ----
+
+   @Test
+   void chartTypeCapabilityTableMatchesWhatEachTypeRenders() {
+      int[] noShapeField = {GraphTypes.CHART_STOCK, GraphTypes.CHART_SCATTER_CONTOUR,
+                            GraphTypes.CHART_MAP_CONTOUR};
+      int[] shapeField = {GraphTypes.CHART_MEKKO, GraphTypes.CHART_BAR, GraphTypes.CHART_LINE,
+                          GraphTypes.CHART_INTERVAL, GraphTypes.CHART_CANDLE,
+                          GraphTypes.CHART_PIE, GraphTypes.CHART_AUTO, GraphTypes.CHART_MAP};
+
+      for(int type : noShapeField) {
+         assertFalse(ChartAestheticAgentService.shapeFieldSupported(type), "shape field " + type);
+      }
+
+      for(int type : shapeField) {
+         assertTrue(ChartAestheticAgentService.shapeFieldSupported(type), "shape field " + type);
+      }
+
+      // frames: contour only, stock and mekko keep theirs
+      assertFalse(ChartAestheticAgentService.shapeFrameSupported(GraphTypes.CHART_SCATTER_CONTOUR));
+      assertFalse(ChartAestheticAgentService.shapeFrameSupported(GraphTypes.CHART_MAP_CONTOUR));
+
+      for(int type : new int[] {GraphTypes.CHART_STOCK, GraphTypes.CHART_MEKKO,
+                                GraphTypes.CHART_BAR, GraphTypes.CHART_LINE,
+                                GraphTypes.CHART_INTERVAL, GraphTypes.CHART_CANDLE})
+      {
+         assertTrue(ChartAestheticAgentService.shapeFrameSupported(type), "frames " + type);
+      }
+   }
+
+   @Test
+   void setFieldRefusesShapeOnStockButAcceptsItOnMekko() throws Exception {
+      ChartAestheticAgentService stock = serviceWith(
+         sessionsFor(chartOfType(GraphTypes.CHART_STOCK)), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+      assertThrows(Exception.class,
+                   () -> stock.setField("tok", principal(), "Chart1", "shape",
+                                        new FieldRef("Name", "dimension", null, null, null),
+                                        null, ""));
+
+      ChartAestheticAgentService mekko = serviceWith(
+         sessionsFor(chartOfType(GraphTypes.CHART_MEKKO)), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+      mekko.setField("tok", principal(), "Chart1", "shape",
+                     new FieldRef("Name", "dimension", null, null, null), null, "");
+   }
+
+   @Test
+   void setFrameRefusesShapeOnContourButAcceptsColorAndShapeOnStock() throws Exception {
+      ChartAestheticAgentService contour = serviceWith(
+         sessionsFor(chartOfType(GraphTypes.CHART_SCATTER_CONTOUR)), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+      assertThrows(Exception.class,
+                   () -> contour.setFrame("tok", principal(), "Chart1", "shape",
+                                          spec("type", "static", "shape", "star"), ""));
+      contour.setFrame("tok", principal(), "Chart1", "color",
+                       spec("type", "static", "color", "#4e79a7"), "");
+
+      ChartAestheticAgentService stock = serviceWith(
+         sessionsFor(chartOfType(GraphTypes.CHART_STOCK)), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+      stock.setFrame("tok", principal(), "Chart1", "shape",
+                     spec("type", "static", "shape", "star"), "");
+   }
+
+   @Test
+   void resetFrameAndClearFieldStayAllowedOnChartsThatDoNotRenderTheChannel() throws Exception {
+      for(int type : new int[] {GraphTypes.CHART_SCATTER_CONTOUR, GraphTypes.CHART_STOCK}) {
+         ChartAestheticAgentService service = serviceWith(
+            sessionsFor(chartOfType(type)), new ChartBindingModel(),
+            mock(ChangeChartAestheticService.class));
+
+         // an unset frame has nothing to reset to, but the refusal must not be the type gate
+         try {
+            service.resetFrame("tok", principal(), "Chart1", "shape", null, "");
+         }
+         catch(IllegalArgumentException e) {
+            assertFalse(e.getMessage().contains("not supported on this chart type"),
+                        e.getMessage());
+         }
+         service.clearField("tok", principal(), "Chart1", "color", "");
+         service.clearField("tok", principal(), "Chart1", "shape", "");
+      }
+   }
+
    private static ChartVSAssembly chartOfType(int chartType) {
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.getChartType()).thenReturn(chartType);
