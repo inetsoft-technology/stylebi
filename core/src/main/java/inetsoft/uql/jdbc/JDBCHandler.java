@@ -2160,6 +2160,18 @@ public class JDBCHandler extends XHandler {
          properties.setAttribute("defaultSchema", defaultSchema);
       }
 
+      // the database of the connection, a catalog written in a table name of a database
+      // without catalogs must be this one (Bug #78466)
+      try {
+         String currentCatalog = meta.getConnection().getCatalog();
+
+         if(currentCatalog != null && !currentCatalog.isEmpty()) {
+            properties.setAttribute("currentCatalog", currentCatalog);
+         }
+      }
+      catch(Exception ignore) {
+      }
+
       return properties;
    }
 
