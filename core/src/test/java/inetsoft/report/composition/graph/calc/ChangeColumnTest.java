@@ -200,6 +200,62 @@ public class ChangeColumnTest {
       assertEquals(20.0, changeColumn.calculate(brushDataSet, 5, false, false));
    }
 
+   /**
+    * Regression test for Bug #78448: change-from-previous-year on the all-data (__all__) column
+    * of a brushed chart must find the previous year in the all-data rows.
+    *
+    * The brush excludes the earliest year (e.g. the extra prior period of a date comparison
+    * chart). The "first period" guard took its minimum date from the root dataset, which below
+    * a BrushDataSet is the brushed data only, so every all-data row of the brushed year became
+    * INVALID and its point disappeared.
+    */
+   @Test
+   void testChangePreviousYearOnBrushAllDataColumnBeforeBrushedRange() {
+      DefaultTableLens atb = new DefaultTableLens(new Object[][]{
+         { "Year(Date)", "id" },
+         { toDate("2020-01-01"), 10 },
+         { toDate("2021-01-01"), 30 },
+         { toDate("2022-01-01"), 60 }
+      });
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "Year(Date)", "id" },
+         { toDate("2021-01-01"), 30 }
+      });
+
+      VSDimensionRef yearVsRef = mock(VSDimensionRef.class);
+      when(yearVsRef.getFullName()).thenReturn("Year(Date)");
+      VSDimensionRef yearVsRef2 = mock(VSDimensionRef.class);
+      when(yearVsRef2.getFullName()).thenReturn("Year(Date)");
+
+      // row 0 is the brushed row (id), rows 1-3 the all-data rows (__all__id)
+      BrushDataSet brushDataSet = new BrushDataSet(
+         new VSDataSet(atb, new VSDataRef[] { yearVsRef }),
+         new VSDataSet(tb, new VSDataRef[] { yearVsRef2 }));
+
+      changeColumn = new ChangeColumn(BrushDataSet.ALL_HEADER_PREFIX + "id",
+                                      BrushDataSet.ALL_HEADER_PREFIX + "sum(id)");
+      changeColumn.setAsPercent(false);
+      changeColumn.setChangeType(ValueOfCalc.PREVIOUS_YEAR);
+      changeColumn.setDim("Year(Date)");
+      changeColumn.setInnerDim("Year(Date)");
+
+      // row 1 = all-data 2020: the first year has no previous year
+      assertEquals(CalcColumn.INVALID, changeColumn.calculate(brushDataSet, 1, false, false));
+      // row 2 = all-data 2021: 30 - 10 = 20 (regression returned INVALID)
+      assertEquals(20.0, changeColumn.calculate(brushDataSet, 2, false, false));
+      // row 3 = all-data 2022: 60 - 30 = 30
+      assertEquals(30.0, changeColumn.calculate(brushDataSet, 3, false, false));
+
+      // the brushed data has no 2020, so the brushed 2021 change stays invalid
+      ChangeColumn brushColumn = new ChangeColumn("id", "sum(id)");
+      brushColumn.setAsPercent(false);
+      brushColumn.setChangeType(ValueOfCalc.PREVIOUS_YEAR);
+      brushColumn.setDim("Year(Date)");
+      brushColumn.setInnerDim("Year(Date)");
+
+      assertEquals(CalcColumn.INVALID, brushColumn.calculate(brushDataSet, 0, false, false));
+   }
+
    private VSDataSet createVSDataSet(DefaultTableLens tableLens, String name) {
       VSDimensionRef mockDRef = mock(VSDimensionRef.class);
       when(mockDRef.getFullName()).thenReturn(name);
