@@ -66,7 +66,9 @@ final class ChartTimeSeriesGuard {
 
    /**
     * Throws if {@code field} explicitly asks for {@code timeSeries: true} on {@code dim} and the
-    * post-write {@code model} makes that unsupported, unless it merely echoes a stored-true flag.
+    * post-write {@code model} makes that unsupported, unless it merely echoes a stored-true flag;
+    * or if {@code dim} carries a sort the flag would override (bug #78474), unless a stored-true
+    * ref of the same column + date level carries that very sort state (a native dormant sort).
     *
     * @param previous the refs this write replaces on the same shelf/channel (pre-write), searched
     *                 for the echo exemption.
@@ -79,15 +81,26 @@ final class ChartTimeSeriesGuard {
          return;
       }
 
+      boolean echo = false;
+      boolean sortEcho = false;
+
       for(ChartRefModel old : previous) {
          if(old instanceof ChartDimensionRefModel oldDim && oldDim.isTimeSeries() &&
             ChartBindingMutator.matches(oldDim, field))
          {
-            return;
+            echo = true;
+            // Bug #78474: the echo only covers the sort when the stored-true ref carries the
+            // same sort state -- another occurrence of the same column storing true must not
+            // let a desc carried from a ts:false occurrence through.
+            sortEcho = sortEcho || sameSortState(oldDim, dim);
          }
       }
 
-      String reason = unsupportedReason(model, place, shelf, index, dim, false);
+      String reason = echo ? null : unsupportedReason(model, place, shelf, index, dim, false);
+
+      if(reason == null && !sortEcho) {
+         requireNoOverriddenSort(place, shelf, dim, field, previous);
+      }
 
       if(reason != null) {
          String column = field.column();
@@ -99,6 +112,113 @@ final class ChartTimeSeriesGuard {
             "gaps in the axis, and it would force this dimension's sort back to ascending. " +
             "Send timeSeries:false (or omit it) for '" + column + "'.");
       }
+   }
+
+   /**
+    * Bug #78474: refuses a new {@code timeSeries: true} on a dimension that carries (after
+    * {@code preserveDimensionState}'s carry-forward) a sort the flag would silently override.
+    * {@code ChartVSAQuery} forces a time-series date dimension ascending from the raw flag,
+    * {@code VSChartDimensionRef} drops a sort-by-value and {@code VSDimensionRef} ignores a manual
+    * list, so the sort would be stored and reported by {@code get_binding} but never applied --
+    * the opposite order of the sort-side refusal {@code ChartBindingMutator.setSort} makes.
+    */
+   private static void requireNoOverriddenSort(Place place, String shelf,
+                                               ChartDimensionRefModel dim, FieldRef field,
+                                               List<? extends ChartRefModel> previous)
+   {
+      String sort = overriddenSort(dim);
+
+      if(sort == null) {
+         return;
+      }
+
+      String column = field.column();
+      String remedy;
+
+      if(place == Place.AESTHETIC) {
+         remedy = "Clear the channel with clear_aesthetic_field and bind '" + column +
+            "' again (a fresh binding carries no sort), then resend timeSeries:true; or send " +
+            "timeSeries:false.";
+      }
+      else {
+         remedy = "Call set_chart_field_sort with shelf:\"" + shelf + "\", column:\"" + column +
+            "\"" + indexHint(dim, field, previous) + ", direction:\"asc\" first (it clears " +
+            "the sort field and manual list), then resend this call; or send timeSeries:false " +
+            "to keep the sort.";
+      }
+
+      throw new IllegalArgumentException(
+         "timeSeries:true is refused for '" + column + "' on " + describe(place, shelf) +
+         ": it carries a stored " + sort + " sort, and a time-series date dimension always " +
+         "renders in ascending date order, so that sort would be stored and reported but " +
+         "never applied. " + remedy);
+   }
+
+   /** The non-ascending sort {@code dim} carries, in the agent vocabulary, or {@code null}. */
+   private static String overriddenSort(ChartDimensionRefModel dim) {
+      int order = dim.getOrder() & ~XConstants.SORT_SPECIFIC;
+      String base = switch(order) {
+         case XConstants.SORT_DESC -> "'desc'";
+         case XConstants.SORT_VALUE_ASC -> "'value_asc' by '" + dim.getSortByCol() + "'";
+         case XConstants.SORT_VALUE_DESC -> "'value_desc' by '" + dim.getSortByCol() + "'";
+         default -> null;
+      };
+
+      if(base != null) {
+         return base;
+      }
+
+      // A named group alone forces SORT_SPECIFIC with no list -- not a sort the caller chose.
+      if((dim.getOrder() & XConstants.SORT_SPECIFIC) != 0 && dim.getManualOrder() != null &&
+         !dim.getManualOrder().isEmpty())
+      {
+         return "'manual' " + dim.getManualOrder();
+      }
+
+      return null;
+   }
+
+   private static boolean sameSortState(ChartDimensionRefModel a, ChartDimensionRefModel b) {
+      return a.getOrder() == b.getOrder() &&
+         java.util.Objects.equals(a.getSortByCol(), b.getSortByCol()) &&
+         java.util.Objects.equals(emptyToNull(a.getManualOrder()), emptyToNull(b.getManualOrder()));
+   }
+
+   private static List<?> emptyToNull(List<?> list) {
+      return list == null || list.isEmpty() ? null : list;
+   }
+
+   /**
+    * {@code , index:N} when the column is bound more than once on the stored shelf (a plain
+    * set_chart_field_sort would be ambiguous there): the position of the stored occurrence that
+    * carries this sort, or a generic hint when that is not unique.
+    */
+   private static String indexHint(ChartDimensionRefModel dim, FieldRef field,
+                                   List<? extends ChartRefModel> previous)
+   {
+      int same = 0;
+      List<Integer> carriers = new ArrayList<>();
+
+      for(int i = 0; i < previous.size(); i++) {
+         if(previous.get(i) instanceof ChartDimensionRefModel old) {
+            String oldColumn = columnOf(old);
+
+            if(oldColumn != null && oldColumn.equalsIgnoreCase(field.column())) {
+               same++;
+
+               if(ChartBindingMutator.matches(old, field) && sameSortState(old, dim)) {
+                  carriers.add(i);
+               }
+            }
+         }
+      }
+
+      if(same < 2) {
+         return "";
+      }
+
+      return carriers.size() == 1 ? ", index:" + carriers.get(0)
+         : ", index:<its position on the shelf, as get_binding reports it>";
    }
 
    /**
