@@ -56,43 +56,29 @@ public class ScriptPoolModeSandboxTest {
    @AfterEach
    public void tearDown() {
       SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
    }
 
    /**
-    * Feature #77123: the pool is on unless script.ws.contextPool is set to something other
-    * than true; false (any case) still turns it off.
+    * Feature #78459: the pool is always on; script.ws.contextPool no longer turns it off,
+    * whatever its value.
     */
-   @Test
-   public void poolIsOnByDefaultAndFalseTurnsItOff() throws Exception {
-      SreeEnv.remove(PoolConfig.ENABLED);
-      assertTrue(PoolConfig.DEFAULT_ENABLED);
-      assertTrue(PoolConfig.isEnabled());
-      AssetQuerySandbox unset = new AssetQuerySandbox(null);
-      assertTrue(unset.isScriptPoolMode());
-      assertTrue(unset.getScriptEnv() instanceof WorksheetScriptEnv);
-
-      SreeEnv.setProperty(PoolConfig.ENABLED, "false");
-      assertFalse(PoolConfig.isEnabled());
-      AssetQuerySandbox off = new AssetQuerySandbox(null);
-      assertFalse(off.isScriptPoolMode());
-      off.getScriptEnv().compile("1");
-      assertFalse(off.getScriptEnv() instanceof WorksheetScriptEnv);
-      assertNotNull(off.getScriptEnv().getExecutionLock());
-
-      SreeEnv.setProperty(PoolConfig.ENABLED, "FALSE");
-      assertFalse(PoolConfig.isEnabled());
-      SreeEnv.setProperty(PoolConfig.ENABLED, "TRUE");
-      assertTrue(PoolConfig.isEnabled());
-      SreeEnv.setProperty(PoolConfig.ENABLED, " ");
-      assertTrue(PoolConfig.isEnabled());
+   @ParameterizedTest
+   @ValueSource(strings = { "false", "FALSE", " false ", "true", "ture", " " })
+   public void propertyNoLongerTurnsThePoolOff(String value) throws Exception {
+      SreeEnv.setProperty(PoolConfig.ENABLED, value);
+      assertTrue(PoolConfig.isPoolMode());
+      AssetQuerySandbox box = new AssetQuerySandbox(null);
+      assertTrue(box.isScriptPoolMode());
+      assertTrue(box.getScriptEnv() instanceof WorksheetScriptEnv);
    }
 
    /**
-    * Feature #77123 review m1: a value that is neither true nor false turns the pool off, and
-    * says so in one WARN per distinct value; true, false and blank log nothing.
+    * Feature #78459: a leftover value is logged once per JVM as a WARN saying it is ignored;
+    * an unset property logs nothing.
     */
    @Test
-   public void unrecognizedValueTurnsPoolOffWithOneWarnPerValue() {
+   public void leftoverPropertyIsWarnedOnce() {
       Logger logger = (Logger) LoggerFactory.getLogger(PoolConfig.class);
       Level oldLevel = logger.getLevel();
       ListAppender<ILoggingEvent> appender = new ListAppender<>();
@@ -101,38 +87,19 @@ public class ScriptPoolModeSandboxTest {
       logger.setLevel(Level.WARN);
 
       try {
-         // unique values: the once-per-value memory is JVM-wide
-         String typo = "ture" + System.nanoTime();
-         String other = "yes" + System.nanoTime();
-
-         SreeEnv.setProperty(PoolConfig.ENABLED, " " + typo + " ");
-         assertFalse(PoolConfig.isEnabled());
-         assertFalse(PoolConfig.isEnabled());
-         assertEquals(1, warns(appender, typo));
-
-         SreeEnv.setProperty(PoolConfig.ENABLED, other);
-         assertFalse(PoolConfig.isEnabled());
-         assertEquals(1, warns(appender, other));
-
-         SreeEnv.setProperty(PoolConfig.ENABLED, typo);
-         assertFalse(PoolConfig.isEnabled());
-         assertEquals(1, warns(appender, typo));
-
-         int before = appender.list.size();
-
-         for(String ok : new String[] { "false", "FALSE", "true", " True ", " " }) {
-            SreeEnv.setProperty(PoolConfig.ENABLED, ok);
-            PoolConfig.isEnabled();
-         }
-
+         PoolConfig.resetSwitchWarningForTests();
          SreeEnv.remove(PoolConfig.ENABLED);
-         assertTrue(PoolConfig.isEnabled());
-         assertEquals(before, appender.list.size());
+         new AssetQuerySandbox(null);
+         assertEquals(0, appender.list.size());
 
+         SreeEnv.setProperty(PoolConfig.ENABLED, "false");
+         new AssetQuerySandbox(null);
+         new AssetQuerySandbox(null);
+         assertEquals(1, appender.list.size());
          ILoggingEvent event = appender.list.get(0);
          assertEquals(Level.WARN, event.getLevel());
          assertTrue(event.getFormattedMessage().contains(PoolConfig.ENABLED));
-         assertTrue(event.getFormattedMessage().contains("OFF"));
+         assertTrue(event.getFormattedMessage().contains("no longer supported"));
       }
       finally {
          logger.detachAppender(appender);
@@ -140,17 +107,15 @@ public class ScriptPoolModeSandboxTest {
       }
    }
 
-   private static long warns(ListAppender<ILoggingEvent> appender, String value) {
-      return appender.list.stream()
-         .filter(e -> e.getLevel() == Level.WARN && e.getFormattedMessage().contains("'" + value + "'"))
-         .count();
-   }
-
+   /**
+    * The pool mode is fixed per sandbox when it is built; the test seam turns it off for the
+    * pool-off code paths that remain until they are removed.
+    */
    @Test
    public void poolModeIsReadOncePerSandbox() throws Exception {
-      SreeEnv.setProperty(PoolConfig.ENABLED, "false");
+      PoolConfig.setPoolOffForTests(true);
       AssetQuerySandbox before = new AssetQuerySandbox(null);
-      SreeEnv.setProperty(PoolConfig.ENABLED, "true");
+      PoolConfig.setPoolOffForTests(false);
       AssetQuerySandbox after = new AssetQuerySandbox(null);
 
       assertFalse(before.isScriptPoolMode());
@@ -163,14 +128,14 @@ public class ScriptPoolModeSandboxTest {
       assertTrue(after.getScriptEnv() instanceof WorksheetScriptEnv);
       assertNull(after.getScriptEnv().getExecutionLock());
 
-      // flip the property, then null and recreate each sandbox's env: the types stay (N3)
-      SreeEnv.setProperty(PoolConfig.ENABLED, "false");
+      // flip the seam, then null and recreate each sandbox's env: the types stay (N3)
+      PoolConfig.setPoolOffForTests(true);
       after.reset();
       assertTrue(after.getScriptEnv() instanceof WorksheetScriptEnv);
       after.dispose();
       assertTrue(after.getScriptEnv() instanceof WorksheetScriptEnv);
 
-      SreeEnv.setProperty(PoolConfig.ENABLED, "true");
+      PoolConfig.setPoolOffForTests(false);
       before.reset();
       assertFalse(before.getScriptEnv() instanceof WorksheetScriptEnv);
    }

@@ -21,14 +21,13 @@ import inetsoft.sree.SreeEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Configuration of the worksheet script context pool (bug #76960). Whether the pool is on is
- * read once per sandbox ({@link #isEnabled()}); the tuning values once per env ({@link #read()}).
- * The pool is on by default (Feature #77123); {@code script.ws.contextPool=false} turns it off.
+ * Configuration of the worksheet script context pool (bug #76960). The pool is always on
+ * (Feature #78459): a sandbox reads its mode once ({@link #isPoolMode()}), which only a test
+ * can turn off; the tuning values are read once per env ({@link #read()}). The former switch
+ * {@link #ENABLED} is retired and ignored with a WARN ({@link #warnIfSwitchSet()}).
  *
  * @param idleMillis          an idle pooled context is closed after this long.
  * @param cleanThreshold      a context whose non-configurable leftover globals exceed this is
@@ -69,6 +68,10 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
    public static final long DEFAULT_HAND_OFF_MILLIS = 5000L;
    public static final int DEFAULT_HAND_OFF_ENTRIES = 200_000;
 
+   /**
+    * The retired switch that could turn the pool off before Feature #78459. It is ignored;
+    * {@link #warnIfSwitchSet()} logs once if it is still set.
+    */
    public static final String ENABLED = "script.ws.contextPool";
    public static final String IDLE_MILLIS = "script.ws.contextPool.idleMillis";
    public static final String CLEAN_THRESHOLD = "script.ws.contextPool.cleanThreshold";
@@ -92,58 +95,46 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
    }
 
    /**
-    * The pool mode when {@link #ENABLED} is not set: on (Feature #77123).
+    * @return whether a sandbox built now runs its worksheet scripts on pooled contexts:
+    *         always, since Feature #78459 removed the switch. Only
+    *         {@link #setPoolOffForTests(boolean)} turns it off.
     */
-   public static final boolean DEFAULT_ENABLED = true;
+   public static boolean isPoolMode() {
+      return !poolOffForTests;
+   }
 
    /**
-    * @return whether a sandbox built now runs its worksheet scripts on pooled contexts: true
-    *         unless {@link #ENABLED} is set to something other than true (any case), for
-    *         example {@code script.ws.contextPool=false}. A value that is neither true nor
-    *         false (for example a typo) also turns the pool off, and is logged once as a WARN;
-    *         an explicit false is logged once as an INFO.
+    * Test seam: makes the sandboxes built afterwards run pool off, for the tests of the
+    * pool-off code paths that remain until they are removed. No property reaches it.
     */
-   public static boolean isEnabled() {
+   public static void setPoolOffForTests(boolean off) {
+      poolOffForTests = off;
+   }
+
+   /**
+    * Logs one WARN per JVM if the retired {@link #ENABLED} switch is still set, to any
+    * non-blank value. Never throws.
+    */
+   public static void warnIfSwitchSet() {
       try {
          String value = SreeEnv.getProperty(ENABLED);
 
-         if(value == null || value.isBlank()) {
-            return DEFAULT_ENABLED;
+         if(value != null && !value.isBlank() && SWITCH_WARNED.compareAndSet(false, true)) {
+            LOG.warn("{} is no longer supported and is ignored: the worksheet script context " +
+                        "pool is always on (Feature #78459). Remove it from sree.properties.",
+                     ENABLED);
          }
-
-         String trimmed = value.trim();
-
-         if("true".equalsIgnoreCase(trimmed)) {
-            return true;
-         }
-
-         if(!"false".equalsIgnoreCase(trimmed)) {
-            warnUnrecognized(trimmed);
-         }
-         else if(OFF_LOGGED.compareAndSet(false, true)) {
-            LOG.info("{}=false: the worksheet script context pool is off, so the engine-lock " +
-                        "hangs of Bug #77016 can occur; see the release note (Turning it off) and " +
-                        "keep stall.watchdog.mode=fail (the default).", ENABLED);
-         }
-
-         return false;
       }
-      catch(Exception ex) {
-         return DEFAULT_ENABLED;
+      catch(Exception ignore) {
+         // the warning is best effort
       }
    }
 
    /**
-    * Logs one WARN per distinct unrecognized {@link #ENABLED} value, at most
-    * {@link #MAX_WARNED_VALUES} values per JVM.
+    * Test seam: lets the next {@link #warnIfSwitchSet()} log again.
     */
-   private static void warnUnrecognized(String value) {
-      if(WARNED_VALUES.size() < MAX_WARNED_VALUES && WARNED_VALUES.add(value)) {
-         String shown = value.length() > 64 ? value.substring(0, 64) + "..." : value;
-         LOG.warn("{}='{}' is neither true nor false; the worksheet script context pool is " +
-                     "turned OFF. Set it to true (or remove it) to keep the pool on.",
-                  ENABLED, shown);
-      }
+   public static void resetSwitchWarningForTests() {
+      SWITCH_WARNED.set(false);
    }
 
    public static PoolConfig read() {
@@ -172,8 +163,7 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
       }
    }
 
-   static final int MAX_WARNED_VALUES = 16;
-   private static final Set<String> WARNED_VALUES = ConcurrentHashMap.newKeySet();
-   private static final AtomicBoolean OFF_LOGGED = new AtomicBoolean();
+   private static volatile boolean poolOffForTests;
+   private static final AtomicBoolean SWITCH_WARNED = new AtomicBoolean();
    private static final Logger LOG = LoggerFactory.getLogger(PoolConfig.class);
 }

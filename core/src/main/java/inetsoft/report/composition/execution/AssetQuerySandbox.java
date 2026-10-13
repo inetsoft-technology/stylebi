@@ -137,6 +137,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    public AssetQuerySandbox(Worksheet ws) {
       super();
 
+      PoolConfig.warnIfSwitchSet();
       setVariables(new CachedVariableTable());
       this.falias = true;
       tmap = new ConcurrentHashMap<>();
@@ -2429,7 +2430,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    private AssetQueryScope scope; // scope for executing formulas
    private volatile ScriptEnv senv; // scripting env for executing scripts
    // read once: every env this sandbox creates, also after reset(), has the same type (#76960)
-   private final boolean scriptPoolMode = PoolConfig.isEnabled();
+   private final boolean scriptPoolMode = PoolConfig.isPoolMode();
    private final MVSession mvsession;
    private final Set<String> nolimit; // tables to ignore time limit
    private QueryManager queryMgr; // track pending queries
