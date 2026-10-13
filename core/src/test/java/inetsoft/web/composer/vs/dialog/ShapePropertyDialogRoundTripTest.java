@@ -286,6 +286,36 @@ class ShapePropertyDialogRoundTripTest {
       }
    }
 
+   // Bug #78471: the wiz write path (alias -> PropertyPath -> dialog service) with the value types
+   // JSON delivers: a number is coerced to its decimal string and then normalized; a boolean
+   // is refused naming the field.
+   @Test
+   void shadowColorAliasWriteCoercesJsonValues() throws Exception {
+      Object[][] cases = { { 16711680, "#ff0000" }, { "#00FF00", "#00ff00" }, { "", "#000000" } };
+
+      for(boolean oval : new boolean[] { true, false }) {
+         String type = oval ? "oval" : "rectangle";
+         String path = inetsoft.web.wiz.viewsheet.PropertyAliases.resolveForWrite(type, "shadowColor");
+
+         for(Object[] c : cases) {
+            reset(propertyService);
+            shadowShape(oval, "#123456");
+            Object m = inetsoft.web.wiz.viewsheet.PropertyPath.set(getShapeModel(oval), path, c[0]);
+            setShapeModel(oval, m);
+            assertEquals(c[1], capturedShadowColor(), type + " " + c[0]);
+         }
+
+         for(Object bad : new Object[] { true, 16777216 }) {
+            reset(propertyService);
+            shadowShape(oval, "#123456");
+            Object m = inetsoft.web.wiz.viewsheet.PropertyPath.set(getShapeModel(oval), path, bad);
+            IllegalArgumentException ex = assertThrows(
+               IllegalArgumentException.class, () -> setShapeModel(oval, m), type + " " + bad);
+            assertTrue(ex.getMessage().contains("shadowPropPaneModel.color"), ex.getMessage());
+         }
+      }
+   }
+
    private VSObjectPropertyService propertyService;
    private VSDialogService dialogService;
    private ViewsheetService viewsheetService;
