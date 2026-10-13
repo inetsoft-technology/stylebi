@@ -2589,9 +2589,19 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * reset) swallow script errors, and remembering those would report a failure of another request
     * (the current-view export reuses the live viewer box). Like the existing re-run of this sheet's
     * own onLoad, re-running an embedded onLoad changes the live embedded box's variables. (#78255)
+    *
+    * <p>A script error is recorded and the export goes on with a warning (#76780), except a load
+    * failure: an onLoad script that read a table which failed to load in a scheduled run (a
+    * {@link TableLoadException} in the cause chain) fails the export with it, after every onLoad
+    * has run, as a failed exported table does. Only a reader that must fail (a scheduled run) ever
+    * gets one. (#78445)
+    *
+    * @throws TableLoadException if an onLoad script, this sheet's or an embedded one's, failed on
+    *                            a table that failed to load.
     */
    public void prepareForExport() {
       exportScriptError = null;
+      exportLoadFailure = null;
 
       try {
          // executeVSScript() (invoked by processOnLoad() to actually run the onLoad
@@ -2613,6 +2623,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       prepareEmbeddedForExport(vs);
+
+      // thrown only here, after every onLoad ran, so the box is left as by a recorded error
+      if(exportLoadFailure != null) {
+         throw new TableLoadException(exportLoadFailure);
+      }
    }
 
    /**
@@ -2666,6 +2681,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private void recordExportScriptError(Exception ex, String sheetName) {
       if(exportScriptError == null) {
          exportScriptError = ex;
+      }
+
+      // kept apart from the first error, so an earlier plain error can't hide it (#78445)
+      if(exportLoadFailure == null) {
+         exportLoadFailure = TableLoadException.find(ex);
       }
 
       LOG.error("Failed to process the onLoad script for export of \"{}\"; the exported " +
@@ -9383,6 +9403,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private VSBookmarkInfo openedBookmark; // the current opened bookmark
    private boolean onLoadExeced = false;
    private Exception exportScriptError; // onLoad failure from prepareForExport()
+   private TableLoadException exportLoadFailure; // onLoad load failure from prepareForExport()
    private boolean parametersApplied = false;
    // Accessed only while the write lock is held (resetRuntime → reset → applyParameterToInput),
    // so a plain HashSet is safe here; no concurrent access occurs outside that path.
