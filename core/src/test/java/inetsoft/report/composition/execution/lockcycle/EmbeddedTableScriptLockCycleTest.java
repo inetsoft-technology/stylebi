@@ -70,8 +70,8 @@ import static org.mockito.Mockito.when;
  * script-execution lock -- with the context pool off. The pool is always on since Feature
  * #78459 (on by default since #77123), and it prevents this deadlock (the pool removes the
  * shared execution lock entirely, per {@code WorksheetScriptEnv.getExecutionLock()}); the
- * pool-off cases still run on request with {@code -Dlockcycle.pool=false}, through the test
- * seam, until the pool-off code paths are removed. Unlike
+ * daily slow-tests workflow still runs the pool-off cases with {@code -Dlockcycle.pool=false},
+ * through the test seam, until #78461 removes the pool-off code paths. Unlike
  * {@link SubQueryConditionWorksheetCycleTest}, this needs no
  * sub-query, {@code Distinct}, or async worker: table A has its own plain JavaScript expression
  * column, which alone forces {@code AssetQuery}'s type probe

@@ -27,7 +27,6 @@ import inetsoft.uql.asset.AssetCondition;
 import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
-import inetsoft.util.script.graal.pool.PoolConfig;
 import inetsoft.util.script.graal.pool.PoolMetrics;
 import inetsoft.util.script.graal.pool.PoolTestSupport;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
@@ -79,29 +78,22 @@ class ConditionGroupPoolTest {
     */
    @Test
    void throwawaySandboxOfAConditionReleasesItsContexts() throws Exception {
-      PoolConfig.setPoolOffForTests(false);
+      AssetCondition condition = new AssetCondition();
+      condition.setOperation(XCondition.EQUAL_TO);
+      condition.setType(XSchema.INTEGER);
+      ExpressionValue value = new ExpressionValue();
+      value.setExpression("1 + 1");
+      value.setType(ExpressionValue.JAVASCRIPT);
+      condition.addValue(value);
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(new AttributeRef(null, "value"), condition, 0));
+      DefaultTableLens table = new DefaultTableLens(new Object[][] {{"value"}, {2}, {3}});
+      int before = PoolMetrics.nodeSlots();
 
-      try {
-         AssetCondition condition = new AssetCondition();
-         condition.setOperation(XCondition.EQUAL_TO);
-         condition.setType(XSchema.INTEGER);
-         ExpressionValue value = new ExpressionValue();
-         value.setExpression("1 + 1");
-         value.setType(ExpressionValue.JAVASCRIPT);
-         condition.addValue(value);
-         ConditionList list = new ConditionList();
-         list.append(new ConditionItem(new AttributeRef(null, "value"), condition, 0));
-         DefaultTableLens table = new DefaultTableLens(new Object[][] {{"value"}, {2}, {3}});
-         int before = PoolMetrics.nodeSlots();
+      ConditionGroup group = new ConditionGroup(table, list, null);
 
-         ConditionGroup group = new ConditionGroup(table, list, null);
-
-         assertTrue(group.evaluate(table, 1));
-         assertFalse(group.evaluate(table, 2));
-         assertEquals(before, PoolMetrics.nodeSlots(), "the throwaway sandbox kept a context");
-      }
-      finally {
-         PoolConfig.setPoolOffForTests(false);
-      }
+      assertTrue(group.evaluate(table, 1));
+      assertFalse(group.evaluate(table, 2));
+      assertEquals(before, PoolMetrics.nodeSlots(), "the throwaway sandbox kept a context");
    }
 }

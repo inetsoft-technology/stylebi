@@ -247,8 +247,8 @@ public class CrossSandboxCycleTest {
    /**
     * Why summaryFirstTouchedByOtherScriptThread is pinned to pool off (bug #78239): in pool
     * mode {@code ChainScriptLock} finds no lock for the chain, so the R2-X′ cycle cannot form
-    * and the case passes even without #5838. Only an on-request pool-off run
-    * ({@code -Dlockcycle.pool=false}) exercises it; production is always pooled (#78459).
+    * and the case passes even without #5838. Only the pool-off run (daily slow-tests.yml)
+    * guards it, while the pool-off code paths remain (#78461).
     */
    static final String GUEST_INLINE_UNDER_CHAIN_LOCK =
       "pool off only: premise is that the guest script thread processes the summary inline " +

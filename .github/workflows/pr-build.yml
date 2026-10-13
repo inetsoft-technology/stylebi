@@ -50,7 +50,8 @@ jobs:
         run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
 
       # one job, so a PR uses one runner. -T 2 builds web, which does not depend on core,
-      # while core runs its tests; tests tagged slow are left to the daily slow-tests.yml
+      # while core runs its tests; tests tagged slow, and the lockcycle suite with the pool off,
+      # are left to the daily slow-tests.yml
       - name: Build with Maven
         run: ./mvnw --batch-mode -T 2 clean install
         env:

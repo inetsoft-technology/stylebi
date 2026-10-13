@@ -81,7 +81,7 @@ class WsBoundaryPolicyTest {
                                         // follow-up: the marking budget
                                         "four times the cap",
                                         // context-pool regression D1, the pool-off first batch
-                                        "evaluates what pool off would", "2N + 10",
+                                        "evaluates what earlier releases did", "2N + 10",
                                         "undeclared", "class-valued var",
                                         "turns script batching off",
                                         // Feature #78459, the pool is always on

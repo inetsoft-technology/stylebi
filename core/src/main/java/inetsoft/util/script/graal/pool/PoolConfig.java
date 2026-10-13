@@ -116,6 +116,10 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
     * non-blank value. Never throws.
     */
    public static void warnIfSwitchSet() {
+      if(SWITCH_WARNED.get()) {
+         return;
+      }
+
       try {
          String value = SreeEnv.getProperty(ENABLED);
 

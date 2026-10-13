@@ -57,7 +57,7 @@
     <!--
       Whether the lockcycle suite runs on pooled worksheet script contexts, as production always
       does (Feature #78459). -Dlockcycle.pool=false runs it on the pool-off code paths through
-      the test seam, on request only, until those paths are removed.
+      the test seam; the daily slow-tests workflow does so until #78461 removes those paths.
     -->
     <lockcycle.pool>true</lockcycle.pool>
   </properties>
