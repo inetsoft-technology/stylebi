@@ -79,4 +79,45 @@ describe("format presenter pane componnet unit case", () => {
       fixture.detectChanges();
       expect(formatPresenterPane.isPresenterDialogEnabled()).toBeTruthy();
    });
+
+   //Bug #78300 user-defined presenter nodes carry {path, class, hasDescriptors} data
+   it("should enable presenter dialog button for user-defined presenter with descriptors", () => {
+      const cls = "com.example.MyPropertyPresenter";
+      expect(selectUserPresenter("My Property Bar", cls, true)).toEqual({
+         label: "My Property Bar",
+         presenter: cls,
+         hasDescriptors: true
+      });
+      expect(getPresenterButton().disabled).toBe(false);
+   });
+
+   it("should disable presenter dialog button for user-defined presenter without descriptors", () => {
+      const cls = "com.example.MyPlainPresenter";
+      expect(selectUserPresenter("My Plain", cls, false)).toEqual({
+         label: "My Plain",
+         presenter: cls,
+         hasDescriptors: false
+      });
+      expect(getPresenterButton().disabled).toBe(true);
+   });
+
+   // feed the selected node through the same round trip as vs-formats-pane.updatePresenter
+   function selectUserPresenter(label: string, cls: string, hasDescriptors: boolean): any {
+      let emitted: any;
+      formatPresenterPane.onPresenterChange.subscribe((value: any) => emitted = value);
+      formatPresenterPane.tableSelected = true;
+      formatPresenterPane.selectPresenter({
+         label: label,
+         data: {path: "User Defined^" + label, class: cls, hasDescriptors: hasDescriptors},
+         leaf: true
+      });
+      formatPresenterPane.presenterLabel = emitted.label;
+      formatPresenterPane.hasDescriptors = emitted.hasDescriptors;
+      fixture.detectChanges();
+      return emitted;
+   }
+
+   function getPresenterButton(): HTMLButtonElement {
+      return fixture.nativeElement.querySelector("button.format-control");
+   }
 });
