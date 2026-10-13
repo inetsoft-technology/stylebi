@@ -492,4 +492,76 @@ class BindableColumnsTest {
                  "PRICE and PRODUCT_NAME still do not share a table; the dynamic field must not " +
                  "manufacture a match that is not there");
    }
+
+   private static final List<BindableTable> MIXED_CASE = List.of(
+      new BindableTable("Orders", true, List.of(new BindableField("Customer:State", null, null),
+                                                new BindableField("Customer:Region", null, null))),
+      new BindableTable("Other", false, List.of(new BindableField("CUSTOMER:STATE", null, null))));
+
+   /** Redmine #78436: a mis-cased name is stored as the source's real spelling. */
+   @Test
+   void canonicalizeReplacesAMisCasedNameWithTheRealSpelling() {
+      FieldRef ref = new FieldRef("customer:state", "dimension", null, "month", null);
+
+      FieldRef result = BindableColumns.canonicalize(MIXED_CASE, "Crosstab1", null,
+                                                     List.of(ref)).get(0);
+
+      assertEquals("Customer:State", result.column());
+      assertEquals("month", result.dateLevel(), "everything but the column is carried over");
+   }
+
+   /** The scope is the current table, so another table's different spelling is not a candidate. */
+   @Test
+   void canonicalizeIsScopedToTheCurrentTable() {
+      assertEquals("Customer:Region",
+                   BindableColumns.canonicalize(MIXED_CASE, "Crosstab1", null,
+                                                List.of(dim("CUSTOMER:REGION"))).get(0).column());
+      assertEquals("Customer:State",
+                   BindableColumns.canonicalize(MIXED_CASE, "Crosstab1", null,
+                                                List.of(dim("CUSTOMER:STATE"))).get(0).column());
+   }
+
+   @Test
+   void canonicalizeLeavesExactDynamicScriptAndUnknownNamesAlone() {
+      List<FieldRef> in = List.of(dim("Customer:State"), dim("$(Pick)"), dim("=Pick.value"),
+                                  dim("NO_SUCH"));
+
+      assertEquals(in, BindableColumns.canonicalize(MIXED_CASE, "Crosstab1", null, in));
+   }
+
+   @Test
+   void canonicalizePrefersTheExactMatchWhenColumnsDifferOnlyByCase() {
+      List<BindableTable> tables = List.of(new BindableTable("T", true, List.of(
+         new BindableField("a", null, null), new BindableField("A", null, null))));
+
+      assertEquals("A", BindableColumns.canonicalize(tables, "C", null, List.of(dim("A")))
+         .get(0).column());
+      assertEquals("a", BindableColumns.canonicalize(tables, "C", null, List.of(dim("a")))
+         .get(0).column());
+   }
+
+   @Test
+   void canonicalizeRefusesAnAmbiguousMisCasedName() {
+      List<BindableTable> tables = List.of(new BindableTable("T", true, List.of(
+         new BindableField("ab", null, null), new BindableField("AB", null, null))));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.canonicalize(tables, "C", null, List.of(dim("Ab"))));
+
+      assertTrue(thrown.getMessage().contains("'Ab'"));
+      assertTrue(thrown.getMessage().contains("ab"));
+      assertTrue(thrown.getMessage().contains("AB"));
+   }
+
+   /** With no current table, the source requireSource resolved is the scope. */
+   @Test
+   void canonicalizeUsesTheResolvedSourceWhenNoTableIsCurrent() {
+      List<BindableTable> tables = List.of(
+         new BindableTable("A", false, List.of(new BindableField("Price", null, null))),
+         new BindableTable("B", false, List.of(new BindableField("PRICE", null, null))));
+
+      assertEquals("PRICE", BindableColumns.canonicalize(tables, "C", "B", List.of(dim("price")))
+         .get(0).column());
+   }
 }

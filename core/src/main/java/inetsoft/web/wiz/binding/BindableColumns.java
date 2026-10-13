@@ -116,6 +116,92 @@ public final class BindableColumns {
    }
 
    /**
+    * Replaces each field's column with the source's real spelling, so a name that only differs by
+    * case is stored as the column it unambiguously identifies (#78436).
+    *
+    * <p>{@link #require} matches case-insensitively, so a mis-cased name used to pass validation
+    * and then be persisted verbatim; anything keyed by the exact stored spelling (for example a
+    * crosstab's {@code suppressGroupTotal}) then silently stopped matching. The comparison here
+    * is against a case-sensitive column list scoped like {@link #require}/{@link #requireSource}
+    * (the current table, else the table just resolved as the source, else every table): an exact
+    * match always wins, a single case-insensitive match is replaced by its real spelling, several
+    * case-insensitive matches with no exact one are refused, and a name with no match at all is
+    * left untouched for {@link #require} to refuse. Dynamic {@code "$(...)"} references and
+    * {@code "=script"} names are not column names and are never rewritten.
+    *
+    * @param resolvedSource the table {@link #requireSource} resolved, or {@code null}
+    */
+   public static List<FieldRef> canonicalize(List<BindableTable> tables, String assembly,
+                                             String resolvedSource, List<FieldRef> fields)
+   {
+      if(fields == null || fields.isEmpty()) {
+         return fields;
+      }
+
+      List<BindableTable> listed = tables == null ? List.of() : tables;
+      String scope = currentSourceOf(listed);
+
+      if(scope == null) {
+         scope = resolvedSource;
+      }
+
+      Set<String> columns = new LinkedHashSet<>();
+
+      for(BindableTable table : listed) {
+         if(scope != null && !scope.equalsIgnoreCase(table.name())) {
+            continue;
+         }
+
+         for(var field : table.fields()) {
+            if(field.column() != null) {
+               columns.add(field.column());
+            }
+         }
+      }
+
+      List<FieldRef> result = new ArrayList<>(fields.size());
+
+      for(FieldRef field : fields) {
+         result.add(canonicalize(columns, assembly, field));
+      }
+
+      return result;
+   }
+
+   private static FieldRef canonicalize(Set<String> columns, String assembly, FieldRef field) {
+      if(field == null || field.column() == null || field.column().isBlank() ||
+         isDynamicVariableReference(field.column()) || field.column().startsWith("=") ||
+         columns.contains(field.column()))
+      {
+         return field;
+      }
+
+      List<String> matches = new ArrayList<>();
+
+      for(String column : columns) {
+         if(column.equalsIgnoreCase(field.column())) {
+            matches.add(column);
+         }
+      }
+
+      if(matches.isEmpty()) {
+         return field;
+      }
+
+      if(matches.size() > 1) {
+         throw new IllegalArgumentException(
+            "'" + field.column() + "' is ambiguous for " + assembly + ": it matches " +
+            String.join(", ", matches) + " only by case. Use the exact spelling of one of them.");
+      }
+
+      return new FieldRef(matches.get(0), field.type(), field.aggregate(), field.dateLevel(),
+                          field.namedGroup(), field.chartType(), field.runtimeChartType(),
+                          field.namedGroupValues(), field.calculateInfo(), field.label(),
+                          field.secondaryY(), field.visible(), field.timeSeries(),
+                          field.secondaryColumn());
+   }
+
+   /**
     * Decides which table a write is against, and returns the one to establish as the source.
     *
     * <p>The Composer sets an assembly's source as a side effect of the drag — the drag event carries

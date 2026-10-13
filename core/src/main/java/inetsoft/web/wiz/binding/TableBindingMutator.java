@@ -870,12 +870,16 @@ public final class TableBindingMutator {
 
             consumed[oldIndex] = true;
 
-            if(oldIndex != newIndex) {
-               BDimensionRefModel oldRef = previous.get(oldIndex);
-               String oldColumn = oldRef.getColumnValue() == null
-                  ? oldRef.getName() : oldRef.getColumnValue();
-               rekeys.put(oldColumn + ":" + shelf + oldIndex,
-                         field.column() + ":" + shelf + newIndex);
+            BDimensionRefModel oldRef = previous.get(oldIndex);
+            String oldColumn = oldRef.getColumnValue() == null
+               ? oldRef.getName() : oldRef.getColumnValue();
+            String oldKey = oldColumn + ":" + shelf + oldIndex;
+            String newKey = field.column() + ":" + shelf + newIndex;
+
+            // matches() ignores case, so a re-send that only changes the column's spelling lands
+            // on the same index: compare the keys, not just the positions (#78436).
+            if(!oldKey.equals(newKey)) {
+               rekeys.put(oldKey, newKey);
             }
 
             break;
