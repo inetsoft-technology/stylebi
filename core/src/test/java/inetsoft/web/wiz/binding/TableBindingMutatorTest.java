@@ -2270,4 +2270,24 @@ class TableBindingMutatorTest {
       when(rvs.getViewsheet()).thenReturn(vs);
       return rvs;
    }
+
+   /**
+    * Redmine #78436: re-sending a shelf dimension spelled differently only by case lands on the
+    * same index, so the key string -- not just the position -- must be compared, or the entry
+    * stored under the old spelling is pruned as an orphan.
+    */
+   @Test
+   void aCaseOnlyRespellingAtTheSameIndexCarriesTheSuppressionEntry() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Customer:State"),
+                                                          dim("Customer:Region")));
+      model.getSuppressGroupTotal().put("Customer:State:rows0", Boolean.TRUE);
+
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("customer:state"),
+                                                          dim("Customer:Region")));
+
+      assertEquals(Map.of("customer:state:rows0", Boolean.TRUE),
+                   model.getSuppressGroupTotal(),
+                   "State's suppression must follow its respelled key, not be pruned");
+   }
 }

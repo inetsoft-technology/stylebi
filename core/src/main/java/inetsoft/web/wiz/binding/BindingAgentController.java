@@ -161,10 +161,10 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      String source = resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
-                                         request.fields());
+      Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
+                                             request.table(), request.fields());
       chartService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
-                            request.fields(), source, linkUri);
+                            resolved.fields(), resolved.source(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/source")
@@ -194,12 +194,13 @@ public class BindingAgentController {
       requireEnabled();
 
       // A null field is a clear: nothing to validate, and no source to derive from it.
-      String source = request.field() == null ? null
+      Resolved resolved = request.field() == null ? null
          : resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
                               List.of(request.field()));
 
       chartService.setSingleShelf(sessionToken, user, request.assembly(), request.shelf(),
-                                  request.field(), source, linkUri);
+                                  resolved == null ? null : resolved.fields().get(0),
+                                  resolved == null ? null : resolved.source(), linkUri);
    }
 
    /** @see TableSortRequest — same shape, applied to a chart's x/y/group dimension shelves. */
@@ -349,10 +350,10 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      String source = resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
-                                         List.of(request.field()));
+      Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
+                                             request.table(), List.of(request.field()));
       aestheticService.setField(sessionToken, user, request.assembly(), request.channel(),
-                                request.field(), source, linkUri);
+                                resolved.fields().get(0), resolved.source(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/aesthetic-field/clear")
@@ -423,11 +424,11 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      String source = resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
-                                         request.fields());
+      Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
+                                             request.table(), request.fields());
       return ViewsheetSessionService.warningsBody(
          tableService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
-                            request.fields(), source));
+                            resolved.fields(), resolved.source()));
    }
 
    public record SelectionSourceRequest(String assembly, String table, List<String> columns,
@@ -493,11 +494,11 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      String source = resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
-                                         List.of(request.field()));
+      Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
+                                             request.table(), List.of(request.field()));
       return ViewsheetSessionService.warningsBody(
          tableService.addField(sessionToken, user, request.assembly(), request.shelf(),
-                            request.field(), request.position(), source));
+                            resolved.fields().get(0), request.position(), resolved.source()));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/remove")
@@ -876,8 +877,8 @@ public class BindingAgentController {
     *
     * @return the source table to establish, or {@code null} for none
     */
-   private String resolveSourceTable(String sessionToken, Principal user, String assembly,
-                                     String table, java.util.Collection<FieldRef> fields)
+   private Resolved resolveSourceTable(String sessionToken, Principal user, String assembly,
+                                       String table, List<FieldRef> fields)
    {
       try {
          List<BindableTable> tables =
@@ -890,18 +891,24 @@ public class BindingAgentController {
          // the table name entirely. When requireSource does not throw (source already known, or
          // resolved), require() still runs right after to do its own, narrower column check.
          String source = BindableColumns.requireSource(tables, assembly, table, fields);
-         BindableColumns.require(tables, assembly, fields);
+         // Store the source's real column spelling, not the caller's (#78436).
+         List<FieldRef> canonical =
+            BindableColumns.canonicalize(tables, assembly, source, fields);
+         BindableColumns.require(tables, assembly, canonical);
 
-         return source;
+         return new Resolved(source, canonical);
       }
       catch(IllegalArgumentException e) {
          throw e;
       }
       catch(Exception e) {
          LOG.debug("Could not list bindable columns for {}; skipping the check", assembly, e);
-         return null;
+         return new Resolved(null, fields);
       }
    }
+
+   /** The source to establish and the field list to store, spelled as the source spells them. */
+   private record Resolved(String source, List<FieldRef> fields) {}
 
    private static final Logger LOG = LoggerFactory.getLogger(BindingAgentController.class);
 

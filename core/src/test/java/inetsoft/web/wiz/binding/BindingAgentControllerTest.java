@@ -512,6 +512,116 @@ class BindingAgentControllerTest {
                                     eq(request.fields()), eq("ORDERS"));
    }
 
+   private static BindingAgentController tableController(TableBindingService tableService,
+                                                         List<inetsoft.web.wiz.binding.model.BindableField> columns)
+      throws Exception
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.runtimeId(eq("tok"), any(Principal.class))).thenReturn("rt1");
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(eq("rt1"), eq("Crosstab1"), any(Principal.class))).thenReturn(List.of(
+         new inetsoft.web.wiz.binding.model.BindableTable("ORDERS", true, columns)));
+
+      return new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
+         mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(ViewsheetFormatService.class), mock(SheetAgentBroadcastService.class));
+   }
+
+   private static List<inetsoft.web.wiz.binding.model.BindableField> stateRegion() {
+      return List.of(new inetsoft.web.wiz.binding.model.BindableField("Customer:State", "string",
+                                                                      "dimension"),
+                     new inetsoft.web.wiz.binding.model.BindableField("Customer:Region", "string",
+                                                                      "dimension"));
+   }
+
+   /**
+    * Redmine #78436, the reporter's scenario end to end through the controller and the real
+    * mutator: suppress State's group total, re-send the same rows with State mis-cased, and the
+    * suppression must survive under the stored (canonical) name.
+    */
+   @Test
+   void aMisCasedShelfResendKeepsTheCrosstabsGroupTotalSuppression() throws Exception {
+      inetsoft.web.binding.model.table.CrosstabBindingModel model =
+         new inetsoft.web.binding.model.table.CrosstabBindingModel();
+      TableBindingService tableService = mock(TableBindingService.class);
+      when(tableService.setShelf(eq("tok"), any(Principal.class), eq("Crosstab1"), eq("rows"),
+                                 any(), any()))
+         .thenAnswer(inv -> {
+            TableBindingMutator.setShelf(model, "rows", inv.getArgument(4));
+            return List.of();
+         });
+      BindingAgentController controller = tableController(tableService, stateRegion());
+
+      controller.setTableFields("tok", new BindingAgentController.TableShelfRequest(
+         "Crosstab1", "rows", List.of(new FieldRef("Customer:State", "dimension", null, null, null),
+                                      new FieldRef("Customer:Region", "dimension", null, null, null)),
+         null), principal());
+      model.getSuppressGroupTotal().put("Customer:State:rows0", Boolean.TRUE);
+
+      controller.setTableFields("tok", new BindingAgentController.TableShelfRequest(
+         "Crosstab1", "rows", List.of(new FieldRef("customer:state", "dimension", null, null, null),
+                                      new FieldRef("Customer:Region", "dimension", null, null, null)),
+         null), principal());
+
+      assertEquals("Customer:State", model.getRows().get(0).getName(),
+                   "the stored name is the source's spelling, not the caller's");
+      assertEquals(Boolean.TRUE, model.getSuppressGroupTotal().get("Customer:State:rows0"),
+                   "State's suppression must survive the re-send");
+      assertEquals(1, model.getSuppressGroupTotal().size());
+   }
+
+   @Test
+   void addTableFieldForwardsTheCanonicalSpelling() throws Exception {
+      TableBindingService tableService = mock(TableBindingService.class);
+      BindingAgentController controller = tableController(tableService, stateRegion());
+
+      controller.addTableField("tok", new BindingAgentController.TableFieldRequest(
+         "Crosstab1", "rows", new FieldRef("CUSTOMER:REGION", "dimension", null, null, null), null,
+         null), principal());
+
+      verify(tableService).addField(eq("tok"), any(Principal.class), eq("Crosstab1"), eq("rows"),
+                                    eq(new FieldRef("Customer:Region", "dimension", null, null,
+                                                    null)), any(), any());
+   }
+
+   @Test
+   void setTableFieldsForwardsACanonicalSecondaryColumn() throws Exception {
+      TableBindingService tableService = mock(TableBindingService.class);
+      BindingAgentController controller = tableController(tableService, stateRegion());
+
+      controller.setTableFields("tok", new BindingAgentController.TableShelfRequest(
+         "Crosstab1", "aggregates", List.of(new FieldRef("Customer:State", "measure",
+            "Correlation", null, null, null, null, null, null, null, null, null, null,
+            "customer:region")), null), principal());
+
+      verify(tableService).setShelf(eq("tok"), any(Principal.class), eq("Crosstab1"),
+                                    eq("aggregates"),
+                                    eq(List.of(new FieldRef("Customer:State", "measure",
+                                       "Correlation", null, null, null, null, null, null, null,
+                                       null, null, null, "Customer:Region"))), any());
+   }
+
+   @Test
+   void setTableFieldsRefusesACaseAmbiguousName() throws Exception {
+      TableBindingService tableService = mock(TableBindingService.class);
+      BindingAgentController controller = tableController(tableService, List.of(
+         new inetsoft.web.wiz.binding.model.BindableField("ab", "string", "dimension"),
+         new inetsoft.web.wiz.binding.model.BindableField("AB", "string", "dimension")));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.setTableFields("tok", new BindingAgentController.TableShelfRequest(
+            "Crosstab1", "rows", List.of(new FieldRef("Ab", "dimension", null, null, null)),
+            null), principal()));
+
+      assertTrue(thrown.getMessage().contains("'Ab'"));
+      verifyNoInteractions(tableService);
+   }
+
    @Test
    void setTableColumnWidthForwardsToTheServiceAndReturnsApplied() throws Exception {
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
