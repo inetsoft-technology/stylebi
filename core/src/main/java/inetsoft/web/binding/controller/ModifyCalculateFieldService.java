@@ -747,6 +747,15 @@ public class ModifyCalculateFieldService {
       CalculateRef[] calcs = vs.getCalcFields(tname);
 
       if(calcs != null) {
+         // base columns are not consulted; a case-different reference is judged against calc fields
+         Set<String> otherNames = new HashSet<>();
+
+         for(CalculateRef calc : calcs) {
+            if(!Tool.equals(calc.getName(), oname) && !Tool.equals(calc.getName(), nname)) {
+               otherNames.add(calc.getName());
+            }
+         }
+
          for(CalculateRef calc : calcs) {
             if(Tool.equals(calc.getName(), nname) ||
                !(calc.getDataRef() instanceof ExpressionRef))
@@ -756,7 +765,7 @@ public class ModifyCalculateFieldService {
 
             ExpressionRef eref = (ExpressionRef) calc.getDataRef();
             String exp = eref.getExpression();
-            String nexp = VSUtil.renameCalcFieldReference(exp, oname, nname);
+            String nexp = VSUtil.renameCalcFieldReference(exp, oname, nname, otherNames);
 
             if(!Objects.equals(exp, nexp)) {
                eref.setExpression(nexp);

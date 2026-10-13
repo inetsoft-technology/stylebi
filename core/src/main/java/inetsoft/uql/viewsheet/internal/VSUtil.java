@@ -4276,54 +4276,247 @@ public final class VSUtil {
 
    /**
     * Rewrite the references to a renamed calc field inside another calc field's expression, so
-    * a dependent calc field keeps resolving after the rename. Only {@code field['...']} (or
-    * {@code field["..."]}) accessors are touched, never other string text. An accessor is
-    * rewritten when its content is the old name itself (a per-row reference) or an aggregate of
-    * it in any of the spellings {@link #addUsedAggregateRef} recognizes, e.g. {@code Sum(X)},
-    * {@code sum([X])}, {@code Correlation(A, X)}, {@code Correlation([A], [X])} or
-    * {@code NthLargest(X, 2)}.
+    * a dependent calc field keeps resolving after the rename. A per-row reference is recognized
+    * as {@code field['X']}, {@code field["X"]} or {@code field.X}, and an aggregate of the field
+    * as a {@code field['...']} accessor in any of the spellings {@link #addUsedAggregateRef}
+    * recognizes, e.g. {@code Sum(X)}, {@code sum([X])}, {@code Correlation(A, X)},
+    * {@code Correlation([A], [X])} or {@code NthLargest(X, 2)}. Other string text is never
+    * touched.
+    *
+    * <p>A per-row reference matches case-insensitively, as the row scope resolves it, unless it
+    * is written exactly as another field's name (see {@link #referencesCalcField}). One that
+    * several other fields tie for is ambiguous and is left unchanged.</p>
     *
     * @param expression the dependent calc field's expression.
-    * @param oname      the renamed calc field's old name (matched exactly, case-sensitive).
+    * @param oname      the renamed calc field's old name.
     * @param nname      the renamed calc field's new name.
     *
     * @return the rewritten expression, or {@code expression} itself when nothing referenced
     *         {@code oname}.
     */
    public static String renameCalcFieldReference(String expression, String oname, String nname) {
+      return renameCalcFieldReference(expression, oname, nname, Collections.emptySet());
+   }
+
+   /**
+    * @param otherNames the names of the other fields on the table, used to decide whether a
+    *                   per-row reference that differs from {@code oname} only in case still
+    *                   means {@code oname}.
+    *
+    * @see #renameCalcFieldReference(String, String, String)
+    */
+   public static String renameCalcFieldReference(String expression, String oname, String nname,
+                                                 Collection<String> otherNames)
+   {
       if(expression == null || oname == null || oname.isEmpty() || nname == null ||
-         oname.equals(nname) || !expression.contains(oname))
+         oname.equals(nname))
       {
          return expression;
       }
 
+      return scanCalcFieldReferences(expression, oname, nname, otherNames).text();
+   }
+
+   /**
+    * Check whether an expression reads {@code oname}: the same references
+    * {@link #renameCalcFieldReference} rewrites, plus an ambiguous per-row one that it leaves
+    * alone. A per-row name matches case-insensitively, unless it is written exactly as another
+    * field's name; when two or more other fields tie for it, it is ambiguous, and counts as a
+    * reference here so a remove is refused rather than left to resolve to either.
+    */
+   public static boolean referencesCalcField(String expression, String oname,
+                                             Collection<String> otherNames)
+   {
+      if(expression == null || oname == null || oname.isEmpty()) {
+         return false;
+      }
+
+      CalcFieldScan scan =
+         scanCalcFieldReferences(expression, oname, oname + "\u0000", otherNames);
+      return scan.ambiguous() || !expression.equals(scan.text());
+   }
+
+   private static CalcFieldScan scanCalcFieldReferences(String expression, String oname,
+                                                        String nname,
+                                                        Collection<String> otherNames)
+   {
+      if(!expression.toLowerCase().contains(oname.toLowerCase())) {
+         return new CalcFieldScan(expression, false);
+      }
+
+      // {start, end} of each edit, applied by offset
+      List<int[]> spans = new ArrayList<>();
+      List<String> texts = new ArrayList<>();
+      boolean ambiguous = false;
       Matcher matcher = FIELD_ACCESSOR_PATTERN.matcher(expression);
-      StringBuilder sb = new StringBuilder();
-      int last = 0;
 
       while(matcher.find()) {
          String content = matcher.group(2);
-         String ncontent = renameFieldAccessorContent(content, oname, nname);
+         int match = classifyFieldName(content, oname, otherNames);
+         String ncontent = content;
+
+         if(match == FIELD_NAME_MATCH) {
+            ncontent = nname;
+         }
+         else if(match == FIELD_NAME_AMBIGUOUS) {
+            ambiguous = true;
+         }
+         else {
+            ncontent = renameFieldAccessorContent(content, oname, nname);
+         }
 
          if(!ncontent.equals(content)) {
-            sb.append(expression, last, matcher.start(2)).append(ncontent);
-            last = matcher.end(2);
+            spans.add(new int[] { matcher.start(2), matcher.end(2) });
+            texts.add(ncontent);
          }
       }
 
-      if(last == 0) {
-         return expression;
+      // field.X, outside string literals and comments
+      boolean[] code = codeMask(expression);
+      matcher = FIELD_DOT_PATTERN.matcher(expression);
+
+      while(matcher.find()) {
+         if(!code[matcher.start()]) {
+            continue;
+         }
+
+         int match = classifyFieldName(matcher.group(2), oname, otherNames);
+
+         if(match == FIELD_NAME_AMBIGUOUS) {
+            ambiguous = true;
+         }
+         else if(match == FIELD_NAME_MATCH) {
+            // field.old -> field.new, or field['new name'] when new is not a plain identifier
+            if(isPlainIdentifier(nname)) {
+               spans.add(new int[] { matcher.start(2), matcher.end(2) });
+               texts.add(nname);
+            }
+            else {
+               spans.add(new int[] { matcher.start(1), matcher.end(2) });
+               texts.add(nname.indexOf('\'') >= 0 ? "[\"" + nname + "\"]" : "['" + nname + "']");
+            }
+         }
       }
 
-      sb.append(expression.substring(last));
-      return sb.toString();
+      if(spans.isEmpty()) {
+         return new CalcFieldScan(expression, ambiguous);
+      }
+
+      Integer[] order = new Integer[spans.size()];
+
+      for(int i = 0; i < order.length; i++) {
+         order[i] = i;
+      }
+
+      Arrays.sort(order, Comparator.comparingInt(i -> spans.get(i)[0]));
+      StringBuilder sb = new StringBuilder();
+      int last = 0;
+
+      for(int i : order) {
+         int[] span = spans.get(i);
+
+         // an edit inside an earlier one (a field.X written inside a field['...'] accessor)
+         if(span[0] >= last) {
+            sb.append(expression, last, span[0]).append(texts.get(i));
+            last = span[1];
+         }
+      }
+
+      return new CalcFieldScan(sb.append(expression.substring(last)).toString(), ambiguous);
+   }
+
+   private static final int FIELD_NAME_NONE = 0;
+   private static final int FIELD_NAME_MATCH = 1;
+   private static final int FIELD_NAME_AMBIGUOUS = 2;
+
+   /**
+    * Classify a per-row field name as the row scope resolves it: an exact name wins, otherwise
+    * the first case-insensitive match does.
+    */
+   private static int classifyFieldName(String written, String oname,
+                                        Collection<String> otherNames)
+   {
+      if(written.equals(oname)) {
+         return FIELD_NAME_MATCH;
+      }
+
+      if(!written.equalsIgnoreCase(oname)) {
+         return FIELD_NAME_NONE;
+      }
+
+      for(String other : otherNames) {
+         if(written.equals(other)) {
+            return FIELD_NAME_NONE;
+         }
+      }
+
+      for(String other : otherNames) {
+         if(written.equalsIgnoreCase(other)) {
+            return FIELD_NAME_AMBIGUOUS;
+         }
+      }
+
+      return FIELD_NAME_MATCH;
+   }
+
+   /**
+    * @return for each character of the script, whether it is code, i.e. outside string literals
+    *         and comments.
+    */
+   private static boolean[] codeMask(String script) {
+      boolean[] code = new boolean[script.length()];
+      char quote = 0;
+
+      for(int i = 0; i < script.length(); i++) {
+         char c = script.charAt(i);
+
+         if(quote != 0) {
+            if(c == '\\') {
+               i++;
+            }
+            else if(c == quote) {
+               quote = 0;
+            }
+         }
+         else if(c == '\'' || c == '"') {
+            quote = c;
+         }
+         else if(c == '/' && i + 1 < script.length() && script.charAt(i + 1) == '/') {
+            int end = script.indexOf('\n', i);
+            i = end < 0 ? script.length() : end;
+         }
+         else if(c == '/' && i + 1 < script.length() && script.charAt(i + 1) == '*') {
+            int end = script.indexOf("*/", i + 2);
+            i = end < 0 ? script.length() : end + 1;
+         }
+         else {
+            code[i] = true;
+         }
+      }
+
+      return code;
+   }
+
+   private static boolean isPlainIdentifier(String name) {
+      if(name.isEmpty() || !Character.isJavaIdentifierStart(name.charAt(0)) ||
+         JS_RESERVED_WORDS.contains(name))
+      {
+         return false;
+      }
+
+      for(int i = 1; i < name.length(); i++) {
+         if(!Character.isJavaIdentifierPart(name.charAt(i))) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   private record CalcFieldScan(String text, boolean ambiguous) {
    }
 
    private static String renameFieldAccessorContent(String content, String oname, String nname) {
-      if(content.equals(oname)) {
-         return nname;
-      }
-
       int open = content.indexOf('(');
 
       if(open <= 0 || !content.endsWith(")")) {
@@ -9008,6 +9201,15 @@ public final class VSUtil {
    // field['...'] / field["..."] accessor in a calc field expression; group 2 is the content
    private static final Pattern FIELD_ACCESSOR_PATTERN =
       Pattern.compile("\\bfield\\s*\\[\\s*(['\"])(.*?)\\1\\s*\\]");
+   // field.X in a calc field expression; group 1 is the dot with its whitespace, group 2 the name
+   private static final Pattern FIELD_DOT_PATTERN = Pattern.compile(
+      "\\bfield(\\s*\\.\\s*)(\\p{javaJavaIdentifierStart}\\p{javaJavaIdentifierPart}*)");
+   private static final Set<String> JS_RESERVED_WORDS = Set.of(
+      "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete",
+      "do", "else", "enum", "export", "extends", "false", "finally", "for", "function", "if",
+      "import", "in", "instanceof", "new", "null", "return", "super", "switch", "this", "throw",
+      "true", "try", "typeof", "var", "void", "while", "with", "yield", "let", "static",
+      "implements", "interface", "package", "private", "protected", "public", "await");
    public static final ThreadLocal<Boolean> OPEN_VIEWSHEET = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final String DEBOUNCER_KEY = "VSUtil.debouncer";
 }

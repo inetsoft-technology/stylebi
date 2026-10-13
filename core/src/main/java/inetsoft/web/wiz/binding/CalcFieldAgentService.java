@@ -499,6 +499,15 @@ public class CalcFieldAgentService {
          return dependents;
       }
 
+      // base columns are not consulted; a case-different reference is judged against calc fields
+      Set<String> otherNames = new HashSet<>();
+
+      for(CalculateRef calc : calcs) {
+         if(!oname.equals(calc.getName()) && !nname.equals(calc.getName())) {
+            otherNames.add(calc.getName());
+         }
+      }
+
       for(CalculateRef calc : calcs) {
          if(oname.equals(calc.getName()) || !(calc.getDataRef() instanceof ExpressionRef)) {
             continue;
@@ -506,7 +515,7 @@ public class CalcFieldAgentService {
 
          String exp = ((ExpressionRef) calc.getDataRef()).getExpression();
 
-         if(!Objects.equals(exp, VSUtil.renameCalcFieldReference(exp, oname, nname))) {
+         if(VSUtil.referencesCalcField(exp, oname, otherNames)) {
             dependents.add(calc.getName());
          }
       }

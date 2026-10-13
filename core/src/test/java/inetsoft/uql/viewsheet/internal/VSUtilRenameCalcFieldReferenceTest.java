@@ -28,7 +28,11 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 // Bug #76951: renaming a calc field must rewrite the other calc fields that reference it.
@@ -111,5 +115,68 @@ class VSUtilRenameCalcFieldReferenceTest {
    void matchesTheOldNameCaseSensitively() {
       String expression = "field['Sum(net sales)']";
       assertSame(expression, rename(expression));
+   }
+
+   // Bug #78441: the dot form and a case-different name are references too.
+   private static String renameTax(String expression, String... others) {
+      return VSUtil.renameCalcFieldReference(expression, "Tax", "Duty", List.of(others));
+   }
+
+   @Test
+   void rewritesTheDotForm() {
+      assertEquals("field.Duty * 2", renameTax("field.Tax * 2"));
+      assertEquals("field.Duty.toFixed(2)", renameTax("field . Tax.toFixed(2)").replace(" ", ""));
+   }
+
+   @Test
+   void turnsTheDotFormIntoABracketWhenTheNewNameIsNotAnIdentifier() {
+      assertEquals("field['Net Revenue'] * 2",
+         VSUtil.renameCalcFieldReference("field.Tax * 2", "Tax", "Net Revenue"));
+      assertEquals("field['default'] * 2",
+         VSUtil.renameCalcFieldReference("field.Tax * 2", "Tax", "default"));
+      assertEquals("field[\"O'Brien\"]",
+         VSUtil.renameCalcFieldReference("field.Tax", "Tax", "O'Brien"));
+   }
+
+   @Test
+   void dotFormDoesNotMatchLongerNamesOtherObjectsOrLiterals() {
+      String expression = "field.Taxes + myfield.Tax + 'field.Tax' + \"field.Tax\" // field.Tax";
+      assertSame(expression, renameTax(expression));
+   }
+
+   @Test
+   void rewritesAWhitespaceBracketAndTheDotFormTogether() {
+      assertEquals("field[ 'Duty' ] + field[\"Duty\"] + field.Duty",
+         renameTax("field[ 'Tax' ] + field[\"Tax\"] + field.Tax"));
+   }
+
+   @Test
+   void matchesACaseDifferentNameWhenNothingElseDoes() {
+      assertEquals("field['Fee'] + field.Fee",
+         VSUtil.renameCalcFieldReference("field['duty'] + field.duty", "Duty", "Fee"));
+   }
+
+   @Test
+   void leavesACaseDifferentNameThatIsAnotherExistingFieldExactly() {
+      String expression = "field['duty'] + field.duty";
+      assertSame(expression,
+         VSUtil.renameCalcFieldReference(expression, "Duty", "Fee", List.of("duty")));
+   }
+
+   @Test
+   void leavesAnAmbiguousCaseDifferentName() {
+      String expression = "field['DUTY']";
+      assertSame(expression,
+         VSUtil.renameCalcFieldReference(expression, "Duty", "Fee", List.of("duty")));
+      assertTrue(VSUtil.referencesCalcField(expression, "Duty", List.of("duty")));
+   }
+
+   @Test
+   void referencesCalcFieldSeesEveryFormOfAReference() {
+      assertTrue(VSUtil.referencesCalcField("field.Tax * 2", "Tax", List.of()));
+      assertTrue(VSUtil.referencesCalcField("field['tax']", "Tax", List.of()));
+      assertTrue(VSUtil.referencesCalcField("field['Sum(Tax)']", "Tax", List.of()));
+      assertFalse(VSUtil.referencesCalcField("field.Taxes", "Tax", List.of()));
+      assertFalse(VSUtil.referencesCalcField("field['tax']", "Tax", List.of("tax")));
    }
 }
