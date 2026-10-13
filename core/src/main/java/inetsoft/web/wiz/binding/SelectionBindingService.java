@@ -20,6 +20,7 @@ package inetsoft.web.wiz.binding;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionVSUtil;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.CalendarPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.DataOutputService;
@@ -30,6 +31,8 @@ import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.viewsheet.SelectionRuntimeService;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -84,7 +87,10 @@ public class SelectionBindingService {
     *                 (a selection tree's ID-hierarchy mode).
     * @param additionalTables  extra tables the selection also filters. Null (omitted) keeps the
     *                 assembly's existing additional tables; an empty list clears them. A rebind
-    *                 that did not resend them used to silently drop them.
+    *                 that did not resend them used to silently drop them. Each table must have
+    *                 every bound column (same name, mergeable type) or it is refused; an
+    *                 inherited one that no longer fits is dropped and disclosed. An ID-mode tree
+    *                 takes none (#78473).
     * @param measure  selection list or tree — an optional aggregate/bar-chart measure column. A
     *                 non-blank value is refused for a range slider or calendar, which have no
     *                 measure. A literal column name is checked against the same list
@@ -95,6 +101,9 @@ public class SelectionBindingService {
     *                 untouched, as the dialog does: the caller (the plugin) is responsible for
     *                 validating a {@code "$(ComponentName)"} resolves to a real,
     *                 dynamic-reference-capable assembly before this method ever sees it (#76768).
+    *                 A blank value clears the stored measure. When omitted, a stored literal
+    *                 measure the final table set no longer offers is cleared and disclosed in
+    *                 {@code droppedMeasure} (#78472).
     * @param parentIdColumn  selection tree only — the column holding each row's parent's
     *                        {@code idColumn} value, for an arbitrary-depth tree built from one
     *                        flat, self-referencing table ({@code SelectionTreeVSAssemblyInfo.ID}
@@ -174,27 +183,20 @@ public class SelectionBindingService {
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
 
-            if(replaceAdditional) {
-               pane.setAdditionalTables(resolvedAdditional);
-            }
-            else {
-               List<String> pruned =
-                  pruneInheritedOverlap(resolvedTable, pane.getAdditionalTables(), result);
+            List<String> finalAdditional = finalAdditional(
+               tables, assemblyName, resolvedTable, resolvedColumns, false, replaceAdditional,
+               resolvedAdditional, pane.getAdditionalTables(), result);
 
-               if(pruned != null) {
-                  pane.setAdditionalTables(pruned);
-               }
+            if(finalAdditional != null) {
+               pane.setAdditionalTables(finalAdditional);
             }
 
             result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
 
             pane.setSelectedColumn(columnRef(resolvedTable, resolvedColumns.get(0)));
 
-            if(measure != null && !measure.isBlank()) {
-               pane.getSelectionMeasurePaneModel().setMeasure(resolveMeasure(
-                  runtimeId, user, assemblyName, resolvedTable, pane.getAdditionalTables(),
-                  measure));
-            }
+            applyMeasure(pane.getSelectionMeasurePaneModel(), runtimeId, user, assemblyName,
+                         resolvedTable, pane.getAdditionalTables(), measure, result);
 
             selectionListService.setSelectionListPropertyModel(
                runtimeId, assemblyName, model, linkUri, user, dispatcher);
@@ -207,27 +209,23 @@ public class SelectionBindingService {
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
 
-            if(replaceAdditional) {
-               pane.setAdditionalTables(resolvedAdditional);
-            }
-            else {
-               List<String> pruned =
-                  pruneInheritedOverlap(resolvedTable, pane.getAdditionalTables(), result);
+            // An ID-mode tree takes no additional tables: the Composer clears them when it
+            // switches a tree to ID mode (selection-tree-pane switchType).
+            List<String> finalAdditional = finalAdditional(
+               tables, assemblyName, resolvedTable, resolvedColumns, idMode, replaceAdditional,
+               resolvedAdditional, pane.getAdditionalTables(), result);
 
-               if(pruned != null) {
-                  pane.setAdditionalTables(pruned);
-               }
+            if(finalAdditional != null) {
+               pane.setAdditionalTables(finalAdditional);
             }
 
             result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
 
-            // Resolved here, once for both modes and before anything is applied, so an unknown
-            // measure throws without a partial write.
-            if(measure != null && !measure.isBlank()) {
-               pane.getSelectionMeasurePaneModel().setMeasure(resolveMeasure(
-                  runtimeId, user, assemblyName, resolvedTable, pane.getAdditionalTables(),
-                  measure));
-            }
+            // Resolved here, once for both modes, after the final additional-table set is known
+            // and before anything is applied, so an unknown measure throws without a partial
+            // write.
+            applyMeasure(pane.getSelectionMeasurePaneModel(), runtimeId, user, assemblyName,
+                         resolvedTable, pane.getAdditionalTables(), measure, result);
 
             if(idMode) {
                // #76768: an arbitrary-depth tree from one flat, self-referencing table, distinct
@@ -283,16 +281,12 @@ public class SelectionBindingService {
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
 
-            if(replaceAdditional) {
-               pane.setAdditionalTables(resolvedAdditional);
-            }
-            else {
-               List<String> pruned =
-                  pruneInheritedOverlap(resolvedTable, pane.getAdditionalTables(), result);
+            List<String> finalAdditional = finalAdditional(
+               tables, assemblyName, resolvedTable, resolvedColumns, false, replaceAdditional,
+               resolvedAdditional, pane.getAdditionalTables(), result);
 
-               if(pruned != null) {
-                  pane.setAdditionalTables(pruned);
-               }
+            if(finalAdditional != null) {
+               pane.setAdditionalTables(finalAdditional);
             }
 
             result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
@@ -323,16 +317,12 @@ public class SelectionBindingService {
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
 
-            if(replaceAdditional) {
-               pane.setAdditionalTables(resolvedAdditional);
-            }
-            else {
-               List<String> pruned =
-                  pruneInheritedOverlap(resolvedTable, pane.getAdditionalTables(), result);
+            List<String> finalAdditional = finalAdditional(
+               tables, assemblyName, resolvedTable, resolvedColumns, false, replaceAdditional,
+               resolvedAdditional, pane.getAdditionalTables(), result);
 
-               if(pruned != null) {
-                  pane.setAdditionalTables(pruned);
-               }
+            if(finalAdditional != null) {
+               pane.setAdditionalTables(finalAdditional);
             }
 
             result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
@@ -539,35 +529,161 @@ public class SelectionBindingService {
    }
 
    /**
-    * Drops the new source table from an inherited additional-table list (kept because
-    * {@code additionalTables} was omitted) and discloses it in {@code result}. Returns the pruned
-    * list, or null when nothing needed removing.
+    * Decides the additional tables the assembly ends up with, so the selection union
+    * ({@code Viewsheet.createSelectionTables} → {@code findMutualColumnRefs}) still contains every
+    * bound column. The union keeps only the columns every table shares
+    * ({@code SelectionVSUtil.areColumnsCompatible}); an additional table without a bound column
+    * hides that column and the selection shows another column's values (#78473). The Composer's
+    * dialog never offers such a table, and drops it on every column change.
+    *
+    * <ul>
+    *   <li>Explicit ({@code replace}): an ID-mode tree ({@code noneAllowed}) refuses a non-empty
+    *       list; otherwise an entry lacking a compatible column for any bound column is refused,
+    *       naming the compatible tables. Nothing is applied before the throw.</li>
+    *   <li>Inherited (the field was omitted): drops, and discloses in
+    *       {@code droppedAdditionalTables}, an entry that is the source table itself (#78213), any
+    *       entry of an ID-mode tree, an entry that is not a bindable table here, and an entry
+    *       lacking a compatible bound column.</li>
+    * </ul>
+    *
+    * @return the list to set, or null to leave the pane's list unchanged.
     */
-   private static List<String> pruneInheritedOverlap(String resolvedTable, List<String> inherited,
-                                                     Map<String, Object> result)
+   private static List<String> finalAdditional(List<BindableTable> tables, String assemblyName,
+                                               String resolvedTable, List<BindableField> bound,
+                                               boolean noneAllowed, boolean replace,
+                                               List<String> explicit, List<String> inherited,
+                                               Map<String, Object> result)
    {
+      if(replace) {
+         if(noneAllowed && !explicit.isEmpty()) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is a selection tree in ID-hierarchy mode, which cannot use " +
+               "'additionalTables' (the Composer clears them in this mode). Omit it or pass [].");
+         }
+
+         for(String additionalTable : explicit) {
+            BindableTable candidate = findTable(tables, additionalTable);
+            List<String> missing = candidate == null
+               ? boundNames(bound) : missingColumns(candidate, resolvedTable, bound);
+
+            if(!missing.isEmpty()) {
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' cannot use 'additionalTables' entry '" +
+                  additionalTable + "': it has no column compatible with " +
+                  String.join(", ", missing) + " (same name, mergeable type). A selection " +
+                  "filters its additional tables on the bound column(s), so such a table would " +
+                  "hide them and show another column's values. Compatible tables: " +
+                  compatibleOrNone(tables, resolvedTable, bound) + ".");
+            }
+         }
+
+         return explicit;
+      }
+
       if(inherited == null) {
          return null;
       }
 
       List<String> kept = new ArrayList<>();
       List<String> dropped = new ArrayList<>();
+      boolean changed = false;
 
       for(String additionalTable : inherited) {
-         if(additionalTable != null && additionalTable.equalsIgnoreCase(resolvedTable)) {
+         if(additionalTable == null) {
+            // A null entry builds nothing; drop it without listing a null to the caller.
+            changed = true;
+            continue;
+         }
+
+         BindableTable candidate = findTable(tables, additionalTable);
+
+         if(additionalTable.equalsIgnoreCase(resolvedTable) || noneAllowed ||
+            candidate == null || !missingColumns(candidate, resolvedTable, bound).isEmpty())
+         {
             dropped.add(additionalTable);
+            changed = true;
          }
          else {
             kept.add(additionalTable);
          }
       }
 
-      if(dropped.isEmpty()) {
-         return null;
+      if(!dropped.isEmpty()) {
+         result.put("droppedAdditionalTables", dropped);
       }
 
-      result.put("droppedAdditionalTables", dropped);
-      return kept;
+      return changed ? kept : null;
+   }
+
+   /** Case-insensitive lookup that returns null, never throws, for an unknown name. */
+   private static BindableTable findTable(List<BindableTable> tables, String name) {
+      for(BindableTable candidate : tables) {
+         if(candidate.name() != null && candidate.name().equalsIgnoreCase(name)) {
+            return candidate;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * The bound columns {@code candidate} has no compatible column for, by the selection union's
+    * own rule ({@code SelectionVSUtil.areColumnsCompatible}): exact, case-sensitive name, a
+    * mergeable data type ({@code columnRef} defaults a null type to string on both sides), same
+    * cube bit. The bound ref goes first, and candidate fields without a column are skipped, so a
+    * null name can never reach {@code getName().equals}.
+    */
+   private static List<String> missingColumns(BindableTable candidate, String resolvedTable,
+                                              List<BindableField> bound)
+   {
+      List<String> missing = new ArrayList<>();
+      List<BindableField> fields = candidate.fields() == null ? List.of() : candidate.fields();
+
+      for(BindableField boundField : bound) {
+         OutputColumnRefModel boundRef = columnRef(resolvedTable, boundField);
+         boolean found = false;
+
+         for(BindableField field : fields) {
+            if(field.column() != null && SelectionVSUtil.areColumnsCompatible(
+               boundRef, columnRef(candidate.name(), field)))
+            {
+               found = true;
+               break;
+            }
+         }
+
+         if(!found) {
+            missing.add(boundField.column());
+         }
+      }
+
+      return missing;
+   }
+
+   private static String compatibleOrNone(List<BindableTable> tables, String resolvedTable,
+                                          List<BindableField> bound)
+   {
+      List<String> names = new ArrayList<>();
+
+      for(BindableTable candidate : tables) {
+         if(candidate.name() != null && !candidate.name().equalsIgnoreCase(resolvedTable) &&
+            missingColumns(candidate, resolvedTable, bound).isEmpty())
+         {
+            names.add(candidate.name());
+         }
+      }
+
+      return names.isEmpty() ? "none" : String.join(", ", names);
+   }
+
+   private static List<String> boundNames(List<BindableField> bound) {
+      List<String> names = new ArrayList<>();
+
+      for(BindableField field : bound) {
+         names.add(field.column());
+      }
+
+      return names;
    }
 
    private static List<String> additionalOrEmpty(List<String> additionalTables) {
@@ -785,6 +901,107 @@ public class SelectionBindingService {
 
       return TimeInfo.MONTH;
    }
+
+   /**
+    * Writes a selection list's or tree's measure from the final table set (#78472). The pane is
+    * pre-filled with the stored measure, which used to be written back unchanged unless
+    * {@code measure} was non-blank: a repoint or an additional-table change left a measure the
+    * table set no longer offers, and {@code ""} could not clear it.
+    *
+    * <ul>
+    *   <li>Non-blank: resolved by {@link #resolveMeasure}, unchanged (throws on an unknown one).</li>
+    *   <li>Sent but blank: cleared; {@code clearedMeasure} names the old value.</li>
+    *   <li>Omitted: a stored dynamic value ({@code $(…)}/{@code =…}, resolveMeasure's test) is
+    *       kept. A stored literal is re-checked against the measure dropdown on every call, as
+    *       the dialog does on every open; one it no longer offers is cleared and named in
+    *       {@code droppedMeasure}. A failed lookup keeps the measure (fail open).</li>
+    * </ul>
+    */
+   private void applyMeasure(SelectionMeasurePaneModel measurePane, String runtimeId,
+                             Principal user, String assemblyName, String table,
+                             List<String> additionalTables, String measure,
+                             Map<String, Object> result)
+      throws Exception
+   {
+      if(measure != null) {
+         if(!measure.isBlank()) {
+            measurePane.setMeasure(resolveMeasure(
+               runtimeId, user, assemblyName, table, additionalTables, measure));
+            return;
+         }
+
+         String old = measurePane.getMeasure();
+         measurePane.setMeasure(null);
+
+         if(old != null && !old.isBlank()) {
+            result.put("clearedMeasure", old);
+         }
+
+         return;
+      }
+
+      String stored = measurePane.getMeasure();
+
+      if(stored == null || stored.isBlank() || isDynamicMeasure(stored)) {
+         return;
+      }
+
+      String offered;
+
+      try {
+         offered = offeredMeasure(runtimeId, user, table, additionalTables, stored);
+      }
+      catch(Exception e) {
+         // The caller never mentioned the measure, so a failed lookup must not fail the rebind.
+         LOG.debug("Could not re-check the stored measure '{}' of '{}'", stored, assemblyName, e);
+         return;
+      }
+
+      if(offered == null) {
+         measurePane.setMeasure(null);
+         result.put("droppedMeasure", stored);
+      }
+   }
+
+   /** resolveMeasure's dynamic test: {@code $(…)} or {@code =…}. A bare {@code $Foo} is literal. */
+   private static boolean isDynamicMeasure(String measure) {
+      String trimmed = measure.trim();
+      return (trimmed.startsWith("$(") && trimmed.endsWith(")")) || trimmed.startsWith("=");
+   }
+
+   /**
+    * The measure dropdown's candidate matching {@code literal} (case-insensitive), or null when
+    * the dropdown does not offer it. Unlike {@link #resolveMeasure}, never refuses.
+    */
+   private String offeredMeasure(String runtimeId, Principal user, String table,
+                                 List<String> additionalTables, String literal)
+      throws Exception
+   {
+      List<String> measureTables = new ArrayList<>();
+      measureTables.add(table);
+
+      if(additionalTables != null) {
+         measureTables.addAll(additionalTables);
+      }
+
+      OutputColumnRefModel[] candidates =
+         dataOutputService.getOutputSelectionColumns(runtimeId, measureTables, user);
+      String trimmed = literal.trim();
+
+      for(OutputColumnRefModel candidate : candidates == null ? new OutputColumnRefModel[0]
+         : candidates)
+      {
+         if(candidate != null && candidate.getName() != null &&
+            candidate.getName().equalsIgnoreCase(trimmed))
+         {
+            return candidate.getName();
+         }
+      }
+
+      return null;
+   }
+
+   private static final Logger LOG = LoggerFactory.getLogger(SelectionBindingService.class);
 
    private final ViewsheetSessionService sessions;
    private final BindableFieldsService fieldsService;
