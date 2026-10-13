@@ -53,7 +53,8 @@ public class TableDateComparisonFormat extends Format {
             DataRef dataRef = partRef.getDataRef();
 
             if(dataRef instanceof CalculateRef && ((CalculateRef) dataRef).isDcRuntime() &&
-               dataRef.getName() != null && dataRef.getName().startsWith("MonthOfQuarter("))
+               DateComparisonUtil.isDCCalcPartName(
+                  dataRef.getName(), DateComparisonUtil.DC_CALC_MONTH_OF_QUARTER))
             {
                format = XUtil.getDefaultDateFormat(DateRangeRef.MONTH_OF_YEAR_PART, XSchema.DATE);
             }

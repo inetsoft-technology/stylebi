@@ -1,0 +1,201 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.report.composition.graph;
+
+import inetsoft.graph.data.DataSet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.test.*;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Bug #78446: a date comparison chart on a table registers a viewsheet-wide runtime calc
+ * field for the week-of-year part (Year period, Week To Date, For Each = Week). Another,
+ * non-DC chart on the same table bound to Date at Week of Year must keep its own
+ * WeekOfYear(D) column: same header (no "_1"), same week values, and the graph renders.
+ */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome(importResources = "/inetsoft/report/composition/EmbeddedVS1.zip")
+@Tag("core")
+@Tag("integration")
+class DateComparisonCalcCollisionViewsheetTest {
+   @Test
+   void weekOfYearChartIsUnaffectedByDateComparisonCalcOnSameTable() throws Exception {
+      ViewsheetSandbox box = vsResource.getRuntimeViewsheet().getViewsheetSandbox().orElseThrow();
+      Viewsheet vs = box.getViewsheet();
+      SourceInfo source =
+         (SourceInfo) ((TableVSAssembly) vs.getAssembly(TABLE)).getSourceInfo().clone();
+      String tname = source.getSource();
+
+      // a date column to bind at Week of Year (the fixture has no date column)
+      CalculateRef dateCalc = new CalculateRef(true);
+      dateCalc.setName("D");
+      ExpressionRef dateExpr = new ExpressionRef(null, "D");
+      dateExpr.setExpression("new Date(2021, 0, field['day'])");
+      dateExpr.setDataType(XSchema.DATE);
+      dateCalc.setDataRef(dateExpr);
+      dateCalc.setSQL(false);
+      vs.addCalcField(tname, dateCalc);
+
+      // baseline, before any date comparison calc exists on the table
+      Columns before = weekOfYearChart(box, vs, source, "ChartBefore");
+      assertTrue(before.headers.contains("WeekOfYear(D)"), "headers " + before.headers);
+      assertFalse(before.weeks.isEmpty());
+
+      for(Object week : before.weeks) {
+         int value = ((Number) week).intValue();
+         assertTrue(value >= 1 && value <= 53, "week of year " + value);
+      }
+
+      // the reporter's DC config, run through the real ChartDcProcessor on the same table
+      registerDateComparisonCalc(vs, tname);
+      List<String> dcCalcs = new ArrayList<>();
+
+      for(CalculateRef calc : vs.getCalcFields(tname)) {
+         if(calc.isDcRuntime()) {
+            dcCalcs.add(calc.getName());
+         }
+      }
+
+      assertEquals(1, dcCalcs.size(), "dc calcs " + dcCalcs);
+      assertNotEquals("WeekOfYear(D)", dcCalcs.get(0));
+      assertTrue(DateComparisonUtil.isDCCalcPartName(
+         dcCalcs.get(0), DateComparisonUtil.DC_CALC_WEEK_OF_YEAR), dcCalcs.get(0));
+
+      Columns after = weekOfYearChart(box, vs, source, "ChartAfter");
+      assertEquals(before.headers, after.headers);
+      assertFalse(after.headers.stream().anyMatch(h -> h.endsWith("_1")),
+                  "headers " + after.headers);
+      assertEquals(before.weeks, after.weeks);
+   }
+
+   private static void registerDateComparisonCalc(Viewsheet vs, String tname) {
+      DateComparisonInfo dcInfo = new DateComparisonInfo();
+      StandardPeriods periods = new StandardPeriods();
+      periods.setDateLevel(XConstants.YEAR_DATE_GROUP);
+      periods.setPreCount(2);
+      periods.setToDayAsEndDay(false);
+      periods.setEndDateValue("2021-11-10");
+      periods.setToDate(false);
+      periods.setInclusive(true);
+      dcInfo.setDateComparisonPeriods(periods);
+
+      DateComparisonInterval interval = new DateComparisonInterval();
+      interval.setGranularity(DateComparisonInfo.DAY);
+      interval.setLevel(DateComparisonInfo.WEEK_TO_DATE);
+      interval.setContextLevel(XConstants.WEEK_DATE_GROUP);
+      dcInfo.setDateComparisonInterval(interval);
+      dcInfo.setComparisonOption(DateComparisonInfo.CHANGE);
+
+      VSChartDimensionRef dateDim = dateDim(XConstants.YEAR_DATE_GROUP);
+      VSChartInfo info = new VSChartInfo();
+      info.setRTXFields(new ChartRef[] { dateDim });
+      info.setRTYFields(new ChartRef[] { sumWind() });
+
+      new ChartDcProcessor(info, dcInfo).process(tname, vs);
+   }
+
+   private static Columns weekOfYearChart(ViewsheetSandbox box, Viewsheet vs, SourceInfo source,
+                                          String name)
+      throws Exception
+   {
+      ChartVSAssembly chart = new ChartVSAssembly(vs, name);
+      chart.setSourceInfo((SourceInfo) source.clone());
+      VSChartInfo info = chart.getVSChartInfo();
+      info.addXField(dateDim(DateRangeRef.WEEK_OF_YEAR_PART));
+      info.addYField(sumWind());
+      vs.addAssembly(chart);
+
+      VGraphPair pair = assertDoesNotThrow(() -> box.getVGraphPair(name, true, null), name);
+      assertNotNull(pair.getExpandedVGraph(), name + " has a graph");
+
+      DataSet data = (DataSet) box.getData(name);
+      assertNotNull(data, name + " data");
+      Columns columns = new Columns();
+
+      for(int c = 0; c < data.getColCount(); c++) {
+         columns.headers.add(data.getHeader(c));
+      }
+
+      int col = data.indexOfHeader("WeekOfYear(D)");
+      assertTrue(col >= 0, name + " headers " + columns.headers);
+
+      for(int r = 0; r < data.getRowCount(); r++) {
+         columns.weeks.add(data.getData(col, r));
+      }
+
+      return columns;
+   }
+
+   private static VSChartDimensionRef dateDim(int level) {
+      AttributeRef attr = new AttributeRef(null, "D");
+      attr.setDataType(XSchema.DATE);
+      ColumnRef column = new ColumnRef(attr);
+      column.setDataType(XSchema.DATE);
+      VSChartDimensionRef dim = new VSChartDimensionRef(column);
+      dim.setGroupColumnValue("D");
+      dim.setDataType(XSchema.DATE);
+      dim.setDateLevelValue(level + "");
+      return dim;
+   }
+
+   private static VSChartAggregateRef sumWind() {
+      VSChartAggregateRef agg = new VSChartAggregateRef();
+      agg.setColumnValue("wind");
+      agg.setFormulaValue("Sum");
+      return agg;
+   }
+
+   private static final class Columns {
+      final List<String> headers = new ArrayList<>();
+      final List<Object> weeks = new ArrayList<>();
+   }
+
+   private static OpenViewsheetEvent openViewsheetEvent() {
+      OpenViewsheetEvent event = new OpenViewsheetEvent();
+      event.setEntryId("1^128^__NULL__^EmbeddedVS1^host-org");
+      event.setViewer(true);
+      return event;
+   }
+
+   @RegisterExtension
+   RuntimeViewsheetExtension vsResource = new RuntimeViewsheetExtension(openViewsheetEvent());
+
+   private static final String TABLE = "TableView1";
+}

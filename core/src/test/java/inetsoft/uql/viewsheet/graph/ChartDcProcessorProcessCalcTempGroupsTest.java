@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.graph;
 
+import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.report.composition.graph.calc.ValueOfCalc;
 import inetsoft.test.*;
 import inetsoft.uql.XConstants;
@@ -54,7 +55,8 @@ class ChartDcProcessorProcessCalcTempGroupsTest {
       Result r = process(XConstants.QUARTER_DATE_GROUP, DateComparisonInfo.WEEK_TO_DATE,
                          DateComparisonInfo.WEEK, XConstants.WEEK_DATE_GROUP);
 
-      assertTrue(r.partName.startsWith("WeekOfQuarter("), r.partName);
+      assertTrue(DateComparisonUtil.isDCCalcPartName(
+                    r.partName, DateComparisonUtil.DC_CALC_WEEK_OF_QUARTER), r.partName);
       assertTrue(r.infoTemps.contains(r.partName), "info temps " + r.infoTemps);
       assertFalse(r.calcTemps.contains(r.partName), "calc temps " + r.calcTemps);
    }

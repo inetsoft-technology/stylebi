@@ -33,7 +33,6 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.VisualFrameWrapper;
 import inetsoft.util.*;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -268,14 +267,6 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          }
       }
 
-      DataRef groupRef = dimensionRef.getDataRef();
-
-      if(groupRef instanceof CalculateRef &&
-         StringUtils.startsWith(groupRef.getName(), DC_CALC_FIELD_PREFIX))
-      {
-         dimensionRef.setDataType(XSchema.STRING);
-      }
-
       return dimensionRef;
    }
 
@@ -349,7 +340,8 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
             expression.append("datePart('y', field['");
             expression.append(colName);
             expression.append("'])");
-            calcName = "DayOfYear(" + colName + ")";
+            calcName = DateComparisonUtil.getDCCalcPartName(
+               DateComparisonUtil.DC_CALC_DAY_OF_YEAR, colName);
          }
          else if(partLowLevel == XConstants.WEEK_DATE_GROUP) {
             // Bug #75351: for Same-Day comparison the month*10+weekOfMonth ('wy') encoding
@@ -374,7 +366,8 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
                expression.append("'], true, " + toDateWeekOfMonth + ")");
             }
 
-            calcName = "WeekOfYear(" + colName + ")";
+            calcName = DateComparisonUtil.getDCCalcPartName(
+               DateComparisonUtil.DC_CALC_WEEK_OF_YEAR, colName);
          }
       }
       else if(partParentLevel == XConstants.QUARTER_DATE_GROUP) {
@@ -383,26 +376,30 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
                expression.append("datePartForceWeekOfMonth('wmq', field['");
                expression.append(colName);
                expression.append("'], true, " + toDateWeekOfMonth + ")");
-               calcName = "MonthOfQuarterOfWeek(" + colName + ")";
+               calcName = DateComparisonUtil.getDCCalcPartName(
+                  DateComparisonUtil.DC_CALC_MONTH_OF_QUARTER_OF_WEEK, colName);
             }
             else {
                expression.append("datePart('mq', field['");
                expression.append(colName);
                expression.append("'], true)");
-               calcName = "MonthOfQuarter(" + colName + ")";
+               calcName = DateComparisonUtil.getDCCalcPartName(
+                  DateComparisonUtil.DC_CALC_MONTH_OF_QUARTER, colName);
             }
          }
          else if(partLowLevel == XConstants.WEEK_DATE_GROUP) {
             expression.append("datePart('wq', field['");
             expression.append(colName);
             expression.append("'], true)");
-            calcName = "WeekOfQuarter(" + colName + ")";
+            calcName = DateComparisonUtil.getDCCalcPartName(
+               DateComparisonUtil.DC_CALC_WEEK_OF_QUARTER, colName);
          }
          else if(partLowLevel == XConstants.DAY_DATE_GROUP) {
             expression.append("datePart('dq', field['");
             expression.append(colName);
             expression.append("'])");
-            calcName = "DayOfQuarter(" + colName + ")";
+            calcName = DateComparisonUtil.getDCCalcPartName(
+               DateComparisonUtil.DC_CALC_DAY_OF_QUARTER, colName);
          }
       }
       else if(partParentLevel == XConstants.MONTH_DATE_GROUP) {
@@ -411,7 +408,8 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
             expression.append(colName);
             expression.append("'], true, " + (toDateWeekOfMonth > 4 ? toDateWeekOfMonth : -1)
                + ")");
-            calcName = "WeekOfMonth(" + colName + ")";
+            calcName = DateComparisonUtil.getDCCalcPartName(
+               DateComparisonUtil.DC_CALC_WEEK_OF_MONTH, colName);
          }
       }
 
@@ -2348,7 +2346,9 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
                   refs.add(intervalRef);
                   String name = intervalRef.getFullName();
 
-                  if(name.startsWith("WeekOfMonth(") && name.endsWith(")")) {
+                  if(DateComparisonUtil.isDCCalcPartName(
+                     name, DateComparisonUtil.DC_CALC_WEEK_OF_MONTH))
+                  {
                      // add raw date to fix MergePartCell with boundary week day
                      // cannot convert to original date issue.
                      VSDimensionRef clone = (VSDimensionRef) ref.clone();
@@ -2557,6 +2557,5 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
    public static final int SAME_MONTH = SAME_DATE | MONTH;
    public static final int SAME_QUARTER = SAME_DATE | QUARTER;
 
-   private static final String DC_CALC_FIELD_PREFIX = "DC_CALC_PREFIX";
    private static final Logger LOG = LoggerFactory.getLogger(DateComparisonInfo.class);
 }

@@ -60,6 +60,10 @@ import static inetsoft.test.XTableUtil.date;
 @SreeHome
 @Tag("core")
 public class DCMergeDatePartFilterTest {
+   // DC runtime calc name of the week-of-year part (Bug #78446)
+   private static final String WOY_DATE = DateComparisonUtil.getDCCalcPartName(
+      DateComparisonUtil.DC_CALC_WEEK_OF_YEAR, "date");
+
    @Test
    public void testSerialize() throws Exception {
       DataSet dataSet = new DefaultDataSet(new Object[][]{
@@ -91,7 +95,7 @@ public class DCMergeDatePartFilterTest {
       // from its equivalence value (week 5/6 rolling into the next month under
       // minimalDaysInFirstWeek=7).
       List<Object[]> rows = new ArrayList<>();
-      rows.add(new Object[]{ "WeekOfYear(date)", "date" });
+      rows.add(new Object[]{ WOY_DATE, "date" });
 
       for(int year = 2019; year <= 2022; year++) {
          for(int month = 1; month <= 12; month++) {
@@ -106,7 +110,7 @@ public class DCMergeDatePartFilterTest {
       DataSetTable base = new DataSetTable(dataSet);
 
       VSDimensionRef partRef = new VSDimensionRef();
-      partRef.setDataRef(new AttributeRef("WeekOfYear(date)"));
+      partRef.setDataRef(new AttributeRef(WOY_DATE));
       VSDimensionRef dateGroupRef = new VSDimensionRef();
       dateGroupRef.setDataRef(new AttributeRef("date"));
 
@@ -130,9 +134,9 @@ public class DCMergeDatePartFilterTest {
                divergingRow = r - base.getHeaderRowCount();
                // Render the field value exactly as getFieldValue() would, so the
                // comparison is independent of the cell's string formatting.
-               expected = new VSFieldValue("WeekOfYear(date)", equivalenceCell, true)
+               expected = new VSFieldValue(WOY_DATE, equivalenceCell, true)
                   .getFieldValue().getValue();
-               original = new VSFieldValue("WeekOfYear(date)", mpc, true)
+               original = new VSFieldValue(WOY_DATE, mpc, true)
                   .getFieldValue().getValue();
                break;
             }
@@ -146,14 +150,14 @@ public class DCMergeDatePartFilterTest {
 
       VSDataSet vsDataSet = new VSDataSet(filter, new VSDataRef[]{ partRef, dateGroupRef });
       VSFieldValue[][] fieldValues = vsDataSet.getFieldValues(
-         divergingRow, new String[]{ "WeekOfYear(date)" }, new String[]{ "WeekOfYear(date)" },
+         divergingRow, new String[]{ WOY_DATE }, new String[]{ WOY_DATE },
          false, false);
 
       String actual = null;
 
       for(VSFieldValue[] tuple : fieldValues) {
          for(VSFieldValue fv : tuple) {
-            if("WeekOfYear(date)".equals(fv.getFieldName())) {
+            if(WOY_DATE.equals(fv.getFieldName())) {
                actual = fv.getFieldValue().getValue();
             }
          }
@@ -187,13 +191,13 @@ public class DCMergeDatePartFilterTest {
             "scenario requires the stored week part to differ from the cell's actual week");
 
          DataSet dataSet = new DefaultDataSet(new Object[][]{
-            { "WeekOfYear(date)", "date" },
+            { WOY_DATE, "date" },
             { storedPartValue, cellDate },
             });
          DataSetTable base = new DataSetTable(dataSet);
 
          VSDimensionRef partRef = new VSDimensionRef();
-         partRef.setDataRef(new AttributeRef("WeekOfYear(date)"));
+         partRef.setDataRef(new AttributeRef(WOY_DATE));
          VSDimensionRef dateGroupRef = new VSDimensionRef();
          dateGroupRef.setDataRef(new AttributeRef("date"));
 
@@ -234,13 +238,13 @@ public class DCMergeDatePartFilterTest {
          int sequentialWeek = sequentialWeekOfYear(cellDate);
 
          DataSet dataSet = new DefaultDataSet(new Object[][]{
-            { "WeekOfYear(date)", "date" },
+            { WOY_DATE, "date" },
             { sequentialWeek, cellDate },
             });
          DataSetTable base = new DataSetTable(dataSet);
 
          VSDimensionRef partRef = new VSDimensionRef();
-         partRef.setDataRef(new AttributeRef("WeekOfYear(date)"));
+         partRef.setDataRef(new AttributeRef(WOY_DATE));
          partRef.setDcSequentialWeek(true);
          VSDimensionRef dateGroupRef = new VSDimensionRef();
          dateGroupRef.setDataRef(new AttributeRef("date"));
@@ -420,7 +424,7 @@ public class DCMergeDatePartFilterTest {
    private static final class MergePartCellFixture {
       MergePartCellFixture() {
          List<Object[]> rows = new ArrayList<>();
-         rows.add(new Object[]{ "Year(date)", "WeekOfYear(date)", "date", "raw" });
+         rows.add(new Object[]{ "Year(date)", WOY_DATE, "date", "raw" });
          rawDate = date("2021-01-01");
 
          for(int month = 1; month <= 12; month++) {
@@ -438,7 +442,7 @@ public class DCMergeDatePartFilterTest {
          rawRef.setDataRef(new AttributeRef("raw"));
          rawRef.setIgnoreDcTemp(true);
          partRef = new VSDimensionRef();
-         partRef.setDataRef(new AttributeRef("WeekOfYear(date)"));
+         partRef.setDataRef(new AttributeRef(WOY_DATE));
          VSDimensionRef dateGroupRef = new VSDimensionRef();
          dateGroupRef.setDataRef(new AttributeRef("date"));
          List<XDimensionRef> extras = new ArrayList<>();

@@ -44,6 +44,7 @@ import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
@@ -2043,7 +2044,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                                            String name)
    {
       if(column instanceof CalculateRef && ((CalculateRef) column).isDcRuntime()) {
-         if(name.startsWith("WeekOfYear(")) {
+         if(DateComparisonUtil.isDCCalcPartName(name, DateComparisonUtil.DC_CALC_WEEK_OF_YEAR)) {
             XMetaInfo metaInfo = new XMetaInfo();
             metaInfo.setXFormatInfo(new XFormatInfo(TableFormat.DECIMAL_FORMAT, "MMW"));
             hinfos.add(new FormulaHeaderInfo(column.getName(), null, true, metaInfo));

@@ -306,7 +306,9 @@ public class DCMergeDatePartFilter extends AbstractTableLens implements TableFil
             // Sequential week-of-year ('ww') values already align across periods, so no
             // equivalence remap is needed (and the month*10 math below would corrupt them).
             // Only the legacy month*10+weekOfMonth ('wy') encoding needs the remap. (Bug #75351)
-            if(mergedRef.getFullName().startsWith("WeekOfYear(") && value instanceof Integer &&
+            if(DateComparisonUtil.isDCCalcPartName(
+                  mergedRef.getFullName(), DateComparisonUtil.DC_CALC_WEEK_OF_YEAR) &&
+               value instanceof Integer &&
                !(mergedRef instanceof VSDimensionRef &&
                  ((VSDimensionRef) mergedRef).isDcSequentialWeek()))
             {

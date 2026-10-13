@@ -55,7 +55,8 @@ class DateComparisonUtilAllTempDateGroupRefTest {
       List<String> names = tempGroupNames(XConstants.YEAR_DATE_GROUP,
          DateComparisonInfo.WEEK_TO_DATE, DateComparisonInfo.WEEK, dateRef(-1));
 
-      assertEquals(List.of("WeekOfYear(date)"), names);
+      assertEquals(List.of(DateComparisonUtil.getDCCalcPartName(
+         DateComparisonUtil.DC_CALC_WEEK_OF_YEAR, "date")), names);
    }
 
    @Test
@@ -83,7 +84,8 @@ class DateComparisonUtilAllTempDateGroupRefTest {
       List<String> names = tempGroupNames(XConstants.QUARTER_DATE_GROUP,
          DateComparisonInfo.WEEK_TO_DATE, DateComparisonInfo.WEEK, dateRef(-1));
 
-      assertEquals(List.of("WeekOfQuarter(date)"), names);
+      assertEquals(List.of(DateComparisonUtil.getDCCalcPartName(
+         DateComparisonUtil.DC_CALC_WEEK_OF_QUARTER, "date")), names);
    }
 
    private static List<String> tempGroupNames(int periodLevel, int intervalLevel,
