@@ -386,6 +386,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       config.setExecutorConfiguration(executePools);
+      // a server runs the lock and atomic jobs of the client nodes on these
+      ClientDataStructures.addExecutors(config);
       IgniteUtils.configBinaryTypes(config);
 
       return config;
@@ -885,11 +887,43 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public Lock getLock(String name) {
+      if(isClientNode()) {
+         return new DistributedLockProxy(name, ClientDataStructures.getLock(ignite, name));
+      }
+
       return new DistributedLockProxy(name, ignite.reentrantLock(name, true, false, true));
+   }
+
+   /**
+    * Checks if this is a client node (a cloud-runner task container). A client node must not
+    * create or obtain an Ignite lock, atomic or queue: that registers one of Ignite's internal
+    * continuous queries on every server, and after the client is killed every lock change or
+    * queue update on a server waits for it until it is dropped (bug #78451). Its locks, atomics
+    * and queues are kept on a server by {@link ClientDataStructures}.
+    */
+   private boolean isClientNode() {
+      return ignite.cluster().localNode().isClient();
+   }
+
+   /**
+    * Refuses a remote event listener on a client node. It would make every server send the
+    * client its events, and after the client is killed each send waits for it until it is dropped
+    * (bug #78451). No caller registers one on a client node.
+    */
+   private void checkRemoteListenerAllowed() {
+      if(isClientNode()) {
+         throw new UnsupportedOperationException(
+            "A client node can't listen to the events of other nodes");
+      }
    }
 
    @Override
    public void destroyLock(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyLock(ignite, name);
+         return;
+      }
+
       IgniteLock lock = ignite.reentrantLock(name, true, false, false);
 
       if(lock != null) {
@@ -898,6 +932,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    public void unlockLock(String name) {
+      if(isClientNode()) {
+         getLock(name).unlock();
+         return;
+      }
+
       IgniteLock lock = ignite.reentrantLock(name, true, false, false);
 
       if(lock != null) {
@@ -1600,6 +1639,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
+      checkRemoteListenerAllowed();
       UUID id = ignite.events()
          .remoteListen(new RebalanceListenerAdapter(listener),
                        new RebalanceEventFilter(cacheName),
@@ -1635,11 +1675,21 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       queueConfig.setBackups(getDefaultBackupCount());
       queueConfig.setCacheMode(getDefaultCacheMode());
       queueConfig.setAtomicityMode(CacheAtomicityMode.ATOMIC);
+
+      if(isClientNode()) {
+         return ClientDataStructures.getQueue(ignite, name, queueConfig);
+      }
+
       return ignite.queue(name, 0, queueConfig);
    }
 
    @Override
    public void destroyQueue(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyQueue(ignite, name);
+         return;
+      }
+
       IgniteQueue<?> queue = ignite.queue(name, 0, null);
 
       if(queue != null) {
@@ -1683,11 +1733,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public DistributedLong getLong(String name) {
+      if(isClientNode()) {
+         return ClientDataStructures.getLong(ignite, name);
+      }
+
       return new IgniteDistributedLong(ignite.atomicLong(name, 0, true));
    }
 
    @Override
    public void destroyLong(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyLong(ignite, name);
+         return;
+      }
+
       IgniteAtomicLong igniteAtomicLong = ignite.atomicLong(name, 0, false);
 
       if(igniteAtomicLong != null) {
@@ -1697,11 +1756,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <V> DistributedReference<V> getReference(String name) {
+      if(isClientNode()) {
+         return ClientDataStructures.getReference(ignite, name);
+      }
+
       return new IgniteDistributedReference<>(ignite.atomicReference(name, null, true));
    }
 
    @Override
    public void destroyReference(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyReference(ignite, name);
+         return;
+      }
+
       IgniteAtomicReference<?> igniteAtomicReference = ignite.atomicReference(name, null, false);
 
       if(igniteAtomicReference != null) {
@@ -2367,6 +2435,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                      EventType.EVT_CACHE_OBJECT_EXPIRED);
                }
                else {
+                  checkRemoteListenerAllowed();
                   remoteListenerId = ignite.events().remoteListen(
                      adapter, new CacheEventFilter(cache.getName()),
                      EventType.EVT_CACHE_OBJECT_PUT,
