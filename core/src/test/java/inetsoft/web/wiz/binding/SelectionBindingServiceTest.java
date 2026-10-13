@@ -1419,6 +1419,149 @@ class SelectionBindingServiceTest {
       assertFalse(calendar.containsKey("droppedMeasure"));
    }
 
+   // ── Bug #78472 verification: tree legs and the write that save persists ───
+
+   /** A bare {@code $Foo} stored on a tree is a literal too (#78158), checked and dropped. */
+   @Test
+   void checksAStoredBareDollarTreeMeasureAsALiteral() throws Exception {
+      SelectionTreePropertyDialogModel tree = treeWithMeasure("ORDERS", null, "$Foo");
+
+      Map<String, Object> result =
+         rebindTree(tree, ordersCustomersDropdown(), "CUSTOMERS", "NAME", null, null);
+
+      assertNull(treeMeasure(tree));
+      assertEquals("$Foo", result.get("droppedMeasure"));
+   }
+
+   /** An already-stale tree measure is healed by a call that changes nothing else. */
+   @Test
+   void healsAnAlreadyStaleTreeMeasureOnAnUnrelatedRebind() throws Exception {
+      SelectionTreePropertyDialogModel tree = treeWithMeasure("CUSTOMERS", null, "AMOUNT");
+
+      Map<String, Object> result = harness(mock(SelectionTreeVSAssembly.class), null,
+                                           treeService(tree), null, null,
+                                           ordersCustomersDropdown())
+         .setSource("tok", principal(), "Tree1", "CUSTOMERS", List.of("NAME"), null, null, null,
+                    null, null, false, "");
+
+      assertNull(treeMeasure(tree));
+      assertEquals("AMOUNT", result.get("droppedMeasure"));
+   }
+
+   /** A stored literal still shared after an additional table is added is kept. */
+   @Test
+   void keepsATreeMeasureANewAdditionalTableStillShares() throws Exception {
+      SelectionTreePropertyDialogModel tree = treeWithMeasure("ORDERS", null, "CITY");
+
+      Map<String, Object> result = harness(mock(SelectionTreeVSAssembly.class), null,
+                                           treeService(tree), null, null,
+                                           ordersCustomersDropdown())
+         .setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE"),
+                    List.of("CUSTOMERS"), null, null, null, null, false, "");
+
+      assertEquals("CITY", treeMeasure(tree));
+      assertEquals(List.of("CUSTOMERS"), result.get("additionalTables"));
+      assertFalse(result.containsKey("droppedMeasure"));
+   }
+
+   /** B1 on a tree: a failed lookup keeps the stored measure and the rebind still applies. */
+   @Test
+   void keepsAnOmittedTreeMeasureWhenTheDropdownLookupFails() throws Exception {
+      DataOutputService dataOutput = mock(DataOutputService.class);
+      when(dataOutput.getOutputSelectionColumns(any(), any(), any()))
+         .thenThrow(new IllegalStateException("boom"));
+      SelectionTreePropertyDialogModel tree = treeWithMeasure("ORDERS", null, "AMOUNT");
+      SelectionTreePropertyDialogService treeService = treeService(tree);
+
+      Map<String, Object> result = harness(mock(SelectionTreeVSAssembly.class), null,
+                                           treeService, null, null, dataOutput)
+         .setSource("tok", principal(), "Tree1", "CUSTOMERS", List.of("NAME"), null, null, null,
+                    null, null, true, "");
+
+      assertEquals("AMOUNT", treeMeasure(tree));
+      assertFalse(result.containsKey("droppedMeasure"));
+      verify(treeService).setSelectionTreePropertyModel(
+         eq("rt1"), eq("Tree1"), any(), eq(""), any(), any());
+   }
+
+   /** B2 on a tree: an explicit measure is resolved against the table set after the prune. */
+   @Test
+   void resolvesAnExplicitTreeMeasureAfterPruningInheritedTables() throws Exception {
+      DataOutputService dataOutput = dropdown(Map.of(List.of("CUSTOMERS"), List.of("CITY")));
+      SelectionTreePropertyDialogModel tree =
+         treeWithMeasure("CUSTOMERS", List.of("PRODUCTS"), null);
+
+      Map<String, Object> result = harness(mock(SelectionTreeVSAssembly.class), null,
+                                           treeService(tree), null, null, dataOutput)
+         .setSource("tok", principal(), "Tree1", "CUSTOMERS", List.of("STATE"), null, "city",
+                    null, null, null, false, "");
+
+      assertEquals("CITY", treeMeasure(tree));
+      assertEquals(List.of("PRODUCTS"), result.get("droppedAdditionalTables"));
+      verify(dataOutput).getOutputSelectionColumns(eq("rt1"), eq(List.of("CUSTOMERS")), any());
+   }
+
+   /**
+    * B2, refusal side: an explicit measure only the pre-prune table set offered is refused in
+    * the same call that prunes, and nothing is written.
+    */
+   @Test
+   void refusesAnExplicitMeasureOnlyThePrunedTableSetOffered() throws Exception {
+      DataOutputService dataOutput = dropdown(Map.of(
+         List.of("CUSTOMERS"), List.of("CITY"),
+         List.of("CUSTOMERS", "PRODUCTS"), List.of("PRICE")));
+      SelectionListPropertyDialogModel list =
+         listWithMeasure("CUSTOMERS", List.of("PRODUCTS"), null);
+      SelectionListPropertyDialogService listService = listService(list);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         harness(mock(SelectionListVSAssembly.class), listService, null, null, null, dataOutput)
+            .setSource("tok", principal(), "List1", "CUSTOMERS", List.of("STATE"), null, "PRICE",
+                       null, null, null, false, ""));
+
+      assertTrue(e.getMessage().contains("[CUSTOMERS]"), e.getMessage());
+      verify(listService, never()).setSelectionListPropertyModel(
+         any(), any(), any(), any(), any(), any());
+   }
+
+   /**
+    * The save_viewsheet leg (VFL-020 A3) at the model-write level: the model handed to the
+    * dialog writer carries no measure, and the dialog's own writer turns that into an assembly
+    * info whose XML (what save persists) has no measure.
+    */
+   @Test
+   void theWrittenTreeModelAndAssemblyInfoCarryNoStaleMeasure() throws Exception {
+      SelectionTreePropertyDialogModel tree = treeWithMeasure("ORDERS", null, "AMOUNT");
+      SelectionTreePropertyDialogService treeService = treeService(tree);
+
+      harness(mock(SelectionTreeVSAssembly.class), null, treeService, null, null,
+              ordersCustomersDropdown())
+         .setSource("tok", principal(), "Tree1", "CUSTOMERS", List.of("NAME"), null, null, null,
+                    null, null, true, "");
+
+      ArgumentCaptor<SelectionTreePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(SelectionTreePropertyDialogModel.class);
+      verify(treeService).setSelectionTreePropertyModel(
+         eq("rt1"), eq("Tree1"), captor.capture(), eq(""), any(), any());
+      SelectionMeasurePaneModel written =
+         captor.getValue().getSelectionTreePaneModel().getSelectionMeasurePaneModel();
+      assertNull(written.getMeasure());
+
+      // The assembly info needs a Spring context to construct, so a mock stands in for it; the
+      // dialog's real private writer runs against it. setMeasureValue(null) clears both the
+      // design and runtime value (DynamicValue.setDValue), and writeContents then writes neither
+      // <measure> nor <measureValue>.
+      SelectionTreeVSAssemblyInfo info = mock(SelectionTreeVSAssemblyInfo.class);
+      java.lang.reflect.Method write = SelectionTreePropertyDialogService.class
+         .getDeclaredMethod("setAssemblyInfoMeasure", SelectionTreeVSAssemblyInfo.class,
+                            SelectionMeasurePaneModel.class);
+      write.setAccessible(true);
+      write.invoke(mock(SelectionTreePropertyDialogService.class), info, written);
+
+      verify(info).setMeasureValue(null);
+      verify(info, never()).setMeasureValue(argThat(v -> v != null));
+   }
+
    // ── Logical Model column resolution (regression for Bug #76700) ────────────
 
    /**
