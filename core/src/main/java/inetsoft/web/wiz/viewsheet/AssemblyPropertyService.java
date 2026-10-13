@@ -35,7 +35,9 @@ import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.MessageException;
 import inetsoft.web.adhoc.model.property.TargetInfo;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RangePaneModel;
@@ -124,10 +126,12 @@ public class AssemblyPropertyService {
                                   RectanglePropertyDialogService rectangleService,
                                   SelectionContainerPropertyDialogService containerService,
                                   SubmitPropertyDialogService submitService,
-                                  VSOutputService outputService)
+                                  VSOutputService outputService,
+                                  VSColumnHandler columnHandler)
    {
       this.sessions = sessions;
       this.outputService = outputService;
+      this.columnHandler = columnHandler;
       Map<String, Binding> map = new LinkedHashMap<>();
       map.put("gauge", new Binding(gaugeService, "getGaugePropertyDialogModel",
                                    "setGaugePropertyDialogModel"));
@@ -326,6 +330,7 @@ public class AssemblyPropertyService {
                                  TipCustomizeDialogModel.TipFormat.CUSTOM);
 
          if(PropertyAliases.isListInputType(type)) {
+            requireValidListInput(type, model, resolved.values(), rvs, user);
             model = deriveEmbeddedFromStaticList(model, resolved.values());
          }
 
@@ -340,6 +345,62 @@ public class AssemblyPropertyService {
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
       });
    }
+
+   /**
+    * A CheckBox/ComboBox/RadioButton's {@code setListValues} converts each embedded value with
+    * {@code Tool.getData} against {@code variableListDialogModel.dataType} (unparseable text is
+    * stored as {@code null}), and binds the query source through {@code updateBindingInfo}, which
+    * silently binds nothing for a table without a column, an unknown table or an unknown column
+    * (bug #78393). Runs the same checks {@link ColumnOptionService} runs for a column's ComboBox
+    * editor, each only when the patch touched what it checks, so a legacy bad list or source
+    * doesn't block an unrelated write: the embedded list for a write to the list, the editor's
+    * {@code dataType} or {@code embedded}; the source, validated against the effective model,
+    * for a write to its table/column/value while query is on. Query alone is a complete
+    * {@code BOUND_SOURCE} configuration and stays legal. The editor-vs-list dataType mismatch
+    * that {@code set_column_options} refuses is not refused here: an assembly's dialog model
+    * fills the two from different fields, so a valid assembly can read back with both.
+    */
+   private void requireValidListInput(String type, Object model, Collection<String> resolvedPaths,
+                                      RuntimeViewsheet rvs, Principal user) throws Exception
+   {
+      String embeddedPath = PropertyAliases.resolve(type, "embedded");
+      String editorPath = embeddedPath.substring(0, embeddedPath.lastIndexOf('.'));
+
+      if(!(PropertyPath.get(model, editorPath) instanceof ComboBoxEditorModel editor)) {
+         return;
+      }
+
+      String listPath = editorPath + ".variableListDialogModel";
+      String sourceDialogPath = editorPath + ".selectionListDialogModel";
+      String sourcePath = sourceDialogPath + ".selectionListEditorModel";
+      boolean listTouched = false;
+      boolean sourceTouched = false;
+
+      for(String path : resolvedPaths) {
+         listTouched |= path.equals(listPath) || path.startsWith(listPath + ".") ||
+            path.equals(editorPath + ".dataType") || path.equals(embeddedPath);
+         sourceTouched |= path.equals(sourceDialogPath) || path.equals(sourcePath) ||
+            path.equals(sourcePath + ".table") || path.equals(sourcePath + ".column") ||
+            path.equals(sourcePath + ".value");
+      }
+
+      if(listTouched && editor.getVariableListDialogModel() != null) {
+         WizColumnOptionValidator.requireStrictListValues(
+            editor.getVariableListDialogModel(), "set_assembly_properties: '" + listPath + ".");
+      }
+
+      if(sourceTouched && editor.isQuery() && editor.getSelectionListDialogModel() != null &&
+         editor.getSelectionListDialogModel().getSelectionListEditorModel() != null)
+      {
+         WizColumnOptionValidator.requireResolvableListSource(
+            columnHandler, rvs, user,
+            editor.getSelectionListDialogModel().getSelectionListEditorModel(),
+            "set_assembly_properties", "a " + LIST_INPUT_NAMES.get(type), sourcePath + ".");
+      }
+   }
+
+   private static final Map<String, String> LIST_INPUT_NAMES =
+      Map.of("checkbox", "CheckBox", "combobox", "ComboBox", "radiobutton", "RadioButton");
 
    /**
     * A TextInput's Date/Integer/Float editor is built by {@code setTextInputPropertyDialogModel}
@@ -1402,5 +1463,6 @@ public class AssemblyPropertyService {
 
    private final ViewsheetSessionService sessions;
    private final VSOutputService outputService;
+   private final VSColumnHandler columnHandler;
    private final Map<String, Binding> bindings;
 }

@@ -352,7 +352,8 @@ class ScriptFailureRelayRealStackTest {
          mock(GroupContainerPropertyDialogService.class), mock(LinePropertyDialogService.class),
          mock(OvalPropertyDialogService.class), mock(RectanglePropertyDialogService.class),
          mock(SelectionContainerPropertyDialogService.class),
-         mock(SubmitPropertyDialogService.class), mock(VSOutputService.class));
+         mock(SubmitPropertyDialogService.class), mock(VSOutputService.class),
+         mock(VSColumnHandler.class));
    }
 
    private ViewsheetEditService editService(RuntimeViewsheet rvs) throws Exception {

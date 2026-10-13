@@ -481,8 +481,10 @@ public final class PropertyAliases {
 
       if(key != null && key.contains(".")) {
          // A dotted key is the documented raw escape hatch. PropertyPath validates it and
-         // fails loud if it does not resolve, so nothing silently no-ops here.
-         return key;
+         // fails loud if it does not resolve, so nothing silently no-ops here. It is returned
+         // in its canonical spelling so every exact-spelling guard downstream (and the second
+         // writeRefusal check in resolveForWrite) sees one form of it (bug #78393).
+         return lowerSegmentInitials(key);
       }
 
       throw new IllegalArgumentException(
@@ -490,6 +492,30 @@ public final class PropertyAliases {
          nearest(key, entry.aliases().keySet()) +
          " Known names: " + String.join(", ", new TreeSet<>(entry.aliases().keySet())) +
          ". A raw model path (containing a '.') is also accepted.");
+   }
+
+   /**
+    * PropertyPath resolves each segment through {@code get/set + capitalize(segment)}, so the
+    * first letter of every segment is case-insensitive there. Lowering it gives every keyed
+    * guard one canonical spelling of a raw path (bugs #77027 item 3, #78393); only the first
+    * character is touched, as the remaining characters are matched exactly by PropertyPath.
+    */
+   static String lowerSegmentInitials(String key) {
+      if(key == null || key.indexOf('.') < 0) {
+         return key;
+      }
+
+      String[] segments = key.split("\\.", -1);
+
+      for(int i = 0; i < segments.length; i++) {
+         String segment = segments[i];
+
+         if(!segment.isEmpty()) {
+            segments[i] = Character.toLowerCase(segment.charAt(0)) + segment.substring(1);
+         }
+      }
+
+      return String.join(".", segments);
    }
 
    /**
