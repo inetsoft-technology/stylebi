@@ -35,9 +35,8 @@ import java.util.concurrent.locks.Lock;
  * base method that could touch an engine or {@code vars} is overridden (M6); the base class's
  * engine and {@code vars} are never used.
  *
- * <p>Only {@code AssetQuerySandbox.getScriptEnv()} creates it, for a sandbox built with
- * {@code script.ws.contextPool} on (the default; {@code false} turns it off). Viewsheet and
- * report envs are unaffected.
+ * <p>Only {@code AssetQuerySandbox.getScriptEnv()} creates it, for a sandbox in pool mode,
+ * which every sandbox is since Feature #78459. Viewsheet and report envs are unaffected.
  */
 public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    public WorksheetScriptEnv(PoolConfig config) {

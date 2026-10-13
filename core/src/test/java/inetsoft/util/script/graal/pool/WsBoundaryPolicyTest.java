@@ -54,7 +54,6 @@ class WsBoundaryPolicyTest {
                                         "past the one requested", "script.max.errors",
                                         "per worksheet script environment", "prototype",
                                         "crosstab aggregation", "AssetEventUtil",
-                                        "-Dscript.ws.contextpool=false", "lowercase",
                                         "insertion order", "IndexOutOfBoundsException",
                                         "3 s longer", "logged at INFO",
                                         // Testing #77123, the table-owned formula var
@@ -85,12 +84,9 @@ class WsBoundaryPolicyTest {
                                         "evaluates what pool off would", "2N + 10",
                                         "undeclared", "class-valued var",
                                         "turns script batching off",
-                                        // Feature #77123, the pool is on by default
-                                        "on by default", "Turning it off",
-                                        "script.ws.contextPool=false in sree.properties",
-                                        "unset or blank value keeps", "can occur",
-                                        // Bug #77016, pool-off hangs + stall FAIL pairing
-                                        "#77016", "stall.watchdog.mode=fail",
+                                        // Feature #78459, the pool is always on
+                                        "always on", "no longer supported",
+                                        "logged once as a WARN", "stall.watchdog.mode=fail",
                                         // Feature #77123, fail is the watchdog default
                                         "defaults to fail", "stall.watchdog.failOnTimeout=true",
                                         "stall.watchdog.mode=alert", "only logged and goes on",
@@ -104,8 +100,8 @@ class WsBoundaryPolicyTest {
 
    @Test
    void releaseNoteIsTheWholePrText() {
-      assertEquals("Worksheet script context pool (script.ws.contextPool, on by default " +
-                      "from this release)", WsBoundaryPolicy.RELEASE_NOTE.get(0));
+      assertEquals("Worksheet script context pool (always on from this release)",
+                   WsBoundaryPolicy.RELEASE_NOTE.get(0));
       assertTrue(WsBoundaryPolicy.RELEASE_NOTE.get(WsBoundaryPolicy.RELEASE_NOTE.size() - 1)
                     .endsWith("reused."));
 
