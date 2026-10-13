@@ -46,6 +46,7 @@ import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.ScriptStateLint;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1437,8 +1438,9 @@ public abstract class VSAQuery {
             LOG.warn(msg);
          }
 
-         ScriptException se = new ScriptException(msg);
-         // keep a timeout's or cancel's stop, or a reader caches the failure (bug #78212)
+         // keep unavailable data or a load failure as the cause (bug #78450) and a timeout's
+         // or cancel's stop (bug #78212), or a reader caches the failure
+         ScriptException se = new ScriptException(msg, DataUnavailable.causeInChain(ex));
          se.setStopped(ScriptTimeoutGuard.isStop(ex));
          throw se;
       }
