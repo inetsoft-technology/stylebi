@@ -386,6 +386,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       config.setExecutorConfiguration(executePools);
+      // a server runs the lock and atomic jobs of the client nodes on these
+      ClientDataStructures.addExecutors(config);
       IgniteUtils.configBinaryTypes(config);
 
       return config;

@@ -20,6 +20,10 @@ package inetsoft.sree.internal.cluster.ignite;
 import inetsoft.sree.internal.cluster.DistributedLong;
 import inetsoft.sree.internal.cluster.DistributedReference;
 import org.apache.ignite.*;
+import org.apache.ignite.cluster.ClusterGroup;
+import org.apache.ignite.cluster.ClusterTopologyException;
+import org.apache.ignite.configuration.ExecutorConfiguration;
+import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.lang.IgniteCallable;
 import org.apache.ignite.lang.IgniteFuture;
 import org.apache.ignite.resources.IgniteInstanceResource;
@@ -44,21 +48,47 @@ import java.util.concurrent.locks.Lock;
  * leaving (container killed) each of those commits waits for it until discovery drops it, about
  * 30 s, and so does every login and logout, which take the license lock. Ignite has no setting
  * that turns the query off, so a client node never touches an Ignite data structure. Instead it
- * sends each operation to the oldest server:
+ * sends each operation to a server:
  * <ul>
- *    <li>A lock is held by a server thread dedicated to the client thread, so Ignite's per-thread
- *    ownership and reentrancy apply to each client thread as they do to a server thread. A
- *    lock wait is sent in steps of at most {@link #LOCK_STEP_MILLIS}, so no server thread waits
- *    long for a client. The server releases what a client thread still holds once the client
- *    leaves the topology.</li>
- *    <li>An atomic operation runs on the server's own Ignite atomic.</li>
+ *    <li>A lock is taken on the oldest server, by a server thread dedicated to the client thread,
+ *    so Ignite's per-thread ownership and reentrancy apply to each client thread as they do to a
+ *    server thread. The client remembers which server granted each hold and sends the reentrant
+ *    takes and the release of that hold there. A lock wait is sent in steps of at most
+ *    {@link #LOCK_STEP_MILLIS}, so no server thread waits long for a client. Waiting steps run on
+ *    their own server executor ({@link #WAIT_EXECUTOR}), so they never delay a release, an
+ *    immediate {@code tryLock()} or an atomic operation ({@link #RELEASE_EXECUTOR}). The server
+ *    releases what a client thread still holds once the client leaves the topology.</li>
+ *    <li>An atomic operation runs on the oldest server's own Ignite atomic.</li>
  * </ul>
  * A lock that a client thread waits for in several steps rejoins the queue of a fair lock at
  * each step. {@link Lock#newCondition()} is not supported, and no caller of a cluster lock uses
  * it.
+ * <p>
+ * If the server that granted a hold leaves the cluster (for example a rolling update of the
+ * oldest server) while the client thread holds the lock, Ignite marks the lock broken, as it does
+ * for a lock held by any node that leaves: mutual exclusion is lost for the rest of that critical
+ * section, and later takes of the lock fail with "Lock broken". The client's release of such a
+ * hold only logs a warning, so an operational event doesn't replace the result of the task.
  */
 final class ClientDataStructures {
    private ClientDataStructures() {
+   }
+
+   /**
+    * Adds the server executors of the jobs of client nodes. Every node gets them, as with the
+    * other executors, and a server runs them.
+    */
+   static void addExecutors(IgniteConfiguration config) {
+      ExecutorConfiguration wait = new ExecutorConfiguration(WAIT_EXECUTOR);
+      wait.setSize(WAIT_EXECUTOR_SIZE);
+      ExecutorConfiguration release = new ExecutorConfiguration(RELEASE_EXECUTOR);
+      release.setSize(RELEASE_EXECUTOR_SIZE);
+      ExecutorConfiguration[] old = config.getExecutorConfiguration();
+      List<ExecutorConfiguration> executors =
+         new ArrayList<>(old == null ? List.of() : Arrays.asList(old));
+      executors.add(wait);
+      executors.add(release);
+      config.setExecutorConfiguration(executors.toArray(new ExecutorConfiguration[0]));
    }
 
    /**
@@ -104,12 +134,20 @@ final class ClientDataStructures {
    }
 
    /**
-    * Runs a job on the oldest server and waits for its result. An interrupt does not abandon the
-    * job, whose effect (a lock it took) the caller must know about; the interrupt status is kept.
+    * Runs a job that doesn't wait on the oldest server and waits for its result.
     */
    private static <T> T call(Ignite ignite, IgniteCallable<T> job) {
-      IgniteFuture<T> future = ignite.compute(ignite.cluster().forServers().forOldest())
-         .callAsync(job);
+      return call(ignite, ignite.cluster().forServers().forOldest(), RELEASE_EXECUTOR, job);
+   }
+
+   /**
+    * Runs a job on a server and waits for its result. An interrupt does not abandon the job,
+    * whose effect (a lock it took) the caller must know about; the interrupt status is kept.
+    */
+   private static <T> T call(Ignite ignite, ClusterGroup server, String executor,
+                             IgniteCallable<T> job)
+   {
+      IgniteFuture<T> future = ignite.compute(server).withExecutor(executor).callAsync(job);
       boolean interrupted = false;
 
       try {
@@ -192,15 +230,72 @@ final class ClientDataStructures {
       }
 
       private boolean tryLockStep(long timeout) {
-         return call(ignite, new LockJob(ownerNode(), Thread.currentThread().threadId(), name,
-                                         timeout));
+         Map<HoldKey, Hold> holds = holds(ignite);
+         HoldKey key = new HoldKey(Thread.currentThread().threadId(), name);
+         Hold hold = holds.get(key);
+         ClusterGroup server;
+
+         if(hold != null && ignite.cluster().node(hold.server) != null) {
+            // a reentrant take goes to the holder of the earlier takes
+            server = ignite.cluster().forNodeId(hold.server);
+         }
+         else {
+            if(hold != null) {
+               LOG.warn("The server that granted the cluster lock {} left the cluster while " +
+                           "this thread held it, the lock is broken", name);
+               holds.remove(key);
+            }
+
+            server = ignite.cluster().forServers().forOldest();
+         }
+
+         UUID granted = call(ignite, server, timeout > 0 ? WAIT_EXECUTOR : RELEASE_EXECUTOR,
+                             new LockJob(ownerNode(), key.thread, name, timeout));
+
+         if(granted != null) {
+            holds.merge(key, new Hold(granted, 1), (a, b) -> new Hold(a.server, a.count + 1));
+         }
+
+         return granted != null;
       }
 
       @Override
       public void unlock() {
-         if(!call(ignite, new LockJob(ownerNode(), Thread.currentThread().threadId(), name, -1L))) {
+         Map<HoldKey, Hold> holds = holds(ignite);
+         HoldKey key = new HoldKey(Thread.currentThread().threadId(), name);
+         Hold hold = holds.get(key);
+
+         if(hold == null) {
             throw new IllegalMonitorStateException(
                "The cluster lock " + name + " is not held by the current thread");
+         }
+
+         if(hold.count > 1) {
+            holds.put(key, new Hold(hold.server, hold.count - 1));
+         }
+         else {
+            holds.remove(key);
+         }
+
+         if(ignite.cluster().node(hold.server) == null) {
+            LOG.warn("The server that granted the cluster lock {} left the cluster while this " +
+                        "thread held it, the lock was broken and is not released", name);
+            return;
+         }
+
+         try {
+            UUID released = call(ignite, ignite.cluster().forNodeId(hold.server),
+                                 RELEASE_EXECUTOR,
+                                 new LockJob(ownerNode(), key.thread, name, -1L));
+
+            if(released == null) {
+               LOG.warn("The server that granted the cluster lock {} has no hold of this " +
+                           "thread to release", name);
+            }
+         }
+         catch(ClusterTopologyException e) {
+            LOG.warn("The server that granted the cluster lock {} left the cluster while this " +
+                        "thread held it, the lock was broken and is not released", name);
          }
       }
 
@@ -219,11 +314,29 @@ final class ClientDataStructures {
    }
 
    /**
-    * Takes ({@code timeout >= 0}) or releases ({@code timeout < 0}) a lock on the server thread
-    * that holds the locks of a client thread. Returns whether the lock was taken, or whether the
-    * client thread held the lock it releases.
+    * Gets the locks that the threads of a client node hold, with the server that granted each.
+    * A thread reads and writes only its own entries.
     */
-   private static final class LockJob implements IgniteCallable<Boolean> {
+   private static Map<HoldKey, Hold> holds(Ignite ignite) {
+      ConcurrentMap<Object, Object> map = ignite.cluster().nodeLocalMap();
+      @SuppressWarnings("unchecked")
+      Map<HoldKey, Hold> holds = (Map<HoldKey, Hold>)
+         map.computeIfAbsent(HoldKey.class.getName(), k -> new ConcurrentHashMap<>());
+      return holds;
+   }
+
+   private record HoldKey(long thread, String name) {
+   }
+
+   private record Hold(UUID server, int count) {
+   }
+
+   /**
+    * Takes ({@code timeout >= 0}) or releases ({@code timeout < 0}) a lock on the server thread
+    * that holds the locks of a client thread. Returns the id of this server if the lock was
+    * taken, or if the client thread held the lock it releases, otherwise {@code null}.
+    */
+   private static final class LockJob implements IgniteCallable<UUID> {
       LockJob(UUID node, long thread, String name, long timeout) {
          this.node = node;
          this.thread = thread;
@@ -232,8 +345,9 @@ final class ClientDataStructures {
       }
 
       @Override
-      public Boolean call() {
-         return LockHolders.get(ignite).run(new Owner(node, thread), name, timeout);
+      public UUID call() {
+         boolean done = LockHolders.get(ignite).run(new Owner(node, thread), name, timeout);
+         return done ? ignite.cluster().localNode().id() : null;
       }
 
       @IgniteInstanceResource
@@ -722,6 +836,12 @@ final class ClientDataStructures {
 
    // the longest a server thread waits for a lock on behalf of a client in one step
    private static final long LOCK_STEP_MILLIS = 3000L;
+   // the server executor of the lock steps that wait, a thread per waiting client thread
+   static final String WAIT_EXECUTOR = "inetsoft.cluster.clientLockWait";
+   static final int WAIT_EXECUTOR_SIZE = 64;
+   // the server executor of the releases, immediate takes and atomic operations, which don't wait
+   static final String RELEASE_EXECUTOR = "inetsoft.cluster.clientLockRelease";
+   private static final int RELEASE_EXECUTOR_SIZE = 8;
    // how long an idle holder thread that holds nothing is kept for its client thread
    private static final long IDLE_MILLIS = 60_000L;
    private static final Logger LOG = LoggerFactory.getLogger(ClientDataStructures.class);

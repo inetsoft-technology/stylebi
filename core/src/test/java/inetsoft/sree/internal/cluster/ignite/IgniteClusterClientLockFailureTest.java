@@ -313,6 +313,89 @@ class IgniteClusterClientLockFailureTest {
       }
    }
 
+   /**
+    * More client threads wait for a lock than the server has threads for waiting steps. The
+    * holder's release must not queue behind them, and the lock must pass to a waiter well within
+    * one wait step.
+    */
+   @Test
+   void clientReleaseDoesNotQueueBehindClientWaits() throws Exception {
+      IgniteCluster client = newBareCluster(liveClient);
+      int waiters = ClientDataStructures.WAIT_EXECUTOR_SIZE + 8;
+      Lock lock = client.getLock("live.contended");
+      lock.lock();
+      ExecutorService executor = Executors.newFixedThreadPool(waiters);
+      List<Long> acquired = Collections.synchronizedList(new ArrayList<>());
+
+      try {
+         CountDownLatch started = new CountDownLatch(waiters);
+         List<Future<?>> futures = new ArrayList<>();
+
+         for(int i = 0; i < waiters; i++) {
+            futures.add(executor.submit(() -> {
+               Lock waiter = client.getLock("live.contended");
+               started.countDown();
+               waiter.lock();
+               acquired.add(System.nanoTime());
+               waiter.unlock();
+               return null;
+            }));
+         }
+
+         assertTrue(started.await(TEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS));
+         // let every waiter send its step, so the wait executor is full
+         Thread.sleep(1000);
+         long start = System.nanoTime();
+         lock.unlock();
+         long released = System.nanoTime();
+         assertTrue(TimeUnit.NANOSECONDS.toMillis(released - start) < LIMIT_MILLIS,
+                    "the release took " + TimeUnit.NANOSECONDS.toMillis(released - start) +
+                    " ms behind the waiting steps");
+
+         for(Future<?> future : futures) {
+            future.get(2 * TEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+         }
+
+         long first = acquired.stream().mapToLong(Long::longValue).min().orElseThrow();
+         assertTrue(TimeUnit.NANOSECONDS.toMillis(first - released) < LIMIT_MILLIS,
+                    "the lock passed to a waiter after " +
+                    TimeUnit.NANOSECONDS.toMillis(first - released) + " ms");
+         assertEquals(waiters, acquired.size());
+      }
+      finally {
+         executor.shutdownNow();
+         assertTrue(executor.awaitTermination(TEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS));
+      }
+   }
+
+   /**
+    * The server that granted a client's lock leaves while the client holds it, as in a rolling
+    * update of the oldest server. Ignite breaks the lock, and the client's release must not
+    * throw. Runs last, it stops a server.
+    */
+   @Test
+   @Order(Integer.MAX_VALUE)
+   void clientReleaseAfterGrantingServerLeftDoesNotThrow() throws Exception {
+      IgniteCluster client = newBareCluster(liveClient);
+      Lock lock = client.getLock("live.rolling");
+      lock.lock();
+      lock.lock();
+      serverA.close();
+      nodes.remove(serverA);
+
+      assertDoesNotThrow(lock::unlock);
+      assertDoesNotThrow(lock::unlock);
+      assertThrows(IllegalMonitorStateException.class, lock::unlock);
+
+      // the client's other locks now go to the remaining server
+      Lock other = client.getLock("live.after.rolling");
+      assertTrue(other.tryLock(5, TimeUnit.SECONDS));
+      assertFalse(callOnOtherThread(() -> newBareCluster(serverB).getLock("live.after.rolling")
+                                     .tryLock()),
+                  "a server took a lock the client holds");
+      other.unlock();
+   }
+
    private void assertDeadClientInTopology() {
       assertNotNull(serverA.cluster().node(deadClientId),
                     "the dead client must still be in the topology for this test");
@@ -367,6 +450,7 @@ class IgniteClusterClientLockFailureTest {
       config.setClientMode(client);
       config.setFailureHandler(new NoOpFailureHandler());
       config.setIncludeEventTypes(EventType.EVT_NODE_LEFT, EventType.EVT_NODE_FAILED);
+      ClientDataStructures.addExecutors(config);
       IgniteUtils.configBinaryTypes(config);
 
       // as IgniteCluster.getDefaultConfig() sets with two servers
