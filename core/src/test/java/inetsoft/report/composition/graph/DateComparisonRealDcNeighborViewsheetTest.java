@@ -21,6 +21,7 @@ import inetsoft.graph.data.DataSet;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.*;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
@@ -61,11 +62,28 @@ import static org.junit.jupiter.api.Assertions.*;
 class DateComparisonRealDcNeighborViewsheetTest {
    @Test
    void realDcChartDoesNotBreakNeighborsOnSameTable() throws Exception {
+      checkNeighbors(false);
+   }
+
+   /**
+    * Same with a hidden column on the worksheet table (its public column selection then differs
+    * from the private one), which the foreign DC calc removal must not depend on.
+    */
+   @Test
+   void realDcChartDoesNotBreakNeighborsWhenWorksheetTableHasHiddenColumn() throws Exception {
+      checkNeighbors(true);
+   }
+
+   private void checkNeighbors(boolean hideColumn) throws Exception {
       ViewsheetSandbox box = vsResource.getRuntimeViewsheet().getViewsheetSandbox().orElseThrow();
       Viewsheet vs = box.getViewsheet();
       SourceInfo source =
          (SourceInfo) ((TableVSAssembly) vs.getAssembly(TABLE)).getSourceInfo().clone();
       String tname = source.getSource();
+
+      if(hideColumn) {
+         hideWorksheetColumn(box, vs, tname);
+      }
 
       CalculateRef dateCalc = new CalculateRef(true);
       dateCalc.setName("D");
@@ -132,6 +150,27 @@ class DateComparisonRealDcNeighborViewsheetTest {
       assertFalse(chart2.getVSChartInfo().isAppliedDateComparison());
       assertEquals(before, weeks(box, (ChartVSAssembly) vs.getAssembly("Chart1"),
                                  "WeekOfYear(D)"), "Chart1 after clearing DC");
+   }
+
+   private static void hideWorksheetColumn(ViewsheetSandbox box, Viewsheet vs, String tname) {
+      for(Worksheet ws : new Worksheet[] {
+         vs.getBaseWorksheet(), box.getAssetQuerySandbox().getWorksheet() })
+      {
+         TableAssembly table = (TableAssembly) ws.getAssembly(tname);
+         ColumnSelection priv = table.getColumnSelection(false);
+
+         for(int i = 0; i < priv.getAttributeCount(); i++) {
+            ColumnRef column = (ColumnRef) priv.getAttribute(i);
+
+            if("name".equals(column.getAttribute())) {
+               column.setVisible(false);
+            }
+         }
+
+         table.resetColumnSelection();
+         assertNotEquals(table.getColumnSelection(false), table.getColumnSelection(true),
+                         "fixture: the hidden column makes public != private");
+      }
    }
 
    private static List<String> dcCalcs(Viewsheet vs, String tname) {
