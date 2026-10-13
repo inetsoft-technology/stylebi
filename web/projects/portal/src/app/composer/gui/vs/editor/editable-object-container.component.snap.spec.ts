@@ -30,7 +30,7 @@ describe("EditableObjectContainer — snap resize adjustment", () => {
       join(__dirname, "editable-object-container.component.html"), "utf-8");
 
    it("binds [resizeAdjustment]=0 on the main .object-editor interactable", () => {
-      const start = template.indexOf("<div #objectEditor class=\"object-editor\"");
+      const start = template.indexOf("<div #objectEditor class=\"object-editor outline-highlight\"");
       expect(start).toBeGreaterThan(-1);
       const end = template.indexOf(">", template.indexOf("wInteractable", start));
       const tag = template.substring(start, end);

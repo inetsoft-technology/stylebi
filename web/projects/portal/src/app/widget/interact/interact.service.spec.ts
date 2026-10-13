@@ -22,26 +22,42 @@ import { InteractService } from "./interact.service";
 // longer have a 2px border to compensate for. A plain point (toolbox drop / paste) must snap to
 // the grid exactly, and a draggable is offset only by its own resizeAdjustment.
 describe("InteractService — snap to grid", () => {
-   function makeService(): InteractService {
+   function makeService(options: any = {}): InteractService {
       const zone: any = { runOutsideAngular: (fn: () => any) => fn() };
       const service = new InteractService(zone, {} as any, {} as any);
       service.setContainer({
          element: { nativeElement: document.createElement("div") },
          snapToGrid: true,
          snapToGuides: false,
-         snapGridSize: 20
+         snapGridSize: 20,
+         snapGuideOffset: 0,
+         ...options
       } as any);
       return service;
    }
 
-   function makeDraggable(resizeAdjustment: number): any {
-      return { element: { nativeElement: document.createElement("div") }, resizeAdjustment };
+   // a composer object editor whose box is at the given page bounds
+   function makeDraggable(resizeAdjustment: number,
+                          bounds = { left: 0, top: 0, width: 0, height: 0 }): any
+   {
+      const element = document.createElement("div");
+      element.className = "object-editor outline-highlight";
+      const rect = { ...bounds, right: bounds.left + bounds.width,
+                     bottom: bounds.top + bounds.height };
+      vi.spyOn(element, "getClientRects").mockReturnValue([rect] as any);
+      vi.spyOn(element, "getBoundingClientRect").mockReturnValue(rect as any);
+      return { element: { nativeElement: element }, resizeAdjustment };
    }
 
-   function snapDraggable(service: InteractService, draggable: any, x: number, y: number): any {
+   // x/y are what interact passes: the element's start top-left plus the pointer delta
+   function snapDraggable(service: InteractService, draggable: any, x: number, y: number,
+                          edges: any = null): any
+   {
       const config = (service as any).createSnapConfig([draggable]);
-      return config.targets[0](x, y, { prepared: { edges: null } });
+      return config.targets[0](x, y, { prepared: { edges } });
    }
+
+   afterEach(() => vi.restoreAllMocks());
 
    it("snaps a plain point to the exact grid", () => {
       const p = makeService().snap(new Point(137, 138));
@@ -59,5 +75,42 @@ describe("InteractService — snap to grid", () => {
       const p = snapDraggable(makeService(), makeDraggable(2), 137, 138);
       expect(p.x).toBe(138);
       expect(p.y).toBe(138);
+   });
+
+   it("snaps a drag at the canvas origin to 0,0, never negative", () => {
+      const p = snapDraggable(makeService(), makeDraggable(0), -3, -4);
+      expect(p.x).toBe(0);
+      expect(p.y).toBe(0);
+   });
+
+   it("snaps the right/bottom edges of a resize to the exact grid", () => {
+      const bounds = { left: 100, top: 100, width: 183, height: 121 };
+      const p = snapDraggable(makeService(), makeDraggable(0, bounds), 100 + 190, 100 + 150,
+                              { right: true, bottom: true });
+      // interact moves the right/bottom edge by the same delta as the returned top-left
+      expect(p.x + bounds.width).toBe(480);
+      expect(p.y + bounds.height).toBe(380);
+   });
+
+   it("snaps the left/top edges of a resize to the exact grid", () => {
+      const bounds = { left: 100, top: 100, width: 183, height: 121 };
+      const p = snapDraggable(makeService(), makeDraggable(0, bounds), 100 - 23, 100 - 41,
+                              { left: true, top: true });
+      expect(p.x).toBe(80);
+      expect(p.y).toBe(60);
+   });
+
+   it("snaps to an object guide exactly when the grid is off", () => {
+      const service = makeService({
+         snapToGrid: false,
+         snapToGuides: true,
+         snapGuideRange: 10,
+         snapVerticalGuides: [298],
+         snapHorizontalGuides: [238]
+      });
+      const p = snapDraggable(service, makeDraggable(0, { left: 0, top: 0, width: 50, height: 50 }),
+                              293, 235);
+      expect(p.x).toBe(298);
+      expect(p.y).toBe(238);
    });
 });
