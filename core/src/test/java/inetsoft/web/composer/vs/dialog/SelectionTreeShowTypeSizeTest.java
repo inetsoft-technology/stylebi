@@ -29,6 +29,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
+import inetsoft.web.composer.model.vs.SizePositionPaneModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
@@ -47,7 +48,9 @@ import java.awt.*;
 import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
@@ -150,6 +153,40 @@ class SelectionTreeShowTypeSizeTest {
 
       assertEquals(new Dimension(132, 202), saved.getPixelSize());
       assertEquals(10, saved.getListHeight());
+   }
+
+   // a typed height refits the rows as a list's does: 300 - 30 - 32 holds eight whole 28px rows,
+   // so the box comes back from Dropdown at 30 + 8 x 28 + 32 = 286, not the 300 typed
+   @Test
+   void aHeightTypedInSizeAndPositionRefitsATreesRows() throws Exception {
+      SelectionTreeVSAssemblyInfo info = seededTree("comfortable");
+      wire(info);
+      lenient().when(dialogService.getAssemblySize(any(), any()))
+         .thenAnswer(inv -> ((AssemblyInfo) inv.getArgument(0)).getPixelSize());
+      lenient().doAnswer(inv -> {
+         SizePositionPaneModel typed = inv.getArgument(1);
+         ((VSAssemblyInfo) inv.getArgument(0))
+            .setPixelSize(new Dimension(typed.getWidth(), typed.getHeight()));
+         return null;
+      }).when(dialogService).setAssemblySize(any(VSAssemblyInfo.class), any(SizePositionPaneModel.class));
+      SelectionTreePropertyDialogModel model =
+         service.getSelectionTreePropertyModel("Viewsheet1", "SelectionTree1", null);
+      SizePositionPaneModel size = model.getSelectionGeneralPaneModel().getSizePositionPaneModel();
+      size.setSizeFollowsDensity(false);
+      size.setHeight(300);
+
+      SelectionTreeVSAssemblyInfo saved = submit(model);
+
+      assertTrue(saved.isUserSize());
+      assertEquals(new Dimension(132, 300), saved.getPixelSize());
+      assertEquals(8, saved.getListHeight());
+
+      Mockito.reset(dialogService, viewsheet);
+      clearInvocations(vsObjectPropertyService);
+      SelectionTreeVSAssemblyInfo listed = switchedToList(saved);
+
+      assertEquals(286, listed.getPixelSize().height);
+      assertEquals(8, listed.getListHeight());
    }
 
    private SelectionTreeVSAssemblyInfo seededTree(String density) {

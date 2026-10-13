@@ -249,7 +249,8 @@ public class SelectionListPropertyDialogService {
          new Dimension(dialogService.getAssemblySize(selectionListAssemblyInfo, rvs.getViewsheet()));
       VSDialogService.applyDensitySize(selectionListAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblySize(selectionListAssemblyInfo, sizePositionPaneModel);
-      VSDialogService.recordAuthorSize(selectionListAssemblyInfo, sizePositionPaneModel, shownSize);
+      boolean authorResized = VSDialogService.recordAuthorSize(
+         selectionListAssemblyInfo, sizePositionPaneModel, shownSize);
       dialogService.setAssemblyPosition(selectionListAssemblyInfo, sizePositionPaneModel);
 
       Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
@@ -380,6 +381,11 @@ public class SelectionListPropertyDialogService {
       }
       else {
          selectionListAssemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
+      }
+
+      // a typed height refits the rows as a drag does; last, after the rows, lane, inset and mode
+      if(authorResized && selectionListAssemblyInfo.getVizMark() != null) {
+         selectionListAssemblyInfo.fitListHeightToBox();
       }
 
       setAssemblyInfoTables(selectionListAssemblyInfo, selectionListPaneModel, principal);

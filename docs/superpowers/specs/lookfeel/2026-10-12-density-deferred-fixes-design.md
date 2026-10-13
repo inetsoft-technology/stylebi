@@ -68,7 +68,9 @@ recognised tier size. Unmarked lists and trees are unchanged from `c66a5aca51`.
 **Amended 2026-10-13 — only a new height sizes a list or tree.** A selection list or tree becomes author-sized
 (`userSize`) only when its box's height changes. A width drag, Align, Distribute or Arrange that resends the height,
 and a width typed in Size & Position, leave a never-sized box never-sized, so it keeps opening to its tier box; a new
-height, by drag, title-lane drag, Arrange or Size & Position, flags it, and the composer resize refits its rows.
+height, by drag, title-lane drag, Arrange or Size & Position, flags it and refits its rows to what the box holds —
+the composer resize for a list, and the list and tree dialogs for a height typed in List mode (amended later on
+2026-10-13; the dialog previously left the rows alone).
 Unticking "Follow the default density" with no size change still flags the box: it is the author's explicit claim,
 and without the flag the box would follow again. Unticking it and typing only a width does not, since the new width
 already keeps the box off its tier size. Applying the dialog to a box shown unticked only because it is off its tier
@@ -76,7 +78,9 @@ size — a widened, never-sized list — claims nothing.
 
 - One check, `VSAssemblyInfo.isAuthorSizeChange(before, after)`, decides both writers of the flag,
   `ComposerObjectService.resizeObject` and `VSDialogService.recordAuthorSize`: any change by default, the height
-  alone in `SelectionBaseVSAssemblyInfo`.
+  alone in `SelectionBaseVSAssemblyInfo`. `recordAuthorSize` returns that decision, and the list and tree dialogs
+  call `fitListHeightToBox()` on it for a marked box, last, after the dialog's own Height, title, cell height, inset
+  and show type writes. Unmarked lists and trees are not refit.
 - `recordAuthorSize` flags an unticked answer only while the box still follows the density after the typed size is
   written (`followsDensitySize()`), so the untick sticks. Selection containers keep flagging every size change; for
   them the only difference is that an untouched Apply of a box shown unticked off its tier size no longer flags it,
@@ -140,7 +144,7 @@ Whole rows mean some heights do not round-trip exactly: 160 at dense stores 6 ro
 
 **Amended 2026-10-13.** The second and fourth bullets are withdrawn: `seedChromeDefaults` no longer calls
 `fitListHeightToBox()` (the size seed itself stays), and the dialogs no longer fit the rows when the size box is
-ticked. `getFittingListHeight` and `fitListHeightToBox` remain for the resize, which is unchanged. D1's rule lives in
+ticked. `getFittingListHeight` and `fitListHeightToBox` remain for the resize, which is unchanged (and, from later 2026-10-13, for a height typed in the list and tree dialogs). D1's rule lives in
 one method, `SelectionBaseVSAssemblyInfo.getContainedListHeight()`: unmarked, `listHeight × defh + title` as before;
 marked and `!isUserSize()`, the tier box; marked and `isUserSize()`, `title + getListBodyHeight()`. Every rebuild
 calls it — the list dialog's and the tree dialog's marked Dropdown→List (the tree keeps its `max` with the current
@@ -209,9 +213,11 @@ compact and dense, using the `DFX1`–`DFX4` fixtures. The unmarked fixtures (`D
 
 1. ~~Content saved before this branch keeps its stored 6 rows in the composer until a height drag, the tick, a
    density change, Modernize or Revert; a composer open does not seed.~~ *(Replaced 2026-10-13: only the dropdown's
-   Height and a height drag write the rows now, so saved content needs no seed.)* A Height typed in Dropdown mode on a list the
+   Height, a height drag and (from later 2026-10-13) a typed height write the rows now, so saved content needs no seed.)* A Height typed in Dropdown mode on a list the
    author never sized does not size its List box — the List box is the density box until the author sizes it.
-2. A typed Height in Size & Position does not refit the rows (unchanged).
+2. ~~A typed Height in Size & Position does not refit the rows (unchanged).~~ *(Replaced 2026-10-13: a height
+   typed in Size & Position for a marked list or tree in List mode refits its rows as a drag does, so the author's box
+   comes back from Dropdown as sized, to whole rows — 300 at comfortable holds 8 rows and rebuilds 286.)*
 3. A marked container with a hidden title saves child y values the composer canvas does not draw.
 4. Under full stylesheet coverage with an author padding and an author row height, a tier change now moves the row
    by the tier padding difference, as author-sized rows without a padding already do.

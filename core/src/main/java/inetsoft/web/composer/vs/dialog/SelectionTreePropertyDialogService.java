@@ -276,7 +276,8 @@ public class SelectionTreePropertyDialogService {
          new Dimension(dialogService.getAssemblySize(streeInfo, viewsheet.getViewsheet()));
       VSDialogService.applyDensitySize(streeInfo, sizePositionPaneModel);
       dialogService.setAssemblySize(streeInfo, sizePositionPaneModel);
-      VSDialogService.recordAuthorSize(streeInfo, sizePositionPaneModel, shownSize);
+      boolean authorResized =
+         VSDialogService.recordAuthorSize(streeInfo, sizePositionPaneModel, shownSize);
       dialogService.setAssemblyPosition(streeInfo, sizePositionPaneModel);
       Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
 
@@ -417,6 +418,11 @@ public class SelectionTreePropertyDialogService {
       }
       else {
          streeInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
+      }
+
+      // a typed height refits the rows as a drag does; last, after the rows, lane, inset and mode
+      if(authorResized && streeInfo.getVizMark() != null) {
+         streeInfo.fitListHeightToBox();
       }
 
       setAssemblyInfoTables(streeInfo, selectionTreePaneModel, principal);
