@@ -18,7 +18,6 @@
 
 package inetsoft.report.filter;
 
-import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.report.lens.DataSetTable;
 import inetsoft.test.*;
@@ -65,10 +64,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 public class DCMergeDatePartFilterIgniteMarshalTest {
-   // DC runtime calc name of the week-of-year part (Bug #78446)
-   private static final String WOY_DATE = DateComparisonUtil.getDCCalcPartName(
-      DateComparisonUtil.DC_CALC_WEEK_OF_YEAR, "date");
-
    @BeforeAll
    static void startIgnite() throws Exception {
       int discoPort = freePort();
@@ -221,7 +216,7 @@ public class DCMergeDatePartFilterIgniteMarshalTest {
    private static final class Fixture {
       Fixture(int rowCount) {
          List<Object[]> rows = new ArrayList<>();
-         rows.add(new Object[]{ "Year(date)", WOY_DATE, "date", "Sum(qty)" });
+         rows.add(new Object[]{ "Year(date)", "WeekOfYear(date)", "date", "Sum(qty)" });
 
          for(int i = 0; i < rowCount; i++) {
             int month = i % 12 + 1;
@@ -234,7 +229,7 @@ public class DCMergeDatePartFilterIgniteMarshalTest {
          VSDimensionRef yearRef = new VSDimensionRef();
          yearRef.setDataRef(new AttributeRef("Year(date)"));
          VSDimensionRef partRef = new VSDimensionRef();
-         partRef.setDataRef(new AttributeRef(WOY_DATE));
+         partRef.setDataRef(new AttributeRef("WeekOfYear(date)"));
          VSDimensionRef dateGroupRef = new VSDimensionRef();
          dateGroupRef.setDataRef(new AttributeRef("date"));
          List<XDimensionRef> extras = new ArrayList<>();

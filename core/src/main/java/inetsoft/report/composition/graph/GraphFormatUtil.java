@@ -960,12 +960,10 @@ public class GraphFormatUtil {
       if(dataRef instanceof CalculateRef && ((CalculateRef) dataRef).isDcRuntime() &&
          dataRef.getName() != null)
       {
-         String part = DateComparisonUtil.getDCCalcPart(dataRef.getName());
-
-         if(DateComparisonUtil.DC_CALC_MONTH_OF_QUARTER.equals(part)) {
+         if(dataRef.getName().startsWith("MonthOfQuarter(")) {
             partLevel = DateRangeRef.MONTH_OF_QUARTER_PART;
          }
-         else if(DateComparisonUtil.DC_CALC_MONTH_OF_QUARTER_OF_WEEK.equals(part)) {
+         else if(dataRef.getName().startsWith("MonthOfQuarterOfWeek(")) {
             partLevel = DateRangeRef.MONTH_OF_QUARTER_FULL_WEEK_PART;
          }
       }

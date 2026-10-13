@@ -108,8 +108,7 @@ class DateComparisonInfoTempDateGroupRefTest {
          + "period whose WEEK granularity/context resets every quarter instance -- an "
          + "empty array leaves computeValidParts() with bare, period-relative integers "
          + "it cannot tell apart across quarters (Bug #77010)");
-      Assertions.assertEquals(DateComparisonUtil.getDCCalcPartName(
-            DateComparisonUtil.DC_CALC_WEEK_OF_QUARTER, "date"), tempRefs[0].getFullName(),
+      Assertions.assertEquals("WeekOfQuarter(date)", tempRefs[0].getFullName(),
          "expected the same 'week of quarter' calc ref the WEEK-granularity branch of "
          + "updateDateDimensionLevel() manufactures for the chart's own X-axis dimension "
          + "under a QUARTER period, mirroring the existing MonthOfQuarter/WeekOfMonth "

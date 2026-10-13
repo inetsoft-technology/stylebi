@@ -36,7 +36,10 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
@@ -1688,6 +1691,14 @@ public abstract class VSAQuery {
          if(ref instanceof CalculateRef && ((CalculateRef) ref).isBaseOnDetail()) {
             CalculateRef calc = (CalculateRef) ref;
 
+            // a date comparison runtime calc field of another assembly is never used here, even
+            // when its name equals one of this assembly's columns (Bug #78446)
+            if(isForeignDcRuntimeCalc(calc)) {
+               childPriv.removeAttribute(i);
+               childPub.removeAttribute(i);
+               return true;
+            }
+
             boolean inSelection = usedInSelection(pubcols, calc);
             boolean inGroup = usedInGroup(ainfo, calc);
             boolean inAggregate = usedInAggregate(ainfo, calc);
@@ -1708,6 +1719,41 @@ public abstract class VSAQuery {
       }
 
       return false;
+   }
+
+   /**
+    * Check if the calc field is a date comparison runtime calc field that the assembly of this
+    * query does not use. These calc fields are added to the viewsheet per source table by the
+    * date comparison of an assembly (DateComparisonInfo.createCalcRefForNonSupportPartLevel),
+    * so they are appended to the query of every assembly bound to that table. Their names,
+    * e.g. WeekOfYear(Date), can equal the full name of a date level dimension of another
+    * assembly, so the name based checks in removeUnusedCalcField would keep one in a query
+    * without date comparison, where it collides with the dimension column of the same name and
+    * the dimension is grouped by the calc field's values under a renamed "_1" header
+    * (Bug #78446). Only an assembly with date comparison applied refers to them.
+    */
+   private boolean isForeignDcRuntimeCalc(CalculateRef calc) {
+      if(!calc.isDcRuntime()) {
+         return false;
+      }
+
+      VSAssembly assembly = getAssembly();
+
+      if(assembly == null) {
+         return false;
+      }
+
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+      if(info instanceof ChartVSAssemblyInfo) {
+         return !((ChartVSAssemblyInfo) info).getVSChartInfo().isAppliedDateComparison();
+      }
+      else if(info instanceof CrosstabVSAssemblyInfo) {
+         return !((CrosstabVSAssemblyInfo) info).getVSCrosstabInfo().isAppliedDateComparison();
+      }
+
+      // only charts and crosstabs support date comparison
+      return true;
    }
 
    private boolean usedInSelection(ColumnSelection cols, CalculateRef calc) {

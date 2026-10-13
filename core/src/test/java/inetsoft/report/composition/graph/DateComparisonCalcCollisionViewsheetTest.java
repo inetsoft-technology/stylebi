@@ -18,11 +18,13 @@
 package inetsoft.report.composition.graph;
 
 import inetsoft.graph.data.DataSet;
+import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.*;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
@@ -43,9 +45,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Bug #78446: a date comparison chart on a table registers a viewsheet-wide runtime calc
- * field for the week-of-year part (Year period, Week To Date, For Each = Week). Another,
- * non-DC chart on the same table bound to Date at Week of Year must keep its own
- * WeekOfYear(D) column: same header (no "_1"), same week values, and the graph renders.
+ * field WeekOfYear(D) for the week-of-year part (Year period, Week To Date, For Each = Week).
+ * Its name equals the full name of a Week of Year dimension. A non-DC chart or crosstab on the
+ * same table bound to D at Week of Year must not pick up that calc field and must keep its own
+ * WeekOfYear(D) column: same header (no "_1"), same week values, and the chart renders.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
@@ -75,6 +78,7 @@ class DateComparisonCalcCollisionViewsheetTest {
 
       // baseline, before any date comparison calc exists on the table
       Columns before = weekOfYearChart(box, vs, source, "ChartBefore");
+      Columns xbefore = weekOfYearCrosstab(box, vs, source, "CrosstabBefore");
       assertTrue(before.headers.contains("WeekOfYear(D)"), "headers " + before.headers);
       assertFalse(before.weeks.isEmpty());
 
@@ -93,16 +97,61 @@ class DateComparisonCalcCollisionViewsheetTest {
          }
       }
 
-      assertEquals(1, dcCalcs.size(), "dc calcs " + dcCalcs);
-      assertNotEquals("WeekOfYear(D)", dcCalcs.get(0));
-      assertTrue(DateComparisonUtil.isDCCalcPartName(
-         dcCalcs.get(0), DateComparisonUtil.DC_CALC_WEEK_OF_YEAR), dcCalcs.get(0));
+      // the DC calc field has the same name as the Week of Year dimension
+      assertEquals(List.of("WeekOfYear(D)"), dcCalcs);
 
       Columns after = weekOfYearChart(box, vs, source, "ChartAfter");
       assertEquals(before.headers, after.headers);
       assertFalse(after.headers.stream().anyMatch(h -> h.endsWith("_1")),
                   "headers " + after.headers);
       assertEquals(before.weeks, after.weeks);
+
+      Columns xafter = weekOfYearCrosstab(box, vs, source, "CrosstabAfter");
+      assertEquals(xbefore.headers, xafter.headers);
+      assertEquals(xbefore.weeks, xafter.weeks);
+   }
+
+   private static Columns weekOfYearCrosstab(ViewsheetSandbox box, Viewsheet vs,
+                                             SourceInfo source, String name)
+      throws Exception
+   {
+      CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, name);
+      crosstab.setSourceInfo((SourceInfo) source.clone());
+      VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
+      VSDimensionRef dim = new VSDimensionRef();
+      AttributeRef attr = new AttributeRef(null, "D");
+      attr.setDataType(XSchema.DATE);
+      ColumnRef column = new ColumnRef(attr);
+      column.setDataType(XSchema.DATE);
+      dim.setDataRef(column);
+      dim.setGroupColumnValue("D");
+      dim.setDataType(XSchema.DATE);
+      dim.setDateLevelValue(DateRangeRef.WEEK_OF_YEAR_PART + "");
+      VSAggregateRef agg = new VSAggregateRef();
+      agg.setColumnValue("wind");
+      agg.setFormulaValue("Sum");
+      cinfo.setDesignRowHeaders(new DataRef[] { dim });
+      cinfo.setDesignAggregates(new DataRef[] { agg });
+      vs.addAssembly(crosstab);
+
+      TableLens lens = (TableLens) box.getData(name);
+      assertNotNull(lens, name + " data");
+      lens.moreRows(Integer.MAX_VALUE);
+      Columns columns = new Columns();
+
+      for(int c = 0; c < lens.getColCount(); c++) {
+         columns.headers.add(String.valueOf(lens.getObject(0, c)));
+      }
+
+      assertEquals("WeekOfYear(D)", columns.headers.get(0), name + " headers " + columns.headers);
+
+      for(int r = lens.getHeaderRowCount(); lens.moreRows(r); r++) {
+         columns.weeks.add(lens.getObject(r, 0));
+         columns.weeks.add(lens.getObject(r, 1));
+      }
+
+      assertTrue(columns.weeks.size() > 2, name + " rows");
+      return columns;
    }
 
    private static void registerDateComparisonCalc(Viewsheet vs, String tname) {

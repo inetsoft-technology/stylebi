@@ -35,7 +35,6 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.affinity.AffinitySupport;
 import inetsoft.util.config.InetsoftConfig;
@@ -858,10 +857,7 @@ public final class Tool extends CoreTool {
                   header = localizeTextID(textID) == null ? header : textID;
                }
 
-               // never show the internal marker of a date comparison calc field
-               // name (Bug #78446)
-               String header0 = Tool.localize(
-                  DateComparisonUtil.getDCCalcPartDisplayName(header.toString()));
+               String header0 = Tool.localize(header.toString());
                lens.setObject(row, col, header0);
 
                lastRow = row;

@@ -50,8 +50,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * Bug #78446: date comparison charts and crosstabs whose visible dimension is itself a DC
  * runtime calc field (Year period + Year To Date + Day granularity gives DayOfYear; Quarter
  * period + Quarter To Date + Month granularity gives MonthOfQuarter) are executed end to end.
- * The internal DCPart_ marker of the calc name must not reach the axis titles/labels, the
- * tooltip caption or the crosstab header, and the DC part values must stay numeric.
+ * The axis title/tooltip caption and the crosstab header show the part name (e.g. DayOfYear(D))
+ * with no internal marker, and the DC part values stay numeric. These assemblies own their DC
+ * calc fields, so the calc fields must stay in their queries.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
@@ -81,16 +82,16 @@ class DateComparisonVisibleCalcPartViewsheetTest {
 
       checkChart(box, vs, source, "DcDayOfYear", XConstants.YEAR_DATE_GROUP,
                  DateComparisonInfo.YEAR_TO_DATE, DateComparisonInfo.DAY,
-                 DateComparisonUtil.DC_CALC_DAY_OF_YEAR);
+                 "DayOfYear");
       checkChart(box, vs, source, "DcMonthOfQuarter", XConstants.QUARTER_DATE_GROUP,
                  DateComparisonInfo.QUARTER_TO_DATE, DateComparisonInfo.MONTH,
-                 DateComparisonUtil.DC_CALC_MONTH_OF_QUARTER);
+                 "MonthOfQuarter");
       checkCrosstab(box, vs, source, "XDayOfYear", XConstants.YEAR_DATE_GROUP,
                     DateComparisonInfo.YEAR_TO_DATE, DateComparisonInfo.DAY,
-                    DateComparisonUtil.DC_CALC_DAY_OF_YEAR);
+                    "DayOfYear");
       checkCrosstab(box, vs, source, "XMonthOfQuarter", XConstants.QUARTER_DATE_GROUP,
                     DateComparisonInfo.QUARTER_TO_DATE, DateComparisonInfo.MONTH,
-                    DateComparisonUtil.DC_CALC_MONTH_OF_QUARTER);
+                    "MonthOfQuarter");
       assertTrue(problems.isEmpty(), "marker shown: " + problems);
    }
 
@@ -112,7 +113,7 @@ class DateComparisonVisibleCalcPartViewsheetTest {
       VGraph graph = pair.getExpandedVGraph();
       assertNotNull(graph, name + " has a graph");
 
-      String calcName = DateComparisonUtil.getDCCalcPartName(part, "D");
+      String calcName = part + "(D)";
       VSChartInfo rinfo = chart.getVSChartInfo();
       ChartRef partRef = null;
 
@@ -157,7 +158,7 @@ class DateComparisonVisibleCalcPartViewsheetTest {
 
       assertFalse(texts.isEmpty(), name + " has visible texts");
 
-      if(texts.stream().anyMatch(t -> t.contains(DateComparisonUtil.DC_CALC_PART_PREFIX))) {
+      if(texts.stream().anyMatch(t -> t.contains("DCPart_"))) {
          problems.add(name + " visible texts " + texts);
       }
    }
@@ -188,7 +189,7 @@ class DateComparisonVisibleCalcPartViewsheetTest {
       }
 
       if(!header.contains(part + "(D)") ||
-         header.stream().anyMatch(t -> t.contains(DateComparisonUtil.DC_CALC_PART_PREFIX)))
+         header.stream().anyMatch(t -> t.contains("DCPart_")))
       {
          problems.add(name + " header " + header);
       }

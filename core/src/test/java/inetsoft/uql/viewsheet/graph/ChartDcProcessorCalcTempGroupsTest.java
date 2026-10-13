@@ -17,7 +17,6 @@
  */
 package inetsoft.uql.viewsheet.graph;
 
-import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.composition.graph.calc.ChangeColumn;
 import inetsoft.report.composition.graph.calc.ValueOfCalc;
@@ -66,8 +65,7 @@ class ChartDcProcessorCalcTempGroupsTest {
 
       assertTrue(names(shape.tempRefs).contains(shape.partName),
                  "fixture: temp list must contain the part dim (#77010 shape)");
-      assertTrue(DateComparisonUtil.isDCCalcPartName(
-                    shape.partName, DateComparisonUtil.DC_CALC_WEEK_OF_QUARTER), shape.partName);
+      assertTrue(shape.partName.startsWith("WeekOfQuarter("), shape.partName);
       assertFalse(names(shape.calcList).contains(shape.partName));
       // the info's array is not modified
       assertTrue(names(shape.tempRefs).contains(shape.partName));

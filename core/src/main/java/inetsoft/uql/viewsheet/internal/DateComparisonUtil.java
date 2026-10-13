@@ -53,24 +53,6 @@ import java.util.*;
 
 public class DateComparisonUtil {
    /**
-    * Marker prefix of the date comparison runtime calc field names. Never shown to users,
-    * see {@link #getDCCalcPartDisplayName(String)}. (Bug #78446)
-    */
-   public static final String DC_CALC_PART_PREFIX = "DCPart_";
-   public static final String DC_CALC_DAY_OF_YEAR = "DayOfYear";
-   public static final String DC_CALC_WEEK_OF_YEAR = "WeekOfYear";
-   public static final String DC_CALC_MONTH_OF_QUARTER = "MonthOfQuarter";
-   public static final String DC_CALC_MONTH_OF_QUARTER_OF_WEEK = "MonthOfQuarterOfWeek";
-   public static final String DC_CALC_WEEK_OF_QUARTER = "WeekOfQuarter";
-   public static final String DC_CALC_DAY_OF_QUARTER = "DayOfQuarter";
-   public static final String DC_CALC_WEEK_OF_MONTH = "WeekOfMonth";
-   private static final String[] DC_CALC_PARTS = {
-      DC_CALC_DAY_OF_YEAR, DC_CALC_WEEK_OF_YEAR, DC_CALC_MONTH_OF_QUARTER,
-      DC_CALC_MONTH_OF_QUARTER_OF_WEEK, DC_CALC_WEEK_OF_QUARTER, DC_CALC_DAY_OF_QUARTER,
-      DC_CALC_WEEK_OF_MONTH
-   };
-
-   /**
     * Get first date dimension.
     *
     * @param fields fields to be searched.
@@ -943,74 +925,15 @@ public class DateComparisonUtil {
          !justPart && ref.getDateLevel() == DateRangeRef.YEAR_DATE_GROUP;
    }
 
-   /**
-    * Build the name of a date comparison runtime calc field for a date part that has no
-    * built-in date level (see DateComparisonInfo.createCalcRefForNonSupportPartLevel()).
-    * The name carries {@link #DC_CALC_PART_PREFIX} so that it can never equal, or be a
-    * substring of, a normal date level dimension's full name (e.g. WeekOfYear(Date)) or a
-    * user calc field. DC calc fields are registered viewsheet-wide per source table, so a
-    * name collision leaks the DC calc into other assemblies' queries. (Bug #78446)
-    *
-    * @param part one of the DC_CALC_* part names, e.g. {@link #DC_CALC_WEEK_OF_YEAR}.
-    * @param column the base date column name.
-    */
-   public static String getDCCalcPartName(String part, String column) {
-      return DC_CALC_PART_PREFIX + part + "(" + column + ")";
-   }
-
-   /**
-    * Get the part name (e.g. {@link #DC_CALC_WEEK_OF_YEAR}) of a date comparison runtime calc
-    * field name built by {@link #getDCCalcPartName(String, String)}.
-    *
-    * @return the part name, or null if the name is not a DC calc part name.
-    */
-   public static String getDCCalcPart(String name) {
-      if(name == null || !name.startsWith(DC_CALC_PART_PREFIX) || !name.endsWith(")")) {
-         return null;
-      }
-
-      for(String part : DC_CALC_PARTS) {
-         if(name.startsWith(part + "(", DC_CALC_PART_PREFIX.length())) {
-            return part;
-         }
-      }
-
-      return null;
-   }
-
-   /**
-    * Check if the name is a date comparison runtime calc field name of the specified part.
-    */
-   public static boolean isDCCalcPartName(String name, String part) {
-      return part != null && part.equals(getDCCalcPart(name));
-   }
-
-   /**
-    * Get the display name of a column/field name: the internal marker of a date comparison
-    * runtime calc field name is removed (e.g. WeekOfYear(Date)), any other name is returned
-    * unchanged.
-    */
-   public static String getDCCalcPartDisplayName(String name) {
-      return getDCCalcPart(name) == null ? name : name.substring(DC_CALC_PART_PREFIX.length());
-   }
-
-   /**
-    * Get the base date column of a date comparison runtime calc field name.
-    *
-    * @return the base column, or null if the name is not a DC calc part name.
-    */
-   public static String getDCCalcPartBaseColumn(String name) {
-      String part = getDCCalcPart(name);
-
-      if(part == null) {
-         return null;
-      }
-
-      return name.substring(DC_CALC_PART_PREFIX.length() + part.length() + 1, name.length() - 1);
-   }
-
    public static boolean isDCCalcDatePartRef(String name) {
-      return getDCCalcPart(name) != null;
+      if(name == null) {
+         return false;
+      }
+
+      return name.startsWith("DayOfYear(") || name.startsWith("MonthOfQuarter(") ||
+         name.startsWith("WeekOfQuarter(") || name.startsWith("DayOfQuarter(") ||
+         name.startsWith("WeekOfMonth(") || name.startsWith("WeekOfYear(") ||
+         name.startsWith(DateRangeRef.getRangeValue(DateRangeRef.MONTH_OF_QUARTER_FULL_WEEK_PART) + "(");
    }
 
    public static boolean isDCCalcDatePartRef(XDimensionRef dim) {
@@ -1036,18 +959,33 @@ public class DateComparisonUtil {
       DataRef dref = ((VSDimensionRef) ref).getDataRef();
 
       if(dref instanceof CalculateRef) {
-         String part = getDCCalcPart(dref.getName());
+         String name = dref.getName();
 
-         return DC_CALC_DAY_OF_YEAR.equals(part) || DC_CALC_WEEK_OF_QUARTER.equals(part) ||
-            DC_CALC_WEEK_OF_YEAR.equals(part) || DC_CALC_DAY_OF_QUARTER.equals(part);
+         return name.startsWith("DayOfYear(") || name.startsWith("WeekOfQuarter(") ||
+            name.startsWith("WeekOfYear(") || name.startsWith("DayOfQuarter(");
       }
 
       return false;
    }
 
    public static String getBaseName(String name) {
-      String base = getDCCalcPartBaseColumn(name);
-      return base != null ? base : DateRangeRef.getBaseName(name);
+      if(name.startsWith("DayOfYear(")) {
+         return name.substring(10, name.length() - 1);
+      }
+      else if(name.startsWith("MonthOfQuarter(")) {
+         return name.substring(15, name.length() - 1);
+      }
+      else if(name.startsWith("WeekOfQuarter(")) {
+         return name.substring(14, name.length() - 1);
+      }
+      else if(name.startsWith("DayOfQuarter(")) {
+         return name.substring(13, name.length() - 1);
+      }
+      else if(name.startsWith("WeekOfMonth(")) {
+         return name.substring(12, name.length() - 1);
+      }
+
+      return DateRangeRef.getBaseName(name);
    }
 
    public static void fixDCModelProperties(Viewsheet vs, DateComparisonPaneModel dateComparisonModel,
@@ -1188,13 +1126,12 @@ public class DateComparisonUtil {
          boolean last = mergedRefs.size() - 1 == i;
 
          if(DateComparisonUtil.isDCCalcDatePartRef(mergedRef)) {
-            String part = getDCCalcPart(mergedRef.getFullName());
-
-            if(DC_CALC_DAY_OF_YEAR.equals(part)) {
+            if(mergedRef.getFullName().startsWith("DayOfYear(")) {
                cal.set(Calendar.DAY_OF_YEAR, value);
             }
-            else if(DC_CALC_MONTH_OF_QUARTER.equals(part) ||
-               DC_CALC_MONTH_OF_QUARTER_OF_WEEK.equals(part))
+            else if(mergedRef.getFullName().startsWith("MonthOfQuarter(") ||
+               mergedRef.getFullName().startsWith(
+                  DateRangeRef.getRangeValue(DateRangeRef.MONTH_OF_QUARTER_FULL_WEEK_PART) + "("))
             {
                cal.add(Calendar.MONTH, value - 1);
 
@@ -1202,18 +1139,18 @@ public class DateComparisonUtil {
                   formatLevel = DateRangeRef.MONTH_INTERVAL;
                }
             }
-            else if(DC_CALC_WEEK_OF_QUARTER.equals(part)) {
+            else if(mergedRef.getFullName().startsWith("WeekOfQuarter(")) {
                cal.set(Calendar.WEEK_OF_MONTH, value);
                cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
             }
-            else if(DC_CALC_DAY_OF_QUARTER.equals(part)) {
+            else if(mergedRef.getFullName().startsWith("DayOfQuarter(")) {
                cal.set(Calendar.DAY_OF_MONTH, value);
             }
-            else if(DC_CALC_WEEK_OF_MONTH.equals(part)) {
+            else if(mergedRef.getFullName().startsWith("WeekOfMonth(")) {
                cal.set(Calendar.WEEK_OF_MONTH, value);
                cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
             }
-            else if(DC_CALC_WEEK_OF_YEAR.equals(part)) {
+            else if(mergedRef.getFullName().startsWith("WeekOfYear(")) {
                if(mergedRef instanceof VSDimensionRef &&
                   ((VSDimensionRef) mergedRef).isDcSequentialWeek())
                {

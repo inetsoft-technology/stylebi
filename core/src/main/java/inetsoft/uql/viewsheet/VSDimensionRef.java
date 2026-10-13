@@ -32,7 +32,6 @@ import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.graph.HyperlinkRef;
-import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 
@@ -1001,9 +1000,7 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
     */
    @Override
    public String toView() {
-      // never show the internal marker of a date comparison calc field name (Bug #78446)
-      String view = DateComparisonUtil.getDCCalcPartDisplayName(
-         NamedRangeRef.getBaseName(getFullName()));
+      String view = NamedRangeRef.getBaseName(getFullName());
       int idx = view.indexOf('(');
 
       if(idx > 0) {
