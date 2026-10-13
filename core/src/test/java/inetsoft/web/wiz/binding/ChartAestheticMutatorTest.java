@@ -2412,6 +2412,39 @@ class ChartAestheticMutatorTest {
       assertEquals("Region", ((ChartDimensionRefModel) model.getColorField().getDataInfo()).getName());
    }
 
+   // ── timeSeries:true over a stored non-ascending sort (bug #78474) ───────────────────────
+
+   @Test
+   void timeSeriesTrueOverAStoredDescSortOnTheColourDimensionIsRefusedAndRestored() {
+      ChartBindingModel model = modelWithChangeCalc("Quarter(Order Date)");
+      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "quarter", false));
+      ChartDimensionRefModel stored = (ChartDimensionRefModel) model.getColorField().getDataInfo();
+      stored.setOrder(inetsoft.uql.XConstants.SORT_DESC); // only native authoring can do this
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "quarter", true)));
+
+      assertTrue(e.getMessage().contains("timeSeries") && e.getMessage().contains("sort") &&
+                 e.getMessage().contains("'desc'") && e.getMessage().contains("color channel") &&
+                 e.getMessage().contains("clear_aesthetic_field"), e.getMessage());
+      assertSame(stored, model.getColorField().getDataInfo(), "the previous field is restored");
+      assertFalse(stored.isTimeSeries());
+      assertEquals(inetsoft.uql.XConstants.SORT_DESC, stored.getOrder());
+   }
+
+   @Test
+   void timeSeriesTrueEchoedOverANativeDormantDescOnTheColourDimensionIsAccepted() {
+      ChartBindingModel model = modelWithChangeCalc("Quarter(Order Date)");
+      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "quarter", false));
+      ChartDimensionRefModel stored = (ChartDimensionRefModel) model.getColorField().getDataInfo();
+      stored.setOrder(inetsoft.uql.XConstants.SORT_DESC);
+      stored.setTimeSeries(true);
+
+      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "quarter", true));
+
+      assertTrue(colorTimeSeries(model));
+   }
+
    // ---- #77024 ----
 
    @Test

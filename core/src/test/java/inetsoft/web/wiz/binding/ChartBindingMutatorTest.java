@@ -45,6 +45,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -2043,6 +2044,155 @@ class ChartBindingMutatorTest {
       ChartBindingMutator.setSort(model, "x", "Order Date", null, sortOf("desc"));
 
       assertEquals(XConstants.SORT_DESC, dimAt(model.getXFields(), 0).getOrder());
+   }
+
+   // ── timeSeries:true over a stored non-ascending sort (bug #78474) ───────────────────────
+   //
+   // The opposite order of the sort-side refusal above: a time-series date dimension always
+   // renders ascending, so a desc/value/manual sort carried onto a new ts:true would be stored
+   // and reported by get_binding but never applied.
+
+   private static ChartBindingModel lineMonthOnXWithSum() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_LINE);
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", false)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null)));
+      return model;
+   }
+
+   @Test
+   void timeSeriesTrueOverAStoredNonAscendingSortIsRefusedAndTheShelfIsKept() {
+      Map<String, DimensionSortRanking.Sort> sorts = new LinkedHashMap<>();
+      sorts.put("'desc'", sortOf("desc"));
+      sorts.put("'value_desc' by 'Sum(Total)'",
+                new DimensionSortRanking.Sort("value_desc", "Sum(Total)", null));
+      sorts.put("'value_asc' by 'Sum(Total)'",
+                new DimensionSortRanking.Sort("value_asc", "Sum(Total)", null));
+      sorts.put("'manual' [b, a]", new DimensionSortRanking.Sort("manual", null, List.of("b", "a")));
+
+      for(Map.Entry<String, DimensionSortRanking.Sort> entry : sorts.entrySet()) {
+         ChartBindingModel model = lineMonthOnXWithSum();
+         ChartBindingMutator.setSort(model, "x", "Order Date", null, entry.getValue());
+         ChartDimensionRefModel before = dimAt(model.getXFields(), 0);
+         int order = before.getOrder();
+
+         IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
+            List.of(date("month", true))));
+
+         String message = e.getMessage();
+         assertTrue(message.contains("timeSeries") && message.contains("sort") &&
+                    message.contains("'Order Date'") && message.contains("x shelf") &&
+                    message.contains(entry.getKey()) &&
+                    message.contains("set_chart_field_sort") &&
+                    message.contains("direction:\"asc\"") &&
+                    message.contains("timeSeries:false") && !message.contains("index:"),
+                    message);
+
+         ChartDimensionRefModel after = dimAt(model.getXFields(), 0);
+         assertSame(before, after, "the refused write must leave the stored shelf in place");
+         assertFalse(after.isTimeSeries());
+         assertEquals(order, after.getOrder());
+      }
+   }
+
+   @Test
+   void timeSeriesTrueOverAnAscOrNoneSortIsAcceptedAndTheRemedyWorks() {
+      for(String direction : List.of("asc", "none")) {
+         ChartBindingModel model = lineMonthOnXWithSum();
+         ChartBindingMutator.setSort(model, "x", "Order Date", null, sortOf(direction));
+
+         ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+
+         assertTrue(dimAt(model.getXFields(), 0).isTimeSeries(), direction);
+      }
+
+      // The remedy the refusal names: sort asc, then resend.
+      ChartBindingModel model = lineMonthOnXWithSum();
+      ChartBindingMutator.setSort(model, "x", "Order Date", null,
+         new DimensionSortRanking.Sort("manual", null, List.of("b", "a")));
+      refused(() -> ChartBindingMutator.setShelf(model, "x", List.of(date("month", true))));
+
+      ChartBindingMutator.setSort(model, "x", "Order Date", null, sortOf("asc"));
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+
+      ChartDimensionRefModel month = dimAt(model.getXFields(), 0);
+      assertTrue(month.isTimeSeries());
+      assertEquals(XConstants.SORT_ASC, month.getOrder());
+      assertNull(month.getManualOrder());
+   }
+
+   @Test
+   void timeSeriesTrueWithARankingIsAccepted() {
+      ChartBindingModel model = lineMonthOnXWithSum();
+      ChartBindingMutator.setRanking(model, "x", "Order Date", null,
+         new DimensionSortRanking.Ranking("top", 3, "Sum(Total)", null));
+
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
+   }
+
+   @Test
+   void aNamedGroupSpecificOrderWithoutAManualListIsNotASortConflict() {
+      // A named group forces SORT_SPECIFIC with no list (FieldRefFactory); only a manual list
+      // is a sort the caller chose.
+      ChartBindingModel model = lineMonthOnXWithSum();
+      ChartDimensionRefModel dim = storedDate("month", true);
+      dim.setOrder(XConstants.SORT_SPECIFIC);
+
+      assertDoesNotThrow(() -> ChartTimeSeriesGuard.require(model, ChartTimeSeriesGuard.Place.X,
+         "x", 0, dim, date("month", true), List.of()));
+
+      dim.setManualOrder(new ArrayList<>(List.of("b", "a")));
+      IllegalArgumentException e = refused(() -> ChartTimeSeriesGuard.require(model,
+         ChartTimeSeriesGuard.Place.X, "x", 0, dim, date("month", true), List.of()));
+      assertTrue(e.getMessage().contains("'manual' [b, a]"), e.getMessage());
+
+      // A direction bit stored next to SORT_SPECIFIC is judged on the masked order.
+      ChartDimensionRefModel masked = storedDate("month", true);
+      masked.setOrder(XConstants.SORT_SPECIFIC | XConstants.SORT_DESC);
+      refused(() -> ChartTimeSeriesGuard.require(model, ChartTimeSeriesGuard.Place.X, "x", 0,
+         masked, date("month", true), List.of()));
+   }
+
+   @Test
+   void echoingANativeStoredTrueWithADormantDescIsAccepted() {
+      // Native: sort desc, then tick "As time series" -- the sort stays dormant behind a greyed
+      // control, and get_binding echoes timeSeries:true back.
+      ChartBindingModel model = lineMonthOnXWithSum();
+      ChartDimensionRefModel stored = storedDate("month", true);
+      stored.setOrder(XConstants.SORT_DESC);
+      model.setXFields(new ArrayList<>(List.of(stored)));
+
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+
+      ChartDimensionRefModel month = dimAt(model.getXFields(), 0);
+      assertTrue(month.isTimeSeries());
+      assertEquals(XConstants.SORT_DESC, month.getOrder());
+   }
+
+   @Test
+   void anotherOccurrencesStoredTrueDoesNotExemptACarriedDescSort() {
+      // Refuter C1: the echo exemption covers the sort only when the stored-true ref carries the
+      // same sort state; here the true is on occurrence 0 and the desc on occurrence 1.
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_LINE);
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null)));
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", null), date("month", false)));
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries(), "occurrence 0 carries its true");
+      ChartBindingMutator.setSort(model, "x", "Order Date", 1, sortOf("desc"));
+
+      IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", null), date("month", true))));
+
+      assertTrue(e.getMessage().contains("'desc'") && e.getMessage().contains("index:1"),
+                 e.getMessage());
+      ChartDimensionRefModel second = dimAt(model.getXFields(), 1);
+      assertFalse(second.isTimeSeries());
+      assertEquals(XConstants.SORT_DESC, second.getOrder());
    }
 
    // ── dimension state across a shelf rewrite, identity-matched (bug #78403) ───────────────
