@@ -283,10 +283,11 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     */
    static boolean isScheduler(AssetQuerySandbox box, VariableTable vars) {
       try {
-         if(box != null && box.getViewsheetSandbox() != null &&
-            box.getViewsheetSandbox().isScheduleAction())
-         {
-            return true;
+         // ViewsheetSandbox.isScheduleAction() is not used: it only means a scheduled task is
+         // not cancelled by script, and is true for every interactive sandbox. A scheduled run
+         // is marked by __is_scheduler__ alone (bug #78407).
+         if(vars == null && box != null) {
+            vars = box.getVariableTable();
          }
 
          Object scheduler = vars == null ? null : vars.get("__is_scheduler__");
