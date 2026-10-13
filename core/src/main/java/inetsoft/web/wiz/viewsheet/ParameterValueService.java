@@ -63,7 +63,7 @@ public class ParameterValueService {
 
       List<String> applied = new ArrayList<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          List<UserVariable> discovered = discovery.discover(rvs);
          List<VariableAssemblyModelInfo> variables = new ArrayList<>();
 
@@ -99,6 +99,7 @@ public class ParameterValueService {
       Map<String, Object> result = new LinkedHashMap<>();
       result.put("ok", true);
       result.put("applied", applied);
+      ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
    }
 

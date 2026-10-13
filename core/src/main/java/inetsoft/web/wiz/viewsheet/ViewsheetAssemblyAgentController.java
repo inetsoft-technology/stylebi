@@ -336,7 +336,7 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/edit")
-   public Map<String, String> edit(@PathVariable String sessionToken,
+   public Map<String, Object> edit(@PathVariable String sessionToken,
                                    @RequestBody EditRequest request,
                                    @RequestParam(required = false, defaultValue = "")
                                       String linkUri,
@@ -344,10 +344,19 @@ public class ViewsheetAssemblyAgentController {
       throws Exception
    {
       requireEnabled();
-      String assembly = editService.apply(sessionToken, user, request, linkUri);
+      ViewsheetEditService.EditResult result =
+         editService.apply(sessionToken, user, request, linkUri);
 
-      // Only op:add yields a name; null body (empty 200) for every other op, as before.
-      return assembly == null ? null : Map.of("assembly", assembly);
+      // Only op:add yields a name, and only the ops that can re-run a table yield warnings; an
+      // edit with neither is the empty 200 it always was.
+      if(result.assembly() == null) {
+         return ViewsheetSessionService.warningsBody(result.warnings());
+      }
+
+      Map<String, Object> body = new LinkedHashMap<>();
+      body.put("assembly", result.assembly());
+      ViewsheetSessionService.relayWarnings(body, result.warnings());
+      return body;
    }
 
    /**
@@ -644,16 +653,17 @@ public class ViewsheetAssemblyAgentController {
     * bookmark of that name, or the sole visible one if only one exists.
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks/goto")
-   public void gotoBookmark(@PathVariable String sessionToken,
-                            @RequestBody GotoBookmarkRequest request,
-                            @RequestParam(required = false, defaultValue = "") String linkUri,
-                            Principal user)
+   public Map<String, Object> gotoBookmark(@PathVariable String sessionToken,
+                                            @RequestBody GotoBookmarkRequest request,
+                                            @RequestParam(required = false, defaultValue = "")
+                                            String linkUri,
+                                            Principal user)
       throws Exception
    {
       requireEnabled();
       String name = requireBookmarkName(request.name(), "goto_bookmark");
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          IdentityID owner = resolveVisibleBookmarkOwner(rvs, name, request.owner(), user);
 
          VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
@@ -662,6 +672,8 @@ public class ViewsheetAssemblyAgentController {
             .build();
          vsBookmarkService.gotoBookmark(runtimeId, event, user, dispatcher, linkUri);
       });
+
+      return ViewsheetSessionService.warningsBody(warnings);
    }
 
    /**
@@ -1221,14 +1233,17 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/properties")
-   public void setAssemblyProperties(@PathVariable String sessionToken,
-                                     @RequestBody PropertyPatchRequest request,
-                                     @RequestParam(required = false, defaultValue = "") String linkUri,
-                                     Principal user)
+   public Map<String, Object> setAssemblyProperties(
+      @PathVariable String sessionToken,
+      @RequestBody PropertyPatchRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user)
       throws Exception
    {
       requireEnabled();
-      propertyService.set(sessionToken, user, request.assembly(), request.properties(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         propertyService.set(sessionToken, user, request.assembly(), request.properties(),
+                             linkUri));
    }
 
    /**
@@ -1259,15 +1274,16 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/vs-properties")
-   public void setViewsheetProperties(@PathVariable String sessionToken,
-                                      @RequestBody ViewsheetPropertyPatchRequest request,
-                                      @RequestParam(required = false, defaultValue = "")
-                                      String linkUri,
-                                      Principal user)
+   public Map<String, Object> setViewsheetProperties(
+      @PathVariable String sessionToken,
+      @RequestBody ViewsheetPropertyPatchRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user)
       throws Exception
    {
       requireEnabled();
-      sheetPropertyService.set(sessionToken, user, request.properties(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         sheetPropertyService.set(sessionToken, user, request.properties(), linkUri));
    }
 
    /**
@@ -2208,15 +2224,17 @@ public class ViewsheetAssemblyAgentController {
 
    /** {@code set_print_layout}. */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/print")
-   public void setPrintLayout(@PathVariable String sessionToken,
-                              @RequestBody LayoutPrintPatchRequest request,
-                              @RequestParam(required = false, defaultValue = "") String linkUri,
-                              Principal user)
+   public Map<String, Object> setPrintLayout(
+      @PathVariable String sessionToken,
+      @RequestBody LayoutPrintPatchRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user)
       throws Exception
    {
       requireEnabled();
-      printDeviceLayoutPropertyService.setPrintLayout(sessionToken, user, request.properties(),
-                                                       linkUri);
+      return ViewsheetSessionService.warningsBody(
+         printDeviceLayoutPropertyService.setPrintLayout(sessionToken, user,
+                                                         request.properties(), linkUri));
    }
 
    public record LayoutPrintClearRequest(Boolean confirmed) {}
@@ -2240,16 +2258,17 @@ public class ViewsheetAssemblyAgentController {
 
    /** {@code manage_device_layout}. */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/device")
-   public void manageDeviceLayout(@PathVariable String sessionToken,
-                                  @RequestBody LayoutDevicePatchRequest request,
-                                  @RequestParam(required = false, defaultValue = "")
-                                  String linkUri,
-                                  Principal user)
+   public Map<String, Object> manageDeviceLayout(
+      @PathVariable String sessionToken,
+      @RequestBody LayoutDevicePatchRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user)
       throws Exception
    {
       requireEnabled();
-      printDeviceLayoutPropertyService.manageDeviceLayout(sessionToken, user, request.action(),
-                                                           request.properties(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         printDeviceLayoutPropertyService.manageDeviceLayout(
+            sessionToken, user, request.action(), request.properties(), linkUri));
    }
 
    public record LayoutObjectsRequest(String layoutName, String op,
@@ -2906,10 +2925,11 @@ public class ViewsheetAssemblyAgentController {
     *                          data source.
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/set-data-source")
-   public void setDataSource(@PathVariable String sessionToken,
-                             @RequestBody SetDataSourceRequest body,
-                             @RequestParam(required = false, defaultValue = "") String linkUri,
-                             Principal user) throws Exception
+   public Map<String, Object> setDataSource(
+      @PathVariable String sessionToken,
+      @RequestBody SetDataSourceRequest body,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
    {
       requireEnabled();
 
@@ -2929,9 +2949,9 @@ public class ViewsheetAssemblyAgentController {
                "the source fields alone to set one.");
          }
 
-         setDataSourceOrRewrap(sessionToken, user, null, linkUri);
+         List<String> warnings = setDataSourceOrRewrap(sessionToken, user, null, linkUri);
          broadcastDataSourceChanged(rvs, user);
-         return;
+         return ViewsheetSessionService.warningsBody(warnings);
       }
 
       if(body == null || (body.path() == null && body.datasource() == null &&
@@ -2960,8 +2980,9 @@ public class ViewsheetAssemblyAgentController {
          throw new PairingException("Failed to set data source: " + e.getMessage(), e);
       }
 
-      setDataSourceOrRewrap(sessionToken, user, entry, linkUri);
+      List<String> warnings = setDataSourceOrRewrap(sessionToken, user, entry, linkUri);
       broadcastDataSourceChanged(rvs, user);
+      return ViewsheetSessionService.warningsBody(warnings);
    }
 
    /**
@@ -2975,11 +2996,12 @@ public class ViewsheetAssemblyAgentController {
     * {@link #convertDataSourceToWorksheet} (Redmine #76739) rather than a named failure. Rewrapped
     * here for the same reason and the same way.
     */
-   private void setDataSourceOrRewrap(String sessionToken, Principal user, AssetEntry entry,
-                                      String linkUri) throws Exception
+   private List<String> setDataSourceOrRewrap(String sessionToken, Principal user,
+                                              AssetEntry entry, String linkUri)
+      throws Exception
    {
       try {
-         sheetPropertyService.setDataSource(sessionToken, user, entry, linkUri);
+         return sheetPropertyService.setDataSource(sessionToken, user, entry, linkUri);
       }
       catch(PairingException e) {
          throw e;

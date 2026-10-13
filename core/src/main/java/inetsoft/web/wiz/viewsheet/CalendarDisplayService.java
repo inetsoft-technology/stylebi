@@ -88,7 +88,7 @@ public class CalendarDisplayService {
 
       final Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalendarVSAssembly calendar = requireCalendar(rvs, assemblyName);
          CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
 
@@ -145,6 +145,7 @@ public class CalendarDisplayService {
          }
       });
 
+      ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
    }
 
@@ -156,7 +157,7 @@ public class CalendarDisplayService {
       requireName(assemblyName);
       final Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalendarVSAssembly calendar = requireCalendar(rvs, assemblyName);
          CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
          String[] dates = info.getDates();
@@ -171,6 +172,7 @@ public class CalendarDisplayService {
       });
 
       result.put("persistsOnSave", true);
+      ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
    }
 
@@ -206,7 +208,7 @@ public class CalendarDisplayService {
 
       final Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalendarVSAssembly calendar = requireCalendar(rvs, assemblyName);
          CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
 
@@ -237,6 +239,7 @@ public class CalendarDisplayService {
       });
 
       result.put("persistsOnSave", true);
+      ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
    }
 

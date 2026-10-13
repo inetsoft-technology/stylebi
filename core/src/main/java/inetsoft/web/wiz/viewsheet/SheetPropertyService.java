@@ -103,8 +103,13 @@ public class SheetPropertyService {
       return values;
    }
 
-   /** Applies a patch of aliases and/or raw paths. One {@code mutate}, so one checkpoint. */
-   public void set(String sessionToken, Principal user, Map<String, Object> patch, String linkUri)
+   /**
+    * Applies a patch of aliases and/or raw paths. One {@code mutate}, so one checkpoint.
+    *
+    * @return the warnings the write produced (a table script failure surfaced by the sheet
+    *         refresh), empty when none.
+    */
+   public List<String> set(String sessionToken, Principal user, Map<String, Object> patch, String linkUri)
       throws Exception
    {
       if(patch == null || patch.isEmpty()) {
@@ -121,7 +126,7 @@ public class SheetPropertyService {
          resolved.put(key, PropertyAliases.resolveForWrite(SHEET_TYPE, key));
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
          requireKnownParameterNames(model, resolved, patch);
          BaseEntryGuard baseEntry = BaseEntryGuard.detach(model);
@@ -313,10 +318,11 @@ public class SheetPropertyService {
     * currently set rather than refusing when one already exists, matching what the dialog itself
     * allows.
     */
-   public void setDataSource(String sessionToken, Principal user, AssetEntry entry, String linkUri)
+   public List<String> setDataSource(String sessionToken, Principal user, AssetEntry entry,
+                                     String linkUri)
       throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
          model.vsOptionsPane().getSelectDataSourceDialogModel().setDataSource(entry);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);

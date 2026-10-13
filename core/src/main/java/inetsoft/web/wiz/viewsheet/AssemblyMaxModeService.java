@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.security.Principal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -105,7 +106,7 @@ public class AssemblyMaxModeService {
 
       final Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          Viewsheet vs = rvs.getViewsheet();
          VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
@@ -146,6 +147,7 @@ public class AssemblyMaxModeService {
          }
       });
 
+      ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
    }
 
