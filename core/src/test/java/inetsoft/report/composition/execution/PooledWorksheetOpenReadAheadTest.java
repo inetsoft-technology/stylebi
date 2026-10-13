@@ -20,7 +20,6 @@ package inetsoft.report.composition.execution;
 import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.graph.VSDataSet;
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.test.*;
 import inetsoft.uql.*;
@@ -86,7 +85,7 @@ class PooledWorksheetOpenReadAheadTest {
 
    @AfterEach
    void tearDown() {
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
 
       for(AssetQuerySandbox box : boxes) {
          if(box.peekScriptEnv() instanceof WorksheetScriptEnv env) {
@@ -118,7 +117,7 @@ class PooledWorksheetOpenReadAheadTest {
     * first three 100-row pages.
     */
    private int open(boolean pool, boolean viewsheet) throws Exception {
-      SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(pool));
+      PoolConfig.setPoolOffForTests(!pool);
       // the data keys are content based: without this a run could read another's rows
       AssetDataCache.getCache().clearCache();
       Worksheet ws = ws();

@@ -20,7 +20,6 @@ package inetsoft.report.composition.execution;
 import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.BlobStorageManager;
@@ -177,7 +176,7 @@ class ConditionExpressionStopCacheTest {
    @BeforeEach
    void setUp() throws Exception {
       previousTimeout = ScriptStopTestSupport.setTimeout("1");
-      SreeEnv.setProperty(PoolConfig.ENABLED, "false");
+      PoolConfig.setPoolOffForTests(true);
       AssetDataCache.getCache().clearCache();
 
       // the first script of a cold JVM can outlast its timeout without being stopped, run
@@ -194,7 +193,7 @@ class ConditionExpressionStopCacheTest {
    void tearDown() throws Exception {
       Thread.interrupted();
       ScriptStopTestSupport.setTimeout(previousTimeout);
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
 
       for(AssetQuerySandbox box : boxes) {
          if(box.peekScriptEnv() instanceof WorksheetScriptEnv env) {
@@ -210,7 +209,7 @@ class ConditionExpressionStopCacheTest {
    @ParameterizedTest
    @ValueSource(booleans = { false, true })
    void stoppedPreConditionIsNotCached(boolean pool) throws Exception {
-      SreeEnv.setProperty(PoolConfig.ENABLED, pool + "");
+      PoolConfig.setPoolOffForTests(!pool);
       Worksheet ws = embedded(slow(), false);
       assertStopNotCached(vsTable(ws, box(ws), "S", "v"));
    }

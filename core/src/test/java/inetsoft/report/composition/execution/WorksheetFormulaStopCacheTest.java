@@ -19,7 +19,6 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
-import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -92,7 +91,7 @@ class WorksheetFormulaStopCacheTest {
    void tearDown() throws Exception {
       Thread.interrupted();
       ScriptStopTestSupport.setTimeout(previousTimeout);
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
 
       for(AssetQuerySandbox box : boxes) {
          if(box.peekScriptEnv() instanceof WorksheetScriptEnv env) {
@@ -161,7 +160,7 @@ class WorksheetFormulaStopCacheTest {
    }
 
    private AssetQuerySandbox box(Worksheet ws, boolean pool) {
-      SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(pool));
+      PoolConfig.setPoolOffForTests(!pool);
       AssetQuerySandbox box = new AssetQuerySandbox(ws);
       boxes.add(box);
       assertEquals(pool, box.isScriptPoolMode());

@@ -64,7 +64,7 @@ public record RelConfig(boolean pool, Map<String, String> props) {
    }
 
    public void apply() {
-      SreeEnv.setProperty(PoolConfig.ENABLED, String.valueOf(pool));
+      PoolConfig.setPoolOffForTests(!pool);
       props.forEach((k, v) -> {
          if(!QUERY_BUILD.equals(k)) {
             SreeEnv.setProperty(k, v);
@@ -73,7 +73,7 @@ public record RelConfig(boolean pool, Map<String, String> props) {
    }
 
    public void clear() {
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
       props.keySet().stream().filter(k -> !QUERY_BUILD.equals(k)).forEach(SreeEnv::remove);
    }
 

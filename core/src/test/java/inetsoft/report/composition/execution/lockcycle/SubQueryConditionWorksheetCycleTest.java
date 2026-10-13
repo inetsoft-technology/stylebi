@@ -22,7 +22,6 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.*;
 import inetsoft.report.filter.ConditionFilter;
 import inetsoft.report.lens.FormulaTableLens;
-import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -104,9 +103,9 @@ public class SubQueryConditionWorksheetCycleTest {
       harness = new LockCycleHarness();
 
       // the sandboxes of this class are real, so -Dlockcycle.pool reaches them through the
-      // property their env is chosen by; set it either way, so -Dlockcycle.pool=false runs
-      // them pool off although the pool is on by default (Feature #77123)
-      SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(POOL));
+      // test seam their env is chosen by; set it either way, so -Dlockcycle.pool=false runs
+      // them pool off
+      PoolConfig.setPoolOffForTests(!POOL);
    }
 
    @AfterEach
@@ -131,7 +130,7 @@ public class SubQueryConditionWorksheetCycleTest {
          }
       }
 
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
    }
 
    /**

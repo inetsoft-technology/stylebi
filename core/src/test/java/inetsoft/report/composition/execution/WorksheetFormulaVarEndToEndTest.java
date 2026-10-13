@@ -24,7 +24,6 @@ import ch.qos.logback.core.read.ListAppender;
 import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.graph.VSDataSet;
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.test.*;
 import inetsoft.uql.*;
@@ -97,7 +96,7 @@ class WorksheetFormulaVarEndToEndTest {
 
    @AfterEach
    void tearDown() {
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
 
       for(AssetQuerySandbox box : boxes) {
          if(box.peekScriptEnv() instanceof WorksheetScriptEnv env) {
@@ -449,7 +448,7 @@ class WorksheetFormulaVarEndToEndTest {
    }
 
    private AssetQuerySandbox box(Worksheet ws, boolean pool) {
-      SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(pool));
+      PoolConfig.setPoolOffForTests(!pool);
       // the data keys are content based: without this a run could read another's rows
       AssetDataCache.getCache().clearCache();
       AssetQuerySandbox box = new AssetQuerySandbox(ws);

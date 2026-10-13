@@ -21,7 +21,6 @@ import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.script.formula.TableAssemblyScriptable;
-import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -89,14 +88,14 @@ class WorksheetScriptStopTest {
    void setUp() throws Exception {
       previousTimeout = ScriptStopTestSupport.setTimeout("1");
       AssetDataCache.getCache().clearCache();
-      SreeEnv.setProperty(PoolConfig.ENABLED, "false");
+      PoolConfig.setPoolOffForTests(true);
    }
 
    @AfterEach
    void tearDown() throws Exception {
       Thread.interrupted();
       ScriptStopTestSupport.setTimeout(previousTimeout);
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
 
       for(AssetQuerySandbox box : boxes) {
          if(box.peekScriptEnv() instanceof WorksheetScriptEnv env) {

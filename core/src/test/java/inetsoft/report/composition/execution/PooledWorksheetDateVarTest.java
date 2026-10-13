@@ -112,7 +112,7 @@ class PooledWorksheetDateVarTest {
    @AfterEach
    void tearDown() {
       logger.detachAppender(appender);
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
       SreeEnv.remove(MAX_HOMES);
 
       for(AssetQuerySandbox box : boxes) {
@@ -498,7 +498,7 @@ class PooledWorksheetDateVarTest {
    }
 
    private AssetQuerySandbox box(Worksheet ws, boolean pool, boolean tree) {
-      SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(pool));
+      PoolConfig.setPoolOffForTests(!pool);
 
       // a tree table: no exclusive home (see the class comment)
       if(tree) {

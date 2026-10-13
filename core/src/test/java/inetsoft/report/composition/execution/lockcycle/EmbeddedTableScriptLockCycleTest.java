@@ -19,7 +19,6 @@ package inetsoft.report.composition.execution.lockcycle;
 
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.*;
-import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.ConditionItem;
@@ -68,14 +67,11 @@ import static org.mockito.Mockito.when;
  * Bug #77301: {@code AssetQuerySandbox.getTableLens}'s {@code synchronized(table)} for an
  * {@code EmbeddedTableAssembly} (kept atomic across setup+execution since bug #73971) can hold
  * that monitor while the build blocks waiting for the worksheet's shared GraalJS
- * script-execution lock -- with the context pool off. The pool has been on by default since
- * #77123 (merged the same day as this fix), which already incidentally prevents this deadlock in
- * the default configuration (the pool removes the shared execution lock entirely, per
- * {@code WorksheetScriptEnv.getExecutionLock()}); the daily slow-tests workflow runs this
- * suite with {@code -Dlockcycle.pool=false}, since {@code script.ws.contextPool=false} remains
- * a supported, documented configuration and the deadlock is real for anyone running it: it
- * never resolves by itself, {@code stall.watchdog.mode=alert} only reports it, and the default
- * fail mode (Feature #77123) can only break it by failing one of the two queries. Unlike
+ * script-execution lock -- with the context pool off. The pool is always on since Feature
+ * #78459 (on by default since #77123), and it prevents this deadlock (the pool removes the
+ * shared execution lock entirely, per {@code WorksheetScriptEnv.getExecutionLock()}); the
+ * pool-off cases still run on request with {@code -Dlockcycle.pool=false}, through the test
+ * seam, until the pool-off code paths are removed. Unlike
  * {@link SubQueryConditionWorksheetCycleTest}, this needs no
  * sub-query, {@code Distinct}, or async worker: table A has its own plain JavaScript expression
  * column, which alone forces {@code AssetQuery}'s type probe
@@ -122,10 +118,9 @@ public class EmbeddedTableScriptLockCycleTest {
    public void setUp() {
       harness = new LockCycleHarness();
 
-      // the sandbox of this class is real, so -Dlockcycle.pool reaches it through the property
-      // its env is chosen by; set it either way, so -Dlockcycle.pool=false runs it pool off
-      // although the pool is on by default (#77123)
-      SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(POOL));
+      // the sandbox of this class is real, so -Dlockcycle.pool reaches it through the test
+      // seam its env is chosen by; set it either way, so -Dlockcycle.pool=false runs it pool off
+      PoolConfig.setPoolOffForTests(!POOL);
    }
 
    @AfterEach
@@ -146,7 +141,7 @@ public class EmbeddedTableScriptLockCycleTest {
          }
       }
 
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
    }
 
    /**

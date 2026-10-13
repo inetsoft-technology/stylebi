@@ -92,7 +92,7 @@ class PooledQueryBuildClaimTest {
 
    @AfterEach
    void tearDown() {
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
 
       for(AssetQuerySandbox box : boxes) {
          if(box.peekScriptEnv() instanceof WorksheetScriptEnv env) {
@@ -602,7 +602,7 @@ class PooledQueryBuildClaimTest {
    }
 
    private AssetQuerySandbox sandbox(boolean pool, Worksheet ws) {
-      SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(pool));
+      PoolConfig.setPoolOffForTests(!pool);
       AssetDataCache.getCache().clearCache();
       AssetQuerySandbox box = new AssetQuerySandbox(ws);
       boxes.add(box);

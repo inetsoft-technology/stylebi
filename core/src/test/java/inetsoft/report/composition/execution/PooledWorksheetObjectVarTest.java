@@ -18,7 +18,6 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
-import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -77,7 +76,7 @@ class PooledWorksheetObjectVarTest {
 
    @AfterEach
    void tearDown() {
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
 
       for(AssetQuerySandbox box : boxes) {
          if(box.peekScriptEnv() instanceof WorksheetScriptEnv env) {
@@ -127,7 +126,7 @@ class PooledWorksheetObjectVarTest {
       list.append(new ConditionItem(a.getColumnSelection(false).getAttribute("out"), cond, 0));
       a.setPostConditionList(list);
 
-      SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(pool));
+      PoolConfig.setPoolOffForTests(!pool);
       AssetDataCache.getCache().clearCache();
       AssetQuerySandbox box = new AssetQuerySandbox(ws);
       boxes.add(box);

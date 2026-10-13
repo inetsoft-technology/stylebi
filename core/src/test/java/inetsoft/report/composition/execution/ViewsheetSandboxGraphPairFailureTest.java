@@ -21,7 +21,6 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.mv.MVManager;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.VGraphPair;
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
@@ -105,7 +104,7 @@ class ViewsheetSandboxGraphPairFailureTest {
    @BeforeEach
    void setUp() {
       AssetDataCache.getCache().clearCache();
-      SreeEnv.setProperty(PoolConfig.ENABLED, "false");
+      PoolConfig.setPoolOffForTests(true);
       oldPrincipal = ThreadContext.getPrincipal();
       principal = SUtil.getPrincipal(
          new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
@@ -128,7 +127,7 @@ class ViewsheetSandboxGraphPairFailureTest {
       }
 
       ThreadContext.setPrincipal(oldPrincipal);
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
       AssetDataCache.getCache().clearCache();
    }
 

@@ -49,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class RelErrorPathProbeTest {
    @AfterEach
    public void tearDown() {
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
       SreeEnv.remove("script.max.errors");
    }
 
@@ -216,7 +216,7 @@ public class RelErrorPathProbeTest {
    }
 
    private static AssetQuerySandbox sandbox(boolean pool) {
-      SreeEnv.setProperty(PoolConfig.ENABLED, String.valueOf(pool));
+      PoolConfig.setPoolOffForTests(!pool);
       AssetQuerySandbox box = new AssetQuerySandbox(new Worksheet());
       assertEquals(pool, box.getScriptEnv() instanceof WorksheetScriptEnv);
       return box;

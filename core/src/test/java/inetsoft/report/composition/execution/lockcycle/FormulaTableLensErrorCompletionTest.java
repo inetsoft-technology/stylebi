@@ -270,7 +270,7 @@ public class FormulaTableLensErrorCompletionTest {
    }
 
    /**
-    * The pool on ({@code script.ws.contextPool=true}): the same script error leaves the row
+    * The pool on (always, Feature #78459): the same script error leaves the row
     * table open, and the values survive the swaps around the resumed read.
     */
    @Test

@@ -27,7 +27,6 @@ import inetsoft.uql.asset.AssetCondition;
 import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
-import inetsoft.sree.SreeEnv;
 import inetsoft.util.script.graal.pool.PoolConfig;
 import inetsoft.util.script.graal.pool.PoolMetrics;
 import inetsoft.util.script.graal.pool.PoolTestSupport;
@@ -80,7 +79,7 @@ class ConditionGroupPoolTest {
     */
    @Test
    void throwawaySandboxOfAConditionReleasesItsContexts() throws Exception {
-      SreeEnv.setProperty(PoolConfig.ENABLED, "true");
+      PoolConfig.setPoolOffForTests(false);
 
       try {
          AssetCondition condition = new AssetCondition();
@@ -102,7 +101,7 @@ class ConditionGroupPoolTest {
          assertEquals(before, PoolMetrics.nodeSlots(), "the throwaway sandbox kept a context");
       }
       finally {
-         SreeEnv.remove(PoolConfig.ENABLED);
+         PoolConfig.setPoolOffForTests(false);
       }
    }
 }

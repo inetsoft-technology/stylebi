@@ -24,7 +24,6 @@ import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.*;
 import inetsoft.report.lens.*;
 import inetsoft.report.script.viewsheet.CalcTableVSAScriptable;
-import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -95,14 +94,14 @@ class ScriptStopCatchSitesTest {
       stops = new Stops();
       env = new ScriptStopTestSupport.StoppingEnv(stops);
       env.init();
-      SreeEnv.setProperty(PoolConfig.ENABLED, "false");
+      PoolConfig.setPoolOffForTests(true);
    }
 
    @AfterEach
    void tearDown() throws Exception {
       Thread.interrupted();
       ScriptStopTestSupport.setTimeout(previousTimeout);
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
       AssetDataCache.getCache().clearCache();
    }
 

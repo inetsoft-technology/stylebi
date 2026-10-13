@@ -51,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class RelErrorPathTest {
    @AfterEach
    public void tearDown() {
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
    }
 
    @Test
@@ -97,7 +97,7 @@ public class RelErrorPathTest {
 
       try {
          for(boolean pool : new boolean[] { false, true }) {
-            SreeEnv.setProperty(PoolConfig.ENABLED, String.valueOf(pool));
+            PoolConfig.setPoolOffForTests(!pool);
             AssetQuerySandbox box = new AssetQuerySandbox(new Worksheet());
 
             try {
@@ -142,7 +142,7 @@ public class RelErrorPathTest {
    }
 
    private static Read read(String script, int rows, boolean pool) throws Exception {
-      SreeEnv.setProperty(PoolConfig.ENABLED, String.valueOf(pool));
+      PoolConfig.setPoolOffForTests(!pool);
       AssetQuerySandbox box = new AssetQuerySandbox(new Worksheet());
       assertEquals(pool, box.getScriptEnv() instanceof WorksheetScriptEnv);
 

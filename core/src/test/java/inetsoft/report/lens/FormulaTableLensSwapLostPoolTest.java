@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The cases of {@link FormulaTableLensSwapLostTest} with the worksheet script context pool on
- * (script.ws.contextPool, the default), whose lens batches take another path: no engine lock,
+ * (always on, Feature #78459), whose lens batches take another path: no engine lock,
  * a claimed span per batch, pooled batch sizes, and the owned-object snapshot of a batch that
  * ends at a failed row (bug #77912).
  */

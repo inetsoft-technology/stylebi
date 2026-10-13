@@ -22,7 +22,6 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.*;
 import inetsoft.report.script.TableArray;
 import inetsoft.report.script.formula.AssetQueryScope;
-import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.VariableTable;
@@ -114,7 +113,7 @@ public class RelHostObjectConcurrencyTest {
       }
 
       boxes.clear();
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
    }
 
    /**
@@ -629,7 +628,7 @@ public class RelHostObjectConcurrencyTest {
    }
 
    private AssetQuerySandbox sandbox(boolean pool, int formulaTables) {
-      SreeEnv.setProperty(PoolConfig.ENABLED, String.valueOf(pool));
+      PoolConfig.setPoolOffForTests(!pool);
       Worksheet ws = new Worksheet();
       Object[][] data = new Object[T1_ROWS + 1][];
       data[0] = new Object[] { "id", "name", "grp", "value" };

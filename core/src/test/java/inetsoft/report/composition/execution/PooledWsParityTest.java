@@ -23,7 +23,6 @@ import inetsoft.report.filter.Formula;
 import inetsoft.report.filter.SumFormula;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.FormulaTableLens;
-import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
@@ -60,7 +59,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class PooledWsParityTest {
    @AfterEach
    public void tearDown() {
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
    }
 
    @Test
@@ -158,7 +157,7 @@ public class PooledWsParityTest {
    }
 
    private static AssetQuerySandbox sandbox(boolean pool) {
-      SreeEnv.setProperty(PoolConfig.ENABLED, String.valueOf(pool));
+      PoolConfig.setPoolOffForTests(!pool);
       AssetQuerySandbox box = new AssetQuerySandbox(new Worksheet());
       assertEquals(pool, box.getScriptEnv() instanceof WorksheetScriptEnv);
       return box;

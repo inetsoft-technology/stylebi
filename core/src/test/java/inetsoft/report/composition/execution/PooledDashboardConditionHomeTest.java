@@ -19,7 +19,6 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
-import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -85,7 +84,7 @@ class PooledDashboardConditionHomeTest {
 
    @AfterEach
    void tearDown() {
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
 
       for(AssetQuerySandbox box : boxes) {
          if(box.peekScriptEnv() instanceof WorksheetScriptEnv env) {
@@ -235,7 +234,7 @@ class PooledDashboardConditionHomeTest {
    }
 
    private AssetQuerySandbox sandbox(boolean pool, Worksheet ws) {
-      SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(pool));
+      PoolConfig.setPoolOffForTests(!pool);
       AssetDataCache.getCache().clearCache();
       AssetQuerySandbox box = new AssetQuerySandbox(ws);
       boxes.add(box);

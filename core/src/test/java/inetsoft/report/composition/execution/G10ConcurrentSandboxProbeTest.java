@@ -112,13 +112,7 @@ class G10ConcurrentSandboxProbeTest {
       Files.createDirectories(out);
       String tag = pool ? "on" : "off";
 
-      if(pool) {
-         // main: the pool is off by default, so turn it on explicitly
-         SreeEnv.setProperty(PoolConfig.ENABLED, "true");
-      }
-      else {
-         SreeEnv.setProperty(PoolConfig.ENABLED, "false");
-      }
+      PoolConfig.setPoolOffForTests(!pool);
 
       SreeEnv.setProperty(PoolConfig.IDLE_MILLIS, Long.toString(idle));
       String timeout = System.getProperty("g10.timeout");
@@ -216,7 +210,7 @@ class G10ConcurrentSandboxProbeTest {
         byMsg.values().stream().mapToInt(Integer::intValue).sum(), byMsg.size());
       byMsg.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(15)
          .forEach(e -> p("G10 %s:   %5d x %s", tag, e.getValue(), e.getKey()));
-      SreeEnv.remove(PoolConfig.ENABLED);
+      PoolConfig.setPoolOffForTests(false);
       SreeEnv.remove(PoolConfig.IDLE_MILLIS);
    }
 
