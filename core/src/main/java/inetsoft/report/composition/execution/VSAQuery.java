@@ -36,10 +36,7 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
-import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
-import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
@@ -1573,6 +1570,7 @@ public abstract class VSAQuery {
    // that is not referenced anywhere in the output (column list or aggregate info).
    private void removeUnusedCalcFields(TableAssembly table) {
       isolateBaseTable(table);
+      removeForeignDcRuntimeCalcs(table);
 
       // need to run in a look since calc field referenced by removed calc field can only
       // be removed after the calc field has been removed.
@@ -1691,14 +1689,6 @@ public abstract class VSAQuery {
          if(ref instanceof CalculateRef && ((CalculateRef) ref).isBaseOnDetail()) {
             CalculateRef calc = (CalculateRef) ref;
 
-            // a date comparison runtime calc field of another assembly is never used here, even
-            // when its name equals one of this assembly's columns (Bug #78446)
-            if(isForeignDcRuntimeCalc(calc)) {
-               childPriv.removeAttribute(i);
-               childPub.removeAttribute(i);
-               return true;
-            }
-
             boolean inSelection = usedInSelection(pubcols, calc);
             boolean inGroup = usedInGroup(ainfo, calc);
             boolean inAggregate = usedInAggregate(ainfo, calc);
@@ -1719,6 +1709,45 @@ public abstract class VSAQuery {
       }
 
       return false;
+   }
+
+   /**
+    * Remove the date comparison runtime calc fields that the assembly of this query does not
+    * use from the table it mirrors (see isForeignDcRuntimeCalc). Unlike removeUnusedCalcField,
+    * this is not limited to a mirrored table without aggregate and hidden columns, for such a
+    * calc field is never referenced by the mirrored table itself either (Bug #78446).
+    */
+   private void removeForeignDcRuntimeCalcs(TableAssembly table) {
+      if(!(table instanceof MirrorTableAssembly)) {
+         return;
+      }
+
+      TableAssembly child = ((MirrorTableAssembly) table).getTableAssembly();
+
+      if(child == null) {
+         return;
+      }
+
+      ColumnSelection childPriv = child.getColumnSelection(false);
+      ColumnSelection childPub = child.getColumnSelection(true);
+
+      for(int i = childPriv.getAttributeCount() - 1; i >= 0; i--) {
+         DataRef ref = childPriv.getAttribute(i);
+
+         if(!(ref instanceof CalculateRef) || !isForeignDcRuntimeCalc((CalculateRef) ref) ||
+            // kept for a selection (e.g. an adhoc filter) bound to the calc field
+            usedInSelection(child.getName(), (CalculateRef) ref))
+         {
+            continue;
+         }
+
+         childPriv.removeAttribute(i);
+         DataRef pubRef = childPub.getAttribute(ref.getName());
+
+         if(pubRef instanceof CalculateRef && ((CalculateRef) pubRef).isDcRuntime()) {
+            childPub.removeAttribute(pubRef);
+         }
+      }
    }
 
    /**
@@ -1743,17 +1772,7 @@ public abstract class VSAQuery {
          return false;
       }
 
-      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
-
-      if(info instanceof ChartVSAssemblyInfo) {
-         return !((ChartVSAssemblyInfo) info).getVSChartInfo().isAppliedDateComparison();
-      }
-      else if(info instanceof CrosstabVSAssemblyInfo) {
-         return !((CrosstabVSAssemblyInfo) info).getVSCrosstabInfo().isAppliedDateComparison();
-      }
-
-      // only charts and crosstabs support date comparison
-      return true;
+      return !DateComparisonUtil.isAppliedDateComparison(assembly.getVSAssemblyInfo());
    }
 
    private boolean usedInSelection(ColumnSelection cols, CalculateRef calc) {

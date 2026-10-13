@@ -19,7 +19,9 @@ package inetsoft.report.composition.graph;
 
 import inetsoft.graph.data.DataSet;
 import inetsoft.report.TableLens;
+import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.test.*;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
@@ -60,6 +62,109 @@ import static org.junit.jupiter.api.Assertions.*;
 class DateComparisonCalcCollisionViewsheetTest {
    @Test
    void weekOfYearChartIsUnaffectedByDateComparisonCalcOnSameTable() throws Exception {
+      checkWeekOfYearAssemblies(false);
+   }
+
+   /**
+    * Same, with a hidden column on the worksheet table, so its public column selection differs
+    * from the private one (the general unused calc field cleanup skips such a table).
+    */
+   @Test
+   void weekOfYearChartIsUnaffectedWhenWorksheetTableHasHiddenColumn() throws Exception {
+      checkWeekOfYearAssemblies(true);
+   }
+
+   /**
+    * A selection (e.g. an adhoc filter on a DC part dimension) bound to the DC calc field
+    * keeps the calc field in its query.
+    */
+   @Test
+   void selectionBoundToDateComparisonCalcKeepsIt() throws Exception {
+      ViewsheetSandbox box = vsResource.getRuntimeViewsheet().getViewsheetSandbox().orElseThrow();
+      Viewsheet vs = box.getViewsheet();
+      SourceInfo source =
+         (SourceInfo) ((TableVSAssembly) vs.getAssembly(TABLE)).getSourceInfo().clone();
+      String tname = source.getSource();
+      addDateCalc(vs, tname);
+      registerDateComparisonCalc(vs, tname);
+
+      SelectionListVSAssembly selection = new SelectionListVSAssembly(vs, "WeekList");
+      SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) selection.getInfo();
+      info.setTableName(tname);
+      ColumnRef column = new ColumnRef(new AttributeRef(null, "WeekOfYear(D)"));
+      column.setDataType(XSchema.INTEGER);
+      info.setDataRef(column);
+      vs.addAssembly(selection);
+
+      box.lockWrite();
+
+      try {
+         box.reset(null, vs.getAssemblies(), new ChangedAssemblyList(), true, true, null);
+      }
+      finally {
+         box.unlockWrite();
+      }
+
+      SelectionList list = selection.getSelectionList();
+      assertNotNull(list, "WeekList selection list");
+      assertTrue(list.getSelectionValueCount() > 1,
+                 "WeekList values " + list.getSelectionValueCount());
+
+      for(int i = 0; i < list.getSelectionValueCount(); i++) {
+         String value = list.getSelectionValue(i).getValue();
+         assertNotNull(value);
+         assertTrue(value.matches("[0-9]+"), "week value " + value);
+      }
+
+      // a non-DC chart on the same table is filtered by the selection on the DC calc field
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "TypeChart");
+      chart.setSourceInfo((SourceInfo) source.clone());
+      VSChartDimensionRef type =
+         new VSChartDimensionRef(new ColumnRef(new AttributeRef(null, "type")));
+      type.setGroupColumnValue("type");
+      chart.getVSChartInfo().addXField(type);
+      chart.getVSChartInfo().addYField(sumWind());
+      vs.addAssembly(chart);
+      double total = sumWind(box, "TypeChart");
+      assertTrue(total > 0, "TypeChart total " + total);
+
+      String selected = list.getSelectionValue(0).getValue();
+      box.lockWrite();
+
+      try {
+         SelectionList slist = new SelectionList();
+         SelectionValue value = new SelectionValue(selected, selected);
+         value.setState(SelectionValue.STATE_SELECTED);
+         slist.setSelectionValues(new SelectionValue[] { value });
+         int hint = selection.setStateSelectionList(slist);
+         box.processChange(selection.getAbsoluteName(), hint, new ChangedAssemblyList());
+      }
+      finally {
+         box.unlockWrite();
+      }
+
+      box.resetDataMap("TypeChart");
+      double filtered = assertDoesNotThrow(() -> sumWind(box, "TypeChart"), "TypeChart");
+      assertTrue(filtered > 0 && filtered < total,
+                 "TypeChart filtered by week " + selected + ": " + filtered + " of " + total);
+   }
+
+   private static double sumWind(ViewsheetSandbox box, String name) throws Exception {
+      DataSet data = (DataSet) box.getData(name);
+      assertNotNull(data, name + " data");
+      int col = data.indexOfHeader("Sum(wind)");
+      assertTrue(col >= 0, name + " has Sum(wind)");
+      double sum = 0;
+
+      for(int r = 0; r < data.getRowCount(); r++) {
+         Object v = data.getData(col, r);
+         sum += v instanceof Number ? ((Number) v).doubleValue() : 0;
+      }
+
+      return sum;
+   }
+
+   private void checkWeekOfYearAssemblies(boolean hideColumn) throws Exception {
       ViewsheetSandbox box = vsResource.getRuntimeViewsheet().getViewsheetSandbox().orElseThrow();
       Viewsheet vs = box.getViewsheet();
       SourceInfo source =
@@ -75,6 +180,10 @@ class DateComparisonCalcCollisionViewsheetTest {
       dateCalc.setDataRef(dateExpr);
       dateCalc.setSQL(false);
       vs.addCalcField(tname, dateCalc);
+
+      if(hideColumn) {
+         hideWorksheetColumn(box, vs, tname);
+      }
 
       // baseline, before any date comparison calc exists on the table
       Columns before = weekOfYearChart(box, vs, source, "ChartBefore");
@@ -152,6 +261,39 @@ class DateComparisonCalcCollisionViewsheetTest {
 
       assertTrue(columns.weeks.size() > 2, name + " rows");
       return columns;
+   }
+
+   private static void addDateCalc(Viewsheet vs, String tname) {
+      CalculateRef dateCalc = new CalculateRef(true);
+      dateCalc.setName("D");
+      ExpressionRef dateExpr = new ExpressionRef(null, "D");
+      dateExpr.setExpression("new Date(2021, 0, field['day'])");
+      dateExpr.setDataType(XSchema.DATE);
+      dateCalc.setDataRef(dateExpr);
+      dateCalc.setSQL(false);
+      vs.addCalcField(tname, dateCalc);
+   }
+
+   // hide one column not used by the assemblies (e.g. a helper/ID column)
+   private static void hideWorksheetColumn(ViewsheetSandbox box, Viewsheet vs, String tname) {
+      for(Worksheet ws : new Worksheet[] {
+         vs.getBaseWorksheet(), box.getAssetQuerySandbox().getWorksheet() })
+      {
+         TableAssembly table = (TableAssembly) ws.getAssembly(tname);
+         ColumnSelection priv = table.getColumnSelection(false);
+
+         for(int i = 0; i < priv.getAttributeCount(); i++) {
+            ColumnRef column = (ColumnRef) priv.getAttribute(i);
+
+            if("name".equals(column.getAttribute())) {
+               column.setVisible(false);
+            }
+         }
+
+         table.resetColumnSelection();
+         assertNotEquals(table.getColumnSelection(false), table.getColumnSelection(true),
+                         "fixture: the hidden column makes public != private");
+      }
    }
 
    private static void registerDateComparisonCalc(Viewsheet vs, String tname) {
