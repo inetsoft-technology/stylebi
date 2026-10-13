@@ -163,6 +163,22 @@ class SharedShapeFrameViewsheetTest {
    }
 
    @Test
+   void tipViewInAContainerBorrowsTheParentShapes() throws Exception {
+      ChartVSAssembly parent = addChart("GroupTipParent", OTHER);
+      ChartVSAssembly tip = addChart("GroupedTip", DEFAULT);
+      GroupContainerVSAssembly group = new GroupContainerVSAssembly(vs, "TipGroup");
+      group.setAssemblies(new String[] { tip.getName() });
+      vs.addAssembly(group);
+      // the data tip view is the container of the chart
+      setTipView(parent, group.getName());
+      Map<String, GShape> full = shapes(parent, null);
+      assertEquals(expected(OTHER), full);
+
+      tip.setTipConditionList(unnamedCondition());
+      assertEquals(full.get("UNNAMED"), shapes(tip, null).get("UNNAMED"));
+   }
+
+   @Test
    void chartFilteredLikeATipViewWithoutAParentKeepsItsOwnPalette() throws Exception {
       ChartVSAssembly chart = addChart("OtherChart", OTHER);
       ChartVSAssembly filtered = addChart("NoParentChart", DEFAULT);
@@ -318,11 +334,15 @@ class SharedShapeFrameViewsheetTest {
    }
 
    private static void setTipView(ChartVSAssembly parent, ChartVSAssembly tip) {
+      setTipView(parent, tip.getName());
+   }
+
+   private static void setTipView(ChartVSAssembly parent, String tipView) {
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) parent.getInfo();
       info.setTipOptionValue(TipVSAssemblyInfo.VIEWTIP_OPTION);
       info.setTipOption(TipVSAssemblyInfo.VIEWTIP_OPTION);
-      info.setTipViewValue(tip.getName());
-      info.setTipView(tip.getName());
+      info.setTipViewValue(tipView);
+      info.setTipView(tipView);
    }
 
    private static ConditionList unnamedCondition() {
