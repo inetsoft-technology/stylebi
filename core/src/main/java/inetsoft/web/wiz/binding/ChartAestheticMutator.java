@@ -21,6 +21,7 @@ import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.web.binding.model.BindingRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
@@ -138,6 +139,17 @@ public final class ChartAestheticMutator {
       // series as a CHANGE calculator's column. The channel is put back on a refusal.
       if(dataInfo instanceof ChartDimensionRefModel dimension) {
          try {
+            // Bug #77024: an interval chart's size takes a measure only (the Composer's drop
+            // gate refuses a dimension there and a retype drops it), judged on the resolved ref.
+            if("size".equals(name) &&
+               !GraphTypes.supportsDimensionAesthetic(model.getChartType(),
+                                                      ChartConstants.AESTHETIC_SIZE))
+            {
+               throw new IllegalArgumentException(
+                  "Channel 'size' on an interval chart takes a measure, not a dimension ('" +
+                  field.column() + "' is a dimension) -- bind a measure to size instead.");
+            }
+
             ChartTimeSeriesGuard.require(
                model, ChartTimeSeriesGuard.Place.AESTHETIC, name, 0, dimension, field,
                previousData == null ? List.of() : List.of(previousData));
@@ -1227,22 +1239,39 @@ public final class ChartAestheticMutator {
                                               Collection<String> perMeasureFrameChannels,
                                               boolean sizeSupported, boolean colorShapeSupported)
    {
+      return describe(model, relationChart, perMeasureFrameChannels, sizeSupported,
+                      colorShapeSupported, true);
+   }
+
+   /**
+    * @param shapeFamilySupported see {@link AestheticChannels#requireFieldChannel(String,
+    *                             boolean, boolean, boolean, boolean)}. When {@code false},
+    *                             {@code shape} reports {@code acceptsField:false} and
+    *                             shape/line/texture report {@code acceptsFrame:false}.
+    */
+   public static Map<String, Object> describe(ChartBindingModel model, boolean relationChart,
+                                              Collection<String> perMeasureFrameChannels,
+                                              boolean sizeSupported, boolean colorShapeSupported,
+                                              boolean shapeFamilySupported)
+   {
       Map<String, Object> out = new LinkedHashMap<>();
 
       for(String channel : AestheticChannels.FIELD_CHANNELS) {
          out.put(channel, channelView(model, channel, perMeasureFrameChannels,
-                                       sizeSupported, colorShapeSupported));
+                                       sizeSupported, colorShapeSupported, shapeFamilySupported));
       }
 
       for(String channel : AestheticChannels.FRAME_CHANNELS) {
          out.computeIfAbsent(channel, name -> channelView(
-            model, name, perMeasureFrameChannels, sizeSupported, colorShapeSupported));
+            model, name, perMeasureFrameChannels, sizeSupported, colorShapeSupported,
+            shapeFamilySupported));
       }
 
       if(relationChart) {
          for(String channel : AestheticChannels.NODE_CHANNELS) {
             out.put(channel, channelView(model, channel, perMeasureFrameChannels,
-                                          sizeSupported, colorShapeSupported));
+                                          sizeSupported, colorShapeSupported,
+                                          shapeFamilySupported));
          }
       }
 
@@ -1312,7 +1341,7 @@ public final class ChartAestheticMutator {
     *                            boolean, boolean)}.
     */
    private static boolean rendersField(String channel, boolean sizeSupported,
-                                       boolean colorShapeSupported)
+                                       boolean colorShapeSupported, boolean shapeFamilySupported)
    {
       if(!acceptsField(channel)) {
          return false;
@@ -1323,7 +1352,7 @@ public final class ChartAestheticMutator {
       }
 
       if("color".equals(channel) || "shape".equals(channel)) {
-         return colorShapeSupported;
+         return colorShapeSupported && ("color".equals(channel) || shapeFamilySupported);
       }
 
       return true;
@@ -1415,7 +1444,13 @@ public final class ChartAestheticMutator {
       return aggregates.isEmpty() ? null : aggregateFieldOf(aggregates.get(0), channel);
    }
 
-   private static boolean acceptsFrame(String channel) {
+   private static boolean acceptsFrame(String channel, boolean shapeFamilySupported) {
+      if(!shapeFamilySupported &&
+         ("shape".equals(channel) || "line".equals(channel) || "texture".equals(channel)))
+      {
+         return false;
+      }
+
       return AestheticChannels.FRAME_CHANNELS.contains(channel) ||
          AestheticChannels.NODE_CHANNELS.contains(channel);
    }
@@ -1423,7 +1458,7 @@ public final class ChartAestheticMutator {
    private static Map<String, Object> channelView(ChartBindingModel model, String channel,
                                                   Collection<String> perMeasureFrameChannels)
    {
-      return channelView(model, channel, perMeasureFrameChannels, true, true);
+      return channelView(model, channel, perMeasureFrameChannels, true, true, true);
    }
 
    /**
@@ -1435,7 +1470,8 @@ public final class ChartAestheticMutator {
    private static Map<String, Object> channelView(ChartBindingModel model, String channel,
                                                   Collection<String> perMeasureFrameChannels,
                                                   boolean sizeSupported,
-                                                  boolean colorShapeSupported)
+                                                  boolean colorShapeSupported,
+                                                  boolean shapeFamilySupported)
    {
       Map<String, Object> view = new LinkedHashMap<>();
       AestheticInfo chartLevelField = frameField(model, channel);
@@ -1450,8 +1486,9 @@ public final class ChartAestheticMutator {
          ? null : FieldRefFactory.from(chartLevelField.getDataInfo()));
       view.put("frame",
                VisualFrameAliases.describe(frameOf(model, channel, perMeasureFrameChannels)));
-      view.put("acceptsField", rendersField(channel, sizeSupported, colorShapeSupported));
-      view.put("acceptsFrame", acceptsFrame(channel));
+      view.put("acceptsField", rendersField(channel, sizeSupported, colorShapeSupported,
+                                                 shapeFamilySupported));
+      view.put("acceptsFrame", acceptsFrame(channel, shapeFamilySupported));
 
       Map<String, Object> perMeasureFrame =
          divergentMeasureFrames(model, channel, chartLevelField, perMeasureFrameChannels);

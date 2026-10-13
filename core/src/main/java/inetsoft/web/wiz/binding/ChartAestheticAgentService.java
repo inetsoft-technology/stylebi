@@ -93,8 +93,9 @@ public class ChartAestheticAgentService {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
       boolean sizeSupported = isSizeSupported(sessionToken, user, assemblyName);
       boolean colorShapeSupported = isColorShapeSupported(sessionToken, user, assemblyName);
+      boolean shapeFamilySupported = isShapeFamilySupported(sessionToken, user, assemblyName);
       String name = AestheticChannels.requireFieldChannel(
-         channel, relationChart, sizeSupported, colorShapeSupported);
+         channel, relationChart, sizeSupported, colorShapeSupported, shapeFamilySupported);
       requireNotMultiAesthetic(sessionToken, user, assemblyName);
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
@@ -118,10 +119,10 @@ public class ChartAestheticAgentService {
                           String channel, String linkUri) throws Exception
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
-      boolean sizeSupported = isSizeSupported(sessionToken, user, assemblyName);
-      boolean colorShapeSupported = isColorShapeSupported(sessionToken, user, assemblyName);
-      String name = AestheticChannels.requireFieldChannel(
-         channel, relationChart, sizeSupported, colorShapeSupported);
+      // Clearing is always safe, so only the channel name (and node channels) is validated, not
+      // whether this chart type renders it -- otherwise a binding left on a channel the type
+      // does not render could never be removed (#77024 P7 hardening).
+      String name = AestheticChannels.requireFieldChannel(channel, relationChart);
       requireNotMultiAesthetic(sessionToken, user, assemblyName);
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
@@ -139,7 +140,8 @@ public class ChartAestheticAgentService {
                         Map<String, Object> frame, String measure, String linkUri) throws Exception
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
-      String name = AestheticChannels.requireFrameChannel(channel, relationChart);
+      String name = AestheticChannels.requireFrameChannel(
+         channel, relationChart, isShapeFamilySupported(sessionToken, user, assemblyName));
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
@@ -152,7 +154,8 @@ public class ChartAestheticAgentService {
                           String measure, String linkUri) throws Exception
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
-      String name = AestheticChannels.requireFrameChannel(channel, relationChart);
+      String name = AestheticChannels.requireFrameChannel(
+         channel, relationChart, isShapeFamilySupported(sessionToken, user, assemblyName));
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
@@ -169,7 +172,8 @@ public class ChartAestheticAgentService {
       return ChartAestheticMutator.describe((ChartBindingModel) binding.createModel(chart),
                                             isRelationChart(chart),
                                             perMeasureFrameChannels(chart),
-                                            isSizeSupported(chart), isColorShapeSupported(chart));
+                                            isSizeSupported(chart), isColorShapeSupported(chart),
+                                            isShapeFamilySupported(chart));
    }
 
    /**
@@ -297,6 +301,30 @@ public class ChartAestheticAgentService {
    private static boolean isSizeSupported(ChartVSAssembly chart) {
       VSChartInfo info = chart.getVSChartInfo();
       return info == null || GraphTypes.supportsSize(info.getChartType());
+   }
+
+   private boolean isShapeFamilySupported(String sessionToken, Principal user,
+                                          String assemblyName)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      return isShapeFamilySupported(requireChart(rvs, assemblyName));
+   }
+
+   /**
+    * Whether the chart type renders the shape slot (as a shape or a texture). No type yet, or a
+    * multi-style chart (each measure has its own type, so a chart-level answer would be wrong),
+    * forbids nothing.
+    */
+   private static boolean isShapeFamilySupported(ChartVSAssembly chart) {
+      VSChartInfo info = chart.getVSChartInfo();
+
+      if(info == null || info.isMultiStyles()) {
+         return true;
+      }
+
+      int type = info.getChartType();
+      return GraphTypes.supportsShape(type) || GraphTypes.supportsTexture(type);
    }
 
    private boolean isColorShapeSupported(String sessionToken, Principal user, String assemblyName)
