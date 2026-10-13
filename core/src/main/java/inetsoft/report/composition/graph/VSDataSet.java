@@ -315,7 +315,7 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
 
             try {
                initDataMap(header);
-               comparer[i] = dim.createComparator(this);
+               comparer[i] = createColumnComparator(dim);
 
                if(comparer[i] instanceof DimensionComparer) {
                   ((DimensionComparer) comparer[i]).setComparator(
@@ -375,7 +375,7 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
                int col = super.indexOfHeader(subdim.getFullName());
 
                if(col >= 0) {
-                  Comparator comp = subdim.createComparator(this);
+                  Comparator comp = createColumnComparator(subdim);
                   comps[col].add(comp);
                   compranges[col].add(range);
                }
@@ -388,6 +388,17 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
             }
          }
       }
+   }
+
+   /**
+    * Create the column comparator of a dimension. A comparator that only puts Others last
+    * ties all other values, which breaks the readers that binary search with it or treat a
+    * null comparator as data order (scale, routers, part-date order, brushing, stacking).
+    * The legend sorts Others last through the dimension itself, so keep the column null.
+    */
+   private Comparator createColumnComparator(XDimensionRef dim) {
+      Comparator comp = dim.createComparator(this);
+      return comp instanceof OthersComparator ? null : comp;
    }
 
    /**

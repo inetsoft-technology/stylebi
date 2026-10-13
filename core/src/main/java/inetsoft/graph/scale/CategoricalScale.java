@@ -322,6 +322,13 @@ public class CategoricalScale extends Scale {
       if(values != null) {
          if(sortedOn != null && values.size() > 9) {
             idx = Collections.binarySearch(values, val, sortedOn);
+
+            // a comparator may tie distinct values (e.g. OthersComparator), find the exact
+            // one, but keep the hit when only the comparator matches (e.g. Long vs Integer)
+            if(idx >= 0 && !Objects.equals(values.get(idx), val)) {
+               int exact = values.indexOf(val);
+               idx = exact >= 0 ? exact : idx;
+            }
          }
          else {
             idx = values.indexOf(val);
