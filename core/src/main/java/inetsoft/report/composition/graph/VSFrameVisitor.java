@@ -66,7 +66,8 @@ public class VSFrameVisitor {
                          boolean separated, DataSet vdata, String cubeType,
                          String src, int sourceType, FrameInitializer initializer)
    {
-      this(info, data, strategy, separated, vdata, cubeType, src, sourceType, null, true, initializer);
+      this(info, data, strategy, separated, vdata, cubeType, src, sourceType, null, true, null, null,
+           initializer);
    }
 
    /**
@@ -76,13 +77,18 @@ public class VSFrameVisitor {
     * @param hasFullData false when the data is filtered (e.g. a data tip render), which prevents
     *                    a depleted CategoricalShapeFrame cmap from being saved back to the shared
     *                    context and corrupting subsequent renders.
+    * @param chartName   the absolute name of the chart, used to share its shape frames.
+    * @param tipParent   the absolute name of the chart this chart is the data tip view of, whose
+    *                    shape frames it borrows, or null.
     * @param initializer
     */
    public VSFrameVisitor(ChartInfo info, DataSet data, VSFrameStrategy strategy,
                          boolean separated, DataSet vdata, String cubeType,
-                         String src, int sourceType, boolean hasFullData, FrameInitializer initializer)
+                         String src, int sourceType, boolean hasFullData, String chartName,
+                         String tipParent, FrameInitializer initializer)
    {
-      this(info, data, strategy, separated, vdata, cubeType, src, sourceType, null, hasFullData, initializer);
+      this(info, data, strategy, separated, vdata, cubeType, src, sourceType, null, hasFullData,
+           chartName, tipParent, initializer);
    }
 
    /**
@@ -96,13 +102,15 @@ public class VSFrameVisitor {
                          String src, int sourceType, DateComparisonInfo dc,
                          FrameInitializer initializer)
    {
-      this(info, data, strategy, separated, vdata, cubeType, src, sourceType, dc, true, initializer);
+      this(info, data, strategy, separated, vdata, cubeType, src, sourceType, dc, true, null, null,
+           initializer);
    }
 
    private VSFrameVisitor(ChartInfo info, DataSet data, VSFrameStrategy strategy,
                           boolean separated, DataSet vdata, String cubeType,
                           String src, int sourceType, DateComparisonInfo dc,
-                          boolean hasFullData, FrameInitializer initializer)
+                          boolean hasFullData, String chartName, String tipParent,
+                          FrameInitializer initializer)
    {
       super();
       this.info = info;
@@ -117,6 +125,8 @@ public class VSFrameVisitor {
       this.sourceType = sourceType;
       this.dc = dc;
       this.hasFullData = hasFullData;
+      this.chartName = chartName;
+      this.tipParent = tipParent;
       this.initializer = initializer;
       this.frame = createFrame();
    }
@@ -448,12 +458,22 @@ public class VSFrameVisitor {
          String columnName = resolveColumnName(col, tref);
 
          final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
-         final VisualFrame sharedShapeFrame = context.getSharedShapeFrame(columnName, ref);
+         // a data tip view only renders filtered data and has no full data frame of its own,
+         // so borrow the frame of its parent chart even if the palette differs, before any
+         // other chart that happens to have the same palette. (78462)
+         VisualFrame sharedShapeFrame = !hasFullData && tipParent != null ?
+            context.getChartSharedShapeFrame(columnName, ref, tipParent) : null;
 
+         if(sharedShapeFrame == null) {
+            sharedShapeFrame =
+               context.getSharedShapeFrame(columnName, ref, (CategoricalShapeFrame) frame);
+         }
+
+         // don't set the shared frame on tref. a chart level tref is the design time ref and
+         // the shared frame would replace its palette, which is saved with the chart. (78462)
          if(sharedShapeFrame instanceof CategoricalShapeFrame) {
             frame = (VisualFrame) sharedShapeFrame.clone();
             frame.setField(col);
-            tref.setVisualFrame(frame);
          }
 
          syncCategoricalFrame(frame, data, ref, dc, tref.isRuntime());
@@ -491,7 +511,7 @@ public class VSFrameVisitor {
          String columnName = resolveColumnName(col, tref);
 
          final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
-         final VisualFrame saveShapeFrame = (VisualFrame) frame.clone();
+         final CategoricalShapeFrame saveShapeFrame = (CategoricalShapeFrame) frame.clone();
          final Optional<TextFrame> shapeTextFrame = Optional.of(saveShapeFrame)
                                                             .map(VisualFrame::getLegendSpec)
                                                             .map(LegendSpec::getTextFrame);
@@ -500,7 +520,7 @@ public class VSFrameVisitor {
             shapeTextFrame.get().getKeys().clear();
          }
 
-         context.addSharedShapeFrame(columnName, saveShapeFrame, ref);
+         context.addSharedShapeFrame(columnName, saveShapeFrame, ref, chartName);
       }
 
       frame.getLegendSpec().setTitle(XCube.SQLSERVER.equals(cubeType) &&
@@ -1021,4 +1041,6 @@ public class VSFrameVisitor {
    // When false (e.g. data tip render with filtered data), skip saving the shape frame back to the
    // shared context to avoid depleted cmap entries contaminating subsequent renders.
    private final boolean hasFullData;
+   private final String chartName;
+   private final String tipParent;
 }
