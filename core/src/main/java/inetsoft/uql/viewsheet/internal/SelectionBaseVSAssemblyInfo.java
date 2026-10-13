@@ -154,12 +154,8 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    }
 
    /**
-    * The height this list's box is rebuilt to when it opens as a list: a switch from Dropdown in
-    * its property dialog, a selection container's expand, a move into a container and a device
-    * layout. Marked, a box the author never sized is its tier's density box, so a mode round trip
-    * cannot resize it, and an author-sized box fits its rows at its own density inside its card
-    * inset. Keyed on userSize rather than followsDensitySize, since a dropdown's box is its title
-    * lane and never a tier size. Unmarked keeps the legacy defh rows exactly.
+    * The height this list's box is rebuilt to when it opens as a list. Marked: the tier box until
+    * the author sizes it, then its rows inside its card inset. Unmarked: the legacy defh rows.
     */
    public int getContainedListHeight() {
       if(getVizMark() == null) {
@@ -1066,6 +1062,14 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    @Override
    public boolean followsDensitySize() {
       return !isUserSize() && VSDensityDefaults.isSeededSelectionSize(getPixelSize());
+   }
+
+   /**
+    * Only a new height, the one the rows follow.
+    */
+   @Override
+   public boolean isAuthorSizeChange(Dimension before, Dimension after) {
+      return before.height != after.height;
    }
 
    @Override

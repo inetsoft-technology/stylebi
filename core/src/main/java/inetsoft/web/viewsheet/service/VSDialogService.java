@@ -186,9 +186,9 @@ public class VSDialogService {
    }
 
    /**
-    * Record the size as the author's when they unticked, or changed it from a client with no
-    * answer.
-    * @param shown the stored size before this write.
+    * Record the size as the author's when they unticked a box that would still follow, or made
+    * an author change to it.
+    * @param shown the stored size before this write, which has already been applied.
     */
    public static void recordAuthorSize(VSAssemblyInfo info, SizePositionPaneModel model,
                                        Dimension shown)
@@ -199,8 +199,9 @@ public class VSDialogService {
          return;
       }
 
-      if(Boolean.FALSE.equals(follows) ||
-         model.getWidth() != shown.width || model.getHeight() != shown.height)
+      // a box shown unticked off its tier size claims nothing by being applied
+      if((Boolean.FALSE.equals(follows) && info.followsDensitySize()) ||
+         info.isAuthorSizeChange(shown, new Dimension(model.getWidth(), model.getHeight())))
       {
          info.setUserSize(true);
       }

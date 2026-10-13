@@ -144,8 +144,8 @@ public class ComposerObjectService {
 
          info.setPixelSize(size);
 
-         // a changed size is the author's; Align and Distribute resend sizes unchanged
-         if(info.takesDensitySize() && !size.equals(originalSize)) {
+         // an author change; Align and Distribute resend sizes unchanged
+         if(info.takesDensitySize() && info.isAuthorSizeChange(originalSize, size)) {
             info.setUserSize(true);
          }
 

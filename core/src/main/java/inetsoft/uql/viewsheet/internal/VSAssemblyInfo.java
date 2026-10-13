@@ -1471,6 +1471,13 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
+    * Whether a size change is the author's claim on the box: any change, unless a type narrows it.
+    */
+   public boolean isAuthorSizeChange(Dimension before, Dimension after) {
+      return !before.equals(after);
+   }
+
+   /**
     * Return the box to its density size and drop the author's claim on it.
     */
    public void resetSize(VizContext ctx) {

@@ -181,6 +181,83 @@ class SizeFollowsDensityDialogTest {
       assertTrue(wider.isUserSize());
    }
 
+   // a list or tree's rows follow its height, so only a new height claims its box
+   @Test
+   void noAnswerFlagsAListOrTreeOnlyOnANewHeight() {
+      SelectionListVSAssemblyInfo wider = list(new Dimension(132, 202), false);
+      VSDialogService.recordAuthorSize(wider, model(null, 200, 202), new Dimension(132, 202));
+      assertFalse(wider.isUserSize());
+
+      SelectionTreeVSAssemblyInfo widerTree = tree(new Dimension(132, 202));
+      VSDialogService.recordAuthorSize(widerTree, model(null, 200, 202), new Dimension(132, 202));
+      assertFalse(widerTree.isUserSize());
+
+      SelectionListVSAssemblyInfo taller = list(new Dimension(132, 202), false);
+      VSDialogService.recordAuthorSize(taller, model(null, 132, 230), new Dimension(132, 202));
+      assertTrue(taller.isUserSize());
+   }
+
+   // the dialog writes the typed size before recording it; the untick sticks through the width
+   @Test
+   void untickingAndWideningAListDoesNotFlagIt() {
+      SelectionListVSAssemblyInfo info = list(new Dimension(132, 202), false);
+      info.setPixelSize(new Dimension(200, 202));
+
+      VSDialogService.recordAuthorSize(info, model(false, 200, 202), new Dimension(132, 202));
+
+      assertFalse(info.isUserSize());
+   }
+
+   // with no new size the box would still follow, so the untick is kept as the author's claim
+   @Test
+   void untickingAListWithoutResizingFlagsIt() {
+      SelectionListVSAssemblyInfo info = list(new Dimension(132, 202), false);
+
+      VSDialogService.recordAuthorSize(info, model(false, 132, 202), new Dimension(132, 202));
+
+      assertTrue(info.isUserSize());
+   }
+
+   // shown unticked only because it is off its tier size, as a width drag leaves it
+   @Test
+   void applyingAWidenedListUntouchedDoesNotFlagIt() {
+      SelectionListVSAssemblyInfo info = list(new Dimension(200, 202), false);
+      SizePositionPaneModel read = new SizePositionPaneModel();
+      VSDialogService.readSizeFollowsDensity(info, read, true);
+      assertEquals(Boolean.FALSE, read.getSizeFollowsDensity());
+
+      VSDialogService.recordAuthorSize(info, model(false, 200, 202), new Dimension(200, 202));
+
+      assertFalse(info.isUserSize());
+   }
+
+   // the same holds for a container, whose flag nothing reads off a tier size
+   @Test
+   void applyingAContainerOffItsTierSizeUntouchedDoesNotFlagIt() {
+      CurrentSelectionVSAssemblyInfo info = container(VizMark.MODERN_LIGHT, new Dimension(400, 300), false);
+
+      VSDialogService.recordAuthorSize(info, model(false, 400, 300), new Dimension(400, 300));
+
+      assertFalse(info.isUserSize());
+   }
+
+   private static SelectionListVSAssemblyInfo list(Dimension size, boolean userSize) {
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setShowType(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      info.setPixelSize(size);
+      info.setUserSize(userSize);
+      return info;
+   }
+
+   private static SelectionTreeVSAssemblyInfo tree(Dimension size) {
+      SelectionTreeVSAssemblyInfo info = new SelectionTreeVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setShowType(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      info.setPixelSize(size);
+      return info;
+   }
+
    @Test
    void theHelpersLeaveATypeWithoutADensitySizeAlone() {
       ChartVSAssemblyInfo chart = new ChartVSAssemblyInfo();

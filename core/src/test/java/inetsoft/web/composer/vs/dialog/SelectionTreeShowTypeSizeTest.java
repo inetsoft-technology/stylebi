@@ -113,6 +113,18 @@ class SelectionTreeShowTypeSizeTest {
       assertEquals(230, switchedToList(info).getPixelSize().height);
    }
 
+   // title hidden: the rebuild still counts the title lane, as a list's does, so the author's box
+   // does not come back a lane short
+   @Test
+   void anAuthorSizedMarkedTreeWithAHiddenTitleKeepsTheTitleLane() throws Exception {
+      SelectionTreeVSAssemblyInfo info = seededTree("comfortable");
+      info.setTitleVisibleValue(false);
+      info.setUserSize(true);
+      info.setListHeight(6);
+
+      assertEquals(30 + 6 * 28 + 32, switchedToList(info).getPixelSize().height);
+   }
+
    // unmarked: six 20px rows and a 20px cell for the title, exactly as before
    @Test
    void switchingAnUnmarkedTreeToListKeepsTheLegacyHeight() throws Exception {

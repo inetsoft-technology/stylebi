@@ -23,6 +23,7 @@ import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizMark;
@@ -334,6 +335,63 @@ class ComposerObjectServiceTest {
       assertEquals(9, list.getSelectionListInfo().getListHeight());
    }
 
+   // a width drag claims no box: it stays the tier box a switch from Dropdown rebuilds
+   @Test
+   void aWidenedMarkedListStaysNeverSized() throws Exception {
+      Viewsheet vs = tierViewsheet("comfortable");
+      SelectionListVSAssembly list = markedList(vs);
+      SelectionListVSAssemblyInfo info = list.getSelectionListInfo();
+      assertEquals(new Dimension(132, 202), info.getPixelSize());
+
+      resize(vs, "SelectionList1", 200, 202);
+
+      assertFalse(info.isUserSize());
+      assertEquals(6, info.getListHeight());
+      assertEquals(202, info.getContainedListHeight());
+   }
+
+   // Align and Match Width move or re-widen a box and resend its height
+   @Test
+   void anArrangeThatKeepsTheHeightDoesNotFlagAMarkedList() throws Exception {
+      Viewsheet vs = tierViewsheet("comfortable");
+      SelectionListVSAssembly list = markedList(vs);
+
+      resize(vs, "SelectionList1", 40, 60, 300, 202);
+
+      assertFalse(list.getSelectionListInfo().isUserSize());
+      assertEquals(202, list.getSelectionListInfo().getContainedListHeight());
+   }
+
+   @Test
+   void aWidenedMarkedTreeOpensToItsTierBox() throws Exception {
+      Viewsheet vs = tierViewsheet("comfortable");
+      SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly(vs, "SelectionTree1");
+      SelectionTreeVSAssemblyInfo info = tree.getSelectionTreeInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.initDefaultFormat();
+      info.setPixelOffset(new Point(0, 0));
+      vs.addAssembly(tree);
+      assertEquals(new Dimension(132, 202), info.getPixelSize());
+
+      resize(vs, "SelectionTree1", 200, 202);
+
+      assertFalse(info.isUserSize());
+      assertEquals(202, info.getContainedListHeight());
+   }
+
+   // the rule is the type's, not the mark's; the unmarked rows are written as before
+   @Test
+   void aWidenedUnmarkedListIsNotFlaggedAndKeepsTheLegacyRows() throws Exception {
+      Viewsheet vs = tierViewsheet("comfortable");
+      SelectionListVSAssembly list = unmarkedList(vs);
+      list.getVSAssemblyInfo().setPixelSize(new Dimension(100, 120));
+
+      resize(vs, "SelectionList1", 200, 120);
+
+      assertFalse(list.getVSAssemblyInfo().isUserSize());
+      assertEquals(5, list.getSelectionListInfo().getListHeight(), "(120 - 20) / 20");
+   }
+
    // a dropdown's box is its title lane and its rows are the author's Height; Arrange can still
    // stretch the box
    @Test
@@ -424,12 +482,18 @@ class ComposerObjectServiceTest {
    }
 
    private void resize(Viewsheet vs, String name, int width, int height) throws Exception {
+      resize(vs, name, 0, 0, width, height);
+   }
+
+   private void resize(Viewsheet vs, String name, int x, int y, int width, int height)
+      throws Exception
+   {
       when(engine.getViewsheet(any(), any())).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(vs);
       ResizeVSObjectEvent event = new ResizeVSObjectEvent();
       event.setName(name);
-      event.setxOffset(0);
-      event.setyOffset(0);
+      event.setxOffset(x);
+      event.setyOffset(y);
       event.setWidth(width);
       event.setHeight(height);
       service.resizeObject(runtimeViewsheetRef.getRuntimeId(), event, principal, dispatcher, "/test");
