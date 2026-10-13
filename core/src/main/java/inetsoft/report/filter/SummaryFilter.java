@@ -2838,11 +2838,13 @@ public class SummaryFilter extends AbstractGroupedTable
          // linked so the gathered order is at least deterministic; sortMergedNodes()
          // below puts the children back into their own group level's order
          Map<String, List<GroupNode>> subgroups = new LinkedHashMap<>();
+         // the levels at which each gathered sub-group sits under an inner "Others"
+         Map<String, BitSet> othersLevels = new HashMap<>();
 
          for(GroupNode node : list) {
             // copy named group values. (51822)
             setVals(node.overwrittenValues);
-            addGroupNode(subgroups, node);
+            addGroupNode(subgroups, othersLevels, node, new BitSet());
             fillIncludedRowsForTotal(includedRows, node);
          }
 
@@ -2850,19 +2852,25 @@ public class SummaryFilter extends AbstractGroupedTable
 
          if(!subgroups.isEmpty()) {
             nodes = new ArrayList<>(subgroups.size());
+            Map<GroupNode, BitSet> nodeOthersLevels = new HashMap<>();
 
-            for(List<GroupNode> subgroup : subgroups.values()) {
+            for(Map.Entry<String, List<GroupNode>> entry : subgroups.entrySet()) {
+               List<GroupNode> subgroup = entry.getValue();
+               GroupNode subnode;
+
                if(subgroup.size() > 1) {
-                  UnionGroupNode subnode = new UnionGroupNode(subgroup);
+                  subnode = new UnionGroupNode(subgroup);
                   subnode.prepareSum();
-                  nodes.add(subnode);
                }
                else {
-                  nodes.add(subgroup.get(0));
+                  subnode = subgroup.get(0);
                }
+
+               nodes.add(subnode);
+               nodeOthersLevels.put(subnode, othersLevels.get(entry.getKey()));
             }
 
-            sortMergedNodes();
+            sortMergedNodes(nodeOthersLevels);
          }
       }
 
@@ -2871,12 +2879,20 @@ public class SummaryFilter extends AbstractGroupedTable
        *
        * The children are gathered from several parent groups, so the order they end up
        * in here is the order the sub-groups happened to be collected in, not the order
-       * defined for their own group level. Every other group at this level is ordered,
-       * and the order-dependent calculations (running total, moving, change/previous)
-       * read the resulting row order, so the "Others" bucket has to be ordered the same
-       * way. (74910)
+       * defined for their own group levels. Every other group is ordered, and the
+       * order-dependent calculations (running total, moving, change/previous) read the
+       * resulting row order, so the "Others" bucket has to be ordered the same way.
+       * (74910)
+       *
+       * The children are the leaves only, so the groups of the levels between this one
+       * and the leaves have no nodes here. The leaves are ordered level by level from
+       * the outermost of those levels inward, each level by its own order, so the rows
+       * come out grouped the same way as in any other bucket. Only the order changes,
+       * the leaves keep this node as their parent. (78468)
+       *
+       * @param othersLevels the levels at which each child sits under an inner "Others".
        */
-      private void sortMergedNodes() {
+      private void sortMergedNodes(Map<GroupNode, BitSet> othersLevels) {
          if(nodes == null || nodes.size() < 2) {
             return;
          }
@@ -2891,24 +2907,105 @@ public class SummaryFilter extends AbstractGroupedTable
             }
          }
 
-         if(lvl < 0 || lvl >= cols.length) {
+         if(lvl <= this.level || lvl >= cols.length) {
             return;
+         }
+
+         List<GroupNode> sorted = new ArrayList<>(nodes.size());
+         sortMergedLevel(nodes, this.level + 1, othersLevels, sorted);
+         nodes = sorted;
+      }
+
+      /**
+       * Order the children in one group of a level, then each of the groups of the next
+       * level inside those groups, and append the ordered children to the result.
+       */
+      private void sortMergedLevel(List<GroupNode> children, int lvl,
+                                   Map<GroupNode, BitSet> othersLevels,
+                                   List<GroupNode> result)
+      {
+         Map<Object, MergedGroupKey> groups = new LinkedHashMap<>();
+
+         for(GroupNode child : children) {
+            BitSet others = othersLevels.get(child);
+            groups.computeIfAbsent(child.getVal(lvl), k -> new MergedGroupKey(child, lvl))
+               .add(child, others != null && others.get(lvl));
+         }
+
+         List<MergedGroupKey> keys = new ArrayList<>(groups.values());
+
+         if(keys.size() > 1) {
+            keys.sort(getMergedLevelComparator(lvl, keys));
+         }
+
+         for(MergedGroupKey key : keys) {
+            if(lvl >= key.children.get(0).level) {
+               result.addAll(key.children);
+            }
+            else {
+               sortMergedLevel(key.children, lvl + 1, othersLevels, result);
+            }
+         }
+      }
+
+      /**
+       * Get the comparator a group level is ordered by, the same way the groups of
+       * that level are ordered under any other parent: by value, by the group order,
+       * or in data order when the level is not sorted.
+       */
+      private Comparator<GroupNode> getMergedLevelComparator(int lvl,
+                                                             List<MergedGroupKey> keys)
+      {
+         InnerTopNInfo byValue = sortByValMap.get(lvl);
+
+         if(byValue != null) {
+            for(MergedGroupKey key : keys) {
+               key.prepareSum();
+            }
+
+            return new GroupNodeComparer(byValue.scol, byValue.asc);
          }
 
          SortOrder order = getGroupOrder(cols[lvl]);
 
          if(order != null && order.getOrder() != StyleConstants.SORT_NONE) {
-            nodes.sort(new GroupNodeComparer2(order));
+            return new GroupNodeComparer2(order);
          }
+
+         return (v1, v2) -> {
+            boolean other1 = isOthersNode(v1);
+            boolean other2 = isOthersNode(v2);
+
+            if(other1 != other2 && isSortOthersLast()) {
+               return other1 ? 1 : -1;
+            }
+
+            return Integer.compare(((MergedGroupKey) v1).firstRow,
+                                   ((MergedGroupKey) v2).firstRow);
+         };
       }
 
       /**
        * Add new GroupNode to MergedGroupNode.
+       *
+       * @param othersLevels the levels at which each sub-group sits under an inner
+       *                     "Others", by sub-group key.
+       * @param parentOthers the levels at which node sits under an inner "Others".
        **/
-      private void addGroupNode(Map<String, List<GroupNode>> subgroups, GroupNode node) {
+      private void addGroupNode(Map<String, List<GroupNode>> subgroups,
+                                Map<String, BitSet> othersLevels, GroupNode node,
+                                BitSet parentOthers)
+      {
          for(int i = 0; node.nodes != null && i < node.nodes.size(); i++) {
             GroupNode child = node.nodes.get(i);
             child.setVal(this.level, "Others");
+            BitSet others = parentOthers;
+
+            // an inner top n or named group "Others" (78468)
+            if(child instanceof MergedGroupNode) {
+               others = (BitSet) parentOthers.clone();
+               others.set(child.level);
+            }
 
             // only add parent nodes for others if keeping hierarcy. otherwise
             // chart (e.g. sunburst) will have duplicate rows
@@ -2916,11 +3013,52 @@ public class SummaryFilter extends AbstractGroupedTable
                String key = Tool.arrayToString(child.getVals());
                List<GroupNode> subgroup = subgroups.computeIfAbsent(key, k -> new ArrayList<>());
                subgroup.add(child);
+               othersLevels.computeIfAbsent(key, k -> new BitSet()).or(others);
             }
 
-            addGroupNode(subgroups, child);
+            addGroupNode(subgroups, othersLevels, child, others);
          }
       }
+   }
+
+   /**
+    * One group of a level inside a merged "Others" node, used only to order the
+    * merged children. It is never added to the group tree, so it doesn't change the
+    * parents or the values of the children. (78468)
+    */
+   private class MergedGroupKey extends CombinedGroupNode {
+      MergedGroupKey(GroupNode first, int level) {
+         super(first.pass);
+         this.level = level;
+         this.row = first.row;
+         // a node of its own, so preparing the sum doesn't reset the children's formulas
+         this.fid = -2;
+         setVals(first.overwrittenValues);
+         includedRows = new SparseBitSet();
+      }
+
+      void add(GroupNode child, boolean others) {
+         children.add(child);
+         fillIncludedRowsForTotal(includedRows, child);
+         this.others = this.others || others;
+
+         if(child.row >= 0 && child.row < firstRow) {
+            firstRow = child.row;
+         }
+      }
+
+      private final List<GroupNode> children = new ArrayList<>();
+      private boolean others;
+      // the first base row of the group, for the data order
+      private int firstRow = Integer.MAX_VALUE;
+   }
+
+   /**
+    * Check if a node is an "Others" group.
+    */
+   private boolean isOthersNode(GroupNode node) {
+      return node instanceof MergedGroupNode ||
+         node instanceof MergedGroupKey && ((MergedGroupKey) node).others;
    }
 
    /**
@@ -3439,8 +3577,8 @@ public class SummaryFilter extends AbstractGroupedTable
        */
       @Override
       public int compare(GroupNode v1, GroupNode v2) {
-         boolean other1 = v1 instanceof MergedGroupNode;
-         boolean other2 = v2 instanceof MergedGroupNode;
+         boolean other1 = isOthersNode(v1);
+         boolean other2 = isOthersNode(v2);
 
          if(other1 != other2 && isSortOthersLast()) {
             return other1 ? 1 : -1;
@@ -3477,8 +3615,8 @@ public class SummaryFilter extends AbstractGroupedTable
        */
       @Override
       public int compare(GroupNode v1, GroupNode v2) {
-         boolean other1 = v1 instanceof MergedGroupNode;
-         boolean other2 = v2 instanceof MergedGroupNode;
+         boolean other1 = isOthersNode(v1);
+         boolean other2 = isOthersNode(v2);
 
          if(other1 != other2 && isSortOthersLast()) {
             return other1 ? 1 : -1;
