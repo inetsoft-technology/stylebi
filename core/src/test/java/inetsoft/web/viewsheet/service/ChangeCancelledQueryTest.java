@@ -43,6 +43,7 @@ import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.VSCalendarService;
+import inetsoft.web.viewsheet.controller.chart.VSChartFlyoverService;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.event.calendar.ImmutableCalendarSelectionEvent;
@@ -55,6 +56,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
@@ -151,6 +153,36 @@ class ChangeCancelledQueryTest {
                   "the user's cancel must not be skipped like a newer request's");
       assertFalse(loaded(r.dispatcherA, XT), "A must not load the cancelled crosstab");
       assertFalse(loaded(r.dispatcherA, "Y78024"), "A must not go on loading other tables");
+      assertNoError(r);
+   }
+
+   /**
+    * Bug #78241: a chart flyover whose Flyover View is the crosstab runs while A's calendar
+    * loads it (flyovers aren't ordered with the sheet's other events). The flyover's cancel of
+    * the tip's query is a newer query of the crosstab, not a stop: A must not end silently, it
+    * must go on loading its other tables.
+    */
+   @Test
+   void flyoverTipCancelDoesNotStopLoadingOtherTables() throws Exception {
+      Fixture f = otherTablesFixture("Y78024");
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(f.rid, f.principal);
+      Method cancelTip = VSChartFlyoverService.class.getDeclaredMethod(
+         "cancelTipQuery", ViewsheetSandbox.class, String.class);
+      cancelTip.setAccessible(true);
+      Result r = run(f,
+         d -> calendarService().applyCalendar(f.rid, CAL, calendarEvent("m2024-0"), f.principal,
+                                              d, ""),
+         // what VSChartFlyoverService.runFlyover() does for a tip whose conditions changed
+         d -> {
+            cancelTip.invoke(null, f.box, XT);
+            coreLifecycleService.execute(rvs, XT, "", VSAssembly.INPUT_DATA_CHANGED, d);
+         });
+
+      assertTrue(r.changeCancelled, "the flyover must cancel the crosstab's query");
+      assertNull(r.thrownB, "the flyover must complete");
+      assertTrue(loaded(r.dispatcherB, XT), "the flyover loads the crosstab");
+      assertNull(r.thrownA, "A must not be stopped by the flyover, but threw " + r.thrownA);
+      assertTrue(loaded(r.dispatcherA, "Y78024"), "A must load its other tables");
       assertNoError(r);
    }
 
