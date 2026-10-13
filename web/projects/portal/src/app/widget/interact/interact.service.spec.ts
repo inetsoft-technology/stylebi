@@ -113,4 +113,37 @@ describe("InteractService — snap to grid", () => {
       expect(p.x).toBe(298);
       expect(p.y).toBe(238);
    });
+
+   function guideService(vertical: number[], horizontal: number[]): InteractService {
+      return makeService({
+         snapToGrid: false,
+         snapToGuides: true,
+         snapGuideRange: 10,
+         snapVerticalGuides: vertical,
+         snapHorizontalGuides: horizontal
+      });
+   }
+
+   it("snaps the right/bottom edges of a move exactly onto object guides", () => {
+      const bounds = { left: 100, top: 100, width: 50, height: 40 };
+      const p = snapDraggable(guideService([348], [278]), makeDraggable(0, bounds), 297, 236);
+      expect(p.x + bounds.width).toBe(348);
+      expect(p.y + bounds.height).toBe(278);
+   });
+
+   it("snaps the center of a move exactly onto object center guides", () => {
+      const bounds = { left: 100, top: 100, width: 50, height: 40 };
+      // center guides are passed as negative values
+      const p = snapDraggable(guideService([-323], [-258]), makeDraggable(0, bounds), 297, 236);
+      expect(p.x + bounds.width / 2).toBe(323);
+      expect(p.y + bounds.height / 2).toBe(258);
+   });
+
+   it("snaps the right/bottom edges of a resize exactly onto object guides", () => {
+      const bounds = { left: 100, top: 100, width: 183, height: 121 };
+      const p = snapDraggable(guideService([477], [373]), makeDraggable(0, bounds), 292, 250,
+                              { right: true, bottom: true });
+      expect(p.x + bounds.width).toBe(477);
+      expect(p.y + bounds.height).toBe(373);
+   });
 });
