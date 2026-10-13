@@ -458,13 +458,15 @@ public class VSFrameVisitor {
          String columnName = resolveColumnName(col, tref);
 
          final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
-         VisualFrame sharedShapeFrame =
-            context.getSharedShapeFrame(columnName, ref, (CategoricalShapeFrame) frame);
-
          // a data tip view only renders filtered data and has no full data frame of its own,
-         // so borrow the frame of its parent chart even if the palette differs. (78462)
-         if(sharedShapeFrame == null && !hasFullData && tipParent != null) {
-            sharedShapeFrame = context.getChartSharedShapeFrame(columnName, ref, tipParent);
+         // so borrow the frame of its parent chart even if the palette differs, before any
+         // other chart that happens to have the same palette. (78462)
+         VisualFrame sharedShapeFrame = !hasFullData && tipParent != null ?
+            context.getChartSharedShapeFrame(columnName, ref, tipParent) : null;
+
+         if(sharedShapeFrame == null) {
+            sharedShapeFrame =
+               context.getSharedShapeFrame(columnName, ref, (CategoricalShapeFrame) frame);
          }
 
          // don't set the shared frame on tref. a chart level tref is the design time ref and

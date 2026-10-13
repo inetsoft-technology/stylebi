@@ -163,6 +163,25 @@ class SharedShapeFrameViewsheetTest {
    }
 
    @Test
+   void tipViewBorrowsItsParentBeforeAChartWithItsOwnPalette() throws Exception {
+      ChartVSAssembly parent = addChart("CustomTipParent", OTHER);
+      ChartVSAssembly tip = addChart("DefaultParentTip", DEFAULT);
+      ChartVSAssembly other = addChart("UnrelatedDefaultChart", DEFAULT);
+      setTipView(parent, tip);
+      tip.setTipConditionList(unnamedCondition());
+
+      // the unrelated chart has the same palette as the tip view and renders before and after
+      // the parent
+      assertEquals(expected(DEFAULT), shapes(other, null));
+      Map<String, GShape> full = shapes(parent, null);
+      assertEquals(expected(OTHER), full);
+      assertEquals(full.get("UNNAMED"), shapes(tip, null).get("UNNAMED"));
+
+      assertEquals(expected(DEFAULT), shapes(other, null));
+      assertEquals(full.get("UNNAMED"), shapes(tip, null).get("UNNAMED"));
+   }
+
+   @Test
    void tipViewInAContainerBorrowsTheParentShapes() throws Exception {
       ChartVSAssembly parent = addChart("GroupTipParent", OTHER);
       ChartVSAssembly tip = addChart("GroupedTip", DEFAULT);

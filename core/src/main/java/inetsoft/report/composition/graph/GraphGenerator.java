@@ -1880,9 +1880,6 @@ public abstract class GraphGenerator {
    }
 
    /**
-    * Find the time scale type of a date dimension.
-    */
-   /**
     * Get the absolute name of the assembly that shows the specified assembly (or a container
     * of it) as its data tip view.
     */
@@ -1913,6 +1910,9 @@ public abstract class GraphGenerator {
       return null;
    }
 
+   /**
+    * Find the time scale type of a date dimension.
+    */
    private static int getDateType(DataSet data, String dim) {
       VSDataSet vs = data instanceof VSDataSet ? (VSDataSet) data : null;
       DataSet oodata = data;
