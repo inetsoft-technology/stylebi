@@ -71,6 +71,8 @@ import java.awt.*;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -1752,7 +1754,7 @@ public class VSObjectPropertyService {
          return hex;
       }
 
-      java.util.regex.Matcher rgb = SHADOW_RGB_PATTERN.matcher(trimmed);
+      Matcher rgb = SHADOW_RGB_PATTERN.matcher(trimmed);
 
       if(rgb.matches()) {
          int r = Integer.parseInt(rgb.group(1));
@@ -1771,7 +1773,7 @@ public class VSObjectPropertyService {
     * @return "#rrggbb" for #RRGGBB, #RGB, 0xRRGGBB or a decimal 0-16777215, otherwise null.
     */
    private static String parseStrictShadowColor(String text) {
-      java.util.regex.Matcher m = SHADOW_HEX_PATTERN.matcher(text);
+      Matcher m = SHADOW_HEX_PATTERN.matcher(text);
 
       if(m.matches()) {
          return "#" + m.group(1).toLowerCase();
@@ -1801,17 +1803,17 @@ public class VSObjectPropertyService {
       return null;
    }
 
-   private static final java.util.regex.Pattern SHADOW_HEX_PATTERN =
-      java.util.regex.Pattern.compile("#([0-9a-fA-F]{6})");
-   private static final java.util.regex.Pattern SHADOW_SHORT_HEX_PATTERN =
-      java.util.regex.Pattern.compile("#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])");
-   private static final java.util.regex.Pattern SHADOW_0X_PATTERN =
-      java.util.regex.Pattern.compile("0[xX]([0-9a-fA-F]{6})");
+   private static final Pattern SHADOW_HEX_PATTERN =
+      Pattern.compile("#([0-9a-fA-F]{6})");
+   private static final Pattern SHADOW_SHORT_HEX_PATTERN =
+      Pattern.compile("#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])");
+   private static final Pattern SHADOW_0X_PATTERN =
+      Pattern.compile("0[xX]([0-9a-fA-F]{6})");
    // at most 8 digits, so Integer.parseInt cannot overflow; the range is checked after parsing
-   private static final java.util.regex.Pattern SHADOW_DECIMAL_PATTERN =
-      java.util.regex.Pattern.compile("\\d{1,8}");
-   private static final java.util.regex.Pattern SHADOW_RGB_PATTERN =
-      java.util.regex.Pattern.compile(
+   private static final Pattern SHADOW_DECIMAL_PATTERN =
+      Pattern.compile("\\d{1,8}");
+   private static final Pattern SHADOW_RGB_PATTERN =
+      Pattern.compile(
          "(?i)rgba?\\s*\\(\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})\\s*" +
          "(?:,\\s*[0-9.]+%?\\s*)?\\)");
 
