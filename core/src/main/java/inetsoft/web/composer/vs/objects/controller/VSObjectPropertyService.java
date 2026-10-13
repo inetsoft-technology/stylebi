@@ -71,6 +71,8 @@ import java.awt.*;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -1709,6 +1711,111 @@ public class VSObjectPropertyService {
             "'" + field + "' must be a color such as #RRGGBB, but was '" + value + "'.", ex);
       }
    }
+
+   /**
+    * Converts the shadow color of a shape property dialog model to the string stored in
+    * {@link ShapeShadow}. The shadow color has no dynamic form, and only "#rrggbb" draws the
+    * same in every renderer (the browser rectangle box-shadow, the browser oval flood-color and
+    * export), so the stored form is always "#rrggbb". An empty value resets it to the default.
+    * @param field the dialog model field name, used in the error message.
+    * @return "#rrggbb" for #RRGGBB, #RGB, 0xRRGGBB or a decimal 0-16777215; "" for null or "".
+    * @throws IllegalArgumentException for any other value (a color name, rgb()/rgba(), an alpha
+    *                                  form, a dynamic value or garbage).
+    */
+   public static String normalizeShadowColor(String value, String field) {
+      if(value == null || value.isEmpty()) {
+         return "";
+      }
+
+      String hex = parseStrictShadowColor(value.trim());
+
+      if(hex == null) {
+         throw new IllegalArgumentException(
+            "'" + field + "' must be a color such as #RRGGBB, but was '" + value + "'.");
+      }
+
+      return hex;
+   }
+
+   /**
+    * Reads the stored shadow color as "#rrggbb" for a shape property dialog model. Any stored
+    * value reads back, including one written by script or by an older version: a value that
+    * {@link #normalizeShadowColor} accepts gives its strict form, rgb()/rgba() give their RGB,
+    * and anything else gives the RGB that export draws for it ({@link ShapeShadow#getShadowColor},
+    * e.g. a color name resolves, #RRGGBBAA drops its alpha, garbage is black). The result is
+    * always accepted by {@link #normalizeShadowColor}, so an unchanged dialog model writes back.
+    */
+   public static String getShadowColorHexString(ShapeShadow shadow) {
+      String stored = shadow.getColor();
+      String trimmed = stored == null ? "" : stored.trim();
+      String hex = parseStrictShadowColor(trimmed);
+
+      if(hex != null) {
+         return hex;
+      }
+
+      Matcher rgb = SHADOW_RGB_PATTERN.matcher(trimmed);
+
+      if(rgb.matches()) {
+         int r = Integer.parseInt(rgb.group(1));
+         int g = Integer.parseInt(rgb.group(2));
+         int b = Integer.parseInt(rgb.group(3));
+
+         if(r <= 255 && g <= 255 && b <= 255) {
+            return String.format("#%02x%02x%02x", r, g, b);
+         }
+      }
+
+      return String.format("#%06x", shadow.getShadowColor().getRGB() & 0xFFFFFF);
+   }
+
+   /**
+    * @return "#rrggbb" for #RRGGBB, #RGB, 0xRRGGBB or a decimal 0-16777215, otherwise null.
+    */
+   private static String parseStrictShadowColor(String text) {
+      Matcher m = SHADOW_HEX_PATTERN.matcher(text);
+
+      if(m.matches()) {
+         return "#" + m.group(1).toLowerCase();
+      }
+
+      m = SHADOW_SHORT_HEX_PATTERN.matcher(text);
+
+      if(m.matches()) {
+         String r = m.group(1), g = m.group(2), b = m.group(3);
+         return ("#" + r + r + g + g + b + b).toLowerCase();
+      }
+
+      m = SHADOW_0X_PATTERN.matcher(text);
+
+      if(m.matches()) {
+         return "#" + m.group(1).toLowerCase();
+      }
+
+      if(SHADOW_DECIMAL_PATTERN.matcher(text).matches()) {
+         int n = Integer.parseInt(text);
+
+         if(n <= 0xFFFFFF) {
+            return String.format("#%06x", n);
+         }
+      }
+
+      return null;
+   }
+
+   private static final Pattern SHADOW_HEX_PATTERN =
+      Pattern.compile("#([0-9a-fA-F]{6})");
+   private static final Pattern SHADOW_SHORT_HEX_PATTERN =
+      Pattern.compile("#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])");
+   private static final Pattern SHADOW_0X_PATTERN =
+      Pattern.compile("0[xX]([0-9a-fA-F]{6})");
+   // at most 8 digits, so Integer.parseInt cannot overflow; the range is checked after parsing
+   private static final Pattern SHADOW_DECIMAL_PATTERN =
+      Pattern.compile("\\d{1,8}");
+   private static final Pattern SHADOW_RGB_PATTERN =
+      Pattern.compile(
+         "(?i)rgba?\\s*\\(\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})\\s*" +
+         "(?:,\\s*[0-9.]+%?\\s*)?\\)");
 
    public boolean isEmbeddedEnabled(RuntimeViewsheet rvs, TableVSAssemblyInfo tinfo) {
       SourceInfo sinfo = tinfo.getSourceInfo();

@@ -173,6 +173,149 @@ class ShapePropertyDialogRoundTripTest {
       assertEquals("$(x)", f.getBackgroundValue());
    }
 
+   // Bug #78471: the shape shadow color has no dynamic form and only #rrggbb draws the same in
+   // every renderer, so the dialog write is strict and the dialog read maps any stored value.
+   private void shadowShape(boolean oval, String storedShadowColor) {
+      ShapeVSAssembly a = oval ? new OvalVSAssembly(vs, "Shape1")
+         : new RectangleVSAssembly(vs, "Shape1");
+      ((ShapeVSAssemblyInfo) a.getVSAssemblyInfo()).getShadowInfo().setColor(storedShadowColor);
+      when(vs.getAssembly("Shape1")).thenReturn(a);
+   }
+
+   private ShadowPropPaneModel shadowModel(boolean oval, Object dialogModel) {
+      return oval
+         ? ((OvalPropertyDialogModel) dialogModel).getOvalPropertyPaneModel().getShadowPropPaneModel()
+         : ((RectanglePropertyDialogModel) dialogModel).getRectanglePropertyPaneModel()
+            .getShadowPropPaneModel();
+   }
+
+   private RectanglePropertyDialogService rectangleService() {
+      return new RectanglePropertyDialogService(propertyService, dialogService, viewsheetService);
+   }
+
+   private Object getShapeModel(boolean oval) throws Exception {
+      return oval
+         ? ovalService().getOvalPropertyDialogModel("rt", "Shape1", null)
+         : rectangleService().getRectanglePropertyDialogModel("rt", "Shape1", null);
+   }
+
+   private void setShapeModel(boolean oval, Object dialogModel) throws Exception {
+      if(oval) {
+         ovalService().setOvalPropertyDialogModel(
+            "rt", "Shape1", (OvalPropertyDialogModel) dialogModel, null, null, null);
+      }
+      else {
+         rectangleService().setRectanglePropertyDialogModel(
+            "rt", "Shape1", (RectanglePropertyDialogModel) dialogModel, null, null, null);
+      }
+   }
+
+   private String capturedShadowColor() throws Exception {
+      ArgumentCaptor<VSAssemblyInfo> c = ArgumentCaptor.forClass(VSAssemblyInfo.class);
+      verify(propertyService).editObjectProperty(
+         any(), c.capture(), anyString(), nullable(String.class), nullable(String.class),
+         nullable(Principal.class), nullable(CommandDispatcher.class), anyBoolean(),
+         nullable(Integer.class));
+      return ((ShapeVSAssemblyInfo) c.getValue()).getShadowInfo().getColor();
+   }
+
+   @Test
+   void shadowColorStrictWriteNormalizesToHex() throws Exception {
+      String[][] cases = { { "#FF0000", "#ff0000" }, { "#F00", "#ff0000" },
+                           { "0xff0000", "#ff0000" }, { "16711680", "#ff0000" },
+                           { " #00ff00 ", "#00ff00" }, { "0", "#000000" },
+                           { "", "#000000" }, { null, "#000000" } };
+
+      for(boolean oval : new boolean[] { true, false }) {
+         for(String[] c : cases) {
+            reset(propertyService);
+            shadowShape(oval, "#123456");
+            Object m = getShapeModel(oval);
+            shadowModel(oval, m).setColor(c[0]);
+            setShapeModel(oval, m);
+            assertEquals(c[1], capturedShadowColor(), (oval ? "oval " : "rectangle ") + c[0]);
+         }
+      }
+   }
+
+   @Test
+   void shadowColorStrictWriteRefusesNonHex() throws Exception {
+      String[] bad = { "red", "notacolor", "rgba(1,2,3,0.5)", "#ff000080", "$(X)", "=1",
+                       "16777216", "-1", "  " };
+
+      for(boolean oval : new boolean[] { true, false }) {
+         for(String value : bad) {
+            reset(propertyService);
+            shadowShape(oval, "#123456");
+            Object m = getShapeModel(oval);
+            shadowModel(oval, m).setColor(value);
+            IllegalArgumentException ex = assertThrows(
+               IllegalArgumentException.class, () -> setShapeModel(oval, m), value);
+            assertTrue(ex.getMessage().contains("shadowPropPaneModel.color"), ex.getMessage());
+            verify(propertyService, never()).editObjectProperty(
+               any(), any(), anyString(), nullable(String.class), nullable(String.class),
+               nullable(Principal.class), nullable(CommandDispatcher.class), anyBoolean(),
+               nullable(Integer.class));
+         }
+      }
+   }
+
+   @Test
+   void shadowColorLenientReadRoundTrips() throws Exception {
+      // stored the way script, import or an older wiz write stores it (ShapeShadow.setColor)
+      String[][] cases = { { "red", "#ff0000" }, { "#ff000080", "#ff0000" },
+                           { "#F00", "#ff0000" }, { "16711680", "#ff0000" },
+                           { "rgba(255,0,0,0.5)", "#ff0000" }, { "RGB( 0 , 0 , 255 )", "#0000ff" },
+                           { "0xFF0000", "#ff0000" }, { " #00FF00 ", "#00ff00" },
+                           { "notacolor", "#000000" }, { "$(X)", "#000000" },
+                           { "rgb(300,0,0)", "#000000" } };
+
+      for(boolean oval : new boolean[] { true, false }) {
+         for(String[] c : cases) {
+            reset(propertyService);
+            shadowShape(oval, c[0]);
+            Object m = getShapeModel(oval);
+            String label = (oval ? "oval " : "rectangle ") + c[0];
+            assertEquals(c[1], shadowModel(oval, m).getColor(), label);
+
+            // an otherwise unchanged model (e.g. a shadowApply-only wiz write) writes the mapped value
+            shadowModel(oval, m).setApply(true);
+            setShapeModel(oval, m);
+            assertEquals(c[1], capturedShadowColor(), label);
+         }
+      }
+   }
+
+   // Bug #78471: the wiz write path (alias -> PropertyPath -> dialog service) with the value types
+   // JSON delivers: a number is coerced to its decimal string and then normalized; a boolean
+   // is refused naming the field.
+   @Test
+   void shadowColorAliasWriteCoercesJsonValues() throws Exception {
+      Object[][] cases = { { 16711680, "#ff0000" }, { "#00FF00", "#00ff00" }, { "", "#000000" } };
+
+      for(boolean oval : new boolean[] { true, false }) {
+         String type = oval ? "oval" : "rectangle";
+         String path = inetsoft.web.wiz.viewsheet.PropertyAliases.resolveForWrite(type, "shadowColor");
+
+         for(Object[] c : cases) {
+            reset(propertyService);
+            shadowShape(oval, "#123456");
+            Object m = inetsoft.web.wiz.viewsheet.PropertyPath.set(getShapeModel(oval), path, c[0]);
+            setShapeModel(oval, m);
+            assertEquals(c[1], capturedShadowColor(), type + " " + c[0]);
+         }
+
+         for(Object bad : new Object[] { true, 16777216 }) {
+            reset(propertyService);
+            shadowShape(oval, "#123456");
+            Object m = inetsoft.web.wiz.viewsheet.PropertyPath.set(getShapeModel(oval), path, bad);
+            IllegalArgumentException ex = assertThrows(
+               IllegalArgumentException.class, () -> setShapeModel(oval, m), type + " " + bad);
+            assertTrue(ex.getMessage().contains("shadowPropPaneModel.color"), ex.getMessage());
+         }
+      }
+   }
+
    private VSObjectPropertyService propertyService;
    private VSDialogService dialogService;
    private ViewsheetService viewsheetService;

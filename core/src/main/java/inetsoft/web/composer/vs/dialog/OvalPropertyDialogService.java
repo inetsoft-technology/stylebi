@@ -133,7 +133,7 @@ public class OvalPropertyDialogService {
       ShadowPropPaneModel shadowPropPaneModel = ovalPropertyPaneModel.getShadowPropPaneModel();
       ShapeShadow shadow0 = ovalAssemblyInfo.getShadowInfo();
       shadowPropPaneModel.setApply(ovalAssemblyInfo.getShadowValue());
-      shadowPropPaneModel.setColor(shadow0.getColor());
+      shadowPropPaneModel.setColor(VSObjectPropertyService.getShadowColorHexString(shadow0));
       shadowPropPaneModel.setAlpha(shadow0.getAlpha());
       shadowPropPaneModel.setDirection(shadow0.getDirection());
       shadowPropPaneModel.setDistance(shadow0.getDistance());
@@ -182,7 +182,8 @@ public class OvalPropertyDialogService {
       ShadowPropPaneModel shadowPropPaneModel = ovalPropertyPaneModel.getShadowPropPaneModel();
       ovalAssemblyInfo.setShadowValue(shadowPropPaneModel.isApply());
       ShapeShadow shadow0 = new ShapeShadow();
-      shadow0.setColor(shadowPropPaneModel.getColor());
+      shadow0.setColor(VSObjectPropertyService.normalizeShadowColor(
+         shadowPropPaneModel.getColor(), "shadowPropPaneModel.color"));
       shadow0.setAlpha(shadowPropPaneModel.getAlpha());
       shadow0.setDirection(shadowPropPaneModel.getDirection());
       shadow0.setDistance(shadowPropPaneModel.getDistance());
