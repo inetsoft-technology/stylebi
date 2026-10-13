@@ -23,7 +23,7 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialogModule } from "@angular/material/dialog";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
 import { EditIdentityPaneModel, EditOrganizationPaneModel } from "../edit-identity-pane/edit-identity-pane.model";
-import { SecurityBusyService } from "../security-busy.service";
+import { SavedOrgPropertiesService } from "../saved-org-properties.service";
 import { EditIdentityViewComponent } from "./edit-identity-view.component";
 import { Subject } from "rxjs";
 
@@ -90,9 +90,10 @@ describe("EditIdentityViewComponent", () => {
    // properties from before the save, so the view shows the properties the save wrote
    describe("organization properties after a save", () => {
       const savedProperties = [{name: "max.row.count", value: "100"}];
-      let busy: SecurityBusyService;
+      let saved: SavedOrgPropertiesService;
 
-      beforeEach(() => busy = TestBed.inject(SecurityBusyService));
+      beforeEach(() => saved = TestBed.inject(SavedOrgPropertiesService));
+      afterEach(() => vi.useRealTimers());
 
       function createOrgModel(id: string, properties = []): EditOrganizationPaneModel {
          return <EditOrganizationPaneModel> {
@@ -105,7 +106,7 @@ describe("EditIdentityViewComponent", () => {
       }
 
       it("should show the saved properties when the reload returns the old ones", () => {
-         busy.setSavedOrgProperties("orgy", savedProperties);
+         saved.set("orgy", savedProperties);
          setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
 
          expect(component.properties).toEqual(savedProperties);
@@ -115,14 +116,14 @@ describe("EditIdentityViewComponent", () => {
       });
 
       it("should keep a property that the save removed out of the table", () => {
-         busy.setSavedOrgProperties("orgy", []);
+         saved.set("orgy", []);
          setModel(IdentityType.ORGANIZATION, createOrgModel("orgy", savedProperties));
 
          expect(component.properties).toEqual([]);
       });
 
       it("should match the saved organization id regardless of case", () => {
-         busy.setSavedOrgProperties("OrgY", savedProperties);
+         saved.set("OrgY", savedProperties);
          setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
 
          expect(component.properties).toEqual(savedProperties);
@@ -130,15 +131,40 @@ describe("EditIdentityViewComponent", () => {
 
       it("should show the server's properties when another organization is loaded", () => {
          const serverProperties = [{name: "max.col.count", value: "20"}];
-         busy.setSavedOrgProperties("orgy", savedProperties);
+         saved.set("orgy", savedProperties);
          setModel(IdentityType.ORGANIZATION, createOrgModel("other", serverProperties));
 
          expect(component.properties).toEqual(serverProperties);
       });
 
+      it("should keep the saved properties for the reload when another organization is loaded first", () => {
+         saved.set("orgy", savedProperties);
+         setModel(IdentityType.ORGANIZATION, createOrgModel("other"));
+         setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
+
+         expect(component.properties).toEqual(savedProperties);
+      });
+
+      it("should not use the saved properties after they expire", () => {
+         vi.useFakeTimers();
+         saved.set("orgy", savedProperties);
+         vi.advanceTimersByTime(SavedOrgPropertiesService.EXPIRY + 1);
+         setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
+
+         expect(component.properties).toEqual([]);
+      });
+
+      it("should not use the saved properties after they are cleared", () => {
+         saved.set("orgy", savedProperties);
+         saved.clear();
+         setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
+
+         expect(component.properties).toEqual([]);
+      });
+
       it("should use the saved properties for one load only", () => {
          const serverProperties = [{name: "max.col.count", value: "20"}];
-         busy.setSavedOrgProperties("orgy", savedProperties);
+         saved.set("orgy", savedProperties);
          setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
          setModel(IdentityType.ORGANIZATION, createOrgModel("orgy", serverProperties));
 
@@ -146,7 +172,7 @@ describe("EditIdentityViewComponent", () => {
       });
 
       it("should restore the saved properties on reset", () => {
-         busy.setSavedOrgProperties("orgy", savedProperties);
+         saved.set("orgy", savedProperties);
          setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
          component.onPropertyChanged([]);
 

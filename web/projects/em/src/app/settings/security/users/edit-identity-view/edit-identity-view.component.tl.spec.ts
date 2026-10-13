@@ -174,7 +174,6 @@ async function renderComponent(props: {
       orgLoading: false,
       beginOrgSave: vi.fn(),
       endOrgSave: vi.fn(),
-      takeSavedOrgProperties: vi.fn().mockReturnValue(null),
    };
 
    const result = await render(EditIdentityViewComponent, {

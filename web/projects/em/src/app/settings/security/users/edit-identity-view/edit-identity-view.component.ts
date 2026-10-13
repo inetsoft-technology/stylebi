@@ -47,6 +47,7 @@ import {
 import {GetIdentityNameResponse} from "../get-identity-name-response";
 import { convertToKey, IdentityId } from "../identity-id";
 import { SecurityBusyService } from "../security-busy.service";
+import { SavedOrgPropertiesService } from "../saved-org-properties.service";
 import { IdentityTablesPaneComponent } from "../identity-tables-pane/identity-tables-pane.component";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton } from "@angular/material/button";
@@ -186,7 +187,8 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
                private http: HttpClient,
                private changeDetector: ChangeDetectorRef,
                defaultErrorMatcher: ErrorStateMatcher,
-               private orgBusy: SecurityBusyService)
+               private orgBusy: SecurityBusyService,
+               private savedOrgProperties: SavedOrgPropertiesService)
    {
       this.passwordErrorMatcher = {
          isErrorState: (control: UntypedFormControl | null, form: FormGroupDirective | NgForm | null) =>
@@ -375,9 +377,11 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
 
       // right after this organization was saved, show the properties the save wrote. The reload
       // can be answered by a cluster node that doesn't have them yet (Bug #78447)
-      const savedProperties = this.orgBusy.takeSavedOrgProperties(orgModel.id);
+      const savedProperties = this.savedOrgProperties.take(orgModel.id);
 
       if(savedProperties != null) {
+         // set on the model too, deliberately, so that setOriginalState() (Reset, the dirty
+         // check) and the next apply() use the saved list
          orgModel.properties = savedProperties;
       }
 

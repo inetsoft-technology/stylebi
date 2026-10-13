@@ -40,7 +40,8 @@
  *   Group 10 [Risk 2] — setOrganization(): the message returned by the save must be shown as is,
  *                       not replaced by the fixed rename issue
  *   Group 11 [Risk 2] — setOrganization(): a successful save remembers the properties it wrote for
- *                       the reload, which another cluster node may answer with the old ones
+ *                       the reload, which another cluster node may answer with the old ones, and
+ *                       nothing keeps them past that reload
  *
  * KEY contracts:
  *   - clearIncompleteNewUser(false) must NOT trigger refreshTree.
@@ -69,6 +70,7 @@ import { SecurityTreeNodeModel } from "../users-settings-view/security-tree-node
 import { SecurityTreeNode } from "../../security-tree-view/security-tree-node";
 import { SecurityTreeService } from "../security-tree.service";
 import { SecurityBusyService } from "../security-busy.service";
+import { SavedOrgPropertiesService } from "../saved-org-properties.service";
 import { ErrorHandlerService } from "../../../../common/util/error/error-handler.service";
 import { MessageDialogType } from "../../../../common/util/message-dialog";
 import { OrganizationDropdownService } from "../../../../navbar/organization-dropdown.service";
@@ -154,7 +156,8 @@ async function renderComponent(opts: RenderOpts = {}) {
 
    const snackBarSpy = { open: vi.fn() };
    const usersServiceSpy = { loadScheduleUsers: vi.fn() };
-   const orgBusySpy = { beginOrgSave: vi.fn(), endOrgSave: vi.fn(), setSavedOrgProperties: vi.fn() };
+   const orgBusySpy = { beginOrgSave: vi.fn(), endOrgSave: vi.fn() };
+   const savedOrgPropertiesSpy = { set: vi.fn(), take: vi.fn(), clear: vi.fn() };
    const errorServiceSpy = { showSnackBar: vi.fn() };
    const pageHeaderSpy = { title: "" };
 
@@ -177,6 +180,7 @@ async function renderComponent(opts: RenderOpts = {}) {
          { provide: OrganizationDropdownService, useValue: orgDropdownSpy },
          { provide: ScheduleUsersService, useValue: usersServiceSpy },
          { provide: SecurityBusyService, useValue: orgBusySpy },
+         { provide: SavedOrgPropertiesService, useValue: savedOrgPropertiesSpy },
          { provide: ErrorHandlerService, useValue: errorServiceSpy },
          { provide: PageHeaderService, useValue: pageHeaderSpy },
       ],
@@ -187,7 +191,7 @@ async function renderComponent(opts: RenderOpts = {}) {
    });
 
    const comp = result.fixture.componentInstance;
-   return { fixture: result.fixture, comp, dialogSpy, snackBarSpy, orgDropdownSpy, usersServiceSpy, errorServiceSpy, orgBusySpy, onRefreshSubject };
+   return { fixture: result.fixture, comp, dialogSpy, snackBarSpy, orgDropdownSpy, usersServiceSpy, errorServiceSpy, savedOrgPropertiesSpy, onRefreshSubject };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1039,13 +1043,13 @@ describe("UsersSettingsPageComponent — setOrganization(): saved properties", (
       server.use(
          http.post("*/api/em/security/users/edit-organization/*", () => HttpResponse.json("")),
       );
-      const { comp, orgBusySpy } = await renderComponent();
+      const { comp, savedOrgPropertiesSpy } = await renderComponent();
 
       comp.setOrganization(makeOrgModel());
 
       await vi.waitFor(() => expect(comp.loading).toBe(false));
-      expect(orgBusySpy.setSavedOrgProperties).toHaveBeenCalledTimes(1);
-      expect(orgBusySpy.setSavedOrgProperties).toHaveBeenCalledWith("renamedorg", properties);
+      expect(savedOrgPropertiesSpy.set).toHaveBeenCalledTimes(1);
+      expect(savedOrgPropertiesSpy.set).toHaveBeenCalledWith("renamedorg", properties);
    });
 
    it("should not remember the properties when the save fails", async () => {
@@ -1054,12 +1058,67 @@ describe("UsersSettingsPageComponent — setOrganization(): saved properties", (
             HttpResponse.json({ message: "refused" }, { status: 500 }),
          ),
       );
-      const { comp, orgBusySpy, errorServiceSpy } = await renderComponent();
+      const { comp, savedOrgPropertiesSpy, errorServiceSpy } = await renderComponent();
       errorServiceSpy.showSnackBar.mockReturnValue(EMPTY);
 
       comp.setOrganization(makeOrgModel());
 
       await vi.waitFor(() => expect(errorServiceSpy.showSnackBar).toHaveBeenCalled());
-      expect(orgBusySpy.setSavedOrgProperties).not.toHaveBeenCalled();
+      expect(savedOrgPropertiesSpy.set).not.toHaveBeenCalled();
+   });
+
+   function respondOk() {
+      server.use(
+         http.post("*/api/em/security/users/edit-organization/*", () => HttpResponse.json("")),
+      );
+   }
+
+   // a rename refreshes the provider instead of reloading the organization, so nothing would
+   // consume the saved properties and a later load would show them over the server's
+   it("should not remember the properties when the save renames the organization", async () => {
+      respondOk();
+      const { comp, savedOrgPropertiesSpy, orgDropdownSpy } = await renderComponent();
+
+      comp.setOrganization({ ...makeOrgModel(), name: "RenamedOrg" });
+
+      await vi.waitFor(() => expect(orgDropdownSpy.refresh).toHaveBeenCalled());
+      expect(savedOrgPropertiesSpy.set).not.toHaveBeenCalled();
+      expect(savedOrgPropertiesSpy.clear).toHaveBeenCalled();
+   });
+
+   it("should clear the saved properties when the provider changes", async () => {
+      const { comp, savedOrgPropertiesSpy } = await renderComponent();
+      savedOrgPropertiesSpy.clear.mockClear();
+
+      comp.changeProvider("OtherProvider");
+
+      expect(savedOrgPropertiesSpy.clear).toHaveBeenCalledTimes(1);
+   });
+
+   it("should clear the saved properties when the page is left", async () => {
+      const { fixture, savedOrgPropertiesSpy } = await renderComponent();
+      savedOrgPropertiesSpy.clear.mockClear();
+
+      fixture.destroy();
+
+      expect(savedOrgPropertiesSpy.clear).toHaveBeenCalledTimes(1);
+   });
+
+   it("should clear the saved properties when the reload after the save fails", async () => {
+      respondOk();
+      const { comp, savedOrgPropertiesSpy } = await renderComponent();
+      server.use(
+         http.get("*/api/em/security/user/get-security-tree-root/*", () =>
+            HttpResponse.json({ type: "Error", message: "failed" }, { status: 500 }),
+         ),
+      );
+      savedOrgPropertiesSpy.clear.mockClear();
+
+      comp.setOrganization(makeOrgModel());
+      await vi.waitFor(() => expect(savedOrgPropertiesSpy.set).toHaveBeenCalled());
+      // subscribe to the reloaded tree as the template's async pipe does
+      await firstValueFrom(comp.treeData);
+
+      expect(savedOrgPropertiesSpy.clear).toHaveBeenCalled();
    });
 });

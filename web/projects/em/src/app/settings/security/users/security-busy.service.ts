@@ -17,14 +17,11 @@
  */
 import { Injectable } from "@angular/core";
 import { BehaviorSubject } from "rxjs";
-import { Tool } from "../../../../../../shared/util/tool";
-import { PropertyModel } from "../property-table-view/property-model";
 
 @Injectable({ providedIn: "root" })
 export class SecurityBusyService {
    private _orgLoading = new BehaviorSubject<boolean>(false);
    orgLoading$ = this._orgLoading.asObservable();
-   private savedOrgProperties: { orgId: string, properties: PropertyModel[] } = null;
 
    get orgLoading() {
       return this._orgLoading.value;
@@ -36,28 +33,5 @@ export class SecurityBusyService {
 
    endOrgSave() {
       this._orgLoading.next(false);
-   }
-
-   /**
-    * Remembers the properties that a successful organization save wrote, for the reload of that
-    * organization that follows the save. Organization properties are kept in each cluster node's
-    * properties, and the other nodes pick up a change only after a short delay, so the reload can
-    * be answered by a node that still returns the properties from before the save (Bug #78447).
-    */
-   setSavedOrgProperties(orgId: string, properties: PropertyModel[]) {
-      this.savedOrgProperties = { orgId, properties: Tool.clone(properties) };
-   }
-
-   /**
-    * Returns the properties remembered by setSavedOrgProperties() if they are for the given
-    * organization, or null otherwise. They are used for one load only: any organization load
-    * clears them, so a later selection shows the server's properties again.
-    */
-   takeSavedOrgProperties(orgId: string): PropertyModel[] {
-      const saved = this.savedOrgProperties;
-      this.savedOrgProperties = null;
-
-      return saved != null && orgId != null && saved.orgId?.toLowerCase() === orgId.toLowerCase() ?
-         saved.properties : null;
    }
 }

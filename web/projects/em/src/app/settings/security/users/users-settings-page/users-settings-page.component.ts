@@ -45,6 +45,7 @@ import {
    EditUserPaneModel
 } from "../edit-identity-pane/edit-identity-pane.model";
 import {SecurityBusyService } from "../security-busy.service";
+import { SavedOrgPropertiesService } from "../saved-org-properties.service";
 import {SecurityTreeService} from "../security-tree.service";
 import {SecurityTreeNodeModel} from "../users-settings-view/security-tree-node-model";
 import {SecurityTreeRootModel} from "../users-settings-view/security-tree-root-model";
@@ -105,7 +106,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                private snackBar: MatSnackBar,
                private usersService: ScheduleUsersService,
                private orgDropDownService: OrganizationDropdownService,
-               private orgBusy: SecurityBusyService)
+               private orgBusy: SecurityBusyService,
+               private savedOrgProperties: SavedOrgPropertiesService)
    {
       this.subscriptions.add(orgDropdownService.onRefresh.subscribe(res => {
          if(this.selfRefreshing) {
@@ -165,6 +167,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
 
       this.selectedNodes = [];
       this.selectedProvider = provider;
+      this.savedOrgProperties.clear();
       this.refreshTree(null, null, providerChanged, selectProvider);
    }
 
@@ -362,8 +365,13 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             }),
             tap(() => {
                const orgModel = model as EditOrganizationPaneModel;
-               // the reload below may return the properties from before the save (Bug #78447)
-               this.orgBusy.setSavedOrgProperties(orgModel.id, orgModel.properties);
+
+               // the reload below may return the properties from before the save (Bug #78447).
+               // A rename refreshes the provider instead, which doesn't reload the organization
+               if(!orgNameChanged) {
+                  this.savedOrgProperties.set(orgModel.id, orgModel.properties);
+               }
+
                this.refreshTree({name: model.name, orgID: orgModel.id}, IdentityType.ORGANIZATION);
             }),
             finalize(() => this.orgBusy.endOrgSave())
@@ -670,6 +678,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             }
          }),
          catchError((error: HttpErrorResponse) => {
+            // the organization isn't reloaded, so its saved properties must not be used later
+            this.savedOrgProperties.clear();
             const orgInvalid = error.error.type === "InvalidOrgException";
 
             if(orgInvalid) {
@@ -734,5 +744,6 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    ngOnDestroy(): void {
       this.subscriptions.unsubscribe();
       this.identityEditable.complete();
+      this.savedOrgProperties.clear();
    }
 }
