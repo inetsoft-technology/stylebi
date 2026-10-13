@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div #objectEditor class="object-editor"
+<div #objectEditor class="object-editor outline-highlight"
      actionsContextmenuAnchor [actions]="actions?.menuActions"
      (onContextmenuOpened)="contextMenuOpen($event)"
      (onContextmenuClosed)="contextMenuClose()"
@@ -40,6 +40,7 @@
      [attr.drag-left]="dragLeft" [attr.drag-top]="dragTop"
      [attr.data-selection-child-model]="selectionChildModelJson"
      wInteractable
+     [resizeAdjustment]="0"
      [interactableVisible]="vsObject.active"
      [resizableTopEdge]="resizeTopEdge ? '.top' : false" resizableLeftEdge=".left"
      [resizableBottomEdge]="resizeBottomEdge ? '.bottom' : false" resizableRightEdge=".right"
