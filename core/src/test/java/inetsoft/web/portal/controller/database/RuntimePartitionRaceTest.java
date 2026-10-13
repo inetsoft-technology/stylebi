@@ -23,7 +23,9 @@ import inetsoft.test.*;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.web.portal.model.database.*;
+import inetsoft.web.portal.model.database.events.MoveGraphEvent;
 import inetsoft.web.portal.model.database.graph.TableDetailJoinInfo;
+import inetsoft.web.portal.model.database.graph.TableJoinInfo;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.configuration.CacheConfiguration;
@@ -46,9 +48,11 @@ import java.lang.reflect.*;
 import java.net.ServerSocket;
 import java.nio.file.*;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -191,6 +195,197 @@ class RuntimePartitionRaceTest {
 
       create.get(20, TimeUnit.SECONDS);
       assertEquals(2, svc2.getPartition(id).getRelationshipCount(), "a join was lost");
+   }
+
+   /**
+    * Adding a table fixes its bounds from meta-data outside the lock, then adds it to the
+    * runtime. A node width changed meanwhile on the other node must be kept, and so must the
+    * table.
+    */
+   @ParameterizedTest
+   @EnumSource(value = CacheMode.class, names = { "REPLICATED", "PARTITIONED" })
+   void tableAddKeepsNodeWidthChangedOnOtherNode(CacheMode mode) throws Exception {
+      services(mode);
+      String id = open();
+      List<Boolean> txInFix = new CopyOnWriteArrayList<>();
+      PhysicalModelService modelService = tableModelService(txInFix);
+      PhysicalGraphModelService graph = new PhysicalGraphModelService(svc2, null, null);
+
+      race(svc1, () -> manager(svc1, modelService).addTable(id, table("public.PRODUCTS"), true),
+           () -> graph.updateGraphNodeWidth(id, "public.ORDERS", 321));
+
+      XPartition partition = svc2.getPartition(id);
+      assertNotNull(partition.getPartitionTable("public.PRODUCTS"), "the table was lost");
+      assertEquals(new Rectangle(600, 300, 100, 100), partition.getBounds("public.PRODUCTS"),
+                   "the fixed bounds were lost");
+      assertEquals(321, partition.getBounds("public.ORDERS").width, "the width was lost");
+      assertEquals(List.of(false), txInFix, "the bounds were fixed in a transaction");
+   }
+
+   /**
+    * Creating an alias fixes its bounds outside the lock, a table moved meanwhile on the other
+    * node must keep its new position and the alias must be added.
+    */
+   @ParameterizedTest
+   @EnumSource(value = CacheMode.class, names = { "REPLICATED", "PARTITIONED" })
+   void aliasKeepsTableMovedOnOtherNode(CacheMode mode) throws Exception {
+      services(mode);
+      String id = open();
+      List<Boolean> txInFix = new CopyOnWriteArrayList<>();
+      PhysicalGraphModelService graph =
+         new PhysicalGraphModelService(svc1, tableModelService(txInFix), null);
+      PhysicalGraphModelController controller =
+         new PhysicalGraphModelController(svc2, null, null, null);
+      MoveGraphEvent move = new MoveGraphEvent();
+      move.setRuntimeId(id);
+      move.setTable("public.CUSTOMERS");
+      move.setBounds(new Rectangle(800, 800, 1, 1));
+
+      race(svc1, () -> {
+              try {
+                 graph.createAlias(id, "public.ORDERS", "ORDERS_2");
+              }
+              catch(Exception ex) {
+                 throw new RuntimeException(ex);
+              }
+           },
+           () -> controller.moveTable(move));
+
+      XPartition partition = svc2.getPartition(id);
+      assertTrue(partition.isAlias("ORDERS_2"), "the alias was lost");
+      assertEquals(new Rectangle(600, 300, 100, 100), partition.getBounds("ORDERS_2"));
+      assertNotEquals(400, partition.getBounds("public.CUSTOMERS").x, "the move was lost");
+      assertTrue(svc2.getRuntimePartition(id).getMovedTables().contains("public.CUSTOMERS"));
+      assertEquals(List.of(false), txInFix, "the bounds were fixed in a transaction");
+   }
+
+   /**
+    * Removing a join and setting the auto-aliases of another table, on two nodes, must both be
+    * applied.
+    */
+   @ParameterizedTest
+   @EnumSource(value = CacheMode.class, names = { "REPLICATED", "PARTITIONED" })
+   void joinRemoveKeepsAutoAliasSetOnOtherNode(CacheMode mode) throws Exception {
+      services(mode);
+      String id = open();
+      manager(svc1).addJoin(id, join(), "public.ORDER_DETAILS");
+      assertEquals(1, svc1.getPartition(id).getRelationshipCount());
+      PhysicalGraphModelController controller =
+         new PhysicalGraphModelController(svc1, null, null, manager(svc1));
+      TableJoinInfo info = new TableJoinInfo();
+      info.setRuntimeId(id);
+      info.setSourceTable("public.ORDER_DETAILS");
+      info.setTargetTable("public.ORDERS");
+      PhysicalTableModel customers = table("public.CUSTOMERS");
+      AutoAliasJoinModel autoAlias = new AutoAliasJoinModel();
+      autoAlias.setForeignTable("public.ORDERS");
+      autoAlias.setAlias("CUST_ORD");
+      autoAlias.setSelected(true);
+      customers.setAutoAliases(new ArrayList<>(List.of(autoAlias)));
+      customers.setAutoAliasesEnabled(true);
+      PhysicalModelManagerService manager2 =
+         manager(svc2, tableModelService(new CopyOnWriteArrayList<>()));
+
+      race(svc1, () -> controller.deleteJoins(info),
+           () -> manager2.updateAutoAliasing(id, customers));
+
+      XPartition partition = svc2.getPartition(id);
+      assertEquals(0, partition.getRelationshipCount(), "the join removal was lost");
+      assertNotNull(partition.getAutoAlias("public.CUSTOMERS"), "the auto-alias was lost");
+   }
+
+   /**
+    * The join edit pane is closed with save while a join is being added to the pane on the
+    * other node. The close must wait for it and keep the join in the view, and remove the pane.
+    */
+   @ParameterizedTest
+   @EnumSource(value = CacheMode.class, names = { "REPLICATED", "PARTITIONED" })
+   void paneCloseKeepsJoinAddedToPaneOnOtherNode(CacheMode mode) throws Exception {
+      services(mode);
+      String origin = open();
+      String pane = svc1.openNewRuntimePartition(origin);
+      PhysicalGraphModelController controller =
+         new PhysicalGraphModelController(svc1, null, null, manager(svc1));
+
+      race(svc2, () -> manager(svc2).addJoin(pane, join(), "public.ORDER_DETAILS"),
+           () -> controller.closeJoinEditPane(origin, pane, true));
+
+      assertEquals(1, svc2.getPartition(origin).getRelationshipCount(), "the join was lost");
+      assertNull(svc2.getRuntimePartition(pane), "the pane runtime was not removed");
+   }
+
+   /**
+    * A save writes a copy of the runtime outside a transaction. A change made meanwhile on
+    * the other node must be kept, and the save must then not clear the moved tables.
+    */
+   @ParameterizedTest
+   @EnumSource(value = CacheMode.class, names = { "REPLICATED", "PARTITIONED" })
+   void saveKeepsChangeMadeDuringSave(CacheMode mode) throws Exception {
+      services(mode);
+      String id = open();
+      svc1.update(id, rp -> {
+         rp.addMovedTable("public.ORDERS");
+         return null;
+      });
+      PhysicalModelManagerService manager = manager(svc1);
+      Method updateSaved = PhysicalModelManagerService.class.getDeclaredMethod(
+         "updateSavedRuntime", RuntimePartitionService.RuntimeXPartition.class, long.class);
+      updateSaved.setAccessible(true);
+
+      // a save that no other change overlaps shows the saved partition and clears the moves
+      RuntimePartitionService.RuntimeXPartition saved = svc1.getRuntimePartition(id);
+      long version = saved.getVersion();
+      saved.getPartition().setDescription("saved");
+      updateSaved.invoke(manager, saved, version);
+      RuntimePartitionService.RuntimeXPartition runtime = svc2.getRuntimePartition(id);
+      assertEquals("saved", runtime.getPartition().getDescription());
+      assertTrue(runtime.getMovedTables().isEmpty());
+
+      // a join added on the other node while the copy is being saved is kept
+      svc1.update(id, rp -> {
+         rp.addMovedTable("public.ORDERS");
+         return null;
+      });
+      saved = svc1.getRuntimePartition(id);
+      version = saved.getVersion();
+      saved.getPartition().setDescription("saved again");
+      manager(svc2).addJoin(id, join(), "public.ORDER_DETAILS");
+      updateSaved.invoke(manager, saved, version);
+      runtime = svc2.getRuntimePartition(id);
+      assertEquals(1, runtime.getPartition().getRelationshipCount(), "the join was lost");
+      assertTrue(runtime.getMovedTables().contains("public.ORDERS"),
+                 "the moves of the unsaved change were cleared");
+   }
+
+   /**
+    * A lock held on the other node past the transaction timeout fails the first attempt of an
+    * update on real Ignite, and the retry then applies it.
+    */
+   @Test
+   void lockHeldPastTimeoutIsRetried() throws Exception {
+      services(CacheMode.REPLICATED);
+      String id = open();
+      CountDownLatch locked = new CountDownLatch(1);
+      @SuppressWarnings("unchecked")
+      Cache<String, Object> cache = (Cache<String, Object>) cacheOf(svc1);
+      long hold = RuntimePartitionService.TX_TIMEOUT + 1000L;
+
+      Future<?> holder = run("h78428", () -> node1.runInTransaction(20, TimeUnit.SECONDS, () -> {
+         cache.get(id);
+         locked.countDown();
+         Thread.sleep(hold);
+         return null;
+      }));
+
+      assertTrue(locked.await(10, TimeUnit.SECONDS));
+      long start = System.currentTimeMillis();
+      manager(svc2).addJoin(id, join(), "public.ORDER_DETAILS");
+      long elapsed = System.currentTimeMillis() - start;
+      holder.get(20, TimeUnit.SECONDS);
+
+      assertEquals(1, svc2.getPartition(id).getRelationshipCount(), "the join was not retried");
+      assertTrue(elapsed >= RuntimePartitionService.TX_TIMEOUT,
+                 "the first attempt didn't wait for the lock: " + elapsed);
    }
 
    /**
@@ -342,6 +537,45 @@ class RuntimePartitionRaceTest {
 
    private static PhysicalModelManagerService manager(RuntimePartitionService svc) {
       return new PhysicalModelManagerService(null, null, svc, null, null, null, null, null);
+   }
+
+   private static PhysicalModelManagerService manager(RuntimePartitionService svc,
+                                                      PhysicalModelService modelService)
+   {
+      return new PhysicalModelManagerService(null, modelService, svc, null, null, null, null,
+                                             null);
+   }
+
+   /**
+    * A model service that adds tables with the real code and fixes their bounds to a fixed
+    * position, as the meta-data read would, recording whether a transaction was open.
+    */
+   private static PhysicalModelService tableModelService(List<Boolean> txInFix)
+      throws Exception
+   {
+      PhysicalModelService modelService = mock(PhysicalModelService.class);
+      when(modelService.addPartitionTable(any(), any())).thenCallRealMethod();
+      doCallRealMethod().when(modelService).addRemoveAutoAlias(any(), any());
+      when(modelService.fixTableBounds(anyString(), any(), anyString())).thenAnswer(i -> {
+         txInFix.add(node1.getIgniteInstance().transactions().tx() != null ||
+                     node2.getIgniteInstance().transactions().tx() != null);
+         XPartition partition = i.getArgument(1);
+         Rectangle bounds = new Rectangle(600, 300, 100, 100);
+         partition.setBounds((String) i.getArgument(2), bounds);
+         return bounds.getBounds();
+      });
+      return modelService;
+   }
+
+   private static PhysicalTableModel table(String name) {
+      PhysicalTableModel table = new PhysicalTableModel();
+      table.setName(name);
+      table.setQualifiedName(name);
+      table.setType(TableType.PHYSICAL);
+      table.setJoins(new ArrayList<>());
+      table.setAutoAliases(new ArrayList<>());
+      table.setAutoAliasesEnabled(false);
+      return table;
    }
 
    private static JoinModel join() {
