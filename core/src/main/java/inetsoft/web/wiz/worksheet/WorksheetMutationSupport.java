@@ -294,7 +294,7 @@ public final class WorksheetMutationSupport {
          c.setNegated(negate);
 
          for(String v : m.values()) {
-            c.addValue(requireParsableDateLiteral(m.name(), conditionType, v));
+            c.addValue(groupLiteral(m.name(), conditionType, v));
          }
 
          conds.append(new ConditionItem(conditionRef, c, 0));
@@ -313,7 +313,7 @@ public final class WorksheetMutationSupport {
          c.setNegated(negate);
 
          for(String v : m.values()) {
-            c.addValue(requireParsableDateLiteral(m.name(), conditionType, v));
+            c.addValue(groupLiteral(m.name(), conditionType, v));
          }
 
          conds.append(new ConditionItem(conditionRef, c, 0));
@@ -322,14 +322,23 @@ public final class WorksheetMutationSupport {
 
       if(op == XCondition.DATE_IN) {
          // Same single-condition shape as NULL/ONE_OF/BETWEEN above -- DATE_IN is one range name,
-         // not a per-value OR list. See resolveDateInCondition.
-         XCondition resolved = resolveDateInCondition(
-            ws, m.values() != null && !m.values().isEmpty() ? m.values().get(0) : null);
+         // not a per-value OR list. See resolveDateInCondition. Bug #78394: a second name used
+         // to be dropped without being looked at.
+         if(m.values() == null || m.values().size() != 1) {
+            throw new PairingException(
+               "Group \"" + m.name() + "\": DATE_IN takes exactly one date range name, got " +
+                  (m.values() == null ? 0 : m.values().size()) + ". To cover several ranges, " +
+                  "use one group per range or a single worksheet date-range assembly.");
+         }
+
+         XCondition resolved = resolveDateInCondition(ws, m.values().get(0));
          resolved.setNegated(negate);
          conds.append(new ConditionItem(conditionRef, resolved, 0));
          return conds;
       }
 
+      // The values below are OR'ed one condition each, so several values on a single-value
+      // operation are legitimate here, unlike in a filter (see requireConditionArity).
       for(int i = 0; i < m.values().size(); i++) {
          if(i > 0) {
             conds.append(new JunctionOperator(JunctionOperator.OR, 0));
@@ -346,7 +355,7 @@ public final class WorksheetMutationSupport {
             c.setNegated(true);
          }
 
-         c.addValue(requireParsableDateLiteral(m.name(), conditionType, m.values().get(i)));
+         c.addValue(groupLiteral(m.name(), conditionType, m.values().get(i)));
          conds.append(new ConditionItem(conditionRef, c, 0));
       }
 
@@ -550,14 +559,15 @@ public final class WorksheetMutationSupport {
          ? ref.getDataType() : XSchema.STRING;
 
       ConditionItem item;
+      // Bug #78394: add_filter/edit_condition had no value-count check at all.
+      requireConditionArity(field, operation, op, values == null ? 0 : values.length, false);
 
       if(op == XCondition.DATE_IN) {
          // DATE_IN is inherently single-valued (a range name, not a list) and is never negated
          // through this operator token -- isNegatedOperation("date_in") is always false, there is
          // no "not_date_in" form -- so the equal-inclusive/negate/value-loop logic below does not
          // apply here.
-         XCondition resolved = resolveDateInCondition(
-            t.getWorksheet(), values.length > 0 ? values[0] : null);
+         XCondition resolved = resolveDateInCondition(t.getWorksheet(), values[0]);
          item = new ConditionItem(ref, resolved, 0);
       }
       else {
@@ -2771,8 +2781,9 @@ public final class WorksheetMutationSupport {
     * @param type      optional XSchema data type (e.g. {@code "integer"}, {@code "double"},
     *                  {@code "date"}).  When {@code null}, the type is inferred from the
     *                  column's declared type in the table's column selection; falls back to
-    *                  {@code "string"} if the column is unknown.  Agents should set this
-    *                  explicitly for numeric or date fields to avoid lexicographic comparisons.
+    *                  {@code "string"} if the column is unknown.  When set, it must name an
+    *                  XSchema type and, if the column's own type is known, match it; see
+    *                  {@link #conditionType}.
     * @param choiceQuery a {@code "table]:[column"} browse-source marker applied to any
     *                  {@code $(name)} variable reference among {@code values}, matching the
     *                  native condition dialog's "Use list" checkbox
@@ -3055,13 +3066,22 @@ public final class WorksheetMutationSupport {
             ConditionSpec spec = node.condition();
             int op = parseOperation(spec.operation());
             boolean negate = spec.negated() || isNegatedOperation(spec.operation());
-            String dtype = spec.type() != null ? spec.type() : inferColumnType(t, spec.field(), post);
+            String dtype = conditionType(t, spec, post);
 
             DataRef ref = resolveField(t, spec.field(), post);
 
             if(op == XCondition.DATE_IN) {
-               XCondition resolved = resolveDateInCondition(t.getWorksheet(),
-                  spec.values() != null && !spec.values().isEmpty() ? spec.values().get(0) : null);
+               // Bug #78394: a DateCondition holds one range, and DATE_IN takes a range name only,
+               // so a second value or any valueSpecs entry used to be dropped without a word.
+               if(spec.valueSpecs() != null && !spec.valueSpecs().isEmpty()) {
+                  throw new IllegalArgumentException(
+                     "The condition on \"" + spec.field() + "\" uses DATE_IN, which takes a " +
+                     "date range name in values, not valueSpecs. Remove valueSpecs.");
+               }
+
+               requireConditionArity(spec.field(), spec.operation(), op,
+                                     spec.values() == null ? 0 : spec.values().size(), true);
+               XCondition resolved = resolveDateInCondition(t.getWorksheet(), spec.values().get(0));
                resolved.setNegated(negate);
                cl.append(new ConditionItem(ref, resolved, node.level()));
             }
@@ -3210,6 +3230,12 @@ public final class WorksheetMutationSupport {
                         spec.field(), dtype, requireParsableNumericLiteral(spec.field(), dtype, s)));
                   }
                }
+
+               // Bug #78394: counted after the valueSpecs replace/append step, so a field
+               // comparison that has only valueSpecs (A = B) counts its one value, and after the
+               // leftover-literal checks above, whose messages name the actual mistake.
+               requireConditionArity(spec.field(), spec.operation(), op, resolvedValues.size(),
+                                     true);
 
                for(Object value : resolvedValues) {
                   c.addValue(value);
@@ -4301,6 +4327,148 @@ public final class WorksheetMutationSupport {
       }
 
       return value;
+   }
+
+   /**
+    * Bug #78394: refuses a filter condition whose value count does not fit its operation, keyed
+    * on the parsed {@code op} so a blank or omitted operation (equality) is covered too. Mirrors
+    * the viewsheet side's {@code ConditionVocabulary.requireValueArity}: none for NULL, exactly
+    * two for BETWEEN, at least one for ONE_OF, exactly one for every other operation, because
+    * {@code Condition.evaluate} reads only the first value and a {@code DateCondition} holds one
+    * range. Not for named groups, which OR their values (see {@link #buildGroupConditionList}).
+    *
+    * @param count     the values the condition would store, valueSpecs included
+    * @param junctions whether the caller can OR several conditions (set_* tools) or not
+    *                  (add_filter/edit_condition), for the DATE_IN hint
+    */
+   private static void requireConditionArity(String field, String operation, int op, int count,
+                                             boolean junctions)
+   {
+      String name = operation == null || operation.isBlank()
+         ? "= (the default when no operation is given)" : operation;
+      String prefix = "The condition on \"" + field + "\" uses " + name;
+
+      if(op == XCondition.NULL) {
+         if(count != 0) {
+            throw new IllegalArgumentException(
+               prefix + ", which takes no values, got " + count + ". Remove the values.");
+         }
+
+         return;
+      }
+
+      if(op == XCondition.ONE_OF) {
+         if(count == 0) {
+            throw new IllegalArgumentException(prefix + " and needs at least one value.");
+         }
+
+         return;
+      }
+
+      if(op == XCondition.BETWEEN) {
+         if(count != 2) {
+            throw new IllegalArgumentException(
+               prefix + ", which needs exactly two values (low, high), got " + count + ".");
+         }
+
+         return;
+      }
+
+      if(count != 1) {
+         String hint;
+
+         if(op == XCondition.DATE_IN) {
+            hint = count == 0 ? " Give one date range name." : junctions
+               ? " To match several ranges, use one DATE_IN condition per range joined with OR."
+               : " To match several ranges, use one DATE_IN condition per range joined with OR " +
+                 "(set_conditions).";
+         }
+         else if(count > 1 && op == XCondition.EQUAL_TO) {
+            hint = " To match any of several values, use " +
+               (isNegatedOperation(operation) ? "NOT_ONE_OF." : "ONE_OF.");
+         }
+         else {
+            hint = "";
+         }
+
+         throw new IllegalArgumentException(
+            prefix + ", which takes exactly one value, got " + count + ". Only the first would " +
+            "be evaluated." + hint);
+      }
+   }
+
+   /**
+    * Bug #78394: the type a set_conditions/set_post_conditions/set_mv_conditions condition is
+    * built with. Every literal guard (boolean in {@link #conditionValue}, numeric, date) keys on
+    * it, so a caller-declared type that differs from the column's ("string" or the typo "bool"
+    * on a boolean column) used to switch those guards off. A declared type must now name an
+    * XSchema type (case-insensitively) and, when the column's type is known, be that type. A
+    * column with no type of its own (e.g. an untyped expression column, which reports
+    * {@code "string"} with {@link DataRef#isDataTypeSet()} false) still takes the declared type.
+    */
+   private static String conditionType(TableAssembly t, ConditionSpec spec, boolean post) {
+      String columnType = inferColumnType(t, spec.field(), post);
+
+      if(spec.type() == null || spec.type().isBlank()) {
+         return columnType;
+      }
+
+      String declared = null;
+
+      for(String type : CONDITION_TYPES) {
+         if(type.equalsIgnoreCase(spec.type().trim())) {
+            declared = type;
+            break;
+         }
+      }
+
+      if(declared == null) {
+         throw new IllegalArgumentException(
+            "The condition on \"" + spec.field() + "\" declares type \"" + spec.type() + "\", " +
+            "which is not a data type. Valid types: " + String.join(", ", CONDITION_TYPES) +
+            ". Omit type to use the column's own type.");
+      }
+
+      DataRef col = resolveField(t, spec.field(), post);
+      boolean known = col.isDataTypeSet() || !XSchema.STRING.equals(columnType) ||
+         col instanceof ColumnRef cr && cr.getDataRef() != null && cr.getDataRef().isDataTypeSet();
+
+      if(known && !declared.equalsIgnoreCase(columnType)) {
+         throw new IllegalArgumentException(
+            "The condition on \"" + spec.field() + "\" declares type \"" + spec.type() + "\", " +
+            "but the column's type is " + columnType + ". A different type would skip that " +
+            "type's value checks and compare the values as something else. Omit type, or " +
+            "change the column's type first.");
+      }
+
+      return known ? columnType : declared;
+   }
+
+   /** The type names {@link #conditionType} accepts, as XSchema spells them. */
+   private static final String[] CONDITION_TYPES = {
+      XSchema.STRING, XSchema.BOOLEAN, XSchema.FLOAT, XSchema.DOUBLE, XSchema.INTEGER,
+      XSchema.LONG, XSchema.SHORT, XSchema.BYTE, XSchema.CHAR, XSchema.DATE, XSchema.TIME,
+      XSchema.TIME_INSTANT
+   };
+
+   /**
+    * Bug #78394: a named-group literal gets the checks a filter literal gets. Without them
+    * {@code Condition.addValue} coerces it: "yes" on a boolean group becomes false, "abc" on an
+    * integer group 0. A {@code $(name)} reference is left to the date check only, as before.
+    */
+   private static String groupLiteral(String group, String type, String value) {
+      if(value != null && !(value.startsWith("$(") && value.endsWith(")") && value.length() > 3)) {
+         try {
+            value = (String) conditionValue(type, value);
+         }
+         catch(IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Group \"" + group + "\": " + ex.getMessage(), ex);
+         }
+
+         value = requireParsableNumericLiteral(group, type, value);
+      }
+
+      return requireParsableDateLiteral(group, type, value);
    }
 
    /**
