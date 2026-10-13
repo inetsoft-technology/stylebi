@@ -22,6 +22,7 @@ import inetsoft.sree.internal.cluster.DistributedReference;
 import org.apache.ignite.*;
 import org.apache.ignite.cluster.ClusterGroup;
 import org.apache.ignite.cluster.ClusterTopologyException;
+import org.apache.ignite.configuration.CollectionConfiguration;
 import org.apache.ignite.configuration.ExecutorConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.lang.IgniteCallable;
@@ -59,6 +60,11 @@ import java.util.concurrent.locks.Lock;
  *    immediate {@code tryLock()} or an atomic operation ({@link #RELEASE_EXECUTOR}). The server
  *    releases what a client thread still holds once the client leaves the topology.</li>
  *    <li>An atomic operation runs on the oldest server's own Ignite atomic.</li>
+ *    <li>A queue operation runs on the oldest server's own Ignite queue: a node that opens an
+ *    Ignite queue registers Ignite's queue-header continuous query on every server
+ *    ({@code CacheDataStructuresManager.queue0}), whose notifications a server sends on the
+ *    thread that updates the queue. A blocking take waits on the server in steps, like a lock.
+ *    An Ignite set registers no continuous query and is used directly.</li>
  * </ul>
  * A lock that a client thread waits for in several steps rejoins the queue of a fair lock at
  * each step. {@link Lock#newCondition()} is not supported, and no caller of a cluster lock uses
@@ -131,6 +137,22 @@ final class ClientDataStructures {
     */
    static void destroyReference(Ignite ignite, String name) {
       call(ignite, new DestroyJob(name, DestroyJob.REFERENCE));
+   }
+
+   /**
+    * Gets a cluster queue for a client node.
+    */
+   static <E> BlockingQueue<E> getQueue(Ignite ignite, String name,
+                                        CollectionConfiguration config)
+   {
+      return new RemoteQueue<>(ignite, name, config);
+   }
+
+   /**
+    * Removes a cluster queue from a client node.
+    */
+   static void destroyQueue(Ignite ignite, String name) {
+      call(ignite, new DestroyJob(name, DestroyJob.QUEUE));
    }
 
    /**
@@ -786,6 +808,245 @@ final class ClientDataStructures {
    }
 
    /**
+    * A cluster queue of a client node. Each operation runs on the oldest server's own Ignite
+    * queue. A blocking take or timed poll waits on the server in steps of at most
+    * {@link #LOCK_STEP_MILLIS}. Iteration works on a copy of the queue.
+    */
+   private static final class RemoteQueue<E> extends AbstractQueue<E> implements BlockingQueue<E> {
+      RemoteQueue(Ignite ignite, String name, CollectionConfiguration config) {
+         this.ignite = ignite;
+         this.name = name;
+         this.config = config;
+      }
+
+      @Override
+      public boolean offer(@NotNull E e) {
+         Objects.requireNonNull(e);
+         return Boolean.TRUE.equals(apply(QueueJob.OFFER, e));
+      }
+
+      @Override
+      public void put(@NotNull E e) {
+         // the queue is unbounded, an offer never waits
+         offer(e);
+      }
+
+      @Override
+      public boolean offer(E e, long timeout, @NotNull TimeUnit unit) {
+         return offer(e);
+      }
+
+      @Override
+      public E poll() {
+         return apply(QueueJob.POLL, null);
+      }
+
+      @Override
+      public E poll(long timeout, @NotNull TimeUnit unit) throws InterruptedException {
+         if(Thread.interrupted()) {
+            throw new InterruptedException();
+         }
+
+         long remaining = Math.max(0L, unit.toMillis(timeout));
+         long deadline = System.currentTimeMillis() + remaining;
+
+         while(true) {
+            long step = Math.min(remaining, LOCK_STEP_MILLIS);
+            E e = step > 0 ? pollStep(step) : poll();
+
+            if(e != null) {
+               // the element is taken, don't lose it to an interrupt
+               return e;
+            }
+
+            if(Thread.interrupted()) {
+               throw new InterruptedException();
+            }
+
+            remaining = deadline - System.currentTimeMillis();
+
+            if(remaining <= 0) {
+               return null;
+            }
+         }
+      }
+
+      @Override
+      public E take() throws InterruptedException {
+         while(true) {
+            E e = poll(LOCK_STEP_MILLIS, TimeUnit.MILLISECONDS);
+
+            if(e != null) {
+               return e;
+            }
+         }
+      }
+
+      @SuppressWarnings("unchecked")
+      private E pollStep(long timeout) {
+         return (E) call(ignite, ignite.cluster().forServers().forOldest(), WAIT_EXECUTOR,
+                         new QueueJob(name, config, QueueJob.POLL, null, timeout));
+      }
+
+      @Override
+      public E peek() {
+         return apply(QueueJob.PEEK, null);
+      }
+
+      @Override
+      public int size() {
+         return this.<Integer>apply(QueueJob.SIZE, null);
+      }
+
+      @Override
+      public boolean isEmpty() {
+         return size() == 0;
+      }
+
+      @Override
+      public boolean contains(Object o) {
+         return Boolean.TRUE.equals(apply(QueueJob.CONTAINS, o));
+      }
+
+      @Override
+      public boolean remove(Object o) {
+         return Boolean.TRUE.equals(apply(QueueJob.REMOVE, o));
+      }
+
+      @Override
+      public void clear() {
+         apply(QueueJob.CLEAR, null);
+      }
+
+      @Override
+      public int remainingCapacity() {
+         return this.<Integer>apply(QueueJob.REMAINING_CAPACITY, null);
+      }
+
+      @Override
+      public int drainTo(@NotNull Collection<? super E> c) {
+         return drainTo(c, Integer.MAX_VALUE);
+      }
+
+      @Override
+      public int drainTo(@NotNull Collection<? super E> c, int maxElements) {
+         List<E> elements = apply(QueueJob.DRAIN, maxElements);
+         c.addAll(elements);
+         return elements.size();
+      }
+
+      @NotNull
+      @Override
+      public Iterator<E> iterator() {
+         Iterator<E> copy = this.<List<E>>apply(QueueJob.COPY, null).iterator();
+
+         return new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+               return copy.hasNext();
+            }
+
+            @Override
+            public E next() {
+               last = copy.next();
+               return last;
+            }
+
+            @Override
+            public void remove() {
+               if(last == null) {
+                  throw new IllegalStateException();
+               }
+
+               RemoteQueue.this.remove(last);
+               last = null;
+            }
+
+            private E last;
+         };
+      }
+
+      @SuppressWarnings("unchecked")
+      private <T> T apply(int op, Object arg) {
+         return (T) call(ignite, new QueueJob(name, config, op, arg, 0L));
+      }
+
+      private final Ignite ignite;
+      private final String name;
+      private final CollectionConfiguration config;
+   }
+
+   /**
+    * Runs an operation on a server's Ignite queue, created with the configuration of the client's
+    * {@code IgniteCluster.getQueue} if it doesn't exist yet.
+    */
+   private static final class QueueJob implements IgniteCallable<Object> {
+      QueueJob(String name, CollectionConfiguration config, int op, Object arg, long timeout) {
+         this.name = name;
+         this.config = config;
+         this.op = op;
+         this.arg = arg;
+         this.timeout = timeout;
+      }
+
+      @Override
+      public Object call() throws InterruptedException {
+         IgniteQueue<Object> queue = ignite.queue(name, 0, null);
+
+         if(queue == null) {
+            queue = ignite.queue(name, 0, config);
+         }
+
+         switch(op) {
+         case OFFER:
+            return queue.offer(arg);
+         case POLL:
+            return timeout > 0 ? queue.poll(timeout, TimeUnit.MILLISECONDS) : queue.poll();
+         case PEEK:
+            return queue.peek();
+         case SIZE:
+            return queue.size();
+         case CONTAINS:
+            return queue.contains(arg);
+         case REMOVE:
+            return queue.remove(arg);
+         case CLEAR:
+            queue.clear();
+            return null;
+         case REMAINING_CAPACITY:
+            return queue.remainingCapacity();
+         case DRAIN:
+            List<Object> drained = new ArrayList<>();
+            queue.drainTo(drained, (Integer) arg);
+            return drained;
+         case COPY:
+            return new ArrayList<>(queue);
+         default:
+            throw new IllegalArgumentException("Unknown operation " + op);
+         }
+      }
+
+      static final int OFFER = 0;
+      static final int POLL = 1;
+      static final int PEEK = 2;
+      static final int SIZE = 3;
+      static final int CONTAINS = 4;
+      static final int REMOVE = 5;
+      static final int CLEAR = 6;
+      static final int REMAINING_CAPACITY = 7;
+      static final int DRAIN = 8;
+      static final int COPY = 9;
+
+      @IgniteInstanceResource
+      private transient Ignite ignite;
+      private final String name;
+      private final CollectionConfiguration config;
+      private final int op;
+      private final Object arg;
+      private final long timeout;
+   }
+
+   /**
     * Removes a data structure on a server.
     */
    private static final class DestroyJob implements IgniteCallable<Boolean> {
@@ -813,6 +1074,14 @@ final class ClientDataStructures {
             }
 
             return value != null;
+         case QUEUE:
+            IgniteQueue<?> queue = ignite.queue(name, 0, null);
+
+            if(queue != null) {
+               queue.close();
+            }
+
+            return queue != null;
          default:
             IgniteAtomicReference<?> reference = ignite.atomicReference(name, null, false);
 
@@ -827,6 +1096,7 @@ final class ClientDataStructures {
       static final int LOCK = 0;
       static final int LONG = 1;
       static final int REFERENCE = 2;
+      static final int QUEUE = 3;
 
       @IgniteInstanceResource
       private transient Ignite ignite;
@@ -836,10 +1106,12 @@ final class ClientDataStructures {
 
    // the longest a server thread waits for a lock on behalf of a client in one step
    private static final long LOCK_STEP_MILLIS = 3000L;
-   // the server executor of the lock steps that wait, a thread per waiting client thread
+   // the server executor of the lock and queue steps that wait, a thread per waiting client
+   // thread
    static final String WAIT_EXECUTOR = "inetsoft.cluster.clientLockWait";
    static final int WAIT_EXECUTOR_SIZE = 64;
-   // the server executor of the releases, immediate takes and atomic operations, which don't wait
+   // the server executor of the releases, immediate takes, atomic and queue operations, which
+   // don't wait
    static final String RELEASE_EXECUTOR = "inetsoft.cluster.clientLockRelease";
    private static final int RELEASE_EXECUTOR_SIZE = 8;
    // how long an idle holder thread that holds nothing is kept for its client thread

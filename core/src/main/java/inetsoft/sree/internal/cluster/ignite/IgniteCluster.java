@@ -896,13 +896,25 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    /**
     * Checks if this is a client node (a cloud-runner task container). A client node must not
-    * create or obtain an Ignite data structure: that registers Ignite's synchronous
-    * data-structure continuous query on every server, and after the client is killed every lock
-    * change on a server waits for it until it is dropped (bug #78451). Its locks and atomics are
-    * kept on a server by {@link ClientDataStructures}.
+    * create or obtain an Ignite lock, atomic or queue: that registers one of Ignite's internal
+    * continuous queries on every server, and after the client is killed every lock change or
+    * queue update on a server waits for it until it is dropped (bug #78451). Its locks, atomics
+    * and queues are kept on a server by {@link ClientDataStructures}.
     */
    private boolean isClientNode() {
       return ignite.cluster().localNode().isClient();
+   }
+
+   /**
+    * Refuses a remote event listener on a client node. It would make every server send the
+    * client its events, and after the client is killed each send waits for it until it is dropped
+    * (bug #78451). No caller registers one on a client node.
+    */
+   private void checkRemoteListenerAllowed() {
+      if(isClientNode()) {
+         throw new UnsupportedOperationException(
+            "A client node can't listen to the events of other nodes");
+      }
    }
 
    @Override
@@ -1627,6 +1639,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
+      checkRemoteListenerAllowed();
       UUID id = ignite.events()
          .remoteListen(new RebalanceListenerAdapter(listener),
                        new RebalanceEventFilter(cacheName),
@@ -1662,11 +1675,21 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       queueConfig.setBackups(getDefaultBackupCount());
       queueConfig.setCacheMode(getDefaultCacheMode());
       queueConfig.setAtomicityMode(CacheAtomicityMode.ATOMIC);
+
+      if(isClientNode()) {
+         return ClientDataStructures.getQueue(ignite, name, queueConfig);
+      }
+
       return ignite.queue(name, 0, queueConfig);
    }
 
    @Override
    public void destroyQueue(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyQueue(ignite, name);
+         return;
+      }
+
       IgniteQueue<?> queue = ignite.queue(name, 0, null);
 
       if(queue != null) {
@@ -2412,6 +2435,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                      EventType.EVT_CACHE_OBJECT_EXPIRED);
                }
                else {
+                  checkRemoteListenerAllowed();
                   remoteListenerId = ignite.events().remoteListen(
                      adapter, new CacheEventFilter(cache.getName()),
                      EventType.EVT_CACHE_OBJECT_PUT,

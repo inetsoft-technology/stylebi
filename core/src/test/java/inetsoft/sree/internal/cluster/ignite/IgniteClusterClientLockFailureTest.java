@@ -42,16 +42,16 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Bug #78451: an Ignite lock, semaphore, latch or atomic that a client node creates or obtains
- * registers Ignite's internal synchronous data-structure continuous query on every server. A
+ * Bug #78451: an Ignite lock, semaphore, latch, atomic or queue that a client node creates or
+ * obtains registers one of Ignite's internal continuous queries on every server. A
  * cloud-runner task container is a client started with {@code forceClientToServerConnections},
  * which a server cannot dial. After such a client is killed, and until discovery drops it, every
- * lock-state commit on a server notified the dead client on a {@code sys-stripe} thread and
+ * lock-state commit or queue update on a server notified the dead client on a {@code sys-stripe} thread and
  * waited about three times {@code failureDetectionTimeout} for it, so a login or logout (which
  * takes the license lock) hung for about 30 s.
  * <p>
  * Two embedded servers, a live force-mode client and a force-mode client that used the cluster
- * locks and atomics through {@link IgniteCluster} and is then killed (discovery and communication
+ * locks, atomics, queues and sets through {@link IgniteCluster} and is then killed (discovery and communication
  * SPIs failed, as a killed container's are). The real {@code IgniteCluster} methods run on bare
  * instances whose {@code ignite} is a server or a client.
  */
@@ -73,6 +73,10 @@ class IgniteClusterClientLockFailureTest {
          lockAndUnlock(cluster.getLock(SHARED_LOCK));
          lockAndUnlock(cluster.getLock("other." + server.name()));
          cluster.getLong(SERVER_LONG).incrementAndGet();
+         BlockingQueue<String> queue = cluster.getQueue(SHARED_QUEUE);
+         queue.offer(server.name());
+         queue.poll();
+         cluster.getSet(SHARED_SET).add(server.name());
       }
 
       // the client uses them as a task container does: Plugins creates a lock in its constructor,
@@ -89,6 +93,14 @@ class IgniteClusterClientLockFailureTest {
       client.getLong(SERVER_LONG).incrementAndGet();
       client.getLong("client.long").incrementAndGet();
       client.getReference("client.reference").set("value");
+      // a task container uses sets and opens queues (ServerClusterClient's status history, the
+      // service task queue of IgniteCluster.submit). Ignite may hold back the notifications of a
+      // queue's continuous query after the client creates another queue, so the client only
+      // opens one the servers created, which reproduces the stall every time.
+      client.getSet(SHARED_SET).add("client");
+      BlockingQueue<String> clientQueue = client.getQueue(SHARED_QUEUE);
+      clientQueue.offer("client");
+      clientQueue.poll();
 
       deadClientId = deadClient.cluster().localNode().id();
       ((TcpDiscoverySpi) deadClient.configuration().getDiscoverySpi()).simulateNodeFailure();
@@ -184,6 +196,107 @@ class IgniteClusterClientLockFailureTest {
       assertTrue(elapsed < LIMIT_MILLIS,
                  "a server atomic removal blocked for " + elapsed + " ms on the dead client");
       assertDeadClientInTopology();
+   }
+
+   @Test
+   @Order(3)
+   void serverQueueAndSetDoNotStallOnDeadClient() throws Exception {
+      assertDeadClientInTopology();
+      ExecutorService executor = Executors.newFixedThreadPool(2);
+
+      try {
+         List<Future<Long>> futures = new ArrayList<>();
+
+         for(Ignite server : List.of(serverA, serverB)) {
+            futures.add(executor.submit(() -> {
+               IgniteCluster cluster = newBareCluster(server);
+               long max = 0;
+
+               for(int i = 0; i < 3; i++) {
+                  long start = System.nanoTime();
+                  BlockingQueue<String> queue = cluster.getQueue(SHARED_QUEUE);
+                  queue.offer(server.name() + i);
+                  queue.poll();
+                  Set<String> set = cluster.getSet(SHARED_SET);
+                  set.add(server.name() + i);
+                  set.remove(server.name() + i);
+                  max = Math.max(max, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+               }
+
+               return max;
+            }));
+         }
+
+         for(Future<Long> future : futures) {
+            long elapsed;
+
+            try {
+               elapsed = future.get(TEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+            }
+            catch(TimeoutException e) {
+               elapsed = TEST_TIMEOUT_MILLIS;
+            }
+
+            assertTrue(elapsed < LIMIT_MILLIS,
+                       "a server queue/set update blocked for " + elapsed + " ms on the dead client");
+         }
+      }
+      finally {
+         // an update blocked on the dead client returns once discovery drops the client
+         executor.shutdownNow();
+         assertTrue(executor.awaitTermination(CLIENT_FAILURE_DETECTION_TIMEOUT + TEST_TIMEOUT_MILLIS,
+                                              TimeUnit.MILLISECONDS));
+      }
+
+      assertDeadClientInTopology();
+   }
+
+   @Test
+   void clientQueueIsSharedWithServers() throws Exception {
+      IgniteCluster client = newBareCluster(liveClient);
+      IgniteCluster server = newBareCluster(serverB);
+      BlockingQueue<String> clientQueue = client.getQueue("live.queue");
+      BlockingQueue<String> serverQueue = server.getQueue("live.queue");
+
+      assertTrue(clientQueue.offer("a"));
+      serverQueue.add("b");
+      assertEquals(2, clientQueue.size());
+      assertEquals(List.of("a", "b"), new ArrayList<>(clientQueue));
+      assertTrue(clientQueue.contains("b"));
+      assertEquals("a", serverQueue.poll());
+      assertEquals("b", clientQueue.peek());
+      assertEquals("b", clientQueue.poll());
+      assertNull(clientQueue.poll(200, TimeUnit.MILLISECONDS));
+      assertTrue(clientQueue.isEmpty());
+
+      // a blocking take on the client is woken by an offer on a server
+      CompletableFuture<String> taken = CompletableFuture.supplyAsync(() -> {
+         try {
+            return clientQueue.take();
+         }
+         catch(InterruptedException e) {
+            throw new CompletionException(e);
+         }
+      });
+      Thread.sleep(500);
+      serverQueue.offer("c");
+      assertEquals("c", taken.get(TEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS));
+
+      clientQueue.addAll(List.of("d", "e", "f"));
+      assertTrue(clientQueue.remove("e"));
+      List<String> drained = new ArrayList<>();
+      assertEquals(2, clientQueue.drainTo(drained));
+      assertEquals(List.of("d", "f"), drained);
+
+      client.destroyQueue("live.queue");
+      assertTrue(server.getQueue("live.queue").isEmpty());
+   }
+
+   @Test
+   void clientRemoteEventListenerIsRefused() {
+      IgniteCluster client = newBareCluster(liveClient);
+      assertThrows(UnsupportedOperationException.class,
+                   () -> client.addCacheRebalanceListener("live.cache", event -> { }));
    }
 
    @Test
@@ -552,6 +665,8 @@ class IgniteClusterClientLockFailureTest {
 
    private static final String SHARED_LOCK = "inetsoft.sree.web.ConcurrentSessionClusterService.lock";
    private static final String SERVER_LONG = "server.long";
+   private static final String SHARED_QUEUE = "shared.queue";
+   private static final String SHARED_SET = "shared.set";
    private static final long FAILURE_DETECTION_TIMEOUT = 3000;
    private static final long CLIENT_FAILURE_DETECTION_TIMEOUT = 60_000;
    // well under FAILURE_DETECTION_TIMEOUT, the least a notification to the dead client blocks
