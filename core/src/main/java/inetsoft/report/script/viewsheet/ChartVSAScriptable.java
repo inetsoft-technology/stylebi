@@ -27,6 +27,7 @@ import inetsoft.report.script.*;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -305,6 +306,9 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          // a lock stall or a lost swap file is not a missing dataset: rethrow it so the
          // script fails instead of reading an empty one (#77123, #77910, #78099)
          DataUnavailable.rethrow(ex);
+         // nor is chart data that failed to load for a reader that has to fail, e.g. a
+         // scheduled run (#78083)
+         TableLoadException.rethrow(ex);
          LOG.error("Failed to get chart data", ex);
       }
 
@@ -927,6 +931,8 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
             // a lock stall or a lost swap file is not a missing table: rethrow it so the
             // script fails instead of reading an empty one (#77123, #77910, #78099)
             DataUnavailable.rethrow(ex);
+            // nor is chart data that failed to load for a reader that has to fail (#78083)
+            TableLoadException.rethrow(ex);
             LOG.error("Failed to get chart data table", ex);
             return null;
          }
