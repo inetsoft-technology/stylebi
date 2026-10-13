@@ -2467,4 +2467,291 @@ class ChartAestheticMutatorTest {
       assertEquals(true, ((Map<?, ?>) out.get("color")).get("acceptsFrame"));
       assertEquals(true, ((Map<?, ?>) out.get("size")).get("acceptsFrame"));
    }
+
+   // ---- #77024 P1: multi-aesthetic charts render per-measure fields, not the chart-level slot ----
+
+   private static final Set<String> ALL_PER_MEASURE =
+      Set.of("color", "shape", "size", "line", "texture");
+
+   /** A field as setField builds it, with the frame the aggregate carries after multi-style on. */
+   private static AestheticInfo boundField(String channel, FieldRef ref, VisualFrameModel frame) {
+      ChartBindingModel scratch = new ChartBindingModel();
+      ChartAestheticMutator.setField(scratch, channel, ref);
+      AestheticInfo info = "color".equals(channel) ? scratch.getColorField()
+         : scratch.getShapeField();
+      info.setFrame(frame);
+      return info;
+   }
+
+   private static CategoricalColorModel palette(String... colors) {
+      CategoricalColorModel frame = new CategoricalColorModel();
+      frame.setColors(colors);
+      return frame;
+   }
+
+   /** Two Y measures, each colouring by Region, plus the leftover chart-level decoy. */
+   private static ChartBindingModel multiStyleModel() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      model.getColorField().setFrame(palette("#111111", "#222222"));
+
+      for(ChartRefModel ref : model.getYFields()) {
+         ((ChartAggregateRefModel) ref).setColorField(
+            boundField("color", dimension("Region"), palette("#111111", "#222222")));
+      }
+
+      return model;
+   }
+
+   private static ChartAggregateRefModel y(ChartBindingModel model, int i) {
+      return (ChartAggregateRefModel) model.getYFields().get(i);
+   }
+
+   @Test
+   void multiAestheticFrameWriteLandsOnEveryMeasuresOwnFieldNotTheChartLevelDecoy() {
+      ChartBindingModel model = multiStyleModel();
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#FF0000", "#00AA00")),
+         false, ALL_PER_MEASURE, null, true);
+
+      for(int i = 0; i < 2; i++) {
+         CategoricalColorModel frame = assertInstanceOf(
+            CategoricalColorModel.class, y(model, i).getColorField().getFrame());
+         assertArrayEquals(new String[]{"#FF0000", "#00AA00"}, frame.getColors());
+      }
+
+      assertNotSame(y(model, 0).getColorField().getFrame(), y(model, 1).getColorField().getFrame());
+      assertArrayEquals(new String[]{"#111111", "#222222"},
+                        ((CategoricalColorModel) model.getColorField().getFrame()).getColors(),
+                        "the chart-level slot is dead in this mode and must not be written");
+   }
+
+   @Test
+   void singleStyleFrameWriteStillGoesToTheChartLevelField() {
+      ChartBindingModel model = multiStyleModel();
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#FF0000", "#00AA00")),
+         false, ALL_PER_MEASURE, null, false);
+
+      assertArrayEquals(new String[]{"#FF0000", "#00AA00"},
+                        ((CategoricalColorModel) model.getColorField().getFrame()).getColors());
+      assertArrayEquals(new String[]{"#111111", "#222222"},
+                        ((CategoricalColorModel) y(model, 0).getColorField().getFrame()).getColors());
+   }
+
+   @Test
+   void multiAestheticMeasureParameterSelectsOneMeasuresBoundField() {
+      ChartBindingModel model = multiStyleModel();
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#FF0000", "#00AA00")),
+         false, ALL_PER_MEASURE, "Profit", true);
+
+      assertArrayEquals(new String[]{"#111111", "#222222"},
+                        ((CategoricalColorModel) y(model, 0).getColorField().getFrame()).getColors());
+      assertArrayEquals(new String[]{"#FF0000", "#00AA00"},
+                        ((CategoricalColorModel) y(model, 1).getColorField().getFrame()).getColors());
+   }
+
+   @Test
+   void multiAestheticWriteIsValidatedForEveryMeasureBeforeAnyIsWritten() {
+      ChartBindingModel model = multiStyleModel();
+      // the second measure draws colour from a measure, which a categorical frame cannot drive
+      y(model, 1).setColorField(boundField("color", measure("Cost", "Sum"), new GradientColorModel()));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         ChartAestheticMutator.setFrame(
+            model, "color", spec("type", "categorical", "colors", List.of("#FF0000", "#00AA00")),
+            false, ALL_PER_MEASURE, null, true));
+
+      assertTrue(thrown.getMessage().contains("Cost"), thrown.getMessage());
+      assertArrayEquals(new String[]{"#111111", "#222222"},
+                        ((CategoricalColorModel) y(model, 0).getColorField().getFrame()).getColors(),
+                        "a refusal on one measure must leave the others untouched");
+   }
+
+   @Test
+   void multiAestheticFieldLessMeasureStillTakesOnlyAStaticFrame() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         ChartAestheticMutator.setFrame(
+            model, "color", spec("type", "categorical", "colors", List.of("#FF0000")),
+            false, ALL_PER_MEASURE, null, true));
+      assertTrue(thrown.getMessage().contains("multi-style"), thrown.getMessage());
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#336699"),
+                                     false, ALL_PER_MEASURE, null, true);
+      assertInstanceOf(StaticColorModel.class, y(model, 0).getColorFrame());
+   }
+
+   @Test
+   void multiAestheticTargetsXMeasuresWhenYHoldsNone() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(measure("Sales", "Sum")));
+      ((ChartAggregateRefModel) model.getXFields().get(0)).setColorField(
+         boundField("color", dimension("Region"), palette("#111111")));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#FF0000")),
+         false, ALL_PER_MEASURE, null, true);
+
+      assertArrayEquals(
+         new String[]{"#FF0000"},
+         ((CategoricalColorModel) ((ChartAggregateRefModel) model.getXFields().get(0))
+            .getColorField().getFrame()).getColors());
+   }
+
+   @Test
+   void multiAestheticTargetsAGanttChartsStartAndMilestoneFields() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_GANTT);
+      ChartBindingMutator.setSingleShelf(model, "start", measure("Ship Date", "Max"));
+      ChartAggregateRefModel start = (ChartAggregateRefModel) model.getStartField();
+      start.setColorField(boundField("color", dimension("Region"), palette("#111111")));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#FF0000")),
+         false, ALL_PER_MEASURE, null, true);
+
+      assertArrayEquals(new String[]{"#FF0000"},
+                        ((CategoricalColorModel) start.getColorField().getFrame()).getColors());
+   }
+
+   @Test
+   void multiAestheticLineFrameGoesThroughTheMeasuresShapeField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      y(model, 0).setShapeField(boundField("shape", dimension("Region"), new CategoricalLineModel()));
+
+      ChartAestheticMutator.setFrame(model, "line", spec("type", "categorical"),
+                                     false, ALL_PER_MEASURE, null, true);
+
+      assertInstanceOf(CategoricalLineModel.class, y(model, 0).getShapeField().getFrame());
+      assertNull(y(model, 0).getLineFrame(), "the field-less line slot is shadowed by the field");
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void multiAestheticDescribeIgnoresTheChartLevelDecoyAndDisclosesDisagreement() {
+      ChartBindingModel model = multiStyleModel();
+      y(model, 1).getColorField().setFrame(palette("#AAAAAA"));
+
+      Map<String, Object> color = (Map<String, Object>) ChartAestheticMutator
+         .describe(model, false, ALL_PER_MEASURE, true, true, true, true).get("color");
+
+      assertEquals("Region", color.get("field"));
+      assertNull(color.get("fieldRef"), "no chart-level binding exists to echo back");
+      assertNotNull(color.get("framesByMeasure"),
+                    "the measures disagree, so the read must say so");
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void multiAestheticDescribeReadsTheMeasuresEvenWhenTheChartLevelFieldIsGone() {
+      ChartBindingModel model = multiStyleModel();
+      model.setColorField(null);
+
+      Map<String, Object> color = (Map<String, Object>) ChartAestheticMutator
+         .describe(model, false, ALL_PER_MEASURE, true, true, true, true).get("color");
+
+      assertEquals("Region", color.get("field"));
+   }
+
+   @Test
+   void multiAestheticResetRestoresEachMeasuresBoundFieldFrame() {
+      ChartBindingModel model = multiStyleModel();
+      CategoricalColorModel custom = palette("#FF0000", "#00AA00");
+      custom.setDefaultColors(new String[]{"#010101", "#020202"});
+      y(model, 0).getColorField().setFrame(custom);
+
+      ChartAestheticMutator.resetFrame(model, "color", false, ALL_PER_MEASURE, null, true);
+
+      assertArrayEquals(new String[]{"#010101", "#020202"},
+                        ((CategoricalColorModel) y(model, 0).getColorField().getFrame()).getColors());
+      assertArrayEquals(new String[]{"#111111", "#222222"},
+                        ((CategoricalColorModel) model.getColorField().getFrame()).getColors(),
+                        "the decoy slot is left alone");
+   }
+
+   // ---- #77024 P5: a chart-level slot with nothing bound takes only a static frame ----
+
+   private static ChartBindingModel radarLikeModel() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      return model;
+   }
+
+   @Test
+   void refusesANonStaticFrameOnAnUnboundChartLevelColourSlot() {
+      ChartBindingModel model = radarLikeModel();
+
+      for(Map<String, Object> frame : List.of(
+         spec("type", "gradient", "from", "#FF0000", "to", "#0000FF"),
+         spec("type", "categorical", "colors", List.of("#FF0000")),
+         spec("type", "palette", "palette", "Blues")))
+      {
+         Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+            ChartAestheticMutator.setFrame(model, "color", frame, false, Set.of("size"), null));
+         assertTrue(thrown.getMessage().contains("set_aesthetic_field"), thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("stops the chart"),
+                     "the per-measure ClassCastException rationale does not apply here");
+      }
+
+      assertNull(model.getColorFrame());
+   }
+
+   @Test
+   void stillAcceptsAStaticFrameOnTheChartLevelColourSlot() {
+      ChartBindingModel model = radarLikeModel();
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#cc2222"),
+                                     false, Set.of("size"), null);
+
+      assertInstanceOf(StaticColorModel.class, model.getColorFrame());
+   }
+
+   @Test
+   void contourColourKeepsItsGradientButContourSizeIsStaticOnly() {
+      ChartBindingModel model = radarLikeModel();
+      model.setChartType(GraphTypes.CHART_SCATTER_CONTOUR);
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "gradient", "from", "#FF0000", "to", "#0000FF"),
+         false, Set.of(), null);
+      assertInstanceOf(GradientColorModel.class, model.getColorFrame());
+
+      assertThrows(IllegalArgumentException.class, () -> ChartAestheticMutator.setFrame(
+         model, "size", spec("type", "linear"), false, Set.of(), null));
+   }
+
+   @Test
+   void refusesNonStaticShapeLineAndTextureOnTheirChartLevelSlots() {
+      ChartBindingModel model = radarLikeModel();
+
+      for(String channel : List.of("shape", "line", "texture")) {
+         assertThrows(IllegalArgumentException.class, () -> ChartAestheticMutator.setFrame(
+            model, channel, spec("type", "categorical"), false, Set.of(), null), channel);
+      }
+   }
+
+   @Test
+   void leavesNodeChannelsAndPerMeasureChannelsWithNoMeasureAlone() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      ChartAestheticMutator.setFrame(
+         model, "node-color", spec("type", "categorical", "colors", List.of("#FF0000")), true);
+      assertNotNull(model.getNodeColorFrame());
+
+      // a per-measure channel with no measure bound yet still stores a chart-level frame, which
+      // is what setField's carry-forward reads when a field is bound afterwards
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#FF0000")));
+      assertNotNull(model.getColorFrame());
+   }
 }
