@@ -448,12 +448,14 @@ public class VSFrameVisitor {
          String columnName = resolveColumnName(col, tref);
 
          final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
-         final VisualFrame sharedShapeFrame = context.getSharedShapeFrame(columnName, ref);
+         final VisualFrame sharedShapeFrame =
+            context.getSharedShapeFrame(columnName, ref, (CategoricalShapeFrame) frame);
 
+         // don't set the shared frame on tref. a chart level tref is the design time ref and
+         // the shared frame would replace its palette, which is saved with the chart. (78462)
          if(sharedShapeFrame instanceof CategoricalShapeFrame) {
             frame = (VisualFrame) sharedShapeFrame.clone();
             frame.setField(col);
-            tref.setVisualFrame(frame);
          }
 
          syncCategoricalFrame(frame, data, ref, dc, tref.isRuntime());
@@ -491,7 +493,7 @@ public class VSFrameVisitor {
          String columnName = resolveColumnName(col, tref);
 
          final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
-         final VisualFrame saveShapeFrame = (VisualFrame) frame.clone();
+         final CategoricalShapeFrame saveShapeFrame = (CategoricalShapeFrame) frame.clone();
          final Optional<TextFrame> shapeTextFrame = Optional.of(saveShapeFrame)
                                                             .map(VisualFrame::getLegendSpec)
                                                             .map(LegendSpec::getTextFrame);
