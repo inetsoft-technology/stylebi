@@ -160,9 +160,20 @@ public class ComposerPresenterController {
             Presenter pobj = PresenterRef.getPresenter(name);
             String path = catalog.getString("common.userDefinedParam") + "^" + pobj.getDisplayName();
 
+            PresenterRef ref = new PresenterRef(name);
+            boolean hasDescriptors = ref.getPropertyDescriptors() != null &&
+               ref.getPropertyDescriptors().length > 0;
+
+            // use the same data shape as the built-in presenters, the client reads
+            // data.class and data.hasDescriptors when a presenter is selected
+            data = new HashMap<>();
+            data.put("path", path);
+            data.put("class", pobj.getClass().getName());
+            data.put("hasDescriptors", hasDescriptors);
+
             TreeNodeModel node = TreeNodeModel.builder()
-               .label(name)
-               .data(path)
+               .label(pobj.getDisplayName())
+               .data(data)
                .leaf(true)
                .build();
 
