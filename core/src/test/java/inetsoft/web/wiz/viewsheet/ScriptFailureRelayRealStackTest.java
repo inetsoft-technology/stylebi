@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.mv.MVManager;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -320,14 +321,16 @@ class ScriptFailureRelayRealStackTest {
       return new ViewsheetPropertyDialogService(
          coreLifecycleService, viewsheetService, new VSLayoutService(),
          new ViewsheetSettingsService(viewsheetService), mock(VSAssemblyInfoHandler.class),
-         securityEngine, mock(MVManager.class), devices);
+         securityEngine, mock(MVManager.class), devices,
+         mock(QueryManagerService.class));
    }
 
    private VSObjectPropertyService objectPropertyService() {
       return new VSObjectPropertyService(
          coreLifecycleService, mock(VSColumnHandler.class), treeService,
          mock(VSAssemblyInfoHandler.class), mock(VSWizardTemporaryInfoService.class),
-         compositionService, sharedFilterService, dataSourceRegistry);
+         compositionService, sharedFilterService, dataSourceRegistry,
+         mock(QueryManagerService.class));
    }
 
    private AssemblyPropertyService assemblyPropertyService(RuntimeViewsheet rvs) throws Exception {
