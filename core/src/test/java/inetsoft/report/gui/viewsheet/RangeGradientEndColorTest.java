@@ -62,6 +62,9 @@ import static org.mockito.Mockito.when;
  *
  * Bug #78086: when a script shortens the ranges of a dialog design and does not set the
  * colors, the last band ends at the design blend color, not at a dropped row's color.
+ *
+ * Bug #78464: when the colors have no slot for a band's end color, the gauge ends that
+ * band at darker() like the other renderers, not flat at the band's own color.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -145,19 +148,29 @@ class RangeGradientEndColorTest {
    }
 
    @Test
-   void gaugeScriptColorsWithoutBlendSlotKeepTheirLastBand() throws Exception {
-      // a script that writes 3 colors for 3 ranges has no blend slot: the last band keeps
-      // its pre-existing end color (its own color on the gauge)
-      GaugeVSAssemblyInfo info = new GaugeVSAssemblyInfo();
-      info.setMin("0");
-      info.setMax("25");
-      info.setRangeGradientValue(true);
-      info.setRanges(new Object[] { "5", "15", "20" });
-      info.setRangeColors(new Color[] { G, Y, R });
+   void gaugeScriptColorsThroughScriptableEndLastBandAtDarker() throws Exception {
+      // #78464: Gauge1.rangeColors = [G, Y, R]; Gauge1.ranges = [5, 15, 20] on a design whose
+      // slot 3 holds O. The script colors have no slot past the last band, so it ends at
+      // R.darker(), not flat R and not a design color.
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      GaugeVSAssembly assembly = new GaugeVSAssembly();
+      GaugeVSAssemblyInfo info = (GaugeVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      info.setName("Gauge1");
+      vs.addAssembly(assembly);
+      setDesign(info);
 
-      List<String> bands = render(Kind.GAUGE, info);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getID()).thenReturn("vs1");
+      when(box.getViewsheet()).thenReturn(vs);
+      GaugeVSAScriptable scriptable = new GaugeVSAScriptable(box);
+      scriptable.setAssembly("Gauge1");
 
-      assertEquals(List.of(band(G, Y), band(Y, R), band(R, R)), bands);
+      scriptable.putMember("rangeColors", new Color[] { G, Y, R });
+      scriptable.putMember("ranges", new String[] { "5", "15", "20" });
+
+      assertEquals(List.of(band(G, Y), band(Y, R), band(R, R.darker())),
+                   render(Kind.GAUGE, info));
    }
 
    // ---- every gradient renderer ----
@@ -199,8 +212,9 @@ class RangeGradientEndColorTest {
    }
 
    @ParameterizedTest
-   @EnumSource(value = Kind.class, names = "GAUGE", mode = EnumSource.Mode.EXCLUDE)
+   @EnumSource(Kind.class)
    void scriptColorsWithoutBlendSlotFallBackToDarker(Kind kind) throws Exception {
+      // #78464: the gauge too (it painted the last band flat R->R)
       RangeOutputVSAssemblyInfo info = createInfo(kind);
       info.setMin("0");
       info.setMax("25");
@@ -348,6 +362,20 @@ class RangeGradientEndColorTest {
 
       assertTrue(bands.contains(band(Y, Y.darker())), bands::toString);
       assertFalse(bands.contains(band(Y, R)), bands::toString);
+   }
+
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void legacyDesignWithAsManyColorsAsRowsEndsAtDarkerColor(Kind kind) throws Exception {
+      // #78464: an older design with 4 rows and 4 colors has no blend slot (only designs of
+      // fewer than 4 rows are padded), so the unscripted last band ends at O.darker()
+      List<String> bands = render(kind, "25",
+         new String[] { "5", "10", "15", "20" },
+         new Color[] { G, Y, R, O });
+
+      assertTrue(bands.contains(band(R, O)), bands::toString);
+      assertTrue(bands.contains(band(O, O.darker())), bands::toString);
+      assertFalse(bands.contains(band(O, O)), bands::toString);
    }
 
    @ParameterizedTest
