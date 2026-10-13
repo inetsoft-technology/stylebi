@@ -590,6 +590,23 @@ class BindingAgentControllerTest {
    }
 
    @Test
+   void setTableFieldsForwardsACanonicalSecondaryColumn() throws Exception {
+      TableBindingService tableService = mock(TableBindingService.class);
+      BindingAgentController controller = tableController(tableService, stateRegion());
+
+      controller.setTableFields("tok", new BindingAgentController.TableShelfRequest(
+         "Crosstab1", "aggregates", List.of(new FieldRef("Customer:State", "measure",
+            "Correlation", null, null, null, null, null, null, null, null, null, null,
+            "customer:region")), null), principal());
+
+      verify(tableService).setShelf(eq("tok"), any(Principal.class), eq("Crosstab1"),
+                                    eq("aggregates"),
+                                    eq(List.of(new FieldRef("Customer:State", "measure",
+                                       "Correlation", null, null, null, null, null, null, null,
+                                       null, null, null, "Customer:Region"))), any());
+   }
+
+   @Test
    void setTableFieldsRefusesACaseAmbiguousName() throws Exception {
       TableBindingService tableService = mock(TableBindingService.class);
       BindingAgentController controller = tableController(tableService, List.of(

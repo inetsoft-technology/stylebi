@@ -169,36 +169,53 @@ public final class BindableColumns {
    }
 
    private static FieldRef canonicalize(Set<String> columns, String assembly, FieldRef field) {
-      if(field == null || field.column() == null || field.column().isBlank() ||
-         isDynamicVariableReference(field.column()) || field.column().startsWith("=") ||
-         columns.contains(field.column()))
+      if(field == null) {
+         return field;
+      }
+
+      String column = canonicalName(columns, assembly, field.column());
+      String secondary = canonicalName(columns, assembly, field.secondaryColumn());
+
+      if(Objects.equals(column, field.column()) &&
+         Objects.equals(secondary, field.secondaryColumn()))
       {
          return field;
+      }
+
+      return new FieldRef(column, field.type(), field.aggregate(), field.dateLevel(),
+                          field.namedGroup(), field.chartType(), field.runtimeChartType(),
+                          field.namedGroupValues(), field.calculateInfo(), field.label(),
+                          field.secondaryY(), field.visible(), field.timeSeries(), secondary);
+   }
+
+   /**
+    * The real spelling of {@code name}, or {@code name} itself when it is not a plain column name
+    * or matches nothing. Applies to {@code secondaryColumn} too: the runtime resolves it with a
+    * case-sensitive {@code ColumnSelection.getAttribute}, so a mis-cased one would silently lose
+    * the second column of a two-column aggregate.
+    */
+   private static String canonicalName(Set<String> columns, String assembly, String name) {
+      if(name == null || name.isBlank() || isDynamicVariableReference(name) ||
+         name.startsWith("=") || columns.contains(name))
+      {
+         return name;
       }
 
       List<String> matches = new ArrayList<>();
 
       for(String column : columns) {
-         if(column.equalsIgnoreCase(field.column())) {
+         if(column.equalsIgnoreCase(name)) {
             matches.add(column);
          }
       }
 
-      if(matches.isEmpty()) {
-         return field;
-      }
-
       if(matches.size() > 1) {
          throw new IllegalArgumentException(
-            "'" + field.column() + "' is ambiguous for " + assembly + ": it matches " +
+            "'" + name + "' is ambiguous for " + assembly + ": it matches " +
             String.join(", ", matches) + " only by case. Use the exact spelling of one of them.");
       }
 
-      return new FieldRef(matches.get(0), field.type(), field.aggregate(), field.dateLevel(),
-                          field.namedGroup(), field.chartType(), field.runtimeChartType(),
-                          field.namedGroupValues(), field.calculateInfo(), field.label(),
-                          field.secondaryY(), field.visible(), field.timeSeries(),
-                          field.secondaryColumn());
+      return matches.isEmpty() ? name : matches.get(0);
    }
 
    /**

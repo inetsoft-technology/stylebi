@@ -564,4 +564,32 @@ class BindableColumnsTest {
       assertEquals("PRICE", BindableColumns.canonicalize(tables, "C", "B", List.of(dim("price")))
          .get(0).column());
    }
+
+   /** Redmine #78436 review r1: secondaryColumn gets the same canonicalization as column. */
+   @Test
+   void canonicalizeReplacesAMisCasedSecondaryColumn() {
+      FieldRef ref = new FieldRef("Customer:State", "measure", "Correlation", null, null, null,
+                                  null, null, null, null, null, null, null, "CUSTOMER:REGION");
+
+      FieldRef result = BindableColumns.canonicalize(MIXED_CASE, "Crosstab1", null,
+                                                     List.of(ref)).get(0);
+
+      assertEquals("Customer:State", result.column());
+      assertEquals("Customer:Region", result.secondaryColumn());
+   }
+
+   @Test
+   void canonicalizeRefusesAnAmbiguousMisCasedSecondaryColumn() {
+      List<BindableTable> tables = List.of(new BindableTable("T", true, List.of(
+         new BindableField("ab", null, null), new BindableField("AB", null, null),
+         new BindableField("x", null, null))));
+      FieldRef ref = new FieldRef("x", "measure", "Correlation", null, null, null, null, null,
+                                  null, null, null, null, null, "Ab");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.canonicalize(tables, "C", null, List.of(ref)));
+
+      assertTrue(thrown.getMessage().contains("'Ab'"));
+   }
 }
