@@ -722,8 +722,8 @@ class RowFetchFailureTest {
 
    // Bug #78071: a viewsheet onLoad script stops at its read of a table that failed to load
    // in a scheduled run, and the export records that as the script error, instead of the
-   // script going on with a null column. Like any onLoad error it does not fail the run. An
-   // interactive script reads the rows that were loaded, as before
+   // script going on with a null column. Unlike other onLoad errors, a load failure fails the
+   // export (#78445). An interactive script reads the rows that were loaded, as before
    @Test
    void onLoadScriptOverAFailedTable() throws Exception {
       String script = "var a = TableV.table['id']; " +
@@ -740,9 +740,16 @@ class RowFetchFailureTest {
 
          ViewsheetSandbox vbox = vsTable(ws, box);
          vbox.getViewsheet().getViewsheetInfo().setOnLoad(script);
-         vbox.prepareForExport();
-         Exception error = vbox.getExportScriptError();
 
+         if(scheduler) {
+            assertLoadFailure(assertThrows(TableLoadException.class, vbox::prepareForExport),
+                              DB_MESSAGE);
+         }
+         else {
+            vbox.prepareForExport();
+         }
+
+         Exception error = vbox.getExportScriptError();
          assertNotNull(error, "scheduler " + scheduler);
 
          if(scheduler) {
@@ -941,7 +948,8 @@ class RowFetchFailureTest {
          String message = failure[1];
 
          ViewsheetSandbox vbox = executeFailureSandbox(true, script);
-         vbox.prepareForExport();
+         assertLoadFailure(assertThrows(TableLoadException.class, vbox::prepareForExport),
+                           message);
          assertLoadFailure(vbox.getExportScriptError(), message);
 
          // the failed read was not cached as no data: a later read fails again, and the export
@@ -971,6 +979,94 @@ class RowFetchFailureTest {
          exporter3.export(executeFailureSandbox(false, null), "TableV", null);
          exporter3.write();
       }
+   }
+
+   // Bug #78445: a scheduled CSV export of a viewsheet whose onLoad reads a hidden table that
+   // failed to load fails with the database error, instead of finishing with an empty file and
+   // only a logged script error. The hidden table is not exported, so the onLoad read is the
+   // only reader. An interactive export, and a scheduled export whose onLoad fails for another
+   // reason, still complete with the script error recorded for the warning (#76780)
+   @Test
+   void scheduledExportOfAnOnLoadReadOfAHiddenFailedTableFails() throws Exception {
+      String read = "var n = TableV.table.length; parameter.r = 'rows=' + n;";
+
+      ViewsheetSandbox scheduled = hiddenFailedTableSandbox(true, read);
+      CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+         exporter.export(scheduled, "Text", null);
+         exporter.write();
+      });
+      assertLoadFailure(ex, DB_MESSAGE);
+      assertTrue(hasSqlException(TableLoadException.find(ex)), String.valueOf(ex));
+
+      // interactive: the script reads the rows that were loaded and the export completes
+      ViewsheetSandbox interactive = hiddenFailedTableSandbox(false, read);
+      CSVVSExporter exporter2 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      exporter2.export(interactive, "Text", null);
+      exporter2.write();
+      assertNull(interactive.getExportScriptError());
+      // the header row and the rows read before the failure
+      assertEquals("rows=" + FAIL_ROW, interactive.getVariableTable().get("r"));
+
+      // a scheduled onLoad error that is not a load failure warns and continues
+      ViewsheetSandbox plain = hiddenFailedTableSandbox(true, "throw 'PLAINX';");
+      CSVVSExporter exporter3 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      exporter3.export(plain, "Text", null);
+      exporter3.write();
+      Exception error = plain.getExportScriptError();
+      assertNotNull(error);
+      assertNull(TableLoadException.find(error), String.valueOf(error));
+      assertTrue(String.valueOf(error.getMessage()).contains("PLAINX"), String.valueOf(error));
+   }
+
+   // Bug #78445: the export's script error keeps the first error, so a plain onLoad error of the
+   // host must not hide a load failure of an embedded viewsheet's onLoad, which runs after it:
+   // the scheduled export still fails
+   @Test
+   void hostOnLoadErrorDoesNotHideAnEmbeddedLoadFailure() throws Exception {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", true);
+      Viewsheet child = viewsheet(ws);
+      child.setEntry(new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "test/RowFetchFailureTest/child",
+         null, OrganizationManager.getInstance().getCurrentOrgID()));
+      child.createVSAssembly("Viewsheet1");
+      TableVSAssembly table = new TableVSAssembly(child, "TableV");
+      table.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "T1"));
+      ColumnSelection cols = new ColumnSelection();
+
+      for(String name : new String[] { "id", "g", "x" }) {
+         cols.addAttribute(new ColumnRef(new AttributeRef(null, name)));
+      }
+
+      table.setColumnSelection(cols);
+      child.addAssembly(table);
+      child.getViewsheetInfo().setOnLoad("var n = TableV.table.length; parameter.n = n;");
+
+      Viewsheet host = viewsheet(ws);
+      host.getViewsheetInfo().setOnLoad("throw 'HOSTX';");
+      host.addAssembly(child);
+      ViewsheetSandbox box = viewsheetSandbox(host, querySandbox(ws, true));
+      assertNotNull(box.getSandbox("Viewsheet1"));
+
+      assertLoadFailure(assertThrows(TableLoadException.class, box::prepareForExport),
+                        DB_MESSAGE);
+      // the first error, the host's, is still the one recorded for the warning
+      assertTrue(String.valueOf(box.getExportScriptError()).contains("HOSTX"),
+                 String.valueOf(box.getExportScriptError()));
+   }
+
+   // the table TableV bound to the failing T1, hidden, and the text Text1, with the onLoad script
+   private static ViewsheetSandbox hiddenFailedTableSandbox(boolean scheduler, String script)
+      throws Exception
+   {
+      ViewsheetSandbox vbox = executeFailureSandbox(scheduler, script);
+      Viewsheet vs = vbox.getViewsheet();
+      vs.addAssembly(new TextVSAssembly(vs, "Text1"));
+      VSAssembly hidden = (VSAssembly) vs.getAssembly("TableV");
+      hidden.getVSAssemblyInfo().setVisibleValue(String.valueOf(VSAssembly.ALWAYS_HIDE));
+      assertFalse(hidden.isVisible());
+      return vbox;
    }
 
    @Test
@@ -1324,6 +1420,16 @@ class RowFetchFailureTest {
       vs.getViewsheetInfo().setOnLoad(script);
 
       ViewsheetSandbox vbox = viewsheetSandbox(vs, querySandbox(ws, scheduler));
+
+      // Bug #78445: a scheduled load failure fails the export, and is recorded as the script
+      // error as well. Any other run must not throw
+      if(fail && scheduler) {
+         TableLoadException ex = assertThrows(TableLoadException.class, vbox::prepareForExport,
+                                              script);
+         assertNotNull(TableLoadException.find(vbox.getExportScriptError()), script);
+         return ex;
+      }
+
       vbox.prepareForExport();
       return vbox.getExportScriptError();
    }
