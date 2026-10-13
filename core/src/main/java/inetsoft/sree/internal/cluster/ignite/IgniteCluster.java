@@ -885,11 +885,31 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public Lock getLock(String name) {
+      if(isClientNode()) {
+         return new DistributedLockProxy(name, ClientDataStructures.getLock(ignite, name));
+      }
+
       return new DistributedLockProxy(name, ignite.reentrantLock(name, true, false, true));
+   }
+
+   /**
+    * Checks if this is a client node (a cloud-runner task container). A client node must not
+    * create or obtain an Ignite data structure: that registers Ignite's synchronous
+    * data-structure continuous query on every server, and after the client is killed every lock
+    * change on a server waits for it until it is dropped (bug #78451). Its locks and atomics are
+    * kept on a server by {@link ClientDataStructures}.
+    */
+   private boolean isClientNode() {
+      return ignite.cluster().localNode().isClient();
    }
 
    @Override
    public void destroyLock(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyLock(ignite, name);
+         return;
+      }
+
       IgniteLock lock = ignite.reentrantLock(name, true, false, false);
 
       if(lock != null) {
@@ -898,6 +918,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    public void unlockLock(String name) {
+      if(isClientNode()) {
+         getLock(name).unlock();
+         return;
+      }
+
       IgniteLock lock = ignite.reentrantLock(name, true, false, false);
 
       if(lock != null) {
@@ -1683,11 +1708,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public DistributedLong getLong(String name) {
+      if(isClientNode()) {
+         return ClientDataStructures.getLong(ignite, name);
+      }
+
       return new IgniteDistributedLong(ignite.atomicLong(name, 0, true));
    }
 
    @Override
    public void destroyLong(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyLong(ignite, name);
+         return;
+      }
+
       IgniteAtomicLong igniteAtomicLong = ignite.atomicLong(name, 0, false);
 
       if(igniteAtomicLong != null) {
@@ -1697,11 +1731,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <V> DistributedReference<V> getReference(String name) {
+      if(isClientNode()) {
+         return ClientDataStructures.getReference(ignite, name);
+      }
+
       return new IgniteDistributedReference<>(ignite.atomicReference(name, null, true));
    }
 
    @Override
    public void destroyReference(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyReference(ignite, name);
+         return;
+      }
+
       IgniteAtomicReference<?> igniteAtomicReference = ignite.atomicReference(name, null, false);
 
       if(igniteAtomicReference != null) {
