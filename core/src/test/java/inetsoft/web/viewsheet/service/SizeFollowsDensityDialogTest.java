@@ -231,12 +231,21 @@ class SizeFollowsDensityDialogTest {
       assertFalse(info.isUserSize());
    }
 
-   // the same holds for a container, whose flag nothing reads off a tier size
+   // the refinement is the list and tree's own; a container flags an unticked answer as ever
    @Test
-   void applyingAContainerOffItsTierSizeUntouchedDoesNotFlagIt() {
+   void applyingAContainerOffItsTierSizeUntickedFlagsIt() {
       CurrentSelectionVSAssemblyInfo info = container(VizMark.MODERN_LIGHT, new Dimension(400, 300), false);
 
       VSDialogService.recordAuthorSize(info, model(false, 400, 300), new Dimension(400, 300));
+
+      assertTrue(info.isUserSize());
+   }
+
+   @Test
+   void applyingAWidenedTreeUntouchedDoesNotFlagIt() {
+      SelectionTreeVSAssemblyInfo info = tree(new Dimension(200, 202));
+
+      VSDialogService.recordAuthorSize(info, model(false, 200, 202), new Dimension(200, 202));
 
       assertFalse(info.isUserSize());
    }

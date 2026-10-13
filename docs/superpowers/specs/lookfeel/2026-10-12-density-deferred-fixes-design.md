@@ -81,10 +81,11 @@ size — a widened, never-sized list — claims nothing.
   alone in `SelectionBaseVSAssemblyInfo`. `recordAuthorSize` returns that decision, and the list and tree dialogs
   call `fitListHeightToBox()` on it for a marked box, last, after the dialog's own Height, title, cell height, inset
   and show type writes. Unmarked lists and trees are not refit.
-- `recordAuthorSize` flags an unticked answer only while the box still follows the density after the typed size is
-  written (`followsDensitySize()`), so the untick sticks. Selection containers keep flagging every size change; for
-  them the only difference is that an untouched Apply of a box shown unticked off its tier size no longer flags it,
-  a flag nothing reads at such a size.
+- `recordAuthorSize` flags an unticked answer of a list or tree only while the box still follows the density after
+  the typed size is written (`followsDensitySize()`), so the untick sticks and an untouched Apply of a widened,
+  never-sized box claims nothing (`isUntickClaimOnlyWhileFollowing()`, true in `SelectionBaseVSAssemblyInfo`).
+  *(Amended 2026-10-13: the refinement applies to selection lists and trees only. Every other type, containers
+  included, flags an unticked answer as before the refinement, at `c66a5aca51`.)*
 - The check is the type's, not the mark's: unmarked lists and trees take it too. Nothing reads the flag on unmarked
   content, so its rendering and export are unchanged; a later Modernize finds a widened list unflagged, as it would
   a marked one.

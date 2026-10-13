@@ -203,8 +203,10 @@ public class VSDialogService {
       boolean changed =
          info.isAuthorSizeChange(shown, new Dimension(model.getWidth(), model.getHeight()));
 
-      // a box shown unticked off its tier size claims nothing by being applied
-      if(changed || (Boolean.FALSE.equals(follows) && info.followsDensitySize())) {
+      // a list or tree shown unticked off its tier size claims nothing by being applied
+      if(changed || Boolean.FALSE.equals(follows) &&
+         (!info.isUntickClaimOnlyWhileFollowing() || info.followsDensitySize()))
+      {
          info.setUserSize(true);
       }
 

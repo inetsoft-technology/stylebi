@@ -1072,6 +1072,14 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       return before.height != after.height;
    }
 
+   /**
+    * A list or tree widened only stays never-sized, so its untick is kept only while it follows.
+    */
+   @Override
+   public boolean isUntickClaimOnlyWhileFollowing() {
+      return true;
+   }
+
    @Override
    protected Dimension defaultSize(VizContext ctx) {
       return VSDensityDefaults.selectionSize(ctx);
