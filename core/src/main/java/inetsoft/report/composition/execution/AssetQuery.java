@@ -52,6 +52,7 @@ import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.script.graal.pool.SlotClaim;
+import inetsoft.util.swap.DataUnavailable;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -4413,9 +4414,11 @@ public abstract class AssetQuery extends PreAssetQuery {
                                  "common.conditionMerge") + scriptMsg;
                            }
 
-                           ScriptException se = new ScriptException(scriptMsg);
-                           // keep a timeout's or cancel's stop, or a reader caches the
-                           // failure (bug #78212)
+                           // keep unavailable data or a load failure as the cause
+                           // (bug #78450) and a timeout's or cancel's stop (bug #78212),
+                           // or a reader caches the failure
+                           ScriptException se = new ScriptException(
+                              scriptMsg, DataUnavailable.causeInChain(ex));
                            se.setStopped(ScriptTimeoutGuard.isStop(ex));
                            throw se;
                         }

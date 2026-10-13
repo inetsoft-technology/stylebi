@@ -46,6 +46,7 @@ import inetsoft.util.script.ScriptStateLint;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -4150,8 +4151,9 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             LOG.warn(msg);
          }
 
-         ScriptException se = new ScriptException(msg);
-         // keep a timeout's or cancel's stop, or a reader caches the failure (bug #78212)
+         // keep unavailable data or a load failure as the cause (bug #78450) and a timeout's
+         // or cancel's stop (bug #78212), or a reader caches the failure
+         ScriptException se = new ScriptException(msg, DataUnavailable.causeInChain(ex));
          se.setStopped(ScriptTimeoutGuard.isStop(ex));
          throw se;
       }
@@ -4524,6 +4526,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             // a stopped condition script fails the query, ignoring the node would run it
             // unfiltered and cache the wrong rows (bug #78212)
             ScriptTimeoutGuard.rethrowStop(ex);
+            // so does a condition script that read unavailable data or a table that failed
+            // to load (bug #78450)
+            DataUnavailable.rethrow(ex);
+            TableLoadException.rethrow(ex);
 
             if(!ex.getMessage().equals("no parameter set.")) {
                LOG.warn("Failed to create condition", ex);
