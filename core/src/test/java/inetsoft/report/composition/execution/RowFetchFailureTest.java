@@ -50,6 +50,8 @@ import inetsoft.report.lens.JoinTableLens;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.schedule.ScheduleViewsheetService;
+import inetsoft.sree.schedule.ViewsheetAction;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.test.*;
@@ -91,15 +93,24 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.Principal;
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.zip.ZipInputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -1063,11 +1074,11 @@ class RowFetchFailureTest {
    @Test
    void scheduledSaveToDiskFailsOnAnOnLoadLoadFailure() throws Exception {
       String read = "var n = TableV.table.length; parameter.r = 'rows=' + n;";
-      java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("vsaction78445");
+      Path dir = Files.createTempDirectory("vsaction78445");
 
       try {
-         java.util.Set<String> cache = cacheListing();
-         java.util.List<String> saved = new java.util.ArrayList<>();
+         Set<String> cache = cacheListing();
+         List<String> saved = new ArrayList<>();
          Throwable ex = runSaveToDisk(hiddenFailedTableSandbox(true, read), dir, saved);
          assertLoadFailure(ex, DB_MESSAGE);
          assertTrue(hasSqlException(TableLoadException.find(ex)), String.valueOf(ex));
@@ -1159,27 +1170,27 @@ class RowFetchFailureTest {
       return child;
    }
 
-   private static java.util.Set<String> cacheListing() throws Exception {
-      java.nio.file.Path cdir =
-         java.nio.file.Paths.get(FileSystemService.getInstance().getCacheDirectory());
+   private static Set<String> cacheListing() throws Exception {
+      Path cdir =
+         Paths.get(FileSystemService.getInstance().getCacheDirectory());
 
-      try(java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.list(cdir)) {
+      try(Stream<Path> files = Files.list(cdir)) {
          return files.map(f -> f.getFileName().toString())
-            .collect(java.util.stream.Collectors.toCollection(java.util.TreeSet::new));
+            .collect(Collectors.toCollection(TreeSet::new));
       }
    }
 
    // runs a real ViewsheetAction that saves the home bookmark of the sandbox's viewsheet as CSV
    // to dir, with only the viewsheet open/close, the bookmark list and the external storage
    // stood in for; returns what the task threw, and adds each saved file to saved
-   private static Throwable runSaveToDisk(ViewsheetSandbox box, java.nio.file.Path dir,
-                                          java.util.List<String> saved)
+   private static Throwable runSaveToDisk(ViewsheetSandbox box, Path dir,
+                                          List<String> saved)
       throws Exception
    {
       inetsoft.sree.security.IdentityID pid = new inetsoft.sree.security.IdentityID(
          "admin", OrganizationManager.getInstance().getCurrentOrgID());
-      java.security.Principal principal = new inetsoft.sree.security.SRPrincipal(pid);
-      java.security.Principal oldPrincipal = ThreadContext.getContextPrincipal();
+      Principal principal = new inetsoft.sree.security.SRPrincipal(pid);
+      Principal oldPrincipal = ThreadContext.getContextPrincipal();
       Viewsheet vs = box.getViewsheet();
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getID()).thenReturn("rvs-78445");
@@ -1188,19 +1199,19 @@ class RowFetchFailureTest {
       when(rvs.getEntry()).thenReturn(box.getAssetEntry());
       when(rvs.getOriginalBookmark(any(), any())).thenReturn(vs);
 
-      inetsoft.sree.schedule.ViewsheetAction action =
-         new inetsoft.sree.schedule.ViewsheetAction(box.getAssetEntry().toIdentifier(), null)
+      ViewsheetAction action =
+         new ViewsheetAction(box.getAssetEntry().toIdentifier(), null)
       {
          @Override
          public RuntimeViewsheet getRuntimeViewsheet(
-            java.security.Principal user, inetsoft.sree.schedule.ScheduleViewsheetService service)
+            Principal user, ScheduleViewsheetService service)
          {
             return rvs;
          }
 
          @Override
-         public void closeViewsheet(String id, java.security.Principal user,
-                                    inetsoft.sree.schedule.ScheduleViewsheetService service)
+         public void closeViewsheet(String id, Principal user,
+                                    ScheduleViewsheetService service)
          {
          }
       };
@@ -1213,19 +1224,19 @@ class RowFetchFailureTest {
       inetsoft.storage.ExternalStorageService storage =
          mock(inetsoft.storage.ExternalStorageService.class);
       doAnswer(inv -> saved.add(inv.getArgument(0)))
-         .when(storage).write(any(), any(java.nio.file.Path.class), any());
+         .when(storage).write(any(), any(Path.class), any());
 
       try(MockedStatic<inetsoft.uql.viewsheet.internal.VSUtil> vsUtil =
              mockStatic(inetsoft.uql.viewsheet.internal.VSUtil.class, CALLS_REAL_METHODS);
-          MockedStatic<inetsoft.sree.schedule.ScheduleViewsheetService> service =
-             mockStatic(inetsoft.sree.schedule.ScheduleViewsheetService.class);
+          MockedStatic<ScheduleViewsheetService> service =
+             mockStatic(ScheduleViewsheetService.class);
           MockedStatic<inetsoft.storage.ExternalStorageService> external =
              mockStatic(inetsoft.storage.ExternalStorageService.class))
       {
          vsUtil.when(() -> inetsoft.uql.viewsheet.internal.VSUtil.getBookmarks(
             any(AssetEntry.class), any())).thenReturn(new VSBookmarkInfo[] { home });
-         service.when(inetsoft.sree.schedule.ScheduleViewsheetService::getInstance)
-            .thenReturn(mock(inetsoft.sree.schedule.ScheduleViewsheetService.class));
+         service.when(ScheduleViewsheetService::getInstance)
+            .thenReturn(mock(ScheduleViewsheetService.class));
          external.when(inetsoft.storage.ExternalStorageService::getInstance).thenReturn(storage);
          action.run(principal);
          return null;
@@ -1559,6 +1570,16 @@ class RowFetchFailureTest {
       vs.addAssembly(chart(vs, "T1", "Sum"));
       vs.getViewsheetInfo().setOnLoad(script);
       ViewsheetSandbox vbox = viewsheetSandbox(vs, querySandbox(ws, scheduler));
+
+      // Bug #78445: a scheduled load failure fails the export, and is recorded as the script
+      // error as well. Any other run must not throw
+      if(fail && scheduler) {
+         TableLoadException ex = assertThrows(TableLoadException.class, vbox::prepareForExport,
+                                              script);
+         assertNotNull(TableLoadException.find(vbox.getExportScriptError()), script);
+         return ex;
+      }
+
       vbox.prepareForExport();
       return vbox.getExportScriptError();
    }
