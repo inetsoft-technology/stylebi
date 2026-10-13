@@ -34,6 +34,7 @@ import inetsoft.uql.viewsheet.internal.StandardPeriods;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
+import inetsoft.web.wiz.binding.DateLevels;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -272,8 +273,8 @@ public class DateComparisonService {
     * any, untouched.
     *
     * @return a map that, when the comparison forced a bound date dimension's rendering level
-    * to change (e.g. a row bound at "month" retargeted to "year" so periods line up), reports
-    * the dimension name and the before/after level under {@code retargetedDimension} /
+    * to change (e.g. a row bound at "month" regrouped by "month_of_year" so periods line up),
+    * reports the dimension name and the before/after level under {@code retargetedDimension} /
     * {@code retargetedFromLevel} / {@code retargetedToLevel}. Empty when nothing was retargeted.
     * For a chart, also reports {@code chartTypeOverridden}/{@code chartTypeBefore}/
     * {@code chartTypeAfter} when applying the comparison forced the chart's runtime style to
@@ -537,36 +538,36 @@ public class DateComparisonService {
     * Date comparison forces a bound date dimension's runtime grouping level up (or down) to
     * match the comparison period, so periods actually line up — a deliberate rendering decision,
     * not a bug. But it only ever mutates the runtime clone (design binding is untouched), and
-    * nothing told the caller it happened. {@code CrosstabDcProcessor.process()} already stashes
-    * the pre-retarget clone on {@code VSCrosstabInfo.getDateComparisonRef()} before mutating the
-    * live runtime ref in place; comparing that snapshot's level against the same-named dimension
-    * in the (already-refreshed, by the time {@code sessions.mutate} returns) runtime headers is
-    * the cheapest way to observe what actually changed, without re-deriving the DC math here.
+    * nothing told the caller it happened. This reports the bound dimension's design level and the
+    * level it actually renders at, both as words.
     *
-    * <p>Matches by {@code getName()} (the plain column name), not {@code getFullName()} — the
-    * full name embeds the date level itself (e.g. "Month(ORDER_DATE)" vs. "Year(ORDER_DATE)"),
-    * so it never matches once the level has actually changed.
+    * <p>The runtime shelf can hold two refs for the one date column, and only one of them is the
+    * bound dimension. When the comparison builds a period series (standard periods whose level
+    * differs from the granularity, or custom periods), {@code ChartDcProcessor} and
+    * {@code CrosstabDcProcessor} clone the bound dimension into a period dimension at the period
+    * level and add it beside the bound one, under the same {@code getName()}. Reporting that
+    * clone's level as the bound dimension's new grouping is wrong: it printed "year (was month)"
+    * when the bound dimension had become month_of_year, and nothing at all when the period level
+    * equalled the design level (Bug #78408). And the retarget may swap the bound dimension's data
+    * ref for a DC calc part such as {@code WeekOfMonth(ORDER_DATE)}, which renames it, so a
+    * plain name match misses it altogether (see {@link #isRefOfColumn}). So:
+    * <ul>
+    *    <li>Crosstab: "before" is {@code VSCrosstabInfo.getDateComparisonRef()}, the bound
+    *    clone taken before the retarget. "After" is the <i>last</i> ref of that column on the
+    *    shelf {@code isDateComparisonOnRow()} names, because {@code addPeriodDim} inserts the
+    *    period dimension in front of the bound one.</li>
+    *    <li>Chart: {@code ChartDcProcessor} keeps no pointer to the bound runtime dimension;
+    *    {@code getDateComparisonRef()} is a clone of the period dimension when there is one, else
+    *    of the bound dimension, taken after the retarget. "After" is the first ref of that column
+    *    on the {@code isDcBaseDateOnX()} runtime shelf that is not that clone
+    *    (see {@link #isSameRuntimeRef}), and "before" is the same-named design dimension on
+    *    {@code getXFields()}/{@code getYFields()}, which are never RT-substituted.</li>
+    * </ul>
+    * With granularity "all" the period dimension <i>replaces</i> the bound one on the shelf, so
+    * it is the only ref of that column left and is reported: it is what that slot now renders.
     *
-    * <p>Searches only the shelf {@code VSCrosstabInfo.isDateComparisonOnRow()} names, not "row,
-    * then column" — that flag is set by the very same {@code updateRuntimeHeaders()} call that
-    * produces {@code getDateComparisonRef()}, so it is a definitive answer, not a guess. Trying
-    * row first and falling back to column would misreport an unrelated, untouched dimension's
-    * level if a crosstab happened to bind a same-named date dimension on both shelves.
-    *
-    * <p>A chart needs the opposite before/after pairing. {@code CrosstabDcProcessor} stashes the
-    * pre-retarget clone on {@code getDateComparisonRef()} <i>before</i> mutating the live ref
-    * (stash-then-mutate), but {@code ChartDcProcessor.process()} mutates the dimension it found
-    * in place first and only clones it into {@code VSChartInfo.getDateComparisonRef()}
-    * afterward (mutate-then-stash — see {@code ChartDcProcessor.java} lines 186 then 203..204).
-    * So for a chart, {@code getDateComparisonRef()} already holds the <i>after</i> level, not a
-    * "before" snapshot; reusing it as "before" the way the crosstab branch does would compare an
-    * already-retargeted value against itself and always report nothing. Instead, "before" comes
-    * from the untouched design binding — {@code VSChartInfo.getXFields()}/{@code getYFields()},
-    * which {@code ChartInfoModelBuilder} never RT-substitutes for a dimension (only for
-    * {@code VSChartAggregateRef} measures) — matched by name against the axis
-    * {@code VSChartInfo.isDcBaseDateOnX()} says the date dimension actually came from (the same
-    * flag {@code ChartDcProcessor.process()} sets before it starts mutating, so — like the
-    * crosstab's row/column flag — it is a definitive answer, not a guess).
+    * <p>Every level goes through {@link #dimensionLevelWord}, which never returns a bare code.
+    * When either level has no word, nothing is reported rather than half a sentence.
     */
    private static Map<String, Object> describeRetargetedDimension(RuntimeViewsheet rvs,
                                                                    String assemblyName)
@@ -574,6 +575,8 @@ public class DateComparisonService {
       Map<String, Object> out = new LinkedHashMap<>();
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+      VSDimensionRef beforeDim = null;
+      VSDimensionRef afterDim = null;
 
       if(assembly instanceof CrosstabVSAssembly) {
          VSCrosstabInfo crosstabInfo = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
@@ -583,58 +586,145 @@ public class DateComparisonService {
             return out;
          }
 
-         VSDimensionRef beforeDim = (VSDimensionRef) before;
+         beforeDim = (VSDimensionRef) before;
          DataRef[] shelf = crosstabInfo.isDateComparisonOnRow() ?
             crosstabInfo.getRuntimeRowHeaders() : crosstabInfo.getRuntimeColHeaders();
-         VSDimensionRef afterDim = findDimensionByName(shelf, beforeDim.getName());
-
-         if(afterDim == null || afterDim.getDateLevel() == beforeDim.getDateLevel()) {
-            return out;
-         }
-
-         out.put("retargetedDimension", beforeDim.getName());
-         out.put("retargetedFromLevel", levelWord(beforeDim.getDateLevel()));
-         out.put("retargetedToLevel", levelWord(afterDim.getDateLevel()));
-         return out;
+         List<VSDimensionRef> refs = refsOfColumn(shelf, baseColumnName(beforeDim));
+         afterDim = refs.isEmpty() ? null : refs.get(refs.size() - 1);
       }
-
-      if(assembly instanceof ChartVSAssembly) {
+      else if(assembly instanceof ChartVSAssembly) {
          VSChartInfo cinfo = ((ChartVSAssembly) assembly).getVSChartInfo();
-         VSDataRef after = cinfo == null ? null : cinfo.getDateComparisonRef();
+         VSDataRef stashed = cinfo == null ? null : cinfo.getDateComparisonRef();
 
-         if(!(after instanceof VSDimensionRef)) {
+         if(!(stashed instanceof VSDimensionRef)) {
             return out;
          }
 
-         VSDimensionRef afterDim = (VSDimensionRef) after;
-         DataRef[] designShelf = cinfo.isDcBaseDateOnX() ? cinfo.getXFields() : cinfo.getYFields();
-         VSDimensionRef beforeDim = findDimensionByName(designShelf, afterDim.getName());
+         VSDimensionRef stashedDim = (VSDimensionRef) stashed;
+         String column = baseColumnName(stashedDim);
+         boolean onX = cinfo.isDcBaseDateOnX();
+         List<VSDimensionRef> refs =
+            refsOfColumn(onX ? cinfo.getRTXFields() : cinfo.getRTYFields(), column);
+         afterDim = refs.stream()
+            .filter(ref -> !isSameRuntimeRef(ref, stashedDim))
+            .findFirst()
+            .orElse(refs.isEmpty() ? stashedDim : refs.get(0));
+         List<VSDimensionRef> design = refsOfColumn(onX ? cinfo.getXFields() : cinfo.getYFields(),
+                                                    column);
+         beforeDim = design.isEmpty() ? null : design.get(0);
+      }
 
-         if(beforeDim == null || beforeDim.getDateLevel() == afterDim.getDateLevel()) {
-            return out;
-         }
-
-         out.put("retargetedDimension", afterDim.getName());
-         out.put("retargetedFromLevel", levelWord(beforeDim.getDateLevel()));
-         out.put("retargetedToLevel", levelWord(afterDim.getDateLevel()));
+      if(beforeDim == null || afterDim == null) {
          return out;
       }
 
+      String fromLevel = dimensionLevelWord(beforeDim);
+      String toLevel = dimensionLevelWord(afterDim);
+
+      if(fromLevel == null || toLevel == null || fromLevel.equals(toLevel)) {
+         return out;
+      }
+
+      out.put("retargetedDimension", baseColumnName(beforeDim));
+      out.put("retargetedFromLevel", fromLevel);
+      out.put("retargetedToLevel", toLevel);
       return out;
    }
 
-   private static VSDimensionRef findDimensionByName(DataRef[] refs, String name) {
-      if(refs == null || name == null) {
-         return null;
+   /** The dimension refs on {@code refs} that group {@code column}, in shelf order. */
+   private static List<VSDimensionRef> refsOfColumn(DataRef[] refs, String column) {
+      List<VSDimensionRef> found = new ArrayList<>();
+
+      if(refs == null || column == null) {
+         return found;
       }
 
       for(DataRef ref : refs) {
-         if(ref instanceof VSDimensionRef && name.equals(((VSDimensionRef) ref).getName())) {
-            return (VSDimensionRef) ref;
+         if(ref instanceof VSDimensionRef && isRefOfColumn((VSDimensionRef) ref, column)) {
+            found.add((VSDimensionRef) ref);
          }
       }
 
-      return null;
+      return found;
+   }
+
+   /**
+    * Whether {@code dim} groups {@code column}: by name, or as the DC calc part
+    * ({@code DateComparisonInfo.createCalcRefForNonSupportPartLevel}) the retarget swapped in for
+    * it, which is named {@code <Part>(<column>)}, e.g. {@code WeekOfMonth(ORDER_DATE)}.
+    */
+   private static boolean isRefOfColumn(VSDimensionRef dim, String column) {
+      return column.equals(dim.getName()) || column.equals(dcCalcColumn(dim));
+   }
+
+   /** The column a dimension groups, looking through a DC calc part to the column inside it. */
+   private static String baseColumnName(VSDimensionRef dim) {
+      String column = dcCalcColumn(dim);
+      return column != null ? column : dim.getName();
+   }
+
+   /** For a DC calc part named {@code <Part>(<column>)}, the column; otherwise null. */
+   private static String dcCalcColumn(VSDimensionRef dim) {
+      String part = dcCalcPart(dim);
+      String name = part == null ? null : dim.getDataRef().getName();
+      return name == null ? null : name.substring(part.length() + 1, name.length() - 1);
+   }
+
+   /** For a DC calc part named {@code <Part>(<column>)}, the {@code <Part>}; otherwise null. */
+   private static String dcCalcPart(VSDimensionRef dim) {
+      DataRef ref = dim.getDataRef();
+
+      if(!(ref instanceof CalculateRef) || !((CalculateRef) ref).isDcRuntime()) {
+         return null;
+      }
+
+      String name = ref.getName();
+      int open = name == null ? -1 : name.indexOf('(');
+
+      if(open <= 0 || !name.endsWith(")") || !name.substring(0, open).matches("[A-Za-z]+")) {
+         return null;
+      }
+
+      return name.substring(0, open);
+   }
+
+   /**
+    * Whether a chart runtime ref is the one {@code getDateComparisonRef()} was cloned from. The
+    * bound and period dimensions differ in full name for standard periods (period level vs. the
+    * granularity-derived level) and in the named group for custom periods (only the period
+    * dimension carries the custom ranges).
+    */
+   private static boolean isSameRuntimeRef(VSDimensionRef ref, VSDimensionRef stashed) {
+      return Objects.equals(ref.getFullName(), stashed.getFullName()) &&
+         (ref.getNamedGroupInfo() == null) == (stashed.getNamedGroupInfo() == null);
+   }
+
+   /**
+    * The level a dimension groups by, as a word, or null when it has none. Never a bare code.
+    *
+    * <p>A DC calc part keeps a meaningless {@code getDateLevel()} (year, for WeekOfMonth), so it is
+    * named from the calc instead: {@code WeekOfMonth} becomes {@code week_of_month}, matching
+    * {@link DateLevels}' part names. A full-week level ({@code DateRangeRef.MONTH_OF_FULL_WEEK}
+    * and its quarter/year siblings, set under week alignment) is named after its normal level with
+    * a "(full weeks)" note. Anything else is named by {@link DateLevels#name}, which covers none,
+    * the time levels and the part levels.
+    */
+   private static String dimensionLevelWord(VSDimensionRef dim) {
+      String part = dcCalcPart(dim);
+
+      if(part != null) {
+         return part.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase();
+      }
+
+      int level = dim.getDateLevel();
+      int normal = DateComparisonUtil.convertFullWeekLevelToNormal(level);
+      String word = DateLevels.name(String.valueOf(normal));
+
+      if(word == null || !word.matches("[a-z_]+")) {
+         return null;
+      }
+
+      return normal != level ? word + " (full weeks)" : word;
    }
 
    /**
