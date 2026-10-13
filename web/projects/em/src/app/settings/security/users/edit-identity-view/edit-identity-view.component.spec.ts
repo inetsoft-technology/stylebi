@@ -23,6 +23,7 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialogModule } from "@angular/material/dialog";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
 import { EditIdentityPaneModel, EditOrganizationPaneModel } from "../edit-identity-pane/edit-identity-pane.model";
+import { SavedOrgPropertiesService } from "../saved-org-properties.service";
 import { EditIdentityViewComponent } from "./edit-identity-view.component";
 import { Subject } from "rxjs";
 
@@ -83,6 +84,102 @@ describe("EditIdentityViewComponent", () => {
 
       const req = httpTestingController.expectOne(r => r.url === "../api/em/security/themes");
       expect(req.request.params.has("orgId")).toBe(false);
+   });
+
+   // Bug #78447: the reload after a save can be answered by a cluster node that still has the
+   // properties from before the save, so the view shows the properties the save wrote
+   describe("organization properties after a save", () => {
+      const savedProperties = [{name: "max.row.count", value: "100"}];
+      let saved: SavedOrgPropertiesService;
+
+      beforeEach(() => saved = TestBed.inject(SavedOrgPropertiesService));
+      afterEach(() => vi.useRealTimers());
+
+      function createOrgModel(id: string, properties = []): EditOrganizationPaneModel {
+         return <EditOrganizationPaneModel> {
+            ...createModel(),
+            id,
+            properties,
+            localesList: [],
+            currentUserName: "admin"
+         };
+      }
+
+      it("should show the saved properties when the reload returns the old ones", () => {
+         saved.set("orgy", savedProperties);
+         setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
+
+         expect(component.properties).toEqual(savedProperties);
+         expect(component.organizationModel.properties).toEqual(savedProperties);
+         // the saved properties are the original state, so nothing counts as changed
+         expect(component.isModelChanged()).toBe(false);
+      });
+
+      it("should keep a property that the save removed out of the table", () => {
+         saved.set("orgy", []);
+         setModel(IdentityType.ORGANIZATION, createOrgModel("orgy", savedProperties));
+
+         expect(component.properties).toEqual([]);
+      });
+
+      it("should match the saved organization id regardless of case", () => {
+         saved.set("OrgY", savedProperties);
+         setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
+
+         expect(component.properties).toEqual(savedProperties);
+      });
+
+      it("should show the server's properties when another organization is loaded", () => {
+         const serverProperties = [{name: "max.col.count", value: "20"}];
+         saved.set("orgy", savedProperties);
+         setModel(IdentityType.ORGANIZATION, createOrgModel("other", serverProperties));
+
+         expect(component.properties).toEqual(serverProperties);
+      });
+
+      it("should keep the saved properties for the reload when another organization is loaded first", () => {
+         saved.set("orgy", savedProperties);
+         setModel(IdentityType.ORGANIZATION, createOrgModel("other"));
+         setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
+
+         expect(component.properties).toEqual(savedProperties);
+      });
+
+      it("should not use the saved properties after they expire", () => {
+         vi.useFakeTimers();
+         saved.set("orgy", savedProperties);
+         vi.advanceTimersByTime(SavedOrgPropertiesService.EXPIRY + 1);
+         setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
+
+         expect(component.properties).toEqual([]);
+      });
+
+      it("should not use the saved properties after they are cleared", () => {
+         saved.set("orgy", savedProperties);
+         saved.clear();
+         setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
+
+         expect(component.properties).toEqual([]);
+      });
+
+      it("should use the saved properties for one load only", () => {
+         const serverProperties = [{name: "max.col.count", value: "20"}];
+         saved.set("orgy", savedProperties);
+         setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
+         setModel(IdentityType.ORGANIZATION, createOrgModel("orgy", serverProperties));
+
+         expect(component.properties).toEqual(serverProperties);
+      });
+
+      it("should restore the saved properties on reset", () => {
+         saved.set("orgy", savedProperties);
+         setModel(IdentityType.ORGANIZATION, createOrgModel("orgy"));
+         component.onPropertyChanged([]);
+
+         component.reset();
+
+         expect(component.properties).toEqual(savedProperties);
+      });
    });
 
    function setModel(type: IdentityType, model: EditIdentityPaneModel): void {
