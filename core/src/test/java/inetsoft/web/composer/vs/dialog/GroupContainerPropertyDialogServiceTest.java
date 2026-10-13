@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.GroupContainerVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.*;
+import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
@@ -52,7 +53,8 @@ class GroupContainerPropertyDialogServiceTest {
       // the real property service; with no sandbox it returns right after merging the dialog
       // info into the live assembly (setVSAssemblyInfo -> copyInfo)
       VSObjectPropertyService propertyService = new VSObjectPropertyService(
-         mock(CoreLifecycleService.class), null, null, null, null, null, null, null,
+         mock(CoreLifecycleService.class), null, mock(VSObjectTreeService.class), null, null, null,
+         null, null,
          mock(QueryManagerService.class));
       service = new GroupContainerPropertyDialogService(
          propertyService, viewsheetService, mock(ImagePreviewPaneService.class),
@@ -133,6 +135,64 @@ class GroupContainerPropertyDialogServiceTest {
       assertEquals(new Point(50, 70), text2.getVSAssemblyInfo().getPixelOffset());
       assertEquals(new Point(50, 50), live.getPixelOffset());
       assertEquals(new Dimension(100, 50), live.getPixelSize());
+   }
+
+   /**
+    * Bug #78302: the dialog edits a copy, the valid rename must still rename the live container
+    * and keep its children, and the other edits must still reach it.
+    */
+   @Test
+   void renameKeepsChildrenAndAppliesEdits() throws Exception {
+      VSAssemblyInfo live = group.getVSAssemblyInfo();
+      GroupContainerPropertyDialogModel model = getModel();
+      BasicGeneralPaneModel general = model.getGroupContainerGeneralPane().getGeneralPropPane()
+         .getBasicGeneralPaneModel();
+      general.setName("Group2");
+      general.setVisible("false");
+      save(model);
+
+      assertNull(viewsheet.getAssembly("Group1"));
+      assertSame(group, viewsheet.getAssembly("Group2"));
+      assertSame(live, group.getVSAssemblyInfo());
+      assertEquals("Group2", live.getName());
+      assertSame(group, text1.getContainer());
+      assertSame(group, text2.getContainer());
+      assertEquals("false", live.getVisibleValue());
+   }
+
+   /**
+    * Bug #78302: a refused rename returns before the edited copy is merged, so the dialog's
+    * other edits must not already be on the live container.
+    */
+   @Test
+   void refusedRenameLeavesLiveInfoUnedited() throws Exception {
+      GroupContainerVSAssemblyInfo live = (GroupContainerVSAssemblyInfo) group.getVSAssemblyInfo();
+      live.setScript("var a = 1;");
+      GroupContainerPropertyDialogModel model = getModel();
+      BasicGeneralPaneModel general = model.getGroupContainerGeneralPane().getGeneralPropPane()
+         .getBasicGeneralPaneModel();
+      general.setName("Text2"); // already taken
+      general.setVisible("false");
+      model.getGroupContainerGeneralPane().setStaticImagePane(StaticImagePaneModel.builder()
+         .imagePreviewPaneModel(ImagePreviewPaneModel.builder()
+                                   .alpha(30)
+                                   .animateGifImage(false)
+                                   .allowNullImage(true)
+                                   .selectedImage("^UPLOADED^bg.png")
+                                   .build())
+         .build());
+      model.setVsAssemblyScriptPane(VSAssemblyScriptPaneModel.builder()
+                                       .scriptEnabled(true)
+                                       .expression("var b = 2;")
+                                       .build());
+      save(model);
+
+      assertSame(group, viewsheet.getAssembly("Group1"));
+      assertSame(live, group.getVSAssemblyInfo());
+      assertNotEquals("false", live.getVisibleValue());
+      assertNull(live.getBackgroundImage());
+      assertNotEquals("30", live.getImageAlphaValue());
+      assertEquals("var a = 1;", live.getScript());
    }
 
    private GroupContainerPropertyDialogModel getModel() throws Exception {
