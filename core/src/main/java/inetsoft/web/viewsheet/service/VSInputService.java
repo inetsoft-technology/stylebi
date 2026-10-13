@@ -2314,7 +2314,7 @@ public class VSInputService {
          double dvalue = 0;
 
          try {
-            Double.valueOf(dataInputPaneModel.getDefaultValue());
+            dvalue = Double.parseDouble(dataInputPaneModel.getDefaultValue());
          }
          catch(Exception e) {
             //ignore it.
