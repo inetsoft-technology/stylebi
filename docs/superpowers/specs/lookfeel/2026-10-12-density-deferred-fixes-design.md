@@ -27,10 +27,14 @@ steps are in the enterprise root's `density-deferred-fixes-repro.md`.
 
 ## 2. Decisions
 
-### D1 — A list's rows are what its box holds, at its own density
+### D1 — An author-sized list's rows are what its box holds, at its own density
+
+*(Retitled 2026-10-13; was "A list's rows are what its box holds, at its own density". A box the author never sized
+opens to its tier box and its rows are the dropdown's own — see the amendments below.)*
 
 A marked list's `listHeight` is the number of whole rows its box holds under its title lane and inside its card
-inset, at its effective cell height, never fewer than one. It is written by a composer resize that changes the
+inset, at its effective cell height, never fewer than one *(2026-10-13: once the author has sized the box by its
+height; until then it is the dropdown's Height)*. It is written by a composer resize that changes the
 height~~, by the density size seed (so a fresh, Modernized, re-seeded or Reverted box stores the rows it holds), and
 by ticking "Follow the default density" in the list and tree dialogs~~ *(seed and tick withdrawn 2026-10-13; see
 the amendment below)*. It is never written while the design show
@@ -60,6 +64,26 @@ device layout:
 
 The rule keys on `isUserSize()`, not `followsDensitySize()`, because a dropdown's box is its title lane and never a
 recognised tier size. Unmarked lists and trees are unchanged from `c66a5aca51`.
+
+**Amended 2026-10-13 — only a new height sizes a list or tree.** A selection list or tree becomes author-sized
+(`userSize`) only when its box's height changes. A width drag, Align, Distribute or Arrange that resends the height,
+and a width typed in Size & Position, leave a never-sized box never-sized, so it keeps opening to its tier box; a new
+height, by drag, title-lane drag, Arrange or Size & Position, flags it, and the composer resize refits its rows.
+Unticking "Follow the default density" with no size change still flags the box: it is the author's explicit claim,
+and without the flag the box would follow again. Unticking it and typing only a width does not, since the new width
+already keeps the box off its tier size. Applying the dialog to a box shown unticked only because it is off its tier
+size — a widened, never-sized list — claims nothing.
+
+- One check, `VSAssemblyInfo.isAuthorSizeChange(before, after)`, decides both writers of the flag,
+  `ComposerObjectService.resizeObject` and `VSDialogService.recordAuthorSize`: any change by default, the height
+  alone in `SelectionBaseVSAssemblyInfo`.
+- `recordAuthorSize` flags an unticked answer only while the box still follows the density after the typed size is
+  written (`followsDensitySize()`), so the untick sticks. Selection containers keep flagging every size change; for
+  them the only difference is that an untouched Apply of a box shown unticked off its tier size no longer flags it,
+  a flag nothing reads at such a size.
+- The check is the type's, not the mark's: unmarked lists and trees take it too. Nothing reads the flag on unmarked
+  content, so its rendering and export are unchanged; a later Modernize finds a widened list unflagged, as it would
+  a marked one.
 
 ### D2 — A row under an author cell padding sits on the tier in force
 
@@ -168,7 +192,7 @@ every container and need nothing; HTML range sliders follow through `getBounds`.
 
 | Item | Tests |
 |---|---|
-| 1 | `ContainedListHeightTest`, `SelectionDensitySizeTest`, `ComposerObjectServiceTest`, `SelectionPaddingDialogTest`, `SelectionTreeShowTypeSizeTest`; from 2026-10-13 also `GroupingServiceTest`, `VSSelectionContainerServiceTest`, `AbstractLayoutTest` |
+| 1 | `ContainedListHeightTest`, `SelectionDensitySizeTest`, `ComposerObjectServiceTest`, `SelectionPaddingDialogTest`, `SelectionTreeShowTypeSizeTest`; from 2026-10-13 also `GroupingServiceTest`, `VSSelectionContainerServiceTest`, `AbstractLayoutTest`, `SizeFollowsDensityDialogTest` |
 | 2 | `DensityRowHeightInvariantTest`, `TableCellPaddingCssCoverageTest`, `TableCellPaddingSeedTest`, `TableViewPropertyDialogServiceTest`, new `CalcTablePropertyDialogServiceTest` |
 | 3 | `ContainerChildTopTest`, `SelectionContainerChildExportTest`, `SelectionContainerOutRowsExportTest`, new `HTMLHiddenContainerTitleTest` |
 | 4 | new `table/base-table.spec.ts`, `vs-object-container.component.spec.ts` |
@@ -192,6 +216,13 @@ compact and dense, using the `DFX1`–`DFX4` fixtures. The unmarked fixtures (`D
 4. Under full stylesheet coverage with an author padding and an author row height, a tier change now moves the row
    by the tier padding difference, as author-sized rows without a padding already do.
 5. `getObjectTop` gains a deferred side effect, like `getCardHeight` already has.
+6. *(Added 2026-10-13.)* A height drag of a marked list — including a title-lane drag or Arrange — rewrites the
+   dropdown's Height to the rows the box holds, as legacy resizes always have.
+7. *(Added 2026-10-13.)* Marked content saved before the `userSize` flag existed opens as never-sized, so its List
+   box is the tier box whatever size it was given. Only unreleased content carries a mark without the flag.
+8. *(Added 2026-10-13.)* Unticking "Follow the default density" without resizing makes the box author-sized with its
+   current rows, so a later Dropdown→List can grow it: a fresh list's 6 rows rebuild 230 at comfortable, not its 202
+   box.
 
 ## 9. Out of scope
 
@@ -206,3 +237,8 @@ compact and dense, using the `DFX1`–`DFX4` fixtures. The unmarked fixtures (`D
 - `SelectionVSAScriptable.getFixSize`, `ComposerAdhocFilterService` and `ComposerRangeSliderService` read or write
   rows in 20px units on paths this design does not reach.
 - GroupingService storing the expanded height on a collapsed contained child.
+- *(Follow-up, 2026-10-13.)* `ComposerAdhocFilterService` (~802-805), when an ad hoc filter turns a dropdown into a
+  list, rebuilds a marked list's layout size as `listHeight × defh + title` rather than through
+  `getContainedListHeight()`.
+- *(Follow-up, 2026-10-13.)* A tree's composer resize never refits its rows (only a list's does), so an author-sized
+  tree is rebuilt from rows its drag did not write.

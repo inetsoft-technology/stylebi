@@ -130,6 +130,9 @@ height = titleHeight + listHeight × effectiveCellHeight + inset.top + inset.bot
 | body | 168 | 144 | 120 | 120 |
 | rows visible | 6 | 6 | 6 | 6 |
 
+*(2026-10-13: the table holds for a marked list the author sized. A marked list the author never sized now opens to
+its tier box — 202 / 170 / 136 — whatever its rows; see `2026-10-12-density-deferred-fixes-design.md` D1.)*
+
 - **The child's own mark decides**, because the lane, the cell height and the inset being summed are
   the child's own. A modern list in a legacy container takes the rule; a legacy list in a modern
   container does not.
