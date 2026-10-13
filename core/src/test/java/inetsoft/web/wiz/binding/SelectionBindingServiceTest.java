@@ -35,6 +35,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -634,6 +635,282 @@ class SelectionBindingServiceTest {
       assertEquals(List.of("ORDERS"), result.get("droppedAdditionalTables"));
    }
 
+   // ── additionalTables must have every bound column (Bug #78473) ────────────
+
+   private static SelectionListPropertyDialogService listService(
+      SelectionListPropertyDialogModel model)
+      throws Exception
+   {
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(model);
+      return listService;
+   }
+
+   private static SelectionTreePropertyDialogModel treeBoundTo(String table,
+                                                                List<String> additional)
+   {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      model.getSelectionTreePaneModel().setSelectedTable(table);
+      model.getSelectionTreePaneModel().setAdditionalTables(additional);
+      return model;
+   }
+
+   private static SelectionTreePropertyDialogService treeService(
+      SelectionTreePropertyDialogModel model)
+      throws Exception
+   {
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+      when(treeService.getSelectionTreePropertyModel(eq("rt1"), eq("Tree1"), any()))
+         .thenReturn(model);
+      return treeService;
+   }
+
+   @Test
+   void refusesAnExplicitAdditionalTableWithoutTheBoundColumn() throws Exception {
+      SelectionListPropertyDialogModel existing = listBoundTo("ORDERS", List.of("CUSTOMERS"));
+      SelectionListPropertyDialogService listService = listService(existing);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(mock(SelectionListVSAssembly.class), listService, null, null, null)
+            .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"),
+                      List.of("PRODUCTS"), null, null, null, null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("'PRODUCTS'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("STATE"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Compatible tables: CUSTOMERS, SHIPMENTS."),
+                 thrown.getMessage());
+      assertEquals(List.of("CUSTOMERS"), existing.getSelectionListPaneModel().getAdditionalTables());
+      verify(listService, never()).setSelectionListPropertyModel(
+         any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void refusesAnExplicitAdditionalTableWithAnUnmergeableTypeOrADifferentCase() throws Exception {
+      // ZIPS.STATE is an integer; REGIONS has "state", and the runtime union matches names
+      // case-sensitively.
+      for(String table : List.of("ZIPS", "regions")) {
+         SelectionListPropertyDialogService listService =
+            listService(new SelectionListPropertyDialogModel());
+
+         Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+            harness(mock(SelectionListVSAssembly.class), listService, null, null, null)
+               .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"),
+                         List.of(table), null, null, null, null, false, ""));
+
+         assertTrue(thrown.getMessage().contains("'" + table.toUpperCase() + "'"),
+                    thrown.getMessage());
+         verify(listService, never()).setSelectionListPropertyModel(
+            any(), any(), any(), any(), any(), any());
+      }
+   }
+
+   @Test
+   void namesNoCompatibleTablesWhenThereAreNone() throws Exception {
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(mock(SelectionListVSAssembly.class),
+                 listService(new SelectionListPropertyDialogModel()), null, null, null)
+            .setSource("tok", principal(), "List1", "ORDERS", List.of("AMOUNT"),
+                      List.of("CUSTOMERS"), null, null, null, null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("Compatible tables: none"), thrown.getMessage());
+   }
+
+   @Test
+   void acceptsADateAndATimeInstantColumnAsCompatible() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+
+      Map<String, Object> result = harness(mock(SelectionListVSAssembly.class),
+                                           listService(model), null, null, null)
+         .setSource("tok", principal(), "List1", "EVENTS", List.of("EVENT_DATE"),
+                   List.of("LOGS"), null, null, null, null, false, "");
+
+      assertEquals(List.of("LOGS"), model.getSelectionListPaneModel().getAdditionalTables());
+      assertEquals(List.of("LOGS"), result.get("additionalTables"));
+   }
+
+   @Test
+   void treatsAMissingDataTypeAsStringOnEitherSideAndSkipsAColumnlessField() throws Exception {
+      // Candidate side: SHIPMENTS has a field with a null column and STATE with a null type.
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      harness(mock(SelectionListVSAssembly.class), listService(model), null, null, null)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"),
+                   List.of("SHIPMENTS"), null, null, null, null, false, "");
+      assertEquals(List.of("SHIPMENTS"), model.getSelectionListPaneModel().getAdditionalTables());
+
+      // Bound side: WAREHOUSES.CODE has a null type, SHIPMENTS.CODE is a string.
+      SelectionListPropertyDialogModel model2 = new SelectionListPropertyDialogModel();
+      harness(mock(SelectionListVSAssembly.class), listService(model2), null, null, null)
+         .setSource("tok", principal(), "List1", "WAREHOUSES", List.of("CODE"),
+                   List.of("SHIPMENTS"), null, null, null, null, false, "");
+      assertEquals(List.of("SHIPMENTS"), model2.getSelectionListPaneModel().getAdditionalTables());
+   }
+
+   @Test
+   void dropsAnInheritedAdditionalTableWithoutTheBoundColumnAndDisclosesIt() throws Exception {
+      SelectionListPropertyDialogModel existing = listBoundTo("ORDERS", List.of("PRODUCTS"));
+
+      Map<String, Object> result = harness(mock(SelectionListVSAssembly.class),
+                                           listService(existing), null, null, null)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"), null, null, null,
+                   null, null, false, "");
+
+      assertEquals(List.of(), existing.getSelectionListPaneModel().getAdditionalTables());
+      assertEquals(List.of(), result.get("additionalTables"));
+      assertEquals(List.of("PRODUCTS"), result.get("droppedAdditionalTables"));
+   }
+
+   @Test
+   void keepsTheCompatibleInheritedTablesAndDropsTheRest() throws Exception {
+      SelectionListPropertyDialogModel existing =
+         listBoundTo("ORDERS", List.of("CUSTOMERS", "PRODUCTS"));
+
+      Map<String, Object> result = harness(mock(SelectionListVSAssembly.class),
+                                           listService(existing), null, null, null)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"), null, null, null,
+                   null, null, false, "");
+
+      assertEquals(List.of("CUSTOMERS"), existing.getSelectionListPaneModel().getAdditionalTables());
+      assertEquals(List.of("PRODUCTS"), result.get("droppedAdditionalTables"));
+   }
+
+   @Test
+   void mergesOverlapAndIncompatibleDropsIntoOneListInEncounterOrder() throws Exception {
+      SelectionListPropertyDialogModel existing =
+         listBoundTo("CUSTOMERS", List.of("PRODUCTS", "orders"));
+
+      Map<String, Object> result = harness(mock(SelectionListVSAssembly.class),
+                                           listService(existing), null, null, null)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"), null, null, null,
+                   null, null, true, "");
+
+      assertEquals(List.of(), existing.getSelectionListPaneModel().getAdditionalTables());
+      assertEquals(List.of("PRODUCTS", "orders"), result.get("droppedAdditionalTables"));
+   }
+
+   @Test
+   void dropsAnInheritedAdditionalTableThatIsNotBindableHere() throws Exception {
+      // A cube table's stored name, or a viewsheet assembly, is not in the unscoped listing. A
+      // null entry is removed without being listed.
+      SelectionListPropertyDialogModel existing = new SelectionListPropertyDialogModel();
+      existing.getSelectionListPaneModel().setSelectedTable("ORDERS");
+      existing.getSelectionListPaneModel().setAdditionalTables(
+         new ArrayList<>(Arrays.asList("___inetsoft_cube_x", null, "CUSTOMERS", "Chart1")));
+
+      Map<String, Object> result = harness(mock(SelectionListVSAssembly.class),
+                                           listService(existing), null, null, null)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"), null, null, null,
+                   null, null, false, "");
+
+      assertEquals(List.of("CUSTOMERS"), existing.getSelectionListPaneModel().getAdditionalTables());
+      assertEquals(List.of("___inetsoft_cube_x", "Chart1"), result.get("droppedAdditionalTables"));
+   }
+
+   @Test
+   void checksEveryLevelOfAColumnModeTree() throws Exception {
+      SelectionTreePropertyDialogService refused = treeService(treeBoundTo("ORDERS", null));
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(mock(SelectionTreeVSAssembly.class), null, refused, null, null)
+            .setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE", "ORDER_DATE"),
+                      List.of("ZIPS"), null, null, null, null, false, ""));
+      assertTrue(thrown.getMessage().contains("'ZIPS'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("ORDER_DATE"), thrown.getMessage());
+      verify(refused, never()).setSelectionTreePropertyModel(
+         any(), any(), any(), any(), any(), any());
+
+      SelectionTreePropertyDialogModel accepted = treeBoundTo("ORDERS", null);
+      harness(mock(SelectionTreeVSAssembly.class), null, treeService(accepted), null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE", "ORDER_DATE"),
+                   List.of("CUSTOMERS"), null, null, null, null, false, "");
+      assertEquals(List.of("CUSTOMERS"),
+                   accepted.getSelectionTreePaneModel().getAdditionalTables());
+
+      SelectionTreePropertyDialogModel inherited = treeBoundTo("ORDERS", List.of("ZIPS"));
+      Map<String, Object> result = harness(mock(SelectionTreeVSAssembly.class), null,
+                                           treeService(inherited), null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE", "ORDER_DATE"), null,
+                   null, null, null, null, false, "");
+      assertEquals(List.of(), inherited.getSelectionTreePaneModel().getAdditionalTables());
+      assertEquals(List.of("ZIPS"), result.get("droppedAdditionalTables"));
+   }
+
+   @Test
+   void anIdModeTreeTakesNoAdditionalTables() throws Exception {
+      SelectionTreePropertyDialogModel untouched = treeBoundTo("ORDERS", List.of("CUSTOMERS"));
+      SelectionTreePropertyDialogService refused = treeService(untouched);
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(mock(SelectionTreeVSAssembly.class), null, refused, null, null)
+            .setSource("tok", principal(), "Tree1", "ORDERS", null, List.of("CUSTOMERS"), null,
+                      "CITY", "STATE", "ORDER_DATE", false, ""));
+      assertTrue(thrown.getMessage().contains("ID-hierarchy mode"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("additionalTables"), thrown.getMessage());
+      assertEquals(List.of("CUSTOMERS"),
+                   untouched.getSelectionTreePaneModel().getAdditionalTables());
+      verify(refused, never()).setSelectionTreePropertyModel(
+         any(), any(), any(), any(), any(), any());
+
+      SelectionTreePropertyDialogModel cleared = treeBoundTo("ORDERS", List.of("CUSTOMERS"));
+      Map<String, Object> clearedResult = harness(mock(SelectionTreeVSAssembly.class), null,
+                                                  treeService(cleared), null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", null, List.of(), null,
+                   "CITY", "STATE", "ORDER_DATE", false, "");
+      assertEquals(List.of(), cleared.getSelectionTreePaneModel().getAdditionalTables());
+      assertFalse(clearedResult.containsKey("droppedAdditionalTables"));
+
+      SelectionTreePropertyDialogModel inherited = treeBoundTo("ORDERS", List.of("CUSTOMERS"));
+      Map<String, Object> result = harness(mock(SelectionTreeVSAssembly.class), null,
+                                           treeService(inherited), null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null,
+                   "CITY", "STATE", "ORDER_DATE", false, "");
+      assertEquals(List.of(), inherited.getSelectionTreePaneModel().getAdditionalTables());
+      assertEquals(List.of("CUSTOMERS"), result.get("droppedAdditionalTables"));
+   }
+
+   @Test
+   void checksEveryColumnOfACompositeRangeSlider() throws Exception {
+      RangeSliderPropertyDialogService refused = mock(RangeSliderPropertyDialogService.class);
+      when(refused.getRangeSliderPropertyModel(eq("rt1"), eq("Slider1"), any()))
+         .thenReturn(new RangeSliderPropertyDialogModel());
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(mock(TimeSliderVSAssembly.class), null, null, refused, null)
+            .setSource("tok", principal(), "Slider1", "ORDERS", List.of("AMOUNT", "ORDER_DATE"),
+                      List.of("CUSTOMERS"), null, null, null, null, false, ""));
+      assertTrue(thrown.getMessage().contains("AMOUNT"), thrown.getMessage());
+      verify(refused, never()).setRangeSliderPropertyModel(
+         any(), any(), any(), any(), any(), any());
+
+      RangeSliderPropertyDialogModel inherited = new RangeSliderPropertyDialogModel();
+      inherited.getRangeSliderDataPaneModel().setSelectedTable("ORDERS");
+      inherited.getRangeSliderDataPaneModel().setAdditionalTables(List.of("CUSTOMERS"));
+      RangeSliderPropertyDialogService sliderService = mock(RangeSliderPropertyDialogService.class);
+      when(sliderService.getRangeSliderPropertyModel(eq("rt1"), eq("Slider1"), any()))
+         .thenReturn(inherited);
+      Map<String, Object> result = harness(mock(TimeSliderVSAssembly.class), null, null,
+                                           sliderService, null)
+         .setSource("tok", principal(), "Slider1", "ORDERS", List.of("AMOUNT", "ORDER_DATE"),
+                   null, null, null, null, null, false, "");
+      assertEquals(List.of(), inherited.getRangeSliderDataPaneModel().getAdditionalTables());
+      assertEquals(List.of("CUSTOMERS"), result.get("droppedAdditionalTables"));
+   }
+
+   @Test
+   void dropsACalendarsInheritedAdditionalTableWithoutTheBoundColumn() throws Exception {
+      CalendarPropertyDialogModel existing = new CalendarPropertyDialogModel();
+      existing.getCalendarDataPaneModel().setSelectedTable("ORDERS");
+      existing.getCalendarDataPaneModel().setAdditionalTables(List.of("PRODUCTS"));
+      CalendarPropertyDialogService calendarService = mock(CalendarPropertyDialogService.class);
+      when(calendarService.getCalendarPropertyModel(eq("rt1"), eq("Cal1"), any()))
+         .thenReturn(existing);
+
+      Map<String, Object> result = harness(mock(CalendarVSAssembly.class), null, null, null,
+                                           calendarService)
+         .setSource("tok", principal(), "Cal1", "ORDERS", List.of("ORDER_DATE"), null, null,
+                   null, null, null, false, "");
+
+      assertEquals(List.of(), existing.getCalendarDataPaneModel().getAdditionalTables());
+      assertEquals(List.of("PRODUCTS"), result.get("droppedAdditionalTables"));
+   }
+
    // ── measure resolution ──────────────────────────────────────────────────────
 
    /** Stubs the property dialog's measure dropdown source, with its leading null-named "None". */
@@ -953,12 +1230,39 @@ class SelectionBindingServiceTest {
          new BindableField("CITY", "string", "dimension"),
          new BindableField("AMOUNT", "double", "measure"),
          new BindableField("ORDER_DATE", "timestamp", "dimension")));
+      // CUSTOMERS shares STATE/CITY/ORDER_DATE with ORDERS, so it is a compatible additional
+      // table for those columns (#78473).
       BindableTable customers = new BindableTable("CUSTOMERS", null, List.of(
-         new BindableField("NAME", "string", "dimension")));
+         new BindableField("NAME", "string", "dimension"),
+         new BindableField("STATE", "string", "dimension"),
+         new BindableField("CITY", "string", "dimension"),
+         new BindableField("ORDER_DATE", "timestamp", "dimension")));
+      // Incompatible additional-table fixtures (#78473).
+      BindableTable products = new BindableTable("PRODUCTS", null, List.of(
+         new BindableField("NAME", "string", "dimension"),
+         new BindableField("PRICE", "double", "measure")));
+      BindableTable zips = new BindableTable("ZIPS", null, List.of(
+         new BindableField("STATE", "integer", "dimension"),
+         new BindableField("CITY", "string", "dimension")));
+      BindableTable regions = new BindableTable("REGIONS", null, List.of(
+         new BindableField("state", "string", "dimension")));
+      // date and timeInstant merge under the Java runtime rule (AssetUtil.isMergeable).
+      BindableTable events = new BindableTable("EVENTS", null, List.of(
+         new BindableField("EVENT_DATE", "date", "dimension")));
+      BindableTable logs = new BindableTable("LOGS", null, List.of(
+         new BindableField("EVENT_DATE", "timeInstant", "dimension")));
+      // A field without a column, and fields without a data type, on either side.
+      BindableTable shipments = new BindableTable("SHIPMENTS", null, List.of(
+         new BindableField(null, "string", "dimension"),
+         new BindableField("STATE", null, "dimension"),
+         new BindableField("CODE", "string", "dimension")));
+      BindableTable warehouses = new BindableTable("WAREHOUSES", null, List.of(
+         new BindableField("CODE", null, "dimension")));
 
       BindableFieldsService fieldsService = mock(BindableFieldsService.class);
       when(fieldsService.list(eq("rt1"), isNull(), any()))
-         .thenReturn(List.of(orders, customers));
+         .thenReturn(List.of(orders, customers, products, zips, regions, events, logs, shipments,
+                             warehouses));
 
       return new SelectionBindingService(
          sessionsFor(assembly), fieldsService,
