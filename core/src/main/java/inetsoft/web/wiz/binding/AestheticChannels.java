@@ -40,7 +40,10 @@ public final class AestheticChannels {
    /** Channels that accept a field binding, on every chart type. */
    public static final List<String> FIELD_CHANNELS = List.of("color", "shape", "size", "text");
 
-   /** Channels that accept a visual frame, on every chart type. */
+   /**
+    * Channels that accept a visual frame. Shape, line and texture frames are refused on contour
+    * charts, which render none of them (#77024).
+    */
    public static final List<String> FRAME_CHANNELS =
       List.of("color", "shape", "size", "line", "texture");
 
@@ -173,10 +176,10 @@ public final class AestheticChannels {
 
    /**
     * @param relationChart        see {@link #requireFieldChannel(String, boolean)}.
-    * @param shapeFamilySupported see {@link #requireFieldChannel(String, boolean, boolean,
-    *                             boolean, boolean)}. A shape, line or texture frame on a chart
-    *                             that renders none of them is stored and never drawn (#77024
-    *                             P6). Colour and size frames are unaffected.
+    * @param shapeFamilySupported whether the chart renders shape/line/texture frames --
+    *                             {@code false} for a contour chart, where such a frame is stored
+    *                             and never drawn (#77024 P6). Colour and size frames are
+    *                             unaffected. Only for writes; resetting is always allowed.
     */
    public static String requireFrameChannel(String channel, boolean relationChart,
                                             boolean shapeFamilySupported)

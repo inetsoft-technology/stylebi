@@ -1246,8 +1246,8 @@ public final class ChartAestheticMutator {
    /**
     * @param shapeFamilySupported see {@link AestheticChannels#requireFieldChannel(String,
     *                             boolean, boolean, boolean, boolean)}. When {@code false},
-    *                             {@code shape} reports {@code acceptsField:false} and
-    *                             shape/line/texture report {@code acceptsFrame:false}.
+    *                             {@code shape} reports {@code acceptsField:false}.
+    *                             Shape/line/texture acceptsFrame follows colorShapeSupported (contour).
     */
    public static Map<String, Object> describe(ChartBindingModel model, boolean relationChart,
                                               Collection<String> perMeasureFrameChannels,
@@ -1444,8 +1444,8 @@ public final class ChartAestheticMutator {
       return aggregates.isEmpty() ? null : aggregateFieldOf(aggregates.get(0), channel);
    }
 
-   private static boolean acceptsFrame(String channel, boolean shapeFamilySupported) {
-      if(!shapeFamilySupported &&
+   private static boolean acceptsFrame(String channel, boolean shapeFramesSupported) {
+      if(!shapeFramesSupported &&
          ("shape".equals(channel) || "line".equals(channel) || "texture".equals(channel)))
       {
          return false;
@@ -1488,7 +1488,7 @@ public final class ChartAestheticMutator {
                VisualFrameAliases.describe(frameOf(model, channel, perMeasureFrameChannels)));
       view.put("acceptsField", rendersField(channel, sizeSupported, colorShapeSupported,
                                                  shapeFamilySupported));
-      view.put("acceptsFrame", acceptsFrame(channel, shapeFamilySupported));
+      view.put("acceptsFrame", acceptsFrame(channel, colorShapeSupported));
 
       Map<String, Object> perMeasureFrame =
          divergentMeasureFrames(model, channel, chartLevelField, perMeasureFrameChannels);

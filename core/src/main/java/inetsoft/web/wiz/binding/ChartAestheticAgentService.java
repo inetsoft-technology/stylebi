@@ -141,7 +141,7 @@ public class ChartAestheticAgentService {
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
       String name = AestheticChannels.requireFrameChannel(
-         channel, relationChart, isShapeFamilySupported(sessionToken, user, assemblyName));
+         channel, relationChart, isShapeFrameSupported(sessionToken, user, assemblyName));
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
@@ -154,8 +154,9 @@ public class ChartAestheticAgentService {
                           String measure, String linkUri) throws Exception
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
-      String name = AestheticChannels.requireFrameChannel(
-         channel, relationChart, isShapeFamilySupported(sessionToken, user, assemblyName));
+      // Resetting is always safe, so only the channel name is validated: a frame stored before a
+      // retype to a type that does not render it must stay removable.
+      String name = AestheticChannels.requireFrameChannel(channel, relationChart);
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
@@ -323,8 +324,28 @@ public class ChartAestheticAgentService {
          return true;
       }
 
-      int type = info.getChartType();
-      return GraphTypes.supportsShape(type) || GraphTypes.supportsTexture(type);
+      return shapeFieldSupported(info.getChartType());
+   }
+
+   /** Package-private so the type table is pinned by test. */
+   static boolean shapeFieldSupported(int chartType) {
+      return GraphTypes.supportsShape(chartType) || GraphTypes.supportsTexture(chartType);
+   }
+
+   /**
+    * Whether shape/line/texture frames are rendered. Contour only: stock keeps its Shape row in
+    * the Composer and no render evidence says its frames are ignored (#77024 review F2).
+    */
+   static boolean shapeFrameSupported(int chartType) {
+      return !GraphTypes.isContour(chartType);
+   }
+
+   private boolean isShapeFrameSupported(String sessionToken, Principal user, String assemblyName)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      VSChartInfo info = requireChart(rvs, assemblyName).getVSChartInfo();
+      return info == null || info.isMultiStyles() || shapeFrameSupported(info.getChartType());
    }
 
    private boolean isColorShapeSupported(String sessionToken, Principal user, String assemblyName)
