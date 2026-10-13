@@ -140,11 +140,14 @@ final class ClientDataStructures {
    }
 
    /**
-    * Gets a cluster queue for a client node.
+    * Gets a cluster queue for a client node. The queue is created on the server now if it doesn't
+    * exist, as {@code Ignite.queue} does, because a caller may get it only to create it (as
+    * {@code IgniteCluster.ensureServiceDeployed} does before deploying the service that polls it).
     */
    static <E> BlockingQueue<E> getQueue(Ignite ignite, String name,
                                         CollectionConfiguration config)
    {
+      call(ignite, new QueueJob(name, config, QueueJob.CREATE, null, 0L));
       return new RemoteQueue<>(ignite, name, config);
    }
 
@@ -1021,6 +1024,8 @@ final class ClientDataStructures {
             return drained;
          case COPY:
             return new ArrayList<>(queue);
+         case CREATE:
+            return null;
          default:
             throw new IllegalArgumentException("Unknown operation " + op);
          }
@@ -1036,6 +1041,8 @@ final class ClientDataStructures {
       static final int REMAINING_CAPACITY = 7;
       static final int DRAIN = 8;
       static final int COPY = 9;
+      // only gets or creates the queue
+      static final int CREATE = 10;
 
       @IgniteInstanceResource
       private transient Ignite ignite;

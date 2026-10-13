@@ -292,6 +292,21 @@ class IgniteClusterClientLockFailureTest {
       assertTrue(server.getQueue("live.queue").isEmpty());
    }
 
+   /**
+    * Getting a queue on a client creates it, as IgniteCluster.ensureServiceDeployed relies on
+    * before it deploys the service that polls the queue.
+    */
+   @Test
+   void clientGetQueueCreatesTheQueue() {
+      IgniteCluster client = newBareCluster(liveClient);
+      assertNull(serverB.queue("live.created", 0, null));
+      client.getQueue("live.created");
+      assertNotNull(serverB.queue("live.created", 0, null), "the client did not create the queue");
+      assertNotNull(serverA.queue("live.created", 0, null), "the client did not create the queue");
+      client.destroyQueue("live.created");
+      assertNull(serverB.queue("live.created", 0, null));
+   }
+
    @Test
    void clientRemoteEventListenerIsRefused() {
       IgniteCluster client = newBareCluster(liveClient);
