@@ -75,8 +75,8 @@ public final class LockCycleHarness implements AutoCloseable {
 
    /**
     * Run every sandbox of the suite on pooled worksheet script contexts (bug #76960), as
-    * production does by default. core/pom.xml sets {@code lockcycle.pool=true} for surefire;
-    * the daily slow-tests workflow also runs the suite with {@code -Dlockcycle.pool=false}.
+    * production always does (Feature #78459). core/pom.xml sets {@code lockcycle.pool=true} for
+    * surefire; {@code -Dlockcycle.pool=false} runs the pool-off code paths on request.
     */
    public static final boolean POOL = Boolean.getBoolean("lockcycle.pool");
 

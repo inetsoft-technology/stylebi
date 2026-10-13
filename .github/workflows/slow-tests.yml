@@ -50,16 +50,3 @@ jobs:
         run: ./mvnw --batch-mode test -pl core -Dsurefire.groups=slow
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # the PR and Jenkins builds run the lockcycle suite pooled, as production runs worksheet
-      # scripts by default; script.ws.contextPool=false is still supported, so it is checked
-      # here. Runs even when the slow tests failed
-      - name: Lockcycle suite with the pool off
-        if: ${{ !cancelled() }}
-        run: >-
-          ./mvnw --batch-mode test -pl core
-          -Dtest='**/lockcycle/*Test'
-          -Dlockcycle.pool=false
-          '-Dsurefire.groups=core | slow'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
