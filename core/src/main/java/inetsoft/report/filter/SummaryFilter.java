@@ -2410,7 +2410,8 @@ public class SummaryFilter extends AbstractGroupedTable
          if(cellValues != null) {
             Object val = cellValues.get(r, c);
 
-            if(val != null) {
+            // a cell that is not set is the NULL sentinel, not null (78458)
+            if(val != SparseMatrix.NULL) {
                return val;
             }
          }

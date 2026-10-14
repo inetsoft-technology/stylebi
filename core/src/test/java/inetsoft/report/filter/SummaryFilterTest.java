@@ -68,6 +68,30 @@ public class SummaryFilterTest {
       });
    }
 
+   // Bug #78458: a cell set by setObject() must not make the other cells read the
+   // "undefined" sentinel of the cell value matrix
+   @Test
+   public void setObjectKeepsTheOtherCells() {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 5},
+         {"a", 1, 2},
+         {"b", 3, 10}
+      });
+
+      final SummaryFilter summary =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[] {2}, new SumFormula(), null);
+      summary.moreRows(Integer.MAX_VALUE);
+      summary.setObject(1, 0, "x");
+      summary.setObject(2, 2, null);
+
+      XTableUtil.assertEquals(summary, new Object[][] {
+         {"col1", "col2", "col3"},
+         {"x", 1, 7.0},
+         {"b", 3, null}
+      });
+   }
+
    @Test
    public void topTwo() {
       DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
