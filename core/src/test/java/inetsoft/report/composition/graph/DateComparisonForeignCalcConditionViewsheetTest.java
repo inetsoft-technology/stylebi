@@ -65,13 +65,16 @@ import static org.junit.jupiter.api.Assertions.*;
  * The date comparison chart's first bar is in its calc week 42 (Sum(wind) of the calc week 42 is
  * 33020, which falls in plain weeks 15 and 16), and the bar itself is 205. The plain week 4 is
  * 8250.
+ * <p>
+ * Tagged slow: the full target matrix takes about 38 s alone. One fast case per site is in
+ * {@link DateComparisonForeignCalcConditionCoreViewsheetTest}.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "/inetsoft/report/composition/EmbeddedVS1.zip")
-@Tag("core")
+@Tag("slow")
 @Tag("integration")
 class DateComparisonForeignCalcConditionViewsheetTest {
    /**

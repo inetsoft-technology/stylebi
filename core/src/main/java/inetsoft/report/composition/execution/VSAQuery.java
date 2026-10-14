@@ -181,7 +181,8 @@ public abstract class VSAQuery {
       // a shared condition on a date range must not be taken as covered by a same-named
       // column that is not a date range, e.g. the pass-through of a date comparison runtime
       // calc field WeekOfYear(Date), which holds different values. Add the hidden date range
-      // column for it instead (Bug #78446).
+      // column for it instead (Bug #78446). fuzzy identifies the applySharedCondition path, its
+      // only caller passing true; a new fuzzy caller gets this hidden column behavior too.
       if(existing != null && (!fuzzy || isDateRangeColumn(existing))) {
          return;
       }
