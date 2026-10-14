@@ -1239,6 +1239,7 @@ class ChartBindingServiceTest {
       when(info.isMultiStyles()).thenReturn(true);
       when(info.isDesignMultiStyles()).thenReturn(false);
       when(info.isDesignSeparated()).thenReturn(true);
+      when(info.isSeparatedGraph()).thenReturn(false);
       when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getVSChartInfo()).thenReturn(info);
@@ -1253,6 +1254,8 @@ class ChartBindingServiceTest {
       verify(separateStatus).changeSeparateStatus(eq("rt1"), captor.capture(),
                                                   any(Principal.class), any(), anyString());
       assertTrue(captor.getValue().isMulti());
+      assertTrue(captor.getValue().isSeparate(),
+                 "an unstated separate keeps the design value, not the comparison's runtime one");
    }
 
    /**
