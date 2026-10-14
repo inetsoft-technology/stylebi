@@ -577,8 +577,11 @@ public class MirrorQuery extends AssetQuery {
       SortInfo sinfo = super.getSortInfo();
 
       // if no sorting defined on mirror, get the sorting from the base since
-      // the subquery sorting will be discarded in sql
-      if(sinfo.isEmpty() && isSourceMergeable()) {
+      // the subquery sorting will be discarded in sql.
+      // the aggregate-on-aggregate mirror of a chart (ranking/percentage) must keep the
+      // chart's group sort directions even when the source is not mergeable, otherwise
+      // every group defaults to ascending and a descending dimension is flipped (78498)
+      if(sinfo.isEmpty() && (isSourceMergeable() || isChartAOAMirror())) {
          sinfo = new SortInfo();
          TableAssembly base = table.getTableAssembly();
          ColumnSelection cols = table.getColumnSelection(true);
@@ -614,6 +617,13 @@ public class MirrorQuery extends AssetQuery {
       }
 
       return sinfo;
+   }
+
+   /**
+    * Check if the mirror is the aggregate-on-aggregate mirror created by a chart query.
+    */
+   private boolean isChartAOAMirror() {
+      return "true".equals(table.getProperty("chart.aoa.mirror"));
    }
 
    /**
