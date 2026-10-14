@@ -139,7 +139,16 @@ class ScriptImageFunctionSwitchTest {
       "new (Java.type('inetsoft.report.painter.ImagePresenter'))().getPreferredSize(URL)",
       "Java.type('inetsoft.report.script.PropertyDescriptor').convert(URL, Java.type('java.awt.Image'))",
       "setupGoogleMapsPlot(new (Java.type('inetsoft.graph.EGraph'))(), URL + '&', " +
-         "[['lat','lon'],[10,20],[11,21]], 'lat', 'lon', 100, 100, 100, 100)"
+         "[['lat','lon'],[10,20],[11,21]], 'lat', 'lon', 100, 100, 100, 100)",
+      // an ImageLocation-built MetaImage carries the URL to any loader that takes an Image
+      "var L = new (Java.type('inetsoft.report.internal.ImageLocation'))('.'); " +
+         "L.setPath(URL); L.setPathType(4); " +
+         "Java.type('inetsoft.uql.viewsheet.internal.VSUtil').getVSImage(L.getImage(), null, " +
+         "new (Java.type('inetsoft.uql.viewsheet.Viewsheet'))(), 0, 0, 0, 0, null, null)",
+      "var L = new (Java.type('inetsoft.report.internal.ImageLocation'))('.'); " +
+         "L.setPath(URL); L.setPathType(4); " +
+         "Java.type('inetsoft.uql.viewsheet.internal.VSUtil').getVSImageBytes(L.getImage(), null, " +
+         "new (Java.type('inetsoft.uql.viewsheet.Viewsheet'))(), 0, 0, null, null)"
    })
    void viewsheetScriptHonorsSwitch(String call) throws Exception {
       String assembly = sandbox.getViewsheet().getAssemblies()[0].getAbsoluteName();
@@ -205,7 +214,14 @@ class ScriptImageFunctionSwitchTest {
       "Java.type('inetsoft.uql.viewsheet.internal.VSUtil').getVSImage(null, FILE_PATH, " +
          "new (Java.type('inetsoft.uql.viewsheet.Viewsheet'))(), 0, 0, 0, 0, null, null)",
       "Java.type('inetsoft.uql.viewsheet.internal.VSUtil').getVSImageBytes(null, FILE_PATH, " +
-         "new (Java.type('inetsoft.uql.viewsheet.Viewsheet'))(), 0, 0, null, null)"
+         "new (Java.type('inetsoft.uql.viewsheet.Viewsheet'))(), 0, 0, null, null)",
+      "Java.type('inetsoft.report.script.PropertyDescriptor').convert(FILE_PATH, " +
+         "Java.type('java.awt.Image'))",
+      // a MetaImage built from a full-path ImageLocation reads the file when it is loaded
+      "(function() { var L = new (Java.type('inetsoft.report.internal.ImageLocation'))('.'); " +
+         "L.setPath(FILE_PATH); L.setPathType(1); " +
+         "return Java.type('inetsoft.uql.viewsheet.internal.VSUtil').getVSImage(L.getImage(), " +
+         "null, new (Java.type('inetsoft.uql.viewsheet.Viewsheet'))(), 0, 0, 0, 0, null, null); })()"
    })
    void localFileHonorsSwitch(String call) throws Exception {
       String assembly = sandbox.getViewsheet().getAssemblies()[0].getAbsoluteName();
@@ -220,8 +236,10 @@ class ScriptImageFunctionSwitchTest {
             "catch(ex) { 'ERR:' + ex }";
 
          SreeEnv.setProperty(PROPERTY, "true");
-         assertEquals("NULL", String.valueOf(scope.execute(script, assembly)),
-                      "switch on: " + call + " loaded a local file");
+         // VSUtil.getVSImage fails on a MetaImage that yields no image (as for a missing
+         // file), so a refusal shows as NULL or an error, never as LOADED
+         assertNotEquals("LOADED", String.valueOf(scope.execute(script, assembly)),
+                         "switch on: " + call + " loaded a local file");
 
          SreeEnv.remove(PROPERTY);
          assertEquals("LOADED", String.valueOf(scope.execute(script, assembly)),
@@ -272,6 +290,21 @@ class ScriptImageFunctionSwitchTest {
 
       SreeEnv.setProperty(PROPERTY, "true");
       assertEquals("3x2", String.valueOf(sandbox.getScope().execute(script, assembly)));
+   }
+
+   /**
+    * The switch refuses only URL fetches and local file reads: a classpath resource
+    * involves neither, so a restricted script still loads it with the switch on.
+    */
+   @Test
+   void classpathResourceStillLoadsWithSwitchOn() throws Exception {
+      String assembly = sandbox.getViewsheet().getAssemblies()[0].getAbsoluteName();
+      String script = "var r = Java.type('inetsoft.report.script.PropertyDescriptor').convert(" +
+         "'/inetsoft/report/gui/composition/images/join.png', Java.type('java.awt.Image')); " +
+         "r == null ? 'NULL' : 'LOADED'";
+
+      SreeEnv.setProperty(PROPERTY, "true");
+      assertEquals("LOADED", String.valueOf(sandbox.getScope().execute(script, assembly)));
    }
 
    /**

@@ -699,12 +699,14 @@ public class JavaScriptEngine {
    }
 
    /**
-    * Check if loading an image from a script-supplied URL or path must be refused.
+    * Check if loading an image from a script-supplied URL or local file must be refused.
     * This is the case when the {@code javascript.getImageFunction.disabled} switch is
     * on and the caller runs inside a restricted script/expression. Every
-    * script-reachable loader that turns a string into a URL or file fetch must honor
-    * it, not only the {@code getImage} script function (Bug #78490). Callers outside a
-    * script (rendering, export) are not affected.
+    * script-reachable loader that turns a value into a URL fetch or a local file read
+    * must honor it, not only the {@code getImage} script function (Bug #78490).
+    * In-memory sources (data: URIs, ascii encoded images, byte arrays) and classpath
+    * resources involve no fetch and stay allowed. Callers outside a script (rendering,
+    * export) are not affected.
     */
    public static boolean isScriptImageLoadDisabled() {
       return FormulaContext.isRestricted() && isImageFunctionDisabled();
@@ -717,10 +719,14 @@ public class JavaScriptEngine {
       Image image = null;
       ImageLocation iloc = null;
       img = unwrap(img);
+      // only URL fetches and local file reads are refused (Bug #78490), encoded
+      // strings and classpath resources are still loaded
+      boolean loadDisabled = isScriptImageLoadDisabled();
 
-      if((img instanceof String || img instanceof URL) && isScriptImageLoadDisabled()) {
+      if(img instanceof URL && loadDisabled) {
          return null;
       }
+
       boolean imageavaliable = false;
 
       // string is a resource, or ascii encoded string
@@ -730,6 +736,10 @@ public class JavaScriptEngine {
 
          try {
             if((img instanceof String) && img.toString().indexOf("://") > 0) {
+               if(loadDisabled) {
+                  return null;
+               }
+
                iloc = new ImageLocation(".");
                iloc.setPath(img.toString());
                iloc.setPathType(ImageLocation.IMAGE_URL);
@@ -743,9 +753,9 @@ public class JavaScriptEngine {
                   return null;
                }
 
-               File file = FileSystemService.getInstance().getFile(str);
+               File file = loadDisabled ? null : FileSystemService.getInstance().getFile(str);
 
-               if(file.exists()) {
+               if(file != null && file.exists()) {
                   input = new FileInputStream(file);
                   iloc = new ImageLocation(".");
                   iloc.setPath(str);
