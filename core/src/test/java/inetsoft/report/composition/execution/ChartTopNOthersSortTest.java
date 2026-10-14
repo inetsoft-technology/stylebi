@@ -158,12 +158,14 @@ class ChartTopNOthersSortTest {
          catch(Exception ignore) {
          }
 
-         stmt.executeUpdate("create table st (state varchar(10), num int)");
-         String[][] rows = { { "AZ", "1" }, { "CA", "51" }, { "CO", "2" }, { "MA", "3" },
-                             { "NY", "40" }, { "TX", "30" }, { "WA", "20" } };
+         stmt.executeUpdate("create table st (region varchar(10), state varchar(10), num int)");
+         String[][] rows = { { "W", "AZ", "1" }, { "W", "CA", "51" }, { "E", "CO", "2" },
+                             { "E", "MA", "3" }, { "E", "NY", "40" }, { "E", "TX", "30" },
+                             { "W", "WA", "20" } };
 
          for(String[] row : rows) {
-            stmt.executeUpdate("insert into st values ('" + row[0] + "', " + row[1] + ")");
+            stmt.executeUpdate("insert into st values ('" + row[0] + "', '" + row[1] + "', " +
+                               row[2] + ")");
          }
       }
    }
@@ -200,7 +202,7 @@ class ChartTopNOthersSortTest {
       "Desc;     2; WA,TX,NY,CA,Others"
    })
    void othersStaysLast(String label, int order, String expected) throws Exception {
-      DataSet data = chartData(order, XCondition.TOP_N, 4);
+      DataSet data = chartData(order, XCondition.TOP_N, 4, false);
       assertEquals(List.of(expected.split(",")), states(data), label + " rows");
       assertFalse(data.getComparator(STATE) instanceof OthersComparator,
                   label + " dataset comparator " + data.getComparator(STATE));
@@ -209,11 +211,26 @@ class ChartTopNOthersSortTest {
    /** Bottom 3 by Sum(NUM) is AZ, CO, MA, the rest (CA, NY, TX, WA) goes into Others. */
    @Test
    void bottomNOthersStaysLast() throws Exception {
-      DataSet data = chartData(XConstants.SORT_NONE, XCondition.BOTTOM_N, 3);
+      DataSet data = chartData(XConstants.SORT_NONE, XCondition.BOTTOM_N, 3, false);
       assertEquals(List.of("AZ", "CO", "MA", "Others"), states(data));
    }
 
-   private DataSet chartData(int order, int ranking, int n) throws Exception {
+   /**
+    * Top 2 per REGION (outer, Sort None): E is NY, TX + Others(MA, CO), W is CA, WA + Others(AZ).
+    * Others stays last inside each parent group.
+    */
+   @ParameterizedTest(name = "nested {0}")
+   @CsvSource(delimiter = ';', value = {
+      "None; 0; NY,TX,Others,CA,WA,Others",
+      "Asc;  1; NY,TX,Others,CA,WA,Others",
+      "Desc; 2; TX,NY,Others,WA,CA,Others"
+   })
+   void nestedOthersStaysLast(String label, int order, String expected) throws Exception {
+      DataSet data = chartData(order, XCondition.TOP_N, 2, true);
+      assertEquals(List.of(expected.split(",")), states(data), label + " rows");
+   }
+
+   private DataSet chartData(int order, int ranking, int n, boolean nested) throws Exception {
       Worksheet ws = new Worksheet();
       sqlTable(ws);
       Viewsheet vs = new Viewsheet();
@@ -232,6 +249,15 @@ class ChartTopNOthersSortTest {
       dim.setRankingNValue(n + "");
       dim.setRankingColValue("Sum(NUM)");
       dim.setGroupOthersValue("true");
+
+      if(nested) {
+         VSChartDimensionRef region =
+            new VSChartDimensionRef(new ColumnRef(new AttributeRef(null, REGION)));
+         region.setGroupColumnValue(REGION);
+         region.setOrder(XConstants.SORT_NONE);
+         info.addXField(region);
+      }
+
       info.addXField(dim);
       VSChartAggregateRef agg = new VSChartAggregateRef();
       agg.setColumnValue("NUM");
@@ -266,7 +292,7 @@ class ChartTopNOthersSortTest {
    }
 
    private static void sqlTable(Worksheet ws) throws Exception {
-      String text = "select st.state, st.num from st";
+      String text = "select st.region, st.state, st.num from st";
       UniformSQL usql = new UniformSQL();
       Method parse = UniformSQL.class.getDeclaredMethod("parse", String.class, int.class, long.class);
       parse.setAccessible(true);
@@ -289,7 +315,8 @@ class ChartTopNOthersSortTest {
       info.setSourceInfo(new SourceInfo(SourceInfo.DATASOURCE, ds.getName(), ds.getName()));
       ColumnSelection columns = new ColumnSelection();
 
-      for(String[] column : new String[][] { { STATE, XSchema.STRING },
+      for(String[] column : new String[][] { { REGION, XSchema.STRING },
+                                             { STATE, XSchema.STRING },
                                              { "NUM", XSchema.INTEGER } })
       {
          ColumnRef ref = new ColumnRef(new AttributeRef(column[0]));
@@ -311,5 +338,6 @@ class ChartTopNOthersSortTest {
 
    private static final String CHART = "C1";
    private static final String STATE = "STATE";
+   private static final String REGION = "REGION";
    private final List<AssetQuerySandbox> boxes = new ArrayList<>();
 }
