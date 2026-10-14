@@ -132,6 +132,8 @@ public class HierarchyDimensionService {
          requireColumnCatalog(pane, assemblyName);
 
          OutputColumnRefModel[] catalog = columns(pane);
+         VSDimensionModel[] existing = dimensions(pane);
+         Map<String, Integer> consumed = consumedColumns(existing);
          VSDimensionMemberModel[] members = new VSDimensionMemberModel[wanted.size()];
          Set<String> seen = new HashSet<>();
 
@@ -145,6 +147,20 @@ public class HierarchyDimensionService {
                   "level can only use a column once.");
             }
 
+            // Kept apart from `seen`: relaxing that for a Year->Month repeat inside one dimension
+            // must not relax this. Dates get no exemption -- the Composer's Hierarchy dialog
+            // (isDragAccepted) also refuses a date column held by another dimension.
+            Integer holder = consumed.get(key);
+
+            if(holder != null) {
+               throw new IllegalArgumentException(
+                  "'" + wanted.get(i) + "' is already a level of hierarchy dimension " + holder +
+                  " on '" + assemblyName + "' -- a column can belong to only one dimension (the " +
+                  "Composer's Hierarchy dialog enforces the same). Remove that dimension first " +
+                  "(remove_hierarchy_dimension index " + holder + ") or pick a column from " +
+                  "list_hierarchy_dimensions' availableColumns.");
+            }
+
             VSDimensionMemberModel member = new VSDimensionMemberModel();
             member.setDataRef(column);
             member.setOption(levels.get(i));
@@ -154,7 +170,6 @@ public class HierarchyDimensionService {
          VSDimensionModel newDimension = new VSDimensionModel();
          newDimension.setMembers(members);
 
-         VSDimensionModel[] existing = dimensions(pane);
          VSDimensionModel[] updated = Arrays.copyOf(existing, existing.length + 1);
          updated[existing.length] = newDimension;
          pane.setDimensions(updated);
@@ -347,27 +362,36 @@ public class HierarchyDimensionService {
    private static OutputColumnRefModel[] withoutConsumedColumns(OutputColumnRefModel[] catalog,
                                                                  VSDimensionModel[] dimensions)
    {
-      Set<String> consumed = new HashSet<>();
-
-      for(VSDimensionModel dimension : dimensions) {
-         for(VSDimensionMemberModel member : members(dimension)) {
-            OutputColumnRefModel ref = member.getDataRef();
-
-            if(ref != null) {
-               consumed.add(columnKey(ref));
-            }
-         }
-      }
-
+      Map<String, Integer> consumed = consumedColumns(dimensions);
       List<OutputColumnRefModel> remaining = new ArrayList<>();
 
       for(OutputColumnRefModel column : catalog) {
-         if(!consumed.contains(columnKey(column))) {
+         if(!consumed.containsKey(columnKey(column))) {
             remaining.add(column);
          }
       }
 
       return remaining.toArray(new OutputColumnRefModel[0]);
+   }
+
+   /**
+    * The {@link #columnKey} of every column a member of {@code dimensions} uses, mapped to the
+    * index of the first dimension that uses it.
+    */
+   private static Map<String, Integer> consumedColumns(VSDimensionModel[] dimensions) {
+      Map<String, Integer> consumed = new HashMap<>();
+
+      for(int i = 0; i < dimensions.length; i++) {
+         for(VSDimensionMemberModel member : members(dimensions[i])) {
+            OutputColumnRefModel ref = member.getDataRef();
+
+            if(ref != null) {
+               consumed.putIfAbsent(columnKey(ref), i);
+            }
+         }
+      }
+
+      return consumed;
    }
 
    private static VSDimensionModel[] dimensions(HierarchyPropertyPaneModel pane) {

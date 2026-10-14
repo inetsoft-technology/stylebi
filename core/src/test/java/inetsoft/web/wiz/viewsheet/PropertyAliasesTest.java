@@ -942,6 +942,67 @@ class PropertyAliasesTest {
       }
    }
 
+   /**
+    * Regression for bug #78536: an index-suffixed or bracketed spelling of the dimensions field
+    * gets the same add_hierarchy_dimension refusal, not PropertyPath's generic "not a property".
+    */
+   @Test
+   void indexedSpellingsOfTheHierarchyDimensionsFieldGetTheToolRefusal() {
+      for(String assemblyType : java.util.List.of("chart", "crosstab")) {
+         for(String path : java.util.List.of(
+            "hierarchyPropertyPaneModel.dimensions0.members",
+            "hierarchyPropertyPaneModel.dimensions[0]",
+            "hierarchyPropertyPaneModel.dimensions[0].members",
+            "hierarchyPropertyPaneModel.dimensions[]",
+            "hierarchyPropertyPaneModel.dimensions12"))
+         {
+            IllegalArgumentException thrown = assertThrows(
+               IllegalArgumentException.class,
+               () -> PropertyAliases.resolveForWrite(assemblyType, path),
+               assemblyType + "/" + path + " must be refused");
+            assertTrue(thrown.getMessage().contains("add_hierarchy_dimension"),
+                       assemblyType + "/" + path + ": " + thrown.getMessage());
+         }
+      }
+   }
+
+   /** Bug #78536: the same prefix test guards the sheet refusals, so they catch these too. */
+   @Test
+   void indexedSpellingsOfRefusedSheetPanesGetTheirSpecificRefusal() {
+      Map<String, String> expected = Map.of(
+         "filtersPane[0].x", "'filtersPane' is read-only",
+         "screensPane0.x", "'screensPane' is not settable",
+         "vsScriptPane[0]", "update_script",
+         "localizationPane[1]", "'localizationPane' is read-only",
+         "vsOptionsPane.selectDataSourceDialogModel[0].dataSource", "set_viewsheet_data_source");
+
+      for(Map.Entry<String, String> entry : expected.entrySet()) {
+         IllegalArgumentException thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, entry.getKey()),
+            entry.getKey() + " must be refused");
+         assertTrue(thrown.getMessage().contains(entry.getValue()),
+                    entry.getKey() + ": " + thrown.getMessage());
+      }
+   }
+
+   /**
+    * Bug #78536: widening the prefix test must not refuse a path that writes today -- a field
+    * that only shares leading letters with a guarded prefix stays writable.
+    */
+   @Test
+   void widenedPrefixTestStillLetsCurrentlyValidPathsThrough() {
+      assertEquals("hierarchyPropertyPaneModel.columnList",
+                   PropertyAliases.resolveForWrite("chart", "hierarchyPropertyPaneModel.columnList"));
+      assertEquals("hierarchyPropertyPaneModel.grayedOutFields",
+                   PropertyAliases.resolveForWrite("crosstab",
+                                                   "hierarchyPropertyPaneModel.grayedOutFields"));
+      assertEquals("vsOptionsPane.alias",
+                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "vsOptionsPane.alias"));
+      assertEquals("vsOptionsPane.alias",
+                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "alias"));
+   }
+
    /** The refusal is scoped to {@code dimensions}; sibling hierarchy-pane fields are untouched. */
    @Test
    void theHierarchyDimensionsRefusalDoesNotReachItsSiblingFields() {

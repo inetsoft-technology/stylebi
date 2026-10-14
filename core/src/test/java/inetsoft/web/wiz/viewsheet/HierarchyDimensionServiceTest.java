@@ -162,6 +162,106 @@ class HierarchyDimensionServiceTest {
       assertNoWrite(h);
    }
 
+   /**
+    * Regression for bug #78536: a column another dimension on the same assembly already uses is
+    * refused by name -- a column belongs to at most one dimension, which the Composer's Hierarchy
+    * dialog enforces only client-side (setCube stores whatever arrives). The reported crosstab case.
+    */
+   @Test
+   void addRefusesAColumnAnotherDimensionAlreadyUsesOnACrosstab() {
+      HierarchyPropertyPaneModel pane = paneWithDimensions(
+         new OutputColumnRefModel[] {
+            column("Region"), column("State"), column("City"), column("Total")
+         },
+         dimension(column("Region"), column("State"), column("City")));
+      Harness h = harnessCrosstab(pane);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.add("tok", principal(), "CT1", List.of("State"), null, ""));
+
+      assertTrue(thrown.getMessage().contains("'State'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("dimension 0"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'CT1'"), thrown.getMessage());
+      assertNoWrite(h);
+      assertEquals(1, pane.getDimensions().length, "dimension count unchanged");
+   }
+
+   /** Bug #78536: the chart target shares the same add body, so it refuses the same way. */
+   @Test
+   void addRefusesAColumnAnotherDimensionAlreadyUsesOnAChart() {
+      HierarchyPropertyPaneModel pane = paneWithDimensions(
+         new OutputColumnRefModel[] { column("Region"), column("State"), column("Category") },
+         dimension(column("Category")),
+         dimension(column("Region"), column("State")));
+      Harness h = harnessChart(pane);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.add("tok", principal(), "Chart1", List.of("Region", "State"), null, ""));
+
+      assertTrue(thrown.getMessage().contains("'Region'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("dimension 1"), thrown.getMessage());
+      assertNoWrite(h);
+      assertEquals(2, pane.getDimensions().length, "dimension count unchanged");
+   }
+
+   /**
+    * Bug #78536: a date column gets no exemption across dimensions -- the Composer's isDragAccepted
+    * refuses a date column in any dimension other than the one holding it, whatever the level.
+    */
+   @Test
+   void addRefusesADateColumnAnotherDimensionUsesAtADifferentLevel() {
+      HierarchyPropertyPaneModel pane = paneWithDimensions(
+         new OutputColumnRefModel[] { column("Order Date"), column("State") },
+         dimensionWithOption(DateRangeRef.YEAR_INTERVAL, column("Order Date")));
+      Harness h = harnessChart(pane);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.add("tok", principal(), "Chart1", List.of("Order Date"),
+                             List.of("month"), ""));
+
+      assertTrue(thrown.getMessage().contains("'Order Date'"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   /** Bug #78536: removing the dimension frees its columns, so the same column adds again. */
+   @Test
+   void addAcceptsAColumnAgainAfterItsDimensionIsRemoved() throws Exception {
+      HierarchyPropertyPaneModel pane = paneWithDimensions(
+         new OutputColumnRefModel[] { column("Region"), column("State") },
+         dimension(column("Region"), column("State")));
+      Harness h = harnessChart(pane);
+
+      h.service.remove("tok", principal(), "Chart1", 0, "");
+      Map<String, Object> result =
+         h.service.add("tok", principal(), "Chart1", List.of("State"), null, "");
+
+      assertEquals(0, result.get("index"));
+      assertEquals(1, pane.getDimensions().length);
+      assertEquals("State", pane.getDimensions()[0].getMembers()[0].getDataRef().getName());
+   }
+
+   /**
+    * Bug #78536: only the wanted columns are checked, so an unused column still adds -- even on a
+    * pane that already holds a double-booked dimension (from a pre-fix add or hand authoring).
+    */
+   @Test
+   void addStillAcceptsAnUnusedColumnBesideExistingDimensions() throws Exception {
+      HierarchyPropertyPaneModel pane = paneWithDimensions(
+         new OutputColumnRefModel[] { column("Region"), column("State"), column("Category") },
+         dimension(column("Region"), column("State")),
+         dimension(column("State")));
+      Harness h = harnessCrosstab(pane);
+
+      Map<String, Object> result =
+         h.service.add("tok", principal(), "CT1", List.of("Category"), null, "");
+
+      assertEquals(2, result.get("index"));
+      assertEquals(3, writtenCrosstabDimensions(h).length);
+   }
+
    @Test
    void addRefusesNoColumns() {
       Harness h = harnessChart(paneWith(column("Country")));
