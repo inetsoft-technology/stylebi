@@ -296,6 +296,36 @@ class CalcTableServiceCopyMergeTest {
       assertEquals("X", value(3, 3));
    }
 
+   /** A blank cell of the range lands under a merge; nothing visible is lost. */
+   @Test
+   void allowsABlankCellLandingUnderAMerge() throws Exception {
+      text(0, 2, "ANCHOR");
+      merge(0, 2, 1, 2);
+      text(1, 0, "A");
+
+      copy("copy", 1, 0, 1, 2, 0, 2);
+
+      assertEquals("A", value(0, 2));
+      assertEquals(new Dimension(2, 1), layout().getSpan(0, 2));
+   }
+
+   /** A column-bound cell is content too, not only text. */
+   @Test
+   void refusesAColumnBoundCellLandingUnderAMerge() {
+      text(0, 0, "ANCHOR");
+      merge(0, 0, 1, 2);
+      layout().setCellBinding(1, 0, new TableCellBinding(CellBinding.BIND_COLUMN, "Region"));
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class, () -> copy("cut", 1, 0, 1, 1, 0, 1));
+
+      assertTrue(thrown.getMessage().contains(
+         "Pasting cell [1,0] would land on [0,1], which is merged into [0,0]"),
+                 thrown.getMessage());
+      assertEquals("Region", value(1, 0));
+      verifyNoInteractions(layoutService);
+   }
+
    // ── helpers ───────────────────────────────────────────────────────────────
 
    private TableLayout layout() {
