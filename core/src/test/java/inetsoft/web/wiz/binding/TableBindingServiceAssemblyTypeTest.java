@@ -94,7 +94,19 @@ class TableBindingServiceAssemblyTypeTest {
          Arguments.of("Embedded1",
             (BiFunction<Viewsheet, String, VSAssembly>) (vs, name) ->
                new Viewsheet().createVSAssembly(name),
-            "an embedded viewsheet"));
+            "an embedded viewsheet"),
+         Arguments.of("CheckBox1",
+            (BiFunction<Viewsheet, String, VSAssembly>) CheckBoxVSAssembly::new, "a CheckBox"),
+         Arguments.of("RadioButton1",
+            (BiFunction<Viewsheet, String, VSAssembly>) RadioButtonVSAssembly::new,
+            "a RadioButton"),
+         Arguments.of("Slider1",
+            (BiFunction<Viewsheet, String, VSAssembly>) SliderVSAssembly::new, "a Slider"),
+         Arguments.of("TextInput1",
+            (BiFunction<Viewsheet, String, VSAssembly>) TextInputVSAssembly::new, "a TextInput"),
+         Arguments.of("Rectangle1",
+            (BiFunction<Viewsheet, String, VSAssembly>) RectangleVSAssembly::new,
+            "a Rectangle"));
    }
 
    /** A call into one table/* endpoint of the service. */
@@ -117,6 +129,9 @@ class TableBindingServiceAssemblyTypeTest {
       endpoints.put("setSort", (s, a) -> s.setSort(
          TOKEN, USER, a, "rows", "Region", null,
          new DimensionSortRanking.Sort("asc", null, null)));
+      endpoints.put("setRanking", (s, a) -> s.setRanking(
+         TOKEN, USER, a, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("top", 3, "Sales", null)));
       endpoints.put("setOptions", (s, a) -> s.setOptions(TOKEN, USER, a, Map.of("rowTotals", true)));
       endpoints.put("setSource", (s, a) -> s.setSource(TOKEN, USER, a, "Query1", false));
       endpoints.put("setColumnLabels",
