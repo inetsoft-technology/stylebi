@@ -28,6 +28,7 @@ import inetsoft.web.composer.tablestyle.TableStyleFormatModel;
 import inetsoft.web.composer.tablestyle.service.TableStyleService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.mockito.InOrder;
 
 import java.security.Principal;
@@ -550,6 +551,128 @@ class WizTableStyleControllerTest {
          fixture.principal);
 
       verify(fixture.lib).renameTableStyle("User Defined~BorderedBands", "User Defined~Renamed", "1001");
+   }
+
+   // ---- Bug #78541: a trailing-slash folder was stored under an unlistable "Bands~" parent ----
+
+   private WizTableStyleController.TableStyleDetail createIn(Fixture fixture, String folder,
+                                                             Boolean createFolders)
+      throws Exception
+   {
+      return fixture.controller.create(
+         new WizTableStyleController.CreateTableStyleRequest("X", folder, null, createFolders),
+         fixture.principal);
+   }
+
+   private static void assertFolderRefused(Executable call, Fixture fixture) {
+      Exception thrown = assertThrows(IllegalArgumentException.class, call);
+      assertTrue(thrown.getMessage().contains("'folder'"), thrown.getMessage());
+      verify(fixture.lib, never()).setTableStyle(any(), any());
+      verify(fixture.lib, never()).renameTableStyle(any(), any(), any());
+      verify(fixture.lib, never()).addTableStyleFolder(anyString());
+   }
+
+   @Test
+   void create_stripsATrailingSlashAndStoresUnderTheRealFolder() throws Exception {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "Bands");
+
+      WizTableStyleController.TableStyleDetail detail = createIn(fixture, "Bands/", null);
+
+      assertEquals("Bands", detail.folder());
+      verify(fixture.tableStyleService).getTableStyleLabel("Bands", "X");
+      verify(fixture.lib).setTableStyle(any(), any());
+      verify(fixture.lib, never()).addTableStyleFolder(anyString());
+   }
+
+   @Test
+   void create_stripsATrailingSlashFromANestedFolder() throws Exception {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "Bands", "Bands~Sub");
+
+      assertEquals("Bands/Sub", createIn(fixture, "Bands/Sub/", null).folder());
+      verify(fixture.tableStyleService).getTableStyleLabel("Bands~Sub", "X");
+   }
+
+   @Test
+   void create_withCreateFoldersRegistersTheNormalizedFolderNotAnOrphan() throws Exception {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture);
+
+      assertEquals("New", createIn(fixture, "New/", true).folder());
+
+      verify(fixture.lib).addTableStyleFolder("New");
+      verify(fixture.lib, never()).addTableStyleFolder("");
+      verify(fixture.tableStyleService).getTableStyleLabel("New", "X");
+   }
+
+   @Test
+   void create_aLoneSlashIsTheLibraryRoot() throws Exception {
+      Fixture fixture = new Fixture();
+
+      assertEquals("", createIn(fixture, "/", null).folder());
+
+      verify(fixture.tableStyleService).getTableStyleLabel(null, "X");
+      verify(fixture.lib, never()).addTableStyleFolder(anyString());
+   }
+
+   @Test
+   void create_refusesEmptyInteriorOrLeadingSegmentsWithAndWithoutCreateFolders() {
+      for(String folder : new String[] { "/X", "Bands//X", "Bands//", "//" }) {
+         for(Boolean createFolders : new Boolean[] { null, true }) {
+            Fixture fixture = new Fixture();
+            assertFolderRefused(() -> createIn(fixture, folder, createFolders), fixture);
+         }
+      }
+   }
+
+   @Test
+   void create_nestedAndBlankFoldersAreUnchanged() throws Exception {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "Bands", "Bands~Sub");
+
+      assertEquals("Bands", createIn(fixture, "Bands", null).folder());
+      assertEquals("Bands/Sub", createIn(fixture, "Bands/Sub", null).folder());
+      assertEquals("", createIn(fixture, null, null).folder());
+      assertEquals("", createIn(fixture, "", null).folder());
+   }
+
+   @Test
+   void update_stripsATrailingSlashAndMovesIntoTheRealFolder() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+      registerFolders(fixture, "Bands");
+
+      fixture.controller.update("1001",
+         new WizTableStyleController.UpdateTableStyleRequest(null, "Bands/", null, null),
+         fixture.principal);
+
+      verify(fixture.lib).renameTableStyle("User Defined~BorderedBands", "Bands~BorderedBands", "1001");
+   }
+
+   @Test
+   void update_aLoneSlashMovesToTheLibraryRoot() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+
+      fixture.controller.update("1001",
+         new WizTableStyleController.UpdateTableStyleRequest(null, "/", null, null),
+         fixture.principal);
+
+      verify(fixture.lib).renameTableStyle("User Defined~BorderedBands", "BorderedBands", "1001");
+   }
+
+   @Test
+   void update_refusesEmptySegmentsWithAndWithoutCreateFolders() {
+      for(String folder : new String[] { "/X", "Bands//X", "//" }) {
+         for(Boolean createFolders : new Boolean[] { null, true }) {
+            Fixture fixture = new Fixture();
+            when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+            assertFolderRefused(() -> fixture.controller.update("1001",
+               new WizTableStyleController.UpdateTableStyleRequest(null, folder, null, createFolders),
+               fixture.principal), fixture);
+         }
+      }
    }
 
    private static XTableStyle newStyle(String id, String name) {
