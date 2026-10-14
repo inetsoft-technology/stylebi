@@ -870,7 +870,12 @@ public class DateTime implements Serializable, Comparable<DateTime> {
             throw new IllegalArgumentException("Could not determine Year, Month, and Day from '" + dateString + "'");
         }
         if (dateState.month == FEB) {
-            if (dateState.day > 28 + (dateState.year % 4 == 0 ? 1 : 0)) {
+            // InetSoft: the leap rule of the GregorianCalendar Tm.calcTime builds the date with
+            // (Julian before the 1582 cutover), so 1900-02-29 isn't rolled to March 1 (#78529)
+            int year = dateState.year;
+            boolean leap = year % 4 == 0 && (year <= 1582 || year % 100 != 0 || year % 400 == 0);
+
+            if (dateState.day > 28 + (leap ? 1 : 0)) {
                 throw new IllegalArgumentException("February " + dateState.day + " does not exist in " + dateState.year);
             }
         } else if (dateState.month == SEP || dateState.month == APR || dateState.month == JUN || dateState.month == NOV) {
