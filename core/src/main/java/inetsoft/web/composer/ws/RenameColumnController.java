@@ -389,7 +389,7 @@ public class RenameColumnController extends WorksheetController {
                }
             }
 
-            renameJoinOperators(composedTable, ocolumn, ncolumn);
+            renameJoinOperators(composedTable, tableName, ocolumn, ncolumn);
          }
 
          if(assembly instanceof AbstractTableAssembly) {
@@ -594,8 +594,14 @@ public class RenameColumnController extends WorksheetController {
       return new ColumnRef(attr);
    }
 
-   private static void renameJoinOperators(ComposedTableAssembly table, ColumnRef ocolumn,
-                                    ColumnRef ncolumn)
+   /**
+    * Renames {@code ocolumn} in {@code table}'s join operators. An expression column (a range
+    * column included) is matched on the operator side of {@code sourceName}, the table it was
+    * renamed on, only: another table's same-named expression key is a different column (Bug
+    * #78527, an unrelated join re-keyed on both sides by a date range re-level).
+    */
+   private static void renameJoinOperators(ComposedTableAssembly table, String sourceName,
+                                           ColumnRef ocolumn, ColumnRef ncolumn)
    {
       if(!(table.getTableInfo() instanceof CompositeTableAssemblyInfo)) {
          return;
@@ -614,16 +620,18 @@ public class RenameColumnController extends WorksheetController {
             continue;
          }
 
+         boolean expression = ocolumn.getDataRef().isExpression();
+
          for(int i = ops.length - 1; i >= 0 ; i--) {
             if((Tool.equals(table.getName(), ops[i].getLeftTable()) ||
-               ocolumn.getDataRef().isExpression()) &&
+               expression && Tool.equals(sourceName, ops[i].getLeftTable())) &&
                Tool.equals(ocolumn, ops[i].getLeftAttribute()))
             {
                ops[i].setLeftAttribute(ncolumn);
             }
 
             if((Tool.equals(table.getName(), ops[i].getRightTable()) ||
-               ocolumn.getDataRef().isExpression()) &&
+               expression && Tool.equals(sourceName, ops[i].getRightTable())) &&
                Tool.equals(ocolumn, ops[i].getRightAttribute()))
             {
                ops[i].setRightAttribute(ncolumn);

@@ -1494,7 +1494,8 @@ public class WorksheetAgentController {
          assertSqlEditAllowsColumnRemoval(
             ws, liveAssembly, liveAssembly.getColumnSelection(false), newColumns,
             "Editing this table would change the type of",
-            breaks -> JoinKeyTypeGuard.tabularRemedy());
+            breaks -> JoinKeyTypeGuard.tabularRemedy(),
+            "Editing table '" + tableName + "'", TABULAR_EDIT_LOSS_REMEDY);
 
          // Commit: only now does the live assembly's own query/columns actually change.
          liveInfo.setQuery(scratchQuery);
@@ -3153,6 +3154,21 @@ public class WorksheetAgentController {
                "instead.");
          }
 
+         ColumnSelection oldColumns = assembly.getColumnSelection(false);
+         boolean same = isSameColumns(oldColumns, table);
+         // Bug #78527: the table's own expression and range columns are not in the file; they
+         // are kept across the replace, wherever reorder_columns put them.
+         List<ColumnRef> derived = derivedColumns(oldColumns);
+         List<String> order = new ArrayList<>();
+
+         for(int i = 0; i < oldColumns.getAttributeCount(); i++) {
+            order.add(oldColumns.getAttribute(i).getName());
+         }
+
+         if(!same) {
+            requireNoDerivedNameCollision(tableName, derived, table);
+         }
+
          // Bug #78346: the import re-detects every column's type from the file, so refuse before
          // any mutation when that retypes a join key into an unmergeable pair.
          requireImportKeepsJoinKeyTypes(ws, assembly, tableName, table);
@@ -3164,20 +3180,49 @@ public class WorksheetAgentController {
          // Only reset the column selection -- and therefore anything bound to it -- when the
          // shape actually changed; otherwise every join/filter/binding on this table survives
          // the swap untouched, which is the entire point of replacing rather than recreating.
-         if(!isSameColumns(assembly.getColumnSelection(false), table)) {
+         if(!same) {
             assembly.setColumnSelection(new ColumnSelection(), false);
             assembly.setAggregate(assembly.getAggregateInfo() != null &&
                                      !assembly.getAggregateInfo().isEmpty());
          }
 
          assembly.setEmbeddedData(table);
-         assembly.refreshColumnType(table);
+
+         if(same) {
+            // refreshColumnType is positional and skips a selection that also holds derived
+            // columns, so refresh the data columns' types here.
+            List<ColumnRef> data = dataColumns(assembly.getColumnSelection(false));
+
+            for(int i = 0; i < data.size(); i++) {
+               data.get(i).setDataType(inetsoft.util.Tool.getDataType(table.getColType(i)));
+            }
+         }
+         else {
+            assembly.refreshColumnType(table);
+         }
 
          try {
             AssetEventUtil.initColumnSelection(rws, assembly);
          }
          catch(Exception e) {
             throw new PairingException("Failed to initialize column selection: " + e.getMessage());
+         }
+
+         ColumnSelection columns = assembly.getColumnSelection(false);
+
+         if(same) {
+            // initColumnSelection rebuilds data-first when it sees the derived columns; a
+            // same-shape replace must leave the selection as it was, order included.
+            assembly.setColumnSelection(inOrder(columns, order), false);
+         }
+         else {
+            for(ColumnRef column : derived) {
+               if(columns.getAttribute(column.getName()) == null) {
+                  columns.addAttribute(column);
+               }
+            }
+
+            assembly.setColumnSelection(columns, false);
          }
 
          return new ImportCsvResponse(tableName, nrows - 1, ncols);
@@ -3196,20 +3241,20 @@ public class WorksheetAgentController {
    {
       ColumnSelection cols = assembly.getColumnSelection(false);
       boolean same = isSameColumns(cols, table);
+      // Bug #78527: only data columns come from the file; a derived column is kept, not retyped.
+      List<ColumnRef> data = dataColumns(cols);
       List<JoinKeyTypeGuard.Break> breaks = new ArrayList<>();
 
       for(int i = 0; i < table.getColCount(); i++) {
          ColumnRef old = null;
 
          if(same) {
-            old = (ColumnRef) cols.getAttribute(i);
+            old = data.get(i);
          }
          else {
             String header = AssetUtil.format(inetsoft.uql.util.XUtil.getHeader(table, i));
 
-            for(int j = 0; j < cols.getAttributeCount(); j++) {
-               ColumnRef c = (ColumnRef) cols.getAttribute(j);
-
+            for(ColumnRef c : data) {
                if(Objects.equals(c.getName(), header)) {
                   old = c;
                   break;
@@ -3253,6 +3298,12 @@ public class WorksheetAgentController {
          kept.add(AssetUtil.format(inetsoft.uql.util.XUtil.getHeader(table, i)));
       }
 
+      // Bug #78527: the table's own derived columns are kept, so they are not "dropped"; what
+      // they read is checked as the table's own dependents.
+      for(ColumnRef column : derivedColumns(cols)) {
+         kept.add(column.getName());
+      }
+
       List<ColumnRef> old = new ArrayList<>();
 
       for(int i = 0; i < cols.getAttributeCount(); i++) {
@@ -3263,26 +3314,125 @@ public class WorksheetAgentController {
    }
 
    /**
-    * Whether newly imported data has exactly the existing table's columns, by name and order.
-    * Ported from the private helper of the same name and logic in
+    * Whether newly imported data has exactly the existing table's data columns, by name and
+    * order. Ported from the private helper of the same name in
     * {@link inetsoft.web.composer.ws.dialog.ImportCSVDialogService}: it decides whether
     * {@link #replaceEmbeddedTable} can leave the column selection alone or must reset it because
-    * the shape changed underneath it.
+    * the shape changed underneath it. Bug #78527: the table's own expression and range columns
+    * are not compared, since the file never has them.
     */
    private static boolean isSameColumns(ColumnSelection cols, XEmbeddedTable table) {
-      if(cols.getAttributeCount() != table.getColCount()) {
+      List<ColumnRef> data = dataColumns(cols);
+
+      if(data.size() != table.getColCount()) {
          return false;
       }
 
-      for(int i = 0; i < cols.getAttributeCount(); i++) {
-         ColumnRef col = (ColumnRef) cols.getAttribute(i);
-
-         if(!Objects.equals(table.getObject(0, i), col.getDataRef().getName())) {
+      for(int i = 0; i < data.size(); i++) {
+         if(!Objects.equals(table.getObject(0, i), data.get(i).getDataRef().getName())) {
             return false;
          }
       }
 
       return true;
+   }
+
+   /** The columns of {@code cols} that come from the embedded data, in selection order. */
+   private static List<ColumnRef> dataColumns(ColumnSelection cols) {
+      List<ColumnRef> data = new ArrayList<>();
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         ColumnRef col = (ColumnRef) cols.getAttribute(i);
+
+         if(!col.isExpression()) {
+            data.add(col);
+         }
+      }
+
+      return data;
+   }
+
+   /**
+    * The table's own expression and range columns (a range ref is an expression ref), in
+    * selection order.
+    */
+   private static List<ColumnRef> derivedColumns(ColumnSelection cols) {
+      List<ColumnRef> derived = new ArrayList<>();
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         ColumnRef col = (ColumnRef) cols.getAttribute(i);
+
+         if(col.isExpression()) {
+            derived.add(col);
+         }
+      }
+
+      return derived;
+   }
+
+   /**
+    * Bug #78527: refuses a reshaping replace whose file has a column named like one of the
+    * table's own derived columns, which is kept across the replace. Nothing has been mutated
+    * when this runs.
+    */
+   private static void requireNoDerivedNameCollision(String tableName, List<ColumnRef> derived,
+                                                     XEmbeddedTable table)
+      throws PairingException
+   {
+      for(int i = 0; i < table.getColCount(); i++) {
+         String header = AssetUtil.format(inetsoft.uql.util.XUtil.getHeader(table, i));
+
+         for(ColumnRef column : derived) {
+            if(Objects.equals(column.getName(), header)) {
+               throw new PairingException(
+                  "Cannot replace the data of '" + tableName + "': the file has a column " +
+                  "named \"" + header + "\", which is also the name of this table's " +
+                  (column.getDataRef() instanceof RangeRef ? "range" : "expression") +
+                  " column. Rename one of them first. Nothing was changed.");
+            }
+         }
+      }
+   }
+
+   /**
+    * {@code cols} in the order of {@code order} (column names), or {@code cols} unchanged when
+    * the two don't hold the same columns.
+    */
+   private static ColumnSelection inOrder(ColumnSelection cols, List<String> order) {
+      if(cols.getAttributeCount() != order.size()) {
+         return cols;
+      }
+
+      boolean inOrder = true;
+
+      for(int i = 0; i < order.size() && inOrder; i++) {
+         inOrder = Objects.equals(cols.getAttribute(i).getName(), order.get(i));
+      }
+
+      if(inOrder) {
+         return cols;
+      }
+
+      ColumnSelection ordered = new ColumnSelection();
+
+      for(String name : order) {
+         DataRef column = null;
+
+         for(int i = 0; i < cols.getAttributeCount(); i++) {
+            if(Objects.equals(cols.getAttribute(i).getName(), name)) {
+               column = cols.getAttribute(i);
+               break;
+            }
+         }
+
+         if(column == null) {
+            return cols;
+         }
+
+         ordered.addAttribute(column);
+      }
+
+      return ordered;
    }
 
    /**
@@ -3926,7 +4076,8 @@ public class WorksheetAgentController {
          // to the live assembly yet, and this throws before anything is.
          assertSqlEditAllowsColumnRemoval(
             ws, sqlTable, sqlTable.getColumnSelection(), columns,
-            "This query would change the type of", JoinKeyTypeGuard::sqlRemedy);
+            "This query would change the type of", JoinKeyTypeGuard::sqlRemedy,
+            "The new query of '" + table + "'", SQL_EDIT_LOSS_REMEDY);
 
          info.getQuery().setSQLDefinition(sql);
          sqlTable.setSQLEdited(true);
@@ -3953,17 +4104,28 @@ public class WorksheetAgentController {
     * human-driven SQL Query dialog, translated into a thrown {@link PairingException} instead
     * of a reverted {@code MessageCommand} -- the wiz plugin has no dialog to revert back into.
     *
+    * <p>Bug #78527: unlike the dialog, also refuses dropping a column a downstream condition,
+    * ranking, expression or range column still reads (e.g. a mirror's {@code field['X']}),
+    * naming each dependent. A column counts as dropped when no new column has its output name,
+    * since that is what a downstream reference resolves by. Aggregates are left to the plugin's
+    * accept-and-warn diff (WSQ-009), and the table's own conditions, sort and expression
+    * columns are not checked here.</p>
+    *
     * @param ws         the worksheet, for walking dependents
     * @param assembly   the SQL-bound table whose column selection is about to change
     * @param oldColumns the table's column selection before the edit
     * @param newColumns the column selection the new SQL would produce
+    * @param lossLead   what the edit is, as the subject of "... would drop column(s) ..."
+    * @param lossRemedy what the caller can do instead, ending the dropped-column refusal
     * @throws PairingException naming the first old column that is both absent from
-    *                          {@code newColumns} and still used by a dependent
+    *                          {@code newColumns} and still used by a dependent join, or every
+    *                          dropped column a downstream reference still reads
     */
    static void assertSqlEditAllowsColumnRemoval(
       Worksheet ws, TableAssembly assembly, ColumnSelection oldColumns,
       ColumnSelection newColumns, String lead,
-      java.util.function.Function<List<JoinKeyTypeGuard.Break>, String> remedy)
+      java.util.function.Function<List<JoinKeyTypeGuard.Break>, String> remedy,
+      String lossLead, String lossRemedy)
       throws PairingException
    {
       if(oldColumns == null) {
@@ -3987,6 +4149,27 @@ public class WorksheetAgentController {
       List<JoinKeyTypeGuard.Break> breaks =
          JoinKeyTypeGuard.findSelectionBreaks(ws, assembly, oldColumns, safeNewColumns);
       JoinKeyTypeGuard.throwIfAny(breaks, assembly.getName(), lead, remedy.apply(breaks));
+
+      // Bug #78527: a downstream condition/expression/range on a dropped column.
+      Set<String> keptNames = new HashSet<>();
+
+      for(int i = 0; i < safeNewColumns.getAttributeCount(); i++) {
+         keptNames.add(safeNewColumns.getAttribute(i).getName());
+      }
+
+      List<ColumnRef> dataColumns = new ArrayList<>();
+
+      for(int i = 0; i < oldColumns.getAttributeCount(); i++) {
+         ColumnRef column = (ColumnRef) oldColumns.getAttribute(i);
+
+         if(!column.isExpression()) {
+            dataColumns.add(column);
+         }
+      }
+
+      ColumnLossReport.requireNoDependentLoss(
+         ws, assembly, assembly.getName(), dataColumns, keptNames,
+         ColumnLossReport.Scope.QUERY_EDIT, lossLead, lossRemedy);
    }
 
    // ---------------------------------------------------------------------------
@@ -5376,4 +5559,14 @@ public class WorksheetAgentController {
    // for refreshData's explicit single-table warm-up (see RenderWaitSupport.awaitOrRetry above).
    private static final int TABLE_WARM_MAX_ATTEMPTS = 4;
    private static final long TABLE_WARM_RETRY_SLEEP_MS = 500;
+
+   /** Bug #78527: ends edit_sql_query's dropped-column refusal. */
+   private static final String SQL_EDIT_LOSS_REMEDY =
+      "Keep these columns, under the same names (an alias is enough), in the query, or remove " +
+      "or rewrite those dependents first. Nothing was changed.";
+
+   /** Bug #78527: ends edit_table's dropped-column refusal. */
+   private static final String TABULAR_EDIT_LOSS_REMEDY =
+      "Keep these columns, under the same names, in the table's output, or remove or rewrite " +
+      "those dependents first. Nothing was changed.";
 }

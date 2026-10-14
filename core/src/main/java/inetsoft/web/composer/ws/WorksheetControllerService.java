@@ -933,6 +933,22 @@ public class WorksheetControllerService {
    }
 
    /**
+    * The {@code table}'s OWN expression and range columns that read its own column {@code ref}
+    * (Bug #78527): a replace-import keeps those derived columns, so dropping an input one of them
+    * reads must be refused. {@link #findOwnColumnReferences} covers only conditions and sort.
+    */
+   public static List<String> findOwnDerivedColumnReferences(TableAssembly table, ColumnRef ref) {
+      List<String> found = new ArrayList<>();
+
+      if(table != null && ref != null) {
+         collectExpressionReferences(table, ref, found);
+         collectRangeReferences(table, ref, found);
+      }
+
+      return found;
+   }
+
+   /**
     * Condition lists and sort of {@code table} that reference {@code ref}. Shared by the
     * downstream walker and {@link #findOwnColumnReferences}.
     */
