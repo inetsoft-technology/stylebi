@@ -43,6 +43,7 @@ import inetsoft.web.binding.handler.ClearTableHeaderAliasHandler;
 import inetsoft.web.binding.handler.SetTableHeaderAliasHandler;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.SourceInfo;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
@@ -53,6 +54,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.model.vs.HideColumnsDialogModel;
 import inetsoft.web.composer.vs.dialog.HideColumnsDialogService;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.ColumnVisibilityEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
@@ -118,10 +120,7 @@ public class TableBindingService {
          TableBindingMutator.setShelf(model, shelf, fields, rvs, source, refModelService);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
 
-         ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
-         event.setName(assemblyName);
-         event.setBinding(model);
-         bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
          restoreFormRefInvariant(assembly, shelf);
       });
    }
@@ -678,10 +677,7 @@ public class TableBindingService {
             }
          }
 
-         ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
-         event.setName(assemblyName);
-         event.setBinding(model);
-         bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
       });
 
       return applied;
@@ -913,10 +909,7 @@ public class TableBindingService {
             }
          }
 
-         ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
-         event.setName(assemblyName);
-         event.setBinding(model);
-         bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
       });
 
       return applied;
@@ -1226,10 +1219,7 @@ public class TableBindingService {
 
          info.setExplicitTableWidthValue(true);
 
-         ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
-         event.setName(assemblyName);
-         event.setBinding(model);
-         bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
       });
 
       return applied;
@@ -1720,10 +1710,7 @@ public class TableBindingService {
          mutation.accept(model, rvs, source);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
 
-         ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
-         event.setName(assemblyName);
-         event.setBinding(model);
-         bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
          // See restoreFormRefInvariant's own doc -- addField is the other wiz entry point
          // (besides setShelf) that can introduce a brand-new column onto a Table's details
          // shelf, so it needs the same safety net. removeField/moveField never introduce a new
@@ -1760,14 +1747,145 @@ public class TableBindingService {
             TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          }
 
-         ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
-         event.setName(assemblyName);
-         event.setBinding(model);
-         // Left at its default of true. A trap means the binding produces a cartesian or
-         // otherwise invalid result, and turning it off to make the call succeed would be
-         // trading a reported problem for an unreported one.
-         bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
       });
+   }
+
+   /**
+    * The one {@code setbinding} every wiz table write ends in.
+    *
+    * <p>The trap flag is left at its default of true. A trap means the binding produces a
+    * cartesian or otherwise invalid result, and turning it off to make the call succeed would be
+    * trading a reported problem for an unreported one.
+    *
+    * <p>Bug #78530: a crosstab row label is not binding state but a positional {@code
+    * MESSAGE_FORMAT} override on the corner header path {@code Cell [0,i]}, which {@code
+    * VSUtil.syncCrosstabPath} re-keys as the rows change. Without a clear-alias processor a
+    * vacated path kept its label: the corner went on showing a removed field's label, and the
+    * next field at that position inherited it (and get_table_binding reported it as that field's
+    * label). Two parts, together the Composer's own drag-and-drop and replace behaviour:
+    * <ul>
+    *   <li>{@link ApplyVSAssemblyInfoEvent#setClearVacatedAliases} -- the same {@code
+    *   processClearAliasFormat} native drag-and-drop passes, which clears every path left
+    *   behind once survivors have been re-keyed (a removal, and the shift it leaves);</li>
+    *   <li>{@link #clearLabelsOfRowsLeaving} before the write, for what the processor never
+    *   sees: a row moved to cols (no branch in {@code syncCornerPath}) and a one-call replace
+    *   ({@code buildMap}'s runtime-ID fallback maps the dropped row onto the newcomer).</li>
+    * </ul>
+    * Must run after the mutation's last possible throw, so a refused write clears nothing.
+    */
+   private void applyBinding(RuntimeViewsheet rvs, String runtimeId, String assemblyName,
+                             BindingModel model, Principal user, CommandDispatcher dispatcher)
+      throws Exception
+   {
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+      if(assembly instanceof CrosstabVSAssembly crosstab &&
+         model instanceof CrosstabBindingModel crosstabModel)
+      {
+         clearLabelsOfRowsLeaving(crosstab, crosstabModel);
+      }
+
+      ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
+      event.setName(assemblyName);
+      event.setBinding(model);
+      event.setClearVacatedAliases(true);
+      bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+   }
+
+   /**
+    * Clears, on the live crosstab's {@code FormatInfo}, the label of every current row dimension
+    * that this write takes off rows -- removed, replaced by a different column, or moved to cols
+    * or aggregates -- at its own row index, as native {@code VSCrosstabBindingHandler.addDataRef}
+    * does for a replace. Uses the clone-and-put {@code clearAlias}, never the in-place {@code
+    * clearHeaderAlias}, whose format object may be shared with the undo checkpoint.
+    *
+    * <p>"Leaving" is decided on design values on both sides (the live ref through the same
+    * {@code BDimensionRefModel} the read builds), never on the live ref's runtime full name,
+    * which carries a runtime date level or period prefix. A row stays when a new row has its
+    * column, date level and named group, or when the new row at its own index has its column --
+    * a date level or named group changed in place keeps its label, as it does today.
+    *
+    * <p>The index is the row's position in {@code getRowHeaders()}, unshifted: {@code
+    * syncCornerPath}, {@code buildMap} and the wiz label writer all key {@code Cell [0,i]} by the
+    * runtime row index, and the runtime rows never hold the period-calendar dimension. When a
+    * variable-expanded dimension makes the design and runtime rows differ in length, the design
+    * index is not the path index, so nothing is pre-cleared and the processor alone applies.
+    */
+   private static void clearLabelsOfRowsLeaving(CrosstabVSAssembly crosstab,
+                                                CrosstabBindingModel model)
+   {
+      VSCrosstabInfo info = crosstab.getVSCrosstabInfo();
+      FormatInfo formatInfo = crosstab.getFormatInfo();
+      DataRef[] rows = info == null ? null : info.getRowHeaders();
+
+      if(rows == null || rows.length == 0 || formatInfo == null) {
+         return;
+      }
+
+      DataRef[] runtimeRows = info.getRuntimeRowHeaders();
+
+      if(runtimeRows == null || runtimeRows.length != rows.length) {
+         return;
+      }
+
+      List<BDimensionRefModel> next = model.getRows() == null ? List.of() : model.getRows();
+      boolean[] taken = new boolean[next.size()];
+      boolean[] stays = new boolean[rows.length];
+      BDimensionRefModel[] designs = new BDimensionRefModel[rows.length];
+
+      for(int i = 0; i < rows.length; i++) {
+         if(rows[i] instanceof VSDimensionRef dim) {
+            designs[i] = new BDimensionRefModel(dim);
+            designs[i].setColumnValue(dim.getGroupColumnValue());
+         }
+      }
+
+      for(int i = 0; i < rows.length; i++) {
+         for(int j = 0; designs[i] != null && j < next.size(); j++) {
+            if(!taken[j] && sameDesign(designs[i], next.get(j))) {
+               taken[j] = stays[i] = true;
+               break;
+            }
+         }
+      }
+
+      for(int i = 0; i < rows.length; i++) {
+         if(!stays[i] && designs[i] != null && i < next.size() && !taken[i] &&
+            sameColumn(designs[i], next.get(i)))
+         {
+            taken[i] = stays[i] = true;
+         }
+      }
+
+      for(int i = 0; i < rows.length; i++) {
+         if(!stays[i] && designs[i] != null) {
+            ClearTableHeaderAliasHandler.clearAlias(rows[i], formatInfo, i);
+         }
+      }
+   }
+
+   private static boolean sameColumn(BDimensionRefModel a, BDimensionRefModel b) {
+      return a.getColumnValue() != null && a.getColumnValue().equalsIgnoreCase(b.getColumnValue());
+   }
+
+   private static boolean sameDesign(BDimensionRefModel a, BDimensionRefModel b) {
+      return sameColumn(a, b) && Objects.equals(designLevel(a), designLevel(b)) &&
+         Objects.equals(namedGroupKey(a), namedGroupKey(b));
+   }
+
+   /**
+    * The design date level, with "none" spelled one way: the live ref reads back {@code null},
+    * while a dimension the mutator writes back carries {@code DateLevels}' {@code "-1"} sentinel.
+    */
+   private static String designLevel(BDimensionRefModel ref) {
+      String level = ref.getDateLevel();
+      return level == null || level.isBlank() || "-1".equals(level.trim()) ? null : level.trim();
+   }
+
+   private static String namedGroupKey(BDimensionRefModel ref) {
+      NamedGroupInfoModel group = ref.getNamedGroupInfo();
+      return group == null || group.getType() == 0 ? null : group.getType() + ":" + group.getName();
    }
 
    /**
