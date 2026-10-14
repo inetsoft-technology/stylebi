@@ -1586,6 +1586,9 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
     * @param cluster the cluster.
     */
    public static void removeStaleFileReferences(Cluster cluster) {
+      // Bug #78463, the leases of JVMs that stopped without deleting them, e.g. when halted
+      SnapshotOwnerLeases.removeOrphans();
+
       try {
          Map<String, HashMap<String, Integer>> owners = cluster.getMap(FILE_OWNERS_MAP);
          Set<String> nodes = cluster.getClusterNodeIds();
@@ -1595,7 +1598,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
             // a file that a table of this JVM reads is in use, whatever node id it was counted
             // under (the node id of a client changes when it reconnects)
             if(!isFileInUseLocally(entry.getKey()) &&
-               !nodes.containsAll(entry.getValue().keySet()))
+               hasDeadOwner(entry.getKey(), entry.getValue().keySet(), nodes))
             {
                stale.add(entry.getKey());
             }
@@ -1631,9 +1634,22 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       }
    }
 
+   private static boolean hasDeadOwner(String file, Set<String> fileOwners, Set<String> nodes) {
+      return fileOwners.stream().anyMatch(id -> isDeadOwner(file, id, nodes));
+   }
+
    /**
-    * Removes the counts of the nodes that are not in the cluster from the owners of a file and
-    * from its total count. The caller must hold {@link #FILE_REFERENCES_MAP_LOCK}.
+    * Checks if an owner of a file is gone. Bug #78463, a node that is not in the cluster of this
+    * node may still be alive, as another cluster after a split (e.g. the local scheduler after a
+    * long pause), and still read the file, so it is gone only if its lease is gone too.
+    */
+   private static boolean isDeadOwner(String file, String nodeId, Set<String> nodes) {
+      return !nodes.contains(nodeId) && !SnapshotOwnerLeases.isAlive(file, nodeId);
+   }
+
+   /**
+    * Removes the counts of the nodes that are gone from the owners of a file and from its total
+    * count, see {@link #isDeadOwner}. The caller must hold {@link #FILE_REFERENCES_MAP_LOCK}.
     *
     * @return the total count of the file that is left. It is the current total count when no
     *         owner was removed, and 0 when the file has no count.
@@ -1647,9 +1663,10 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       for(Iterator<Map.Entry<String, Integer>> i = fileOwners.entrySet().iterator(); i.hasNext();) {
          Map.Entry<String, Integer> entry = i.next();
 
-         if(!nodes.contains(entry.getKey())) {
+         if(isDeadOwner(file, entry.getKey(), nodes)) {
             dead += entry.getValue();
             i.remove();
+            SnapshotOwnerLeases.removeDead(file, entry.getKey());
          }
       }
 
@@ -1708,6 +1725,11 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
             // Bug #78096, registered before any count is added, so that the counts that were
             // added are removed when the table is collected, even if adding the others fails
             Cleaner.add(this);
+            // Bug #78463, before the counts, the lease keeps them from being removed by a node
+            // that is not in the cluster of this node
+            leaseDir = this.files.length > 0 ? new File(this.files[0]).getParentFile() : null;
+            SnapshotOwnerLeases.acquire(leaseDir, nodeId);
+            leased = true;
 
             try {
                addCounts(cluster);
@@ -1776,6 +1798,19 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          // first, so that the local counts are right even if the cluster can't be reached
          removeLocalCounts();
 
+         try {
+            removeCounts();
+         }
+         finally {
+            // Bug #78463, the lease is kept while a count of this reference is in the cluster
+            if(leased && Arrays.stream(added).allMatch(a -> a == 0)) {
+               leased = false;
+               SnapshotOwnerLeases.release(leaseDir, nodeId);
+            }
+         }
+      }
+
+      private void removeCounts() {
          if(Arrays.stream(added).allMatch(a -> a == 0)) {
             return;
          }
@@ -1899,6 +1934,9 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       private final int[] added;
       // the node that added the counts, the local node id changes when a client reconnects
       private final String nodeId;
+      // Bug #78463, the directory of the lease of the node id, and if this reference holds it
+      private File leaseDir;
+      private boolean leased;
       private boolean closed;
 
       private static final int TOTAL = 1;
