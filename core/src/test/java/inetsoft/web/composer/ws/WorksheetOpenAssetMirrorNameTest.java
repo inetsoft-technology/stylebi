@@ -23,17 +23,21 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.composer.ws.command.*;
 import inetsoft.web.composer.ws.event.ImmutableOpenAssetEvent;
 import inetsoft.web.composer.ws.event.OpenAssetEvent;
+import inetsoft.web.viewsheet.command.ViewsheetCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -161,5 +165,48 @@ class WorksheetOpenAssetMirrorNameTest {
       column.setProperty("attribute", "col1");
 
       assertDropFocusesAndRefreshes("Query11", column);
+   }
+
+   /**
+    * Drops the entries with the real WorksheetEventUtil, so the new mirror is actually validated
+    * and refreshed, and returns the commands sent to the client.
+    */
+   private List<ViewsheetCommand> dropAndCaptureCommands(AssetEntry... entries)
+      throws Exception
+   {
+      clearInvocations(dispatcher);
+      openAsset(entries);
+      ArgumentCaptor<ViewsheetCommand> commands = ArgumentCaptor.forClass(ViewsheetCommand.class);
+      verify(dispatcher, atLeastOnce()).sendCommand(commands.capture());
+      return commands.getAllValues();
+   }
+
+   /** Asserts that the client is sent the new mirror, focus on it and a refresh of it. */
+   private void assertAddFocusAndRefresh(List<ViewsheetCommand> commands, String name) {
+      List<String> added = commands.stream()
+         .filter(WSAddAssemblyCommand.class::isInstance)
+         .map(c -> ((WSAddAssemblyCommand) c).assembly().getName())
+         .toList();
+      List<List<String>> focused = commands.stream()
+         .filter(WSFocusAssembliesCommand.class::isInstance)
+         .map(c -> ((WSFocusAssembliesCommand) c).assemblyNames())
+         .toList();
+      List<String> refreshed = commands.stream()
+         .filter(WSRefreshAssemblyCommand.class::isInstance)
+         .map(c -> ((WSRefreshAssemblyCommand) c).getOldName() + "->" +
+                   ((WSRefreshAssemblyCommand) c).getAssembly().getName())
+         .toList();
+
+      assertEquals(List.of(name), added);
+      assertEquals(List.of(List.of(name)), focused);
+      assertEquals(List.of(name + "->" + name), refreshed);
+   }
+
+   @Test
+   void droppingAWorksheetTwiceSendsTheFocusAndRefreshOfEachNewMirror() throws Exception {
+      AssetEntry other = storeTableWorksheet();
+
+      assertAddFocusAndRefresh(dropAndCaptureCommands(other), "Query11");
+      assertAddFocusAndRefresh(dropAndCaptureCommands(other), "Query12");
    }
 }
