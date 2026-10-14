@@ -17,6 +17,7 @@
  */
 package inetsoft.web.composer.model.vs;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.web.binding.drm.DataRefModel;
 
@@ -261,6 +262,19 @@ public class HyperlinkDialogModel implements Serializable {
          '}';
    }
 
+   /**
+    * True when a chart link on a measure that exists only while a date comparison is active
+    * should be refused (the wiz agent path) instead of accepted and later lost (the Composer GUI).
+    */
+   @JsonIgnore
+   public boolean isRejectDerivedMeasure() {
+      return rejectDerivedMeasure;
+   }
+
+   public void setRejectDerivedMeasure(boolean rejectDerivedMeasure) {
+      this.rejectDerivedMeasure = rejectDerivedMeasure;
+   }
+
    private int linkType;
    private String webLink;
    private String assetLinkPath;
@@ -286,4 +300,5 @@ public class HyperlinkDialogModel implements Serializable {
    private boolean titleLink;
    private boolean emptyPlotLink;
    private Integer revision;
+   private boolean rejectDerivedMeasure;
 }

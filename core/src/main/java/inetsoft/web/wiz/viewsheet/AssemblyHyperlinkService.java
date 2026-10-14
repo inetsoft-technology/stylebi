@@ -177,6 +177,7 @@ public class AssemblyHyperlinkService {
 
          applyRowScope(assemblyName, model, link, rowLinkTarget(rvs, assemblyName, target.row()));
          apply(rvs, assemblyName, model, type, link, assetId);
+         model.setRejectDerivedMeasure(true);
          hyperlinkService.setHyperlinkDialogModel(runtimeId, assemblyName, model, linkUri, user,
                                                  dispatcher);
       });

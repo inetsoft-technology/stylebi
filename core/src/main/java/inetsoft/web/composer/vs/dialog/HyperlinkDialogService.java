@@ -285,6 +285,19 @@ public class HyperlinkDialogService {
          DataRef dcRef = info.getDCBIndingRef(model.getColName());
          ChartRef[] chartRefs = chartInfo.getFields(model.getColName(), dcRef != null);
 
+         // A measure the date comparison derives has no design-time field behind it, so a link
+         // set on it is dropped as soon as the comparison changes or is cleared.
+         if(model.isRejectDerivedMeasure() && !model.isTitleLink() && !model.isEmptyPlotLink() &&
+            HighlightDialogService.isDerivedDateComparisonRef(
+               chartInfo, model.getColName(), dcRef))
+         {
+            throw new IllegalArgumentException(
+               "'" + model.getColName() + "' is a measure derived by the active date comparison " +
+               "and has no design-time field behind it, so a link set on it would be lost as " +
+               "soon as the comparison changes or is cleared. Set the link on the base measure " +
+               "instead.");
+         }
+
          if(model.isTitleLink()) {
             info.setTitleLinkValue(hyperlink);
          }
@@ -324,6 +337,17 @@ public class HyperlinkDialogService {
                   for(ChartRef chartRef : chartRefs) {
                      if(chartRef instanceof HyperlinkRef) {
                         ((HyperlinkRef) chartRef).setHyperlink(hyperlink);
+                     }
+                  }
+
+                  // While a date comparison is active the refs above are runtime clones that
+                  // are dropped when the runtime refs are rebuilt (clear / option switch), so
+                  // the design-time ref is written too. Set and clear both flow through here.
+                  if(dcRef != null) {
+                     ChartRef design = chartInfo.getFieldByName(model.getColName(), false);
+
+                     if(design instanceof HyperlinkRef) {
+                        ((HyperlinkRef) design).setHyperlink(hyperlink);
                      }
                   }
                }

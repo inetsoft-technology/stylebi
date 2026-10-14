@@ -1041,4 +1041,43 @@ class ConditionVocabularyTest {
          List.of(clause("Revenue", "equals", List.of(5), null)), new DataRefModel[] { n });
       assertEquals(5, ((ConditionModel) list[0]).getValues()[0].getValue());
    }
+
+   private static void assertDateInRefused(String type, Object value) {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         ConditionVocabulary.toConditionList(
+            List.of(clause("F", "date_in", List.of(value), null)),
+            new DataRefModel[] { field("F", type) }));
+      assertTrue(e.getMessage().contains("date_in") && e.getMessage().contains("'F'"),
+                 e.getMessage());
+   }
+
+   /** Bug #78540 P1: a non-string date_in value reached a (String) cast and 500ed. */
+   @Test
+   void dateInRefusesANumberOnADateField() {
+      assertDateInRefused("date", 2024);
+   }
+
+   @Test
+   void dateInRefusesANumberOnANumericField() {
+      assertDateInRefused("double", 2024);
+   }
+
+   @Test
+   void dateInRefusesABooleanOnDateAndBooleanFields() {
+      assertDateInRefused("timeInstant", true);
+      assertDateInRefused("boolean", true);
+   }
+
+   @Test
+   void dateInRefusesAnUntypedObject() {
+      assertDateInRefused("date", Map.of("foo", 1));
+   }
+
+   @Test
+   void dateInStillAcceptsAStringRangeNameOnANonDateField() {
+      assertEquals("Last month", ConditionVocabulary.toConditionList(
+         List.of(clause("F", "date_in", List.of("Last month"), null)),
+         new DataRefModel[] { field("F", "string") }) [0] instanceof ConditionModel c ?
+         c.getValues()[0].getValue() : null);
+   }
 }
