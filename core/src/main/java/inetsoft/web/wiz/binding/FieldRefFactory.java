@@ -627,6 +627,25 @@ public final class FieldRefFactory {
    }
 
    /**
+    * The aggregate-mode calc field {@code column} names on {@code table} itself, or {@code null}.
+    *
+    * <p>Unlike {@link #aggregateCalcField}, no fallback to other sources: used to refuse a field,
+    * where a same-named calc field on some other table must not count.
+    */
+   public static CalculateRef aggregateCalcFieldOnSource(RuntimeViewsheet rvs, String table,
+                                                         String column)
+   {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+
+      if(vs == null || table == null || column == null) {
+         return null;
+      }
+
+      CalculateRef calc = vs.getCalcField(table, column);
+      return calc != null && !calc.isBaseOnDetail() ? calc : null;
+   }
+
+   /**
     * The calc field {@code column} names on the bound source, detail or aggregate mode, or
     * {@code null} if it is not one. See {@link #aggregateCalcField} for the lookup.
     */

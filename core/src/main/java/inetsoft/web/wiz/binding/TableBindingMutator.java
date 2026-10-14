@@ -155,6 +155,8 @@ public final class TableBindingMutator {
          requireCompatible(name, field);
       }
 
+      refuseAggregateCalcFieldOnDetailShelf(model, name, refs, rvs, source);
+
       switch(name) {
          case "rows", "cols", "groups" -> {
             // Captured before the overwrite below, so an unchanged field at the same position
@@ -184,6 +186,70 @@ public final class TableBindingMutator {
       }
 
       pruneOrphanedSuppression(model);
+   }
+
+   /**
+    * Refuses an aggregate calc field ({@code baseOnDetail} false) on a crosstab's rows or cols
+    * shelf, or on a table's details shelf.
+    *
+    * <p>Bug #78530: such a field is computed from other aggregates, so it only exists as a
+    * measure. On a dimension or detail shelf nothing here caught it -- {@code requireCompatible}
+    * sees a plain column, and {@link #moveField}'s {@link #convertForShelf} even turns it into a
+    * dimension -- so the write committed and then failed at query time ("Column not found:
+    * Total Short[Total Short]"), leaving the field on the shelf and every later render failing
+    * (crosstab), or the field silently dropped from the render (table). Thrown from the mutation,
+    * before {@code setBinding}, so nothing is committed.
+    *
+    * <p>The whole incoming list is checked, carried entries included, so a shelf already stuck
+    * with one refuses further edits until it is removed with {@code remove_table_field} -- the
+    * removed field is no longer on the list, so that removal passes.
+    *
+    * <p>Skipped without {@code rvs} (the context-free overloads, whose only production caller
+    * removes fields). Looked up on the assembly's own source only, never {@link
+    * FieldRefFactory#findCalcField}'s every-source fallback, so a same-named aggregate calc field
+    * on another table cannot refuse an ordinary column. The live {@code source} is captured
+    * before this call's mutation, so a crosstab sourced in this same call (set_table_fields /
+    * add_table_field with {@code table}) is looked up on the model's source instead. A calc field
+    * keyed under a cube-prefixed source name is not found, which degrades to the old behaviour,
+    * never to a false refusal.
+    */
+   private static void refuseAggregateCalcFieldOnDetailShelf(BaseTableBindingModel model,
+                                                             String shelf, List<FieldRef> refs,
+                                                             RuntimeViewsheet rvs,
+                                                             SourceInfo source)
+   {
+      if(rvs == null || refs.isEmpty() ||
+         !("rows".equals(shelf) || "cols".equals(shelf) || "details".equals(shelf)))
+      {
+         return;
+      }
+
+      String table = source != null && !source.isEmpty() ? source.getSource() : null;
+
+      if(table == null && model.getSource() != null) {
+         table = model.getSource().getSource();
+      }
+
+      if(table == null || table.isEmpty()) {
+         return;
+      }
+
+      for(FieldRef field : refs) {
+         if(FieldRefFactory.aggregateCalcFieldOnSource(rvs, table, field.column()) == null) {
+            continue;
+         }
+
+         String fix = "details".equals(shelf)
+            ? "A plain table has no aggregation of its own, so it cannot show one -- bind it " +
+              "to a crosstab's aggregates shelf instead."
+            : "Put it on the aggregates shelf instead.";
+
+         throw new IllegalArgumentException(
+            "'" + field.column() + "' is an aggregate calc field (computed from other " +
+            "aggregates), so it is a measure and cannot go on the " + shelf + " shelf. " + fix +
+            " If the " + shelf + " shelf already holds it, remove it with remove_table_field " +
+            "first.");
+      }
    }
 
    public static void addField(BaseTableBindingModel model, String shelf, FieldRef field,
