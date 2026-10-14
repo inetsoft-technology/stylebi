@@ -39,6 +39,7 @@ import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HighlightDialogModel;
 import inetsoft.web.composer.model.vs.HighlightModel;
 import inetsoft.web.composer.vs.dialog.HighlightDialogService;
+import inetsoft.web.service.HighlightService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1101,6 +1102,9 @@ class AssemblyHighlightServiceTest {
             .thenReturn(model);
          when(highlights.getFirstDataCell(anyString(), anyString(), any(Principal.class)))
             .thenReturn(new int[]{ 1, 1 });
+         when(highlights.getDateComparisonFields(anyString(), anyString(), any(), any(),
+                                                 any(Principal.class)))
+            .thenReturn(HighlightService.DateComparisonFields.NONE);
       }
       catch(Exception e) {
          throw new IllegalStateException(e);

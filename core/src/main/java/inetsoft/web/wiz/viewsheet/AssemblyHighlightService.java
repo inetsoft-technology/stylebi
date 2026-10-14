@@ -33,6 +33,7 @@ import inetsoft.web.composer.model.vs.HighlightDialogModel;
 import inetsoft.web.composer.model.vs.HighlightModel;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
 import inetsoft.web.composer.vs.dialog.HighlightDialogService;
+import inetsoft.web.service.HighlightService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -149,6 +150,8 @@ public class AssemblyHighlightService {
          requireHighlightableRegion(model, assemblyName, region);
          requireRowApplicable(model, assemblyName, highlight);
          requireNoDerivedConditionField(rvs.getViewsheet().getAssembly(assemblyName), highlight);
+         requireNoDerivedConditionField(highlight, highlightService.getDateComparisonFields(
+            runtimeId, assemblyName, model.getRow(), model.getCol(), user));
 
          List<HighlightModel> highlights = new ArrayList<>();
          boolean found = false;
@@ -770,16 +773,28 @@ public class AssemblyHighlightService {
     * Refuses a condition on a field the active date comparison derives (e.g. "Change from
     * previous year of Year(D): Sum(M)"). It is listed as a conditionable field while the
     * comparison is on, but it has no design-time field behind it, so the condition dangles once the comparison is
-    * cleared or changed. Chart only. Matched case-insensitively, the way {@link ConditionVocabulary} resolves field names.
+    * cleared or changed. Chart; the crosstab is the overload below. Matched case-insensitively, the way {@link ConditionVocabulary} resolves field names.
     */
    static void requireNoDerivedConditionField(VSAssembly assembly, Highlight highlight) {
-      if(highlight.conditions() == null || highlight.conditions().isEmpty()) {
-         return;
-      }
+      requireNoDerivedConditionField(highlight, new HighlightService.DateComparisonFields(
+         derivedDateComparisonFields(assembly), Set.of()));
+   }
 
-      Set<String> derived = derivedDateComparisonFields(assembly);
-
-      if(derived.isEmpty()) {
+   /**
+    * The crosstab half: refuses a condition on a field a crosstab lists only because of the active
+    * date comparison (a derived measure, a date dimension it re-leveled or inserted, a temp group).
+    * A derived measure's highlight is deleted by the next binding apply even with the comparison
+    * kept on; a re-leveled dimension's is deleted when the comparison is cleared; an inserted
+    * period dimension's dangles. {@code fields} is classified in the listed names (see
+    * {@link HighlightService#getDateComparisonFields(RuntimeViewsheet, VSAssembly,
+    * inetsoft.report.TableDataPath)}); a field it cannot classify is refused, not let through.
+    */
+   static void requireNoDerivedConditionField(Highlight highlight,
+                                              HighlightService.DateComparisonFields fields)
+   {
+      if(highlight.conditions() == null || highlight.conditions().isEmpty() ||
+         fields.derived().isEmpty() && fields.ambiguous().isEmpty())
+      {
          return;
       }
 
@@ -789,18 +804,27 @@ public class AssemblyHighlightService {
          index++;
          String field = clause == null || clause.field() == null ? "" : clause.field().trim();
 
-         if(derived.contains(field.toLowerCase())) {
+         if(fields.derived().contains(field)) {
             throw new IllegalArgumentException(
                "Condition " + index + "'s field '" + field + "' is derived by the active date " +
                "comparison and has no design-time field behind it, so the highlight would be " +
                "lost or left dangling as soon as the comparison changes or is cleared. " +
                "Put the condition on the base measure instead.");
          }
+
+         if(fields.ambiguous().contains(field)) {
+            throw new IllegalArgumentException(
+               "Condition " + index + "'s field '" + field + "' cannot be told apart from a " +
+               "field the active date comparison derives, so it is refused rather than risk a " +
+               "highlight that is lost or left dangling once the comparison changes or is " +
+               "cleared. Put the condition on a field that is listed without the comparison, " +
+               "or clear the date comparison first.");
+         }
       }
    }
 
    private static Set<String> derivedDateComparisonFields(VSAssembly assembly) {
-      Set<String> names = new HashSet<>();
+      Set<String> names = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
 
       if(assembly != null && assembly.getInfo() instanceof ChartVSAssemblyInfo info) {
          VSChartInfo chartInfo = info.getVSChartInfo();
@@ -810,7 +834,7 @@ public class AssemblyHighlightService {
             String name = ref.getFullName();
 
             if(HighlightDialogService.isDerivedDateComparisonRef(chartInfo, name, ref)) {
-               names.add(name.toLowerCase());
+               names.add(name);
             }
          }
       }

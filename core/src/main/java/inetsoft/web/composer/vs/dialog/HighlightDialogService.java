@@ -511,6 +511,29 @@ public class HighlightDialogService {
       return new int[] { 1, 1 };
    }
 
+   /**
+    * The fields {@link #getHighlightDialogModel} lists for the crosstab cell {@code row}/{@code col}
+    * only because of the active date comparison. Pass the model's own (resolved) row/col so the
+    * data path is the one its fields were listed for.
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public HighlightService.DateComparisonFields getDateComparisonFields(
+      @ClusterProxyKey String runtimeId, String objectId, Integer row, Integer col,
+      Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(objectId);
+
+      if(box.isEmpty() || !(assembly instanceof CrosstabVSAssembly) || row == null || col == null) {
+         return HighlightService.DateComparisonFields.NONE;
+      }
+
+      VSTableLens lens = box.get().getVSTableLens(objectId, false);
+      TableDataPath dataPath = lens == null ? null : lens.getTableDataPath(row, col);
+      return highlightService.getDateComparisonFields(rvs, assembly, dataPath);
+   }
+
    private boolean listContainsCol(List<DataRefModel> list, DataRef ref) {
       for(int i = 0; i < list.size(); i++) {
          DataRefModel refModel = list.get(i);
