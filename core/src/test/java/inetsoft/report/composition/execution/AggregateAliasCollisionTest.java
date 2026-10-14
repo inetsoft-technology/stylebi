@@ -111,8 +111,10 @@ class AggregateAliasCollisionTest {
       }
 
       @Bean
-      public XRepository xRepository() {
-         return mock(XRepository.class);
+      public XRepository xRepository() throws Exception {
+         XRepository repository = mock(XRepository.class);
+         when(repository.getDataSource(any(String.class))).thenReturn(dataSource());
+         return repository;
       }
 
       @Bean
@@ -273,6 +275,40 @@ class AggregateAliasCollisionTest {
       MirrorTableAssembly m2 = mirror(ws, "M2", s);
       aggregate(m2, "G", sum("Y", "X"));
       assertEquals(List.of(row("a", 300), row("b", 300)), rows(ws, m2));
+   }
+
+   /**
+    * The reported shape on a physical table aggregated directly, as add_table creates it:
+    * columns without an entity, merged into one sql, with the X_1 alias the query gives the
+    * second X column. The identifiers of the result are the output names, so the own name X of
+    * Sum(X) is the identifier of Sum(Y) aliased X.
+    */
+   @Test
+   void aliasEqualToAnAggregatedColumnOnPhysicalTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly s = physicalTable(ws, "S");
+      aggregate(s, "G", sum("X", "X_1"), sum("Y", "X"));
+      assertEquals(List.of(row("a", 300, 3), row("b", 300, 3)), rows(ws, s));
+   }
+
+   private static PhysicalBoundTableAssembly physicalTable(Worksheet ws, String name) {
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, name);
+      JDBCDataSource ds = dataSource();
+      table.setSourceInfo(new SourceInfo(SourceInfo.PHYSICAL_TABLE, ds.getName(), "S"));
+      table.setProperty("no_cache", "true");
+      ColumnSelection columns = new ColumnSelection();
+      String[] types = { XSchema.STRING, XSchema.INTEGER, XSchema.INTEGER };
+      String[] names = { "G", "Y", "X" };
+
+      for(int i = 0; i < names.length; i++) {
+         ColumnRef ref = new ColumnRef(new AttributeRef(null, names[i]));
+         ref.setDataType(types[i]);
+         columns.addAttribute(ref);
+      }
+
+      table.setColumnSelection(columns);
+      ws.addAssembly(table);
+      return table;
    }
 
    private record Agg(String column, AggregateFormula formula, String alias) {
