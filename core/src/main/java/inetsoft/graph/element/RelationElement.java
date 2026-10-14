@@ -153,17 +153,19 @@ public class RelationElement extends GraphElement {
       // RelationGeometry.getColor() would actually consult for a root: when
       // isApplyAestheticsToSource() is true, that method's general-Color fallback branch
       // is skipped entirely and a root's color comes from Node Color directly, exactly
-      // like a leaf -- so the tie-break field must follow suit. Leaf nodes have no such
-      // secondary structural dimension (toDim alone already fully identifies a leaf), so
-      // all rows sharing a target value are eligible, and are always resolved directly by
-      // the Node Color field. In all cases, "most recent" (largest) tie-break value wins,
+      // like a leaf -- so the tie-break field must follow suit. Leaf nodes are drawn under
+      // the source of their first row in the sorted (display) order, so only rows with that
+      // same source are eligible -- a multi-parent leaf must not take its color, size or
+      // label from a row under another parent (78519) -- and ties within that
+      // [source, target] group are always resolved directly by the Node Color field. In
+      // all cases, "most recent" (largest) tie-break value wins,
       // and a missing/unbound color field falls back to the first row encountered -- an
       // exact no-op match for the pre-fix behavior.
       ColorFrame rootColorFrame = isApplyAestheticsToSource() ? getNodeColorFrame() : getColorFrame();
       Map<String, Integer> rootRepresentativeRows = findRepresentativeRows(
          data, sdata, fromDim, toDim, resolveTieField(rootColorFrame, data));
       Map<String, Integer> leafRepresentativeRows = findRepresentativeRows(
-         data, sdata, toDim, null, resolveTieField(getNodeColorFrame(), data));
+         data, sdata, toDim, fromDim, resolveTieField(getNodeColorFrame(), data));
 
       // add To nodes
       for(int i = getStartRow(data); i < max; i++) {
@@ -581,18 +583,19 @@ public class RelationElement extends GraphElement {
     * order below matches this element's pre-existing, already-verified behavior):
     * <ol>
     *   <li>The first row seen for a given group id is the initial candidate.</li>
-    *   <li>If {@code rankField} is non-null (used for root nodes, to preserve the existing
-    *       "earliest target dimension wins" structural rule -- a root fans out across many
-    *       target values, and only the earliest-target subgroup is eligible to be its
-    *       representative row), a later row is eligible only if its {@code rankField}
-    *       value equals the first row's. "Earliest" means first in the sorted (display)
-    *       order, which follows the dataset's own comparators (sort by value, descending,
-    *       manual order, original order for brushing), not the natural order, so the first
-    *       row seen is never replaced by a row with a different target (78457).</li>
+    *   <li>If {@code rankField} is non-null, a later row is eligible only if its
+    *       {@code rankField} value equals the first row's. For root nodes it is the target
+    *       dimension ("earliest target wins" -- a root fans out across many target values,
+    *       and only the earliest-target subgroup is eligible to be its representative row).
+    *       For leaf nodes it is the source dimension: a leaf with several parents is drawn
+    *       under its first displayed parent, so only rows under that parent are eligible
+    *       (78519). "Earliest" means first in the sorted (display) order, which follows the
+    *       dataset's own comparators (sort by value, descending, manual order, original
+    *       order for brushing), not the natural order, so the first row seen is never
+    *       replaced by a row with a different rank value (78457).</li>
     *   <li>Among rows with that same {@code rankField} value (or, when {@code rankField}
-    *       is null -- used for leaf nodes, which have no such secondary structural dimension since
-    *       {@code toDim} alone already fully identifies a leaf -- among *all* rows sharing
-    *       the group id), a later row whose {@code tieField} value compares as "more
+    *       is null, among *all* rows sharing the group id), a later row whose
+    *       {@code tieField} value compares as "more
     *       recent" (greater, via {@link DefaultComparator}'s natural ordering) than the
     *       current candidate's replaces it.</li>
     *   <li>If {@code tieField} is null (see {@link #resolveTieField}), step 3 never fires,
@@ -634,9 +637,9 @@ public class RelationElement extends GraphElement {
          }
 
          // the data is sorted with the dataset's own comparators (e.g. sort by value), so the
-         // first row seen already has the earliest target in display order. only later rows
-         // with that same target value compete in the tie-break below. don't use the
-         // dataset's comparator here, it may tie distinct targets (e.g. equal sums). (78457)
+         // first row seen already has the earliest rank value in display order. only later
+         // rows with that same rank value compete in the tie-break below. don't use the
+         // dataset's comparator here, it may tie distinct values (e.g. equal sums). (78457)
          if(rankField != null && comp.compare(data.getData(rankField, i), ranks.get(id)) != 0) {
             continue;
          }
