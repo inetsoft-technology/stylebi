@@ -38,9 +38,11 @@ import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ChartLinePaneModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
+import inetsoft.web.composer.model.vs.CrosstabPropertyDialogModel;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.GroupContainerPropertyDialogModel;
+import inetsoft.web.composer.model.vs.ImageAdvancedPaneModel;
 import inetsoft.web.composer.model.vs.ImageGeneralPaneModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
@@ -53,7 +55,9 @@ import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
 import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TextInputPropertyDialogModel;
+import inetsoft.web.composer.model.vs.TextPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
+import inetsoft.web.composer.model.vs.TipPaneModel;
 import inetsoft.web.composer.model.vs.VariableListDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
@@ -1464,6 +1468,250 @@ class AssemblyPropertyServiceTest {
                   "an explicit tipOption must not be overridden by the alpha implication");
    }
 
+   // ── assembly-reference values: tipView / flyOverViews / popComponent (bug #78537) ──
+   //
+   // The native dialogs offer these through a <select> over the pane's own list, and the
+   // *PropertyDialogService setters store whatever arrives -- so a name outside the list was
+   // written verbatim, read back masked (null on a chart), and the prior view was lost.
+
+   private static ChartPropertyDialogModel chartWithTipView(String tipView, boolean tipOption) {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      TipPaneModel tip = model.getChartGeneralPaneModel().getTipPaneModel();
+      tip.setPopComponents(new String[] { "T1", "Img1" });
+      tip.setFlyoverComponents(new String[] { "T1", "T2" });
+      tip.setTipView(tipView);
+      tip.setTipOption(tipOption);
+      return model;
+   }
+
+   private static void assertNothingWrittenBy(List<Object> services) {
+      for(Object service : services) {
+         assertTrue(mockingDetails(service).getInvocations().stream()
+                       .noneMatch(call -> call.getMethod().getName().startsWith("set")),
+                    "a refused patch must not reach the native setter: " + service);
+      }
+   }
+
+   @Test
+   void refusesAChartTipViewOutsideItsPopComponentsAndKeepsThePriorView() throws Exception {
+      for(String bad : new String[] { "NoSuchAssembly_xyz", "R1", "$(C1)", "=Chart1.x" }) {
+         ChartPropertyDialogModel model = chartWithTipView("T1", true);
+         AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Chart1", Map.of("tipView", bad), ""));
+
+         assertTrue(e.getMessage().contains("'tipView'"), e.getMessage());
+         assertTrue(e.getMessage().contains("chartGeneralPaneModel.tipPaneModel.tipView"),
+                    e.getMessage());
+         assertTrue(e.getMessage().contains("\"T1\", \"Img1\""), e.getMessage());
+         assertTrue(e.getMessage().contains("previous value is kept"), e.getMessage());
+         assertEquals("T1", model.getChartGeneralPaneModel().getTipPaneModel().getTipView(), bad);
+         assertNothingWrittenBy(lastDialogServices);
+      }
+   }
+
+   @Test
+   void refusesADynamicTipViewNamingTheScriptRoute() {
+      AssemblyPropertyService service =
+         serviceWith(mock(ChartVSAssembly.class), chartWithTipView("T1", true));
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Chart1", Map.of("tipView", "$(C1)"), ""));
+
+      assertTrue(e.getMessage().contains("script"), e.getMessage());
+   }
+
+   @Test
+   void refusesAnUnknownTableAndCrosstabTipView() {
+      TableViewPropertyDialogModel table = new TableViewPropertyDialogModel();
+      table.getTableAdvancedPaneModel().getTipPaneModel().setPopComponents(new String[] { "T2" });
+      table.getTableAdvancedPaneModel().getTipPaneModel().setTipView("T2");
+      AssemblyPropertyService tableService = serviceWithTable(mock(TableVSAssembly.class), table);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> tableService.set("tok", principal(), "Table1", Map.of("tipView", "Ghost"), ""));
+      assertEquals("T2", table.getTableAdvancedPaneModel().getTipPaneModel().getTipView());
+      assertNothingWrittenBy(lastDialogServices);
+
+      CrosstabPropertyDialogModel crosstab = new CrosstabPropertyDialogModel();
+      crosstab.getCrosstabAdvancedPaneModel().getTipPaneModel()
+         .setPopComponents(new String[] { "T2" });
+      AssemblyPropertyService crosstabService =
+         serviceWith(mock(CrosstabVSAssembly.class), crosstab);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> crosstabService.set("tok", principal(), "Crosstab1", Map.of("tipView", "Ghost"),
+                                   ""));
+      assertNull(crosstab.getCrosstabAdvancedPaneModel().getTipPaneModel().getTipView());
+      assertNothingWrittenBy(lastDialogServices);
+   }
+
+   @Test
+   void refusesOnlyTheFlyOverViewsEntriesOutsideFlyoverComponents() {
+      ChartPropertyDialogModel model = chartWithTipView("T1", true);
+      model.getChartGeneralPaneModel().getTipPaneModel().setFlyOverViews(new String[] { "T2" });
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Chart1",
+                           Map.of("flyOverViews", List.of("T1", "Nope")), ""));
+
+      assertTrue(e.getMessage().contains("'Nope'"), e.getMessage());
+      assertFalse(e.getMessage().contains("'T1'"), e.getMessage());
+      assertArrayEquals(new String[] { "T2" },
+                        model.getChartGeneralPaneModel().getTipPaneModel().getFlyOverViews());
+      assertNothingWrittenBy(lastDialogServices);
+   }
+
+   /**
+    * The list is snapshotted before the patch loop, so a write to the list in the same patch
+    * cannot widen what the reference check accepts.
+    */
+   @Test
+   void refusesATipViewWhoseOnlyListingIsASamePatchWriteToPopComponents() {
+      ChartPropertyDialogModel model = chartWithTipView("T1", true);
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("chartGeneralPaneModel.tipPaneModel.popComponents", List.of("Ghost"));
+      patch.put("tipView", "Ghost");
+
+      assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Chart1", patch, ""));
+      assertEquals("T1", model.getChartGeneralPaneModel().getTipPaneModel().getTipView());
+      assertNothingWrittenBy(lastDialogServices);
+   }
+
+   private static TextPropertyDialogModel textWithPopComponent(String current) {
+      TextPropertyDialogModel model = new TextPropertyDialogModel();
+      model.getTextGeneralPaneModel().setPopComponents(new String[] { "T1" });
+      model.getTextGeneralPaneModel().setPopComponent(current);
+      return model;
+   }
+
+   /**
+    * Text and Image store a literal {@code "null"} as a pop target with pop on -- unlike the tip
+    * panes, where the native write treats it as none -- so it is refused and {@code ""} named.
+    */
+   @Test
+   void refusesAnUnknownOrLiteralNullTextPopComponent() {
+      for(String bad : new String[] { "null", "Ghost", "$(V)" }) {
+         TextPropertyDialogModel model = textWithPopComponent("T1");
+         AssemblyPropertyService service = serviceWith(mock(TextVSAssembly.class), model);
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Text1", Map.of("popComponent", bad), ""));
+
+         assertTrue(e.getMessage().contains("textGeneralPaneModel.popComponent"), e.getMessage());
+         assertTrue(e.getMessage().contains("\"\""), e.getMessage());
+         assertEquals("T1", model.getTextGeneralPaneModel().getPopComponent(), bad);
+         assertNothingWrittenBy(lastDialogServices);
+      }
+   }
+
+   private static ImagePropertyDialogModel imageWithPopComponent(String current) {
+      return ImagePropertyDialogModel.builder()
+         .imageAdvancedPaneModel(ImageAdvancedPaneModel.builder()
+                                    .popComponents(new String[] { "T1" })
+                                    .popComponent(current)
+                                    .build())
+         .build();
+   }
+
+   @Test
+   void refusesAnUnknownOrLiteralNullImagePopComponent() {
+      for(String bad : new String[] { "Ghost", "null" }) {
+         ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+         AssemblyPropertyService service = serviceWithImage(
+            mock(ImageVSAssembly.class), imageWithPopComponent("T1"), imageService);
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Image1",
+                              Map.of("imageAdvancedPaneModel.popComponent", bad), ""));
+
+         assertTrue(e.getMessage().contains("imageAdvancedPaneModel.popComponent"),
+                    e.getMessage());
+         assertNothingWrittenBy(List.of(imageService));
+      }
+   }
+
+   @Test
+   void acceptsAListedAssemblyReferenceOnEachField() throws Exception {
+      ChartPropertyDialogModel chart = chartWithTipView("T1", true);
+      AssemblyPropertyService chartService = serviceWith(mock(ChartVSAssembly.class), chart);
+      chartService.set("tok", principal(), "Chart1", Map.of("tipView", "Img1"), "");
+      chartService.set("tok", principal(), "Chart1", Map.of("flyOverViews", List.of("T2")), "");
+      assertEquals("Img1", chart.getChartGeneralPaneModel().getTipPaneModel().getTipView());
+      assertArrayEquals(new String[] { "T2" },
+                        chart.getChartGeneralPaneModel().getTipPaneModel().getFlyOverViews());
+
+      TextPropertyDialogModel text = textWithPopComponent("");
+      serviceWith(mock(TextVSAssembly.class), text)
+         .set("tok", principal(), "Text1", Map.of("popComponent", "T1"), "");
+      assertEquals("T1", text.getTextGeneralPaneModel().getPopComponent());
+
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      serviceWithImage(mock(ImageVSAssembly.class), imageWithPopComponent(null), imageService)
+         .set("tok", principal(), "Image1", Map.of("imageAdvancedPaneModel.popComponent", "T1"),
+              "");
+      ArgumentCaptor<ImagePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ImagePropertyDialogModel.class);
+      verify(imageService).setImagePropertyDialogModel(anyString(), anyString(), captor.capture(),
+                                                       any(), any(), any());
+      assertEquals("T1", captor.getValue().imageAdvancedPaneModel().popComponent());
+   }
+
+   @Test
+   void acceptsBlankOnEachFieldAndLiteralNullOnTipView() throws Exception {
+      for(String clear : new String[] { "", "   ", "null" }) {
+         ChartPropertyDialogModel chart = chartWithTipView("T1", true);
+         assertDoesNotThrow(() -> serviceWith(mock(ChartVSAssembly.class), chart)
+            .set("tok", principal(), "Chart1", Map.of("tipView", clear), ""), clear);
+      }
+
+      for(String clear : new String[] { "", "   " }) {
+         assertDoesNotThrow(() -> serviceWith(mock(TextVSAssembly.class), textWithPopComponent("T1"))
+            .set("tok", principal(), "Text1", Map.of("popComponent", clear), ""), clear);
+         assertDoesNotThrow(() -> serviceWithImage(mock(ImageVSAssembly.class),
+                                                   imageWithPopComponent("T1"),
+                                                   mock(ImagePropertyDialogService.class))
+            .set("tok", principal(), "Image1",
+                 Map.of("imageAdvancedPaneModel.popComponent", clear), ""), clear);
+      }
+
+      ChartPropertyDialogModel chart = chartWithTipView("T1", true);
+      chart.getChartGeneralPaneModel().getTipPaneModel().setFlyOverViews(new String[] { "T2" });
+      serviceWith(mock(ChartVSAssembly.class), chart)
+         .set("tok", principal(), "Chart1", Map.of("flyOverViews", List.of()), "");
+      assertArrayEquals(new String[0],
+                        chart.getChartGeneralPaneModel().getTipPaneModel().getFlyOverViews());
+   }
+
+   /**
+    * Echoing the value just read is the same store an unrelated-key patch makes, so it is
+    * accepted even when the list no longer offers it -- and, being a no-op, it does not turn
+    * view tips on either.
+    */
+   @Test
+   void acceptsTheCurrentValueEchoedUnchangedWithoutImplyingTipOption() throws Exception {
+      ChartPropertyDialogModel chart = chartWithTipView("Legacy", false);
+      serviceWith(mock(ChartVSAssembly.class), chart)
+         .set("tok", principal(), "Chart1", Map.of("tipView", "Legacy"), "");
+      assertEquals("Legacy", chart.getChartGeneralPaneModel().getTipPaneModel().getTipView());
+      assertFalse(chart.getChartGeneralPaneModel().getTipPaneModel().isTipOption(),
+                  "an unchanged tipView is a no-op and must not flip tipOption");
+
+      // Crosstab has no read mask, so a script-era dynamic value reads back verbatim.
+      CrosstabPropertyDialogModel crosstab = new CrosstabPropertyDialogModel();
+      TipPaneModel tip = crosstab.getCrosstabAdvancedPaneModel().getTipPaneModel();
+      tip.setPopComponents(new String[] { "T2" });
+      tip.setTipView("$(C1)");
+      tip.setTipOption(true);
+      serviceWith(mock(CrosstabVSAssembly.class), crosstab)
+         .set("tok", principal(), "Crosstab1", Map.of("tipView", "$(C1)"), "");
+      assertEquals("$(C1)", tip.getTipView());
+   }
+
    /**
     * {@code customTip} is only applied when {@code customRB == TipFormat.CUSTOM}; otherwise it is
     * actively nulled out. So {@code tooltip} set alone -- without {@code tooltipMode: "CUSTOM"}
@@ -1653,6 +1901,8 @@ class AssemblyPropertyServiceTest {
    // ── #78396: selection measure written through set_assembly_properties ──────
 
    private static DataOutputService lastDataOutput;
+   /** The chart/table/text/crosstab dialog-service mocks the last {@code serviceWith} built. */
+   private static List<Object> lastDialogServices;
    private static SelectionListPropertyDialogService lastSelectionList;
    private static SelectionTreePropertyDialogService lastSelectionTree;
 
@@ -3599,11 +3849,32 @@ class AssemblyPropertyServiceTest {
          }
       }
 
+      TextPropertyDialogService text = mock(TextPropertyDialogService.class);
+      CrosstabPropertyDialogService crosstab = mock(CrosstabPropertyDialogService.class);
+
+      try {
+         if(model instanceof TextPropertyDialogModel textModel) {
+            when(text.getTextPropertyDialogModel(anyString(), anyString(), any(Principal.class)))
+               .thenReturn(textModel);
+         }
+
+         if(model instanceof CrosstabPropertyDialogModel crosstabModel) {
+            when(crosstab.getCrosstabPropertyDialogModel(anyString(), anyString(),
+                                                         any(Principal.class)))
+               .thenReturn(crosstabModel);
+         }
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      lastDialogServices = List.of(chart, table, text, crosstab);
+
       return new AssemblyPropertyService(
          sessions, gauge, imageService,
-         mock(TextPropertyDialogService.class),
+         text,
          chart, table,
-         mock(CrosstabPropertyDialogService.class),
+         crosstab,
          selectionList,
          selectionTree,
          inputService,
