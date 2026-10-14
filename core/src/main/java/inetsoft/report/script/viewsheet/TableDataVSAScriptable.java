@@ -108,16 +108,23 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          lens = ((TableFilter2) lens).getTable();
       }
 
-      if(lens != null && table != null && table.getTable() == lens) {
+      boolean sameLens = lens != null && table != null && table.getTable() == lens;
+
+      // the table array of a table that is set again is rebuilt if it was cleared, e.g. by
+      // setAssembly() from syncFormData, or the script would get the data table (78458)
+      if(sameLens && tarr != null) {
          return;
       }
 
-      if(table != null) {
-         table = (TableFilter2) table.clone();
-         table.setTable(lens);
-      }
-      else {
-         table = new TableFilter2(lens);
+      // the same lens keeps its table, which the cached view table holds
+      if(!sameLens) {
+         if(table != null) {
+            table = (TableFilter2) table.clone();
+            table.setTable(lens);
+         }
+         else {
+            table = new TableFilter2(lens);
+         }
       }
 
       FormTableLens ftable = initFormTableLens();
@@ -373,7 +380,9 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          boolean dirty = table != null && table.isDirty();
 
          try {
-            if(table == null || table.isDirty() || getTableArray().getTable() == null) {
+            // a cleared table array is bound to the view table again. getTableArray() would
+            // bind it to the data table, and the script writes would go into the data (78458)
+            if(table == null || table.isDirty() || tarr == null || tarr.getTable() == null) {
                if(table != null) {
                   table.setIsDirty(false);
                }
@@ -491,7 +500,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          }
 
          if(table == null) {
-            table = new TableFilter2((TableLens) getTableArray().getTable());
+            table = new TableFilter2((TableLens) getArrayTable());
          }
 
          if(link == null) {
@@ -655,7 +664,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          }
 
          if(table == null) {
-            table = new TableFilter2((TableLens) getTableArray().getTable());
+            table = new TableFilter2((TableLens) getArrayTable());
          }
 
          if(header != null) {
@@ -1418,6 +1427,16 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       return this.tarr = new TableArray(getTable0(false));
    }
 
+   /**
+    * Get the table of the table array, or the data table if the table array is not bound.
+    * Unlike getTableArray(), it does not bind the table array to the data table, so the next
+    * read of the script table binds it to the view table (78458).
+    */
+   private XTable getArrayTable() {
+      TableArray tarr = this.tarr;
+      return tarr != null ? tarr.getTable() : getTable0(false);
+   }
+
    protected boolean isCrosstabOrCalc() {
       return false;
    }
@@ -1486,7 +1505,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       }
 
       if(table == null) {
-         table = new TableFilter2((TableLens) getTableArray().getTable());
+         table = new TableFilter2((TableLens) getArrayTable());
       }
 
       TableLens temp = table.getTable();
