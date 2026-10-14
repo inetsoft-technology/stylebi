@@ -4048,6 +4048,15 @@ public class IdentityService {
                   continue;
                }
 
+               // Bug #78497, a user, group or role moved by an organization id change renames its
+               // grants in the organization's own key (who may administer it), but leaves the key
+               // and its organization alone. The organization step that follows moves it from the
+               // old name and id to the new ones, but only finds it at the old name and id in the
+               // old organization.
+               boolean keepOrgKey = type != Identity.ORGANIZATION &&
+                  resourceType == ResourceType.SECURITY_ORGANIZATION &&
+                  newName != null && !Tool.equals(oldOrgId, newOrgId);
+
                for(ResourceAction action : ResourceAction.values()) {
                   if(permission != null) {
                      if(type == Identity.USER) {
@@ -4087,6 +4096,18 @@ public class IdentityService {
                         updateOrgIdentitiesPermission(newName, oldName, oldOrganization, newOrgId, permission, action);
                      }
                   }
+               }
+
+               if(keepOrgKey) {
+                  try {
+                     aprovider.setPermission(resourceType, path, permission, resourceOrgID);
+                  }
+                  catch(RuntimeException e) {
+                     LOG.error("Failed to update the permission of {} {} from {} to {}, it may " +
+                               "not have been saved", resourceType, path, oldName, newName, e);
+                  }
+
+                  continue;
                }
 
                String oldOrgName;
