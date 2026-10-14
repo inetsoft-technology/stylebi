@@ -26,9 +26,12 @@ import org.mapdb.*;
 
 import java.io.InputStream;
 import java.io.Serializable;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -163,6 +166,57 @@ public class MapDBKeyValueEngineTests {
          TestData actual = temp.get("users", "john.smith");
          assertEquals(expected, actual);
       }
+   }
+
+   @Test
+   void putShouldOpenStoreOnThreadWithoutContextClassLoader() throws Exception {
+      AtomicReference<Throwable> error = new AtomicReference<>();
+      AtomicReference<ClassLoader> loaderAfter = new AtomicReference<>();
+      Thread thread = new Thread(() -> {
+         try {
+            engine.put("nullLoader", "key", "value");
+         }
+         catch(Throwable e) {
+            error.set(e);
+         }
+
+         loaderAfter.set(Thread.currentThread().getContextClassLoader());
+      });
+      thread.setContextClassLoader(null);
+      thread.start();
+      thread.join();
+
+      assertNull(error.get(), () -> "put failed: " + error.get());
+      assertNull(loaderAfter.get());
+      assertEquals("value", engine.get("nullLoader", "key"));
+
+      engine.close();
+      engine = new MapDBKeyValueEngine(dir);
+      assertEquals("value", engine.get("nullLoader", "key"));
+   }
+
+   @Test
+   void putShouldKeepNonNullContextClassLoader() throws Exception {
+      ClassLoader loader = new URLClassLoader(new URL[0], getClass().getClassLoader());
+      AtomicReference<Throwable> error = new AtomicReference<>();
+      AtomicReference<ClassLoader> loaderAfter = new AtomicReference<>();
+      Thread thread = new Thread(() -> {
+         try {
+            engine.put("customLoader", "key", "value");
+         }
+         catch(Throwable e) {
+            error.set(e);
+         }
+
+         loaderAfter.set(Thread.currentThread().getContextClassLoader());
+      });
+      thread.setContextClassLoader(loader);
+      thread.start();
+      thread.join();
+
+      assertNull(error.get(), () -> "put failed: " + error.get());
+      assertSame(loader, loaderAfter.get());
+      assertEquals("value", engine.get("customLoader", "key"));
    }
 
    @SuppressWarnings({ "rawtypes", "unchecked" })
