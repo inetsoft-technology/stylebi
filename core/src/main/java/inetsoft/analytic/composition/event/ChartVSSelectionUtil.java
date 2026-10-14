@@ -23,6 +23,8 @@ import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.DCMergeDatesCell;
 import inetsoft.uql.*;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.VSDataRef;
+import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.Tool;
@@ -311,9 +313,10 @@ public abstract class ChartVSSelectionUtil {
                header = valstr.substring(0, hidx);
                int cidx = lens.indexOfHeader(header);
 
-               // discard aggregate brushing
+               // discard aggregate brushing. a relation chart node color/size dimension is a
+               // MAX aggregate in the data set (#75253) but is selected as a dimension
                if(cidx < 0 || (lens.getPeriodCol() == cidx && !flyover) ||
-                  lens.isRealAggregate(header))
+                  lens.isRealAggregate(header) && !isSelectionDimension(cinfo, header))
                {
                   continue;
                }
@@ -576,6 +579,25 @@ public abstract class ChartVSSelectionUtil {
       }
 
       return header;
+   }
+
+   /**
+    * Check if a header that the data set treats as an aggregate is selected as a dimension,
+    * i.e. the dimension bound to a relation chart's node color/size. The query adds it as a
+    * MAX aggregate (#75253), so it is not in getRTFields() and has no ref in the data set.
+    */
+   private static boolean isSelectionDimension(VSChartInfo cinfo, String header) {
+      if(cinfo == null || header == null) {
+         return false;
+      }
+
+      for(VSDataRef ref : cinfo.getRTSelectionFields()) {
+         if(ref instanceof XDimensionRef && header.equals(ref.getFullName())) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**

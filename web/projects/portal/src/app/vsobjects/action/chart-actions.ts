@@ -647,6 +647,12 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
          return false;
       }
 
+      // a relation chart node color/size field is not a grouping column of the chart
+      // query, so its legend items can't be grouped (78481)
+      if((<Legend> this.model.chartSelection?.chartObject)?.nodeAesthetic) {
+         return false;
+      }
+
       return !!this.model.chartSelection && !!this.model.chartSelection.regions
          && this.model.chartSelection.regions.length > 1
          && ChartTool.dimIdx(this.model, this.model.chartSelection.regions[0]) > -1

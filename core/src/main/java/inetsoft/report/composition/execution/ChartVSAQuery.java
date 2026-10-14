@@ -1495,6 +1495,33 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
             }
          }
       }
+      // Show Details on a node legend item filters on the node dimension. A date level of it
+      // is a date range column that the detail table doesn't have, so add it hidden for the
+      // detail condition. (78481)
+      else if(isDetail() && cinfo instanceof RelationVSChartInfo) {
+         RelationVSChartInfo rinfo = (RelationVSChartInfo) cinfo;
+
+         for(AestheticRef nodeARef : new AestheticRef[] {
+            rinfo.getNodeColorField(), rinfo.getNodeSizeField() })
+         {
+            if(nodeARef == null || !(nodeARef.getDataRef() instanceof VSDimensionRef)) {
+               continue;
+            }
+
+            GroupRef nodeGroup = ((VSDimensionRef) nodeARef.getDataRef()).createGroupRef(cols);
+
+            if(nodeGroup == null) {
+               continue;
+            }
+
+            ColumnRef nodeCol = (ColumnRef) nodeGroup.getDataRef();
+
+            if(nodeCol.getDataRef() instanceof DateRangeRef && !cols.containsAttribute(nodeCol)) {
+               nodeCol.setVisible(false);
+               cols.addAttribute(nodeCol);
+            }
+         }
+      }
 
       // @by billh, flag indicates whether to merge aggregate info to query
       // regardless of ranking condition. If ranking condition exists but it's
