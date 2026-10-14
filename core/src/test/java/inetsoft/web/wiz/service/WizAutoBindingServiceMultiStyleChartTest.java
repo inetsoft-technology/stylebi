@@ -22,10 +22,14 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.recommender.chart.ChartRefCombination;
 import inetsoft.web.vswizard.recommender.chart.DonutChartFilter;
 import inetsoft.web.vswizard.recommender.chart.PieChartFilter;
@@ -39,9 +43,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -225,5 +228,130 @@ class WizAutoBindingServiceMultiStyleChartTest {
                                    BindingFieldSettings.refsOf(chart(info)));
 
       assertEquals("3", pieCategory(info).getRankingNValue());
+   }
+
+   // ── changeType branch choice for a NON-donut multi-style chart (refsOf now sees per-measure refs) ──
+
+   private static VSChartDimensionRef boundDim(String column, String rankingN) {
+      VSChartDimensionRef d = new VSChartDimensionRef();
+      d.setGroupColumnValue(column);
+      d.setDataRef(new ColumnRef(new AttributeRef(null, column)));
+
+      if(rankingN != null) {
+         d.setRankingOptionValue(String.valueOf(XCondition.TOP_N));
+         d.setRankingNValue(rankingN);
+         d.setRankingColValue("Sum(Sales)");
+      }
+
+      return d;
+   }
+
+   private static VSChartAggregateRef boundSales() {
+      VSChartAggregateRef sales = new VSChartAggregateRef();
+      sales.setColumnValue("Sales");
+      sales.setFormulaValue("Sum");
+      sales.setDataRef(new ColumnRef(new AttributeRef(null, "Sales")));
+      return sales;
+   }
+
+   private static VSAestheticRef aesthetic(VSChartDimensionRef dim) {
+      VSAestheticRef aref = new VSAestheticRef();
+      aref.setDataRef(dim);
+      return aref;
+   }
+
+   /** The temp chart as recorded after the create: State, Region (top-N), Sum(Sales). */
+   private static ChartVSAssembly recordedTemp(String regionN) {
+      VSChartInfo temp = new VSChartInfo();
+      temp.addXField(boundDim("State", null));
+      temp.addXField(boundDim("Region", regionN));
+      temp.addYField(boundSales());
+      return chart(temp);
+   }
+
+   /** x = State, y = Sum(Sales), Region on the MEASURE's own color field of a multi-style bar. */
+   private static ChartVSAssembly multiStyleTarget(String regionN) {
+      VSChartInfo info = new VSChartInfo();
+      info.setMultiStyles(true);
+      info.addXField(boundDim("State", null));
+      VSChartAggregateRef sales = boundSales();
+      sales.setColorField(aesthetic(boundDim("Region", regionN)));
+      info.addYField(sales);
+      assertNull(info.getColorField());
+      ChartVSAssembly chart = chart(info);
+      when(chart.getName()).thenReturn("Chart1");
+      return chart;
+   }
+
+   /** The single-style twin: the same columns, Region on the chart-level color field. */
+   private static ChartVSAssembly singleStyleTarget(String regionN) {
+      VSChartInfo info = new VSChartInfo();
+      info.addXField(boundDim("State", null));
+      info.addYField(boundSales());
+      info.setColorField(aesthetic(boundDim("Region", regionN)));
+      ChartVSAssembly chart = chart(info);
+      when(chart.getName()).thenReturn("Chart1");
+      return chart;
+   }
+
+   private static VSTemporaryInfo tempInfo(ChartVSAssembly tempChart) {
+      VSTemporaryInfo tempInfo = new VSTemporaryInfo();
+      tempInfo.setTempChart(tempChart);
+      tempInfo.setWizSourceAssemblyName("Chart1");
+      return tempInfo;
+   }
+
+   @Test
+   void multiStyleTargetIsDescribedByItsTempChartLikeItsSingleStyleTwin() {
+      // Before #78535 refsOf skipped Region on the measure's color field, so the column sets differed
+      // and changeType rebuilt; now the multi-style chart takes the fast path, as its twin always did.
+      VSTemporaryInfo tempInfo = tempInfo(recordedTemp("3"));
+
+      assertTrue(service().tempChartDescribes(tempInfo, singleStyleTarget("3")));
+      assertTrue(service().tempChartDescribes(tempInfo, multiStyleTarget("3")));
+   }
+
+   @Test
+   void fastPathCarriesWhatTheRebuildWouldForAMultiStyleTarget() {
+      ChartVSAssembly target = multiStyleTarget("3");
+      ChartVSAssembly temp = recordedTemp("3");
+
+      // Fast path: a cached candidate (cloned from the temp chart at autoBinding, before the top-N was
+      // set) gets the temp chart's settings restored -- applyTempChartFieldSettings.
+      VSChartInfo candidateInfo = new VSChartInfo();
+      candidateInfo.addXField(boundDim("State", null));
+      candidateInfo.addYField(boundSales());
+      VSChartDimensionRef candidateRegion = boundDim("Region", null);
+      candidateInfo.setColorField(aesthetic(candidateRegion));
+      ChartVSAssembly candidate = chart(candidateInfo);
+      BindingFieldSettings.restore(BindingFieldSettings.refsOf(temp),
+                                   BindingFieldSettings.refsOf(candidate));
+
+      // Rebuild: the field list deriveFieldConfigs reads off the target.
+      WizVsService wizVsService = new WizVsService(null, null, null, null, null, null);
+      List<SimpleFieldInfo> rebuild =
+         new WizAutoBindingService(null, null, null, null, null, wizVsService, null, null)
+            .deriveFieldConfigs(target);
+      Set<String> rebuildColumns =
+         rebuild.stream().map(SimpleFieldInfo::getField).collect(Collectors.toSet());
+      DimensionFieldInfo rebuildRegion = rebuild.stream()
+         .filter(c -> c instanceof DimensionFieldInfo && "Region".equals(c.getField()))
+         .map(DimensionFieldInfo.class::cast).findFirst().orElseThrow();
+
+      assertEquals(Set.of("State", "Region", "Sales"), rebuildColumns);
+      assertEquals(rebuildColumns, BindingFieldSettings.columnKeys(candidate));
+      assertEquals(3, rebuildRegion.getRanking().getRankingN());
+      assertEquals("3", candidateRegion.getRankingNValue());
+   }
+
+   @Test
+   void columnOnlyOnAPerMeasureAestheticMakesTheTempChartStale() {
+      // The temp chart never bound Region; a multi-style chart that adds it on the measure's own color
+      // field must rebuild, not take the fast path and drop Region (it did before #78535).
+      VSChartInfo temp = new VSChartInfo();
+      temp.addXField(boundDim("State", null));
+      temp.addYField(boundSales());
+
+      assertFalse(service().tempChartDescribes(tempInfo(chart(temp)), multiStyleTarget(null)));
    }
 }
