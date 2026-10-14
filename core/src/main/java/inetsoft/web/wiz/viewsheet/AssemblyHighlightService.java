@@ -28,7 +28,6 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
@@ -795,7 +794,11 @@ public class AssemblyHighlightService {
          index++;
          String field = clause == null || clause.field() == null ? "" : clause.field().trim();
 
-         if(derived.contains(field.toLowerCase())) {
+         // the crosstab lists a column by its table header, which carries a ".N" de-duplication
+         // suffix when the derived name repeats (e.g. "Change from ...: Sum(M).1")
+         String key = field.toLowerCase().replaceFirst("\\.\\d+$", "");
+
+         if(derived.contains(field.toLowerCase()) || derived.contains(key)) {
             throw new IllegalArgumentException(
                "Condition " + index + "'s field '" + field + "' is derived by the active date " +
                "comparison and has no design-time field behind it, so the highlight would be " +
@@ -820,9 +823,7 @@ public class AssemblyHighlightService {
             }
          }
       }
-      else if(assembly != null && assembly.getInfo() instanceof CrosstabVSAssemblyInfo info &&
-         DateComparisonUtil.appliedDateComparison(info))
-      {
+      else if(assembly != null && assembly.getInfo() instanceof CrosstabVSAssemblyInfo info) {
          VSCrosstabInfo crosstabInfo = info.getVSCrosstabInfo();
 
          for(DataRef ref : crosstabInfo == null ? new DataRef[0] :

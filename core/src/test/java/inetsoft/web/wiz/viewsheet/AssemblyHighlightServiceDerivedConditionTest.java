@@ -105,28 +105,39 @@ class AssemblyHighlightServiceDerivedConditionTest {
       return new Built(assembly, measure.getFullName(), derived);
    }
 
+   /** Built through the real CrosstabDcProcessor, as VSCrosstabInfo.updateRuntimeRefs does. */
    private static Built crosstab() {
+      AttributeRef dateAttr = new AttributeRef("date");
+      dateAttr.setDataType(XSchema.DATE);
+      VSDimensionRef dateDim = new VSDimensionRef(dateAttr);
+      dateDim.setDateLevel(XConstants.YEAR_DATE_GROUP);
+      dateDim.setDataType(XSchema.DATE);
+
       VSAggregateRef base = new VSAggregateRef();
       base.setDataRef(new AttributeRef("v"));
       base.setColumnValue("v");
       base.setFormula(AggregateFormula.SUM);
 
-      VSAggregateRef derivedRef = (VSAggregateRef) base.clone();
-      derivedRef.setCalculator(new ChangeCalc());
-
       VSCrosstabInfo info = new VSCrosstabInfo();
+      info.setDesignRowHeaders(new DataRef[] { dateDim });
       info.setDesignAggregates(new DataRef[] { base });
-      info.setRuntimeAggregates(new DataRef[] { (DataRef) base.clone(), derivedRef });
-      info.setRuntimeDateComparisonRefs(new DataRef[] { derivedRef });
 
       Viewsheet vs = new Viewsheet();
       CrosstabVSAssembly assembly = new CrosstabVSAssembly(vs, "Crosstab1");
       assembly.setVSCrosstabInfo(info);
-      ((CrosstabVSAssemblyInfo) assembly.getVSAssemblyInfo())
-         .setDateComparisonInfo(chartDcInfo());
+      DateComparisonInfo dcInfo = chartDcInfo();
+      ((CrosstabVSAssemblyInfo) assembly.getVSAssemblyInfo()).setDateComparisonInfo(dcInfo);
       vs.addAssembly(assembly);
-      assertTrue(DateComparisonUtil.appliedDateComparison(assembly.getVSAssemblyInfo()));
-      return new Built(assembly, base.getFullName(), derivedRef.getFullName());
+
+      new CrosstabDcProcessor(info, dcInfo, new DataRef[] { (DataRef) dateDim.clone() },
+                              new DataRef[0], new DataRef[] { (DataRef) base.clone() })
+         .process("ds", vs);
+
+      String derived = Arrays.stream(info.getRuntimeAggregates())
+         .filter(r -> r instanceof VSAggregateRef a && a.getCalculator() != null)
+         .map(r -> ((VSAggregateRef) r).getFullName()).findFirst().orElse(null);
+      assertNotNull(derived, "date comparison must produce a derived aggregate");
+      return new Built(assembly, base.getFullName(), derived);
    }
 
    private static DateComparisonInfo chartDcInfo() {
@@ -188,6 +199,20 @@ class AssemblyHighlightServiceDerivedConditionTest {
       assertRefused(built, built.derivedName().toUpperCase());
    }
 
+   /** The live crosstab lists the derived column by its table header, with a ".N" suffix. */
+   @Test
+   void crosstabConditionOnTheListedDerivedColumnWithADedupSuffixIsRefused() {
+      Built built = crosstab();
+      assertRefused(built, built.derivedName() + ".1");
+   }
+
+   @Test
+   void crosstabBaseColumnWithADedupSuffixIsAccepted() {
+      Built built = crosstab();
+      assertDoesNotThrow(() -> AssemblyHighlightService.requireNoDerivedConditionField(
+         built.assembly(), highlightOn(built.baseName() + ".1")));
+   }
+
    @Test
    void crosstabConditionOnTheBaseMeasureIsAccepted() {
       Built built = crosstab();
@@ -198,8 +223,8 @@ class AssemblyHighlightServiceDerivedConditionTest {
    @Test
    void noComparisonMeansNoRefusal() {
       Built built = crosstab();
-      ((VSCrosstabInfo) ((CrosstabVSAssembly) built.assembly()).getVSCrosstabInfo())
-         .setRuntimeDateComparisonRefs(null);
+      VSCrosstabInfo info = ((CrosstabVSAssembly) built.assembly()).getVSCrosstabInfo();
+      info.setRuntimeAggregates(info.getDesignAggregates());
 
       assertDoesNotThrow(() -> AssemblyHighlightService.requireNoDerivedConditionField(
          built.assembly(), highlightOn(built.derivedName())));
