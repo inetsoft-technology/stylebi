@@ -20,6 +20,7 @@ package inetsoft.graph.mxgraph.util;
 import inetsoft.graph.mxgraph.io.mxCodecRegistry;
 import inetsoft.graph.mxgraph.model.*;
 import inetsoft.graph.mxgraph.view.mxCellState;
+import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.graal.ScriptHostAccess;
 import org.w3c.dom.*;
 
@@ -1810,6 +1811,11 @@ public class mxUtils {
             catch(Exception e) {
                log.log(Level.SEVERE, "Failed to load a data URI image", e);
             }
+         }
+         // Bug #78490, honor javascript.getImageFunction.disabled when a script
+         // asks for an image by URL or path
+         else if(JavaScriptEngine.isScriptImageLoadDisabled()) {
+            return null;
          }
          else {
             URL realUrl = null;

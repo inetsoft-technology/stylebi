@@ -1142,7 +1142,9 @@ public final class VSUtil {
                LOG.error("Failed to get uploaded image: " + path, ex);
             }
          }
-         else {
+         // Bug #78490, honor javascript.getImageFunction.disabled when a script
+         // asks for an image by URL or path (Tool.getImage opens URLs and files itself)
+         else if(!JavaScriptEngine.isScriptImageLoadDisabled()) {
             rimg = Tool.getImage(vs, path);
 
             if(rimg == null) {
@@ -1231,7 +1233,9 @@ public final class VSUtil {
       else {
          buf = vs.getUploadedImageBytes(path);
 
-         if(buf == null) {
+         // Bug #78490, honor javascript.getImageFunction.disabled when a script
+         // asks for an image by URL or path (Tool.getImage opens URLs and files itself)
+         if(buf == null && !JavaScriptEngine.isScriptImageLoadDisabled()) {
             Image image = Tool.getImage(vs, path);
 
             if(image == null) {
@@ -1247,7 +1251,9 @@ public final class VSUtil {
    }
 
    private static byte[] getSVGImageBytes(String path) {
-      if(path == null || path.indexOf("://") <= 0) {
+      if(path == null || path.indexOf("://") <= 0 ||
+         JavaScriptEngine.isScriptImageLoadDisabled())
+      {
          return null;
       }
 

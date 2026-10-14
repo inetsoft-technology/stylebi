@@ -22,6 +22,7 @@ import inetsoft.report.internal.ExpandablePresenter;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Catalog;
 import inetsoft.util.FileSystemService;
+import inetsoft.util.script.JavaScriptEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -109,6 +110,26 @@ public class ImagePresenter implements ExpandablePresenter {
    }
 
    /**
+    * Load the image the value points to, from the cache or from its URL.
+    */
+   private static BufferedImage loadImage(Object v) throws Exception {
+      // Bug #78490, honor javascript.getImageFunction.disabled when a script
+      // asks for an image by URL
+      if(JavaScriptEngine.isScriptImageLoadDisabled()) {
+         return null;
+      }
+
+      BufferedImage image = ImagePresenterCache.getImageCache(v + "");
+
+      if(image == null) {
+         image = ImageIO.read(new URL(v + ""));
+         ImagePresenterCache.addImageCache(v + "", image);
+      }
+
+      return image;
+   }
+
+   /**
     * Calculate the preferred size of the object representation.
     * @param v object value.
     * @return preferred size.
@@ -116,11 +137,10 @@ public class ImagePresenter implements ExpandablePresenter {
    @Override
    public Dimension getPreferredSize(Object v) {
       try {
-         BufferedImage image = ImagePresenterCache.getImageCache(v + "");
+         BufferedImage image = loadImage(v);
 
          if(image == null) {
-            image = ImageIO.read(new URL(v + ""));
-            ImagePresenterCache.addImageCache(v + "", image);
+            return new Dimension(0, 0);
          }
 
          return new Dimension(image.getWidth(), image.getHeight());
@@ -167,11 +187,10 @@ public class ImagePresenter implements ExpandablePresenter {
                      float starty, float bufh)
    {
       try {
-         BufferedImage image = ImagePresenterCache.getImageCache(html + "");
+         BufferedImage image = loadImage(html);
 
          if(image == null) {
-            image = ImageIO.read(new URL(html + ""));
-            ImagePresenterCache.addImageCache(html + "", image);
+            return;
          }
 
          if(auto) {

@@ -443,6 +443,45 @@ class ScriptIoBoundaryTest {
                  "mxGraphViewImageReader (convert(String) sink owner) must be denied by type");
    }
 
+   // ---- Bug #78490: java.awt.Toolkit decodes a local image file for the script --------
+
+   @Test
+   void awtToolkitImageLoadIsRefused() throws Exception {
+      File png = tmp.resolve("toolkit-78490.png").toFile();
+      javax.imageio.ImageIO.write(
+         new java.awt.image.BufferedImage(3, 2, java.awt.image.BufferedImage.TYPE_INT_RGB),
+         "png", png);
+      // by name, by the legacy package shim, and an instance from an admitted java.awt type
+      List<String> routes = List.of(
+         "Java.type('java.awt.Toolkit').getDefaultToolkit()",
+         "java.awt.Toolkit.getDefaultToolkit()",
+         "new (Java.type('java.awt.Canvas'))().getToolkit()");
+
+      assertAll(engines().stream().flatMap(e -> routes.stream().<Executable>map(route -> () -> {
+         String src = "try { var t = " + route + "; var a = t.getImage('" + js(png) + "');" +
+            " var b = t.createImage('" + js(png) + "'); 'LOADED:' + (a != null || b != null); }" +
+            " catch(ex) { 'REFUSED:' + String(ex); }";
+         String r = runString(e.engine(), src);
+         assertTrue(r == null || r.startsWith("REFUSED:"),
+                    e.name() + " [" + route + "]: Toolkit loaded a local image: " + r);
+      })));
+
+      assertTrue(ScriptHostAccess.isTypeDenied(java.awt.Toolkit.class),
+                 "java.awt.Toolkit (getImage/createImage(String) sink owner) must be denied by type");
+   }
+
+   /** java.awt stays admitted: an ordinary value type still works. */
+   @Test
+   void awtValueTypeStillWorks() {
+      String src = "new (Java.type('java.awt.Color'))(1, 2, 3).getGreen()";
+
+      assertAll(engines().stream().map(e -> () -> {
+         Object r = run(e.engine(), src);
+         assertNotNull(r, e.name() + ": java.awt.Color must stay reachable");
+         assertEquals(2.0, ((Number) r).doubleValue(), 1e-9, e.name() + ": Color.getGreen()");
+      }));
+   }
+
    // ---- Positive control: a benign admitted report value object must keep working -----
 
    @Test
