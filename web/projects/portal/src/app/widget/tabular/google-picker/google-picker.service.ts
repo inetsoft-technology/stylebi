@@ -23,7 +23,12 @@ import { GoogleFile } from "../../../common/data/tabular/google-picker";
 declare const gapi: any; // Google Picker API
 declare const google: any; // Google Picker API
 
-@Injectable()
+// Provided in root so every standalone host (composer tabular query dialog, portal data source
+// editor) can create the picker editor. The constructor loads the Google API script, so a single
+// shared instance also keeps that script from being appended once per editor.
+@Injectable({
+   providedIn: "root"
+})
 export class GooglePickerService {
    private loaded = false;
 
