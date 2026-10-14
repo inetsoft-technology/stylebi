@@ -67,6 +67,18 @@ public interface DependencyHandler {
    void updateSheetDependencies(AbstractSheet sheet, AssetEntry entry, boolean add,
                                boolean cache) throws Exception;
 
+   /**
+    * Replace a renamed or moved sheet's old entry with its new entry in the outer dependency
+    * lists kept by the logical models, their attributes and the data sources the sheet is bound
+    * to. Only these lists are changed; the dependency storage is renamed by
+    * {@link #renameDependencies} and {@link #updateDependencies}.
+    *
+    * @param sheet  the sheet that was renamed or moved.
+    * @param oentry the entry of the sheet before the change.
+    * @param nentry the entry of the sheet after the change.
+    */
+   void renameSheetOuterDependencies(AbstractSheet sheet, AssetEntry oentry, AssetEntry nentry);
+
    void updateVPMDependencies(VirtualPrivateModel vpm, VirtualPrivateModel ovpm, String database,
                               AssetEntry entry);
 

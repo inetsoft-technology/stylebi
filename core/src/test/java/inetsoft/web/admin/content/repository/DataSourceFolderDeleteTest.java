@@ -31,6 +31,8 @@ import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DependencyHandler;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XLogicalModel;
@@ -117,6 +119,9 @@ class DataSourceFolderDeleteTest {
       denied.clear();
       SecurityProvider provider = mock(SecurityProvider.class);
       when(provider.isVirtual()).thenReturn(false);
+      // the asset storage, where outerDependOn stores the dependent worksheet, lists the orgs
+      when(provider.getOrganizationIDs())
+         .thenReturn(new String[] { Organization.getDefaultOrganizationID() });
       when(provider.checkPermission(any(), any(), anyString(), any())).thenAnswer(
          inv -> allowed(inv.getArgument(1), inv.getArgument(2), inv.getArgument(3)));
       doAnswer(inv -> store.remove(key(inv.getArgument(0), inv.getArgument(1))))
@@ -606,7 +611,7 @@ class DataSourceFolderDeleteTest {
    }
 
    // a worksheet depends on a logical model of the data source
-   private void outerDependOn(String path, String model) {
+   private void outerDependOn(String path, String model) throws Exception {
       XDataModel dataModel = registry.getDataModel(path);
 
       if(dataModel == null) {
@@ -614,9 +619,16 @@ class DataSourceFolderDeleteTest {
          registry.setDataModel(dataModel);
       }
 
+      // the worksheet is stored: the dependency checks leave out sheets that no longer exist
+      // (Bug #78430)
+      AssetEntry worksheet = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "ws" + model, null);
+      AssetRepository assets = AssetUtil.getAssetRepository(false);
+      assets.setSheet(worksheet, new Worksheet(), principal, true);
+      assertTrue(assets.containsEntry(worksheet), "not seeded");
+
       XLogicalModel logicalModel = new XLogicalModel(model);
-      logicalModel.addOuterDependency(new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "ws" + model, null));
+      logicalModel.addOuterDependency(worksheet);
       dataModel.addLogicalModel(logicalModel);
       registry.clearCache();
       XLogicalModel stored = registry.getDataModel(path).getLogicalModel(model);

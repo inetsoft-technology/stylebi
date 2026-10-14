@@ -17,9 +17,12 @@
  */
 package inetsoft.uql.asset;
 
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.util.Catalog;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -71,6 +74,57 @@ public class DependencyException extends ConfirmException {
       for(int i = 0; i < objs.length; i++) {
          addDependency(objs[i]);
       }
+   }
+
+   /**
+    * Get the outer dependencies that still exist. Logical models and their attributes keep the
+    * entries of the sheets that use them, and may still list sheets that were renamed, moved or
+    * deleted before Bug #78430 was fixed. Those must not be reported as dependents. Entries other
+    * than sheets, and sheets that can't be checked, are kept.
+    *
+    * @param entries the outer dependencies.
+    *
+    * @return the outer dependencies without the sheets that no longer exist.
+    */
+   public static Object[] getExistingDependencies(Object[] entries) {
+      if(entries == null || entries.length == 0) {
+         return entries;
+      }
+
+      AssetRepository repository;
+
+      try {
+         repository = AssetUtil.getAssetRepository(false);
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to get the asset repository", ex);
+         return entries;
+      }
+
+      if(repository == null) {
+         return entries;
+      }
+
+      List<Object> result = new ArrayList<>(entries.length);
+
+      for(Object entry : entries) {
+         if(!(entry instanceof AssetEntry) || !((AssetEntry) entry).isSheet()) {
+            result.add(entry);
+            continue;
+         }
+
+         try {
+            if(repository.containsEntry((AssetEntry) entry)) {
+               result.add(entry);
+            }
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to check if the sheet exists: {}", entry, ex);
+            result.add(entry);
+         }
+      }
+
+      return result.toArray(new Object[0]);
    }
 
    /**
@@ -188,4 +242,6 @@ public class DependencyException extends ConfirmException {
    private Object target;
    private List deps;
    private List<DependencyException> exps;
+
+   private static final Logger LOG = LoggerFactory.getLogger(DependencyException.class);
 }

@@ -3455,6 +3455,17 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          EmbeddedDataCacheHandler.clearWSCache(oidentifier);
       }
 
+      // Bug #78430: the logical models and data sources list the sheet by its full entry, so
+      // move it to the new entry once the sheet has moved. A failure here must not fail the rename.
+      if(!Tool.equals(oentry, nentry)) {
+         try {
+            dependencyHandler.renameSheetOuterDependencies(sheet, oentry, nentry);
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to rename the outer dependencies of {} to {}", oentry, nentry, ex);
+         }
+      }
+
       clearCache(oentry);
       clearCache(nentry);
 
@@ -3607,7 +3618,21 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          ((Worksheet) sheet).clearSnapshot(this, entry);
       }
 
-      DependencyHandler.getInstance().deleteDependencies(entry);
+      DependencyHandler dependencyHandler = DependencyHandler.getInstance();
+
+      // Bug #78430: remove the sheet from the lists of the logical models, their attributes and
+      // the data sources it is bound to. deleteDependencies only cleans the dependency storage.
+      // A failure here must not fail the delete.
+      if(sheet != null) {
+         try {
+            dependencyHandler.updateSheetDependencies(sheet, entry, false);
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to remove the dependencies of the deleted sheet {}", entry, ex);
+         }
+      }
+
+      dependencyHandler.deleteDependencies(entry);
    }
 
    /**
