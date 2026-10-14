@@ -1629,8 +1629,9 @@ public class WorksheetEditService {
        * name encodes its option (see {@link DateRangeRef#getName}), so it is renamed to match
        * the new option — e.g. {@code "QuarterOfYear(Order Date)"} becomes
        * {@code "MonthOfYear(Order Date)"} when {@code dateOption} changes from
-       * {@code QUARTER_OF_YEAR} to {@code MONTH_OF_YEAR}. Anything already bound to the old
-       * name is left pointing at nothing, the same as a manual {@code rename_column}.
+       * {@code QUARTER_OF_YEAR} to {@code MONTH_OF_YEAR}. The rename is cascaded to downstream
+       * tables the same way {@code rename_column}'s is. Like {@code rename_column}, it is
+       * refused while a join or composite table is keyed on the column (Bug #78527).
        *
        * @param table      the assembly name
        * @param column     the existing date range column's current name
@@ -1684,6 +1685,18 @@ public class WorksheetEditService {
                   "Cannot change \"" + column + "\" to " + dateOption + " — table \"" + table +
                   "\" already has a column named \"" + newName + "\". Remove or rename that " +
                   "column first.");
+            }
+
+            // Bug #78527: re-levelling renames the column, so a join keyed on it would silently
+            // match on the new level (or on nothing). Refuse it, as rename_column does.
+            if(ref instanceof ColumnRef keyRef) {
+               ColumnLossReport.requireNotJoinKey(
+                  ws, t, keyRef,
+                  "Cannot change \"" + column + "\" to " + dateOption + " on table \"" + table +
+                  "\"",
+                  "Re-levelling renames it to \"" + newName + "\", which changes what that join " +
+                  "matches on. Edit the join's keys first, or add a second range column at the " +
+                  "new level with add_date_range_column. Nothing was changed.");
             }
          }
 

@@ -6043,6 +6043,162 @@ class WorksheetAgentControllerTest {
       assertTrue(ex.getMessage().contains("integer to string"), ex.getMessage());
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug #78527: replaceTable keeps the table's own expression and range columns.
+   // ---------------------------------------------------------------------------
+
+   /** T(id, name) with its own expression column idx = id * 10 (WAT-008). */
+   private static WorksheetAgentController importWithExpression(Worksheet ws, String token)
+      throws Exception
+   {
+      WorksheetAgentController ctrl = importCtrl(ws, token);
+      ctrl.importCsv(token, new WorksheetAgentController.ImportCsvRequest(
+         "T", "id,name\n1,a\n2,b"), TestPrincipals.user("alice", "host-org"));
+      applyEd(ws, ed -> ed.addExpressionColumn("T", "idx", "field['id'] * 10", "integer", false));
+      return ctrl;
+   }
+
+   private static List<String> columnNames(Worksheet ws, String table) {
+      ColumnSelection cols = importedTable(ws, table).getColumnSelection(false);
+      List<String> names = new ArrayList<>();
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         names.add(cols.getAttribute(i).getName());
+      }
+
+      return names;
+   }
+
+   private static String expressionOf(Worksheet ws, String table, String col) {
+      ColumnRef ref = (ColumnRef) importedTable(ws, table).getColumnSelection(false)
+         .getAttribute(col);
+      assertNotNull(ref, col + " was dropped from " + table);
+      return ((inetsoft.uql.erm.ExpressionRef) ref.getDataRef()).getExpression();
+   }
+
+   @Test
+   void importReplaceWithTheSameColumnsKeepsTheTablesOwnExpressionColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importWithExpression(ws, "TOK-78527-A");
+
+      replaceCsv(ctrl, "TOK-78527-A", "T", "id,name\n4,c\n5,d");
+
+      assertEquals(List.of("id", "name", "idx"), columnNames(ws, "T"));
+      assertEquals("field['id'] * 10", expressionOf(ws, "T", "idx"));
+      assertEquals("4", String.valueOf(importedTable(ws, "T").getEmbeddedData().getObject(1, 0)));
+   }
+
+   @Test
+   void importReplaceAddingOrDroppingAnUnreadColumnKeepsTheTablesOwnExpressionColumn()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importWithExpression(ws, "TOK-78527-B");
+
+      replaceCsv(ctrl, "TOK-78527-B", "T", "id,name,extra\n4,c,x");
+      assertEquals(List.of("id", "name", "extra", "idx"), columnNames(ws, "T"));
+
+      replaceCsv(ctrl, "TOK-78527-B", "T", "id\n4");
+      assertEquals(List.of("id", "idx"), columnNames(ws, "T"));
+      assertEquals("field['id'] * 10", expressionOf(ws, "T", "idx"));
+   }
+
+   @Test
+   void importReplaceDroppingAnInputOfTheTablesOwnExpressionIsRefusedNamingIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importWithExpression(ws, "TOK-78527-C");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78527-C", "T", "name\nc"));
+
+      assertEquals("Replacing the data of 'T' would drop column(s) \"id\" that other tables " +
+                   "still use: table 'T' itself (expression column 'idx'). Keep these columns, " +
+                   "under the same names, in the file, or remove or rewrite those dependents " +
+                   "first. Nothing was changed.", ex.getMessage());
+      assertEquals(List.of("id", "name", "idx"), columnNames(ws, "T"));
+      assertEquals("1", String.valueOf(importedTable(ws, "T").getEmbeddedData().getObject(1, 0)));
+   }
+
+   @Test
+   void importReplaceDroppingTheBaseOfTheTablesOwnRangeColumnIsRefusedNamingIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78527-D");
+      ctrl.importCsv("TOK-78527-D", new WorksheetAgentController.ImportCsvRequest(
+         "T", "amount,name\n1,a\n20,b"), TestPrincipals.user("alice", "host-org"));
+      applyEd(ws, ed -> ed.addNumericRangeColumn("T", "amount", new double[] { 10 }, null));
+      String range = columnNames(ws, "T").get(2);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78527-D", "T", "name\nc"));
+
+      assertTrue(ex.getMessage().contains("table 'T' itself (range column '" + range + "')"),
+                 ex.getMessage());
+      assertEquals(List.of("amount", "name", range), columnNames(ws, "T"));
+   }
+
+   /** reorder_columns can put a derived column anywhere; it is still not a file column. */
+   @Test
+   void importReplaceWithTheSameColumnsAndAnInterleavedExpressionKeepsTheOrderAndRetypes()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importWithExpression(ws, "TOK-78527-E");
+      applyEd(ws, ed -> ed.reorderColumns("T", List.of("idx", "id", "name")));
+
+      replaceCsv(ctrl, "TOK-78527-E", "T", "id,name\n1.5,c");
+
+      assertEquals(List.of("idx", "id", "name"), columnNames(ws, "T"));
+      assertEquals("double", typeOf(ws, "T", "id"));
+      assertEquals("field['id'] * 10", expressionOf(ws, "T", "idx"));
+   }
+
+   /** The positional type check of a same-shape replace must skip the derived column (B1). */
+   @Test
+   void importReplaceWithAnInterleavedExpressionStillGuardsTheJoinKeyType() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78527-F");
+      applyEd(ws, ed -> ed.addExpressionColumn("Q1", "e", "field['v'] + 'x'", "string", false));
+      applyEd(ws, ed -> ed.reorderColumns("Q1", List.of("e", "id", "v")));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78527-F", "Q1", "id,v\nx1,a"));
+      assertTrue(ex.getMessage().contains("join \"J\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("integer to string"), ex.getMessage());
+
+      replaceCsv(ctrl, "TOK-78527-F", "Q1", "id,v\n7,z");
+      assertEquals(List.of("e", "id", "v"), columnNames(ws, "Q1"));
+      assertNotNull(ws.getAssembly("J"));
+   }
+
+   @Test
+   void importReplaceWhoseFileHasAColumnNamedLikeTheExpressionIsRefusedBeforeTheTypeCheck()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importWithExpression(ws, "TOK-78527-G");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78527-G", "T", "id,name,idx\n1,a,x"));
+
+      assertEquals("Cannot replace the data of 'T': the file has a column named \"idx\", " +
+                   "which is also the name of this table's expression column. Rename one of " +
+                   "them first. Nothing was changed.", ex.getMessage());
+      assertEquals(List.of("id", "name", "idx"), columnNames(ws, "T"));
+   }
+
+   @Test
+   void importCsvFileAndExcelReplacesKeepTheTablesOwnExpressionColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importWithExpression(ws, "TOK-78527-H");
+
+      replaceCsvFile(ctrl, "TOK-78527-H", "T", "id,name\n4,c");
+      assertEquals(List.of("id", "name", "idx"), columnNames(ws, "T"));
+
+      replaceExcel(ctrl, "TOK-78527-H", "T", new String[]{"id", "name", "extra"},
+                   new Object[]{4, "c", "x"});
+      assertEquals(List.of("id", "name", "extra", "idx"), columnNames(ws, "T"));
+   }
+
    @Test
    void importCsvReplaceTableWithDifferentColumnsUpdatesTheColumnSelection() throws Exception {
       Worksheet ws = new Worksheet();

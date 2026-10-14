@@ -280,7 +280,7 @@ class WorksheetJoinKeyTypeGuard78346Test {
       PairingException ex = assertThrows(PairingException.class,
          () -> WorksheetAgentController.assertSqlEditAllowsColumnRemoval(
             ws, q, old, next, "This query would change the type of",
-            JoinKeyTypeGuard::sqlRemedy));
+            JoinKeyTypeGuard::sqlRemedy, "The new query", "x"));
 
       assertTrue(ex.getMessage().contains("join \"J\""), ex.getMessage());
       assertTrue(ex.getMessage().contains("integer to string"), ex.getMessage());
@@ -295,7 +295,7 @@ class WorksheetJoinKeyTypeGuard78346Test {
       ColumnSelection old = q.getColumnSelection(false);
 
       WorksheetAgentController.assertSqlEditAllowsColumnRemoval(
-         ws, q, old, old.clone(), "x", JoinKeyTypeGuard::sqlRemedy);
+         ws, q, old, old.clone(), "x", JoinKeyTypeGuard::sqlRemedy, "The new query", "x");
    }
 
    @Test
@@ -314,7 +314,7 @@ class WorksheetJoinKeyTypeGuard78346Test {
       PairingException ex = assertThrows(PairingException.class,
          () -> WorksheetAgentController.assertSqlEditAllowsColumnRemoval(
             ws, q, old, next, "This query would change the type of",
-            JoinKeyTypeGuard::sqlRemedy));
+            JoinKeyTypeGuard::sqlRemedy, "The new query", "x"));
 
       assertTrue(ex.getMessage().contains("\"id\""), ex.getMessage());
       assertTrue(ex.getMessage().contains("\"name\""), ex.getMessage());
