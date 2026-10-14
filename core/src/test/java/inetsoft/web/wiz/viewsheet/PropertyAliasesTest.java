@@ -1354,4 +1354,62 @@ class PropertyAliasesTest {
          assertTrue(e.getMessage().contains("'" + canonical + "'"), e.getMessage());
       }
    }
+
+   // ── empty segments and capitalised spellings (bug #78440) ─────────────────
+
+   @Test
+   void refusesAnEmptySegmentNamingTheWholePath() {
+      for(String bad : new String[] { "chartLinePaneModel.trendLineStyle.",
+                                      "ChartLinePaneModel.TrendLineStyle..",
+                                      ".chartLinePaneModel.trendLineStyle",
+                                      "chartLinePaneModel..trendLineStyle", "." })
+      {
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite("chart", bad), bad);
+         assertTrue(e.getMessage().contains("'" + bad + "'") &&
+                    e.getMessage().contains("empty segment"), e.getMessage());
+         assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolve("chart", bad));
+         assertThrows(IllegalArgumentException.class,
+                      () -> PropertyAliases.lowerSegmentInitials(bad));
+      }
+   }
+
+   @Test
+   void refusesAnEmptySegmentOnTheSheetBeforeAnyGuard() {
+      for(String bad : new String[] { ".vsScriptPane.onInit", "." }) {
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, bad), bad);
+         assertTrue(e.getMessage().contains("empty segment"), e.getMessage());
+      }
+
+      assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolveForWrite(
+         PropertyAliases.SHEET, "vsScriptPane..onInit"));
+   }
+
+   @Test
+   void canonicalizesCapitalisedFirstLettersOfIntEnumAndShapeStylePaths() {
+      assertEquals("chartLinePaneModel.trendLineStyle",
+                   PropertyAliases.resolveForWrite("chart", "ChartLinePaneModel.TrendLineStyle"));
+      assertEquals("selectionTreePaneModel.mode",
+                   PropertyAliases.resolveForWrite("selectiontree", "SelectionTreePaneModel.Mode"));
+      assertEquals("calendarAdvancedPaneModel.viewMode",
+                   PropertyAliases.resolveForWrite("calendar",
+                                                   "CalendarAdvancedPaneModel.ViewMode"));
+      assertEquals("selectionGeneralPaneModel.sortType",
+                   PropertyAliases.resolveForWrite("selectionlist",
+                                                   "SelectionGeneralPaneModel.SortType"));
+      assertEquals("rectanglePropertyPaneModel.linePropPaneModel.style",
+                   PropertyAliases.resolveForWrite(
+                      "rectangle", "RectanglePropertyPaneModel.LinePropPaneModel.Style"));
+   }
+
+   @Test
+   void refusesCapitalisedChartTargetsAndHierarchyDimensions() {
+      assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolveForWrite(
+         "chart", "ChartAdvancedPaneModel.ChartTargetLinesPaneModel.chartTargets"));
+      assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolveForWrite(
+         "chart", "HierarchyPropertyPaneModel.dimensions"));
+      assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolveForWrite(
+         "crosstab", "hierarchyPropertyPaneModel.Dimensions"));
+   }
 }
