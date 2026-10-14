@@ -129,6 +129,13 @@ public class ConditionUtil {
                if(conditionModel.getOperation() == AbstractCondition.DATE_IN
                   && valueModels[0].getType().equals(ConditionValueModel.VALUE))
                {
+                  if(!(valueModels[0].getValue() instanceof String)) {
+                     throw new IllegalArgumentException(
+                        "date_in condition on field '" + conditionField.getName() +
+                        "' needs a date range name as a string, but got " +
+                        valueModels[0].getValue() + ".");
+                  }
+
                   String value = (String) valueModels[0].getValue();
 
                   // look for a built in condition with this name and clone it
@@ -244,6 +251,12 @@ public class ConditionUtil {
                      else if(valueModel.getType().equals(ConditionValueModel.VALUE) &&
                         XSchema.isDateType(dataType))
                      {
+                        if(value != null && !(value instanceof String)) {
+                           throw new IllegalArgumentException(
+                              "Condition on " + dataType + " field '" + conditionField.getName() +
+                              "' needs a date string, but got " + value + ".");
+                        }
+
                         value = AbstractCondition.getObject(dataType, (String) value);
                      }
                      else if((valueModel.getType().equals(ConditionValueModel.VARIABLE) ||

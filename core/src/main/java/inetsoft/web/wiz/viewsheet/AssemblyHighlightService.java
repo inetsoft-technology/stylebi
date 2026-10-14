@@ -19,11 +19,16 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
@@ -148,6 +153,7 @@ public class AssemblyHighlightService {
          // Before the shared condition vocabulary gets a chance to blame the field name.
          requireHighlightableRegion(model, assemblyName, region);
          requireRowApplicable(model, assemblyName, highlight);
+         requireNoDerivedConditionField(rvs.getViewsheet().getAssembly(assemblyName), highlight);
 
          List<HighlightModel> highlights = new ArrayList<>();
          boolean found = false;
@@ -765,6 +771,72 @@ public class AssemblyHighlightService {
     * highlight on a Crosstab is excluded from the per-cell store AND never reaches the row store —
     * stored nowhere, with the call still reporting success.
     */
+   /**
+    * Refuses a condition on a field the active date comparison derives (e.g. "Change from
+    * previous year of Year(D): Sum(M)"). It is listed as a conditionable field while the
+    * comparison is on, but it has no design-time field behind it, so the condition dangles (chart)
+    * or the highlight is dropped (crosstab) once the comparison is cleared or changed. Matched
+    * case-insensitively, the way {@link ConditionVocabulary} resolves field names.
+    */
+   static void requireNoDerivedConditionField(VSAssembly assembly, Highlight highlight) {
+      if(highlight.conditions() == null || highlight.conditions().isEmpty()) {
+         return;
+      }
+
+      Set<String> derived = derivedDateComparisonFields(assembly);
+
+      if(derived.isEmpty()) {
+         return;
+      }
+
+      int index = 0;
+
+      for(ConditionVocabulary.Clause clause : highlight.conditions()) {
+         index++;
+         String field = clause == null || clause.field() == null ? "" : clause.field().trim();
+
+         if(derived.contains(field.toLowerCase())) {
+            throw new IllegalArgumentException(
+               "Condition " + index + "'s field '" + field + "' is derived by the active date " +
+               "comparison and has no design-time field behind it, so the highlight would be " +
+               "lost or left dangling as soon as the comparison changes or is cleared. " +
+               "Put the condition on the base measure instead.");
+         }
+      }
+   }
+
+   private static Set<String> derivedDateComparisonFields(VSAssembly assembly) {
+      Set<String> names = new HashSet<>();
+
+      if(assembly != null && assembly.getInfo() instanceof ChartVSAssemblyInfo info) {
+         VSChartInfo chartInfo = info.getVSChartInfo();
+         ChartRef[] refs = chartInfo == null ? null : chartInfo.getRuntimeDateComparisonRefs();
+
+         for(ChartRef ref : refs == null ? new ChartRef[0] : refs) {
+            String name = ref.getFullName();
+
+            if(HighlightDialogService.isDerivedDateComparisonRef(chartInfo, name, ref)) {
+               names.add(name.toLowerCase());
+            }
+         }
+      }
+      else if(assembly != null && assembly.getInfo() instanceof CrosstabVSAssemblyInfo info &&
+         DateComparisonUtil.appliedDateComparison(info))
+      {
+         VSCrosstabInfo crosstabInfo = info.getVSCrosstabInfo();
+
+         for(DataRef ref : crosstabInfo == null ? new DataRef[0] :
+            crosstabInfo.getRuntimeAggregates())
+         {
+            if(HighlightDialogService.isDerivedDateComparisonAggregate(crosstabInfo, ref)) {
+               names.add(((VSAggregateRef) ref).getFullName().toLowerCase());
+            }
+         }
+      }
+
+      return names;
+   }
+
    private static void requireRowApplicable(HighlightDialogModel model, String assemblyName,
                                             Highlight highlight)
    {

@@ -650,6 +650,34 @@ public class HighlightDialogService {
    }
 
    /**
+    * True when {@code ref}, resolved from {@code name}, is a chart measure the active date
+    * comparison derives: a runtime aggregate carrying a calculator with no design-time field of
+    * that name behind it. Runtime-only period dimensions are not derived measures.
+    */
+   public static boolean isDerivedDateComparisonRef(VSChartInfo chartInfo, String name,
+                                                    DataRef ref)
+   {
+      return name != null && chartInfo.getFieldByName(name, false) == null &&
+         ref instanceof VSChartAggregateRef && ((VSChartAggregateRef) ref).getCalculator() != null;
+   }
+
+   /**
+    * Crosstab counterpart of {@link #isDerivedDateComparisonRef}: a runtime aggregate carrying a
+    * calculator whose full name matches no design aggregate.
+    */
+   public static boolean isDerivedDateComparisonAggregate(VSCrosstabInfo info, DataRef ref) {
+      if(!(ref instanceof VSAggregateRef) || ((VSAggregateRef) ref).getCalculator() == null) {
+         return false;
+      }
+
+      String name = ((VSAggregateRef) ref).getFullName();
+
+      return Arrays.stream(info.getDesignAggregates())
+         .noneMatch(design -> design instanceof VSAggregateRef &&
+            ((VSAggregateRef) design).getFullName().equals(name));
+   }
+
+   /**
     * Writes the dialog's highlights onto the chart. While a date comparison is active the measure
     * resolves to a runtime clone, which is dropped whenever the runtime refs are replaced
     * (clear / option switch), so the design-time ref is written too (set and delete both flow
@@ -680,10 +708,7 @@ public class HighlightDialogService {
       // highlight set on it does not survive the comparison changing.
       // getMeasure() can fall back to the runtime fields, so only a design-only lookup says
       // whether a design field exists.
-      boolean derived = model.getMeasure() != null &&
-         chartInfo.getFieldByName(model.getMeasure(), false) == null &&
-         highlightRef instanceof VSChartAggregateRef &&
-         ((VSChartAggregateRef) highlightRef).getCalculator() != null;
+      boolean derived = isDerivedDateComparisonRef(chartInfo, model.getMeasure(), highlightRef);
 
       if(model.isRejectDerivedMeasure() && derived) {
          throw new IllegalArgumentException(

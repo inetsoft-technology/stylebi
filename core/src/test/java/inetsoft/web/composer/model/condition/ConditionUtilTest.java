@@ -20,6 +20,7 @@ package inetsoft.web.composer.model.condition;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.test.*;
 import inetsoft.uql.ConditionList;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.DateCondition;
 import inetsoft.uql.asset.DefaultDateRangeAssembly;
 import inetsoft.uql.asset.Worksheet;
@@ -35,6 +36,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -206,5 +208,40 @@ class ConditionUtilTest {
       assertEquals(2, resolved.getMonthN(),
          "an exact-name match must be used, not whichever case-insensitive candidate the scan " +
          "happens to hit first");
+   }
+
+   private static ConditionModel modelWithValue(String dataType, int operation, Object value) {
+      DataRefModel field = mock(DataRefModel.class);
+      when(field.getName()).thenReturn("OrderDate");
+      when(field.getDataType()).thenReturn(dataType);
+      ConditionValueModel valueModel = new ConditionValueModel();
+      valueModel.setType(ConditionValueModel.VALUE);
+      valueModel.setValue(value);
+      ConditionModel model = new ConditionModel();
+      model.setField(field);
+      model.setOperation(operation);
+      model.setValues(new ConditionValueModel[] { valueModel });
+      return model;
+   }
+
+   /** Bug #78540 P1: defence in depth, a non-string value must not be a ClassCastException. */
+   @Test
+   void aNonStringDateInValueIsAnIllegalArgumentNotAClassCastException() {
+      Object[] model = { modelWithValue(XSchema.DATE, XCondition.DATE_IN, 2024) };
+      Principal principal = () -> "admin";
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ConditionUtil.fromModelToConditionList(model, null, null, principal));
+      assertTrue(e.getMessage().contains("OrderDate"), e.getMessage());
+   }
+
+   @Test
+   void aNonStringValueOnADateFieldIsAnIllegalArgumentNotAClassCastException() {
+      Object[] model = { modelWithValue(XSchema.DATE, XCondition.EQUAL_TO, Map.of("foo", 1)) };
+      Principal principal = () -> "admin";
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ConditionUtil.fromModelToConditionList(model, null, null, principal));
+      assertTrue(e.getMessage().contains("OrderDate"), e.getMessage());
    }
 }
