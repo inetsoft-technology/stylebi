@@ -5642,6 +5642,212 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // Bug #78526: an import capped at the organization's column limit says so.
+   // ---------------------------------------------------------------------------
+
+   /** A CSV line of {@code n} fields: {@code prefix1,prefix2,...}. */
+   private static String csvFields(String prefix, int n) {
+      StringBuilder line = new StringBuilder();
+
+      for(int i = 1; i <= n; i++) {
+         line.append(i > 1 ? "," : "").append(prefix).append(i);
+      }
+
+      return line.toString();
+   }
+
+   /** {@code ncols} columns C1..Cn, three data rows. */
+   private static String wideCsv(int ncols) {
+      return csvFields("C", ncols) + "\n" + csvFields("a", ncols) + "\n" +
+         csvFields("b", ncols) + "\n" + csvFields("c", ncols);
+   }
+
+   @Test
+   void importCsvOverTheColumnLimitReportsTheDroppedColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-A");
+
+      WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-78526-A",
+         new WorksheetAgentController.ImportCsvRequest("Over", wideCsv(210)),
+         TestPrincipals.user("alice", "host-org"));
+
+      assertEquals(200, resp.columns());
+      assertEquals(3, resp.rows());
+      assertEquals(new WorksheetPreviewService.ColumnLimit(true, 200, 210), resp.columnLimit());
+   }
+
+   @Test
+   void importCsvAtTheColumnLimitReportsNothing() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-B");
+
+      WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-78526-B",
+         new WorksheetAgentController.ImportCsvRequest("AtLimit", wideCsv(200)),
+         TestPrincipals.user("alice", "host-org"));
+
+      assertEquals(200, resp.columns());
+      assertNull(resp.columnLimit());
+      assertFalse(new ObjectMapper().writeValueAsString(resp).contains("columnLimit"),
+         "an import that dropped nothing must not carry the field at all");
+   }
+
+   /**
+    * One wide data row under a narrow header sets the loader's own exceedLimit flag, but no
+    * column was dropped from the table: the extra fields are the plugin's rowsWithExtraFields
+    * audit's to report.
+    */
+   @Test
+   void importCsvWithOneWideRowUnderANarrowHeaderReportsNothing() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-C");
+
+      WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-78526-C",
+         new WorksheetAgentController.ImportCsvRequest(
+            "Narrow", csvFields("C", 10) + "\n" + csvFields("a", 250) + "\n" + csvFields("b", 10)),
+         TestPrincipals.user("alice", "host-org"));
+
+      assertEquals(10, resp.columns());
+      assertNull(resp.columnLimit());
+   }
+
+   /** The loader skips leading blank lines before the header; the uncapped count must too. */
+   @Test
+   void importCsvWithLeadingBlankLinesStillReportsTheDroppedColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-D");
+
+      WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-78526-D",
+         new WorksheetAgentController.ImportCsvRequest("Blank", "\n\n" + wideCsv(210)),
+         TestPrincipals.user("alice", "host-org"));
+
+      assertEquals(200, resp.columns());
+      assertEquals(new WorksheetPreviewService.ColumnLimit(true, 200, 210), resp.columnLimit());
+   }
+
+   @Test
+   void importCsvFileAndReplaceReportTheDroppedColumnsToo() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-E");
+      ctrl.importCsv("TOK-78526-E",
+         new WorksheetAgentController.ImportCsvRequest("Query1", "a,b\n1,x"),
+         TestPrincipals.user("alice", "host-org"));
+
+      WorksheetAgentController.ImportCsvResponse file =
+         replaceCsvFile(ctrl, "TOK-78526-E", "Query1", wideCsv(205));
+      assertEquals(new WorksheetPreviewService.ColumnLimit(true, 200, 205), file.columnLimit());
+
+      WorksheetAgentController.ImportCsvResponse inline =
+         replaceCsv(ctrl, "TOK-78526-E", "Query1", wideCsv(201));
+      assertEquals("Query1", inline.tableName());
+      assertEquals(200, inline.columns());
+      assertEquals(new WorksheetPreviewService.ColumnLimit(true, 200, 201), inline.columnLimit());
+   }
+
+   /** Unpivot reshapes the columns; the limit is about the file's own columns, before that. */
+   @Test
+   void importCsvUnpivotReportsTheSourceColumnsDropped() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-F");
+
+      WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-78526-F",
+         csvRequest("Pivot", wideCsv(210), null, null, null, null, null, null, true, 1),
+         TestPrincipals.user("alice", "host-org"));
+
+      assertEquals(new WorksheetPreviewService.ColumnLimit(true, 200, 210), resp.columnLimit());
+   }
+
+   /**
+    * Fakes the Excel reader: {@code importHeader} returns {@code cappedCols} columns when called
+    * with the column limit and {@code totalCols} when called without one (-1), the way the XLSX
+    * reader behaves; an XLS reader ignores the limit, so both are its full width.
+    */
+   private static WorksheetAgentController.ImportCsvResponse importExcelWithWidths(
+      WorksheetAgentController ctrl, String token, String fileType, int cappedCols,
+      int totalCols, inetsoft.uql.util.filereader.ExcelFileReader reader) throws Exception
+   {
+      inetsoft.uql.schema.XTypeNode capped = excelMeta(cappedCols);
+      inetsoft.uql.schema.XTypeNode total = excelMeta(totalCols);
+      inetsoft.uql.XTableNode data = mock(inetsoft.uql.XTableNode.class);
+      when(data.next()).thenReturn(true, false);
+      when(data.getObject(anyInt())).thenReturn("v");
+
+      when(reader.importHeader(any(), any(), any(), anyInt(), anyInt())).thenReturn(capped);
+      when(reader.importHeader(any(), any(), any(), anyInt(), eq(-1))).thenReturn(total);
+      when(reader.read(any(), any(), any(), any(), anyInt(), anyInt(), anyBoolean(), any(),
+                       anyBoolean())).thenReturn(data);
+      inetsoft.uql.util.filereader.ExcelFileSupport support =
+         mock(inetsoft.uql.util.filereader.ExcelFileSupport.class);
+      when(support.createXLSXReader()).thenReturn(reader);
+      when(support.createXLSReader()).thenReturn(reader);
+
+      try(MockedStatic<inetsoft.uql.util.filereader.ExcelFileSupport> st =
+             mockStatic(inetsoft.uql.util.filereader.ExcelFileSupport.class))
+      {
+         st.when(inetsoft.uql.util.filereader.ExcelFileSupport::getInstance).thenReturn(support);
+         return ctrl.importExcel(token, excelFile(new byte[]{1, 2, 3}), fileType, null, "Sheet",
+                                 null, null, null, TestPrincipals.user("alice", "host-org"));
+      }
+   }
+
+   private static inetsoft.uql.schema.XTypeNode excelMeta(int ncols) {
+      inetsoft.uql.schema.XTypeNode meta = mock(inetsoft.uql.schema.XTypeNode.class);
+      when(meta.getChildCount()).thenReturn(ncols);
+
+      for(int c = 0; c < ncols; c++) {
+         inetsoft.uql.schema.XTypeNode col = mock(inetsoft.uql.schema.XTypeNode.class);
+         when(col.getName()).thenReturn("C" + (c + 1));
+         when(col.getType()).thenReturn(inetsoft.uql.schema.XSchema.STRING);
+         when(meta.getChild(c)).thenReturn(col);
+      }
+
+      return meta;
+   }
+
+   @Test
+   void importExcelOverTheColumnLimitReportsTheDroppedColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-G");
+      inetsoft.uql.util.filereader.ExcelFileReader reader =
+         mock(inetsoft.uql.util.filereader.ExcelFileReader.class);
+
+      WorksheetAgentController.ImportCsvResponse resp =
+         importExcelWithWidths(ctrl, "TOK-78526-G", "XLSX", 200, 250, reader);
+
+      assertEquals(200, resp.columns());
+      assertEquals(new WorksheetPreviewService.ColumnLimit(true, 200, 250), resp.columnLimit());
+   }
+
+   /** The XLS reader never applies the limit, so a 210-column sheet keeps all 210. */
+   @Test
+   void importExcelThatKeptEveryColumnReportsNothing() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-H");
+      inetsoft.uql.util.filereader.ExcelFileReader reader =
+         mock(inetsoft.uql.util.filereader.ExcelFileReader.class);
+
+      WorksheetAgentController.ImportCsvResponse resp =
+         importExcelWithWidths(ctrl, "TOK-78526-H", "XLS", 210, 210, reader);
+
+      assertEquals(210, resp.columns());
+      assertNull(resp.columnLimit());
+   }
+
+   /** Under the limit nothing can have been dropped, so the sheet is not read a second time. */
+   @Test
+   void importExcelUnderTheColumnLimitDoesNotRecountTheSheet() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-I");
+      inetsoft.uql.util.filereader.ExcelFileReader reader =
+         mock(inetsoft.uql.util.filereader.ExcelFileReader.class);
+
+      WorksheetAgentController.ImportCsvResponse resp =
+         importExcelWithWidths(ctrl, "TOK-78526-I", "XLSX", 12, 12, reader);
+
+      assertNull(resp.columnLimit());
+      verify(reader, never()).importHeader(any(), any(), any(), anyInt(), eq(-1));
+   }
+
+   // ---------------------------------------------------------------------------
    // Bug #78346: replaceTable must not retype a join key into an unmergeable pair.
    // ---------------------------------------------------------------------------
 
