@@ -575,8 +575,25 @@ public final class PropertyAliases {
    /** The Options dialog's Data Source sub-model; see {@link #viewsheetWriteRefusal}. */
    private static final String DATA_SOURCE_DIALOG = "vsOptionsPane.selectDataSourceDialogModel";
 
+   /**
+    * {@code path} is {@code prefix} or a path under it. Besides {@code .}, an index spelling right
+    * after the prefix -- {@code [} or a run of digits ({@code dimensions[0]}, {@code dimensions0})
+    * -- counts as under it, so a misspelled path still gets the specific refusal and not
+    * PropertyPath's generic "not a property" (it has no index syntax, so none of these ever
+    * wrote). A future prefix must not have a real sibling field named prefix + digits.
+    */
    private static boolean isOrUnder(String path, String prefix) {
-      return path.equals(prefix) || path.startsWith(prefix + ".");
+      if(!path.startsWith(prefix)) {
+         return false;
+      }
+
+      int i = prefix.length();
+
+      while(i < path.length() && Character.isDigit(path.charAt(i))) {
+         i++;
+      }
+
+      return i == path.length() || path.charAt(i) == '.' || path.charAt(i) == '[';
    }
 
    private static String nearest(String key, Set<String> candidates) {
