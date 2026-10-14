@@ -38,10 +38,12 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Read-modify-write over the thirteen aesthetic fields in {@link ChartBindingFields#AESTHETIC}.
@@ -240,7 +242,37 @@ public final class ChartAestheticMutator {
                                Map<String, Object> spec, boolean relationChart,
                                Collection<String> perMeasureFrameChannels, String measure)
    {
+      setFrame(model, channel, spec, relationChart, perMeasureFrameChannels, measure, false);
+   }
+
+   /**
+    * @param multiAesthetic whether the chart renders each measure from its own aesthetic fields
+    *        ({@code VSChartInfo.isMultiAesthetic()}: design multi-style, or always for Gantt). In
+    *        that mode the renderer ignores the chart-level field and frame slots entirely
+    *        ({@code VSColorFrameStrategy.getAestheticRef} et al. return null for the chart-level
+    *        lookup), so a write that lands there reports ok and changes nothing (#77024 P1). The
+    *        frame is written to each measure's own field instead -- what the Composer's per-measure
+    *        Aesthetic pane edits -- and to its field-less slot where the measure has no field.
+    *        {@code measure} then selects one measure, bound field or not. Only applies to a channel
+    *        in {@code perMeasureFrameChannels} and a chart with at least one measure; anything else
+    *        keeps the single-style behaviour below.
+    */
+   public static void setFrame(ChartBindingModel model, String channel,
+                               Map<String, Object> spec, boolean relationChart,
+                               Collection<String> perMeasureFrameChannels, String measure,
+                               boolean multiAesthetic)
+   {
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
+
+      if(multiAesthetic && perMeasureFrameChannels.contains(name)) {
+         List<ChartAggregateRefModel> targets = multiAggregates(model);
+
+         if(!targets.isEmpty()) {
+            setMultiAestheticFrame(name, spec, relationChart, targets, measure);
+            return;
+         }
+      }
+
       // The chart-level lookup, not reportedField(): whether this write goes into one field's
       // frame or is broadcast to every measure must not depend on the first measure alone
       // happening to carry a field of its own (see reportedField).
@@ -332,6 +364,14 @@ public final class ChartAestheticMutator {
       // chart-level slot for this channel (a MergedChartInfo chart -- candle, stock, radar,
       // relation, map); or no measure to target at all.
       //
+      // Bug #77024 P5: for the chart types that really render from this slot, a field-less frame
+      // is the one fixed value (the Composer opens its static pane when nothing is bound), so
+      // anything else is refused instead of stored.
+      if(!perMeasureFrameChannels.contains(name)) {
+         requireStaticOnChartLevelSlot(model, name, frame);
+      }
+
+      //
       // Only the middle case is a fallback the renderer honours. With no measure, createFrame()
       // leaves the frame null without consulting getGeneralFrame() -- the arr.length > 0 test is
       // nested inside the supportsFieldFrame() branch, not chained after it -- and a scatter
@@ -382,7 +422,45 @@ public final class ChartAestheticMutator {
    public static void resetFrame(ChartBindingModel model, String channel, boolean relationChart,
                                  Collection<String> perMeasureFrameChannels, String measure)
    {
+      resetFrame(model, channel, relationChart, perMeasureFrameChannels, measure, false);
+   }
+
+   /** @param multiAesthetic see the matching parameter of {@code setFrame}. */
+   public static void resetFrame(ChartBindingModel model, String channel, boolean relationChart,
+                                 Collection<String> perMeasureFrameChannels, String measure,
+                                 boolean multiAesthetic)
+   {
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
+
+      if(multiAesthetic && perMeasureFrameChannels.contains(name)) {
+         List<ChartAggregateRefModel> targets = multiAggregates(model);
+
+         if(!targets.isEmpty()) {
+            ChartAggregateRefModel only =
+               measure == null ? null : requireTargetMeasure(targets, name, measure);
+
+            for(int i = 0; i < targets.size(); i++) {
+               ChartAggregateRefModel aggregate = targets.get(i);
+
+               if(only != null && aggregate != only) {
+                  continue;
+               }
+
+               AestheticInfo field = aggregateFieldFor(aggregate, name);
+
+               if(field != null) {
+                  field.setFrame(resetted(field.getFrame(), name, i));
+               }
+               else {
+                  assignAggregateFrame(
+                     aggregate, name, resetted(aggregateFrameOf(aggregate, name), name, i));
+               }
+            }
+
+            return;
+         }
+      }
+
       // Chart-level only, for the same reason as setFrame.
       AestheticInfo field = frameField(model, name);
 
@@ -879,13 +957,14 @@ public final class ChartAestheticMutator {
     */
    private static Map<String, Object> divergentMeasureFrames(
       ChartBindingModel model, String channel, AestheticInfo chartLevelField,
-      Collection<String> perMeasureFrameChannels)
+      Collection<String> perMeasureFrameChannels, List<ChartAggregateRefModel> multiTargets)
    {
       if(chartLevelField != null || !perMeasureFrameChannels.contains(channel)) {
          return null;
       }
 
-      List<ChartAggregateRefModel> aggregates = aggregates(model);
+      List<ChartAggregateRefModel> aggregates = multiTargets.isEmpty()
+         ? aggregates(model) : multiTargets;
 
       if(aggregates.size() < 2) {
          return null;
@@ -932,7 +1011,7 @@ public final class ChartAestheticMutator {
     */
    private static Map<String, Object> divergentMeasureFields(
       ChartBindingModel model, String channel, AestheticInfo chartLevelField,
-      Collection<String> perMeasureFrameChannels)
+      Collection<String> perMeasureFrameChannels, List<ChartAggregateRefModel> multiTargets)
    {
       if(chartLevelField != null || !acceptsField(channel) ||
          !perMeasureFrameChannels.contains(channel))
@@ -940,7 +1019,8 @@ public final class ChartAestheticMutator {
          return null;
       }
 
-      List<ChartAggregateRefModel> aggregates = aggregates(model);
+      List<ChartAggregateRefModel> aggregates = multiTargets.isEmpty()
+         ? aggregates(model) : multiTargets;
 
       if(aggregates.size() < 2) {
          return null;
@@ -1154,6 +1234,167 @@ public final class ChartAestheticMutator {
          ? trailingMeasures(yFields) : trailingMeasures(model.getXFields());
    }
 
+   /**
+    * The measures a multi-aesthetic chart renders its own aesthetic fields for -- a port of
+    * {@code AbstractChartInfo.getAestheticAggregateRefs}: {@code getModelRefs} answers the
+    * distinct measures on Y when there are any and on X otherwise (not both), and a Gantt chart
+    * adds its start and milestone fields ({@code GanttVSChartInfo} answers with
+    * {@code getGanttFields(runtime, false)}, i.e. no end field). Unlike {@link #aggregates} this
+    * is not the trailing run of one shelf, because the renderer in this mode builds each measure's
+    * frame from that measure's own field.
+    */
+   private static List<ChartAggregateRefModel> multiAggregates(ChartBindingModel model) {
+      List<ChartAggregateRefModel> out = distinctMeasures(model.getYFields());
+
+      if(out.isEmpty()) {
+         out = distinctMeasures(model.getXFields());
+      }
+
+      if(GraphTypes.isGantt(model.getChartType())) {
+         for(ChartRefModel ref : Arrays.asList(model.getStartField(), model.getMilestoneField())) {
+            if(ref instanceof ChartAggregateRefModel aggregate) {
+               out.add(aggregate);
+            }
+         }
+      }
+
+      return out;
+   }
+
+   /**
+    * Measures in shelf order, deduplicated as {@code getModelRefsY}/{@code getModelRefsX} do by
+    * full name -- through {@link #measureLabel}, because a model built by {@code FieldRefFactory}
+    * carries no full name yet.
+    */
+   private static List<ChartAggregateRefModel> distinctMeasures(List<ChartRefModel> refs) {
+      List<ChartAggregateRefModel> out = new ArrayList<>();
+      Set<String> names = new HashSet<>();
+
+      for(ChartRefModel ref : refs == null ? List.<ChartRefModel>of() : refs) {
+         if(isMeasure(ref) && names.add(measureLabel((ChartAggregateRefModel) ref))) {
+            out.add((ChartAggregateRefModel) ref);
+         }
+      }
+
+      return out;
+   }
+
+   /**
+    * The field a measure carries for a frame channel: its own colour/shape/size field, or for
+    * line/texture its shape field when that holds a frame of the family (the per-measure sibling
+    * of {@link #frameField}).
+    */
+   private static AestheticInfo aggregateFieldFor(ChartAggregateRefModel aggregate,
+                                                  String channel)
+   {
+      AestheticInfo field = aggregateFieldOf(aggregate, channel);
+
+      if(field != null || (!"line".equals(channel) && !"texture".equals(channel))) {
+         return field;
+      }
+
+      AestheticInfo shape = aggregate.getShapeField();
+      VisualFrameModel frame = shape == null ? null : shape.getFrame();
+      boolean carriesThisFamily = "line".equals(channel)
+         ? frame instanceof LineFrameModel : frame instanceof TextureFrameModel;
+      return carriesThisFamily ? shape : null;
+   }
+
+   /**
+    * {@link #setFrame}'s multi-aesthetic branch (#77024 P1): every target is validated before any
+    * is written, so a refusal on one measure leaves none half-updated, then each measure gets a
+    * fresh frame -- on its own field where it has one, in its field-less slot where it does not.
+    */
+   private static void setMultiAestheticFrame(String name, Map<String, Object> spec,
+                                              boolean relationChart,
+                                              List<ChartAggregateRefModel> targets,
+                                              String measure)
+   {
+      List<ChartAggregateRefModel> selected = measure == null
+         ? targets : List.of(requireTargetMeasure(targets, name, measure));
+      List<AestheticInfo> fields = new ArrayList<>();
+      List<VisualFrameModel> frames = new ArrayList<>();
+
+      for(ChartAggregateRefModel aggregate : selected) {
+         AestheticInfo field = aggregateFieldFor(aggregate, name);
+         VisualFrameModel frame = VisualFrameAliases.create(name, spec, relationChart);
+
+         if(field == null) {
+            try {
+               requireStaticColorOnMeasures(name, frame);
+               requireStaticLineOrTextureOnMeasures(name, frame);
+               requireStaticShapeOrSizeOnMeasures(name, frame);
+            }
+            catch(IllegalArgumentException e) {
+               throw new IllegalArgumentException(
+                  e.getMessage() + " This chart is multi-style, where set_aesthetic_field is " +
+                  "refused: turn multi-style off (set_chart_type multi:false), bind the field, " +
+                  "then turn it back on. Measure: " + measureLabel(aggregate) + ".");
+            }
+         }
+         else {
+            frame = carryCategoricalColors(frame, field.getFrame(), name, fieldNameOf(field), spec);
+            requireFrameTheFieldCanDrive(name, frame, field);
+         }
+
+         fields.add(field);
+         frames.add(frame);
+      }
+
+      for(int i = 0; i < selected.size(); i++) {
+         if(fields.get(i) != null) {
+            fields.get(i).setFrame(frames.get(i));
+         }
+         else {
+            assignAggregateFrame(selected.get(i), name, frames.get(i));
+         }
+      }
+   }
+
+   /**
+    * Refuses a non-static frame on a chart-level slot the renderer does read ({@code
+    * MergedChartInfo}'s colour/shape/line/texture -- candle, stock, radar, map, relation -- and
+    * size on radar/candle/map; contour for all), when the channel has no field (#77024 P5).
+    *
+    * <p>A frame that varies over categories or a value range has nothing to vary over without a
+    * field. It is not a crash here, unlike the per-measure combiner: a radar given a gradient
+    * draws a field-less "Color" legend and shrinks its plot to dots. The Composer draws the same
+    * line -- with nothing bound its swatch opens the static pane -- except for a contour chart's
+    * colour, which opens the linear pane without a field, so that one is exempt. Node channels are
+    * not checked: they are not named here, and their panes have not been verified.
+    */
+   private static void requireStaticOnChartLevelSlot(ChartBindingModel model, String channel,
+                                                     VisualFrameModel frame)
+   {
+      boolean isStatic = switch(channel) {
+         case "color" -> frame instanceof StaticColorModel ||
+            GraphTypes.isContour(model.getChartType());
+         case "shape" -> frame instanceof StaticShapeModel;
+         case "size" -> frame instanceof StaticSizeModel;
+         case "line" -> frame instanceof StaticLineModel;
+         case "texture" -> frame instanceof StaticTextureModel;
+         default -> true;
+      };
+
+      if(isStatic) {
+         return;
+      }
+
+      boolean lineOrTexture = "line".equals(channel) || "texture".equals(channel);
+
+      throw new IllegalArgumentException(
+         "The " + channel + " channel has no field bound, so this chart type draws it as one " +
+         "fixed value -- only {type: \"static\", " + channel + ": ...} can go there. A '" +
+         VisualFrameAliases.typeName(frame) + "' frame varies " + channel + " across " +
+         "categories or a value range and has nothing to vary over; stored here it renders a " +
+         "field-less legend and distorts the chart. " +
+         (lineOrTexture
+            ? "Bind a dimension to the shape channel with set_aesthetic_field first (it drives " +
+              "shape, line and texture together), then set this frame."
+            : "Bind a field to the " + channel + " channel with set_aesthetic_field first, then " +
+              "set this frame."));
+   }
+
    /** {@code VSFrameVisitor.containsMeasure}: the last ref on the shelf, and only that one. */
    private static boolean endsWithMeasure(List<ChartRefModel> refs) {
       return refs != null && !refs.isEmpty() && isMeasure(refs.get(refs.size() - 1));
@@ -1254,24 +1495,42 @@ public final class ChartAestheticMutator {
                                               boolean sizeSupported, boolean colorShapeSupported,
                                               boolean shapeFamilySupported)
    {
+      return describe(model, relationChart, perMeasureFrameChannels, sizeSupported,
+                      colorShapeSupported, shapeFamilySupported, false);
+   }
+
+   /**
+    * @param multiAesthetic see {@code setFrame}'s parameter of that name. The read must agree with
+    *                       the write: in that mode the chart-level slot is a decoy the renderer
+    *                       ignores, so {@code field}/{@code frame} come from the measures instead
+    *                       (the first, with {@code framesByMeasure}/{@code fieldsByMeasure} when
+    *                       they disagree), whether or not the decoy is empty.
+    */
+   public static Map<String, Object> describe(ChartBindingModel model, boolean relationChart,
+                                              Collection<String> perMeasureFrameChannels,
+                                              boolean sizeSupported, boolean colorShapeSupported,
+                                              boolean shapeFamilySupported,
+                                              boolean multiAesthetic)
+   {
       Map<String, Object> out = new LinkedHashMap<>();
 
       for(String channel : AestheticChannels.FIELD_CHANNELS) {
          out.put(channel, channelView(model, channel, perMeasureFrameChannels,
-                                       sizeSupported, colorShapeSupported, shapeFamilySupported));
+                                       sizeSupported, colorShapeSupported, shapeFamilySupported,
+                                       multiAesthetic));
       }
 
       for(String channel : AestheticChannels.FRAME_CHANNELS) {
          out.computeIfAbsent(channel, name -> channelView(
             model, name, perMeasureFrameChannels, sizeSupported, colorShapeSupported,
-            shapeFamilySupported));
+            shapeFamilySupported, multiAesthetic));
       }
 
       if(relationChart) {
          for(String channel : AestheticChannels.NODE_CHANNELS) {
             out.put(channel, channelView(model, channel, perMeasureFrameChannels,
                                           sizeSupported, colorShapeSupported,
-                                          shapeFamilySupported));
+                                          shapeFamilySupported, multiAesthetic));
          }
       }
 
@@ -1458,7 +1717,7 @@ public final class ChartAestheticMutator {
    private static Map<String, Object> channelView(ChartBindingModel model, String channel,
                                                   Collection<String> perMeasureFrameChannels)
    {
-      return channelView(model, channel, perMeasureFrameChannels, true, true, true);
+      return channelView(model, channel, perMeasureFrameChannels, true, true, true, false);
    }
 
    /**
@@ -1471,11 +1730,20 @@ public final class ChartAestheticMutator {
                                                   Collection<String> perMeasureFrameChannels,
                                                   boolean sizeSupported,
                                                   boolean colorShapeSupported,
-                                                  boolean shapeFamilySupported)
+                                                  boolean shapeFamilySupported,
+                                                  boolean multiAesthetic)
    {
       Map<String, Object> view = new LinkedHashMap<>();
-      AestheticInfo chartLevelField = frameField(model, channel);
-      AestheticInfo info = reportedField(model, channel, perMeasureFrameChannels);
+      // Multi-aesthetic (#77024 P1): the renderer reads each measure's own field and never the
+      // chart-level one, so the chart-level slot is ignored here even when it holds a leftover.
+      List<ChartAggregateRefModel> multiTargets =
+         multiAesthetic && perMeasureFrameChannels.contains(channel)
+            ? multiAggregates(model) : List.of();
+      boolean multiView = !multiTargets.isEmpty();
+      AestheticInfo chartLevelField = multiView ? null : frameField(model, channel);
+      AestheticInfo info = multiView
+         ? aggregateFieldFor(multiTargets.get(0), channel)
+         : reportedField(model, channel, perMeasureFrameChannels);
 
       view.put("field", fieldNameOf(info));
       // The structured binding behind "field": what set_aesthetic_field can write, read back
@@ -1484,21 +1752,24 @@ public final class ChartAestheticMutator {
       // "field" name but no chart-level binding to describe, and echoing it back is refused.
       view.put("fieldRef", chartLevelField == null || chartLevelField.getDataInfo() == null
          ? null : FieldRefFactory.from(chartLevelField.getDataInfo()));
-      view.put("frame",
-               VisualFrameAliases.describe(frameOf(model, channel, perMeasureFrameChannels)));
+      view.put("frame", VisualFrameAliases.describe(
+         multiView ? renderedAggregateFrameOf(multiTargets.get(0), channel)
+            : frameOf(model, channel, perMeasureFrameChannels)));
       view.put("acceptsField", rendersField(channel, sizeSupported, colorShapeSupported,
                                                  shapeFamilySupported));
       view.put("acceptsFrame", acceptsFrame(channel, colorShapeSupported));
 
       Map<String, Object> perMeasureFrame =
-         divergentMeasureFrames(model, channel, chartLevelField, perMeasureFrameChannels);
+         divergentMeasureFrames(model, channel, chartLevelField, perMeasureFrameChannels,
+                                multiTargets);
 
       if(perMeasureFrame != null) {
          view.put("framesByMeasure", perMeasureFrame);
       }
 
       Map<String, Object> perMeasureField =
-         divergentMeasureFields(model, channel, chartLevelField, perMeasureFrameChannels);
+         divergentMeasureFields(model, channel, chartLevelField, perMeasureFrameChannels,
+                                multiTargets);
 
       if(perMeasureField != null) {
          view.put("fieldsByMeasure", perMeasureField);
@@ -1623,7 +1894,7 @@ public final class ChartAestheticMutator {
    private static VisualFrameModel renderedAggregateFrameOf(ChartAggregateRefModel aggregate,
                                                             String channel)
    {
-      AestheticInfo field = aggregateFieldOf(aggregate, channel);
+      AestheticInfo field = aggregateFieldFor(aggregate, channel);
       return field != null ? field.getFrame() : aggregateFrameOf(aggregate, channel);
    }
 

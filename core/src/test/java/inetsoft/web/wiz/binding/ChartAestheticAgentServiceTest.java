@@ -130,16 +130,33 @@ class ChartAestheticAgentServiceTest {
       assertEquals("#4E79A7", frame.getColor());
    }
 
+   /**
+    * #77024 P5: a palette (like any non-static frame) needs a field to vary over, so on a chart
+    * with no info and nothing bound it is refused instead of stored in the chart-level slot. This
+    * test used to write it there on an unbound chart; it now binds a measure first, which is the
+    * order the Composer enforces, and the frame lands on that field.
+    */
    @Test
    void setFrameAppliesANamedPalette() throws Exception {
       ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", new FieldRef("Sales", "measure", "Sum", null, null));
 
-      harness(new ChartBindingModel(), aesthetics)
+      harness(model, aesthetics)
          .setFrame("tok", principal(), "Chart1", "color",
                    spec("type", "palette", "palette", "Blues"), "");
 
       assertInstanceOf(BluesColorModel.class,
-                       captureEvent(aesthetics).getModel().getColorFrame());
+                       captureEvent(aesthetics).getModel().getColorField().getFrame());
+   }
+
+   @Test
+   void setFrameRefusesANamedPaletteWhenNothingIsBound() {
+      ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
+
+      assertThrows(IllegalArgumentException.class, () -> harness(new ChartBindingModel(), aesthetics)
+         .setFrame("tok", principal(), "Chart1", "color",
+                   spec("type", "palette", "palette", "Blues"), ""));
    }
 
    @Test
@@ -842,5 +859,39 @@ class ChartAestheticAgentServiceTest {
                  "types the builder accepts but the old hard-coded list refused: " + types);
       assertTrue(types.containsAll(List.of("static", "categorical", "gradient", "palette")),
                  "and the four it did report are still there: " + types);
+   }
+
+   /**
+    * #77024 P1 wiring: the service passes the chart's own {@code isMultiAesthetic()} to the
+    * mutator, so the frame lands on the measure's field instead of the dead chart-level one.
+    */
+   @Test
+   void setFrameOnAMultiAestheticChartWritesTheMeasuresOwnField() throws Exception {
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiAesthetic()).thenReturn(true);
+      when(info.supportsColorFieldFrame()).thenReturn(true);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      ChartBindingModel model = new ChartBindingModel();
+      inetsoft.web.binding.model.graph.ChartAggregateRefModel measure =
+         new inetsoft.web.binding.model.graph.ChartAggregateRefModel();
+      measure.setName("Sales");
+      measure.setFormula("Sum");
+      model.setYFields(new ArrayList<>(List.of(measure)));
+      ChartBindingModel scratch = new ChartBindingModel();
+      ChartAestheticMutator.setField(scratch, "color",
+                                     new FieldRef("Region", "dimension", null, null, null));
+      measure.setColorField(scratch.getColorField());
+      ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
+
+      serviceWith(sessionsFor(chart), model, aesthetics)
+         .setFrame("tok", principal(), "Chart1", "color",
+                   spec("type", "categorical", "colors", List.of("#FF0000", "#00AA00")), "");
+
+      assertArrayEquals(
+         new String[]{"#FF0000", "#00AA00"},
+         ((inetsoft.web.binding.model.graph.aesthetic.CategoricalColorModel)
+            measure.getColorField().getFrame()).getColors());
    }
 }

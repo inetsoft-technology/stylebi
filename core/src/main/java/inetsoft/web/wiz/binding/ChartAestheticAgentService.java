@@ -146,7 +146,8 @@ public class ChartAestheticAgentService {
 
       apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> ChartAestheticMutator.setFrame(
-               model, name, frame, relationChart, perMeasureFrameChannels(chart), measure));
+               model, name, frame, relationChart, perMeasureFrameChannels(chart), measure,
+               isMultiAesthetic(chart)));
    }
 
    /** The aesthetic panes' "Reset to Default" button. */
@@ -161,7 +162,8 @@ public class ChartAestheticAgentService {
 
       apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> ChartAestheticMutator.resetFrame(
-               model, name, relationChart, perMeasureFrameChannels(chart), measure));
+               model, name, relationChart, perMeasureFrameChannels(chart), measure,
+               isMultiAesthetic(chart)));
    }
 
    /** Reads the channels without opening a checkpoint. */
@@ -174,7 +176,18 @@ public class ChartAestheticAgentService {
                                             isRelationChart(chart),
                                             perMeasureFrameChannels(chart),
                                             isSizeSupported(chart), isColorShapeSupported(chart),
-                                            isShapeFamilySupported(chart));
+                                            isShapeFamilySupported(chart),
+                                            isMultiAesthetic(chart));
+   }
+
+   /**
+    * Whether the chart renders each measure from its own aesthetic fields, the predicate
+    * {@link #requireNotMultiAesthetic} uses. Not {@code model.isMultiStyles()}: a date
+    * comparison forces it at runtime, and Gantt is always multi-aesthetic.
+    */
+   private static boolean isMultiAesthetic(ChartVSAssembly chart) {
+      VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
+      return info != null && info.isMultiAesthetic();
    }
 
    /**
