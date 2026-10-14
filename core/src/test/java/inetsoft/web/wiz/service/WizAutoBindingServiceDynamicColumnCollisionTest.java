@@ -29,6 +29,7 @@ import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.wiz.model.DimensionFieldInfo;
+import inetsoft.web.wiz.model.MeasureFieldInfo;
 import inetsoft.web.wiz.model.SimpleFieldInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -160,5 +161,37 @@ class WizAutoBindingServiceDynamicColumnCollisionTest {
          .filter(c -> c instanceof DimensionFieldInfo && "State".equals(c.getField()))
          .findFirst().orElseThrow();
       assertNull(stateDim.getDynamicColumnValue());
+   }
+
+   @Test
+   void dynamicDimensionDoesNotMakeAStaticMeasureDynamic() {
+      // x = $(RB) dimension resolving to Sales, y = static Sum(Sales): different kinds.
+      ChartVSAssembly chart = chart(dim(DYNAMIC, "Sales"), dim("Region", "Region"));
+
+      assertTrue(service().dynamicColumnCollisions(chart).isEmpty());
+      List<SimpleFieldInfo> configs = service().deriveFieldConfigs(chart);
+      SimpleFieldInfo sales = configs.stream()
+         .filter(c -> c instanceof MeasureFieldInfo && "Sales".equals(c.getField()))
+         .findFirst().orElseThrow();
+      assertNull(sales.getDynamicColumnValue());
+   }
+
+   @Test
+   void measureCollisionFollowsTheReferenceAndLeavesTheDimensionStatic() {
+      // x = static Sales dimension, y = static Sum(Sales), color = Count($(RB)) resolving to Sales:
+      // the measures collide, the dimension of the same column is a different kind.
+      ChartVSAssembly chart = chart(dim("Sales", "Sales"), measure(DYNAMIC, "Sales"));
+
+      assertEquals(List.of(new WizAutoBindingService.DynamicColumnCollision("Sales", DYNAMIC, false)),
+                   service().dynamicColumnCollisions(chart));
+      List<SimpleFieldInfo> configs = service().deriveFieldConfigs(chart);
+      List<SimpleFieldInfo> measures = configs.stream()
+         .filter(c -> c instanceof MeasureFieldInfo && "Sales".equals(c.getField())).toList();
+      assertFalse(measures.isEmpty());
+      measures.forEach(c -> assertEquals(DYNAMIC, c.getDynamicColumnValue()));
+      SimpleFieldInfo salesDim = configs.stream()
+         .filter(c -> c instanceof DimensionFieldInfo && "Sales".equals(c.getField()))
+         .findFirst().orElseThrow();
+      assertNull(salesDim.getDynamicColumnValue());
    }
 }
