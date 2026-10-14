@@ -293,6 +293,21 @@ public class DCMergeDatePartFilter extends AbstractTableLens implements TableFil
             return null;
          }
 
+         // The remap below recomputes the week from dateGroupValue as if it were the cell's
+         // own date, which only holds when the date group is no coarser than a week. A DC
+         // table (DateComparisonUtil.getMergePartTableLens) always uses the comparison period
+         // ref (Year/Quarter/Month, full week or not) as the date group, so dateGroupValue is
+         // the period start: the remap then gave every bar of a period the same week, and a
+         // chart click (brush, data tip, flyover, zoom, Show Details) through
+         // VSDataSet.getFieldValue filtered on a week that contradicts the real one.
+         // In all current production shapes this makes the remap a no-op, and the stored part
+         // value, computed with the same expression the selection condition uses, is kept.
+         // Only levels known to keep the cell's own week are remapped, so a new period-like
+         // level stays safe by default. (Bug #78446)
+         if(!isOwnWeekDateLevel(dateGroupRef.getDateLevel())) {
+            return null;
+         }
+
          List<XDimensionRef> mergedRefs = getMergedRefs();
 
          if(mergedRefs == null || mergedRefs.size() == 0) {
@@ -344,6 +359,16 @@ public class DCMergeDatePartFilter extends AbstractTableLens implements TableFil
          }
 
          return null;
+      }
+
+      /**
+       * Check if a date group value at this level lies in the same week as the cell's own
+       * date, so the week can be recomputed from it.
+       */
+      private static boolean isOwnWeekDateLevel(int level) {
+         return level == DateRangeRef.NONE_INTERVAL || level == DateRangeRef.WEEK_INTERVAL ||
+            level == DateRangeRef.DAY_INTERVAL || level == DateRangeRef.HOUR_INTERVAL ||
+            level == DateRangeRef.MINUTE_INTERVAL || level == DateRangeRef.SECOND_INTERVAL;
       }
 
       private void addValue(Object value) {
