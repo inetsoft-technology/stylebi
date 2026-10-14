@@ -27,6 +27,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.service.HighlightService;
@@ -119,7 +120,9 @@ class AssemblyHighlightServiceCrosstabDerivedConditionTest {
 
       for(int i = 0; i < aggregates.length; i++) {
          VSAggregateRef pushed = sumOf(BASE);
-         pushed.setCalculator(((VSAggregateRef) aggregates[i]).getCalculator());
+         Calculator calc = ((VSAggregateRef) aggregates[i]).getCalculator();
+         // a copy, not the instance: the comparison's calculator is matched by equality
+         pushed.setCalculator(calc == null ? null : (Calculator) calc.clone());
          aggregates[i] = pushed;
       }
 

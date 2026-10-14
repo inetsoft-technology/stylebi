@@ -51,6 +51,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.awt.*;
+import java.io.Serial;
+import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
@@ -717,14 +719,54 @@ public class HighlightService {
    }
 
    /**
-    * Listed field names (case-insensitive sets) a crosstab lists only because of the active date
-    * comparison, and those that cannot be classified either way.
+    * Listed field names a crosstab lists only because of the active date comparison, and those
+    * that cannot be classified either way. Matched case-insensitively, the way
+    * {@code ConditionVocabulary} resolves field names.
+    *
+    * <p>A plain {@code Serializable} class with lower-cased names in {@code HashSet}s, not a
+    * record or a comparator-ordered set: it is returned through a {@code @ClusterProxyMethod},
+    * and Ignite's binary marshaller can neither marshal a record on JDK 21 nor be relied on to
+    * bring a {@code TreeSet}'s comparator back.
     */
-   public record DateComparisonFields(Set<String> derived, Set<String> ambiguous)
-      implements java.io.Serializable
-   {
+   public static final class DateComparisonFields implements Serializable {
       public static final DateComparisonFields NONE =
          new DateComparisonFields(Collections.emptySet(), Collections.emptySet());
+
+      public DateComparisonFields(Collection<String> derived, Collection<String> ambiguous) {
+         this.derived = lowerCase(derived);
+         this.ambiguous = lowerCase(ambiguous);
+      }
+
+      public boolean isEmpty() {
+         return derived.isEmpty() && ambiguous.isEmpty();
+      }
+
+      /** Whether {@code field} names a field listed only because of the comparison. */
+      public boolean isDerived(String field) {
+         return field != null && derived.contains(field.toLowerCase());
+      }
+
+      /** Whether {@code field} names a field that cannot be told apart from a derived one. */
+      public boolean isAmbiguous(String field) {
+         return field != null && ambiguous.contains(field.toLowerCase());
+      }
+
+      private static HashSet<String> lowerCase(Collection<String> names) {
+         HashSet<String> lower = new HashSet<>();
+
+         for(String name : names) {
+            if(name != null) {
+               lower.add(name.toLowerCase());
+            }
+         }
+
+         return lower;
+      }
+
+      @Serial
+      private static final long serialVersionUID = 1L;
+      private final HashSet<String> derived;
+      private final HashSet<String> ambiguous;
    }
 
    public List<String> getNamedGroupFields(RuntimeCalcTableLens table, List<DataRef> fields) {

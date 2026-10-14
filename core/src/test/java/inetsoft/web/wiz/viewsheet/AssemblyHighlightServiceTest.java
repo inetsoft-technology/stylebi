@@ -51,6 +51,7 @@ import java.security.Principal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -1064,6 +1065,32 @@ class AssemblyHighlightServiceTest {
       h.service.set("tok", principal(), "Table1", null, highlight("X"), false, "");
 
       verify(h.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
+   }
+
+   /**
+    * Bug #78540: {@code set} asks for the crosstab's date-comparison-only fields at the cell the
+    * dialog model resolved, and refuses a condition on one without storing anything.
+    */
+   @Test
+   void conditionOnADateComparisonOnlyFieldIsRefusedAtTheModelsCell() throws Exception {
+      HighlightDialogModel model = model();
+      model.setRow(3);
+      model.setCol(2);
+      Harness h = harness(model);
+      when(h.highlights.getDateComparisonFields(anyString(), anyString(), any(), any(),
+                                                any(Principal.class)))
+         .thenReturn(new HighlightService.DateComparisonFields(Set.of("Revenue"), Set.of()));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Crosstab1", null, highlight("X"), false, ""));
+
+      assertTrue(e.getMessage().contains("'Revenue'"), e.getMessage());
+      assertTrue(e.getMessage().contains("date comparison"), e.getMessage());
+      verify(h.highlights).getDateComparisonFields(eq("rt1"), eq("Crosstab1"), eq(3), eq(2),
+                                                   any(Principal.class));
+      verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
+                                                            anyString(), any(Principal.class),
+                                                            any());
    }
 
    // ── harness ───────────────────────────────────────────────────────────────

@@ -793,7 +793,7 @@ public class AssemblyHighlightService {
                                               HighlightService.DateComparisonFields fields)
    {
       if(highlight.conditions() == null || highlight.conditions().isEmpty() ||
-         fields.derived().isEmpty() && fields.ambiguous().isEmpty())
+         fields.isEmpty())
       {
          return;
       }
@@ -804,7 +804,7 @@ public class AssemblyHighlightService {
          index++;
          String field = clause == null || clause.field() == null ? "" : clause.field().trim();
 
-         if(fields.derived().contains(field)) {
+         if(fields.isDerived(field)) {
             throw new IllegalArgumentException(
                "Condition " + index + "'s field '" + field + "' is derived by the active date " +
                "comparison and has no design-time field behind it, so the highlight would be " +
@@ -812,7 +812,7 @@ public class AssemblyHighlightService {
                "Put the condition on the base measure instead.");
          }
 
-         if(fields.ambiguous().contains(field)) {
+         if(fields.isAmbiguous(field)) {
             throw new IllegalArgumentException(
                "Condition " + index + "'s field '" + field + "' cannot be told apart from a " +
                "field the active date comparison derives, so it is refused rather than risk a " +
@@ -824,7 +824,7 @@ public class AssemblyHighlightService {
    }
 
    private static Set<String> derivedDateComparisonFields(VSAssembly assembly) {
-      Set<String> names = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+      Set<String> names = new HashSet<>();
 
       if(assembly != null && assembly.getInfo() instanceof ChartVSAssemblyInfo info) {
          VSChartInfo chartInfo = info.getVSChartInfo();
