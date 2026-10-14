@@ -1736,10 +1736,27 @@ public abstract class VSAQuery {
       for(int i = childPriv.getAttributeCount() - 1; i >= 0; i--) {
          DataRef ref = childPriv.getAttribute(i);
 
-         if(!(ref instanceof CalculateRef) || !isForeignDcRuntimeCalc((CalculateRef) ref) ||
-            // kept for a selection (e.g. an adhoc filter) bound to the calc field
-            usedInSelection(child.getName(), (CalculateRef) ref))
-         {
+         if(!(ref instanceof CalculateRef) || !isForeignDcRuntimeCalc((CalculateRef) ref)) {
+            continue;
+         }
+
+         CalculateRef calc = (CalculateRef) ref;
+
+         // kept for a selection (e.g. an adhoc filter) bound to the calc field
+         if(usedInSelection(child.getName(), calc)) {
+            continue;
+         }
+
+         // Bug #78446 (regression): brush, flyover and data tip conditions reference this
+         // calc the same way a selection does, but build their ConditionList directly onto
+         // this query's own table (VSAQuery.applySharedCondition / VSUtil.fixCondition),
+         // never through getSelectionAssemblyStream(), so usedInSelection never sees them.
+         // That ConditionList is already fully merged (brush + flyover/tip + drill filter)
+         // and attached to table.getPreRuntimeConditionList() by this point (set earlier in
+         // the same query build, in applySharedCondition), so checking it here catches all
+         // three uniformly.
+         if(usedInCondition(table, calc)) {
+            keepCalcUsedInCondition(table, child, childPub, calc);
             continue;
          }
 
@@ -1748,6 +1765,109 @@ public abstract class VSAQuery {
 
          if(pubRef instanceof CalculateRef && ((CalculateRef) pubRef).isDcRuntime()) {
             childPub.removeAttribute(pubRef);
+         }
+      }
+   }
+
+   /**
+    * Check if a foreign DC runtime calc is referenced by this query table's own runtime
+    * condition. That condition is a single, already-merged ConditionList (brush + flyover/data
+    * tip + drill filter, see VSAQuery.applySharedCondition) attached earlier in the same query
+    * build via table.setPreRuntimeConditionList(). Checking it here, inside
+    * removeForeignDcRuntimeCalcs, catches all three cross-assembly mechanisms uniformly
+    * (Bug #78446 regression).
+    */
+   private boolean usedInCondition(TableAssembly table, CalculateRef calc) {
+      ConditionListWrapper wrapper = table.getPreRuntimeConditionList();
+      ConditionList conds = wrapper == null ? null : wrapper.getConditionList();
+
+      if(conds == null) {
+         return false;
+      }
+
+      for(int i = 0; i < conds.getConditionSize(); i += 2) {
+         ConditionItem item = conds.getConditionItem(i);
+
+         if(item != null && item.getAttribute() != null &&
+            Objects.equals(item.getAttribute().getAttribute(), calc.getName()))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Keep a foreign DC runtime calc that this query's own runtime condition references
+    * (see usedInCondition), instead of removing it as removeForeignDcRuntimeCalcs otherwise
+    * would. Keeping it unconditionally would, if the target assembly also independently binds
+    * a plain date-level dimension of the identical name (e.g. its own Week of Year grouping of
+    * the same date column), reopen the original collision this bug's first round fixed: two
+    * columns named e.g. "WeekOfYear(Date)" in the same query, one the foreign calc and one the
+    * target's own dimension.
+    * <p>
+    * When that collision exists, this method renames the calc itself (in both childPriv and
+    * childPub) to a name that cannot collide with any DateRangeRef-generated level name or the
+    * target's own binding, and rewrites every ConditionItem of this query's own runtime
+    * condition that referenced the calc's old name to the new one in place, so the condition
+    * that was already built against the old name keeps resolving to this calc's data instead of
+    * falling back to the target's own same-named column once the old name stops matching
+    * anything. The matching entry in table's own outer column selection, if any, is updated the
+    * same way for consistency, but is not itself what the condition is re-pointed through: the
+    * ConditionItem's attribute can already be a different (equal-by-name, not equal-by-identity)
+    * ColumnRef object from the one in table's own column selection by the time this runs, so
+    * both must be rewritten explicitly - relying on only one of them is not reliable.
+    */
+   private void keepCalcUsedInCondition(TableAssembly table, TableAssembly child,
+                                        ColumnSelection childPub, CalculateRef calc)
+   {
+      ColumnSelection outerCols = table.getColumnSelection(false);
+      String outerName = child.getName() + "." + calc.getName();
+
+      boolean collides = outerCols.stream()
+         .anyMatch(col -> !Tool.equals(col.getName(), outerName) &&
+            Objects.equals(col.getAttribute(), calc.getName()));
+
+      if(!collides) {
+         return;
+      }
+
+      String oldName = calc.getName();
+      DataRef pubRef = childPub.getAttribute(oldName);
+      String newName = DC_COND_CALC_PREFIX + oldName;
+      calc.setName(newName);
+
+      if(pubRef != calc && pubRef instanceof CalculateRef && ((CalculateRef) pubRef).isDcRuntime()) {
+         ((CalculateRef) pubRef).setName(newName);
+      }
+
+      DataRef newOuterAttr = AssetUtil.getOuterAttribute(child.getName(), calc);
+      DataRef outerRef = outerCols.getAttribute(outerName);
+
+      if(outerRef instanceof ColumnRef) {
+         ((ColumnRef) outerRef).setDataRef(newOuterAttr);
+      }
+
+      ConditionListWrapper wrapper = table.getPreRuntimeConditionList();
+      ConditionList conds = wrapper == null ? null : wrapper.getConditionList();
+
+      if(conds != null) {
+         for(int i = 0; i < conds.getConditionSize(); i += 2) {
+            ConditionItem item = conds.getConditionItem(i);
+
+            if(item == null || item.getAttribute() == null ||
+               !Objects.equals(item.getAttribute().getAttribute(), oldName))
+            {
+               continue;
+            }
+
+            if(item.getAttribute() instanceof ColumnRef) {
+               ((ColumnRef) item.getAttribute()).setDataRef(newOuterAttr);
+            }
+            else {
+               item.setAttribute(new ColumnRef(newOuterAttr));
+            }
          }
       }
    }
@@ -2164,5 +2284,10 @@ public abstract class VSAQuery {
 
    private static final Pattern TEMP_CALC_CROSSTAB_PATTERN = Pattern.compile("^" +
       CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX + "([\\s\\S]+)_Crosstab_[\\d]+$");
+   // Bug #78446 (regression): marks a foreign DC runtime calc kept only because this query's
+   // own runtime condition (brush/flyover/data tip) references it, after it was renamed to
+   // stop colliding with a same-named column the target assembly binds itself. See
+   // keepCalcUsedInCondition.
+   private static final String DC_COND_CALC_PREFIX = "DCCond_";
    private static final Logger LOG = LoggerFactory.getLogger(VSAQuery.class);
 }
