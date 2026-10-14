@@ -577,6 +577,13 @@ public class WizAutoBindingService {
       applyAestheticFieldConfig(chartInfo.getShapeField(), configMap, chartType);
       applyAestheticFieldConfig(chartInfo.getSizeField(), configMap, chartType);
       applyAestheticFieldConfig(chartInfo.getTextField(), configMap, chartType);
+
+      // A multi-style chart carries its aesthetics per measure instead -- a donut puts its category
+      // on the measure's own color field (DonutChartFilter.putInside) and has no chart-level one.
+      // Empty unless the chart is multi-aesthetic (#78535).
+      for(AestheticRef aref : chartInfo.getAggregateAestheticRefs(false)) {
+         applyAestheticFieldConfig(aref, configMap, chartType);
+      }
    }
 
    /**
@@ -1147,7 +1154,8 @@ public class WizAutoBindingService {
 
    /**
     * {@link #restoreDynamicColumnValues(DataRef[], Map)} over every ref of a chart binding -- x/y/group
-    * plus the aesthetics, matching the set {@link #applyFieldConfigs} walks.
+    * plus the chart-level and per-measure aesthetics, matching the set {@link #applyFieldConfigs} walks
+    * and the set {@link #bindingRefsOf} resolves (#78535).
     */
    static void restoreChartDynamicColumnValues(VSChartInfo chartInfo,
                                                Map<String, SimpleFieldInfo> configMap)
@@ -1160,10 +1168,13 @@ public class WizAutoBindingService {
       restoreDynamicColumnValues(chartInfo.getYFields(), configMap);
       restoreDynamicColumnValues(chartInfo.getGroupFields(), configMap);
 
-      for(AestheticRef aref : new AestheticRef[]{
+      List<AestheticRef> arefs = new ArrayList<>(Arrays.asList(
          chartInfo.getColorField(), chartInfo.getShapeField(),
-         chartInfo.getSizeField(), chartInfo.getTextField()
-      }) {
+         chartInfo.getSizeField(), chartInfo.getTextField()));
+      // A multi-style chart (a donut, say) carries its category on a measure's own aesthetic.
+      arefs.addAll(chartInfo.getAggregateAestheticRefs(false));
+
+      for(AestheticRef aref : arefs) {
          if(aref != null && aref.getDataRef() != null) {
             restoreDynamicColumnValues(new DataRef[]{ aref.getDataRef() }, configMap);
          }
