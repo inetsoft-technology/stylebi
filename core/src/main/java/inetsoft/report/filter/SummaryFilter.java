@@ -2000,6 +2000,16 @@ public class SummaryFilter extends AbstractGroupedTable
    }
 
    /**
+    * Check if the topn of a group column groups the other values into 'Others'.
+    *
+    * @param col the group column.
+    */
+   public boolean isTopNOthers(int col) {
+      InnerTopNInfo info = topnmap.get(col);
+      return info != null && info.others;
+   }
+
+   /**
     * Remove sort by column value info.
     * @param col the specified group col
     */

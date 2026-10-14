@@ -2909,10 +2909,13 @@ public abstract class AssetQuery extends PreAssetQuery {
       AggregateInfo ginfo = getAggregateInfo();
       SortRef[] sorts = this.sinfo.getSorts();
       List<Integer> cols = new ArrayList<>();
-      List<SortOrder> comps = new ArrayList<>();
+      List<Comparer> comps = new ArrayList<>();
       List<Boolean> orders = new ArrayList<>();
       ColumnIndexMap columnIndexMap = new ColumnIndexMap(base);
       boolean saggregated = false;
+      // the Others bucket of a top-N group is placed last by SummaryFilter, keep it there
+      SummaryFilter summary =
+         base instanceof SummaryFilter filter && filter.isSortOthersLast() ? filter : null;
 
       boolean hasSortByValGroup = false;
 
@@ -2948,10 +2951,17 @@ public abstract class AssetQuery extends PreAssetQuery {
                continue;
             }
 
-            SortOrder comp = createDateSortOrder(group, order, false);
+            Comparer comp = createDateSortOrder(group, order, false);
+            boolean asc = order == XConstants.SORT_ASC;
+
+            if(summary != null && summary.isTopNOthers(col)) {
+               comp = new OthersLastComparer(
+                  comp != null ? comp : SortFilter.getDefaultComparer(base, col), asc);
+            }
+
             cols.add(col);
             comps.add(comp);
-            orders.add(order == XConstants.SORT_ASC);
+            orders.add(asc);
          }
          else if(aggregate != null) {
             cols.add(col);
@@ -4206,6 +4216,64 @@ public abstract class AssetQuery extends PreAssetQuery {
     */
    private static String getColumnIdentifier(String id, ColumnRef column, boolean bc) {
       return AssetUtil.getColumnIdentifier(id, column, bc);
+   }
+
+   /**
+    * Sorts the 'Others' bucket of a top-N group after every other value in either direction,
+    * and the other values with the column's own comparer.
+    */
+   private static class OthersLastComparer implements Comparer {
+      OthersLastComparer(Comparer comp, boolean asc) {
+         if(comp instanceof SortOrder) {
+            // SortFilter applies the direction, see SortFilter.setComparer
+            comp = (SortOrder) ((SortOrder) comp).clone();
+            ((SortOrder) comp).setAsc(true);
+         }
+
+         this.comp = comp;
+         this.asc = asc;
+      }
+
+      @Override
+      public int compare(Object v1, Object v2) {
+         int rc = others.compare(v1, v2);
+
+         if(rc != 0) {
+            // SortFilter negates the result for a descending sort
+            return asc ? rc : -rc;
+         }
+
+         return comp.compare(v1, v2);
+      }
+
+      @Override
+      public int compare(double v1, double v2) {
+         return comp.compare(v1, v2);
+      }
+
+      @Override
+      public int compare(float v1, float v2) {
+         return comp.compare(v1, v2);
+      }
+
+      @Override
+      public int compare(long v1, long v2) {
+         return comp.compare(v1, v2);
+      }
+
+      @Override
+      public int compare(int v1, int v2) {
+         return comp.compare(v1, v2);
+      }
+
+      @Override
+      public int compare(short v1, short v2) {
+         return comp.compare(v1, v2);
+      }
+
+      private final Comparer comp;
+      private final boolean asc;
+      private final OthersComparator others = new OthersComparator();
    }
 
    /**
