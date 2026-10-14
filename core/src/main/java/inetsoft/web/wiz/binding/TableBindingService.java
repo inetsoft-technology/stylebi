@@ -491,7 +491,8 @@ public class TableBindingService {
                "'" + assemblyName + "' is " +
                (liveAssembly instanceof CrosstabVSAssembly ? "a Crosstab" : "not a Table") +
                " -- set_table_field_visibility only supports Table. Use " +
-               "set_crosstab_column_visibility for a Crosstab's row/col/aggregate occurrence.");
+               "set_crosstab_column_visibility for a Crosstab's row or aggregate occurrence (a " +
+               "column dimension has no header of its own and cannot be hidden by name).");
          }
 
          HideColumnsDialogModel current =
