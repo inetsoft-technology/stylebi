@@ -136,23 +136,6 @@ public class DateComparisonUtil {
    }
 
    /**
-    * Check if the runtime date comparison refs of the chart/crosstab are set, i.e. its date
-    * comparison runtime fields (and calc fields) are in use. Unlike
-    * appliedDateComparison(VSAssemblyInfo), this does not check the date comparison definition.
-    */
-   public static boolean isAppliedDateComparison(VSAssemblyInfo info) {
-      if(info instanceof ChartVSAssemblyInfo) {
-         return ((ChartVSAssemblyInfo) info).getVSChartInfo().isAppliedDateComparison();
-      }
-      else if(info instanceof CrosstabVSAssemblyInfo) {
-         return ((CrosstabVSAssemblyInfo) info).getVSCrosstabInfo().isAppliedDateComparison();
-      }
-
-      // only charts and crosstabs support date comparison
-      return false;
-   }
-
-   /**
     * Get the assembly design or share dateComparison,
     */
    public static DateComparisonInfo getDateComparison(DateCompareAbleAssemblyInfo assemblyInfo,
