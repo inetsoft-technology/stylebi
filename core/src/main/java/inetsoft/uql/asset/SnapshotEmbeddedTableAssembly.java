@@ -48,6 +48,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
@@ -1586,16 +1587,21 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
     * @param cluster the cluster.
     */
    public static void removeStaleFileReferences(Cluster cluster) {
+      // Bug #78463, the leases of JVMs that stopped without deleting them, e.g. when halted
+      SnapshotOwnerLeases.removeOrphans();
+
       try {
          Map<String, HashMap<String, Integer>> owners = cluster.getMap(FILE_OWNERS_MAP);
          Set<String> nodes = cluster.getClusterNodeIds();
          List<String> stale = new ArrayList<>();
+         // Bug #78463, each lease is read once in a sweep
+         SnapshotOwnerLeases.Reads reads = new SnapshotOwnerLeases.Reads();
 
          for(Map.Entry<String, HashMap<String, Integer>> entry : owners.entrySet()) {
             // a file that a table of this JVM reads is in use, whatever node id it was counted
             // under (the node id of a client changes when it reconnects)
             if(!isFileInUseLocally(entry.getKey()) &&
-               !nodes.containsAll(entry.getValue().keySet()))
+               hasDeadOwner(entry.getKey(), entry.getValue().keySet(), nodes, reads))
             {
                stale.add(entry.getKey());
             }
@@ -1618,7 +1624,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                HashMap<String, Integer> fileOwners = owners.get(file);
 
                if(fileOwners != null && !isFileInUseLocally(file)) {
-                  removeDeadOwners(file, fileOwners, nodes, map, owners);
+                  removeDeadOwners(file, fileOwners, nodes, map, owners, reads);
                }
             }
          }
@@ -1631,25 +1637,44 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       }
    }
 
+   private static boolean hasDeadOwner(String file, Set<String> fileOwners, Set<String> nodes,
+                                       SnapshotOwnerLeases.Reads reads)
+   {
+      return fileOwners.stream().anyMatch(id -> isDeadOwner(file, id, nodes, reads));
+   }
+
    /**
-    * Removes the counts of the nodes that are not in the cluster from the owners of a file and
-    * from its total count. The caller must hold {@link #FILE_REFERENCES_MAP_LOCK}.
+    * Checks if an owner of a file is gone. Bug #78463, a node that is not in the cluster of this
+    * node may still be alive, as another cluster after a split (e.g. the local scheduler after a
+    * long pause), and still read the file, so it is gone only if its lease is gone too.
+    */
+   private static boolean isDeadOwner(String file, String nodeId, Set<String> nodes,
+                                      SnapshotOwnerLeases.Reads reads)
+   {
+      return !nodes.contains(nodeId) && !SnapshotOwnerLeases.isAlive(file, nodeId, reads);
+   }
+
+   /**
+    * Removes the counts of the nodes that are gone from the owners of a file and from its total
+    * count, see {@link #isDeadOwner}. The caller must hold {@link #FILE_REFERENCES_MAP_LOCK}.
     *
     * @return the total count of the file that is left. It is the current total count when no
     *         owner was removed, and 0 when the file has no count.
     */
    private static int removeDeadOwners(String file, HashMap<String, Integer> fileOwners,
                                        Set<String> nodes, Map<String, Integer> map,
-                                       Map<String, HashMap<String, Integer>> owners)
+                                       Map<String, HashMap<String, Integer>> owners,
+                                       SnapshotOwnerLeases.Reads reads)
    {
       int dead = 0;
 
       for(Iterator<Map.Entry<String, Integer>> i = fileOwners.entrySet().iterator(); i.hasNext();) {
          Map.Entry<String, Integer> entry = i.next();
 
-         if(!nodes.contains(entry.getKey())) {
+         if(isDeadOwner(file, entry.getKey(), nodes, reads)) {
             dead += entry.getValue();
             i.remove();
+            SnapshotOwnerLeases.removeDead(file, entry.getKey(), reads);
          }
       }
 
@@ -1688,6 +1713,25 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       return LOCAL_FILE_REFERENCES.containsKey(path);
    }
 
+   /**
+    * Bug #78463, gets the snapshot copies in a directory that live tables of other JVMs read, from
+    * their leases in that directory. Such a JVM may not be in the cluster of this node, e.g. the
+    * local scheduler after a pause split the cluster, so the copies it opened since have no count
+    * in {@link #FILE_REFERENCES_MAP} here. Get it once per sweep, it lists the directory.
+    *
+    * @param dir the directory of the copies, e.g. the cache folder.
+    *
+    * @return a test of the absolute path of a file.
+    */
+   public static Predicate<String> getFilesInUseElsewhere(File dir) {
+      return SnapshotOwnerLeases.getFilesInUseElsewhere(dir);
+   }
+
+   // the absolute paths of the files that the live tables of this JVM read
+   static Set<String> getLocalFiles() {
+      return LOCAL_FILE_REFERENCES.keySet();
+   }
+
    private static final class EmbeddedTableReference extends Cleaner.Reference<XSwappableTable> {
       EmbeddedTableReference(XSwappableTable referent, File[] files) {
          super(referent);
@@ -1708,9 +1752,17 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
             // Bug #78096, registered before any count is added, so that the counts that were
             // added are removed when the table is collected, even if adding the others fails
             Cleaner.add(this);
+            // Bug #78463, the lease of the node id is held until the counts are removed, it is
+            // written once they are added
+            leaseDir = this.files.length > 0 ? new File(this.files[0]).getParentFile() : null;
+            SnapshotOwnerLeases.acquire(leaseDir, nodeId);
+            leased = true;
 
             try {
                addCounts(cluster);
+               // Bug #78463, lists the files before they are copied or read, so that a JVM that
+               // is not in the cluster of this node keeps them
+               SnapshotOwnerLeases.update(leaseDir);
             }
             catch(RuntimeException | Error e) {
                // the local counts can be removed now. the counts in the cluster are removed by
@@ -1776,6 +1828,19 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          // first, so that the local counts are right even if the cluster can't be reached
          removeLocalCounts();
 
+         try {
+            removeCounts();
+         }
+         finally {
+            // Bug #78463, the lease is kept while a count of this reference is in the cluster
+            if(leased && Arrays.stream(added).allMatch(a -> a == 0)) {
+               leased = false;
+               SnapshotOwnerLeases.release(leaseDir, nodeId);
+            }
+         }
+      }
+
+      private void removeCounts() {
          if(Arrays.stream(added).allMatch(a -> a == 0)) {
             return;
          }
@@ -1787,6 +1852,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          try {
             Map<String, Integer> map = cluster.getMap(FILE_REFERENCES_MAP);
             Map<String, HashMap<String, Integer>> owners = cluster.getMap(FILE_OWNERS_MAP);
+            // Bug #78463, read when a file is about to be deleted
+            Predicate<String> elsewhere = null;
 
             for(int i = 0; i < files.length; i++) {
                if(added[i] == 0) {
@@ -1812,7 +1879,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                   added[i] = 0;
 
                   if(count <= 0 && !inUse) {
-                     new File(file).delete();
+                     elsewhere = deleteCopy(file, elsewhere);
                   }
 
                   continue;
@@ -1827,7 +1894,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                   added[i] = 0;
 
                   if(!inUse && !map.containsKey(file)) {
-                     new File(file).delete();
+                     elsewhere = deleteCopy(file, elsewhere);
                   }
 
                   continue;
@@ -1856,7 +1923,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                   added[i] = 0;
 
                   if(!inUse) {
-                     new File(file).delete();
+                     elsewhere = deleteCopy(file, elsewhere);
                   }
 
                   continue;
@@ -1875,7 +1942,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
                try {
                   left = removeDeadOwners(file, fileOwners, cluster.getClusterNodeIds(), map,
-                                          owners);
+                                          owners, new SnapshotOwnerLeases.Reads());
                }
                catch(Exception e) {
                   // e.g. on a client that is disconnected, keep the count and go on with the
@@ -1885,7 +1952,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                }
 
                if(left <= 0) {
-                  new File(file).delete();
+                  elsewhere = deleteCopy(file, elsewhere);
                }
             }
          }
@@ -1894,11 +1961,32 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          }
       }
 
+      /**
+       * Deletes a copy that no table of the cluster reads, unless a live table of another JVM
+       * reads it (bug #78463), e.g. one that opened it after a split, whose count is not here.
+       *
+       * @return the copies that other JVMs read, read the first time a copy is deleted.
+       */
+      private static Predicate<String> deleteCopy(String file, Predicate<String> elsewhere) {
+         if(elsewhere == null) {
+            elsewhere = SnapshotOwnerLeases.getFilesInUseElsewhere(new File(file).getParentFile());
+         }
+
+         if(!elsewhere.test(file)) {
+            new File(file).delete();
+         }
+
+         return elsewhere;
+      }
+
       private final String[] files;
       // Bug #78096, the counts of each file that this reference added and has not removed yet
       private final int[] added;
       // the node that added the counts, the local node id changes when a client reconnects
       private final String nodeId;
+      // Bug #78463, the directory of the lease of the node id, and if this reference holds it
+      private File leaseDir;
+      private boolean leased;
       private boolean closed;
 
       private static final int TOTAL = 1;
