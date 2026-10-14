@@ -372,6 +372,9 @@ class BindingAgentControllerTest {
       inetsoft.report.composition.RuntimeViewsheet rvs =
          mock(inetsoft.report.composition.RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
+      // setTableFields first runs the read-only type gate (bug #78533), which resolves the same
+      // session that mutate() runs against.
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
       doAnswer(invocation -> {
          ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
          mutation.run(rvs, "rt1", null);
@@ -447,7 +450,9 @@ class BindingAgentControllerTest {
          () -> controller.setTableFields("tok", request, principal()));
 
       assertTrue(thrown.getMessage().contains("Sales"), thrown.getMessage());
-      verifyNoInteractions(tableService);
+      // The read-only type gate (bug #78533) is the only service call; nothing is written.
+      verify(tableService).requireTableAssembly(eq("tok"), any(Principal.class), eq("Crosstab1"));
+      verifyNoMoreInteractions(tableService);
    }
 
    /** @see #setTableFieldsRefusesATableTheListingDoesNotHave -- add_table_field shares the gap. */
@@ -475,7 +480,9 @@ class BindingAgentControllerTest {
          () -> controller.addTableField("tok", request, principal()));
 
       assertTrue(thrown.getMessage().contains("Sales"), thrown.getMessage());
-      verifyNoInteractions(tableService);
+      // The read-only type gate (bug #78533) is the only service call; nothing is written.
+      verify(tableService).requireTableAssembly(eq("tok"), any(Principal.class), eq("Crosstab1"));
+      verifyNoMoreInteractions(tableService);
    }
 
    /**
@@ -619,7 +626,9 @@ class BindingAgentControllerTest {
             null), principal()));
 
       assertTrue(thrown.getMessage().contains("'Ab'"));
-      verifyNoInteractions(tableService);
+      // The read-only type gate (bug #78533) is the only service call; nothing is written.
+      verify(tableService).requireTableAssembly(eq("tok"), any(Principal.class), eq("Crosstab1"));
+      verifyNoMoreInteractions(tableService);
    }
 
    @Test
