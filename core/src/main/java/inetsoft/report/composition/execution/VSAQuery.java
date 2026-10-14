@@ -176,7 +176,14 @@ public abstract class VSAQuery {
          cols.addAttribute(baseCol);
       }
 
-      if(cols.getAttribute(ncolumn.getName(), fuzzy) != null) {
+      DataRef existing = cols.getAttribute(ncolumn.getName(), fuzzy);
+
+      // a shared condition on a date range must not be taken as covered by a same-named
+      // column that is not a date range, e.g. the pass-through of a date comparison runtime
+      // calc field WeekOfYear(Date), which holds different values. Add the hidden date range
+      // column for it instead (Bug #78446). fuzzy identifies the applySharedCondition path, its
+      // only caller passing true; a new fuzzy caller gets this hidden column behavior too.
+      if(existing != null && (!fuzzy || isDateRangeColumn(existing))) {
          return;
       }
 
@@ -1572,7 +1579,6 @@ public abstract class VSAQuery {
    // that is not referenced anywhere in the output (column list or aggregate info).
    private void removeUnusedCalcFields(TableAssembly table) {
       isolateBaseTable(table);
-      removeForeignDcRuntimeCalcs(table);
 
       // need to run in a look since calc field referenced by removed calc field can only
       // be removed after the calc field has been removed.
@@ -1711,70 +1717,6 @@ public abstract class VSAQuery {
       }
 
       return false;
-   }
-
-   /**
-    * Remove the date comparison runtime calc fields that the assembly of this query does not
-    * use from the table it mirrors (see isForeignDcRuntimeCalc). Unlike removeUnusedCalcField,
-    * this is not limited to a mirrored table without aggregate and hidden columns, for such a
-    * calc field is never referenced by the mirrored table itself either (Bug #78446).
-    */
-   private void removeForeignDcRuntimeCalcs(TableAssembly table) {
-      if(!(table instanceof MirrorTableAssembly)) {
-         return;
-      }
-
-      TableAssembly child = ((MirrorTableAssembly) table).getTableAssembly();
-
-      if(child == null) {
-         return;
-      }
-
-      ColumnSelection childPriv = child.getColumnSelection(false);
-      ColumnSelection childPub = child.getColumnSelection(true);
-
-      for(int i = childPriv.getAttributeCount() - 1; i >= 0; i--) {
-         DataRef ref = childPriv.getAttribute(i);
-
-         if(!(ref instanceof CalculateRef) || !isForeignDcRuntimeCalc((CalculateRef) ref) ||
-            // kept for a selection (e.g. an adhoc filter) bound to the calc field
-            usedInSelection(child.getName(), (CalculateRef) ref))
-         {
-            continue;
-         }
-
-         childPriv.removeAttribute(i);
-         DataRef pubRef = childPub.getAttribute(ref.getName());
-
-         if(pubRef instanceof CalculateRef && ((CalculateRef) pubRef).isDcRuntime()) {
-            childPub.removeAttribute(pubRef);
-         }
-      }
-   }
-
-   /**
-    * Check if the calc field is a date comparison runtime calc field that the assembly of this
-    * query does not use. These calc fields are added to the viewsheet per source table by the
-    * date comparison of an assembly (DateComparisonInfo.createCalcRefForNonSupportPartLevel),
-    * so they are appended to the query of every assembly bound to that table. Their names,
-    * e.g. WeekOfYear(Date), can equal the full name of a date level dimension of another
-    * assembly, so the name based checks in removeUnusedCalcField would keep one in a query
-    * without date comparison, where it collides with the dimension column of the same name and
-    * the dimension is grouped by the calc field's values under a renamed "_1" header
-    * (Bug #78446). Only an assembly with date comparison applied refers to them.
-    */
-   private boolean isForeignDcRuntimeCalc(CalculateRef calc) {
-      if(!calc.isDcRuntime()) {
-         return false;
-      }
-
-      VSAssembly assembly = getAssembly();
-
-      if(assembly == null) {
-         return false;
-      }
-
-      return !DateComparisonUtil.isAppliedDateComparison(assembly.getVSAssemblyInfo());
    }
 
    private boolean usedInSelection(ColumnSelection cols, CalculateRef calc) {
@@ -1950,12 +1892,47 @@ public abstract class VSAQuery {
             ref2 = sel.getAttribute(ref.getName());
          }
 
+         // a condition on a column that is not a date range (e.g. a date comparison runtime
+         // calc field WeekOfYear(Date) from a data tip) must not be bound to a same-named date
+         // range column of this assembly, which holds different values (Bug #78446)
+         if(isDateRangeColumn(ref2) && !isDateRangeColumn(ref)) {
+            DataRef plain = findNonDateRangeColumn(sel, ref.getAttribute());
+
+            if(plain != null) {
+               ref2 = plain;
+            }
+         }
+
          if(ref2 != null) {
             citem.setAttribute(ref2);
          }
       }
 
       return wrapper;
+   }
+
+   /**
+    * Check if the ref is a column of a date range (date level) of its base column.
+    */
+   private static boolean isDateRangeColumn(DataRef ref) {
+      return ref instanceof ColumnRef && ((ColumnRef) ref).getDataRef() instanceof DateRangeRef;
+   }
+
+   /**
+    * Find the column with the attribute that is not a date range column.
+    */
+   private static DataRef findNonDateRangeColumn(ColumnSelection sel, String attr) {
+      for(int i = 0; i < sel.getAttributeCount(); i++) {
+         DataRef col = sel.getAttribute(i);
+
+         if(col instanceof ColumnRef && !isDateRangeColumn(col) &&
+            Tool.equals(col.getAttribute(), attr))
+         {
+            return col;
+         }
+      }
+
+      return null;
    }
 
    /**

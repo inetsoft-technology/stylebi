@@ -733,6 +733,26 @@ public final class VSUtil {
                                                       boolean append,
                                                       boolean detail)
    {
+      // a detail condition keeps its date range columns
+      return normalizeConditionList0(columns, oconds, append, detail);
+   }
+
+   /**
+    * Normalize a condition list. The condition list is generated from viewsheet
+    * and used in worksheet. As in viewsheet, most data refs have attribute only
+    * so we have to perform this normalization.
+    * @param columns the specified column selection.
+    * @param oconds the specified condition list.
+    * @param append append column to column selection.
+    * @param keepDateRange true to not replace the date range column of a condition with a
+    *                      same-named column that is not a date range.
+    * @return the normalized condition list.
+    */
+   private static ConditionList normalizeConditionList0(ColumnSelection columns,
+                                                        ConditionList oconds,
+                                                        boolean append,
+                                                        boolean keepDateRange)
+   {
       if(oconds == null || columns == null) {
          return oconds;
       }
@@ -746,7 +766,9 @@ public final class VSUtil {
             DataRef ref = item.getAttribute();
             ref = columns.getAttribute(ref.getName());
 
-            if(detail && ref instanceof ColumnRef && item.getAttribute() instanceof ColumnRef) {
+            if(keepDateRange && ref instanceof ColumnRef &&
+               item.getAttribute() instanceof ColumnRef)
+            {
                if(!(((ColumnRef) ref).getDataRef() instanceof DateRangeRef) &&
                   ((ColumnRef) item.getAttribute()).getDataRef() instanceof DateRangeRef)
                {
@@ -5518,7 +5540,10 @@ public final class VSUtil {
          conds = VSAQuery.replaceGroupValues(conds, (CrosstabVSAssembly) comp, false);
       }
 
-      conds = VSUtil.normalizeConditionList(columns, conds);
+      // the bound table has the viewsheet calc fields appended, so a date level condition
+      // (e.g. WeekOfYear(Date) of a non date comparison chart) must not be replaced by a
+      // same-named date comparison runtime calc field, which holds different values (Bug #78446)
+      conds = VSUtil.normalizeConditionList0(columns, conds, false, true);
       VSAQuery.fixConditionList(conds, columns);
 
       return Tool.equals(conds, tip.getTipConditionList()) ? VSAssembly.NONE_CHANGED : conds;

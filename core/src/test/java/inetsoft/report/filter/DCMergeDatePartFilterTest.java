@@ -25,6 +25,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.lens.DataSetTable;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
@@ -81,10 +82,11 @@ public class DCMergeDatePartFilterTest {
       Assertions.assertEquals(DCMergeDatePartFilter.class, deserializedTable.getClass());
    }
 
-   // Bug #75351: for a WeekOfYear date-comparison part cell whose displayed week
-   // maps to a different actual week across the period's year, VSDataSet must use
-   // the equivalence cell so the drill-to-detail condition targets the same week
-   // the axis/data represent (matching the crosstab path).
+   // Bug #75351: tests the equivalence remap arithmetic and its use by VSDataSet.getFieldValue
+   // for a date group that holds the cell's own date (day level). No production DC table builds
+   // such a date group: DateComparisonUtil.getMergePartTableLens always uses the period ref, for
+   // which the remap is skipped (Bug #78446). So this is a unit test of the algorithm, not of a
+   // live #75351 scenario.
    @Test
    public void testWeekOfYearEquivalenceFieldValue() {
       // Cover many month/week combinations so at least one part value diverges
@@ -109,6 +111,8 @@ public class DCMergeDatePartFilterTest {
       partRef.setDataRef(new AttributeRef("WeekOfYear(date)"));
       VSDimensionRef dateGroupRef = new VSDimensionRef();
       dateGroupRef.setDataRef(new AttributeRef("date"));
+      // the remap only applies to a date group holding the cell's own date (Bug #78446)
+      dateGroupRef.setDateLevel(DateRangeRef.DAY_INTERVAL);
 
       List<XDimensionRef> noExtraRefs = new ArrayList<>();
       DCMergeDatePartFilter filter =
@@ -164,11 +168,12 @@ public class DCMergeDatePartFilterTest {
                               "drill field value should use the equivalence week, not the displayed part value");
    }
 
-   // Bug #75351: a merged WeekOfYear bucket carries one period's part value, which can map
-   // to a different actual week in another period's year. getEquivalenceCell() must recompute
-   // the part value from the cell's own date (matching JavaScriptEngine.datePart("wy")), not
-   // from the stored part value. Deriving it from the stored value (the previous approach)
-   // failed when the first day of week was not Sunday, leaving drill-to-detail one week off.
+   // Bug #75351: getEquivalenceCell() recomputes the part value from the date group value
+   // (matching JavaScriptEngine.datePart("wy")), not from the stored part value, which failed
+   // when the first day of week was not Sunday. This tests the remap arithmetic for a day-level
+   // date group holding the cell's own date; no production DC table builds one (its date group
+   // is the period ref, for which the remap is skipped, Bug #78446), so it is not a live
+   // #75351 scenario.
    @Test
    public void testWeekOfYearEquivalenceUsesCellDateNonSundayWeekStart() {
       WeekStartUtil.withWeekStart("monday", () -> {
@@ -196,6 +201,8 @@ public class DCMergeDatePartFilterTest {
          partRef.setDataRef(new AttributeRef("WeekOfYear(date)"));
          VSDimensionRef dateGroupRef = new VSDimensionRef();
          dateGroupRef.setDataRef(new AttributeRef("date"));
+         // the remap only applies to a date group holding the cell's own date (Bug #78446)
+         dateGroupRef.setDateLevel(DateRangeRef.DAY_INTERVAL);
 
          DCMergeDatePartFilter filter =
             new DCMergeDatePartFilter(base, new ArrayList<>(), partRef, dateGroupRef, null);
@@ -255,6 +262,44 @@ public class DCMergeDatePartFilterTest {
          Assertions.assertNull(mpc.getEquivalenceCell(),
             "sequential-week part must skip the equivalence remap (it is already aligned)");
       });
+   }
+
+   // Bug #78446: in a DC table the date group is the comparison period ref, so its value is the
+   // period start (2021-01-01 for YearOfWeek), not the cell's own date. Recomputing the week from
+   // it gave every bar of the period the same week (124), which a chart click turned into a
+   // contradictory WeekOfYear condition. A period-level date group must not remap.
+   @Test
+   public void testPeriodLevelDateGroupSkipsEquivalence() {
+      int[] periodLevels = {
+         DateRangeRef.YEAR_OF_FULL_WEEK, DateRangeRef.YEAR_INTERVAL,
+         DateRangeRef.QUARTER_OF_FULL_WEEK, DateRangeRef.QUARTER_INTERVAL,
+         DateRangeRef.MONTH_OF_FULL_WEEK, DateRangeRef.MONTH_INTERVAL
+      };
+
+      for(int level : periodLevels) {
+         // WeekOfYear part 42 (October, 2nd week) and the period start of 2021.
+         DataSet dataSet = new DefaultDataSet(new Object[][]{
+            { "WeekOfYear(date)", "date" },
+            { 42, date("2021-01-01") },
+            });
+         DataSetTable base = new DataSetTable(dataSet);
+
+         VSDimensionRef partRef = new VSDimensionRef();
+         partRef.setDataRef(new AttributeRef("WeekOfYear(date)"));
+         VSDimensionRef dateGroupRef = new VSDimensionRef();
+         dateGroupRef.setDataRef(new AttributeRef("date"));
+         dateGroupRef.setDateLevel(level);
+
+         DCMergeDatePartFilter filter =
+            new DCMergeDatePartFilter(base, new ArrayList<>(), partRef, dateGroupRef, null);
+         Object cell = filter.getObject(base.getHeaderRowCount(), 0);
+         Assertions.assertInstanceOf(DCMergeDatePartFilter.MergePartCell.class, cell);
+
+         DCMergeDatePartFilter.MergePartCell mpc = (DCMergeDatePartFilter.MergePartCell) cell;
+         Assertions.assertEquals(42, ((Number) mpc.getValue(0)).intValue());
+         Assertions.assertNull(mpc.getEquivalenceCell(),
+            "a period-level date group (level " + level + ") must not remap the week");
+      }
    }
 
    // Bug #77196: MergePartCell values reach crosstab LoadTableDataCommand.cellData, which is
@@ -441,6 +486,8 @@ public class DCMergeDatePartFilterTest {
          partRef.setDataRef(new AttributeRef("WeekOfYear(date)"));
          VSDimensionRef dateGroupRef = new VSDimensionRef();
          dateGroupRef.setDataRef(new AttributeRef("date"));
+         // own-date (day level) group, so the equivalence remap applies (Bug #78446)
+         dateGroupRef.setDateLevel(DateRangeRef.DAY_INTERVAL);
          List<XDimensionRef> extras = new ArrayList<>();
          extras.add(yearRef);
          extras.add(rawRef);
