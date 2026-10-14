@@ -242,6 +242,36 @@ class TableBindingCrosstabRowLabelTest {
       assertTrue(ct.event.isClearVacatedAliases());
    }
 
+   /**
+    * [R1]: a period calendar on the crosstab's table does not shift the pre-clear index. Native
+    * addDataRef's replace adds 1 there, but the wiz label writer, syncCornerPath and buildMap all
+    * key Cell [0,i] by the unshifted runtime row index; a +1 here would clear the survivor's label
+    * and leave the replaced row's label for the newcomer.
+    */
+   @Test
+   void aPeriodCalendarDoesNotShiftThePreClearIndex() throws Exception {
+      Crosstab ct = new Crosstab(rows("Region", "State"), cols("Category"));
+      ct.live.setSourceInfo(new inetsoft.uql.asset.SourceInfo(
+         inetsoft.uql.asset.SourceInfo.ASSET, null, "Orders"));
+      Viewsheet vs = ct.live.getViewsheet();
+      CalendarVSAssembly calendar = new CalendarVSAssembly(vs, "Calendar1");
+      calendar.setTableName("Orders");
+      calendar.setDataRef(new ColumnRef(new AttributeRef(null, "Order Date")));
+      calendar.setPeriod(true);
+      calendar.setDates(new String[] { "y2024" });
+      vs.addAssembly(calendar);
+      assertNotNull(VSUtil.getPeriodCalendar(vs, ct.live.getTableName()),
+                    "fixture: a period calendar on the crosstab's table");
+      ct.label(0, "RL");
+      ct.label(1, "SL");
+
+      ct.service().setShelf("tok", principal(), "Crosstab1", "rows",
+                            List.of(dim("City"), dim("State")), null);
+
+      assertNull(ct.label(0), "City must not inherit Region's label");
+      assertEquals("SL", ct.label(1));
+   }
+
    // ── fixture ──────────────────────────────────────────────────────────────
 
    /** A live crosstab, its session plumbing, and a setBinding that syncs the format map. */
