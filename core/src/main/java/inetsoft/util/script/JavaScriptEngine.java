@@ -683,11 +683,31 @@ public class JavaScriptEngine {
     */
    public static Image getImageJS(Object img) {
       // use getImageJS only from js. (54833)
-      if("true".equals(SreeEnv.getProperty("javascript.getImageFunction.disabled"))) {
+      if(isImageFunctionDisabled()) {
          return null;
       }
 
       return getImage(img);
+   }
+
+   /**
+    * Check if the admin switch that disables the script image function
+    * ({@code getImage}) is on.
+    */
+   private static boolean isImageFunctionDisabled() {
+      return "true".equals(SreeEnv.getProperty(IMAGE_FUNCTION_DISABLED));
+   }
+
+   /**
+    * Check if loading an image from a script-supplied URL or path must be refused.
+    * This is the case when the {@code javascript.getImageFunction.disabled} switch is
+    * on and the caller runs inside a restricted script/expression. Every
+    * script-reachable loader that turns a string into a URL or file fetch must honor
+    * it, not only the {@code getImage} script function (Bug #78490). Callers outside a
+    * script (rendering, export) are not affected.
+    */
+   public static boolean isScriptImageLoadDisabled() {
+      return FormulaContext.isRestricted() && isImageFunctionDisabled();
    }
 
    /**
@@ -697,6 +717,10 @@ public class JavaScriptEngine {
       Image image = null;
       ImageLocation iloc = null;
       img = unwrap(img);
+
+      if((img instanceof String || img instanceof URL) && isScriptImageLoadDisabled()) {
+         return null;
+      }
       boolean imageavaliable = false;
 
       // string is a resource, or ascii encoded string
@@ -1129,6 +1153,7 @@ public class JavaScriptEngine {
    private static SreeEnv.Value maxErrorsProperty = new SreeEnv.Value("script.max.errors", 30000);
 
    private static final Logger LOG = LoggerFactory.getLogger(JavaScriptEngine.class);
+   private static final String IMAGE_FUNCTION_DISABLED = "javascript.getImageFunction.disabled";
 
    private static final String THREAD_LOCALS = JavaScriptEngine.class.getName() + ".threadLocals";
 
