@@ -916,6 +916,10 @@ public class CalcTableService {
             requireInGrid(layout, target.y, target.x);
          }
 
+         if(!"remove".equals(resolved)) {
+            requirePasteKeepsContent(assembly, layout, resolved, source, target);
+         }
+
          CopyCutCalcCellEvent event = new CopyCutCalcCellEvent();
          event.setName(assemblyName);
          event.setOp(resolved);
@@ -929,6 +933,100 @@ public class CalcTableService {
       updated.put("note", "Coordinates read before this operation are stale — use this layout.");
       ViewsheetSessionService.relayWarnings(updated, warnings);
       return updated;
+   }
+
+   /**
+    * Refuses a copy or cut that would leave a source cell's content where it can't be seen.
+    * {@code TableLayoutHandler.paste} stores a cell under a surviving merge (it never reaches
+    * the anchor and is overwritten from it on split) and silently drops one that falls past the
+    * grid edge; a cut has already cleared the source by then. Whether a merge survives depends
+    * on the paste itself ({@code BaseLayout.setSpan} dissolves spans a pasted span partially
+    * overlaps, and a cut clears the source's own spans first), so this dry-runs the same
+    * {@code copyOperation} {@code VSTableLayoutService.copyCut} runs, on a clone, and checks
+    * where each visible, non-blank source cell landed. Hidden and blank source cells carry
+    * nothing anyone can see, so they may land anywhere.
+    */
+   private void requirePasteKeepsContent(CalcTableVSAssembly assembly, TableLayout layout,
+                                         String op, Rectangle source, Rectangle target)
+   {
+      // The clip is the source widened to whole merges, as TableLayoutHandler.copy reads it.
+      Rectangle clip = spanFootprint(layout, source);
+      Map<String, MergeAnchor> hiddenBefore = mergedIntoMap(layout);
+      List<Point> visible = new ArrayList<>();
+
+      for(int i = 0; i < clip.height; i++) {
+         for(int j = 0; j < clip.width; j++) {
+            int row = clip.y + i;
+            int col = clip.x + j;
+
+            if(row < layout.getRowCount() && col < layout.getColCount() &&
+               !hiddenBefore.containsKey(row + "," + col) &&
+               !isBlankCell(layout.getCellBinding(row, col)))
+            {
+               visible.add(new Point(j, i));
+            }
+         }
+      }
+
+      if(visible.isEmpty()) {
+         return;
+      }
+
+      CalcTableVSAssemblyInfo dry = (CalcTableVSAssemblyInfo) assembly.getInfo().clone();
+      layoutHandler.copyOperation(dry, op, source, target);
+      Map<String, MergeAnchor> hiddenAfter = mergedIntoMap(dry.getTableLayout());
+
+      for(Point offset : visible) {
+         int srow = clip.y + offset.y;
+         int scol = clip.x + offset.x;
+         int row = target.y + offset.y;
+         int col = target.x + offset.x;
+
+         if(row >= layout.getRowCount() || col >= layout.getColCount()) {
+            throw new IllegalArgumentException(
+               "Pasting cell [" + srow + "," + scol + "] would land on [" + row + "," + col +
+               "], outside the grid, which is " + layout.getRowCount() + " row(s) by " +
+               layout.getColCount() + " column(s), so its content would be dropped. Nothing " +
+               "was changed. Choose a target where the whole range fits, or add rows/columns " +
+               "first.");
+         }
+
+         MergeAnchor anchor = hiddenAfter.get(row + "," + col);
+
+         if(anchor != null) {
+            throw new IllegalArgumentException(
+               "Pasting cell [" + srow + "," + scol + "] would land on [" + row + "," + col +
+               "], which is merged into [" + anchor.row() + "," + anchor.col() + "], so its " +
+               "content would be hidden and lost when the merge is split. Nothing was " +
+               "changed. Choose a target that does not land inside that merge, or splitCells [" +
+               anchor.row() + "," + anchor.col() + "] first.");
+         }
+      }
+   }
+
+   /** The rect widened to cover every merge any of its cells belongs to. */
+   private static Rectangle spanFootprint(TableLayout layout, Rectangle rect) {
+      Rectangle footprint = new Rectangle(rect.x, rect.y, 1, 1);
+      Map<String, MergeAnchor> mergedInto = mergedIntoMap(layout);
+
+      for(int r = rect.y; r < rect.y + rect.height; r++) {
+         for(int c = rect.x; c < rect.x + rect.width; c++) {
+            MergeAnchor anchor = mergedInto.get(r + "," + c);
+            int ar = anchor == null ? r : anchor.row();
+            int ac = anchor == null ? c : anchor.col();
+            Dimension span = ar < layout.getRowCount() && ac < layout.getColCount()
+               ? layout.getSpan(ar, ac) : null;
+            footprint = footprint.union(span == null
+               ? new Rectangle(c, r, 1, 1) : new Rectangle(ac, ar, span.width, span.height));
+         }
+      }
+
+      return footprint;
+   }
+
+   private static boolean isBlankCell(CellBinding binding) {
+      return binding == null || binding.getType() == CellBinding.BIND_TEXT &&
+         (binding.getValue() == null || binding.getValue().isEmpty());
    }
 
    private static String requireOp(String op) {
