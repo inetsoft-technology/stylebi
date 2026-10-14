@@ -296,12 +296,15 @@ public class DCMergeDatePartFilter extends AbstractTableLens implements TableFil
          // The remap below recomputes the week from dateGroupValue as if it were the cell's
          // own date, which only holds when the date group is no coarser than a week. A DC
          // table (DateComparisonUtil.getMergePartTableLens) always uses the comparison period
-         // ref (Year/Quarter/Month, full week or not) as the date group, so dateGroupValue is
-         // the period start: the remap then gave every bar of a period the same week, and a
-         // chart click (brush, data tip, flyover, zoom, Show Details) through
-         // VSDataSet.getFieldValue filtered on a week that contradicts the real one.
-         // In all current production shapes this makes the remap a no-op, and the stored part
-         // value, computed with the same expression the selection condition uses, is kept.
+         // ref as the date group. For a Year/Quarter/Month period (full week or not),
+         // dateGroupValue is the period start: the remap then gave every bar of a period the
+         // same week, and a chart click (brush, data tip, flyover, zoom, Show Details) through
+         // VSDataSet.getFieldValue filtered on a week that contradicts the real one, so those
+         // levels return null here. A Week period's date group (WEEK) passes this check, but
+         // the remap still never fires there, because the WeekOfYear(...) merged ref is only
+         // created under a Year period (DateComparisonInfo). So in all current production
+         // shapes the remap is a no-op, and the stored part value, computed with the same
+         // expression the selection condition uses, is kept.
          // Only levels known to keep the cell's own week are remapped, so a new period-like
          // level stays safe by default. (Bug #78446)
          if(!isOwnWeekDateLevel(dateGroupRef.getDateLevel())) {
