@@ -167,6 +167,34 @@ class RelationElementTargetOrderTest {
       assertEquals("TX", data.getData("State", subRow(ggraph, "Region", "USA West")));
    }
 
+   /**
+    * When the brushed rows hold the natural-order smallest targets, their brushed copies
+    * (with a null _all_ size) must not become the root's row. The root keeps the size of
+    * its first displayed child, as in the brush regression run's baseline.
+    */
+   @Test
+   void brushDataSet_brushedNaturalFirstTargets_rootKeepsFirstDisplayedChildSize() {
+      DefaultDataSet adata = new DefaultDataSet(ROWS);
+      DefaultDataSet bdata = new DefaultDataSet(new Object[][] {
+         { "Region", "State", "Paid" },
+         { "USA East", "CT", 10 },
+         { "USA West", "AZ", 15 },
+      });
+      BrushDataSet data = new BrushDataSet(adata, bdata);
+      GGraph ggraph = createGraph(data, "Region", "State",
+                                  new CategoricalColorFrame("Region"),
+                                  new CategoricalColorFrame("State"),
+                                  BrushDataSet.ALL_HEADER_PREFIX + "Paid");
+
+      RelationGeometry east = findNode(ggraph, "Region", "USA East");
+      RelationGeometry west = findNode(ggraph, "Region", "USA West");
+
+      assertEquals("NY", data.getData("State", east.getSubRowIndex()));
+      assertEquals("TX", data.getData("State", west.getSubRowIndex()));
+      assertEquals(findNode(ggraph, "State", "NY").getSize(), east.getSize(), 0.001);
+      assertEquals(findNode(ggraph, "State", "TX").getSize(), west.getSize(), 0.001);
+   }
+
    private void checkValueDescOrder(ColorFrame color, ColorFrame nodeColor) {
       DefaultDataSet data = new DefaultDataSet(ROWS);
       data.setComparator("State", valueDesc(data, "State", "Paid"));
