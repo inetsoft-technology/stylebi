@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.*;
+import java.util.function.Predicate;
 
 /**
  * This class checks periodically whether the cache limit has been exceeded or
@@ -214,6 +215,9 @@ public class ClearOldCacheFilesRunnable extends TimedQueue.TimedRunnable {
          SnapshotEmbeddedTableAssembly.removeStaleFileReferences(Cluster.getInstance());
          Map<String, Integer> snapshotFileMap = Cluster.getInstance().getMap(
             SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
+         // Bug #78463, a live JVM that is not in this cluster may read a copy it has no count of
+         Predicate<String> snapshotElsewhere =
+            SnapshotEmbeddedTableAssembly.getFilesInUseElsewhere(file);
          XSwapper swapper = XSwapper.getSwapper();
 
          for(int i = 0; files != null && i < files.length; i++) {
@@ -229,6 +233,7 @@ public class ClearOldCacheFilesRunnable extends TimedQueue.TimedRunnable {
             // is gone
             if(swapFiles.contains(files[i]) || snapshotFileMap.containsKey(filePath) ||
                SnapshotEmbeddedTableAssembly.isFileInUseLocally(filePath) ||
+               snapshotElsewhere.test(filePath) ||
                swapper.isOwnSwapFile(files[i].getName()))
             {
                continue;

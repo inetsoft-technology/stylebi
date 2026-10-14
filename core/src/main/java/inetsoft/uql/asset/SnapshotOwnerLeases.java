@@ -26,11 +26,12 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.util.Map;
+import java.nio.file.*;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 /**
  * Bug #78463, the owners of the snapshot copies in {@link SnapshotEmbeddedTableAssembly#FILE_OWNERS_MAP}
@@ -38,16 +39,21 @@ import java.util.function.LongSupplier;
  * gone. Two JVMs that read the same cache directory (the server and the local scheduler, or a
  * cloud-runner client on a mounted cache directory) can both stay alive after a pause longer than
  * the failure detection timeout, as two clusters that never merge. Each one then sees the other
- * as gone and deletes the copies that the other still reads.
+ * as gone and deletes the copies that the other still reads. A copy that only one of them opened
+ * after the split is not in the maps of the other at all, so the other deletes it as having no
+ * count, both when it closes its own table of the same copy and in its cache sweeps.
  * <p>
  * A JVM that has live snapshot tables under a node id keeps a lease file for that id in the
- * directory of the copies, and rewrites it with a new counter every {@link #REFRESH_INTERVAL}.
- * An owner that is not in the topology is gone only if its lease is missing, or its counter has
- * not changed for {@link #getTimeout()} on the clock of the reader, so the clocks of the two JVMs
- * (e.g. on two hosts sharing a network mount) are never compared. A JVM of an older version
- * writes no lease, so its owners are judged by the topology alone, as before. With a cache
- * directory per node, the lease of another node is never in the local directory, which is right
- * as that node can't read the local copies.
+ * directory of the copies. The lease holds a counter and the names of the copies in that
+ * directory that the live tables of the JVM read, and is rewritten with a new counter every
+ * {@link #REFRESH_INTERVAL} and when the copies change. A lease is live until its counter has not
+ * changed for {@link #getTimeout()} on the clock of the reader, so the clocks of the two JVMs
+ * (e.g. on two hosts sharing a network mount) are never compared. A copy listed in a live lease
+ * of another JVM is not deleted, and an owner that is not in the topology is gone only if it has
+ * no live lease that lists the copy. A JVM of an older version writes no lease, so its owners
+ * are judged by the topology alone, as before. With a cache directory per node, the lease of
+ * another node is never in the local directory, which is right as that node can't read the local
+ * copies.
  * <p>
  * The name starts with {@link Tool#PERSISTENT_PREFIX}, so the cache clean-up of the Enterprise
  * Manager keeps it, and it doesn't end with ".tdat" or a number, so the data and report sweeps
@@ -75,11 +81,33 @@ final class SnapshotOwnerLeases {
 
       File lease = getLeaseFile(dir, nodeId);
 
-      if(LOCAL_LEASES.merge(lease.getAbsolutePath(), 1, Integer::sum) == 1) {
-         write(lease);
+      synchronized(LOCAL_LEASES) {
+         if(LOCAL_LEASES.merge(lease.getAbsolutePath(), 1, Integer::sum) == 1) {
+            write(lease);
+         }
       }
 
       startRefresh();
+   }
+
+   /**
+    * Writes the local leases in a directory again, after the copies that the live tables of this
+    * JVM read in it changed. A copy that a table starts to read is listed before this returns.
+    */
+   static void update(File dir) {
+      if(dir == null) {
+         return;
+      }
+
+      synchronized(LOCAL_LEASES) {
+         for(String path : LOCAL_LEASES.keySet()) {
+            File lease = new File(path);
+
+            if(dir.equals(lease.getParentFile())) {
+               write(lease);
+            }
+         }
+      }
    }
 
    /**
@@ -94,67 +122,94 @@ final class SnapshotOwnerLeases {
       File lease = getLeaseFile(dir, nodeId);
       String path = lease.getAbsolutePath();
 
-      if(LOCAL_LEASES.computeIfPresent(path, (k, v) -> v <= 1 ? null : v - 1) == null) {
-         synchronized(LOCAL_LEASES) {
-            if(!LOCAL_LEASES.containsKey(path)) {
-               lease.delete();
-            }
+      synchronized(LOCAL_LEASES) {
+         if(LOCAL_LEASES.computeIfPresent(path, (k, v) -> v <= 1 ? null : v - 1) == null) {
+            lease.delete();
+         }
+         else {
+            write(lease);
          }
       }
    }
 
    /**
-    * Checks if the owner of a copy that is not in the topology of this node is still alive,
-    * i.e. if its lease is held by this JVM, or is in the directory of the copy and its counter
-    * changed within the timeout.
+    * Checks if the owner of a copy that is not in the topology of this node is still alive and
+    * reads the copy, i.e. if its lease is held by this JVM, or is in the directory of the copy,
+    * is live and lists the copy.
     *
     * @param file   the absolute path of the copy.
     * @param nodeId the node id of the owner.
     */
    static boolean isAlive(String file, String nodeId) {
-      File dir = new File(file).getParentFile();
+      File copy = new File(file);
+      File dir = copy.getParentFile();
 
       if(dir == null) {
          return false;
       }
 
       File lease = getLeaseFile(dir, nodeId);
-      String path = lease.getAbsolutePath();
 
-      if(LOCAL_LEASES.containsKey(path)) {
+      if(LOCAL_LEASES.containsKey(lease.getAbsolutePath())) {
          return true;
       }
 
-      String counter;
-
-      try {
-         counter = Files.readString(lease.toPath(), StandardCharsets.UTF_8).trim();
-      }
-      catch(IOException e) {
-         // no lease, the owner is a JVM of an older version or is gone. a lease that exists but
-         // can't be read now is taken as alive
-         OBSERVED.remove(path);
-         return lease.exists();
-      }
-
-      // being written, the owner is alive
-      if(counter.isEmpty()) {
-         return true;
-      }
-
-      long now = clock.getAsLong();
-      Observed observed = OBSERVED.get(path);
-
-      if(observed == null || !observed.counter().equals(counter)) {
-         OBSERVED.put(path, new Observed(counter, now));
-         return true;
-      }
-
-      return now - observed.since() < getTimeout();
+      Lease read = read(lease);
+      return read != null && read.reads(copy.getName());
    }
 
    /**
-    * Deletes the lease of an owner that was found gone.
+    * Gets the copies in a directory that live tables of other JVMs read, from their live leases.
+    *
+    * @param dir the directory of the copies.
+    *
+    * @return a test of the absolute path of a copy.
+    */
+   static Predicate<String> getFilesInUseElsewhere(File dir) {
+      File[] leases = listLeases(dir);
+
+      if(leases == null || leases.length == 0) {
+         return path -> false;
+      }
+
+      Set<String> names = new HashSet<>();
+
+      for(File lease : leases) {
+         if(LOCAL_LEASES.containsKey(lease.getAbsolutePath())) {
+            continue;
+         }
+
+         Lease read = read(lease);
+
+         if(read == null) {
+            continue;
+         }
+
+         // can't be read now, take every copy as read by it
+         if(read.files() == null) {
+            return path -> true;
+         }
+
+         names.addAll(read.files());
+      }
+
+      return path -> {
+         File copy = new File(path);
+         return dir.equals(copy.getParentFile()) && names.contains(copy.getName());
+      };
+   }
+
+   /**
+    * Checks if a copy is read by a live table of another JVM, see {@link #getFilesInUseElsewhere}.
+    */
+   static boolean isFileInUseElsewhere(String file) {
+      File dir = new File(file).getParentFile();
+      return dir != null && getFilesInUseElsewhere(dir).test(file);
+   }
+
+   /**
+    * Deletes the lease of an owner that was found gone, unless it is live, as the owner may
+    * still read other copies.
     */
    static void removeDead(String file, String nodeId) {
       File dir = new File(file).getParentFile();
@@ -164,9 +219,10 @@ final class SnapshotOwnerLeases {
       }
 
       File lease = getLeaseFile(dir, nodeId);
+      String path = lease.getAbsolutePath();
 
-      if(!LOCAL_LEASES.containsKey(lease.getAbsolutePath())) {
-         OBSERVED.remove(lease.getAbsolutePath());
+      if(!LOCAL_LEASES.containsKey(path) && lease.exists() && read(lease) == null) {
+         OBSERVED.remove(path);
          lease.delete();
       }
    }
@@ -180,8 +236,7 @@ final class SnapshotOwnerLeases {
       File[] files;
 
       try {
-         files = FileSystemService.getInstance().getCacheFolder().listFiles(
-            (d, name) -> name.startsWith(LEASE_PREFIX) && name.endsWith(LEASE_SUFFIX));
+         files = listLeases(FileSystemService.getInstance().getCacheFolder());
       }
       catch(Exception e) {
          LOG.debug("Failed to list the snapshot owner leases", e);
@@ -225,6 +280,61 @@ final class SnapshotOwnerLeases {
       return Math.max(MIN_TIMEOUT, 3 * failureDetectionTimeout);
    }
 
+   private static File[] listLeases(File dir) {
+      return dir == null ? null : dir.listFiles(
+         (d, name) -> name.startsWith(LEASE_PREFIX) && name.endsWith(LEASE_SUFFIX));
+   }
+
+   /**
+    * Reads the lease of another JVM.
+    *
+    * @return the lease, with {@code null} files if it exists but can't be read now, or
+    *         {@code null} if it is missing or not live.
+    */
+   private static Lease read(File lease) {
+      String path = lease.getAbsolutePath();
+      List<String> lines;
+
+      try {
+         lines = Files.readAllLines(lease.toPath(), StandardCharsets.UTF_8);
+      }
+      catch(IOException e) {
+         OBSERVED.remove(path);
+         // no lease, the owner is a JVM of an older version or is gone. a lease that exists but
+         // can't be read now is taken as live
+         return lease.exists() ? new Lease(null) : null;
+      }
+
+      String counter = lines.isEmpty() ? "" : lines.get(0).trim();
+
+      // being written by a JVM that doesn't replace it at once, it is live
+      if(counter.isEmpty()) {
+         return new Lease(null);
+      }
+
+      long now = clock.getAsLong();
+      Observed observed = OBSERVED.get(path);
+
+      if(observed == null || !observed.counter().equals(counter)) {
+         OBSERVED.put(path, new Observed(counter, now));
+      }
+      else if(now - observed.since() >= getTimeout()) {
+         return null;
+      }
+
+      Set<String> files = new HashSet<>();
+
+      for(int i = 1; i < lines.size(); i++) {
+         String name = lines.get(i).trim();
+
+         if(!name.isEmpty()) {
+            files.add(name);
+         }
+      }
+
+      return new Lease(files);
+   }
+
    private static void startRefresh() {
       synchronized(LOCAL_LEASES) {
          if(refresh != null) {
@@ -266,13 +376,47 @@ final class SnapshotOwnerLeases {
       }
    }
 
+   /**
+    * Writes a local lease, the caller must hold the lock of {@link #LOCAL_LEASES}. It is written
+    * to a temporary file that replaces the lease, so that another JVM never reads a part of it.
+    */
    private static void write(File lease) {
+      StringBuilder content = new StringBuilder(Long.toString(COUNTER.incrementAndGet()));
+      File dir = lease.getParentFile();
+
+      for(String file : SnapshotEmbeddedTableAssembly.getLocalFiles()) {
+         File copy = new File(file);
+
+         if(dir != null && dir.equals(copy.getParentFile())) {
+            content.append('\n').append(copy.getName());
+         }
+      }
+
+      Path target = lease.toPath();
+      Path temp = new File(dir, lease.getName() + ".tmp").toPath();
+
       try {
-         Files.writeString(lease.toPath(), Long.toString(COUNTER.incrementAndGet()),
-                           StandardCharsets.UTF_8);
+         Files.writeString(temp, content, StandardCharsets.UTF_8);
+
+         try {
+            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING,
+                       StandardCopyOption.ATOMIC_MOVE);
+         }
+         catch(IOException e) {
+            // e.g. the lease is open in another process on Windows
+            Files.deleteIfExists(temp);
+            Files.writeString(target, content, StandardCharsets.UTF_8);
+         }
       }
       catch(IOException e) {
          LOG.debug("Failed to write snapshot owner lease {}", lease, e);
+      }
+   }
+
+   // the copies that a live lease lists, null if they are not known
+   private record Lease(Set<String> files) {
+      boolean reads(String name) {
+         return files == null || files.contains(name);
       }
    }
 

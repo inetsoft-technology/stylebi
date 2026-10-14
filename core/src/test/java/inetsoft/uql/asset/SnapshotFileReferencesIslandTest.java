@@ -84,7 +84,7 @@ class SnapshotFileReferencesIslandTest {
       File file = createCopy("t78463a_1_s.tdat");
       String peer = peer("a");
       addCountOfOtherJvm(file, peer);
-      writeLease(peer, "1");
+      writeLease(peer, "1", file);
 
       close(addReference(file));
 
@@ -98,7 +98,7 @@ class SnapshotFileReferencesIslandTest {
       File file = createCopy("t78463b_1_s.tdat");
       String peer = peer("b");
       addCountOfOtherJvm(file, peer);
-      writeLease(peer, "1");
+      writeLease(peer, "1", file);
 
       SnapshotEmbeddedTableAssembly.removeStaleFileReferences(cluster());
       clearDataCache();
@@ -112,7 +112,7 @@ class SnapshotFileReferencesIslandTest {
       File file = createCopy("t78463c_1_s.tdat");
       String peer = peer("c");
       addCountOfOtherJvm(file, peer);
-      File lease = writeLease(peer, "1");
+      File lease = writeLease(peer, "1", file);
       // the counter is read once, then the owner stops writing it for longer than the timeout
       SnapshotEmbeddedTableAssembly.removeStaleFileReferences(cluster());
       assertEquals(1, count(file));
@@ -130,10 +130,10 @@ class SnapshotFileReferencesIslandTest {
       File file = createCopy("t78463d_1_s.tdat");
       String peer = peer("d");
       addCountOfOtherJvm(file, peer);
-      writeLease(peer, "1");
+      writeLease(peer, "1", file);
       SnapshotEmbeddedTableAssembly.removeStaleFileReferences(cluster());
       now.addAndGet(SnapshotOwnerLeases.getTimeout() + 1);
-      writeLease(peer, "2");
+      writeLease(peer, "2", file);
 
       close(addReference(file));
 
@@ -201,9 +201,71 @@ class SnapshotFileReferencesIslandTest {
          file.getParentFile(), cluster().getLocalNodeId());
       Object reference = addReference(file);
       assertTrue(lease.exists(), "no lease while a table is open");
+      assertTrue(Files.readAllLines(lease.toPath()).contains(file.getName()),
+                 "the lease doesn't list the copy that the table reads");
 
       close(reference);
       assertFalse(lease.exists(), "lease was not deleted when the last table was closed");
+   }
+
+   // a JVM in another cluster that opened the copy after the split has no count of it here
+   @Test
+   void closeKeepsCopyThatOnlyAJvmInAnotherClusterCounted() throws Exception {
+      File file = createCopy("t78463j_1_s.tdat");
+      writeLease(peer("j"), "1", file);
+
+      close(addReference(file));
+
+      assertTrue(file.exists(), "copy read by a live JVM in another cluster was deleted");
+      assertNull(count(file));
+   }
+
+   @Test
+   void sweepsKeepCopyThatOnlyAJvmInAnotherClusterCounted() throws Exception {
+      File file = createCopy("t78463k_1_s.tdat");
+      writeLease(peer("k"), "1", file);
+      // the clean-up is done when this is deleted
+      File sentinel = createCopy("t78463k_2_s.tdat");
+
+      clearDataCache();
+      assertTrue(file.exists(), "the data sweep deleted a copy read in another cluster");
+
+      FileSystemService.getInstance().clearCacheFiles(null);
+      waitForSweep(sentinel, FileSystemService.CLEAR_CACHE_FILES_THREAD);
+      assertFalse(sentinel.exists());
+      assertTrue(file.exists(), "the cache clean-up deleted a copy read in another cluster");
+   }
+
+   // the JVM in another cluster closed its tables of the copy, its count there is stale
+   @Test
+   void countOfLiveOwnerThatNoLongerReadsTheCopyIsRemoved() throws Exception {
+      File file = createCopy("t78463l_1_s.tdat");
+      File other = createCopy("t78463l_2_s.tdat");
+      String peer = peer("l");
+      addCountOfOtherJvm(file, peer);
+      File lease = writeLease(peer, "1", other);
+
+      close(addReference(file));
+
+      assertFalse(file.exists(), "copy that no live table reads was not deleted");
+      assertNull(count(file));
+      assertTrue(lease.exists(), "the lease of a live JVM was deleted");
+      assertTrue(other.exists());
+   }
+
+   @Test
+   void leaseThatStopsChangingNoLongerKeepsItsCopies() throws Exception {
+      File file = createCopy("t78463m_1_s.tdat");
+      // the data sweep deletes the oldest file first
+      assertTrue(file.setLastModified(1000L));
+      writeLease(peer("m"), "1", file);
+      clearDataCache();
+      assertTrue(file.exists());
+      now.addAndGet(SnapshotOwnerLeases.getTimeout() + 1);
+
+      clearDataCache();
+
+      assertFalse(file.exists(), "copy of a JVM whose lease expired was not swept");
    }
 
    @Test
@@ -222,10 +284,19 @@ class SnapshotFileReferencesIslandTest {
       return "b78463-" + name + "-" + UUID.randomUUID();
    }
 
-   private File writeLease(String nodeId, String counter) throws Exception {
+   /**
+    * Writes the lease of another JVM, with the copies that its live tables read.
+    */
+   private File writeLease(String nodeId, String counter, File... copies) throws Exception {
       File lease = SnapshotOwnerLeases.getLeaseFile(
          FileSystemService.getInstance().getCacheFolder(), nodeId);
-      Files.writeString(lease.toPath(), counter);
+      StringBuilder content = new StringBuilder(counter);
+
+      for(File copy : copies) {
+         content.append('\n').append(copy.getName());
+      }
+
+      Files.writeString(lease.toPath(), content);
       created.add(lease);
       return lease;
    }

@@ -48,6 +48,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
@@ -1705,6 +1706,25 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       return LOCAL_FILE_REFERENCES.containsKey(path);
    }
 
+   /**
+    * Bug #78463, gets the snapshot copies in a directory that live tables of other JVMs read, from
+    * their leases in that directory. Such a JVM may not be in the cluster of this node, e.g. the
+    * local scheduler after a pause split the cluster, so the copies it opened since have no count
+    * in {@link #FILE_REFERENCES_MAP} here. Get it once per sweep, it lists the directory.
+    *
+    * @param dir the directory of the copies, e.g. the cache folder.
+    *
+    * @return a test of the absolute path of a file.
+    */
+   public static Predicate<String> getFilesInUseElsewhere(File dir) {
+      return SnapshotOwnerLeases.getFilesInUseElsewhere(dir);
+   }
+
+   // the absolute paths of the files that the live tables of this JVM read
+   static Set<String> getLocalFiles() {
+      return LOCAL_FILE_REFERENCES.keySet();
+   }
+
    private static final class EmbeddedTableReference extends Cleaner.Reference<XSwappableTable> {
       EmbeddedTableReference(XSwappableTable referent, File[] files) {
          super(referent);
@@ -1733,6 +1753,9 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
             try {
                addCounts(cluster);
+               // Bug #78463, lists the files before they are copied or read, so that a JVM that
+               // is not in the cluster of this node keeps them
+               SnapshotOwnerLeases.update(leaseDir);
             }
             catch(RuntimeException | Error e) {
                // the local counts can be removed now. the counts in the cluster are removed by
@@ -1798,6 +1821,10 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          // first, so that the local counts are right even if the cluster can't be reached
          removeLocalCounts();
 
+         if(leased) {
+            SnapshotOwnerLeases.update(leaseDir);
+         }
+
          try {
             removeCounts();
          }
@@ -1822,6 +1849,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          try {
             Map<String, Integer> map = cluster.getMap(FILE_REFERENCES_MAP);
             Map<String, HashMap<String, Integer>> owners = cluster.getMap(FILE_OWNERS_MAP);
+            // Bug #78463, read when a file is about to be deleted
+            Predicate<String> elsewhere = null;
 
             for(int i = 0; i < files.length; i++) {
                if(added[i] == 0) {
@@ -1847,7 +1876,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                   added[i] = 0;
 
                   if(count <= 0 && !inUse) {
-                     new File(file).delete();
+                     elsewhere = deleteCopy(file, elsewhere);
                   }
 
                   continue;
@@ -1862,7 +1891,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                   added[i] = 0;
 
                   if(!inUse && !map.containsKey(file)) {
-                     new File(file).delete();
+                     elsewhere = deleteCopy(file, elsewhere);
                   }
 
                   continue;
@@ -1891,7 +1920,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                   added[i] = 0;
 
                   if(!inUse) {
-                     new File(file).delete();
+                     elsewhere = deleteCopy(file, elsewhere);
                   }
 
                   continue;
@@ -1920,13 +1949,31 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                }
 
                if(left <= 0) {
-                  new File(file).delete();
+                  elsewhere = deleteCopy(file, elsewhere);
                }
             }
          }
          finally {
             lock.unlock();
          }
+      }
+
+      /**
+       * Deletes a copy that no table of the cluster reads, unless a live table of another JVM
+       * reads it (bug #78463), e.g. one that opened it after a split, whose count is not here.
+       *
+       * @return the copies that other JVMs read, read the first time a copy is deleted.
+       */
+      private static Predicate<String> deleteCopy(String file, Predicate<String> elsewhere) {
+         if(elsewhere == null) {
+            elsewhere = SnapshotOwnerLeases.getFilesInUseElsewhere(new File(file).getParentFile());
+         }
+
+         if(!elsewhere.test(file)) {
+            new File(file).delete();
+         }
+
+         return elsewhere;
       }
 
       private final String[] files;
