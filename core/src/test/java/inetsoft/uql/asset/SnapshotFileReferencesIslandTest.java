@@ -29,12 +29,14 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
-import java.nio.file.Files;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Bug #78463, two JVMs on one cache directory (the server and the local scheduler) can both stay
@@ -176,14 +178,18 @@ class SnapshotFileReferencesIslandTest {
       String newId = peer("g-new");
       SnapshotOwnerLeases.acquire(dir, oldId);
       SnapshotOwnerLeases.acquire(dir, newId);
+      // the table writes the leases once it counted its copies
+      SnapshotOwnerLeases.update(dir);
       File copy = new File(dir, "t78463g_1_s.tdat");
 
       try {
          assertTrue(SnapshotOwnerLeases.getLeaseFile(dir, oldId).exists());
          assertTrue(SnapshotOwnerLeases.getLeaseFile(dir, newId).exists());
          now.addAndGet(SnapshotOwnerLeases.getTimeout() + 1);
-         assertTrue(SnapshotOwnerLeases.isAlive(copy.getAbsolutePath(), oldId));
-         assertTrue(SnapshotOwnerLeases.isAlive(copy.getAbsolutePath(), newId));
+         assertTrue(SnapshotOwnerLeases.isAlive(copy.getAbsolutePath(), oldId,
+                                                   new SnapshotOwnerLeases.Reads()));
+         assertTrue(SnapshotOwnerLeases.isAlive(copy.getAbsolutePath(), newId,
+                                                   new SnapshotOwnerLeases.Reads()));
       }
       finally {
          SnapshotOwnerLeases.release(dir, oldId);
@@ -268,6 +274,65 @@ class SnapshotFileReferencesIslandTest {
       assertFalse(file.exists(), "copy of a JVM whose lease expired was not swept");
    }
 
+   // replet.cache.directory may be relative, the sweeps pass the directory as it is configured
+   @Test
+   void copiesInUseElsewhereAreFoundWithARelativeOrUnnormalizedDirectory() throws Exception {
+      File file = createCopy("t78463n_1_s.tdat");
+      writeLease(peer("n"), "1", file);
+      File cache = FileSystemService.getInstance().getCacheFolder().getAbsoluteFile();
+      Path cwd = Paths.get("").toAbsolutePath();
+      assumeTrue(cwd.getRoot().equals(cache.toPath().getRoot()), "cache on another root");
+      File relative = cwd.relativize(cache.toPath()).toFile();
+      File unnormalized = new File(new File(cache, "b78463"), "..");
+
+      assertFalse(relative.isAbsolute());
+      assertTrue(SnapshotEmbeddedTableAssembly.getFilesInUseElsewhere(relative)
+                    .test(file.getAbsolutePath()), "not found with a relative directory");
+      assertTrue(SnapshotEmbeddedTableAssembly.getFilesInUseElsewhere(unnormalized)
+                    .test(file.getAbsolutePath()), "not found with an unnormalized directory");
+      assertTrue(SnapshotEmbeddedTableAssembly.getFilesInUseElsewhere(cache)
+                    .test(new File(relative, file.getName()).getPath()),
+                 "not found with a relative copy path");
+   }
+
+   // e.g. left by a JVM that crashed while it wrote the lease in place
+   @Test
+   void leaseWithoutContentKeepsOnlySnapshotCopiesUntilItsTimeStopsChanging() throws Exception {
+      File file = createCopy("t78463o_1_s.tdat");
+      File swapFile = createCopy("s78463o_1.tdat");
+      writeLease(peer("o"), "");
+      File cache = FileSystemService.getInstance().getCacheFolder();
+
+      Predicate<String> elsewhere = SnapshotEmbeddedTableAssembly.getFilesInUseElsewhere(cache);
+      assertTrue(elsewhere.test(file.getAbsolutePath()), "copy of a live JVM is not kept");
+      assertFalse(elsewhere.test(swapFile.getAbsolutePath()), "a swap file is kept");
+
+      now.addAndGet(SnapshotOwnerLeases.getTimeout() + 1);
+      assertFalse(SnapshotEmbeddedTableAssembly.getFilesInUseElsewhere(cache)
+                     .test(file.getAbsolutePath()), "a lease without content never expires");
+   }
+
+   // the cache directory may hold many swap files, a close lists the leases only
+   @Test
+   void leasesAreKeptInTheirOwnDirectory() throws Exception {
+      File file = createCopy("t78463p_1_s.tdat");
+      File lease = SnapshotOwnerLeases.getLeaseFile(
+         file.getParentFile(), cluster().getLocalNodeId());
+      Object reference = addReference(file);
+
+      try {
+         assertEquals(new File(file.getParentFile(), SnapshotOwnerLeases.LEASE_DIR),
+                      lease.getParentFile());
+         assertTrue(lease.exists());
+         File[] top = file.getParentFile().listFiles(
+            (d, name) -> name.endsWith(SnapshotOwnerLeases.LEASE_SUFFIX));
+         assertEquals(0, top == null ? 0 : top.length, "a lease is in the cache directory");
+      }
+      finally {
+         close(reference);
+      }
+   }
+
    @Test
    void orphanLeasesAreDeletedAfterADay() throws Exception {
       File old = writeLease(peer("i-old"), "1");
@@ -296,6 +361,7 @@ class SnapshotFileReferencesIslandTest {
          content.append('\n').append(copy.getName());
       }
 
+      Files.createDirectories(lease.getParentFile().toPath());
       Files.writeString(lease.toPath(), content);
       created.add(lease);
       return lease;
