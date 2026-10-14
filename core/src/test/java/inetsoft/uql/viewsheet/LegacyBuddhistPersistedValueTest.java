@@ -279,6 +279,95 @@ class LegacyBuddhistPersistedValueTest {
       assertEquals("2500", info2.getDefaultValue());
    }
 
+   // Bug #78515: a combo box bound to a date column of a query is first saved with the dataType
+   // attribute "string", and its effective type comes from the binding, which is parsed after the
+   // attributes. The default value must be converted by the effective type, as values are.
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void comboBoxDefaultValueQueryDate(boolean on) throws Exception {
+      Object[] values = {
+         new java.sql.Date(date(1996, 1, 15)), new java.sql.Date(date(1996, 2, 29)) };
+      ComboBoxVSAssemblyInfo info2 =
+         parseQueryComboBox(XSchema.DATE, "1996-02-29", on);
+
+      assertEquals(XSchema.DATE, info2.getDataType());
+      assertEquals(on ? "1996-02-29" : "2539-02-29", info2.getDefaultValue());
+
+      // the runtime values of the query, as the sandbox sets them
+      info2.setValues(values);
+      info2.validate();
+      assertEquals(on ? "1996-02-29" : "1996-01-15",
+                   Tool.toString(info2.getSelectedObject()));
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void comboBoxDefaultValueQueryTimeInstant(boolean on) throws Exception {
+      Object[] values = { new Timestamp(date(1996, 1, 15)), new Timestamp(date(1996, 2, 29)) };
+      ComboBoxVSAssemblyInfo info2 =
+         parseQueryComboBox(XSchema.TIME_INSTANT, "1996-02-29 00:00:00", on);
+
+      assertEquals(XSchema.TIME_INSTANT, info2.getDataType());
+      assertEquals(on ? "1996-02-29 00:00:00" : "2539-02-29 00:00:00", info2.getDefaultValue());
+
+      info2.setValues(values);
+      info2.validate();
+      assertEquals(on ? "1996-02-29 00:00:00" : "1996-01-15 00:00:00",
+                   Tool.toString(info2.getSelectedObject()));
+   }
+
+   // Bug #78515: the conversion follows the effective type, so a dataType attribute left as date
+   // on a combo box bound to a string column no longer converts a default value that is one of
+   // the column's own strings, which would then never match the (unconverted) string values.
+   @Test
+   void comboBoxDefaultValueQueryStringColumnWithDateAttr() throws Exception {
+      SreeEnv.setProperty(COMPAT_PROPERTY, "true");
+
+      ComboBoxVSAssemblyInfo info = new ComboBoxVSAssemblyInfo();
+      info.setDataType(XSchema.DATE);
+      info.setSourceType(ListInputVSAssembly.BOUND_SOURCE);
+      ListBindingInfo binding = new ListBindingInfo();
+      binding.setTableName("Orders");
+      binding.setLabelColumn(column("OrderText", XSchema.STRING));
+      binding.setValueColumn(column("OrderText", XSchema.STRING));
+      info.setListBindingInfo(binding);
+      info.setDefaultValue("2539-02-29");
+
+      String xml = toXML(info);
+      assertTrue(xml.contains("dataType=\"date\""), xml);
+      ComboBoxVSAssemblyInfo info2 = new ComboBoxVSAssemblyInfo();
+      info2.parseXML(Tool.parseXML(new StringReader(xml)).getDocumentElement());
+
+      assertEquals(XSchema.STRING, info2.getDataType());
+      assertEquals("2539-02-29", info2.getDefaultValue());
+
+      info2.setValues(new Object[] { "2539-01-15", "2539-02-29" });
+      info2.validate();
+      assertEquals("2539-02-29", Tool.toString(info2.getSelectedObject()));
+   }
+
+   private static ComboBoxVSAssemblyInfo parseQueryComboBox(String type, String defaultValue,
+                                                            boolean on)
+      throws Exception
+   {
+      ComboBoxVSAssemblyInfo info = new ComboBoxVSAssemblyInfo();
+      // the dialog keeps the type of a new combo box when the list is not embedded
+      info.setDataType(XSchema.STRING);
+      info.setSourceType(ListInputVSAssembly.BOUND_SOURCE);
+      ListBindingInfo binding = new ListBindingInfo();
+      binding.setTableName("Orders");
+      binding.setLabelColumn(column("OrderDate", type));
+      binding.setValueColumn(column("OrderDate", type));
+      info.setListBindingInfo(binding);
+      info.setDefaultValue(defaultValue);
+
+      String xml = legacy(toXML(info));
+      assertTrue(xml.contains("dataType=\"string\""), xml);
+      ComboBoxVSAssemblyInfo info2 = new ComboBoxVSAssemblyInfo();
+      parse(info2, xml, on);
+      return info2;
+   }
+
    // Bug #78363: a date dimension's manual sort order, read raw by VSDimensionRef.parseContents,
    // must be converted the same way, or a legacy th_TH server's saved order is parsed as the
    // literal (wrong) Gregorian year, never matches real query values, and createComparator()'s
