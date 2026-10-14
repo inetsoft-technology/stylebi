@@ -97,4 +97,38 @@ class CalcTableVSAssemblyTest {
       assertEquals("NetRevenue", layout.getCellBinding(0, 0).getValue());
       assertEquals("NetRevenue2", layout.getCellBinding(0, 1).getValue());
    }
+
+   @Test
+   void removeBindingColKeepsTextAndFormulaCellsClearsBoundCells() {
+      CalcTableVSAssembly assembly = calcTable(
+         cell(CellBinding.BIND_TEXT, CellBinding.DETAIL, "NetRevenue"),
+         cell(CellBinding.BIND_FORMULA, CellBinding.DETAIL, "NetRevenue"),
+         cell(CellBinding.BIND_COLUMN, CellBinding.GROUP, "NetRevenue"),
+         cell(CellBinding.BIND_COLUMN, CellBinding.SUMMARY, "NetRevenue"),
+         cell(CellBinding.BIND_COLUMN, CellBinding.DETAIL, "Other"));
+
+      assembly.removeBindingCol("NetRevenue");
+
+      TableLayout layout = assembly.getTableLayout();
+      assertEquals(CellBinding.BIND_TEXT, layout.getCellBinding(0, 0).getType());
+      assertEquals("NetRevenue", layout.getCellBinding(0, 0).getValue());
+      assertEquals(CellBinding.BIND_FORMULA, layout.getCellBinding(0, 1).getType());
+      assertEquals("NetRevenue", layout.getCellBinding(0, 1).getValue());
+      assertNull(layout.getCellBinding(0, 2).getValue());
+      assertNull(layout.getCellBinding(0, 3).getValue());
+      assertEquals("Other", layout.getCellBinding(0, 4).getValue());
+   }
+
+   @Test
+   void changeCalcTypeKeepsTextCellClearsBoundCell() {
+      CalcTableVSAssembly assembly = calcTable(
+         cell(CellBinding.BIND_TEXT, CellBinding.DETAIL, "NetRevenue"),
+         cell(CellBinding.BIND_COLUMN, CellBinding.GROUP, "NetRevenue"));
+
+      assembly.changeCalcType("NetRevenue", null);
+
+      TableLayout layout = assembly.getTableLayout();
+      assertEquals("NetRevenue", layout.getCellBinding(0, 0).getValue());
+      assertNull(layout.getCellBinding(0, 1).getValue());
+   }
 }
