@@ -140,6 +140,11 @@ class DerivedTableWildcardColumnNameTest {
 
          stmt.executeUpdate("create table MIX (\"City\" VARCHAR(20), \"A.B\" INT, ID INT)");
          stmt.executeUpdate("insert into MIX values ('Rome', 7, 1), ('Bern', 8, 2)");
+
+         for(String table : new String[] { "ORDERS", "\"public\".ORDERS" }) {
+            stmt.executeUpdate("create table " + table + " (ORDER_ID INT, CUSTOMER_ID INT)");
+            stmt.executeUpdate("insert into " + table + " values (10, 1), (11, 2), (12, 2)");
+         }
       }
    }
 
@@ -286,6 +291,118 @@ class DerivedTableWildcardColumnNameTest {
                       XUtil.getSubQueryColumn(inner.getSelection().getColumn(0), inner, null),
                       key);
       }
+   }
+
+   /**
+    * An inner table without an alias is referenced by its last name segment (the reopened
+    * report: "CUSTOMERS"."CITY" from "public"."CUSTOMERS"), or by more segments than the FROM
+    * writes. The derived table's columns are named as when the table has an alias.
+    */
+   @Test
+   void unaliasedTableNamesTheInnerColumns() throws Exception {
+      for(boolean meta : new boolean[] { true, false }) {
+         // the reported sql
+         assertExpanded("postgresql", meta,
+            "select d.* from (select \"CUSTOMERS\".\"CUSTOMER_ID\", \"CUSTOMERS\".\"CITY\" from \"public\".\"CUSTOMERS\") d",
+            "[d.CITY, d.CUSTOMER_ID]",
+            "select d.\"CITY\", d.\"CUSTOMER_ID\" from");
+         assertExpanded("derby", meta,
+            "select d.* from (select CUSTOMERS.CUSTOMER_ID, CUSTOMERS.CITY from \"public\".CUSTOMERS) d",
+            "[d.CITY, d.CUSTOMER_ID]", null);
+         // the usual way to write it on PostgreSQL
+         assertExpanded("postgresql", meta,
+            "select d.* from (select customers.customer_id, customers.city from public.customers) d",
+            "[d.\"city\", d.\"customer_id\"]",
+            "select d.\"city\", d.\"customer_id\" from");
+      }
+
+      // qualifier form x FROM form, each the same as the aliased form of the sql
+      String[][] pairs = {
+         { "select d.* from (select \"CUSTOMERS\".\"CUSTOMER_ID\", \"CUSTOMERS\".\"CITY\" from \"public\".\"CUSTOMERS\") d",
+           "select d.* from (select c.\"CUSTOMER_ID\", c.\"CITY\" from \"public\".\"CUSTOMERS\" c) d" },
+         { "select * from (select \"CUSTOMERS\".\"CUSTOMER_ID\", \"CUSTOMERS\".\"CITY\" from \"public\".\"CUSTOMERS\") d",
+           "select * from (select c.\"CUSTOMER_ID\", c.\"CITY\" from \"public\".\"CUSTOMERS\" c) d" },
+         { "select d.* from (select CUSTOMERS.CUSTOMER_ID, CUSTOMERS.CITY from \"public\".CUSTOMERS) d",
+           "select d.* from (select c.CUSTOMER_ID, c.CITY from \"public\".CUSTOMERS c) d" },
+         { "select * from (select CUSTOMERS.CUSTOMER_ID, CUSTOMERS.CITY from public.CUSTOMERS) d",
+           "select * from (select c.CUSTOMER_ID, c.CITY from public.CUSTOMERS c) d" },
+         { "select d.* from (select \"CUSTOMERS\".\"CITY\" from \"public\".CUSTOMERS) d",
+           "select d.* from (select c.\"CITY\" from \"public\".CUSTOMERS c) d" },
+         // catalog.schema.table
+         { "select d.* from (select CUSTOMERS.CUSTOMER_ID, CUSTOMERS.CITY from DB1.\"public\".CUSTOMERS) d",
+           "select d.* from (select c.CUSTOMER_ID, c.CITY from DB1.\"public\".CUSTOMERS c) d" },
+         { "select d.* from (select \"public\".CUSTOMERS.CITY from DB1.\"public\".CUSTOMERS) d",
+           "select d.* from (select c.CITY from DB1.\"public\".CUSTOMERS c) d" },
+         // the item is qualified more than the table
+         { "select d.* from (select \"public\".\"CUSTOMERS\".\"CUSTOMER_ID\", \"public\".\"CUSTOMERS\".\"CITY\" from \"CUSTOMERS\") d",
+           "select d.* from (select c.\"CUSTOMER_ID\", c.\"CITY\" from \"CUSTOMERS\" c) d" },
+         { "select d.* from (select APP.CUSTOMERS.CUSTOMER_ID, APP.CUSTOMERS.CITY from CUSTOMERS) d",
+           "select d.* from (select c.CUSTOMER_ID, c.CITY from CUSTOMERS c) d" },
+         // an inner alias and an expression keep their names
+         { "select d.* from (select CUSTOMERS.CITY as TOWN, CUSTOMERS.CUSTOMER_ID from \"public\".CUSTOMERS) d",
+           "select d.* from (select c.CITY as TOWN, c.CUSTOMER_ID from \"public\".CUSTOMERS c) d" },
+         // two tables with the same column are named the same way as with aliases, and the
+         // database rejects the duplicate either way
+         { "select d.* from (select CUSTOMERS.CUSTOMER_ID, ORDERS.CUSTOMER_ID, ORDERS.ORDER_ID from \"public\".CUSTOMERS, \"public\".ORDERS) d",
+           "select d.* from (select a.CUSTOMER_ID, b.CUSTOMER_ID, b.ORDER_ID from \"public\".CUSTOMERS a, \"public\".ORDERS b) d" },
+      };
+
+      for(String key : new String[] { "postgresql", "derby", "mysql", "microsoft sql server" }) {
+         for(boolean meta : new boolean[] { true, false }) {
+            for(String[] pair : pairs) {
+               String expected = sorted(fixed(pair[1], key, meta));
+               assertFalse(expected.contains("c.") || expected.contains("a.") ||
+                           expected.contains("b."), key + ": " + expected);
+               assertExpanded(key, meta, pair[0], expected, null);
+            }
+         }
+      }
+   }
+
+   /**
+    * The rows of the unaliased forms on Derby. Derby reads a bare CUSTOMERS qualifier as the
+    * table in the default schema APP, so only that schema runs as written.
+    */
+   @Test
+   void unaliasedTableRowsMatchTheOriginal() throws Exception {
+      for(String key : new String[] { "derby", "postgresql" }) {
+         for(boolean meta : new boolean[] { true, false }) {
+            for(String sql : new String[] {
+               "select D.* from (select CUSTOMERS.CUSTOMER_ID, CUSTOMERS.CITY from APP.CUSTOMERS) D",
+               "select * from (select \"CUSTOMERS\".\"CUSTOMER_ID\", \"CUSTOMERS\".\"CITY\" from \"APP\".\"CUSTOMERS\") D",
+               "select D.* from (select APP.CUSTOMERS.CUSTOMER_ID, APP.CUSTOMERS.CITY from CUSTOMERS) D",
+               "select d.* from (select customers.customer_id, customers.city from app.customers) d",
+               "select D.* from (select CUSTOMERS.CITY as TOWN, ORDERS.ORDER_ID from APP.CUSTOMERS, APP.ORDERS where CUSTOMERS.CUSTOMER_ID = ORDERS.CUSTOMER_ID) D",
+               "select E.* from (select D.* from (select CUSTOMERS.CUSTOMER_ID, CUSTOMERS.CITY from APP.CUSTOMERS) D) E" })
+            {
+               // the PostgreSQL helper quotes lower-case names, which Derby reads as written
+               if(!"postgresql".equals(key) || !sql.contains("customers")) {
+                  assertSameRows(sql, fixed(sql, key, meta));
+               }
+            }
+         }
+      }
+   }
+
+   // only the qualifier of an unaliased table is matched by its segments
+   @Test
+   void unaliasedTableQualifierIsMatchedBySegments() throws Exception {
+      for(String key : new String[] { "derby", "postgresql" }) {
+         // an expression is not stripped
+         assertNotStripped(key, "select CUSTOMERS.CITY || CUSTOMERS.CITY from \"public\".CUSTOMERS");
+         // a table with an alias is referenced by the alias only
+         assertNotStripped(key, "select CUSTOMERS.CITY from \"public\".CUSTOMERS c");
+         // a qualifier that ends with another table name
+         assertNotStripped(key, "select ORDERS.CITY from \"public\".CUSTOMERS");
+         assertNotStripped(key, "select CUSTOMERS.ORDERS.CITY from \"public\".ORDERS");
+      }
+   }
+
+   private static void assertNotStripped(String key, String sql) throws Exception {
+      UniformSQL inner = parsed(sql, helper(key));
+      String column = inner.getSelection().getColumn(0);
+
+      assertEquals(column, XUtil.getSubQueryColumn(column, inner, null), key + ": " + sql);
    }
 
    private static void assertExpanded(String key, boolean meta, String sql, String columns,
