@@ -38,9 +38,6 @@ constantcontact:
   datasource:
     clientId: ${env.CONSTANTCONTACT_CLIENT_ID}
     clientSecret: ${env.CONSTANTCONTACT_CLIENT_SECRET}
-datadotworld:
-  datasource:
-    apiToken: ${env.DATADOTWORLD_API_TOKEN}
 firebase:
   datasource:
     tokenExpiration: 0
