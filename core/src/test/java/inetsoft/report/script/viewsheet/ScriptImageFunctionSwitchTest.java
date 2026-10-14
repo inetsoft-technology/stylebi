@@ -148,7 +148,19 @@ class ScriptImageFunctionSwitchTest {
       "var L = new (Java.type('inetsoft.report.internal.ImageLocation'))('.'); " +
          "L.setPath(URL); L.setPathType(4); " +
          "Java.type('inetsoft.uql.viewsheet.internal.VSUtil').getVSImageBytes(L.getImage(), null, " +
-         "new (Java.type('inetsoft.uql.viewsheet.Viewsheet'))(), 0, 0, null, null)"
+         "new (Java.type('inetsoft.uql.viewsheet.Viewsheet'))(), 0, 0, null, null)",
+      // the MetaImage carrier also loads when any other Image consumer draws or probes it
+      "var L = new (Java.type('inetsoft.report.internal.ImageLocation'))('.'); " +
+         "L.setPath(URL); L.setPathType(4); " +
+         "new (Java.type('java.awt.image.BufferedImage'))(5, 5, 1).createGraphics()" +
+         ".drawImage(L.getImage(), 0, 0, null)",
+      "var L = new (Java.type('inetsoft.report.internal.ImageLocation'))('.'); " +
+         "L.setPath(URL); L.setPathType(4); " +
+         "Java.type('inetsoft.report.internal.Common').drawImage(" +
+         "new (Java.type('java.awt.image.BufferedImage'))(5, 5, 1).createGraphics(), " +
+         "L.getImage(), 0, 0, 5, 5, null)",
+      "var L = new (Java.type('inetsoft.report.internal.ImageLocation'))('.'); " +
+         "L.setPath(URL); L.setPathType(4); L.isImageExisting()"
    })
    void viewsheetScriptHonorsSwitch(String call) throws Exception {
       String assembly = sandbox.getViewsheet().getAssemblies()[0].getAbsoluteName();
@@ -305,6 +317,27 @@ class ScriptImageFunctionSwitchTest {
 
       SreeEnv.setProperty(PROPERTY, "true");
       assertEquals("LOADED", String.valueOf(sandbox.getScope().execute(script, assembly)));
+   }
+
+   /**
+    * MetaImage refuses only its URL/file branches: a RESOURCE MetaImage built by a
+    * script still loads through VSUtil with the switch on.
+    */
+   @Test
+   void classpathResourceMetaImageStillLoadsWithSwitchOn() throws Exception {
+      String assembly = sandbox.getViewsheet().getAssemblies()[0].getAbsoluteName();
+      String meta = "(function() { var L = new (Java.type(" +
+         "'inetsoft.report.internal.ImageLocation'))('.'); " +
+         "L.setPath('/inetsoft/report/gui/composition/images/join.png'); L.setPathType(3); " +
+         "return L.getImage(); })()";
+      String vs = "new (Java.type('inetsoft.uql.viewsheet.Viewsheet'))()";
+      String script = "var VSU = Java.type('inetsoft.uql.viewsheet.internal.VSUtil'); " +
+         "var r = VSU.getVSImage(" + meta + ", null, " + vs + ", 0, 0, 0, 0, null, null); " +
+         "var b = VSU.getVSImageBytes(" + meta + ", null, " + vs + ", 0, 0, null, null); " +
+         "(r == null ? 'NULL' : 'LOADED') + ',' + (b == null ? 'NULL' : 'BYTES')";
+
+      SreeEnv.setProperty(PROPERTY, "true");
+      assertEquals("LOADED,BYTES", String.valueOf(sandbox.getScope().execute(script, assembly)));
    }
 
    /**
