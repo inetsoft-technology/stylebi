@@ -280,6 +280,11 @@ public class AssemblyPropertyService {
             resolved.put(key, PropertyAliases.resolveForWrite(type, key));
          }
 
+         // Taken before anything is written, so a same-patch write to a domain list (or the
+         // rebuild of an Image's immutable pane) cannot widen what the check accepts.
+         Map<String, AssemblyReference> references = assemblyReferences(model, resolved.values());
+         Set<String> unchangedReferences = new HashSet<>();
+
          // PropertyPath.set returns the root the caller must keep using: if a future alias
          // ever targets a direct top-level field of an Immutables dialog model (no nested pane
          // to absorb the rebuild — see PropertyPath's own note), the wither produces a new
@@ -293,6 +298,12 @@ public class AssemblyPropertyService {
 
             if(entry.getValue().endsWith(".imagePreviewPaneModel.selectedImage")) {
                value = requireKnownSelectedImage(model, entry.getValue(), value);
+            }
+
+            AssemblyReference reference = references.get(entry.getValue());
+
+            if(reference != null && reference.require(entry.getKey(), value)) {
+               unchangedReferences.add(entry.getValue());
             }
 
             model = PropertyPath.set(model, entry.getValue(), value);
@@ -330,7 +341,10 @@ public class AssemblyPropertyService {
             requireValidTextInputColumnOption(model);
          }
 
-         model = impliedSibling(model, resolved.values(), "tipView", "tipOption", true);
+         // An unchanged tipView is a no-op, so it must not turn view tips on either.
+         List<String> changedPaths = new ArrayList<>(resolved.values());
+         changedPaths.removeAll(unchangedReferences);
+         model = impliedSibling(model, changedPaths, "tipView", "tipOption", true);
          model = impliedSibling(model, resolved.values(), "tipPaneModel.alpha",
                                  "tipPaneModel.tipOption", true);
          model = impliedSibling(model, resolved.values(), "customTip", "customRB",
@@ -1063,6 +1077,168 @@ public class AssemblyPropertyService {
       }
 
       return false;
+   }
+
+   /**
+    * The assembly-reference fields: the path suffix, the sibling list on the same pane that the
+    * native dialog's {@code <select>} offers for it, and whether the native write treats a
+    * literal {@code "null"} as none.
+    */
+   private record ReferenceField(String suffix, String listName, boolean multiple,
+                                 boolean literalNullClears)
+   {
+   }
+
+   private static final List<ReferenceField> REFERENCE_FIELDS = List.of(
+      // Chart/TableView/Crosstab/CalcTable services all turn a "null" tipView into none.
+      new ReferenceField("tipPaneModel.tipView", "popComponents", false, true),
+      new ReferenceField("tipPaneModel.flyOverViews", "flyoverComponents", true, false),
+      // Text and Image store "null" as a pop target with pop on.
+      new ReferenceField("textGeneralPaneModel.popComponent", "popComponents", false, false),
+      new ReferenceField("imageAdvancedPaneModel.popComponent", "popComponents", false, false));
+
+   /**
+    * Snapshots, for each assembly-reference path the patch names, that pane's domain list and
+    * current value as {@code readModel()} returned them (bug #78537). A pane whose service does
+    * not populate the list (gauge's {@code tipPaneModel}, say) gets no snapshot, so no check.
+    */
+   private static Map<String, AssemblyReference> assemblyReferences(Object model,
+                                                                   Collection<String> paths)
+   {
+      Map<String, AssemblyReference> references = new HashMap<>();
+
+      for(String path : paths) {
+         for(ReferenceField field : REFERENCE_FIELDS) {
+            if(!path.equals(field.suffix()) && !path.endsWith("." + field.suffix())) {
+               continue;
+            }
+
+            String panePath = path.substring(0, path.lastIndexOf('.'));
+            Object choices;
+            Object current;
+
+            try {
+               choices = PropertyPath.get(model, panePath + "." + field.listName());
+               current = PropertyPath.get(model, path);
+            }
+            catch(IllegalArgumentException e) {
+               // Not a real path on this model; PropertyPath.set reports it in its own words.
+               continue;
+            }
+
+            if(choices instanceof String[] list) {
+               references.put(path, new AssemblyReference(
+                  path, field, list.clone(),
+                  current instanceof String[] array ? array.clone() : current));
+            }
+         }
+      }
+
+      return references;
+   }
+
+   /**
+    * Refuses an assembly-reference value (tipView, flyOverViews, a Text/Image popComponent) that
+    * the native dialog could not have produced (bug #78537).
+    *
+    * <p>The native panes offer these through a {@code <select>} over the pane's own list, so the
+    * {@code *PropertyDialogService} setters store whatever arrives. A name outside the list was
+    * written verbatim: read back masked (null on a chart), the prior view lost, {@code ok:true}.
+    * The check follows the native dropdown, not the chart's lenient read mask, so a tipView into
+    * a container child or an embedded viewsheet's child is refused, as the UI cannot set those
+    * either. A dynamic {@code $(X)}/{@code =expr} is refused for the same reason: the panes have
+    * no variable or expression button, and several types read one back as null.
+    *
+    * <p>Blank clears the field and passes. The value just read passes unchanged, since every
+    * write already stores it back; that is what lets a caller echo what it read.
+    */
+   private record AssemblyReference(String path, ReferenceField field, String[] choices,
+                                    Object current)
+   {
+      /** @return {@code true} when the value is the current one, unchanged. */
+      boolean require(String key, Object value) {
+         if(field.multiple()) {
+            requireEach(key, value);
+            return false;
+         }
+
+         String text = value == null ? "" : String.valueOf(value).trim();
+
+         if(text.isEmpty() || field.literalNullClears() && text.equals("null")) {
+            return false;
+         }
+
+         if(text.equals(current)) {
+            return true;
+         }
+
+         if(text.equals("null")) {
+            throw refusal(key, "'null' is stored as the name of a pop component, not as none. " +
+                          "Use \"\" to clear it.");
+         }
+
+         if(VSUtil.isDynamicValue(text)) {
+            throw refusal(key, "'" + text + "' is a dynamic value. " + DYNAMIC_NOTE);
+         }
+
+         if(!Arrays.asList(choices).contains(text)) {
+            throw refusal(key, "'" + text + "' is not one of the assemblies it can show.");
+         }
+
+         return false;
+      }
+
+      private void requireEach(String key, Object value) {
+         List<?> entries = value instanceof List<?> list ? list
+            : value instanceof Object[] array ? Arrays.asList(array) : null;
+
+         // Anything else is not an array; PropertyPath refuses it in its own words.
+         if(entries == null) {
+            return;
+         }
+
+         List<String> currentEntries = current instanceof String[] array ?
+            Arrays.asList(array) : List.of();
+         List<String> offending = new ArrayList<>();
+         boolean dynamic = false;
+
+         for(Object entry : entries) {
+            String text = entry == null ? "" : String.valueOf(entry).trim();
+
+            if(text.isEmpty() || currentEntries.contains(text)) {
+               continue;
+            }
+
+            if(VSUtil.isDynamicValue(text)) {
+               dynamic = true;
+               offending.add("'" + text + "'");
+            }
+            else if(!Arrays.asList(choices).contains(text)) {
+               offending.add("'" + text + "'");
+            }
+         }
+
+         if(!offending.isEmpty()) {
+            throw refusal(key, String.join(", ", offending) + (offending.size() == 1 ?
+               " is not one of the assemblies it can show." :
+               " are not among the assemblies it can show.") + (dynamic ? " " + DYNAMIC_NOTE : ""));
+         }
+      }
+
+      private IllegalArgumentException refusal(String key, String reason) {
+         String valid = choices.length == 0 ? "none -- no assembly on this sheet qualifies" :
+            "\"" + String.join("\", \"", choices) + "\"";
+
+         return new IllegalArgumentException(
+            "'" + key + "' ('" + path + "'): " + reason + " Valid choices (the Composer " +
+            "dialog's own list): " + valid + "; \"\" clears it. The previous value is kept; " +
+            "nothing was written.");
+      }
+
+      private static final String DYNAMIC_NOTE =
+         "This field takes an assembly name, not a variable or expression. A computed tip or " +
+         "pop view is set from a script (the viewsheet's onLoad, via update_script), not by " +
+         "this property.";
    }
 
    /**
