@@ -112,8 +112,10 @@ class AggregateAliasCollisionTest {
 
       @Bean
       public XRepository xRepository() throws Exception {
+         inetsoft.uql.erm.XDataModel model = dataModel();
          XRepository repository = mock(XRepository.class);
          when(repository.getDataSource(any(String.class))).thenReturn(dataSource());
+         when(repository.getDataModel(any(String.class))).thenReturn(model);
          return repository;
       }
 
@@ -289,6 +291,118 @@ class AggregateAliasCollisionTest {
       PhysicalBoundTableAssembly s = physicalTable(ws, "S");
       aggregate(s, "G", sum("X", "X_1"), sum("Y", "X"));
       assertEquals(List.of(row("a", 300, 3), row("b", 300, 3)), rows(ws, s));
+   }
+
+   /**
+    * Two columns renamed to each other's name on a mirror, as three renames in the worksheet
+    * can do (Y to T, X to Y, T to X). Each alias key is the identifier of the other column.
+    */
+   @Test
+   void namesSwappedByRenames() throws Exception {
+      Worksheet ws = new Worksheet();
+      MirrorTableAssembly m = mirror(ws, "M", embedded(ws, "S"));
+      rename(m, "Y", "X");
+      rename(m, "X", "Y");
+      aggregate(m, "G", sum("Y", null), sum("X", null));
+      assertEquals(List.of(row("a", 300, 3), row("b", 300, 3)), rows(ws, m));
+   }
+
+   /**
+    * The same with aggregate aliases: Sum(Y) as X and Sum(X) as Y, on a mirror of an embedded
+    * table and on a mirror merged into the sql of its source.
+    */
+   @Test
+   void namesSwappedByAggregateAliases() throws Exception {
+      Worksheet ws = new Worksheet();
+      MirrorTableAssembly m = mirror(ws, "M", embedded(ws, "S"));
+      aggregate(m, "G", sum("Y", "X"), sum("X", "Y"));
+      assertEquals(List.of(row("a", 300, 3), row("b", 300, 3)), rows(ws, m));
+
+      Worksheet ws2 = new Worksheet();
+      MirrorTableAssembly m2 = mirror(ws2, "M", sqlTable(ws2, "S", "select s.g, s.y, s.x from s"));
+      aggregate(m2, "G", sum("Y", "X"), sum("X", "Y"));
+      assertEquals(List.of(row("a", 300, 3), row("b", 300, 3)), rows(ws2, m2));
+   }
+
+   /**
+    * A group column renamed to the name of an aggregated column.
+    */
+   @Test
+   void groupNamedAsAnAggregatedColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      MirrorTableAssembly m = mirror(ws, "M", embedded(ws, "S"));
+      rename(m, "G", "X");
+      aggregate(m, "G", sum("X", null));
+      assertEquals(List.of(row("a", 3), row("b", 3)), rows(ws, m));
+   }
+
+   /**
+    * The same on a physical table aggregated directly, whose result is identified by the output
+    * names.
+    */
+   @Test
+   void namesSwappedOnPhysicalTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly s = physicalTable(ws, "S");
+      aggregate(s, "G", sum("Y", "X"), sum("X", "Y"));
+      assertEquals(List.of(row("a", 300, 3), row("b", 300, 3)), rows(ws, s));
+   }
+
+   /**
+    * A table bound to an entity of a logical model, whose columns have the entity, merged into
+    * one sql: the stored state of the reported shape, and the swapped names.
+    */
+   @Test
+   void logicalModelTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly e = modelTable(ws, "E");
+      aggregate(e, "G", sum("X", "X_1"), sum("Y", "X"));
+      assertEquals(List.of(row("a", 300, 3), row("b", 300, 3)), rows(ws, e));
+
+      Worksheet ws2 = new Worksheet();
+      BoundTableAssembly e2 = modelTable(ws2, "E");
+      aggregate(e2, "G", sum("Y", "X"), sum("X", "Y"));
+      assertEquals(List.of(row("a", 300, 3), row("b", 300, 3)), rows(ws2, e2));
+   }
+
+   private static BoundTableAssembly modelTable(Worksheet ws, String name) {
+      BoundTableAssembly table = new BoundTableAssembly(ws, name);
+      table.setSourceInfo(new SourceInfo(SourceInfo.MODEL, dataSource().getName(), "lm"));
+      table.setProperty("no_cache", "true");
+      ColumnSelection columns = new ColumnSelection();
+      String[] types = { XSchema.STRING, XSchema.INTEGER, XSchema.INTEGER };
+      String[] names = { "G", "Y", "X" };
+
+      for(int i = 0; i < names.length; i++) {
+         ColumnRef ref = new ColumnRef(new AttributeRef("E", names[i]));
+         ref.setDataType(types[i]);
+         columns.addAttribute(ref);
+      }
+
+      table.setColumnSelection(columns);
+      ws.addAssembly(table);
+      return table;
+   }
+
+   private static inetsoft.uql.erm.XDataModel dataModel() {
+      inetsoft.uql.erm.XLogicalModel lm = new inetsoft.uql.erm.XLogicalModel("lm");
+      lm.setPartition("p");
+      lm.setDataSource(dataSource().getName());
+      inetsoft.uql.erm.XEntity entity = new inetsoft.uql.erm.XEntity("E");
+
+      for(String column : new String[] { "G", "Y", "X" }) {
+         entity.addAttribute(new inetsoft.uql.erm.XAttribute(column, "S", column));
+      }
+
+      lm.addEntity(entity);
+      inetsoft.uql.erm.XPartition partition = new inetsoft.uql.erm.XPartition("p");
+      partition.addTable("S", null, null);
+      inetsoft.uql.erm.XDataModel model = mock(inetsoft.uql.erm.XDataModel.class);
+      lm.setDataModel(model);
+      when(model.getDataSource()).thenReturn(dataSource().getName());
+      when(model.getLogicalModel(org.mockito.ArgumentMatchers.eq("lm"), any())).thenReturn(lm);
+      when(model.getPartition(org.mockito.ArgumentMatchers.eq("p"), any())).thenReturn(partition);
+      return model;
    }
 
    private static PhysicalBoundTableAssembly physicalTable(Worksheet ws, String name) {

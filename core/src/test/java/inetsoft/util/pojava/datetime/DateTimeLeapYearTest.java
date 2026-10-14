@@ -64,7 +64,8 @@ class DateTimeLeapYearTest {
       return new SimpleDateFormat(pattern).format(dt.toDate());
    }
 
+   // month first, not the global default, which another test can leave day first
    private static IDateTimeConfig config() {
-      return DateTimeConfig.getGlobalDefault();
+      return DateTimeConfig.fromBuilder(DateTimeConfigBuilder.newInstance().dmyOrder(false));
    }
 }
