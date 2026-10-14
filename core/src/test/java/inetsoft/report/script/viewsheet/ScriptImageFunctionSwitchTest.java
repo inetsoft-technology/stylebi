@@ -28,6 +28,8 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.script.FormulaContext;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
@@ -42,6 +44,7 @@ import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -193,6 +196,85 @@ class ScriptImageFunctionSwitchTest {
    }
 
    /**
+    * A local file path or file: URL is refused too (Tool.getImage opens local files
+    * itself, mxUtils.loadImage reads any URL).
+    */
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "Java.type('inetsoft.graph.mxgraph.util.mxUtils').loadImage(FILE_URL)",
+      "Java.type('inetsoft.uql.viewsheet.internal.VSUtil').getVSImage(null, FILE_PATH, " +
+         "new (Java.type('inetsoft.uql.viewsheet.Viewsheet'))(), 0, 0, 0, 0, null, null)",
+      "Java.type('inetsoft.uql.viewsheet.internal.VSUtil').getVSImageBytes(null, FILE_PATH, " +
+         "new (Java.type('inetsoft.uql.viewsheet.Viewsheet'))(), 0, 0, null, null)"
+   })
+   void localFileHonorsSwitch(String call) throws Exception {
+      String assembly = sandbox.getViewsheet().getAssemblies()[0].getAbsoluteName();
+      ViewsheetScope scope = sandbox.getScope();
+      File file = File.createTempFile("bug78490", ".png");
+
+      try {
+         ImageIO.write(new BufferedImage(3, 2, BufferedImage.TYPE_INT_RGB), "png", file);
+         String script = "var FILE_URL = '" + file.toURI() + "'; " +
+            "var FILE_PATH = '" + file.getAbsolutePath().replace('\\', '/') + "'; " +
+            "try { var r = " + call + "; r == null ? 'NULL' : 'LOADED' } " +
+            "catch(ex) { 'ERR:' + ex }";
+
+         SreeEnv.setProperty(PROPERTY, "true");
+         assertEquals("NULL", String.valueOf(scope.execute(script, assembly)),
+                      "switch on: " + call + " loaded a local file");
+
+         SreeEnv.remove(PROPERTY);
+         assertEquals("LOADED", String.valueOf(scope.execute(script, assembly)),
+                      "switch unset: " + call + " no longer loads a local file");
+      }
+      finally {
+         // the Tool.getImage file stream may still hold the file open on Windows
+         if(!file.delete()) {
+            file.deleteOnExit();
+         }
+      }
+   }
+
+   /**
+    * A "java:presenter:" image path builds an ImagePresenter for a script-supplied value.
+    */
+   @Test
+   void presenterImagePathHonorsSwitch() {
+      String assembly = sandbox.getViewsheet().getAssemblies()[0].getAbsoluteName();
+      ViewsheetScope scope = sandbox.getScope();
+      String call = "Java.type('inetsoft.uql.viewsheet.internal.VSUtil').getVSImage(null, " +
+         "'java:presenter:inetsoft.report.painter.ImagePresenter;value=' + URL, " +
+         "new (Java.type('inetsoft.uql.viewsheet.Viewsheet'))(), 0, 0, 0, 0, null, null)";
+
+      // the presenter path splits on '=' and ';', so the unique part is in the path
+      SreeEnv.setProperty(PROPERTY, "true");
+      String url = base + "/presenter-on-" + System.nanoTime() + ".png";
+      execute(scope, call, url, assembly);
+      assertEquals(List.of(), hitsFor(url), "switch on: presenter image path fetched " + url);
+
+      SreeEnv.remove(PROPERTY);
+      url = base + "/presenter-off-" + System.nanoTime() + ".png";
+      execute(scope, call, url, assembly);
+      assertFalse(hitsFor(url).isEmpty(), "switch unset: presenter image path no longer fetches");
+   }
+
+   /**
+    * A data: URI is decoded in memory, no fetch, so it still works with the switch on.
+    */
+   @Test
+   void dataUriStillDecodedWithSwitchOn() throws Exception {
+      String assembly = sandbox.getViewsheet().getAssemblies()[0].getAbsoluteName();
+      ByteArrayOutputStream png = new ByteArrayOutputStream();
+      ImageIO.write(new BufferedImage(3, 2, BufferedImage.TYPE_INT_RGB), "png", png);
+      String uri = "data:image/png;base64," + Base64.getEncoder().encodeToString(png.toByteArray());
+      String script = "var r = Java.type('inetsoft.graph.mxgraph.util.mxUtils').loadImage('" +
+         uri + "'); r == null ? 'NULL' : r.getWidth() + 'x' + r.getHeight()";
+
+      SreeEnv.setProperty(PROPERTY, "true");
+      assertEquals("3x2", String.valueOf(sandbox.getScope().execute(script, assembly)));
+   }
+
+   /**
     * Outside a script (rendering, export) the loaders are not affected by the switch.
     */
    @Test
@@ -201,6 +283,15 @@ class ScriptImageFunctionSwitchTest {
       String url = newUrl("unrestricted");
       assertNotNull(inetsoft.graph.mxgraph.util.mxUtils.loadImage(url));
       assertFalse(hitsFor(url).isEmpty(), "unrestricted mxUtils.loadImage must still fetch");
+
+      // an Image assembly URL and an image presenter rendered outside a script still fetch
+      url = newUrl("unrestricted-vsimage");
+      assertNotNull(VSUtil.getVSImage(null, url, new Viewsheet(), 0, 0, 0, 0, null, null));
+      assertFalse(hitsFor(url).isEmpty(), "unrestricted VSUtil.getVSImage must still fetch");
+
+      url = newUrl("unrestricted-presenter");
+      assertEquals(new Dimension(3, 2), new ImagePresenter().getPreferredSize(url));
+      assertFalse(hitsFor(url).isEmpty(), "unrestricted ImagePresenter must still fetch");
    }
 
    private void execute(ViewsheetScope scope, String call, String url, String assembly) {
