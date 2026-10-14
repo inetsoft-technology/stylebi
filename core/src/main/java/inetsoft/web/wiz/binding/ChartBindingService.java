@@ -679,7 +679,7 @@ public class ChartBindingService {
       // Nothing to change, nothing to call. This is a second write with its own undo step, so
       // firing it on a state that already matches would put a no-op into the Composer's history
       // for every retype.
-      if(info == null || info.isMultiStyles() == multi) {
+      if(info == null || info.isDesignMultiStyles() == multi) {
          return;
       }
 
@@ -689,7 +689,7 @@ public class ChartBindingService {
       // The forced-separate refusal that used to sit here now runs in setChartType, before the
       // retype: raising it at this point meant the chart had already been retyped by the time the
       // caller was told no.
-      boolean separated = separate == null ? info.isSeparatedGraph() : separate;
+      boolean separated = separate == null ? info.isDesignSeparated() : separate;
 
       ChangeSeparateStatusEvent event =
          new ChangeSeparateStatusEvent(assemblyName, multi, separated);
@@ -711,7 +711,11 @@ public class ChartBindingService {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          VSChartInfo chartInfo = chart.getVSChartInfo();
-         boolean multi = chartInfo.isMultiStyles();
+         // The design flag, not the runtime one: a changeAndValue date comparison makes the no-arg
+         // getter answer true for a chart whose design multiStyles is false, and the service writes
+         // whatever it is sent into the design, so the override would be persisted and outlive the
+         // comparison. The Composer's own toggle sends the design value for the same reason.
+         boolean multi = chartInfo.isDesignMultiStyles();
 
          // ChangeSeparateStatusService forces separated=true unconditionally for these types,
          // regardless of what is requested (event.isSeparate() is OR'd with the type checks, so
@@ -907,7 +911,7 @@ public class ChartBindingService {
       Integer current = currentChartType(chart, ref);
 
       return current != null && current == type &&
-         (multi == null || multi == isMultiStyles(chart)) &&
+         (multi == null || multi == isDesignMultiStyles(chart)) &&
          (stackMeasures == null || stackMeasures == isStackMeasures(chart));
    }
 
@@ -938,6 +942,12 @@ public class ChartBindingService {
 
       return info.getFieldByName(ref, true) instanceof ChartAggregateRef aggregate
          ? aggregate.getChartType() : null;
+   }
+
+   /** What a caller-stated {@code multi} is compared with: the design flag, not the DC override. */
+   private static boolean isDesignMultiStyles(ChartVSAssembly chart) {
+      VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
+      return info != null && info.isDesignMultiStyles();
    }
 
    private static boolean isMultiStyles(ChartVSAssembly chart) {
