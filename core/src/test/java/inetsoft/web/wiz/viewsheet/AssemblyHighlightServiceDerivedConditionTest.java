@@ -17,12 +17,10 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
-import inetsoft.report.composition.graph.calc.ChangeCalc;
 import inetsoft.test.*;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -41,8 +39,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Bug #78540 P3: a highlight condition naming a measure the date comparison derives was accepted
- * and then dangled (chart) or was dropped (crosstab) once the comparison was cleared. The chart
- * shape is the real one built by ChartDcProcessor.
+ * and then dangled once the comparison was cleared. The chart shape is the real one built by
+ * ChartDcProcessor. (The crosstab half is tracked separately.)
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -105,55 +103,6 @@ class AssemblyHighlightServiceDerivedConditionTest {
       return new Built(assembly, measure.getFullName(), derived);
    }
 
-   /** Built through the real CrosstabDcProcessor, as VSCrosstabInfo.updateRuntimeRefs does. */
-   private static Built crosstab() {
-      AttributeRef dateAttr = new AttributeRef("date");
-      dateAttr.setDataType(XSchema.DATE);
-      VSDimensionRef dateDim = new VSDimensionRef(dateAttr);
-      dateDim.setDateLevel(XConstants.YEAR_DATE_GROUP);
-      dateDim.setDataType(XSchema.DATE);
-
-      VSAggregateRef base = new VSAggregateRef();
-      base.setDataRef(new AttributeRef("v"));
-      base.setColumnValue("v");
-      base.setFormula(AggregateFormula.SUM);
-
-      VSCrosstabInfo info = new VSCrosstabInfo();
-      info.setDesignRowHeaders(new DataRef[] { dateDim });
-      info.setDesignAggregates(new DataRef[] { base });
-
-      Viewsheet vs = new Viewsheet();
-      CrosstabVSAssembly assembly = new CrosstabVSAssembly(vs, "Crosstab1");
-      assembly.setVSCrosstabInfo(info);
-      DateComparisonInfo dcInfo = chartDcInfo();
-      ((CrosstabVSAssemblyInfo) assembly.getVSAssemblyInfo()).setDateComparisonInfo(dcInfo);
-      vs.addAssembly(assembly);
-
-      new CrosstabDcProcessor(info, dcInfo, new DataRef[] { (DataRef) dateDim.clone() },
-                              new DataRef[0], new DataRef[] { (DataRef) base.clone() })
-         .process("ds", vs);
-
-      String derived = Arrays.stream(info.getRuntimeAggregates())
-         .filter(r -> r instanceof VSAggregateRef a && a.getCalculator() != null)
-         .map(r -> ((VSAggregateRef) r).getFullName()).findFirst().orElse(null);
-      assertNotNull(derived, "date comparison must produce a derived aggregate");
-      return new Built(assembly, base.getFullName(), derived);
-   }
-
-   private static DateComparisonInfo chartDcInfo() {
-      DateComparisonInfo dcInfo = new DateComparisonInfo();
-      StandardPeriods periods = new StandardPeriods();
-      periods.setDateLevel(XConstants.YEAR_DATE_GROUP);
-      periods.setPreCount(1);
-      dcInfo.setDateComparisonPeriods(periods);
-      DateComparisonInterval interval = new DateComparisonInterval();
-      interval.setGranularity(DateComparisonInfo.YEAR);
-      interval.setLevel(DateComparisonInfo.ALL);
-      dcInfo.setDateComparisonInterval(interval);
-      dcInfo.setComparisonOption(DateComparisonInfo.CHANGE_VALUE);
-      return dcInfo;
-   }
-
    private static AssemblyHighlightService.Highlight highlightOn(String... fields) {
       List<ConditionVocabulary.Clause> clauses = new java.util.ArrayList<>();
 
@@ -193,38 +142,10 @@ class AssemblyHighlightServiceDerivedConditionTest {
    }
 
    @Test
-   void crosstabConditionOnTheDerivedMeasureIsRefused() {
-      Built built = crosstab();
-      assertRefused(built, built.derivedName());
-      assertRefused(built, built.derivedName().toUpperCase());
-   }
-
-   /** The live crosstab lists the derived column by its table header, with a ".N" suffix. */
-   @Test
-   void crosstabConditionOnTheListedDerivedColumnWithADedupSuffixIsRefused() {
-      Built built = crosstab();
-      assertRefused(built, built.derivedName() + ".1");
-   }
-
-   @Test
-   void crosstabBaseColumnWithADedupSuffixIsAccepted() {
-      Built built = crosstab();
-      assertDoesNotThrow(() -> AssemblyHighlightService.requireNoDerivedConditionField(
-         built.assembly(), highlightOn(built.baseName() + ".1")));
-   }
-
-   @Test
-   void crosstabConditionOnTheBaseMeasureIsAccepted() {
-      Built built = crosstab();
-      assertDoesNotThrow(() -> AssemblyHighlightService.requireNoDerivedConditionField(
-         built.assembly(), highlightOn(built.baseName())));
-   }
-
-   @Test
    void noComparisonMeansNoRefusal() {
-      Built built = crosstab();
-      VSCrosstabInfo info = ((CrosstabVSAssembly) built.assembly()).getVSCrosstabInfo();
-      info.setRuntimeAggregates(info.getDesignAggregates());
+      Built built = chart();
+      ((ChartVSAssemblyInfo) built.assembly().getInfo()).getVSChartInfo()
+         .setRuntimeDateComparisonRefs(null);
 
       assertDoesNotThrow(() -> AssemblyHighlightService.requireNoDerivedConditionField(
          built.assembly(), highlightOn(built.derivedName())));

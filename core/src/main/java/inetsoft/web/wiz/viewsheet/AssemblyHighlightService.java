@@ -19,15 +19,11 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSAssembly;
-import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
@@ -773,9 +769,8 @@ public class AssemblyHighlightService {
    /**
     * Refuses a condition on a field the active date comparison derives (e.g. "Change from
     * previous year of Year(D): Sum(M)"). It is listed as a conditionable field while the
-    * comparison is on, but it has no design-time field behind it, so the condition dangles (chart)
-    * or the highlight is dropped (crosstab) once the comparison is cleared or changed. Matched
-    * case-insensitively, the way {@link ConditionVocabulary} resolves field names.
+    * comparison is on, but it has no design-time field behind it, so the condition dangles once the comparison is
+    * cleared or changed. Chart only. Matched case-insensitively, the way {@link ConditionVocabulary} resolves field names.
     */
    static void requireNoDerivedConditionField(VSAssembly assembly, Highlight highlight) {
       if(highlight.conditions() == null || highlight.conditions().isEmpty()) {
@@ -794,11 +789,7 @@ public class AssemblyHighlightService {
          index++;
          String field = clause == null || clause.field() == null ? "" : clause.field().trim();
 
-         // the crosstab lists a column by its table header, which carries a ".N" de-duplication
-         // suffix when the derived name repeats (e.g. "Change from ...: Sum(M).1")
-         String key = field.toLowerCase().replaceFirst("\\.\\d+$", "");
-
-         if(derived.contains(field.toLowerCase()) || derived.contains(key)) {
+         if(derived.contains(field.toLowerCase())) {
             throw new IllegalArgumentException(
                "Condition " + index + "'s field '" + field + "' is derived by the active date " +
                "comparison and has no design-time field behind it, so the highlight would be " +
@@ -820,17 +811,6 @@ public class AssemblyHighlightService {
 
             if(HighlightDialogService.isDerivedDateComparisonRef(chartInfo, name, ref)) {
                names.add(name.toLowerCase());
-            }
-         }
-      }
-      else if(assembly != null && assembly.getInfo() instanceof CrosstabVSAssemblyInfo info) {
-         VSCrosstabInfo crosstabInfo = info.getVSCrosstabInfo();
-
-         for(DataRef ref : crosstabInfo == null ? new DataRef[0] :
-            crosstabInfo.getRuntimeAggregates())
-         {
-            if(HighlightDialogService.isDerivedDateComparisonAggregate(crosstabInfo, ref)) {
-               names.add(((VSAggregateRef) ref).getFullName().toLowerCase());
             }
          }
       }
