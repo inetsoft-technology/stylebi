@@ -21,6 +21,8 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.XCondition;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
@@ -353,5 +355,101 @@ class WizAutoBindingServiceMultiStyleChartTest {
       temp.addYField(boundSales());
 
       assertFalse(service().tempChartDescribes(tempInfo(chart(temp)), multiStyleTarget(null)));
+   }
+
+   /**
+    * A multi-style chart as the user left it: OrderDate by Month on x, Sum(Sales) on y, and on the
+    * measure's own color field Region ranked top-3 and sorted by value descending.
+    */
+   private static ChartVSAssembly settingsTarget() {
+      VSChartInfo info = new VSChartInfo();
+      info.setMultiStyles(true);
+      VSChartDimensionRef date = boundDim("OrderDate", null);
+      ColumnRef dateColumn = new ColumnRef(new AttributeRef(null, "OrderDate"));
+      dateColumn.setDataType(XSchema.DATE);
+      date.setDataRef(dateColumn);
+      date.setDateLevelValue(String.valueOf(XConstants.MONTH_DATE_GROUP));
+      info.addXField(date);
+      VSChartDimensionRef region = boundDim("Region", "3");
+      region.setOrder(XConstants.SORT_VALUE_DESC);
+      region.setSortByColValue("Sum(Sales)");
+      VSChartAggregateRef sales = boundSales();
+      sales.setColorField(aesthetic(region));
+      info.addYField(sales);
+      ChartVSAssembly chart = chart(info);
+      when(chart.getName()).thenReturn("Chart1");
+      return chart;
+   }
+
+   /** A cached recommendation candidate: the same columns with no user settings, Region on color. */
+   private static VSChartInfo plainCandidate() {
+      VSChartInfo info = new VSChartInfo();
+      info.addXField(boundDim("OrderDate", null));
+      info.addYField(boundSales());
+      info.setColorField(aesthetic(boundDim("Region", null)));
+      return info;
+   }
+
+   private static String settings(VSChartInfo info) {
+      VSChartDimensionRef date = (VSChartDimensionRef) info.getXField(0);
+      VSChartDimensionRef region = (VSChartDimensionRef) info.getColorField().getDataRef();
+      return "date level=" + date.getDateLevelValue() +
+         " region order=" + region.getOrder() + " sortBy=" + region.getSortByColValue() +
+         " ranking=" + region.getRankingOptionValue() + "/" + region.getRankingNValue();
+   }
+
+   @Test
+   void fastPathAndRebuildCarryTheSameSortRankingAndDateLevel() {
+      ChartVSAssembly target = settingsTarget();
+
+      // What createViewsheetInternal records onto the temp chart; with #78535 the per-measure Region
+      // takes part, so the multi-style target's column set matches and its settings are recorded.
+      VSChartInfo tempInfo = new VSChartInfo();
+      tempInfo.addXField(boundDim("OrderDate", null));
+      tempInfo.addXField(boundDim("Region", null));
+      tempInfo.addYField(boundSales());
+      ChartVSAssembly temp = chart(tempInfo);
+      BindingFieldSettings.record(BindingFieldSettings.snapshot(target),
+                                  BindingFieldSettings.refsOf(temp));
+      assertTrue(service().tempChartDescribes(tempInfo(temp), target));
+
+      // Fast path: applyTempChartFieldSettings onto the cached candidate.
+      VSChartInfo fast = plainCandidate();
+      BindingFieldSettings.restore(BindingFieldSettings.refsOf(temp),
+                                   BindingFieldSettings.refsOf(chart(fast)));
+
+      // Rebuild: the target's field list, applied by applyFieldConfigs onto the recommender's candidate.
+      WizVsService wizVsService = new WizVsService(null, null, null, null, null, null);
+      WizAutoBindingService service =
+         new WizAutoBindingService(null, null, null, null, null, wizVsService, null, null);
+      Map<String, SimpleFieldInfo> configMap = new LinkedHashMap<>();
+      service.deriveFieldConfigs(target).forEach(c -> configMap.putIfAbsent(c.getField(), c));
+      VSChartInfo rebuilt = plainCandidate();
+      service.applyResolvedFormulaOverrides(chart(rebuilt), configMap);
+
+      assertEquals(settings(rebuilt), settings(fast));
+      assertEquals("date level=" + XConstants.MONTH_DATE_GROUP + " region order=" +
+                   XConstants.SORT_VALUE_DESC + " sortBy=Sum(Sales) ranking=" + XCondition.TOP_N + "/3",
+                   settings(fast));
+   }
+
+   @Test
+   void dynamicFieldOnAPerMeasureAestheticStillRebuilds() {
+      // $(RB) resolving to Region on the measure's own color field. The temp chart a rebuild of it
+      // leaves binds the RESOLVED Region, so the design-value column sets never match: changeType
+      // keeps rebuilding, which is the path that restores $(RB) (restoreChartDynamicColumnValues).
+      VSChartInfo info = new VSChartInfo();
+      info.setMultiStyles(true);
+      info.addXField(boundDim("State", null));
+      VSChartDimensionRef dynamic = boundDim("Region", null);
+      dynamic.setGroupColumnValue(DYNAMIC);
+      dynamic.getDynamicValues().get(0).setRValue("Region");
+      VSChartAggregateRef sales = boundSales();
+      sales.setColorField(aesthetic(dynamic));
+      info.addYField(sales);
+      ChartVSAssembly target = chart(info);
+      when(target.getName()).thenReturn("Chart1");
+
+      assertFalse(service().tempChartDescribes(tempInfo(recordedTemp(null)), target));
    }
 }
