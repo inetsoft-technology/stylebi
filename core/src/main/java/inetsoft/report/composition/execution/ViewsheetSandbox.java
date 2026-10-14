@@ -52,6 +52,7 @@ import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.web.viewsheet.service.SharedFilterService;
 import inetsoft.web.vswizard.model.VSWizardConstants;
@@ -6281,6 +6282,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             throw cex;
          }
          catch(MVExecutionException ex) {
+            // the MV query wraps every failure of its job, e.g. XJobPool, so unavailable data
+            // (a lock stall, a lost swap file, a scheduled load failure) or a stopped script
+            // arrives here too. The MV isn't broken: don't cache it as no data (#77908,
+            // #78071, #77949), and don't recreate the MV on demand, which would return no
+            // data to this reader without an error (#78450)
+            if(DataUnavailable.find(ex) != null || TableLoadException.find(ex) != null ||
+               ScriptTimeoutGuard.isStop(ex))
+            {
+               cache = false;
+               throw ex;
+            }
+
             boolean ondemand = "true".equals(
                SreeEnv.getProperty("mv.ondemand")) &&
                vs.getViewsheetInfo().isMVOnDemand() &&
@@ -6294,15 +6307,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             else {
                LOG.warn("Failed to query materialized view: {}", name, ex);
                CoreTool.addUserMessage(ex.getMessage());
-
-               // the MV query wraps any failure, a lost swap file must not be cached as no
-               // data either, see catch(Exception) below (#77908), nor a stopped script (#77949)
-               // nor a scheduled load failure (#78071)
-               if(SwapFileReadException.find(ex) != null || ScriptTimeoutGuard.isStop(ex) ||
-                  TableLoadException.find(ex) != null)
-               {
-                  cache = false;
-               }
 
                // error should be shown to user
                throw ex;

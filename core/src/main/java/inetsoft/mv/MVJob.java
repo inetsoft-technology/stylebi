@@ -26,6 +26,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 
 /**
  * MVJob, the mv job to be executed at server node. Several sub mv tasks will
@@ -70,6 +71,14 @@ public final class MVJob extends AbstractJob {
       }
       catch(Exception ex) {
          ScriptTimeoutGuard.rethrowStop(ex);
+
+         // a lock stall, a lost swap file or a scheduled load failure, e.g. read by a
+         // condition value script, is unavailable data and no MV error: keep it in the
+         // chain so ViewsheetSandbox.getData doesn't cache it or recreate the MV (#78450)
+         if(DataUnavailable.causeInChain(ex) != null) {
+            throw ex;
+         }
+
          throw new MVExecutionException(ex.getMessage());
       }
    }
