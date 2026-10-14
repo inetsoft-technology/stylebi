@@ -18,6 +18,7 @@
 package inetsoft.report.composition.graph.calc;
 
 import inetsoft.graph.data.*;
+import inetsoft.report.composition.graph.BrushDataSet;
 import inetsoft.report.composition.graph.Router;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.*;
@@ -543,8 +544,7 @@ public class ValueOfColumn extends AbstractColumn {
          // scanning the local data would always find that single period as the minimum,
          // making the "first period" guard below fire for every row in every cell instead
          // of only the chart's true first period.
-         DataSet rootData = data instanceof DataSetFilter ?
-            ((DataSetFilter) data).getRootDataSet() : data;
+         DataSet rootData = getMinDateRoot(data);
          minDate = new Date(Long.MAX_VALUE);
          String ndim = dim == null ? innerDim : dim;
 
@@ -558,6 +558,30 @@ public class ValueOfColumn extends AbstractColumn {
       }
 
       return minDate;
+   }
+
+   /**
+    * Unwrap the filter chain toward the root, but stop at a BrushDataSet. Its root is the
+    * brushed data only (BrushDataSet wraps the brushed dataset), so scanning past it would
+    * miss the all-data rows, e.g. the extra prior period of a date comparison chart, and
+    * drop the first all-data period after the brushed range. The BrushDataSet itself holds
+    * both the brushed and the all-data rows. (78448)
+    */
+   private static DataSet getMinDateRoot(DataSet data) {
+      DataSet rootData = data;
+
+      while(rootData instanceof DataSetFilter && !(rootData instanceof BrushDataSet)) {
+         DataSetFilter filter = (DataSetFilter) rootData;
+
+         // a filter acting as its own root (e.g. PairsDataSet)
+         if(filter.getRootDataSet() == filter) {
+            break;
+         }
+
+         rootData = filter.getDataSet();
+      }
+
+      return rootData;
    }
 
    /**
