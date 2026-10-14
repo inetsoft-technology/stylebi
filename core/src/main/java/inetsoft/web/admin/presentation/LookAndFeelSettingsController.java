@@ -81,7 +81,7 @@ public class LookAndFeelSettingsController<K extends String, V extends Multipart
 
    private List<IdentityID> getRoles(Principal principal) {
       return Arrays.stream(securityProvider.getRoles())
-         .filter(u -> checkPermission(u.convertToKey(), ResourceType.SECURITY_USER, principal))
+         .filter(u -> checkPermission(u.convertToKey(), ResourceType.SECURITY_ROLE, principal))
          .collect(Collectors.toList());
    }
 
