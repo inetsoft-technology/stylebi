@@ -287,6 +287,12 @@ export class BCalcTableActionHandlerDirective extends AbstractActionHandler impl
    }
 
    private pasteCell(): void {
+      // nothing has been copied or cut: the server ignores the request without replying, so
+      // don't send it, and don't mark the binding out of date, it would never be reloaded
+      if(!this.pasteType || !this._oselection) {
+         return;
+      }
+
       let content: Rectangle[] = [];
       content.push(this._oselection);
       content.push(this.getSelectRect());

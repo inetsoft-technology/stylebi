@@ -200,12 +200,6 @@ export class VSCalcTableEditorService {
       this.loadNamedGroups();
    }
 
-   isSelectedCell(row: number, col: number) {
-      return !!this.getSelectCells().find((element) => {
-                return element.row == row && element.col == col;
-             });
-   }
-
    /**
     * Mark the loaded binding as out of date, e.g. when the selected cell changes or the
     * selected cell's content is changed on the server (column pick, paste, remove, merge,
