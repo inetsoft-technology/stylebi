@@ -2224,11 +2224,13 @@ public class ViewsheetAssemblyAgentController {
    // guard against (Hazard 1's preview-clone isolation, Hazard 2's undo-stack-reset-on-switch,
    // Hazard 3's scaleFont-zero refusal) is handled inside the five services below, never here.
    //
-   // edit_layout_objects/set_layout_table_options address CONTENT-region objects only -- the
+   // edit_layout_objects/set_layout_table_options pass CONTENT as the requested region -- the
    // spec never surfaces "region" (header/footer/content) as a caller-facing concept, and
    // LayoutReadService.get() itself only ever projects VSLayoutService.CONTENT, so this
    // controller passes that same constant through rather than inventing a region parameter
-   // nothing else in this plugin family exposes.
+   // nothing else in this plugin family exposes. For a print layout, edit_layout_objects'
+   // move_resize and remove fall back to HEADER/FOOTER when the name is not in CONTENT
+   // (LayoutMutationService.resolveRegion); set_layout_table_options does not.
 
    /** {@code list_layouts}. */
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/list")

@@ -229,8 +229,10 @@ public class LayoutMutationService {
 
             for(Map<String, Object> object : objects) {
                String name = requireName(object);
+               int resolved = resolveRegion(layout, name, region, layoutName,
+                                            "add it first with edit_layout_objects (op: \"add\").");
                VSAssemblyLayout assemblyLayout =
-                  requireAssemblyLayout(layout, name, region, layoutName);
+                  requireAssemblyLayout(layout, name, resolved, layoutName);
 
                // A move-only or resize-only call must leave the other dimension unchanged --
                // merge onto the assembly's current position/size rather than defaulting an
@@ -465,8 +467,20 @@ public class LayoutMutationService {
          names.add(requireName(object));
       }
 
+      // Bug 78588: a name that is not placed used to be silently ignored (removeIf + ok), unlike
+      // move_resize. Checked against the master before anything is removed, so one unknown name
+      // fails the whole call. Reads the master directly -- resolveForRead/mutateLayout would mint
+      // a preview clone, which the data-tip pre-check below deliberately avoids.
+      RuntimeViewsheet placementMaster = viewsheetSessions.resolve(sessionToken, agent);
+      AbstractLayout placementLayout = requireLayout(placementMaster, layoutName);
+
+      for(String name : names) {
+         resolveRegion(placementLayout, name, region, layoutName,
+                       "nothing to remove; call get_layout to see what is placed.");
+      }
+
       if(!confirmed) {
-         RuntimeViewsheet master = viewsheetSessions.resolve(sessionToken, agent);
+         RuntimeViewsheet master = placementMaster;
          List<String> dependent = new ArrayList<>();
 
          for(String name : names) {
@@ -493,10 +507,21 @@ public class LayoutMutationService {
       layoutSessions.mutateLayout(sessionToken, agent, layoutName,
          (clone, master, cloneRuntimeId, dispatcher) -> {
             AbstractLayout layout = requireLayout(master, layoutName);
-            List<VSAssemblyLayout> layouts =
-               new ArrayList<>(vsLayoutService.getVSAssemblyLayouts(layout, region));
-            layouts.removeIf(l -> names.contains(l.getName()));
-            vsLayoutService.setVSAssemblyLayouts(layout, layouts, region);
+            Map<Integer, List<String>> byRegion = new LinkedHashMap<>();
+
+            for(String name : names) {
+               byRegion.computeIfAbsent(
+                  resolveRegion(layout, name, region, layoutName,
+                                "nothing to remove; call get_layout to see what is placed."),
+                  r -> new ArrayList<>()).add(name);
+            }
+
+            for(Map.Entry<Integer, List<String>> entry : byRegion.entrySet()) {
+               List<VSAssemblyLayout> layouts = new ArrayList<>(
+                  vsLayoutService.getVSAssemblyLayouts(layout, entry.getKey()));
+               layouts.removeIf(l -> entry.getValue().contains(l.getName()));
+               vsLayoutService.setVSAssemblyLayouts(layout, layouts, entry.getKey());
+            }
          });
 
       return okResult();
@@ -509,6 +534,47 @@ public class LayoutMutationService {
          .orElseThrow(() -> new IllegalArgumentException(
             "Unknown layout \"" + layoutName + "\" -- call list_layouts to see the print and " +
             "device layouts defined on this viewsheet."));
+   }
+
+   /**
+    * Bug 78588: the plugin always passes CONTENT, but a print layout's object may sit in its
+    * HEADER or FOOTER (placed by a person; the add refusal of bug 78210 tells the caller to
+    * move_resize/remove it). The requested region wins, so a name duplicated across regions
+    * still acts on the requested one; only when it is absent there do HEADER/FOOTER get
+    * searched. A name in both HEADER and FOOTER is ambiguous and fails loud. A device layout has
+    * one object list and keeps the passed region.
+    */
+   private int resolveRegion(AbstractLayout layout, String name, int region, String layoutName,
+                             String notPlacedTail)
+   {
+      if(vsLayoutService.findAssemblyLayout(layout, name, region).isPresent()) {
+         return region;
+      }
+
+      if(layout instanceof PrintLayout) {
+         boolean inHeader = region != VSLayoutService.HEADER &&
+            vsLayoutService.findAssemblyLayout(layout, name, VSLayoutService.HEADER).isPresent();
+         boolean inFooter = region != VSLayoutService.FOOTER &&
+            vsLayoutService.findAssemblyLayout(layout, name, VSLayoutService.FOOTER).isPresent();
+
+         if(inHeader && inFooter) {
+            throw new IllegalArgumentException(
+               "\"" + name + "\" is placed in both the HEADER and the FOOTER of layout \"" +
+               layoutName + "\" (and not in " + regionName(region) + ") -- it is ambiguous " +
+               "which one is meant; remove or rename one of them in the Composer first.");
+         }
+
+         if(inHeader) {
+            return VSLayoutService.HEADER;
+         }
+
+         if(inFooter) {
+            return VSLayoutService.FOOTER;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "\"" + name + "\" is not placed in layout \"" + layoutName + "\" -- " + notPlacedTail);
    }
 
    private VSAssemblyLayout requireAssemblyLayout(AbstractLayout layout, String objectName,
