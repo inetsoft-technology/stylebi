@@ -286,14 +286,7 @@ public class SelectionRuntimeService {
                // nothing the caller could observe. Refuse a typo'd value by name, atomically,
                // before applying anything, rather than reporting an inflated count for a
                // partially-applied result.
-               List<List<String>> unmatched = findUnmatchedPaths(domain, values, idMode);
-
-               if(!unmatched.isEmpty()) {
-                  throw new IllegalArgumentException(
-                     "'" + assemblyName + "' has no value matching " + unmatched +
-                     unresolvedDetail(domain, unmatched, idMode) + " -- confirm the exact " +
-                     "spelling via browse_condition_values before selecting it.");
-               }
+               requireResolvable(assemblyName, domain, values, idMode, "selecting");
             }
 
             String activeSearch = searchString(info);
@@ -413,6 +406,12 @@ public class SelectionRuntimeService {
                   "on a selection list or a non-ID-mode selection tree. Use clear_selection to " +
                   "remove everything, or set_selection's plain 'values' for a range slider.");
             }
+
+            // Against the whole live domain, not the selected paths: a real but unselected value
+            // stays a legal no-op, while a fabricated or over-long path is refused by name instead
+            // of silently touching nothing. Unscoped by search, like the deselect itself.
+            requireResolvable(assemblyName, selectionListOf(assembly), deselect, false,
+                              "deselecting");
 
             List<List<String>> currentPaths = selectedPaths(assembly);
             List<List<String>> targets = deselectTargets(currentPaths, deselect);
@@ -1433,6 +1432,36 @@ public class SelectionRuntimeService {
       return assembly instanceof SelectionListVSAssembly || assembly instanceof SelectionTreeVSAssembly;
    }
 
+   /**
+    * Refuses, by name and before anything is applied, a path that resolves to nothing in the live
+    * domain. Skipped when the domain isn't known yet -- a cannot-tell case, not a does-not-exist
+    * case.
+    */
+   private static void requireResolvable(String assemblyName, SelectionList domain,
+                                         List<List<String>> values, boolean idMode, String action)
+   {
+      requireResolvable(assemblyName, domain == null ? null : domain.getSelectionValues(), values,
+                        idMode, action);
+   }
+
+   /** Split out from its {@code SelectionList} container for the same reason as the overload below. */
+   static void requireResolvable(String assemblyName, SelectionValue[] domain,
+                                 List<List<String>> values, boolean idMode, String action)
+   {
+      if(domain == null) {
+         return;
+      }
+
+      List<List<String>> unmatched = findUnmatchedPaths(domain, values, idMode);
+
+      if(!unmatched.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' has no value matching " + unmatched +
+            unresolvedDetail(domain, unmatched, idMode) + " -- confirm the exact spelling via " +
+            "browse_condition_values before " + action + " it.");
+      }
+   }
+
    /** Skipped when the domain isn't known yet -- a cannot-tell case, not a does-not-exist case. */
    private static List<List<String>> findUnmatchedPaths(SelectionList domain,
                                                          List<List<String>> values, boolean idMode)
@@ -1666,7 +1695,13 @@ public class SelectionRuntimeService {
    private static String unresolvedDetail(SelectionList domain, List<List<String>> unmatched,
                                           boolean idMode)
    {
-      SelectionValue[] values = domain == null ? null : domain.getSelectionValues();
+      return unresolvedDetail(domain == null ? null : domain.getSelectionValues(), unmatched,
+                              idMode);
+   }
+
+   private static String unresolvedDetail(SelectionValue[] values, List<List<String>> unmatched,
+                                          boolean idMode)
+   {
       List<String> named = new ArrayList<>();
 
       for(List<String> path : unmatched) {
