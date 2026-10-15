@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -99,12 +100,12 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
    }
 
    public boolean contains(String key) {
-      return map.containsKey(key);
+      return read(m -> m.containsKey(key));
    }
 
    @Override
    public T get(String key) {
-      return map.get(key);
+      return read(m -> m.get(key));
    }
 
    @Override
@@ -179,7 +180,9 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
          return Stream.empty();
       }
 
-      return map.entrySet().stream()
+      // entrySet() copies the entries, so the cache is read here, inside the retry, and not
+      // when the stream is consumed
+      return read(Map::entrySet).stream()
          .map(e -> new KeyValuePair<>(e.getKey(), e.getValue()));
    }
 
@@ -189,12 +192,58 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
          return Stream.empty();
       }
 
-      return map.keySet().stream();
+      return read(Map::keySet).stream();
    }
 
    @Override
    public int size() {
-      return map.size();
+      return read(Map::size);
+   }
+
+   /**
+    * Reads the replicated map. Bug #78559, when another node deletes this store, the cache is
+    * destroyed on every node, but only the deleting node closes its instance. Ignite reattaches
+    * the proxy held here only once a cache with that name exists again, and a read never creates
+    * it, so every read would fail until something writes to the store. When a read fails because
+    * the cache is stopped, the cache is created again, empty, as a new instance would do, and the
+    * read is retried once. During a node shutdown the cache cannot be created, so the original
+    * exception is thrown.
+    */
+   private <R> R read(Function<Map<String, T>, R> operation) {
+      Map<String, T> current = map;
+
+      try {
+         return operation.apply(current);
+      }
+      catch(RuntimeException e) {
+         if(!isCacheStopped(e)) {
+            throw e;
+         }
+
+         Map<String, T> reattached;
+
+         try {
+            reattached = cluster.getReplicatedMap(mapName);
+         }
+         catch(RuntimeException ex) {
+            e.addSuppressed(ex);
+            throw e;
+         }
+
+         LOG.debug("Key-value storage {} was deleted on another node, reattached it", id);
+         map = reattached;
+         return operation.apply(reattached);
+      }
+   }
+
+   private static boolean isCacheStopped(Throwable e) {
+      for(Throwable cause = e; cause != null; cause = cause.getCause()) {
+         if(CACHE_STOPPED_EXCEPTION.equals(cause.getClass().getName())) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    @Override
@@ -222,13 +271,15 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
    private final Cluster cluster;
    private final String mapName;
    private final LoadKeyValueTask<T> load;
-   private final Map<String, T> map;
+   private volatile Map<String, T> map;
    private final Set<Listener<T>> listeners =
       new ConcurrentSkipListSet<>(Comparator.comparing(Listener::hashCode));
    private final ListenerDelegate listenerDelegate = new ListenerDelegate();
    private volatile boolean isClosed = false;
    private volatile boolean loaded;
 
+   private static final String CACHE_STOPPED_EXCEPTION =
+      "org.apache.ignite.internal.processors.cache.CacheStoppedException";
    private static final Logger LOG = LoggerFactory.getLogger(LocalKeyValueStorage.class);
 
    private final class ListenerDelegate implements MapChangeListener<String, T> {
