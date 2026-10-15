@@ -35,7 +35,18 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.script.ScriptException;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.handler.VSColumnHandler;
+import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.dialog.RegionPropertyDialogService;
+import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.SharedFilterService;
+import inetsoft.web.viewsheet.service.VSCompositionService;
+import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -254,6 +265,99 @@ class ChartRenderCheckRealStackTest {
          sessions, mock(RegionPropertyDialogService.class), new ChartRegionHandler());
    }
 
+   /**
+    * The Composer service a chart write calls reads the chart's data itself, after storing the
+    * edit. On a chart whose script failure is armed (right after a condition write) that read
+    * throws, with no help from ChartRenderCheck: this is the pre-existing behaviour behind the
+    * opaque 500, and the edit was kept.
+    */
+   @Test
+   void theInnerComposerServiceThrowsOnAnArmedChartAfterKeepingTheEdit() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true);
+
+      Exception thrown = assertThrows(Exception.class, () -> capture(rvs, (box, d) ->
+         editTitle(rvs, d, "applied")));
+
+      assertInstanceOf(ScriptException.class, rootOf(thrown), thrown.toString());
+      assertEquals("applied", chartTitle(rvs), "the edit was stored before the data read threw");
+   }
+
+   /** The guard turns that exception into the named warning; the edit stays; native render errors. */
+   @Test
+   void guardTurnsAnInnerScriptExceptionIntoTheNamedWarning() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true);
+
+      List<String> warnings = capture(rvs, (box, d) ->
+         ChartRenderCheck.guard(rvs, CHART, d, () -> editTitle(rvs, d, "applied")));
+
+      assertWarned(warnings);
+      assertEquals("applied", chartTitle(rvs));
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+      assertThrows(Exception.class, () -> box.getVGraphPair(CHART, true),
+                   "the native render still throws");
+      assertTrue(ChartRenderCheck.hasFailed(box, CHART));
+   }
+
+   /** The same, through the mutation wrapper every chart service uses, twice in a row. */
+   @Test
+   void guardedMutationWarnsEveryTimeWithoutThrowing() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true);
+      ViewsheetSessionService.Mutation write = ChartRenderCheck.guarded(
+         CHART, (r, id, d) -> editTitle(r, d, "again"));
+
+      for(int i = 0; i < 3; i++) {
+         assertWarned(capture(rvs, (box, d) -> write.run(rvs, rvs.getID(), d)));
+      }
+   }
+
+   /** Anything that is not a script error is not swallowed. */
+   @Test
+   void guardLeavesOtherExceptionsAlone() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, false);
+
+      assertThrows(IllegalStateException.class, () -> capture(rvs, (box, d) ->
+         ChartRenderCheck.guard(rvs, CHART, d, () -> {
+            throw new IllegalStateException("not a script error");
+         })));
+   }
+
+   /** On a healthy chart the guarded write completes silently. */
+   @Test
+   void guardedMutationOnAHealthyChartIsSilent() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, false);
+
+      assertEquals(List.of(), capture(rvs, (box, d) ->
+         ChartRenderCheck.guard(rvs, CHART, d, () -> editTitle(rvs, d, "ok"))));
+      assertEquals("ok", chartTitle(rvs));
+   }
+
+   private void editTitle(RuntimeViewsheet rvs, CommandDispatcher d, String title)
+      throws Exception
+   {
+      ChartVSAssembly chart = (ChartVSAssembly) rvs.getViewsheet().getAssembly(CHART);
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo().clone();
+      info.setTitleValue(title);
+      objectPropertyService().editObjectProperty(
+         rvs, info, CHART, CHART, "", principal(), d, true, null);
+   }
+
+   private static String chartTitle(RuntimeViewsheet rvs) {
+      ChartVSAssembly chart = (ChartVSAssembly) rvs.getViewsheet().getAssembly(CHART);
+      return ((ChartVSAssemblyInfo) chart.getVSAssemblyInfo()).getTitleValue();
+   }
+
+   private VSObjectPropertyService objectPropertyService() {
+      return new VSObjectPropertyService(
+         lifecycle, mock(VSColumnHandler.class), treeService, mock(VSAssemblyInfoHandler.class),
+         mock(VSWizardTemporaryInfoService.class), compositionService, sharedFilterService,
+         dataSourceRegistry, mock(QueryManagerService.class));
+   }
+
    /** A healthy chart yields no warning and the pair it built is the one the next consumer gets. */
    @Test
    void healthyChartIsSilentAndItsPairIsReused() throws Exception {
@@ -383,6 +487,10 @@ class ChartRenderCheckRealStackTest {
    RuntimeViewsheetExtension vsResource = new RuntimeViewsheetExtension(openViewsheetEvent());
 
    @Autowired CoreLifecycleService lifecycle;
+   @Autowired VSObjectTreeService treeService;
+   @Autowired VSCompositionService compositionService;
+   @Autowired SharedFilterService sharedFilterService;
+   @Autowired DataSourceRegistry dataSourceRegistry;
 
    private Principal user;
    private static final String TABLE = "TableView1";

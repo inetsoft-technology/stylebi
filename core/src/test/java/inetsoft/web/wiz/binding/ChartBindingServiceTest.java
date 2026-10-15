@@ -118,6 +118,18 @@ class ChartBindingServiceTest {
       assertEquals("Chart1", captor.getValue().getName());
    }
 
+   /** Bug #78439: a chart script error thrown by the inner service does not escape the write. */
+   @Test
+   void aScriptErrorFromTheInnerServiceDoesNotEscapeTheWrite() throws Exception {
+      SwapXYBindingService swap = mock(SwapXYBindingService.class);
+      doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(swap).swapXYBinding(any(), any(), any(), any(), any());
+      ChartBindingService service = harnessWithAssembly(
+         mock(ChartVSAssembly.class), new ChartBindingModel(), mock(ChangeChartRefService.class),
+         mock(ChangeChartTypeService.class), swap, mock(ChangeSeparateStatusService.class));
+
+      assertDoesNotThrow(() -> service.swapAxes("tok", principal(), "Chart1", ""));
+   }
+
    /** Bug #78439: every chart binding write returns the warnings the write captured. */
    @Test
    void everyWriteReturnsTheWarningsTheWriteCaptured() throws Exception {

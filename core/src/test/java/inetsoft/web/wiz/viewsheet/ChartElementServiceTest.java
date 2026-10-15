@@ -67,6 +67,17 @@ class ChartElementServiceTest {
                   "is why the construction guard above matters");
    }
 
+   /** Bug #78439: a chart script error thrown by the inner service does not escape the write. */
+   @Test
+   void aScriptErrorFromTheInnerServiceDoesNotEscapeTheWrite() throws Exception {
+      Harness h = harness(mock(ChartVSAssembly.class));
+      doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(h.axes).eventHandler(
+         anyString(), any(), anyString(), any(Principal.class), any());
+
+      assertDoesNotThrow(() -> h.service.setVisibility(
+         "tok", principal(), "Chart1", "axis", "Region", false, false, ""));
+   }
+
    /** Bug #78439: both write methods return the warnings the write captured. */
    @Test
    void returnsTheWarningsTheWriteCaptured() throws Exception {

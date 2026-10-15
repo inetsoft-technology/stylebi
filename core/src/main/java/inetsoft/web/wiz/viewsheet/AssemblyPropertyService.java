@@ -363,10 +363,14 @@ public class AssemblyPropertyService {
             markTargetsUnchanged(model);
          }
 
-         writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
+         final Object written = model;
 
          if("chart".equals(type)) {
-            ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
+            ChartRenderCheck.guard(rvs, assemblyName, dispatcher, () ->
+               writeModel(runtimeId, type, assemblyName, written, linkUri, user, dispatcher));
+         }
+         else {
+            writeModel(runtimeId, type, assemblyName, written, linkUri, user, dispatcher);
          }
       });
    }

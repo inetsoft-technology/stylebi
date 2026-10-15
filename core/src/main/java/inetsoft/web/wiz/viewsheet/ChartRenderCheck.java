@@ -73,6 +73,82 @@ public final class ChartRenderCheck {
       }
    }
 
+   /** One step of a chart write that may throw. */
+   @FunctionalInterface
+   public interface Body {
+      void run() throws Exception;
+   }
+
+   /**
+    * Wraps a chart write so a chart script error can never escape it as an opaque 500, then runs
+    * {@link #warnIfScriptFails} after it.
+    *
+    * <p>The Composer services a chart write calls ({@code editObjectProperty}, the legend
+    * visibility service, ...) read the chart's data themselves, after they have stored the edit
+    * but before they refresh. When the chart's one-shot script failure is armed (right after a
+    * condition write, or after this check re-armed it) that read throws the
+    * {@code ScriptException}, which used to leave the write as an unexpected server error although
+    * the edit was kept. Here that exception is reported as the same named warning, and the chart
+    * is re-armed so the native render still shows its own error. Any other exception propagates
+    * unchanged.
+    */
+   public static void guard(RuntimeViewsheet rvs, String chartName, CommandDispatcher dispatcher,
+                            Body body) throws Exception
+   {
+      try {
+         body.run();
+      }
+      catch(Exception e) {
+         ScriptException script = scriptCause(e);
+
+         if(script == null) {
+            throw e;
+         }
+
+         ViewsheetSandbox box = rvs == null ? null : rvs.getViewsheetSandbox().orElse(null);
+
+         if(box != null) {
+            remember(box, chartName);
+            rearm(box, chartName);
+         }
+
+         warn(chartName, script.getMessage(), dispatcher);
+         return;
+      }
+
+      warnIfScriptFails(rvs, chartName, dispatcher);
+   }
+
+   /** {@link #guard} for a whole mutation, so a service needs no check of its own at the end. */
+   public static ViewsheetSessionService.Mutation guarded(
+      String chartName, ViewsheetSessionService.Mutation mutation)
+   {
+      return (rvs, runtimeId, dispatcher) ->
+         guard(rvs, chartName, dispatcher, () -> mutation.run(rvs, runtimeId, dispatcher));
+   }
+
+   private static ScriptException scriptCause(Throwable e) {
+      for(int depth = 0; e != null && depth < 10; depth++, e = e.getCause()) {
+         if(e instanceof ScriptException script) {
+            return script;
+         }
+      }
+
+      return null;
+   }
+
+   private static void warn(String chartName, String failure, CommandDispatcher dispatcher) {
+      MessageCommand command = new MessageCommand();
+      command.setType(MessageCommand.Type.WARNING);
+      command.setMessage(prefix(chartName) + failure +
+                         "\nThe edit was applied, but the chart will show no data until the " +
+                         "script is fixed.");
+
+      if(dispatcher != null) {
+         dispatcher.sendCommand(chartName, command);
+      }
+   }
+
    /** Whether {@code warning} is the one {@link #warnIfScriptFails} raises for the chart. */
    public static boolean isWarningFor(String warning, String chartName) {
       return warning != null && warning.startsWith(prefix(chartName));
@@ -95,15 +171,7 @@ public final class ChartRenderCheck {
          return;
       }
 
-      MessageCommand command = new MessageCommand();
-      command.setType(MessageCommand.Type.WARNING);
-      command.setMessage(prefix(chartName) + failure +
-                         "\nThe edit was applied, but the chart will show no data until the " +
-                         "script is fixed.");
-
-      if(dispatcher != null) {
-         dispatcher.sendCommand(chartName, command);
-      }
+      warn(chartName, failure, dispatcher);
    }
 
    /**

@@ -156,7 +156,8 @@ public class ChartElementService {
       VSChartLegendsVisibilityEvent legendEvent = "legend".equals(kind)
          ? legendEvent(sessionToken, user, assemblyName, target0, visible) : null;
 
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
 
          switch(kind) {
@@ -173,8 +174,7 @@ public class ChartElementService {
                        VSChartTitlesVisibilityEvent.class),
                linkUri, user, dispatcher);
          }
-         ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
-      });
+      }));
    }
 
    /**
@@ -216,7 +216,8 @@ public class ChartElementService {
          requireRatioInRange(sessionToken, user, assemblyName, ratio, vertical);
       }
 
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
 
          Map<String, Object> fields = new LinkedHashMap<>();
@@ -226,8 +227,7 @@ public class ChartElementService {
          fields.put("sizeRatio", reset || ratio == null ? 0d : ratio);
          plotResizeService.eventHandler(runtimeId, convert(fields, VSChartPlotResizeEvent.class),
                                         linkUri, user, dispatcher);
-         ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
-      });
+      }));
    }
 
    /**

@@ -243,6 +243,21 @@ class ChartTargetLineServiceTest {
       assertEquals("#cc0000", written.getLineColor().getColor());
    }
 
+   /**
+    * Bug #78439: the Composer service reads the chart's data after storing the edit, and throws
+    * the chart's script error while it is armed. That must not escape the write as a 500.
+    */
+   @Test
+   void aScriptErrorFromTheInnerServiceDoesNotEscapeTheWrite() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+      doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(h.chartService).setChartPropertyModel(
+         anyString(), anyString(), any(ChartPropertyDialogModel.class), anyString(),
+         any(Principal.class), any());
+
+      assertDoesNotThrow(() ->
+         h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, ""));
+   }
+
    /** Bug #78439: add and remove put the warnings the write captured into their response. */
    @Test
    void addAndRemoveRelayTheWarningsTheWriteCaptured() throws Exception {

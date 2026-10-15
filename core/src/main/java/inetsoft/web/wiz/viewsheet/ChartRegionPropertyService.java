@@ -234,7 +234,8 @@ public class ChartRegionPropertyService {
       final Object written = rebuilt;
       final String writeField = field;
 
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.guarded(assembly, (rvs, runtimeId, dispatcher) -> {
          switch(name) {
          case "axis" -> regions.setAxisPropertyDialogModel(
             runtimeId, assembly, axisType(key), 0, writeField, (AxisPropertyDialogModel) written,
@@ -245,9 +246,7 @@ public class ChartRegionPropertyService {
          default -> regions.setTitleFormatDialogModel(
             runtimeId, assembly, key, (TitleFormatDialogModel) written, linkUri, user, dispatcher);
          }
-
-         ChartRenderCheck.warnIfScriptFails(rvs, assembly, dispatcher);
-      });
+      }));
    }
 
    /**

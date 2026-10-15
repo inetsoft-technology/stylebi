@@ -100,7 +100,8 @@ public class ChartAestheticAgentService {
       requireNotMultiAesthetic(sessionToken, user, assemblyName);
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          ChartBindingService.applySource(model, sourceTable);
@@ -113,8 +114,7 @@ public class ChartAestheticAgentService {
          event.setFieldType(name);
          event.setModel(model);
          aestheticService.changeChartAesthetic(runtimeId, event, user, dispatcher, linkUri);
-         ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
-      });
+      }));
    }
 
    public List<String> clearField(String sessionToken, Principal user, String assemblyName,
@@ -576,7 +576,8 @@ public class ChartAestheticAgentService {
                       java.util.function.BiConsumer<ChartVSAssembly, ChartBindingModel> mutation)
       throws Exception
    {
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          mutation.accept(chart, model);
@@ -586,8 +587,7 @@ public class ChartAestheticAgentService {
          event.setFieldType(channel);
          event.setModel(model);
          aestheticService.changeChartAesthetic(runtimeId, event, user, dispatcher, linkUri);
-         ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
-      });
+      }));
    }
 
    private static ChartVSAssembly requireChart(RuntimeViewsheet rvs, String assemblyName) {
