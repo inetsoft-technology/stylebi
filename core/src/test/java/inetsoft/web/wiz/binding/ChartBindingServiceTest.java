@@ -118,6 +118,22 @@ class ChartBindingServiceTest {
       assertEquals("Chart1", captor.getValue().getName());
    }
 
+   /**
+    * Bug #78439: binding writes have steps after the inner service call (calculator checks and
+    * their rollback, multi-style), so a script error from it is NOT swallowed: it propagates
+    * rather than claiming an edit was applied.
+    */
+   @Test
+   void aScriptErrorFromTheInnerServiceIsNotSwallowedByBindingWrites() throws Exception {
+      SwapXYBindingService swap = mock(SwapXYBindingService.class);
+      doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(swap).swapXYBinding(any(), any(), any(), any(), any());
+      ChartBindingService service = harnessWithAssembly(
+         mock(ChartVSAssembly.class), new ChartBindingModel(), mock(ChangeChartRefService.class),
+         mock(ChangeChartTypeService.class), swap, mock(ChangeSeparateStatusService.class));
+
+      assertThrows(RuntimeException.class, () -> service.swapAxes("tok", principal(), "Chart1", ""));
+   }
+
    /** Bug #78439: every chart binding write returns the warnings the write captured. */
    @Test
    void everyWriteReturnsTheWarningsTheWriteCaptured() throws Exception {

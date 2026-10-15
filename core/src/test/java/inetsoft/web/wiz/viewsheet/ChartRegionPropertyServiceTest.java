@@ -69,6 +69,39 @@ class ChartRegionPropertyServiceTest {
                  "the axis line properties must be discoverable by name");
    }
 
+   /**
+    * Bug #78439: a chart script error thrown by the inner dialog service is tolerated after the
+    * write was attempted; any other error still escapes.
+    */
+   @Test
+   void aScriptErrorFromTheInnerServiceDoesNotEscapeButOtherErrorsDo() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+      doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(h.regions).setAxisPropertyDialogModel(
+         anyString(), anyString(), anyString(), anyInt(), any(), any(), anyString(),
+         any(Principal.class), any());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("showAxisLine", false), "");
+      verify(h.regions).setAxisPropertyDialogModel(
+         anyString(), anyString(), anyString(), anyInt(), any(), any(), anyString(),
+         any(Principal.class), any());
+
+      Harness other = harness();
+      when(other.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(),
+                                                    anyString(), any(), anyString(),
+                                                    any(Principal.class)))
+         .thenReturn(axisModel());
+      doThrow(new IllegalStateException("boom")).when(other.regions).setAxisPropertyDialogModel(
+         anyString(), anyString(), anyString(), anyInt(), any(), any(), anyString(),
+         any(Principal.class), any());
+
+      assertThrows(IllegalStateException.class, () -> other.service.set(
+         "tok", principal(), "Chart1", "axis", "y", null, Map.of("showAxisLine", false), ""));
+   }
+
    /** Bug #78439: the warnings the write captured (a chart that cannot be generated) are returned. */
    @Test
    void returnsTheWarningsTheWriteCaptured() throws Exception {

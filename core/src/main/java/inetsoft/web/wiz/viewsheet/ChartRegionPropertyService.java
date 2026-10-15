@@ -234,20 +234,22 @@ public class ChartRegionPropertyService {
       final Object written = rebuilt;
       final String writeField = field;
 
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         switch(name) {
-         case "axis" -> regions.setAxisPropertyDialogModel(
-            runtimeId, assembly, axisType(key), 0, writeField, (AxisPropertyDialogModel) written,
-            linkUri, user, dispatcher);
-         case "legend" -> regions.setLegendFormatDialogModel(
-            runtimeId, assembly, indexOf(key), (LegendFormatDialogModel) written, linkUri, user,
-            dispatcher);
-         default -> regions.setTitleFormatDialogModel(
-            runtimeId, assembly, key, (TitleFormatDialogModel) written, linkUri, user, dispatcher);
-         }
-
-         ChartRenderCheck.warnIfScriptFails(rvs, assembly, dispatcher);
-      });
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assembly, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.swallowScriptError(rvs, assembly, () -> {
+            switch(name) {
+            case "axis" -> regions.setAxisPropertyDialogModel(
+               runtimeId, assembly, axisType(key), 0, writeField,
+               (AxisPropertyDialogModel) written, linkUri, user, dispatcher);
+            case "legend" -> regions.setLegendFormatDialogModel(
+               runtimeId, assembly, indexOf(key), (LegendFormatDialogModel) written, linkUri,
+               user, dispatcher);
+            default -> regions.setTitleFormatDialogModel(
+               runtimeId, assembly, key, (TitleFormatDialogModel) written, linkUri, user,
+               dispatcher);
+            }
+         });
+      }));
    }
 
    /**

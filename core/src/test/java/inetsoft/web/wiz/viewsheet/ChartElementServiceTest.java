@@ -67,6 +67,28 @@ class ChartElementServiceTest {
                   "is why the construction guard above matters");
    }
 
+   /**
+    * Bug #78439: a chart script error thrown by the inner visibility service is tolerated (the
+    * end-of-write check reports it as the named warning), while any other error still escapes.
+    */
+   @Test
+   void aScriptErrorFromTheInnerServiceDoesNotEscapeButOtherErrorsDo() throws Exception {
+      Harness h = harness(mock(ChartVSAssembly.class));
+      doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(h.axes).eventHandler(
+         anyString(), any(), anyString(), any(Principal.class), any());
+
+      assertEquals(null, h.service.setVisibility(
+         "tok", principal(), "Chart1", "axis", "Region", false, false, ""));
+      verify(h.axes).eventHandler(anyString(), any(), anyString(), any(Principal.class), any());
+
+      Harness other = harness(mock(ChartVSAssembly.class));
+      doThrow(new IllegalStateException("boom")).when(other.axes).eventHandler(
+         anyString(), any(), anyString(), any(Principal.class), any());
+
+      assertThrows(IllegalStateException.class, () -> other.service.setVisibility(
+         "tok", principal(), "Chart1", "axis", "Region", false, false, ""));
+   }
+
    /** Bug #78439: both write methods return the warnings the write captured. */
    @Test
    void returnsTheWarningsTheWriteCaptured() throws Exception {

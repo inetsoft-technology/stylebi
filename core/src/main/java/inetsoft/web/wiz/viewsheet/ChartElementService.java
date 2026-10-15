@@ -156,25 +156,28 @@ public class ChartElementService {
       VSChartLegendsVisibilityEvent legendEvent = "legend".equals(kind)
          ? legendEvent(sessionToken, user, assemblyName, target0, visible) : null;
 
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
 
-         switch(kind) {
-            case "axis" -> axesService.eventHandler(
-               runtimeId,
-               event(Map.of("chartName", assemblyName, "hide", !visible, "secondary", secondary),
-                     "columnName", target0, VSChartAxesVisibilityEvent.class),
-               linkUri, user, dispatcher);
-            case "legend" -> legendsService.eventHandler(
-               runtimeId, legendEvent, linkUri, user, dispatcher);
-            default -> titlesService.eventHandler(
-               runtimeId,
-               convert(titleFields(assemblyName, target0, visible),
-                       VSChartTitlesVisibilityEvent.class),
-               linkUri, user, dispatcher);
-         }
-         ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
-      });
+         ChartRenderCheck.swallowScriptError(rvs, assemblyName, () -> {
+            switch(kind) {
+               case "axis" -> axesService.eventHandler(
+                  runtimeId,
+                  event(Map.of("chartName", assemblyName, "hide", !visible,
+                               "secondary", secondary),
+                        "columnName", target0, VSChartAxesVisibilityEvent.class),
+                  linkUri, user, dispatcher);
+               case "legend" -> legendsService.eventHandler(
+                  runtimeId, legendEvent, linkUri, user, dispatcher);
+               default -> titlesService.eventHandler(
+                  runtimeId,
+                  convert(titleFields(assemblyName, target0, visible),
+                          VSChartTitlesVisibilityEvent.class),
+                  linkUri, user, dispatcher);
+            }
+         });
+      }));
    }
 
    /**
@@ -216,7 +219,8 @@ public class ChartElementService {
          requireRatioInRange(sessionToken, user, assemblyName, ratio, vertical);
       }
 
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
 
          Map<String, Object> fields = new LinkedHashMap<>();
@@ -226,8 +230,7 @@ public class ChartElementService {
          fields.put("sizeRatio", reset || ratio == null ? 0d : ratio);
          plotResizeService.eventHandler(runtimeId, convert(fields, VSChartPlotResizeEvent.class),
                                         linkUri, user, dispatcher);
-         ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
-      });
+      }));
    }
 
    /**
