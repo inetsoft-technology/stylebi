@@ -67,6 +67,19 @@ describe("Tool", () => {
       });
    });
 
+   describe("getLimitedMessage", () => {
+      it("returns an empty string for a null or undefined message (Bug #78557)", () => {
+         expect(Tool.getLimitedMessage(null)).toBe("");
+         expect(Tool.getLimitedMessage(undefined)).toBe("");
+      });
+
+      it("strips the text and column limit markers", () => {
+         const message = Tool.TEXT_LIMIT_PREFIX + "text" + Tool.TEXT_LIMIT_SUFFIX +
+            Tool.COLUMN_LIMIT_PREFIX + "col" + Tool.COLUMN_LIMIT_SUFFIX;
+         expect(Tool.getLimitedMessage(message)).toBe("textcol");
+      });
+   });
+
    describe("isDynamic", () => {
       it("returns true for expression starting with =", () => {
          expect(Tool.isDynamic("=someExpression")).toBe(true);
