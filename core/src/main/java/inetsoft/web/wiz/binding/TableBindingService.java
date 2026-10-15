@@ -1834,12 +1834,8 @@ public class TableBindingService {
             "'" + assemblyName + "' is a calc table whose binding model cannot carry a source.");
       }
 
-      if(assembly instanceof CalcTableVSAssembly) {
-         throw new IllegalArgumentException(
-            "'" + assemblyName + "' is a calc table. Its binding lives in its cell layout, " +
-            "not its shelves — use the calc-table tools instead.");
-      }
-
+      refuseCalcTable(assembly, assemblyName);
+      refuseNonTableAssembly(assembly, assemblyName);
       BindingModel model = binding.createModel(assembly);
 
       if(!(model instanceof BaseTableBindingModel table)) {
@@ -1850,6 +1846,70 @@ public class TableBindingService {
 
       completeExpertNamedGroups(table, assembly);
       return table;
+   }
+
+   /**
+    * The type refusal of {@link #requireTableBinding} without building a binding model, for the
+    * endpoints that resolve their fields against the source before reaching this service. Run
+    * first, it makes those tools refuse a non-table by its type rather than with a source error.
+    */
+   public void requireTableAssembly(String sessionToken, Principal user, String assemblyName)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(assembly == null) {
+         throw new IllegalArgumentException("Unknown assembly '" + assemblyName + "'.");
+      }
+
+      refuseCalcTable(assembly, assemblyName);
+      refuseNonTableAssembly(assembly, assemblyName);
+   }
+
+   private static void refuseCalcTable(VSAssembly assembly, String assemblyName) {
+      if(assembly instanceof CalcTableVSAssembly) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a calc table. Its binding lives in its cell layout, " +
+            "not its shelves — use the calc-table tools instead.");
+      }
+   }
+
+   /**
+    * Refuses every assembly the table tools cannot bind. It must run before
+    * {@code VSBindingService.createModel}, which has factories for only a few types and throws a
+    * raw "No model factory registered" error for every other one (bug #78533).
+    */
+   private static void refuseNonTableAssembly(VSAssembly assembly, String assemblyName) {
+      if(assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly) {
+         return;
+      }
+
+      if(assembly instanceof ChartVSAssembly) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a chart, not a table or crosstab. " +
+            "Use the chart binding tools for charts.");
+      }
+
+      String type;
+
+      if(assembly instanceof Viewsheet) {
+         type = "an embedded viewsheet";
+      }
+      else {
+         type = assembly.getClass().getSimpleName();
+
+         if(type.endsWith("VSAssembly") && type.length() > "VSAssembly".length()) {
+            type = type.substring(0, type.length() - "VSAssembly".length());
+         }
+
+         type = ("AEIOU".indexOf(type.charAt(0)) >= 0 ? "an " : "a ") + type;
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' is " + type + ", not a table or crosstab. " +
+         "The table tools only work on Table and Crosstab assemblies.");
    }
 
    /**

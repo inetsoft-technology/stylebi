@@ -438,6 +438,8 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
+      // Refuse a non-table by its type before the source lookup can fail first (bug #78533).
+      tableService.requireTableAssembly(sessionToken, user, request.assembly());
       Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
                                              request.table(), request.fields());
       return ViewsheetSessionService.warningsBody(
@@ -508,6 +510,8 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
+      // Refuse a non-table by its type before the source lookup can fail first (bug #78533).
+      tableService.requireTableAssembly(sessionToken, user, request.assembly());
       Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
                                              request.table(), List.of(request.field()));
       return ViewsheetSessionService.warningsBody(
