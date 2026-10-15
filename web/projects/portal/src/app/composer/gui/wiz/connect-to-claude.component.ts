@@ -20,7 +20,7 @@ import { NgIf } from "@angular/common";
 import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { ClipboardModule } from "ngx-clipboard";
 import { Subscription } from "rxjs";
-import { filter, take, timeout } from "rxjs/operators";
+import { filter, take } from "rxjs/operators";
 import { StompClientConnection } from "../../../../../../shared/stomp/stomp-client-connection";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { EditorContext } from "./editor-context";
@@ -28,14 +28,13 @@ import { FollowFocusService } from "./services/follow-focus.service";
 import { FormsModule } from "@angular/forms";
 
 /**
- * Backstop for `requestCode()`'s wait on `whenConnected()`, independent of the
- * `connectionError()` subscription below it. `connected`/`connectionErrorSubject` are both
- * ReplaySubjects that a broken socket can simply never push to again (see stomp-client.ts
- * `reconnect()`), which would otherwise leave `loading` true forever with no error. 30s is
- * comfortably longer than a normal connect or a single 10s reconnect retry, so it only fires
- * on a connection that is genuinely stuck.
+ * Bound on one whole `requestCode()` call, from click to mint reply. `connected` and
+ * `connectionErrorSubject` are ReplaySubjects a broken socket can simply never push to again (see
+ * stomp-client.ts `reconnect()`), and the single mint reply frame is not replayed after a
+ * reconnect, so without this a drop anywhere in the request left `loading` true forever. 30s is
+ * comfortably longer than a normal connect or a single 10s reconnect retry.
  */
-const MINT_CONNECT_TIMEOUT_MS = 30000;
+const MINT_REQUEST_TIMEOUT_MS = 30000;
 
 @Component({
    selector: "wiz-connect-to-claude",
@@ -67,6 +66,8 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
    connected = false;
 
    private mintSubscription: Subscription | null = null;
+   private activeRequest: { settled: boolean } | null = null;
+   private requestTimer: ReturnType<typeof setTimeout> | null = null;
    private joinedSubscription: Subscription | null = null;
    /**
     * The outer `whenConnected()` subscription that `ngOnInit` uses to obtain the STOMP
@@ -204,31 +205,30 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          this.mintedEditorContext = null;
          this.hasMinted = false;
          this.currentTarget = null;
-         if(this.mintSubscription) {
-            this.mintSubscription.unsubscribe();
-            this.mintSubscription = null;
-         }
-
-         if(this.connectErrorSubscription) {
-            this.connectErrorSubscription.unsubscribe();
-            this.connectErrorSubscription = null;
-         }
-
-         if(this.connectWaitSubscription) {
-            this.connectWaitSubscription.unsubscribe();
-            this.connectWaitSubscription = null;
-         }
+         this.cancelRequest();
       }
    }
 
-   requestCode(): void {
-      this.loading = true;
-      this.code = null;
-      this.error = null;
-      this.copied = false;
-      this.connected = false;
-      this.hasMinted = false;
-      this.currentTarget = null;
+   /**
+    * Ends the in-flight `requestCode()` call, if any: marks it settled so nothing it left pending
+    * (a late mint reply, a late connection error, the timer) can still touch component state, and
+    * releases the timer and every subscription it opened.
+    */
+   private cancelRequest(): void {
+      if(this.activeRequest) {
+         this.activeRequest.settled = true;
+         this.activeRequest = null;
+      }
+
+      if(this.requestTimer != null) {
+         clearTimeout(this.requestTimer);
+         this.requestTimer = null;
+      }
+
+      if(this.mintSubscription) {
+         this.mintSubscription.unsubscribe();
+         this.mintSubscription = null;
+      }
 
       if(this.connectErrorSubscription) {
          this.connectErrorSubscription.unsubscribe();
@@ -239,55 +239,84 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          this.connectWaitSubscription.unsubscribe();
          this.connectWaitSubscription = null;
       }
+   }
+
+   /**
+    * Each call settles exactly once. The first of {mint reply, a connection error seen after the
+    * click, the request timer, a new request / runtimeId change / destroy} wins: it clears
+    * `loading`, tears down the timer and every listener, and anything arriving later is ignored,
+    * so a late reply never shows next to an error and a first error is never replaced.
+    *
+    * The timer bounds the WHOLE request, including send -> reply: the reply frame is not replayed
+    * if the socket drops after the send, so without it `loading` stayed true forever.
+    */
+   requestCode(): void {
+      this.cancelRequest();
+
+      this.loading = true;
+      this.code = null;
+      this.error = null;
+      this.copied = false;
+      this.connected = false;
+      this.hasMinted = false;
+      this.currentTarget = null;
 
       // Read ONCE, here, and carry this exact value through to the response handler: the getters
       // that supply it are live, so re-reading it later (in detach, or even in this same
       // subscribe callback) can yield a context the server never saw. See mintedEditorContext.
       const requestedContext = this.editorContext;
+      const request = { settled: false };
+      this.activeRequest = request;
 
-      // whenConnected() only ever emits on a SUCCESSFUL connect -- a socket that fails or keeps
-      // failing to (re)connect (see stomp-client.ts reconnect()) never pushes to it at all, so
-      // without this listener a broken socket left `loading` true and `error` unset forever.
-      // connectionError() is the sibling stream that DOES fire on that path.
+      const settle = (apply: () => void) => {
+         if(request.settled) {
+            return;
+         }
+
+         this.cancelRequest();
+         this.zone.run(() => {
+            this.loading = false;
+            apply();
+         });
+      };
+
+      // connectionError() is a ReplaySubject: it replays a stored non-null value synchronously at
+      // subscribe, and VCS stores a non-null value exactly while the socket is down (null is
+      // pushed on every successful (re)connect). So a synchronous non-null here means the socket
+      // is already down at click; anything delivered later is a genuine post-click error.
+      let subscribing = true;
+      let downAtClick: string | null = null;
       this.connectErrorSubscription = this.socketConnection.connectionError().pipe(
          filter((message) => message != null)
       ).subscribe((message) => {
-         this.zone.run(() => {
-            this.loading = false;
-            this.error = message;
-         });
-
-         if(this.connectErrorSubscription) {
-            this.connectErrorSubscription.unsubscribe();
-            this.connectErrorSubscription = null;
+         if(subscribing) {
+            downAtClick = message;
          }
-
-         // connectionError() won the race: cancel the sibling whenConnected()/timeout() listener
-         // below so a socket that self-heals moments later cannot still resolve it, send the
-         // mint request, and set `code` next to this stale error.
-         if(this.connectWaitSubscription) {
-            this.connectWaitSubscription.unsubscribe();
-            this.connectWaitSubscription = null;
+         else {
+            settle(() => this.error = message);
          }
       });
+      subscribing = false;
 
-      this.connectWaitSubscription = this.socketConnection.whenConnected().pipe(
-         take(1), timeout(MINT_CONNECT_TIMEOUT_MS)
-      ).subscribe({
-         next: (conn: StompClientConnection) => {
-            this.connectWaitSubscription = null;
+      if(downAtClick != null) {
+         const message = downAtClick;
+         settle(() => this.error = message);
+         return;
+      }
 
-            if(this.connectErrorSubscription) {
-               this.connectErrorSubscription.unsubscribe();
-               this.connectErrorSubscription = null;
+      this.requestTimer = setTimeout(() => {
+         this.requestTimer = null;
+         settle(() => this.error = "Timed out connecting to the server. Please try again.");
+      }, MINT_REQUEST_TIMEOUT_MS);
+
+      this.connectWaitSubscription = this.socketConnection.whenConnected().pipe(take(1))
+         .subscribe((conn: StompClientConnection) => {
+            if(request.settled) {
+               return;
             }
 
-            const sub = conn.subscribe("/user/commands/wiz/pairing/mint", (msg: any) => {
-               sub.unsubscribe();
-               this.mintSubscription = null;
-               this.zone.run(() => {
-                  this.loading = false;
-
+            this.mintSubscription = conn.subscribe("/user/commands/wiz/pairing/mint", (msg: any) => {
+               settle(() => {
                   try {
                      const body = JSON.parse(msg.frame.body);
 
@@ -305,7 +334,6 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
                   }
                });
             });
-            this.mintSubscription = sub;
 
             const payload: any = { runtimeId: this.runtimeId, sheetType: this.sheetType };
 
@@ -314,23 +342,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
             }
 
             conn.send("/events/wiz/pairing/mint", {}, JSON.stringify(payload));
-         },
-         error: () => {
-            // Only reachable via the timeout() backstop -- connectionError() above cancels this
-            // subscription (see connectWaitSubscription) before this could ever race it.
-            this.connectWaitSubscription = null;
-
-            if(this.connectErrorSubscription) {
-               this.connectErrorSubscription.unsubscribe();
-               this.connectErrorSubscription = null;
-            }
-
-            this.zone.run(() => {
-               this.loading = false;
-               this.error = "Timed out connecting to the server. Please try again.";
-            });
-         }
-      });
+         });
    }
 
    /**
@@ -458,20 +470,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    ngOnDestroy(): void {
-      if(this.mintSubscription) {
-         this.mintSubscription.unsubscribe();
-         this.mintSubscription = null;
-      }
-
-      if(this.connectErrorSubscription) {
-         this.connectErrorSubscription.unsubscribe();
-         this.connectErrorSubscription = null;
-      }
-
-      if(this.connectWaitSubscription) {
-         this.connectWaitSubscription.unsubscribe();
-         this.connectWaitSubscription = null;
-      }
+      this.cancelRequest();
 
       // Releases the outer whenConnected() wait itself, not just what it produces -- otherwise a
       // component destroyed before the socket connects still has its callback fire later and open
