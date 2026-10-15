@@ -244,7 +244,7 @@ public final class TableBindingMutator {
 
    public static void removeField(BaseTableBindingModel model, String shelf, String column) {
       try {
-         removeField(model, shelf, column, null, null, null);
+         removeField(model, shelf, column, null, null, null, null);
       }
       catch(RuntimeException e) {
          throw e; // preserve e.g. requireShelf's IllegalArgumentException as-is
@@ -254,38 +254,98 @@ public final class TableBindingMutator {
       }
    }
 
-   /** @see #addField(BaseTableBindingModel, String, FieldRef, Integer, RuntimeViewsheet, SourceInfo, DataRefModelFactoryService) */
    public static void removeField(BaseTableBindingModel model, String shelf, String column,
                                   RuntimeViewsheet rvs, SourceInfo sourceInfo,
+                                  DataRefModelFactoryService refModelService)
+      throws Exception
+   {
+      removeField(model, shelf, column, null, rvs, sourceInfo, refModelService);
+   }
+
+   /**
+    * @param index which occurrence to remove when {@code column} is bound more than once on the
+    *              shelf (its position on that shelf); {@code null} when it is bound once. A
+    *              column bound more than once with no index is refused rather than removed
+    *              wholesale (bug #77025 P1).
+    * @see #addField(BaseTableBindingModel, String, FieldRef, Integer, RuntimeViewsheet, SourceInfo, DataRefModelFactoryService)
+    */
+   public static void removeField(BaseTableBindingModel model, String shelf, String column,
+                                  Integer index, RuntimeViewsheet rvs, SourceInfo sourceInfo,
                                   DataRefModelFactoryService refModelService)
       throws Exception
    {
       String name = requireShelf(model, shelf);
       List<FieldRef> current = new ArrayList<>(read(model, name));
       List<BDimensionRefModel> carried = carriedModels(model, name);
-      boolean removed = false;
+      int at = locateOccurrence(current, name, column, index, "index");
 
-      for(int i = current.size() - 1; i >= 0; i--) {
-         FieldRef field = current.get(i);
+      current.remove(at);
 
-         if(field.column() != null && field.column().equalsIgnoreCase(column)) {
-            current.remove(i);
-
-            if(carried != null) {
-               carried.remove(i);
-            }
-
-            removed = true;
-         }
-      }
-
-      if(!removed) {
-         throw new IllegalArgumentException(
-            "'" + column + "' is not on the " + name + " shelf. It holds: " +
-            (current.isEmpty() ? "(nothing)" : columns(current)) + ".");
+      if(carried != null) {
+         carried.remove(at);
       }
 
       setShelf(model, name, current, carried, rvs, sourceInfo, refModelService);
+   }
+
+   /**
+    * The position on {@code shelf} of the one occurrence of {@code column} an edit means. A column
+    * bound once needs no {@code index}; bound more than once, the caller must name the occurrence
+    * -- acting on all of them (remove) or dropping the others (move) was the silent loss of
+    * bug #77025 P1.
+    *
+    * @param indexName the request parameter the caller passes it as, for the error text.
+    */
+   private static int locateOccurrence(List<FieldRef> fields, String shelf, String column,
+                                       Integer index, String indexName)
+   {
+      List<Integer> matches = new ArrayList<>();
+
+      for(int i = 0; i < fields.size(); i++) {
+         String bound = fields.get(i).column();
+
+         if(bound != null && bound.equalsIgnoreCase(column)) {
+            matches.add(i);
+         }
+      }
+
+      if(matches.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + column + "' is not on the " + shelf + " shelf. It holds: " +
+            (fields.isEmpty() ? "(nothing)" : columns(fields)) + ".");
+      }
+
+      if(index != null) {
+         if(!matches.contains(index)) {
+            throw new IllegalArgumentException(
+               "'" + indexName + "' " + index + " is not a position of '" + column + "' on the " +
+               shelf + " shelf. It is bound at: " + describeOccurrences(fields, matches) + ".");
+         }
+
+         return index;
+      }
+
+      if(matches.size() > 1) {
+         throw new IllegalArgumentException(
+            "'" + column + "' is bound " + matches.size() + " times on the " + shelf +
+            " shelf, so this call is ambiguous. Pass '" + indexName + "' to say which: " +
+            describeOccurrences(fields, matches) + ".");
+      }
+
+      return matches.get(0);
+   }
+
+   private static String describeOccurrences(List<FieldRef> fields, List<Integer> positions) {
+      List<String> out = new ArrayList<>();
+
+      for(int i : positions) {
+         FieldRef field = fields.get(i);
+         String detail = !blank(DateLevels.name(field.dateLevel())) ? DateLevels.name(field.dateLevel())
+            : !blank(field.aggregate()) ? field.aggregate() : null;
+         out.add("[" + i + "] " + field.column() + (detail == null ? "" : " " + detail));
+      }
+
+      return String.join(", ", out);
    }
 
    /**
@@ -315,40 +375,54 @@ public final class TableBindingMutator {
       }
    }
 
-   /** @see #addField(BaseTableBindingModel, String, FieldRef, Integer, RuntimeViewsheet, SourceInfo, DataRefModelFactoryService) */
    public static void moveField(BaseTableBindingModel model, String fromShelf, String toShelf,
                                 String column, Integer position, RuntimeViewsheet rvs,
                                 SourceInfo sourceInfo, DataRefModelFactoryService refModelService)
       throws Exception
    {
+      moveField(model, fromShelf, toShelf, column, null, position, rvs, sourceInfo,
+                refModelService);
+   }
+
+   /**
+    * @param fromIndex which occurrence to move when {@code column} is bound more than once on the
+    *                  source shelf (its position there); {@code null} when it is bound once. Named
+    *                  {@code fromIndex}, not {@code index}, so it cannot be mistaken for
+    *                  {@code position}, the destination (bug #77025 P1).
+    * @see #addField(BaseTableBindingModel, String, FieldRef, Integer, RuntimeViewsheet, SourceInfo, DataRefModelFactoryService)
+    */
+   public static void moveField(BaseTableBindingModel model, String fromShelf, String toShelf,
+                                String column, Integer fromIndex, Integer position,
+                                RuntimeViewsheet rvs, SourceInfo sourceInfo,
+                                DataRefModelFactoryService refModelService)
+      throws Exception
+   {
       String from = requireShelf(model, fromShelf);
       String to = requireShelf(model, toShelf);
-      FieldRef field = read(model, from).stream()
-         .filter(ref -> ref.column() != null && ref.column().equalsIgnoreCase(column))
-         .findFirst()
-         .orElseThrow(() -> new IllegalArgumentException(
-            "'" + column + "' is not on the " + from + " shelf."));
+
+      if(from.equals(to)) {
+         // target is read before the source is rewritten, so the field would be duplicated
+         throw new IllegalArgumentException(
+            "'" + from + "' is both the source and destination shelf. To reorder within a " +
+            "shelf, write the shelf with the fields in the order you want.");
+      }
+
+      List<FieldRef> source = new ArrayList<>(read(model, from));
+      int at = locateOccurrence(source, from, column, fromIndex, "fromIndex");
+      FieldRef field = source.get(at);
 
       FieldRef original = field;
       field = convertForShelf(model, to, field);
       requireCompatible(to, field);
 
-      List<FieldRef> source = new ArrayList<>(read(model, from));
       List<BDimensionRefModel> sourceCarried = carriedModels(model, from);
       BDimensionRefModel moved = null;
+      Boolean movedSuppression = suppressionOf(model, from, original, at);
 
-      for(int i = source.size() - 1; i >= 0; i--) {
-         FieldRef ref = source.get(i);
+      source.remove(at);
 
-         if(ref.column() != null && ref.column().equalsIgnoreCase(column)) {
-            source.remove(i);
-
-            if(sourceCarried != null) {
-               // the lowest index wins: it is the first same-named entry, which is the field
-               // found above
-               moved = sourceCarried.remove(i);
-            }
-         }
+      if(sourceCarried != null) {
+         moved = sourceCarried.remove(at);
       }
 
       List<FieldRef> target = new ArrayList<>(read(model, to));
@@ -359,6 +433,12 @@ public final class TableBindingMutator {
          throw new IllegalArgumentException(
             "Position " + position + " is outside the " + to + " shelf, which holds " +
             target.size() + " field(s).");
+      }
+
+      Map<Integer, Boolean> targetSuppression = new HashMap<>();
+
+      for(int j = 0; j < target.size(); j++) {
+         targetSuppression.put(j, suppressionOf(model, to, target.get(j), j));
       }
 
       target.add(index, field);
@@ -372,6 +452,48 @@ public final class TableBindingMutator {
 
       setShelf(model, from, source, sourceCarried, rvs, sourceInfo, refModelService);
       setShelf(model, to, target, targetCarried, rvs, sourceInfo, refModelService);
+
+      // suppressGroupTotal is keyed "<column>:<shelf><index>", so it does not travel with the
+      // field: setShelf(from) prunes the old key and setShelf(to) has no previous entry to rekey
+      // from. Re-seated by position after both writes. Only rows<->cols of a crosstab has such
+      // keys; a move onto aggregates/details/groups leaves the default (subtotal visible), which
+      // is also what moving back later starts from (bug #77025 P2).
+      if(field == original && suppressionShelf(model, from) && suppressionShelf(model, to)) {
+         Hashtable<String, Boolean> suppression =
+            ((CrosstabBindingModel) model).getSuppressGroupTotal();
+
+         for(int k = 0; k < target.size(); k++) {
+            suppression.remove(target.get(k).column() + ":" + to + k);
+         }
+
+         for(int k = 0; k < target.size(); k++) {
+            Boolean value = k == index ? movedSuppression
+               : targetSuppression.get(k < index ? k : k - 1);
+
+            if(value != null) {
+               suppression.put(target.get(k).column() + ":" + to + k, value);
+            }
+         }
+      }
+   }
+
+   private static boolean suppressionShelf(BaseTableBindingModel model, String shelf) {
+      return model instanceof CrosstabBindingModel &&
+         ("rows".equals(shelf) || "cols".equals(shelf));
+   }
+
+   /** The explicit suppressGroupTotal entry for the field at {@code index}, or null. */
+   private static Boolean suppressionOf(BaseTableBindingModel model, String shelf, FieldRef field,
+                                        int index)
+   {
+      if(field == null || field.column() == null || !suppressionShelf(model, shelf)) {
+         return null;
+      }
+
+      Hashtable<String, Boolean> suppression =
+         ((CrosstabBindingModel) model).getSuppressGroupTotal();
+
+      return suppression == null ? null : suppression.get(field.column() + ":" + shelf + index);
    }
 
    /**

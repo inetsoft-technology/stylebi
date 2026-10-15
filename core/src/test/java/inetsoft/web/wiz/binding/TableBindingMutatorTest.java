@@ -2576,4 +2576,188 @@ class TableBindingMutatorTest {
 
       assertEquals("Average(Sales)", calc.getBaseAggregateName());
    }
+
+   // ── bug #77025 P1/P2: one occurrence of a duplicate-bound column; cross-shelf suppression ──
+
+   private static CrosstabBindingModel drillCrosstab() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(dated("D", "year"), dated("D", "quarter"), dim("R")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Sales", "Sum"), measure("Sales", "Average"), measure("Q", "Sum")));
+      return model;
+   }
+
+   private static String levelAt(CrosstabBindingModel model, String shelf, int index) {
+      return DateLevels.name(TableBindingMutator.read(model, shelf).get(index).dateLevel());
+   }
+
+   @Test
+   void removeOfADuplicateBoundColumnWithoutAnIndexIsRefusedAndListsTheOccurrences() {
+      CrosstabBindingModel model = drillCrosstab();
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.removeField(model, "rows", "D"));
+
+      assertTrue(thrown.getMessage().contains("[0] D year"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("[1] D quarter"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'index'"), thrown.getMessage());
+      assertEquals(3, model.getRows().size(), "a refused remove must leave the shelf alone");
+
+      IllegalArgumentException agg = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.removeField(model, "aggregates", "Sales"));
+      assertTrue(agg.getMessage().contains("[0] Sales Sum"), agg.getMessage());
+      assertEquals(3, model.getAggregates().size());
+   }
+
+   @Test
+   void removeWithAnIndexRemovesOnlyThatOccurrence() throws Exception {
+      CrosstabBindingModel model = drillCrosstab();
+
+      TableBindingMutator.removeField(model, "rows", "D", 1, null, null, null);
+      assertEquals(2, model.getRows().size());
+      assertEquals("D", model.getRows().get(0).getName());
+      assertEquals("R", model.getRows().get(1).getName());
+      assertEquals("year", levelAt(model, "rows", 0), "the year occurrence must be the one that stays");
+
+      TableBindingMutator.removeField(model, "aggregates", "Sales", 0, null, null, null);
+      assertEquals(2, model.getAggregates().size());
+      assertEquals("Average", model.getAggregates().get(0).getFormula());
+   }
+
+   @Test
+   void removeWithAnOutOfRangeIndexNamesTheField() {
+      CrosstabBindingModel model = drillCrosstab();
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.removeField(model, "rows", "D", 2, null, null, null));
+      assertTrue(thrown.getMessage().contains("'index' 2"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("[0] D"), thrown.getMessage());
+      assertEquals(3, model.getRows().size());
+   }
+
+   @Test
+   void removeOfASingleOccurrenceNeedsNoIndex() {
+      CrosstabBindingModel model = drillCrosstab();
+
+      TableBindingMutator.removeField(model, "rows", "R");
+      assertEquals(2, model.getRows().size());
+   }
+
+   @Test
+   void moveOfADuplicateBoundColumnWithoutAFromIndexIsRefused() {
+      CrosstabBindingModel model = drillCrosstab();
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.moveField(model, "rows", "cols", "D", null));
+
+      assertTrue(thrown.getMessage().contains("'fromIndex'"), thrown.getMessage());
+      assertEquals(3, model.getRows().size());
+      assertTrue(model.getCols().isEmpty());
+   }
+
+   @Test
+   void moveWithAFromIndexMovesOnlyThatOccurrenceAndKeepsTheOther() throws Exception {
+      CrosstabBindingModel model = drillCrosstab();
+
+      TableBindingMutator.moveField(model, "rows", "cols", "D", 1, null, null, null, null);
+
+      assertEquals(2, model.getRows().size(), "the other D and R stay on rows");
+      assertEquals("year", levelAt(model, "rows", 0));
+      assertEquals(1, model.getCols().size());
+      assertEquals("quarter", levelAt(model, "cols", 0), "the quarter occurrence is the one that moved");
+   }
+
+   @Test
+   void moveOfOneAggregateOccurrenceKeepsTheOtherFormula() throws Exception {
+      CrosstabBindingModel model = drillCrosstab();
+
+      TableBindingMutator.moveField(model, "aggregates", "rows", "Sales", 1, null, null, null,
+                                    null);
+
+      assertEquals(2, model.getAggregates().size());
+      assertEquals("Sum", model.getAggregates().get(0).getFormula());
+      assertEquals("Q", model.getAggregates().get(1).getName());
+      assertEquals("Sales", model.getRows().get(3).getName());
+   }
+
+   @Test
+   void movingWithinTheSameShelfIsRefusedInsteadOfDuplicatingTheField() {
+      TableBindingModel model = new TableBindingModel();
+      TableBindingMutator.setShelf(model, "details",
+                                   List.of(dim("Zip"), dim("Region"), dim("State")));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.moveField(model, "details", "details", "Zip", 2));
+
+      assertTrue(thrown.getMessage().contains("details"), thrown.getMessage());
+      assertEquals(3, model.getDetails().size());
+   }
+
+   @Test
+   void removeOnADetailsDuplicateAlsoNeedsAnIndex() throws Exception {
+      TableBindingModel model = new TableBindingModel();
+      TableBindingMutator.setShelf(model, "details",
+                                   List.of(dim("Zip"), dim("Region"), dim("Zip")));
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> TableBindingMutator.removeField(model, "details", "Zip"));
+      assertEquals(3, model.getDetails().size());
+
+      TableBindingMutator.removeField(model, "details", "Zip", 2, null, null, null);
+      assertEquals(2, model.getDetails().size());
+   }
+
+   @Test
+   void crossShelfMoveCarriesSuppressGroupTotalToTheDestinationKey() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("A"), dim("B"), dim("R")));
+      TableBindingMutator.setShelf(model, "cols", List.of(dim("C")));
+      model.getSuppressGroupTotal().put("R:rows2", Boolean.TRUE);
+      model.getSuppressGroupTotal().put("C:cols0", Boolean.FALSE);
+
+      TableBindingMutator.moveField(model, "rows", "cols", "R", 0);
+
+      assertEquals(Map.of("R:cols0", Boolean.TRUE, "C:cols1", Boolean.FALSE),
+                   model.getSuppressGroupTotal(),
+                   "R's suppression follows it to cols0 and C's shifts to cols1");
+
+      TableBindingMutator.moveField(model, "cols", "rows", "R", 1);
+
+      assertEquals(Map.of("R:rows1", Boolean.TRUE, "C:cols0", Boolean.FALSE),
+                   model.getSuppressGroupTotal());
+   }
+
+   @Test
+   void crossShelfMoveOfAnUnsuppressedFieldDoesNotInheritAStaleDestinationEntry() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("A"), dim("B")));
+      TableBindingMutator.setShelf(model, "cols", List.of(dim("C")));
+      model.getSuppressGroupTotal().put("C:cols0", Boolean.TRUE);
+
+      TableBindingMutator.moveField(model, "rows", "cols", "A", 0);
+
+      assertEquals(Map.of("C:cols1", Boolean.TRUE), model.getSuppressGroupTotal(),
+                   "the suppression belongs to C, not to the field now sitting at cols0");
+   }
+
+   @Test
+   void crossShelfMoveKeepsSortRankingAndOthersOfTheMovedDimension() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("A"), dim("R")));
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Q", "Sum")));
+      TableBindingMutator.setRanking(model, "rows", "R", null,
+         new DimensionSortRanking.Ranking("top", 3, "Q", true));
+      TableBindingMutator.setSort(model, "rows", "R", null,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+
+      TableBindingMutator.moveField(model, "rows", "cols", "R", null);
+      TableBindingMutator.moveField(model, "cols", "rows", "R", 0);
+
+      BDimensionRefModel r = model.getRows().get(0);
+      assertEquals("R", r.getName());
+      assertEquals(XConstants.SORT_DESC, r.getOrder());
+      assertEquals("3", r.getRankingN());
+      assertTrue(r.isGroupOthers());
+   }
 }

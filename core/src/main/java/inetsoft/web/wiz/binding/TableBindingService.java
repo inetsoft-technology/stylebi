@@ -446,19 +446,37 @@ public class TableBindingService {
    public List<String> removeField(String sessionToken, Principal user, String assemblyName,
                            String shelf, String column) throws Exception
    {
+      return removeField(sessionToken, user, assemblyName, shelf, column, null);
+   }
+
+   /** @param index which occurrence of {@code column} on the shelf, when it is bound more than once. */
+   public List<String> removeField(String sessionToken, Principal user, String assemblyName,
+                           String shelf, String column, Integer index) throws Exception
+   {
       return applyWithContext(sessionToken, user, assemblyName, shelf,
          (model, rvs, source) ->
-            TableBindingMutator.removeField(model, shelf, column, rvs, source, refModelService));
+            TableBindingMutator.removeField(model, shelf, column, index, rvs, source,
+                                            refModelService));
    }
 
    public List<String> moveField(String sessionToken, Principal user, String assemblyName,
                          String fromShelf, String toShelf, String column, Integer position)
       throws Exception
    {
+      return moveField(sessionToken, user, assemblyName, fromShelf, toShelf, column, null,
+                       position);
+   }
+
+   /** @param fromIndex which occurrence of {@code column} on the source shelf, when it is bound more than once. */
+   public List<String> moveField(String sessionToken, Principal user, String assemblyName,
+                         String fromShelf, String toShelf, String column, Integer fromIndex,
+                         Integer position)
+      throws Exception
+   {
       return applyWithContext(sessionToken, user, assemblyName, toShelf,
          (model, rvs, source) ->
-            TableBindingMutator.moveField(model, fromShelf, toShelf, column, position, rvs,
-                                          source, refModelService));
+            TableBindingMutator.moveField(model, fromShelf, toShelf, column, fromIndex, position,
+                                          rvs, source, refModelService));
    }
 
    /**
