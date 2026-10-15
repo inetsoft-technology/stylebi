@@ -842,7 +842,8 @@ public final class WorksheetMutationSupport {
 
       try {
          prepared = prepareAggregateInfo(
-            t, groups, aggregates, crosstab, confirmed, cs, snapshot.aliases());
+            t, groups, aggregates, crosstab, confirmed, cs, snapshot.aliases(),
+            snapshot.oldAggregateOutputs());
       }
       catch(Throwable ex) {
          snapshot.restore(t);
@@ -916,7 +917,8 @@ public final class WorksheetMutationSupport {
     */
    private static PreparedAggregateInfo prepareAggregateInfo(
       TableAssembly t, List<GroupSpec> groups, List<AggregateSpec> aggregates, boolean crosstab,
-      boolean confirmed, ColumnSelection cs, Map<ColumnRef, String> originalAliases)
+      boolean confirmed, ColumnSelection cs, Map<ColumnRef, String> originalAliases,
+      Set<String> oldAggregateOutputs)
       throws inetsoft.web.wiz.pairing.PairingException
    {
       AggregateInfo ainfo = new AggregateInfo();
@@ -1353,7 +1355,7 @@ public final class WorksheetMutationSupport {
 
       if(mutationWs != null) {
          ColumnRef conflict = WorksheetControllerService.findAggregateIdentityLossConflict(
-            mutationWs, t, ainfo, originalAliases);
+            mutationWs, t, ainfo, originalAliases, oldAggregateOutputs);
 
          if(conflict != null) {
             // Look the join up under the column's PRE-CALL alias (review r1 n-1): this call
@@ -1404,6 +1406,36 @@ public final class WorksheetMutationSupport {
             typeBreaks, t.getName(), "This grouping would change the type of",
             "A named group outputs string, and removing it restores the source type. Keep the " +
             "key's grouping as it was, or remove or edit the join first.");
+
+         // Bug #78595: a join key that stays an aggregate output (accepted by the identity
+         // guard above) must keep its TYPE, e.g. Count -> Max(string) would silently break the
+         // join. Looked up like the group loop: the pre-call output type vs. the new one.
+         List<JoinKeyTypeGuard.Break> aggTypeBreaks = new ArrayList<>();
+
+         if(!ainfo.isCrosstab()) {
+            for(int i = 0; i < ainfo.getAggregateCount(); i++) {
+               AggregateRef aref = ainfo.getAggregate(i);
+
+               if(!(aref.getDataRef() instanceof ColumnRef acol)) {
+                  continue;
+               }
+
+               String alias = originalAliases.get(acol);
+               String keyName = alias != null && !alias.isEmpty() ? alias : acol.getName();
+               DataRef before = resolveJoinKey(t, keyName);
+
+               if(before != null) {
+                  JoinKeyTypeGuard.collect(
+                     mutationWs, t, keyName, before.getDataType(), aref.getDataType(),
+                     aggTypeBreaks);
+               }
+            }
+         }
+
+         JoinKeyTypeGuard.throwIfAny(
+            aggTypeBreaks, t.getName(), "This aggregate would change the type of",
+            "Keep the key's aggregate formula type as it was, or remove or edit the join " +
+            "first.");
 
          // Bug #76891 / WBS-078: unlike the join-key case above, a column relied on
          // purely as ANOTHER table's own aggregate INPUT (e.g. a mirror several hops
@@ -1759,6 +1791,11 @@ public final class WorksheetMutationSupport {
             for(int i = 0; i < old.getAggregateCount(); i++) {
                if(old.getAggregate(i).getDataRef() instanceof ColumnRef cr) {
                   snapshot.oldAggregateAliases.put(cr, cr.getAlias());
+
+                  if(!old.isCrosstab()) {
+                     snapshot.oldAggregateOutputs.add(
+                        WorksheetControllerService.aggregateOutputKey(cr, cr.getAlias()));
+                  }
                }
             }
          }
@@ -1773,6 +1810,15 @@ public final class WorksheetMutationSupport {
          snapshot.tempSort = snapshot.sortInfo != null && snapshot.sortInfo.isTempSort();
          snapshot.outputAliases = t.getProperty(AGGREGATE_OUTPUT_ALIASES);
          return snapshot;
+      }
+
+      /**
+       * Bug #78595: {@link WorksheetControllerService#aggregateOutputKey} of every aggregate of
+       * the pre-call non-crosstab AggregateInfo, under its pre-call alias (read from the
+       * capture-time map, since the old refs' aliases are cleared before the guards run).
+       */
+      Set<String> oldAggregateOutputs() {
+         return oldAggregateOutputs;
       }
 
       /** The pre-call alias of every private-selection column, keyed by identity. */
@@ -1839,6 +1885,7 @@ public final class WorksheetMutationSupport {
       private final List<DataRef> members = new ArrayList<>();
       private final Map<ColumnRef, String> aliases = new IdentityHashMap<>();
       private final Map<ColumnRef, String> oldAggregateAliases = new IdentityHashMap<>();
+      private final Set<String> oldAggregateOutputs = new HashSet<>();
       private ConditionListWrapper preRuntime;
       private ConditionListWrapper postRuntime;
       private ConditionListWrapper pre;
