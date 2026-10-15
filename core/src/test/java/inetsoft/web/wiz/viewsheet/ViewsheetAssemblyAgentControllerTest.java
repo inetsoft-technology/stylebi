@@ -949,6 +949,8 @@ class ViewsheetAssemblyAgentControllerTest {
    @Test
    void setHighlightPassesANullRegionWhenNoLocationWasNamed() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
          "Table1", null, null, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(),
@@ -963,6 +965,8 @@ class ViewsheetAssemblyAgentControllerTest {
    @Test
    void setHighlightPassesARealRegionWhenALocationWasNamed() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
          "Table1", 0, 0, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(), false,
@@ -980,6 +984,8 @@ class ViewsheetAssemblyAgentControllerTest {
    @Test
    void setHighlightPassesAxisAndTextRegionFlagsThrough() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
          "Chart1", null, null, "Sum(Sales)", false, true, "HighRevenue", null, "#FFDDDD", null,
@@ -997,6 +1003,8 @@ class ViewsheetAssemblyAgentControllerTest {
    @Test
    void setHighlightBuildsTheHighlightsFontFromTheRequest() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var font = new ViewsheetAssemblyAgentController.FontRequest(
          "Arial", 12, true, false, true, false);
@@ -1019,6 +1027,40 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals("underline", built.getFontUnderline());
       assertEquals("normal", built.getFontStrikethrough());
    }
+
+   @Test
+   void setHighlightReturnsOkWithoutAWarningKeyWhenThereAreNone() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Table1", null, null, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(),
+         false, false);
+
+      Map<String, Object> out = controller.setHighlight("tok", request, "", principal());
+
+      assertEquals(Boolean.TRUE, out.get("ok"));
+      assertFalse(out.containsKey("warning"));
+   }
+
+   /** Bug #78567: the plugin relays this field, so its name and joining are the contract. */
+   @Test
+   void setHighlightReturnsTheJoinedWarningsUnderWarning() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of("a", "b")));
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Table1", null, null, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(),
+         false, false);
+
+      Map<String, Object> out = controller.setHighlight("tok", request, "", principal());
+
+      assertEquals(Boolean.TRUE, out.get("ok"));
+      assertEquals("a b", out.get("warning"));
+   }
+
 
    /**
     * The hierarchy-dimension routes. Worth pinning at this layer for the same reason as the

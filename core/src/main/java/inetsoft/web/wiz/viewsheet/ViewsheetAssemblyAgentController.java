@@ -2127,15 +2127,25 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/highlights")
-   public void setHighlight(@PathVariable String sessionToken,
-                            @RequestBody HighlightRequest request,
-                            @RequestParam(required = false, defaultValue = "") String linkUri,
-                            Principal user)
+   public Map<String, Object> setHighlight(@PathVariable String sessionToken,
+                                           @RequestBody HighlightRequest request,
+                                           @RequestParam(required = false, defaultValue = "")
+                                           String linkUri,
+                                           Principal user)
       throws Exception
    {
       requireEnabled();
-      highlightService.set(sessionToken, user, request.assembly(), request.region(),
-                           request.highlight(), Boolean.TRUE.equals(request.replace()), linkUri);
+      AssemblyHighlightService.SetResult result = highlightService.set(
+         sessionToken, user, request.assembly(), request.region(), request.highlight(),
+         Boolean.TRUE.equals(request.replace()), linkUri);
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("ok", true);
+
+      if(!result.warnings().isEmpty()) {
+         out.put("warning", String.join(" ", result.warnings()));
+      }
+
+      return out;
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/highlights/delete")
