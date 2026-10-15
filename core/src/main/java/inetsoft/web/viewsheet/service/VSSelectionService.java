@@ -1458,6 +1458,10 @@ public class VSSelectionService {
       final List<List<String>> dataRefSublists = SelectionVSUtil.createDataRefSubLists(assembly);
       final Map<String, Integer> refNameIndices = new HashMap<>();
       final SelectionList selectionList = assembly.getSelectionList();
+      // an ID tree's one-segment [id] path may name a node at any depth; any other path has
+      // one segment per level, and a deeper node with the same value must not be matched
+      final boolean recursive = assembly instanceof SelectionTreeVSAssembly &&
+         ((SelectionTreeVSAssembly) assembly).isIDMode();
       boolean changed = false;
 
       for(Map.Entry<List<String>, Set<List<String>>> condition : conditions.entrySet()) {
@@ -1487,7 +1491,7 @@ public class VSSelectionService {
                   pathArr[index] = path.get(i);
                }
 
-               updateSelectionPath(pathArr, 0, selectionList, select);
+               updateSelectionPath(pathArr, 0, selectionList, select, recursive);
                changed = true;
             }
          }
@@ -1503,13 +1507,16 @@ public class VSSelectionService {
     * @param index         the index of the path to update
     * @param selectionList the selection list to update
     * @param selected      if true, the selection values will be selected, otherwise deselected
+    * @param recursive     if true, the value at {@code index} may be found at any depth below
+    *                      {@code selectionList}, otherwise only at its top level
     */
    private void updateSelectionPath(String[] path,
                                     int index,
                                     SelectionList selectionList,
-                                    boolean selected)
+                                    boolean selected,
+                                    boolean recursive)
    {
-      final SelectionValue value = selectionList.findValue(path[index]);
+      final SelectionValue value = selectionList.findValue(path[index], recursive);
 
       if(value == null) {
          return;
@@ -1517,7 +1524,8 @@ public class VSSelectionService {
 
       if((value instanceof CompositeSelectionValue) && index < path.length - 1) {
          updateSelectionPath(path, index + 1,
-                             ((CompositeSelectionValue) value).getSelectionList(), selected);
+                             ((CompositeSelectionValue) value).getSelectionList(), selected,
+                             recursive);
       }
       else if(value instanceof CompositeSelectionValue && !selected) {
          unselectChildren(((CompositeSelectionValue) value).getSelectionList());
