@@ -158,9 +158,9 @@ public class RelationElement extends GraphElement {
       // same source are eligible -- a multi-parent leaf must not take its color, size or
       // label from a row under another parent (78519) -- and ties within that
       // [source, target] group are always resolved directly by the Node Color field. In
-      // all cases, "most recent" (largest) tie-break value wins,
-      // and a missing/unbound color field falls back to the first row encountered -- an
-      // exact no-op match for the pre-fix behavior.
+      // all cases, the smallest tie-break value wins (the first row with the color field
+      // ascending, 78519), and a missing/unbound color field falls back to the first row
+      // encountered -- an exact no-op match for the pre-fix behavior.
       //
       // The To-node loop below doesn't draw a leaf from a row whose size is null (e.g. a
       // brushed row of a BrushDataSet, where the __all__ columns are null), so such rows
@@ -603,9 +603,11 @@ public class RelationElement extends GraphElement {
     *       replaced by a row with a different rank value (78457).</li>
     *   <li>Among rows with that same {@code rankField} value (or, when {@code rankField}
     *       is null, among *all* rows sharing the group id), a later row whose
-    *       {@code tieField} value compares as "more
-    *       recent" (greater, via {@link DefaultComparator}'s natural ordering) than the
-    *       current candidate's replaces it.</li>
+    *       {@code tieField} value is smaller (via {@link DefaultComparator}'s natural
+    *       ordering, not the field's display order) than the current candidate's replaces
+    *       it, so the node takes the first row with the color field ascending (78519). An
+    *       equal value never replaces the candidate, and a null value never replaces a
+    *       non-null one.</li>
     *   <li>If {@code tieField} is null (see {@link #resolveTieField}), step 3 never fires,
     *       so the first row at the winning rank keeps its position -- an exact no-op match
     *       for the pre-fix, order-dependent selection when there is no color field to
@@ -664,8 +666,10 @@ public class RelationElement extends GraphElement {
 
          if(tieField != null) {
             Object newTie = data.getData(tieField, i);
+            Object oldTie = tieValues.get(id);
 
-            if(comp.compare(newTie, tieValues.get(id)) > 0) {
+            // smallest value wins (78519). null sorts first, so keep it from replacing a value
+            if(newTie != null && (oldTie == null || comp.compare(newTie, oldTie) < 0)) {
                result.put(id, sidx);
                tieValues.put(id, newTie);
             }
