@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Regression test for Bug #78519: a relation (tree/network) leaf node with several parents
  * is drawn under its first displayed parent, so its "representative row"
  * ({@link RelationGeometry#getSubRowIndex()}), which drives its color, size and label, must
- * be a row under that parent. The Node Color tie-break of #76417 ("largest wins") may only
+ * be a row under that parent. The Node Color tie-break of #76417 ("smallest wins") may only
  * choose among rows of that one [source, target] group, never across parents.
  */
 @ExtendWith(SpringExtension.class)
@@ -107,16 +107,17 @@ class RelationElementLeafParentTest {
    }
 
    /**
-    * Rows tied on [source, target] under the first parent are still resolved by the largest
-    * Node Color value (#76417), but a larger value under another parent is not eligible.
+    * Rows tied on [source, target] under the first parent are still resolved by the smallest
+    * Node Color value (#76417, #78519), but a smaller value under another parent is not
+    * eligible.
     */
    @Test
-   void tieWithinFirstParent_largestNodeColorWinsOnlyInsideThatParent() {
+   void tieWithinFirstParent_smallestNodeColorWinsOnlyInsideThatParent() {
       Object[][] rows = {
          { "Month", "State", "Paid", "Code" },
-         { "2019-10", "CA", 18, "c1" },
-         { "2019-10", "CA", 12, "c2" },
-         { "2019-11", "CA", 9, "c9" },
+         { "2019-10", "CA", 18, "c2" },
+         { "2019-10", "CA", 12, "c1" },
+         { "2019-11", "CA", 9, "c0" },
       };
       DefaultDataSet data = new DefaultDataSet(rows);
       GGraph ggraph = createGraph(data, "Code");

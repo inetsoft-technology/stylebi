@@ -115,14 +115,14 @@ class RelationElementTargetOrderTest {
                                   new CategoricalColorFrame("Q"), null, null);
       int row = subRow(ggraph, "Root", "R");
       assertEquals("A", natural.getData("Child", row));
-      assertEquals("q9", natural.getData("Q", row));
+      assertEquals("q2", natural.getData("Q", row));
 
       DefaultDataSet desc = new DefaultDataSet(rows);
       desc.setComparator("Child", Comparator.reverseOrder());
       ggraph = createGraph(desc, "Root", "Child", new CategoricalColorFrame("Q"), null, null);
       row = subRow(ggraph, "Root", "R");
       assertEquals("B", desc.getData("Child", row));
-      assertEquals("q3", desc.getData("Q", row));
+      assertEquals("q1", desc.getData("Q", row));
    }
 
    /**
@@ -133,8 +133,8 @@ class RelationElementTargetOrderTest {
    void colorTieBreak_ignoresDistinctTargetsWithEqualValues() {
       Object[][] rows = {
          { "Root", "Child", "Paid", "Q" },
-         { "R", "A", 10, "q1" },
-         { "R", "B", 10, "q9" },
+         { "R", "A", 10, "q9" },
+         { "R", "B", 10, "q1" },
       };
 
       DefaultDataSet data = new DefaultDataSet(rows);
@@ -144,7 +144,7 @@ class RelationElementTargetOrderTest {
       int row = subRow(ggraph, "Root", "R");
 
       assertEquals("A", data.getData("Child", row));
-      assertEquals("q1", data.getData("Q", row));
+      assertEquals("q9", data.getData("Q", row));
    }
 
    /**

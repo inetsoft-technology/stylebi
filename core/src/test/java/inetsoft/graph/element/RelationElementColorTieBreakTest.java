@@ -37,6 +37,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.*;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -48,9 +50,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@link RelationElement#createGeometry} picks, for each node, the first row encountered
  * after {@link RelationElement#sortData} sorts the data by {@code [sourceDim, targetDim]}.
  * When multiple rows tie on both of those, the field that actually paints the node --
- * the element's general Color frame and/or its Node Color frame -- is now added as an
- * additional **descending** sort key so the tie is broken in favor of the most recent
- * value of that field, instead of by incidental row order. This test builds the real
+ * the element's general Color frame and/or its Node Color frame -- breaks the tie in
+ * favor of the smallest value of that field (the first row with that field ascending,
+ * 78519), instead of by incidental row order. This test builds the real
  * {@link RelationElement}/{@link EGraph}/{@link GGraph}
  * pipeline (no mocking) and reads back the actual {@code getSubRowIndex()} chosen by the
  * production code, following the same technique used to originally prove the defect.
@@ -67,8 +69,8 @@ class RelationElementColorTieBreakTest {
    /**
     * Two rows tie on [Group=B, Year=2017] but differ on Quarter ("2017Q1" vs "2017Q3").
     * With Quarter bound as the element's general Color, the tie must always be broken in
-    * favor of the same row -- the one with the largest (descending / most-recent) Quarter
-    * value -- no matter which of the tied rows the query happened to return first.
+    * favor of the same row -- the one with the smallest (ascending) Quarter value
+    * (78519) -- no matter which of the tied rows the query happened to return first.
     */
    @Test
    void colorFieldBreaksTie_orderIndependent_generalColor() {
@@ -98,9 +100,9 @@ class RelationElementColorTieBreakTest {
 
       assertEquals(quarterOriginal, quarterSwapped,
                    "Row order must not affect which row is chosen as group B's representative row");
-      // Descending tie-break convention: most recent (largest) Quarter value among the tied rows wins.
-      assertEquals("2017Q3", quarterOriginal,
-                   "The tie between 2017Q1 and 2017Q3 must be broken by descending (most-recent) Quarter value");
+      // Ascending tie-break convention: the smallest Quarter value among the tied rows wins.
+      assertEquals("2017Q1", quarterOriginal,
+                   "The tie between 2017Q1 and 2017Q3 must be broken by ascending Quarter value");
 
       // Group A has only one 2017 row (no tie) -- still resolves correctly.
       String quarterA = winningQuarterForRoot("A", originalOrder, new CategoricalColorFrame("Quarter"), null);
@@ -140,15 +142,15 @@ class RelationElementColorTieBreakTest {
 
       assertEquals(quarterOriginal, quarterSwapped,
                    "Row order must not affect which row is chosen when only Node Color is bound to the field");
-      assertEquals("2017Q3", quarterOriginal);
+      assertEquals("2017Q1", quarterOriginal);
    }
 
    /**
     * Reviewer-flagged scenario (the reason this test class's helper was generalized to
     * check either node type): general Color and Node Color bound to two <b>different</b>
-    * fields, with rows tied on [Group, Year] where the "most recent" row differs between
-    * the two fields. The root's representative row must maximize the general Color field
-    * and the leaf's representative row must maximize the Node Color field --
+    * fields, with rows tied on [Group, Year] where the smallest row differs between
+    * the two fields. The root's representative row must minimize the general Color field
+    * and the leaf's representative row must minimize the Node Color field --
     * <i>independently</i>, not whichever field a single shared sort-priority order would
     * have favored for both node types at once.
     */
@@ -205,14 +207,14 @@ class RelationElementColorTieBreakTest {
       assertNotNull(rootSubRowIndex, "Root node for Group=X must exist");
       assertNotNull(leafSubRowIndex, "Leaf node for Year=2020 must exist");
 
-      // Root's representative row must be the one that maximizes ColorA ("A2", row 0) --
+      // Root's representative row must be the one that minimizes ColorA ("A1", row 1) --
       // driven by the general Color frame, independent of ColorB.
-      assertEquals("A2", data.getData("ColorA", rootSubRowIndex),
-                   "Root node's representative row must maximize the general Color field");
-      // Leaf's representative row must be the one that maximizes ColorB ("B2", row 1) --
+      assertEquals("A1", data.getData("ColorA", rootSubRowIndex),
+                   "Root node's representative row must minimize the general Color field");
+      // Leaf's representative row must be the one that minimizes ColorB ("B1", row 0) --
       // driven by the Node Color frame, independent of ColorA.
-      assertEquals("B2", data.getData("ColorB", leafSubRowIndex),
-                   "Leaf node's representative row must maximize the Node Color field");
+      assertEquals("B1", data.getData("ColorB", leafSubRowIndex),
+                   "Leaf node's representative row must minimize the Node Color field");
    }
 
    /**
@@ -226,7 +228,7 @@ class RelationElementColorTieBreakTest {
    void applyAestheticsToSource_rootFollowsNodeColorInsteadOfGeneralColor() {
       // Same shape as colorAndNodeColorOnDifferentFields_eachNodeTypeUsesItsOwnField, but
       // with applyAestheticsToSource(true): the root's representative row must now
-      // maximize ColorB (Node Color), not ColorA (general Color).
+      // minimize ColorB (Node Color), not ColorA (general Color).
       Object[][] rows = {
          { "Group", "Year", "ColorA", "ColorB" },
          { "X", 2020, "A2", "B1" },
@@ -269,18 +271,55 @@ class RelationElementColorTieBreakTest {
       }
 
       assertNotNull(rootSubRowIndex, "Root node for Group=X must exist");
-      // With applyAestheticsToSource(true), the root must follow ColorB ("B2", row 1) --
-      // Node Color -- not ColorA, which would pick row 0 instead.
-      assertEquals("B2", data.getData("ColorB", rootSubRowIndex),
-                   "Root node's representative row must maximize the Node Color field " +
+      // With applyAestheticsToSource(true), the root must follow ColorB ("B1", row 0) --
+      // Node Color -- not ColorA, which would pick row 1 instead.
+      assertEquals("B1", data.getData("ColorB", rootSubRowIndex),
+                   "Root node's representative row must minimize the Node Color field " +
                    "when applyAestheticsToSource is enabled");
+   }
+
+   /**
+    * Bug #78519: every node -- root and leaf -- takes its color, size and label from the row
+    * with the smallest color value in its [source, target] group, and the result must not
+    * depend on the query's row order. A null color value never replaces a real one.
+    */
+   @Test
+   void smallestColorWins_rootAndLeaf_anyRowOrder() {
+      List<Object[]> rows = new ArrayList<>(List.of(
+         new Object[] { "B", 2017, "2017Q3" },
+         new Object[] { "B", 2017, null },
+         new Object[] { "B", 2017, "2017Q1" },
+         new Object[] { "B", 2017, "2017Q2" },
+         new Object[] { "B", 2018, "2018Q4" },
+         new Object[] { "B", 2018, "2018Q2" }
+      ));
+
+      for(int seed = 0; seed < 10; seed++) {
+         Collections.shuffle(rows, new Random(seed));
+         Object[][] data = new Object[rows.size() + 1][];
+         data[0] = new Object[] { "Group", "Year", "Quarter" };
+
+         for(int i = 0; i < rows.size(); i++) {
+            data[i + 1] = rows.get(i);
+         }
+
+         CategoricalColorFrame color = new CategoricalColorFrame("Quarter");
+         CategoricalColorFrame nodeColor = new CategoricalColorFrame("Quarter");
+
+         assertEquals("2017Q1", winningQuarterForRoot("B", data, color, nodeColor),
+                      "root B, seed " + seed);
+         assertEquals("2017Q1", winningQuarterForNode("Year", "2017", data, color, nodeColor),
+                      "leaf 2017, seed " + seed);
+         assertEquals("2018Q2", winningQuarterForNode("Year", "2018", data, color, nodeColor),
+                      "leaf 2018, seed " + seed);
+      }
    }
 
    /**
     * No-op case: when no color field is bound at all (a plain static color), there is
     * nothing to tie-break on, so the pre-fix behavior -- first row in original order wins
     * -- must be preserved exactly. This documents that the fix does not invent a new
-    * "most recent wins" semantic; it only adds a tie-break when a color field is present.
+    * "smallest wins" semantic; it only adds a tie-break when a color field is present.
     */
    @Test
    void noColorFieldBound_tieStillFollowsOriginalRowOrder() {
