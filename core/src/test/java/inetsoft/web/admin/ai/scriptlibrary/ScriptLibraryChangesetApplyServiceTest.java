@@ -239,7 +239,7 @@ class ScriptLibraryChangesetApplyServiceTest {
    }
 
    @Test void appliesARenameAndMovesAnExistingPermissionGrant() throws Exception {
-      scripts.put("old", "return 1;");
+      scripts.put("old", "function old() { return 1; }");
       comments.put("old", "desc");
       inetsoft.sree.security.Permission grant = new inetsoft.sree.security.Permission();
       when(securityEngine.getPermission(ResourceType.SCRIPT, "old")).thenReturn(grant);
@@ -252,7 +252,8 @@ class ScriptLibraryChangesetApplyServiceTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertFalse(scripts.containsKey("old"));
-      assertEquals("return 1;", scripts.get("newName"));
+      // Bug #78583: the function's own declaration is renamed too
+      assertEquals("function newName() { return 1; }", scripts.get("newName"));
       verify(securityEngine).removePermission(ResourceType.SCRIPT, "old");
       verify(securityEngine).setPermission(ResourceType.SCRIPT, "newName", grant);
    }
@@ -362,6 +363,30 @@ class ScriptLibraryChangesetApplyServiceTest {
          assertFalse(scripts.containsKey("newScript"));
          // The second (delete) change never actually removed "keep" (fake left it in place).
          assertTrue(scripts.containsKey("keep"));
+      }
+   }
+
+   /** Bug #78583: undoing a rename restores the old name and the old declaration. */
+   @Test void rollsBackARenameRestoringTheOriginalDeclaration() throws Exception {
+      scripts.put("old", "function old() { return 1; }");
+      scripts.put("keep", "return 1;");
+      ScriptLibraryChangeRequest rename = change(ScriptLibraryChangeRequest.VERB_RENAME, "old");
+      rename.setNewName("newName");
+      ScriptLibraryChangeRequest delete = change(ScriptLibraryChangeRequest.VERB_DELETE, "keep");
+
+      try(MockedStatic<DependencyTransformer> dep = mockStatic(DependencyTransformer.class)) {
+         dep.when(() -> DependencyTransformer.getDependencies(anyString())).thenReturn(List.of());
+         String hash = hashOf(rename, delete);
+         ScriptLibraryApplyRequest req = applyRequest(hash, "looks good", true, rename, delete);
+         // the delete never removes "keep", so it fails verification and the rename is undone
+         doAnswer(inv -> null).when(lib).removeScript("keep");
+
+         ScriptLibraryApplyResult result = service.apply(req, user);
+
+         assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+         assertNull(result.rollbackFailures());
+         assertFalse(scripts.containsKey("newName"));
+         assertEquals("function old() { return 1; }", scripts.get("old"));
       }
    }
 
