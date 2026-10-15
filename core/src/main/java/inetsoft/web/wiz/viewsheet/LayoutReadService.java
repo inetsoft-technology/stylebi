@@ -124,6 +124,11 @@ public class LayoutReadService {
       Viewsheet masterVs = master.getViewsheet();
       LayoutInfo info = masterVs.getLayoutInfo();
       AbstractLayout layout = vsLayoutService.getViewsheetLayout(info, layoutName);
+
+      if(layout == null) {
+         throw LayoutSessionService.unknownLayout(layoutName);
+      }
+
       boolean print = vsLayoutService.isPrintLayout(layoutName);
       // Same page size for every object in this layout -- computed once here, not per-object,
       // since it depends only on the layout's own PrintInfo. null for a device layout, or a
