@@ -25,6 +25,7 @@ import inetsoft.uql.XDimension;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSCube;
 import inetsoft.uql.viewsheet.VSDimension;
 import inetsoft.uql.viewsheet.VSDimensionMember;
@@ -41,6 +42,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 // Bug #76797
 @ExtendWith(SpringExtension.class)
@@ -109,7 +111,6 @@ public class VSUtilTest {
    void crosstabDrillOpFindsEntityQualifiedHierarchyMember() {
       VSCube cube = entityQualifiedRegionCityCube();
       VSDimensionRef regionRef = new VSDimensionRef(new AttributeRef("Region"));
-      regionRef.setDateLevel(DateRangeRef.NONE_INTERVAL);
 
       String op = VSUtil.getCrosstabDrillOp(cube, regionRef, new DataRef[] {regionRef});
 
@@ -124,12 +125,58 @@ public class VSUtilTest {
    void cubeNextLevelRefResolvesEntityQualifiedHierarchyMember() {
       VSCube cube = entityQualifiedRegionCityCube();
       VSDimensionRef regionRef = new VSDimensionRef(new AttributeRef("Region"));
-      regionRef.setDateLevel(DateRangeRef.NONE_INTERVAL);
 
       VSDimensionRef nextRef = VSUtil.getCubeNextLevelRef(regionRef, cube);
 
       assertNotNull(nextRef);
       assertEquals("Customer.City", nextRef.getGroupColumnValue());
+   }
+
+   // Bug #76861: a non-date member's date option never has to equal the ref's level (a runtime
+   // non-date ref reports 5 by default), whatever option was written. A date member still has to.
+   @Test
+   void nonDateMemberMatchesWhateverItsOptionIs() {
+      for(int option : new int[] { DateRangeRef.NONE_INTERVAL, DateRangeRef.YEAR_INTERVAL }) {
+         VSCube cube = regionCityCube(XSchema.STRING, option);
+
+         for(int level : new int[] { DateRangeRef.NONE_INTERVAL, DateRangeRef.YEAR_INTERVAL }) {
+            VSDimensionRef ref = new VSDimensionRef(new AttributeRef("Region"));
+            ref.setDateLevel(level);
+
+            assertEquals("+", VSUtil.getCrosstabDrillOp(cube, ref, new DataRef[] { ref }));
+            assertNotNull(VSUtil.getCubeNextLevelRef(ref, cube));
+         }
+      }
+   }
+
+   @Test
+   void dateMemberStillMatchesOnlyItsOwnLevel() {
+      VSCube cube = regionCityCube(XSchema.DATE, DateRangeRef.YEAR_INTERVAL);
+      VSDimensionRef year = new VSDimensionRef(new AttributeRef("Region"));
+      year.setDateLevel(DateRangeRef.YEAR_INTERVAL);
+      VSDimensionRef month = new VSDimensionRef(new AttributeRef("Region"));
+      month.setDateLevel(DateRangeRef.MONTH_INTERVAL);
+
+      assertNotNull(VSUtil.getCubeNextLevelRef(year, cube));
+      assertNull(VSUtil.getCubeNextLevelRef(month, cube));
+   }
+
+   private VSCube regionCityCube(String dataType, int option) {
+      VSDimension dimension = new VSDimension();
+      dimension.setName("RegionCityHierarchy");
+
+      for(String name : new String[] { "Region", "City" }) {
+         AttributeRef attr = new AttributeRef(name);
+         attr.setDataType(dataType);
+         VSDimensionMember member = new VSDimensionMember();
+         member.setDataRef(attr);
+         member.setDateOption(option);
+         dimension.addLevel(member);
+      }
+
+      VSCube cube = new VSCube();
+      cube.setDimensions(List.<XDimension>of(dimension));
+      return cube;
    }
 
    private VSCube entityQualifiedRegionCityCube() {
