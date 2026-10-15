@@ -327,7 +327,8 @@ public class VSTableLayoutService {
          return null;
       }
 
-      AssetNamedGroupInfo[] infos = getPredefinedNamedGroup(rvs, name, event.getColumn());
+      AssetNamedGroupInfo[] infos =
+         getPredefinedNamedGroup(rvs, name, event.getColumn(), event.isIncludeNonSimple());
 
       if(infos == null) {
          return null;
@@ -561,6 +562,13 @@ public class VSTableLayoutService {
    private AssetNamedGroupInfo[] getPredefinedNamedGroup(RuntimeViewsheet rvs,
                                                          String name, String colName) throws Exception
    {
+      return getPredefinedNamedGroup(rvs, name, colName, false);
+   }
+
+   private AssetNamedGroupInfo[] getPredefinedNamedGroup(RuntimeViewsheet rvs, String name,
+                                                         String colName, boolean includeNonSimple)
+      throws Exception
+   {
       VSAssembly assembly = rvs.getViewsheet().getAssembly(name);
 
       if(!(assembly instanceof DataVSAssembly dataAssembly)) {
@@ -594,7 +602,7 @@ public class VSTableLayoutService {
       for(int i = 0; i < infos.length; i++) {
          AssetNamedGroupInfo groupInfo = infos[i];
 
-         if(ReportLayoutTool.isSimpleNamedGroup(groupInfo)) {
+         if(includeNonSimple || ReportLayoutTool.isSimpleNamedGroup(groupInfo)) {
             namedGroups.add(groupInfo);
          }
       }

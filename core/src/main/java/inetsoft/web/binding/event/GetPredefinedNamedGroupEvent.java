@@ -57,6 +57,19 @@ public class GetPredefinedNamedGroupEvent implements Serializable {
       this.field = field;
    }
 
+   /**
+    * Whether to also list the named groups a calc table cannot bucket (see
+    * {@code LayoutTool.isSimpleNamedGroup}), which are otherwise left out. Default false.
+    */
+   public boolean isIncludeNonSimple() {
+      return includeNonSimple;
+   }
+
+   public void setIncludeNonSimple(boolean includeNonSimple) {
+      this.includeNonSimple = includeNonSimple;
+   }
+
    private String name;
    private String field;
+   private boolean includeNonSimple;
 }
