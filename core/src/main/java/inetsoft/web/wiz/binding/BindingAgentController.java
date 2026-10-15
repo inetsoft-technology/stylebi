@@ -402,9 +402,11 @@ public class BindingAgentController {
    /** @param table see {@link ShelfRequest#table()}. */
    public record TableFieldRequest(String assembly, String shelf, FieldRef field,
                                    Integer position, String table) {}
-   public record TableRemoveRequest(String assembly, String shelf, String column) {}
+   /** @param index which occurrence of {@code column}, when it is bound more than once on the shelf. */
+   public record TableRemoveRequest(String assembly, String shelf, String column, Integer index) {}
+   /** @param fromIndex which occurrence of {@code column} on the source shelf, when bound more than once. */
    public record TableMoveRequest(String assembly, String fromShelf, String toShelf,
-                                  String column, Integer position) {}
+                                  String column, Integer position, Integer fromIndex) {}
    public record TableFieldVisibilityRequest(String assembly, String column, boolean visible) {}
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/binding")
@@ -510,7 +512,7 @@ public class BindingAgentController {
       requireEnabled();
       return ViewsheetSessionService.warningsBody(
          tableService.removeField(sessionToken, user, request.assembly(), request.shelf(),
-                               request.column()));
+                               request.column(), request.index()));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/move")
@@ -522,7 +524,8 @@ public class BindingAgentController {
       requireEnabled();
       return ViewsheetSessionService.warningsBody(
          tableService.moveField(sessionToken, user, request.assembly(), request.fromShelf(),
-                             request.toShelf(), request.column(), request.position()));
+                             request.toShelf(), request.column(), request.fromIndex(),
+                             request.position()));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/visibility")
