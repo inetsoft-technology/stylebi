@@ -4653,7 +4653,9 @@ public class WorksheetAgentController {
          XEmbeddedTable data = assembly.getEmbeddedData();
          ColumnSelection columns = assembly.getColumnSelection();
          boolean insertBefore = req.insert() == null || req.insert();
-         int index = req.index() != null ? req.index() : (insertBefore ? 0 : columns.getAttributeCount());
+         int count = columns.getAttributeCount();
+         int index = req.index() != null ? req.index() : (insertBefore ? 0 : count - 1);
+         requireInsertColumnIndexInRange(index, count, insertBefore);
 
          // Generate a unique column name (col1, col2, ...).
          String colname;
@@ -4712,6 +4714,25 @@ public class WorksheetAgentController {
       });
    }
 
+   /**
+    * {@code insert:true} places the new column before position {@code index} (valid 0..N, N
+    * appends); {@code insert:false} places it after (valid 0..N-1). N counts every column-selection
+    * entry, hidden and expression columns included.
+    */
+   private static void requireInsertColumnIndexInRange(int index, int count, boolean insertBefore)
+      throws PairingException
+   {
+      int max = insertBefore ? count : count - 1;
+
+      if(index < 0 || index > max) {
+         throw new PairingException(
+            "Column index out of range: " + index + " (valid 0.." + max + " with insert:" +
+            insertBefore + ", table has " + count + " column(s); insert:true inserts before the " +
+            "index and accepts 0.." + count + ", insert:false inserts after it and accepts 0.." +
+            (count - 1) + ")");
+      }
+   }
+
    /** Maps a ColumnSelection index to the corresponding XEmbeddedTable column index. */
    private int findEmbeddedColIndex(XEmbeddedTable data, ColumnSelection columns,
                                      int index, boolean insertBefore)
@@ -4734,7 +4755,7 @@ public class WorksheetAgentController {
       else {
          int idx = index;
 
-         while(idx > 0) {
+         while(idx >= 0) {
             DataRef ref = columns.getAttribute(idx);
 
             if(!ref.isExpression()) {

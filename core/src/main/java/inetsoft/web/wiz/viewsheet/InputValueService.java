@@ -187,6 +187,43 @@ public class InputValueService {
    }
 
    /**
+    * An editable or calendar combo accepts values outside its list, but the setter still converts
+    * each one with {@code Tool.getData} against the dataType, which saturates an out-of-range
+    * integer, clears unparseable text and rolls an impossible date over (bug #78590). A blank
+    * value stays legal: it clears the combo.
+    */
+   private static void checkEditableComboValues(List<Object> values, String dataType,
+                                                String assemblyName, String what)
+   {
+      for(Object value : values) {
+         if(value == null || String.valueOf(value).isBlank()) {
+            continue;
+         }
+
+         try {
+            WizStrictValueParser.parse(String.valueOf(value), dataType);
+         }
+         catch(IllegalArgumentException ex) {
+            Throwable cause = ex.getCause() != null && ex.getCause().getMessage() != null ?
+               ex.getCause() : ex;
+
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is " + what + " with dataType " + dataType + "; " +
+               quote(value) + " is invalid: " + cause.getMessage() + formatHint(dataType) +
+               ". It would be stored coerced or cleared rather than as given.", ex);
+         }
+      }
+   }
+
+   private static String formatHint(String dataType) {
+      if(Tool.DATE.equalsIgnoreCase(dataType) || Tool.TIME_INSTANT.equalsIgnoreCase(dataType)) {
+         return " (accepted format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)";
+      }
+
+      return Tool.TIME.equalsIgnoreCase(dataType) ? " (accepted format: HH:mm:ss)" : "";
+   }
+
+   /**
     * Refuses a value the assembly's own setter would silently ignore, clamp, drop or replace. Only
     * checks what the assembly's info makes unambiguous: a list input whose list has not been
     * computed yet (no values) is passed through, as is an editable or calendar combo box, which
@@ -236,6 +273,7 @@ public class InputValueService {
       if(list instanceof ComboBoxVSAssemblyInfo combo &&
          (combo.isTextEditable() || combo.isCalendar()))
       {
+         checkEditableComboValues(values, dataType, assemblyName, what);
          return;
       }
 

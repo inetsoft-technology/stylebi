@@ -374,7 +374,8 @@ public class AssemblyPropertyService {
             // Before requireValidListInput, so a dataType change strict-checks the embedded
             // values against the list type they will be stored with.
             ListInputEditorGuard.apply(type, listEditorBefore, model, resolved.values());
-            requireValidListInput(type, model, resolved.values(), rvs, user);
+            requireValidListInput(type, model, resolved.values(), rvs, user,
+                                  listEditorBefore != null && listEditorBefore.query());
             model = deriveEmbeddedFromStaticList(model, resolved.values());
          }
 
@@ -593,13 +594,16 @@ public class AssemblyPropertyService {
     * editor, each only when the patch touched what it checks, so a legacy bad list or source
     * doesn't block an unrelated write: the embedded list for a write to the list, the editor's
     * {@code dataType} or {@code embedded}; the source, validated against the effective model,
-    * for a write to its table/column/value while query is on. Query alone is a complete
-    * {@code BOUND_SOURCE} configuration and stays legal. The editor-vs-list dataType mismatch
+    * for a write to its table/column/value while query is on, or for turning query on (a table
+    * written while query was off is otherwise never judged once query follows, bug #78590). Query
+    * alone, with no table, is a complete {@code BOUND_SOURCE} configuration and stays legal.
+    * The editor-vs-list dataType mismatch
     * that {@code set_column_options} refuses is not refused here: an assembly's dialog model
     * fills the two from different fields, so a valid assembly can read back with both.
     */
    private void requireValidListInput(String type, Object model, Collection<String> resolvedPaths,
-                                      RuntimeViewsheet rvs, Principal user) throws Exception
+                                      RuntimeViewsheet rvs, Principal user,
+                                      boolean queryBefore) throws Exception
    {
       String embeddedPath = PropertyAliases.resolve(type, "embedded");
       String editorPath = embeddedPath.substring(0, embeddedPath.lastIndexOf('.'));
@@ -613,6 +617,8 @@ public class AssemblyPropertyService {
       String sourcePath = sourceDialogPath + ".selectionListEditorModel";
       boolean listTouched = false;
       boolean sourceTouched = false;
+      boolean queryTurnedOn = !queryBefore && editor.isQuery() &&
+         resolvedPaths.contains(editorPath + ".query");
 
       for(String path : resolvedPaths) {
          listTouched |= path.equals(listPath) || path.startsWith(listPath + ".") ||
@@ -627,14 +633,21 @@ public class AssemblyPropertyService {
             editor.getVariableListDialogModel(), "set_assembly_properties: '" + listPath + ".");
       }
 
-      if(sourceTouched && editor.isQuery() && editor.getSelectionListDialogModel() != null &&
-         editor.getSelectionListDialogModel().getSelectionListEditorModel() != null)
+      if((sourceTouched || queryTurnedOn) && editor.isQuery() &&
+         editor.getSelectionListDialogModel() != null &&
+         editor.getSelectionListDialogModel().getSelectionListEditorModel() != null &&
+         (sourceTouched || !blank(
+            editor.getSelectionListDialogModel().getSelectionListEditorModel().getTable())))
       {
          WizColumnOptionValidator.requireResolvableListSource(
             columnHandler, rvs, user,
             editor.getSelectionListDialogModel().getSelectionListEditorModel(),
             "set_assembly_properties", "a " + LIST_INPUT_NAMES.get(type), sourcePath + ".");
       }
+   }
+
+   private static boolean blank(String s) {
+      return s == null || s.isBlank();
    }
 
    private static final Map<String, String> LIST_INPUT_NAMES =
