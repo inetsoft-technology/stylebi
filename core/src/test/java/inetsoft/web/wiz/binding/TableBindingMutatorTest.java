@@ -2290,4 +2290,109 @@ class TableBindingMutatorTest {
                    model.getSuppressGroupTotal(),
                    "State's suppression must follow its respelled key, not be pruned");
    }
+
+   // Redmine #78437: a same-named calc field on another table must not decide the default.
+
+   private static RuntimeViewsheet rvsWithCalcsByTable(String table, String column,
+                                                       boolean baseOnDetail, String dataType)
+   {
+      CalculateRef calc = new CalculateRef(baseOnDetail);
+      calc.setDataRef(new AttributeRef(column));
+      calc.setDataType(dataType);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getCalcField(table, column)).thenReturn(calc);
+      when(vs.getCalcFieldSources()).thenReturn(List.of(table));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   private static CrosstabBindingModel projectionAndRatioModel(String source) {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      if(source != null) {
+         inetsoft.web.binding.model.SourceInfo modelSource =
+            new inetsoft.web.binding.model.SourceInfo();
+         modelSource.setSource(source);
+         model.setSource(modelSource);
+      }
+
+      model.setTables(List.of(sourceTable("Ratio", "Amount", "double"),
+                              sourceTable("Projection", "Revenue", "double")));
+      return model;
+   }
+
+   @Test
+   void aCrossTableStringCalcFieldDoesNotMakeABoundDoubleColumnCount() {
+      RuntimeViewsheet rvs = rvsWithCalcsByTable("Ratio", "Revenue", true, "string");
+      BAggregateRefModel ref = new BAggregateRefModel();
+
+      FieldRefFactory.applyAggregateDefaults(ref, projectionAndRatioModel("Projection"), rvs,
+         new SourceInfo(SourceInfo.ASSET, null, "Projection"), "Revenue");
+
+      assertEquals("Sum", ref.getFormula());
+   }
+
+   @Test
+   void aNullAssemblySourceFallsBackToTheModelSource() {
+      RuntimeViewsheet rvs = rvsWithCalcsByTable("Ratio", "Revenue", true, "string");
+      BAggregateRefModel ref = new BAggregateRefModel();
+
+      FieldRefFactory.applyAggregateDefaults(
+         ref, projectionAndRatioModel("Projection"), rvs, null, "Revenue");
+
+      assertEquals("Sum", ref.getFormula());
+   }
+
+   @Test
+   void aCrossTableAggregateCalcFieldIsNotStampedOntoARealColumn() {
+      RuntimeViewsheet rvs = rvsWithCalcsByTable("Ratio", "Revenue", false, "double");
+      BAggregateRefModel ref = new BAggregateRefModel();
+
+      FieldRefFactory.applyAggregateDefaults(ref, projectionAndRatioModel("Projection"), rvs,
+         new SourceInfo(SourceInfo.ASSET, null, "Projection"), "Revenue");
+
+      assertEquals("Sum", ref.getFormula());
+      assertEquals(0, ref.getRefType() & DataRef.AGG_CALC);
+   }
+
+   @Test
+   void aSameNamedStringColumnOnAnotherTableListedFirstDoesNotDecideTheDefault() {
+      Viewsheet vs = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Other", "Revenue", "string"),
+                              sourceTable("Projection", "Revenue", "double")));
+      BAggregateRefModel ref = new BAggregateRefModel();
+
+      FieldRefFactory.applyAggregateDefaults(ref, model, rvs,
+         new SourceInfo(SourceInfo.ASSET, null, "Projection"), "Revenue");
+
+      assertEquals("Sum", ref.getFormula());
+   }
+
+   @Test
+   void aBoundTableDetailCalcFieldReachedOnANullSourceKeepsItsOwnType() {
+      RuntimeViewsheet rvs = rvsWithCalcsByTable("Projection", "Margin", true, "double");
+      BAggregateRefModel ref = new BAggregateRefModel();
+
+      FieldRefFactory.applyAggregateDefaults(
+         ref, projectionAndRatioModel("Projection"), rvs, null, "Margin");
+
+      assertEquals("Sum", ref.getFormula());
+   }
+
+   @Test
+   void aCalcFieldKeyedUnderADifferentNameStillResolvesThroughTheScan() {
+      RuntimeViewsheet rvs = rvsWithCalcsByTable("Order Model", "Net Sales", false, "double");
+
+      CalculateRef found = FieldRefFactory.findCalcField(
+         projectionAndRatioModel("Projection"), rvs,
+         new SourceInfo(SourceInfo.ASSET, null, "Projection"), "Net Sales");
+
+      assertNotNull(found);
+      assertFalse(found.isBaseOnDetail());
+   }
 }
