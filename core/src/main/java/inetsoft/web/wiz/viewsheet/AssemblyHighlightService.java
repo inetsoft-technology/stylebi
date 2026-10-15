@@ -18,6 +18,8 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.VSAQuery;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSDimensionRef;
@@ -29,6 +31,9 @@ import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.wiz.binding.VisualFrameAliases;
+import inetsoft.web.composer.model.condition.ConditionModel;
+import inetsoft.web.composer.model.condition.ConditionValueModel;
+import inetsoft.web.composer.model.condition.ExpressionValueModel;
 import inetsoft.web.composer.model.vs.HighlightDialogModel;
 import inetsoft.web.composer.model.vs.HighlightModel;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
@@ -58,13 +63,30 @@ import java.util.*;
  */
 @Service
 public class AssemblyHighlightService {
+   /** Evaluates a highlight expression the way the renderer will. */
+   @FunctionalInterface
+   interface ExpressionChecker {
+      /** @return null when it evaluates, else the script error; throws if it does not compile. */
+      String check(String expression, boolean sql, ViewsheetSandbox box) throws Exception;
+   }
+
    @Autowired
    public AssemblyHighlightService(ViewsheetSessionService sessions,
                                    HighlightDialogService highlightService)
    {
+      this(sessions, highlightService, VSAQuery::checkHighlightExpression);
+   }
+
+   AssemblyHighlightService(ViewsheetSessionService sessions,
+                            HighlightDialogService highlightService, ExpressionChecker checker)
+   {
       this.sessions = sessions;
       this.highlightService = highlightService;
+      this.checker = checker;
    }
+
+   /** The outcome of a highlight write: anything the caller should be told (bug #78567). */
+   public record SetResult(List<String> warnings) {}
 
    /** Where a highlight lives. All-defaults means the assembly itself. */
    public record Region(Integer row, Integer col, String colName, boolean axis, boolean text) {
@@ -130,12 +152,13 @@ public class AssemblyHighlightService {
     *
     * <p>One {@code sessions.mutate}, so one undo checkpoint.
     */
-   public void set(String sessionToken, Principal user, String assemblyName, Region region,
-                   Highlight highlight, boolean replace, String linkUri) throws Exception
+   public SetResult set(String sessionToken, Principal user, String assemblyName, Region region,
+                        Highlight highlight, boolean replace, String linkUri) throws Exception
    {
       requireName(highlight);
+      List<String> warnings = new ArrayList<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireHighlightRenderable(rvs, assemblyName);
          requireChartRegionDrawn(rvs, assemblyName, region);
          HighlightDialogModel model = read(runtimeId, assemblyName, region, user);
@@ -202,11 +225,67 @@ public class AssemblyHighlightService {
             highlights.add(build(highlight, model));
          }
 
+         checkExpressions(rvs, highlight, model, warnings);
          model.setHighlights(highlights.toArray(new HighlightModel[0]));
          model.setRejectDerivedMeasure(true);
          highlightService.setHighlightDialogModel(runtimeId, assemblyName, model, linkUri, user,
                                                  dispatcher);
       });
+
+      if(sessionWarnings != null) {
+         warnings.addAll(sessionWarnings);
+      }
+
+      return new SetResult(warnings);
+   }
+
+   /**
+    * Evaluates each expression operand before anything is committed (bug #78567). The renderer
+    * swallows a highlight expression's script failure, so the highlight would silently never
+    * apply while the write read as a success. A syntax error is refused (it can never become
+    * valid); a runtime failure is committed with a warning, since it can be transient, e.g. an
+    * expression reading a selection that has no value yet.
+    */
+   private void checkExpressions(RuntimeViewsheet rvs, Highlight highlight,
+                                 HighlightDialogModel model, List<String> warnings)
+   {
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+      if(box == null) {
+         return;
+      }
+
+      Object[] conditionList = build(highlight, model).getVsConditionDialogModel().getConditionList();
+
+      for(Object item : conditionList) {
+         if(!(item instanceof ConditionModel condition) || condition.getValues() == null) {
+            continue;
+         }
+
+         for(ConditionValueModel value : condition.getValues()) {
+            if(value == null || !(value.getValue() instanceof ExpressionValueModel expression)) {
+               continue;
+            }
+
+            boolean sql = expression.getType() == ExpressionValueModel.SQL;
+            String text = expression.getExpression();
+            String error;
+
+            try {
+               error = checker.check(text, sql, box);
+            }
+            catch(Exception e) {
+               throw new IllegalArgumentException(
+                  "The " + (sql ? "sql" : "js") + " expression '" + text + "' does not compile: " +
+                  e.getMessage() + " Nothing was changed.");
+            }
+
+            if(error != null) {
+               warnings.add("The expression '" + text + "' threw: " + error +
+                            "; the highlight never applies until it evaluates.");
+            }
+         }
+      }
    }
 
    /** Removes one highlight by name. Removing one that is not there is an error, not a no-op. */
@@ -907,4 +986,5 @@ public class AssemblyHighlightService {
 
    private final ViewsheetSessionService sessions;
    private final HighlightDialogService highlightService;
+   private final ExpressionChecker checker;
 }

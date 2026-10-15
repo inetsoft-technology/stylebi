@@ -1095,6 +1095,99 @@ class AssemblyHighlightServiceTest {
 
    // ── harness ───────────────────────────────────────────────────────────────
 
+   // ── expression operands (bug #78567) ──────────────────────────────────────
+
+   private static AssemblyHighlightService.Highlight expressionHighlight(String language,
+                                                                         String expression)
+   {
+      return new AssemblyHighlightService.Highlight(
+         "Expr", null, "#ff0000", null,
+         List.of(new ConditionVocabulary.Clause(
+            "Revenue", ">",
+            List.of(Map.of("type", "expression", "expression", expression,
+                           "language", language)),
+            null, false, false, 0)),
+         false);
+   }
+
+   private static AssemblyHighlightService withChecker(Harness h,
+                                                       AssemblyHighlightService.ExpressionChecker c)
+   {
+      when(h.rvs().getViewsheetSandbox())
+         .thenReturn(java.util.Optional.of(mock(inetsoft.report.composition.execution.ViewsheetSandbox.class)));
+      return new AssemblyHighlightService(h.sessions(), h.highlights(), c);
+   }
+
+   @Test
+   void aThrowingExpressionIsCommittedWithAWarning() throws Exception {
+      Harness h = harness(model());
+      AssemblyHighlightService service = withChecker(h, (exp, sql, box) -> "boom is not defined");
+
+      AssemblyHighlightService.SetResult result =
+         service.set("tok", principal(), "Table1", null, expressionHighlight("js", "boom()"),
+                     false, "");
+
+      assertEquals(1, result.warnings().size());
+      assertTrue(result.warnings().get(0).contains("boom()"));
+      assertTrue(result.warnings().get(0).contains("boom is not defined"));
+      assertEquals(1, capture(h.highlights).getHighlights().length, "still committed");
+   }
+
+   @Test
+   void anExpressionThatDoesNotCompileIsRefusedAndNothingIsWritten() throws Exception {
+      Harness h = harness(model());
+      AssemblyHighlightService service = withChecker(h, (exp, sql, box) -> {
+         throw new IllegalStateException("Unexpected end of script");
+      });
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         service.set("tok", principal(), "Table1", null, expressionHighlight("js", "1 +"),
+                     false, ""));
+
+      assertTrue(e.getMessage().contains("does not compile"));
+      assertTrue(e.getMessage().contains("Nothing was changed"));
+      verify(h.highlights(), never()).setHighlightDialogModel(any(), any(), any(), any(), any(),
+                                                              any());
+   }
+
+   @Test
+   void aSqlExpressionIsNeverRefusedForFailingToEvaluate() throws Exception {
+      Harness h = harness(model());
+      AssemblyHighlightService service = withChecker(h, (exp, sql, box) -> {
+         assertTrue(sql, "the language is passed through so the check can rewrite $(var)");
+         return null;
+      });
+
+      AssemblyHighlightService.SetResult result =
+         service.set("tok", principal(), "Table1", null,
+                     expressionHighlight("sql", "$(limit)"), false, "");
+
+      assertTrue(result.warnings().isEmpty());
+      assertEquals(1, capture(h.highlights).getHighlights().length);
+   }
+
+   @Test
+   void aPlainValueHighlightIsNotCheckedAndCarriesNoWarning() throws Exception {
+      Harness h = harness(model());
+      AssemblyHighlightService service = withChecker(h, (exp, sql, box) -> {
+         throw new AssertionError("no expression operand to check");
+      });
+
+      assertTrue(service.set("tok", principal(), "Table1", null, highlight("Plain"), false, "")
+                    .warnings().isEmpty());
+   }
+
+   @Test
+   void relaysTheSessionsOwnWarnings() throws Exception {
+      Harness h = harness(model());
+      doReturn(List.of("script failed")).when(h.sessions())
+         .mutate(anyString(), any(Principal.class), any());
+
+      assertEquals(List.of("script failed"),
+                   h.service().set("tok", principal(), "Table1", null, highlight("Plain"),
+                                   false, "").warnings());
+   }
+
    private record Harness(AssemblyHighlightService service, ViewsheetSessionService sessions,
                           HighlightDialogService highlights, RuntimeViewsheet rvs) {}
 
