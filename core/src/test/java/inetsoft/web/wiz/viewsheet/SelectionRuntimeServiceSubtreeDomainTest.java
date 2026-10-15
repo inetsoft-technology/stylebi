@@ -344,6 +344,81 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       assertEquals("Beta", result.get("scopedBySearch"));
    }
 
+   /** East{NY, Boston} + West{LA, SF}, with NY and LA selected, East/West selected as ancestors. */
+   private static SelectionList eastWestSelected() {
+      SelectionList domain = new SelectionList();
+      domain.addSelectionValue(region("East", "NY", "Boston", "NY"));
+      domain.addSelectionValue(region("West", "LA", "SF", "LA"));
+      return domain;
+   }
+
+   private static CompositeSelectionValue region(String name, String a, String b, String selected) {
+      CompositeSelectionValue node = new CompositeSelectionValue(name, name);
+      node.setSelected(true);
+      SelectionList children = new SelectionList();
+
+      for(String c : new String[] { a, b }) {
+         SelectionValue v = new SelectionValue(c, c);
+         v.setSelected(c.equals(selected));
+         v.setLevel(1);
+         children.addSelectionValue(v);
+      }
+
+      node.setSelectionList(children);
+      return node;
+   }
+
+   /**
+    * bug-78576: NY really goes, East is left selected with no selected child. East/NY must not be
+    * reported as retained.
+    */
+   @Test
+   void deselectUnderASearchDoesNotRetainAPathWhoseParentIsLeftSelectedEmpty() throws Exception {
+      SelectionList domain = eastWestSelected();
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(false, domain, "Bos"));
+      doAnswer(inv -> {
+         CompositeSelectionValue east = (CompositeSelectionValue) domain.getSelectionValue(0);
+         east.getSelectionList().getSelectionValue(0).setSelected(false);
+         return null;
+      }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                             any(Principal.class), any(), anyString());
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("East", "NY")), null, null, null, "");
+
+      assertEquals(1, result.get("deselected"));
+      assertFalse(result.containsKey("scopedBySearchRetained"));
+   }
+
+   /** bug-78216 merge-back: West/LA really stays selected, so it is still reported. */
+   @Test
+   void deselectUnderASearchStillRetainsAMergedBackLeaf() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(
+         searchedTree(false, eastWestSelected(), "Bos"));
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("West", "LA")), null, null, null, "");
+
+      assertEquals(0, result.get("deselected"));
+      assertEquals(List.of(List.of("West", "LA")), result.get("scopedBySearchRetained"));
+   }
+
+   /** A parent-only request whose child survives (merged back) is still reported. */
+   @Test
+   void deselectOfAParentUnderASearchRetainsItWhileAChildSurvives() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(
+         searchedTree(false, eastWestSelected(), "Bos"));
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("West")), null, null, null, "");
+
+      assertEquals(List.of(List.of("West")), result.get("scopedBySearchRetained"));
+   }
+
    /** Control: the apply really clears it (no merge-back), so it is deselected and not retained. */
    @Test
    void deselectThatSticksIsCountedAndNotRetained() throws Exception {

@@ -429,8 +429,12 @@ public class SelectionRuntimeService {
                // the apply, so duplicate or overlapping entries count once and a partly merged-back
                // branch counts only what was removed (bug-78268). Same leaf-path unit as
                // selectedTotal on a non-ID tree.
+               // A requested path stays selected only if a surviving path equals or extends it;
+               // a surviving self-only parent ([East] after [East, NY] was removed) is not it
+               // (bug-78576).
                List<List<String>> stuck = deselect.stream()
-                  .filter(path -> everSelected(currentPaths, path) && everSelected(afterPaths, path))
+                  .filter(path -> everSelected(currentPaths, path) &&
+                     afterPaths.stream().anyMatch(p -> startsWithPath(p, path)))
                   .toList();
                result.put("deselected",
                           (int) currentPaths.stream()
