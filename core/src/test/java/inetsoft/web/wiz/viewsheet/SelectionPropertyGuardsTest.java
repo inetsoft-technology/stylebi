@@ -215,8 +215,10 @@ class SelectionPropertyGuardsTest {
    @Test
    void compositeSliderRefusesRangeTypeAndSizes() {
       for(String leaf : List.of("rangeType", "rangeSize", "maxRangeSize")) {
-         assertTrue(sliderRefusal(slider(true, TimeInfo.NUMBER, false), leaf).contains("rangeSliderDataPaneModel.composite:false"),
-                    leaf);
+         // composite is the slider's source, which only set_selection_source changes (#78480)
+         String message = sliderRefusal(slider(true, TimeInfo.NUMBER, false), leaf);
+         assertTrue(message.contains("set_selection_source") &&
+                    !message.contains("rangeSliderDataPaneModel.composite"), message);
       }
    }
 

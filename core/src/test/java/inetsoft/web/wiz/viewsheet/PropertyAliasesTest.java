@@ -1700,4 +1700,32 @@ class PropertyAliasesTest {
             type, sizePositionPath(type, "cellHeight")), type);
       }
    }
+
+   // ── #78480: a source word on a selection type names set_selection_source ──
+
+   @Test
+   void aSelectionSourceWordNamesSetSelectionSourceInsteadOfARawPath() {
+      for(String[] typeAndKey : new String[][] {
+         {"selectionlist", "additionalTables"}, {"selectiontree", "table"},
+         {"timeslider", "composite"}, {"calendar", "selectedColumn"}})
+      {
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite(typeAndKey[0], typeAndKey[1]));
+
+         assertTrue(thrown.getMessage().contains("set_selection_source"), thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("raw model path"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void otherUnknownKeysStillAdvertiseTheRawPath() {
+      IllegalArgumentException list = assertThrows(IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite("selectionlist", "noSuchThing"));
+      assertTrue(list.getMessage().contains("raw model path"), list.getMessage());
+
+      // "table" is only a source word on the four selection types
+      IllegalArgumentException text = assertThrows(IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite("text", "additionalTables"));
+      assertFalse(text.getMessage().contains("set_selection_source"), text.getMessage());
+   }
 }
