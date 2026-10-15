@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.DateRangeRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
@@ -94,12 +95,20 @@ class HierarchyDimensionServiceTest {
    }
 
    @Test
-   void addDefaultsToNoDateGroupingWhenOmitted() throws Exception {
-      Harness h = harnessChart(paneWith(column("Order Date"), column("State")));
+   void addDefaultsToTheComposerDialogLevelWhenOmitted() throws Exception {
+      OutputColumnRefModel date = column("Order Date");
+      date.setDataType(XSchema.DATE);
+      OutputColumnRefModel time = column("Open Time");
+      time.setDataType(XSchema.TIME);
+      Harness h = harnessChart(paneWith(date, time, column("State")));
 
-      h.service.add("tok", principal(), "Chart1", List.of("Order Date", "State"), null, "");
+      h.service.add("tok", principal(), "Chart1", List.of("Order Date", "Open Time", "State"),
+                    null, "");
 
-      assertEquals(DateRangeRef.NONE_INTERVAL, writtenDimensions(h)[0].getMembers()[0].getOption());
+      VSDimensionMemberModel[] members = writtenDimensions(h)[0].getMembers();
+      assertEquals(DateRangeRef.YEAR_INTERVAL, members[0].getOption());
+      assertEquals(DateRangeRef.HOUR_INTERVAL, members[1].getOption());
+      assertEquals(DateRangeRef.NONE_INTERVAL, members[2].getOption());
    }
 
    @Test
