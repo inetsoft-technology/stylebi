@@ -156,7 +156,7 @@ public class ChartTargetLineService {
       Map<String, Object> result = new LinkedHashMap<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartPropertyDialogModel model =
             chartService.getChartPropertyDialogModel(runtimeId, assemblyName, user);
@@ -208,15 +208,18 @@ public class ChartTargetLineService {
          // updateAllTargets has appended, so its indexes would refer to a list that has moved.
          pane.setDeletedIndexList(new Integer[0]);
 
-         chartService.setChartPropertyModel(runtimeId, assemblyName, model, linkUri, user,
-                                            dispatcher);
-
+         // Filled in before the write: the caller needs the new line's index to remove it, and the
+         // write may throw the chart's script error after storing the target.
          result.put("assembly", assemblyName);
          result.put("index", existing.length);
          result.put("measure", bound.getName().isEmpty() ? ALL_MEASURES : bound.getName());
          result.put("value", constant);
          result.put("label", target.getLabel());
          result.put("lineStyle", styleName(target.getLineStyle()));
+
+         ChartRenderCheck.swallowScriptError(rvs, assemblyName, () ->
+            chartService.setChartPropertyModel(runtimeId, assemblyName, model, linkUri, user,
+                                               dispatcher));
       }));
       ViewsheetSessionService.relayWarnings(result, warnings);
 
@@ -238,7 +241,7 @@ public class ChartTargetLineService {
       Map<String, Object> result = new LinkedHashMap<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
          ChartPropertyDialogModel model =
             chartService.getChartPropertyDialogModel(runtimeId, assemblyName, user);
@@ -284,8 +287,9 @@ public class ChartTargetLineService {
          pane.setChartTargets(survivors);
          pane.setDeletedIndexList(deleted.toArray(new Integer[0]));
 
-         chartService.setChartPropertyModel(runtimeId, assemblyName, model, linkUri, user,
-                                            dispatcher);
+         ChartRenderCheck.swallowScriptError(rvs, assemblyName, () ->
+            chartService.setChartPropertyModel(runtimeId, assemblyName, model, linkUri, user,
+                                               dispatcher));
 
          // A refused write does not throw here. VSObjectPropertyService.editObjectProperty
          // dispatches an ERROR MessageCommand and returns false, and ViewsheetSessionService

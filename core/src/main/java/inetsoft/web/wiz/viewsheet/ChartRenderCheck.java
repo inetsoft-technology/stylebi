@@ -80,28 +80,26 @@ public final class ChartRenderCheck {
    }
 
    /**
-    * Wraps a chart write so a chart script error can never escape it as an opaque 500, then runs
-    * {@link #warnIfScriptFails} after it.
+    * Runs one inner Composer call of a chart write and tolerates the chart's script error.
     *
-    * <p>The Composer services a chart write calls ({@code editObjectProperty}, the legend
-    * visibility service, ...) read the chart's data themselves, after they have stored the edit
-    * but before they refresh. When the chart's one-shot script failure is armed (right after a
-    * condition write, or after this check re-armed it) that read throws the
-    * {@code ScriptException}, which used to leave the write as an unexpected server error although
-    * the edit was kept. Here that exception is reported as the same named warning, and the chart
-    * is re-armed so the native render still shows its own error. Any other exception propagates
-    * unchanged.
+    * <p>Only for calls that store the edit and then read the chart's data themselves
+    * ({@code editObjectProperty}, which the target line, legend visibility, region and property
+    * writes end in): while the chart's one-shot script failure is armed that read throws the
+    * {@code ScriptException}, after the edit was stored, and it used to leave the write as an
+    * opaque 500. The failure is recorded and the chart re-armed, so the {@link #checked} check at
+    * the end of the write builds it once more and reports it as the named warning, and the
+    * native render still shows its own error. Do not wrap a call that has steps after it in the
+    * same write that must not be skipped, or one whose edit may not be stored when it throws.
+    * Any other exception propagates unchanged.
     */
-   public static void guard(RuntimeViewsheet rvs, String chartName, CommandDispatcher dispatcher,
-                            Body body) throws Exception
+   public static void swallowScriptError(RuntimeViewsheet rvs, String chartName, Body body)
+      throws Exception
    {
       try {
          body.run();
       }
       catch(Exception e) {
-         ScriptException script = scriptCause(e);
-
-         if(script == null) {
+         if(scriptCause(e) == null) {
             throw e;
          }
 
@@ -111,20 +109,17 @@ public final class ChartRenderCheck {
             remember(box, chartName);
             rearm(box, chartName);
          }
-
-         warn(chartName, script.getMessage(), dispatcher);
-         return;
       }
-
-      warnIfScriptFails(rvs, chartName, dispatcher);
    }
 
-   /** {@link #guard} for a whole mutation, so a service needs no check of its own at the end. */
-   public static ViewsheetSessionService.Mutation guarded(
+   /** A whole mutation followed by {@link #warnIfScriptFails}, whichever way the body returns. */
+   public static ViewsheetSessionService.Mutation checked(
       String chartName, ViewsheetSessionService.Mutation mutation)
    {
-      return (rvs, runtimeId, dispatcher) ->
-         guard(rvs, chartName, dispatcher, () -> mutation.run(rvs, runtimeId, dispatcher));
+      return (rvs, runtimeId, dispatcher) -> {
+         mutation.run(rvs, runtimeId, dispatcher);
+         warnIfScriptFails(rvs, chartName, dispatcher);
+      };
    }
 
    private static ScriptException scriptCause(Throwable e) {

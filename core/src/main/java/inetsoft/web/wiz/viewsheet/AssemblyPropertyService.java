@@ -366,8 +366,9 @@ public class AssemblyPropertyService {
          final Object written = model;
 
          if("chart".equals(type)) {
-            ChartRenderCheck.guard(rvs, assemblyName, dispatcher, () ->
+            ChartRenderCheck.swallowScriptError(rvs, assemblyName, () ->
                writeModel(runtimeId, type, assemblyName, written, linkUri, user, dispatcher));
+            ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
          }
          else {
             writeModel(runtimeId, type, assemblyName, written, linkUri, user, dispatcher);

@@ -101,7 +101,7 @@ public class ChartAestheticAgentService {
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          ChartBindingService.applySource(model, sourceTable);
@@ -577,7 +577,7 @@ public class ChartAestheticAgentService {
       throws Exception
    {
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          mutation.accept(chart, model);

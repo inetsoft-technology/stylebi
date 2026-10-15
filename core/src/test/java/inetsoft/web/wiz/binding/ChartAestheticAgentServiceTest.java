@@ -159,15 +159,15 @@ class ChartAestheticAgentServiceTest {
                    spec("type", "palette", "palette", "Blues"), ""));
    }
 
-   /** Bug #78439: a chart script error thrown by the inner service does not escape the write. */
+   /** Bug #78439: aesthetic writes do not swallow an inner script error (see binding). */
    @Test
-   void aScriptErrorFromTheInnerServiceDoesNotEscapeTheWrite() throws Exception {
+   void aScriptErrorFromTheInnerServiceIsNotSwallowedByAestheticWrites() throws Exception {
       ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
       doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(aesthetics).changeChartAesthetic(any(), any(), any(), any(), any());
       ChartAestheticAgentService service = serviceWith(
          sessionsFor(mock(ChartVSAssembly.class)), new ChartBindingModel(), aesthetics);
 
-      assertDoesNotThrow(() -> service.setField(
+      assertThrows(RuntimeException.class, () -> service.setField(
          "tok", principal(), "Chart1", "color",
          new FieldRef("Region", "dimension", null, null, null), null, ""));
    }

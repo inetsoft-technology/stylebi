@@ -100,7 +100,7 @@ public class ChartBindingService {
                         List<FieldRef> fields, String sourceTable, String linkUri) throws Exception
    {
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
@@ -257,7 +257,7 @@ public class ChartBindingService {
       }
 
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          String resolved = BindingSources.resolve(model, table, assemblyName);
@@ -510,7 +510,7 @@ public class ChartBindingService {
       throws Exception
    {
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
@@ -537,7 +537,7 @@ public class ChartBindingService {
                        String linkUri) throws Exception
    {
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          ChartBindingMutator.setSort(model, shelf, column, index, sort);
@@ -556,7 +556,7 @@ public class ChartBindingService {
                           String linkUri) throws Exception
    {
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          ChartBindingMutator.setRanking(model, shelf, column, index, ranking);
@@ -574,7 +574,7 @@ public class ChartBindingService {
                             String linkUri) throws Exception
    {
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          String ref = requireTypeableField(chart, assemblyName, field);
 
@@ -716,7 +716,7 @@ public class ChartBindingService {
                                  boolean separate, String linkUri) throws Exception
    {
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          VSChartInfo chartInfo = chart.getVSChartInfo();
          // The design flag, not the runtime one: a changeAndValue date comparison makes the no-arg
@@ -785,7 +785,7 @@ public class ChartBindingService {
       throws Exception
    {
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
 
          ChangeSeparateStatusEvent event = new ChangeSeparateStatusEvent();

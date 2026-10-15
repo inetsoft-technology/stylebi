@@ -244,18 +244,40 @@ class ChartTargetLineServiceTest {
    }
 
    /**
-    * Bug #78439: the Composer service reads the chart's data after storing the edit, and throws
-    * the chart's script error while it is armed. That must not escape the write as a 500.
+    * Bug #78439: the Composer service reads the chart's data after storing the edit and throws
+    * the chart's script error while it is armed. The target is stored, so add still reports it
+    * (the caller needs its index to remove it) and remove still finishes its own checks.
     */
    @Test
-   void aScriptErrorFromTheInnerServiceDoesNotEscapeTheWrite() throws Exception {
+   void aScriptErrorFromTheInnerServiceStillReturnsTheTargetFields() throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
       doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(h.chartService).setChartPropertyModel(
          anyString(), anyString(), any(ChartPropertyDialogModel.class), anyString(),
          any(Principal.class), any());
 
-      assertDoesNotThrow(() ->
-         h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, ""));
+      Map<String, Object> result =
+         h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, "");
+
+      assertEquals("Chart1", result.get("assembly"));
+      assertEquals(0, result.get("index"));
+      assertEquals("1", result.get("value"));
+      assertEquals("{0}", result.get("label"));
+      assertNotNull(result.get("lineStyle"));
+      assertNotNull(result.get("measure"));
+   }
+
+   /** A script error from the removal write is tolerated and the position checks still run. */
+   @Test
+   void removeWithAScriptErrorFromTheInnerServiceStillChecksTheResult() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR),
+                          paneWith(existingLineTarget(0, "1"), existingLineTarget(1, "2")));
+      doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(h.chartService).setChartPropertyModel(
+         anyString(), anyString(), any(ChartPropertyDialogModel.class), anyString(),
+         any(Principal.class), any());
+
+      Map<String, Object> result = h.service.remove("tok", principal(), "Chart1", List.of(0), "");
+
+      assertEquals(List.of(0), result.get("removed"));
    }
 
    /** Bug #78439: add and remove put the warnings the write captured into their response. */

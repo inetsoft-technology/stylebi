@@ -157,23 +157,26 @@ public class ChartElementService {
          ? legendEvent(sessionToken, user, assemblyName, target0, visible) : null;
 
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
 
-         switch(kind) {
-            case "axis" -> axesService.eventHandler(
-               runtimeId,
-               event(Map.of("chartName", assemblyName, "hide", !visible, "secondary", secondary),
-                     "columnName", target0, VSChartAxesVisibilityEvent.class),
-               linkUri, user, dispatcher);
-            case "legend" -> legendsService.eventHandler(
-               runtimeId, legendEvent, linkUri, user, dispatcher);
-            default -> titlesService.eventHandler(
-               runtimeId,
-               convert(titleFields(assemblyName, target0, visible),
-                       VSChartTitlesVisibilityEvent.class),
-               linkUri, user, dispatcher);
-         }
+         ChartRenderCheck.swallowScriptError(rvs, assemblyName, () -> {
+            switch(kind) {
+               case "axis" -> axesService.eventHandler(
+                  runtimeId,
+                  event(Map.of("chartName", assemblyName, "hide", !visible,
+                               "secondary", secondary),
+                        "columnName", target0, VSChartAxesVisibilityEvent.class),
+                  linkUri, user, dispatcher);
+               case "legend" -> legendsService.eventHandler(
+                  runtimeId, legendEvent, linkUri, user, dispatcher);
+               default -> titlesService.eventHandler(
+                  runtimeId,
+                  convert(titleFields(assemblyName, target0, visible),
+                          VSChartTitlesVisibilityEvent.class),
+                  linkUri, user, dispatcher);
+            }
+         });
       }));
    }
 
@@ -217,7 +220,7 @@ public class ChartElementService {
       }
 
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.guarded(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
 
          Map<String, Object> fields = new LinkedHashMap<>();

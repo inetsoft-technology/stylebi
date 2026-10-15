@@ -40,6 +40,14 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.vs.VSObjectTreeService;
+import inetsoft.web.adhoc.model.property.ColorInfo;
+import inetsoft.web.adhoc.model.property.MeasureInfo;
+import inetsoft.web.adhoc.model.property.TargetInfo;
+import inetsoft.web.composer.model.vs.ChartAdvancedPaneModel;
+import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
+import inetsoft.web.composer.model.vs.ChartTargetLinesPaneModel;
+import inetsoft.web.composer.vs.dialog.ChartPropertyDialogService;
+import inetsoft.web.viewsheet.service.ChartPropertyService;
 import inetsoft.web.composer.vs.dialog.RegionPropertyDialogService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
@@ -283,16 +291,18 @@ class ChartRenderCheckRealStackTest {
       assertEquals("applied", chartTitle(rvs), "the edit was stored before the data read threw");
    }
 
-   /** The guard turns that exception into the named warning; the edit stays; native render errors. */
+   /** Swallowing the inner exception plus the end-of-write check gives exactly one named warning. */
    @Test
-   void guardTurnsAnInnerScriptExceptionIntoTheNamedWarning() throws Exception {
+   void aSwallowedInnerScriptExceptionBecomesOneNamedWarning() throws Exception {
       RuntimeViewsheet rvs = open();
       addChart(rvs, true);
+      ViewsheetSessionService.Mutation write = ChartRenderCheck.checked(CHART, (r, id, d) ->
+         ChartRenderCheck.swallowScriptError(r, CHART, () -> editTitle(r, d, "applied")));
 
-      List<String> warnings = capture(rvs, (box, d) ->
-         ChartRenderCheck.guard(rvs, CHART, d, () -> editTitle(rvs, d, "applied")));
+      List<String> warnings = capture(rvs, (box, d) -> write.run(rvs, rvs.getID(), d));
 
       assertWarned(warnings);
+      assertTrue(warnings.get(0).contains("The edit was applied"), warnings.get(0));
       assertEquals("applied", chartTitle(rvs));
       ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
       assertThrows(Exception.class, () -> box.getVGraphPair(CHART, true),
@@ -300,13 +310,13 @@ class ChartRenderCheckRealStackTest {
       assertTrue(ChartRenderCheck.hasFailed(box, CHART));
    }
 
-   /** The same, through the mutation wrapper every chart service uses, twice in a row. */
+   /** The same write, repeated on the still-broken chart: a warning every time, never a throw. */
    @Test
-   void guardedMutationWarnsEveryTimeWithoutThrowing() throws Exception {
+   void aSwallowedWriteWarnsEveryTimeWithoutThrowing() throws Exception {
       RuntimeViewsheet rvs = open();
       addChart(rvs, true);
-      ViewsheetSessionService.Mutation write = ChartRenderCheck.guarded(
-         CHART, (r, id, d) -> editTitle(r, d, "again"));
+      ViewsheetSessionService.Mutation write = ChartRenderCheck.checked(CHART, (r, id, d) ->
+         ChartRenderCheck.swallowScriptError(r, CHART, () -> editTitle(r, d, "again")));
 
       for(int i = 0; i < 3; i++) {
          assertWarned(capture(rvs, (box, d) -> write.run(rvs, rvs.getID(), d)));
@@ -315,25 +325,111 @@ class ChartRenderCheckRealStackTest {
 
    /** Anything that is not a script error is not swallowed. */
    @Test
-   void guardLeavesOtherExceptionsAlone() throws Exception {
+   void swallowLeavesOtherExceptionsAlone() throws Exception {
       RuntimeViewsheet rvs = open();
       addChart(rvs, false);
 
       assertThrows(IllegalStateException.class, () -> capture(rvs, (box, d) ->
-         ChartRenderCheck.guard(rvs, CHART, d, () -> {
+         ChartRenderCheck.swallowScriptError(rvs, CHART, () -> {
             throw new IllegalStateException("not a script error");
          })));
    }
 
-   /** On a healthy chart the guarded write completes silently. */
+   /** On a healthy chart the checked write completes silently. */
    @Test
-   void guardedMutationOnAHealthyChartIsSilent() throws Exception {
+   void aCheckedWriteOnAHealthyChartIsSilent() throws Exception {
       RuntimeViewsheet rvs = open();
       addChart(rvs, false);
+      ViewsheetSessionService.Mutation write = ChartRenderCheck.checked(CHART, (r, id, d) ->
+         ChartRenderCheck.swallowScriptError(r, CHART, () -> editTitle(r, d, "ok")));
 
-      assertEquals(List.of(), capture(rvs, (box, d) ->
-         ChartRenderCheck.guard(rvs, CHART, d, () -> editTitle(rvs, d, "ok"))));
+      assertEquals(List.of(), capture(rvs, (box, d) -> write.run(rvs, rvs.getID(), d)));
       assertEquals("ok", chartTitle(rvs));
+   }
+
+   /**
+    * The real target line service, right after a condition write armed the failure: the inner
+    * Composer write throws for real (editObjectProperty on the armed chart), the call returns the
+    * new line's fields so it can be removed, and exactly one named warning comes back.
+    */
+   @Test
+   void addTargetLineOnAnArmedChartReturnsItsFieldsAndTheNamedWarning() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true);
+      ChartPropertyDialogService dialogs = mock(ChartPropertyDialogService.class);
+      when(dialogs.getChartPropertyDialogModel(anyString(), anyString(), any()))
+         .thenReturn(targetModel());
+      org.mockito.Mockito.doAnswer(inv -> {
+         editTitle(rvs, inv.getArgument(5), "with target");
+         return null;
+      }).when(dialogs).setChartPropertyModel(anyString(), anyString(), any(), anyString(), any(),
+                                             any());
+      ChartTargetLineService service = new ChartTargetLineService(seam(rvs), dialogs);
+
+      java.util.Map<String, Object> result = service.add(
+         "tok", principal(), CHART, null, "100", null, null, null, "");
+
+      assertEquals(0, result.get("index"));
+      assertEquals("100", result.get("value"));
+      assertEquals(CHART, result.get("assembly"));
+      assertNotNull(result.get("label"));
+      assertNotNull(result.get("lineStyle"));
+      @SuppressWarnings("unchecked")
+      List<String> warnings = (List<String>) result.get("warnings");
+      assertWarned(warnings);
+      assertEquals("with target", chartTitle(rvs), "the inner write had stored its edit");
+   }
+
+   /** Same service, healthy chart: the fields, and no warnings key. */
+   @Test
+   void addTargetLineOnAHealthyChartHasNoWarnings() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, false);
+      ChartPropertyDialogService dialogs = mock(ChartPropertyDialogService.class);
+      when(dialogs.getChartPropertyDialogModel(anyString(), anyString(), any()))
+         .thenReturn(targetModel());
+      ChartTargetLineService service = new ChartTargetLineService(seam(rvs), dialogs);
+
+      java.util.Map<String, Object> result = service.add(
+         "tok", principal(), CHART, null, "100", null, null, null, "");
+
+      assertEquals(0, result.get("index"));
+      assertFalse(result.containsKey("warnings"), result.toString());
+   }
+
+   private static ChartPropertyDialogModel targetModel() {
+      ChartTargetLinesPaneModel pane = new ChartTargetLinesPaneModel();
+      pane.setSupportsTarget(true);
+      pane.setChartTargets(new TargetInfo[0]);
+      TargetInfo template = new TargetInfo();
+      template.setMeasure(new MeasureInfo("", "", false));
+      template.setAlpha("100");
+      template.setLineStyle(inetsoft.graph.GraphConstants.THIN_LINE);
+      template.setLineColor(new ColorInfo("#000000", ChartPropertyService.COLOR_PALETTE));
+      template.setFillAboveColor(new ColorInfo("", ChartPropertyService.COLOR_PALETTE));
+      template.setFillBelowColor(new ColorInfo("", ChartPropertyService.COLOR_PALETTE));
+      template.setFillBandColor(new ColorInfo("", ChartPropertyService.COLOR_PALETTE));
+      pane.setNewTargetInfo(template);
+      pane.setAvailableFields(new MeasureInfo[] {
+         new MeasureInfo("", "", false), new MeasureInfo("Sum(wind)", "Sum(wind)", false) });
+      ChartAdvancedPaneModel advanced = new ChartAdvancedPaneModel();
+      advanced.setChartTargetLinesPaneModel(pane);
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      model.setChartAdvancedPaneModel(advanced);
+      return model;
+   }
+
+   /** Mutate as the real service does around a write: the capturing dispatcher, then its warnings. */
+   private static ViewsheetSessionService seam(RuntimeViewsheet rvs) throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.mutate(anyString(), any(), any())).thenAnswer(inv -> {
+         ViewsheetSessionService.Mutation mutation = inv.getArgument(2);
+         return CapturingCommandDispatcher.withCapturingDispatcher(inv.getArgument(1), d -> {
+            mutation.run(rvs, rvs.getID(), d);
+            return d.getWarnings();
+         });
+      });
+      return sessions;
    }
 
    private void editTitle(RuntimeViewsheet rvs, CommandDispatcher d, String title)
