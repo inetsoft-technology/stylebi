@@ -305,4 +305,45 @@ class ScriptFunctionTest {
       assertTrue(t.called);
       assertFalse(t.visible, "non-strict function should still pad the omitted argument");
    }
+
+   public static final class Thrower {
+      public void fail(String name) {
+         throw new IllegalArgumentException("boom: " + name);
+      }
+
+      public void failNoMessage(String name) {
+         throw new IllegalStateException();
+      }
+   }
+
+   @Test
+   void targetExceptionMessageReachesScriptError() {
+      // Bug #78585: the guard text thrown by the bound method must not be lost behind the
+      // generic wrapper message.
+      ctx.getBindings("js").putMember(
+         "fail", new ScriptFunction(new Thrower(), Thrower.class, "fail", String.class));
+
+      Exception ex = assertThrows(Exception.class, () -> ctx.eval("js", "fail(\"x\")"));
+      assertTrue(ex.getMessage().contains("Failed to invoke script function: fail"));
+      assertTrue(ex.getMessage().contains("boom: x"), ex.getMessage());
+   }
+
+   @Test
+   void targetExceptionWithoutMessageKeepsGenericText() {
+      ScriptFunction fn = new ScriptFunction(
+         new Thrower(), Thrower.class, "failNoMessage", String.class);
+
+      RuntimeException ex = assertThrows(RuntimeException.class, () -> fn.execute());
+      assertEquals("Failed to invoke script function: failNoMessage", ex.getMessage());
+      assertInstanceOf(IllegalStateException.class, ex.getCause());
+   }
+
+   @Test
+   void strictArityMessageIsUnchanged() {
+      ScriptFunction fn = new ScriptFunction(
+         new Thrower(), Thrower.class, "fail", true, String.class);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> fn.execute());
+      assertEquals("fail() expects 1 argument, got 0", ex.getMessage());
+   }
 }

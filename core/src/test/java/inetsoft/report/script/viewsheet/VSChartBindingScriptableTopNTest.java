@@ -25,6 +25,7 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.IntegrationTestConfiguration;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.XCondition;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -151,5 +152,27 @@ public class VSChartBindingScriptableTopNTest {
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> bindingInfo.setTopNReverse(null, true, ChartConstants.BINDING_FIELD));
       assertTrue(ex.getMessage().contains("setTopNReverse"));
+   }
+
+   @Test
+   void isTopNReverseWithOtherTypeFollowsSetterLikeGetTopN() {
+      // Bug #78585: type 0 / an unknown constant resolves like getTopN/setTopNReverse
+      assertFalse(bindingInfo.isTopNReverse("STATE", 0));
+
+      bindingInfo.setTopNReverse("STATE", true, 0);
+      assertTrue(bindingInfo.isTopNReverse("STATE", 0));
+      assertTrue(bindingInfo.isTopNReverse("STATE", ChartConstants.BINDING_FIELD));
+      assertTrue(bindingInfo.isTopNReverse("STATE", 99));
+      assertEquals(5, bindingInfo.getTopN("STATE", 0));
+      assertFalse(bindingInfo.isTopNReverse("MISSING", 0));
+   }
+
+   @Test
+   void getGroupOrderWithOtherTypeFollowsSetter() {
+      // Bug #78585: same asymmetry as isTopNReverse
+      bindingInfo.setGroupOrder("STATE", DateRangeRef.MONTH_INTERVAL, 0);
+      assertEquals(DateRangeRef.MONTH_INTERVAL, bindingInfo.getGroupOrder("STATE", 0));
+      assertEquals(DateRangeRef.MONTH_INTERVAL,
+                   bindingInfo.getGroupOrder("STATE", ChartConstants.BINDING_FIELD));
    }
 }
