@@ -3472,6 +3472,65 @@ class AssemblyPropertyServiceTest {
                     .getComboBoxEditorModel().isQuery());
    }
 
+   /** Bug #78590 P2: a table written with query off, then query turned on, binds nothing. */
+   @Test
+   void refusesTurningQueryOnOverAStoredTableWithNoColumnOnEveryListInputType() {
+      assertQueryOnAfterTableRefused(mock(CheckBoxVSAssembly.class),
+                                     new CheckboxPropertyDialogModel(), "a CheckBox");
+      assertQueryOnAfterTableRefused(mock(ComboBoxVSAssembly.class),
+                                     new ComboboxPropertyDialogModel(), "a ComboBox");
+      assertQueryOnAfterTableRefused(mock(RadioButtonVSAssembly.class),
+                                     new RadioButtonPropertyDialogModel(), "a RadioButton");
+   }
+
+   private static void assertQueryOnAfterTableRefused(VSAssembly assembly, Object model,
+                                                      String control)
+   {
+      AssemblyPropertyService service = listInputServiceWithColumns(assembly, model);
+
+      setList(service, Map.of("table", "CUSTOMERS"));
+      assertListRefused(service, Map.of("query", true), control + " with query:true requires",
+                        "selectionListEditorModel.column");
+   }
+
+   @Test
+   void acceptsTurningQueryOnOverAStoredTableAndColumn() {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         listInputServiceWithColumns(mock(CheckBoxVSAssembly.class), model);
+
+      setList(service, Map.of("table", "CUSTOMERS", "column", "COMPANY_NAME"));
+      setList(service, Map.of("query", true));
+
+      assertTrue(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                    .getComboBoxEditorModel().isQuery());
+   }
+
+   /** Writing query:true back over a source that already has query on is not a transition. */
+   @Test
+   void doesNotRefuseAnEchoOfQueryTrueOverAnExistingQuerySource() {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      model.getComboboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
+         .setQuery(true);
+      model.getComboboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
+         .getSelectionListDialogModel().getSelectionListEditorModel().setTable("CUSTOMERS");
+      AssemblyPropertyService service =
+         listInputServiceWithColumns(mock(ComboBoxVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> setList(service, Map.of("query", true)));
+   }
+
+   @Test
+   void refusesTurningQueryOnWhenWrittenThroughTheRawPath() {
+      AssemblyPropertyService service = listInputServiceWithColumns(
+         mock(CheckBoxVSAssembly.class), new CheckboxPropertyDialogModel());
+
+      setList(service, Map.of(CHECKBOX_EDITOR + ".selectionListDialogModel" +
+                              ".selectionListEditorModel.table", "CUSTOMERS"));
+      assertListRefused(service, Map.of(CHECKBOX_EDITOR + ".query", true),
+                        "a CheckBox with query:true requires");
+   }
+
    /**
     * The label/value count check must not break a get -> set round trip: writing back the list
     * as read, replacing values with the same count, or replacing both with a new count.

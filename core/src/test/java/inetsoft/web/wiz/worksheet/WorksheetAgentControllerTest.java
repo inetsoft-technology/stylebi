@@ -49,6 +49,7 @@ import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.uql.asset.sync.RenameDependencyInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.XAttribute;
 import inetsoft.uql.erm.XDataModel;
@@ -111,6 +112,7 @@ import java.lang.reflect.Parameter;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -11383,6 +11385,147 @@ class WorksheetAgentControllerTest {
          "a pane-scoped session: " + notRefused + ". Add requireWholeSheetSession(sessionToken," +
          " user) as their first call (right after requireEnabled()), or add them to " +
          "WHOLE_SHEET_GUARD_EXEMPT above with a reason like detach's.");
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #78590 P1: insert_column index range
+   // ---------------------------------------------------------------------------
+
+   private static EditRequest insertColumnAt(Integer index, Boolean insert) throws Exception {
+      String json = "{\"op\":\"insert_column\",\"table\":\"T\"" +
+         (index == null ? "" : ",\"index\":" + index) +
+         (insert == null ? "" : ",\"insert\":" + insert) + "}";
+      return new WebConfig().objectMapper().readValue(json, EditRequest.class);
+   }
+
+   /** header [a, b] + 1 data row; the column selection is a, b. */
+   private static EmbeddedTableAssembly insertColumnTable(Worksheet ws, boolean expressionFirst) {
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
+      t.setEmbeddedData(new XEmbeddedTable(
+         new String[] { XSchema.STRING, XSchema.STRING },
+         new Object[][] { { "a", "b" }, { "x1", "y1" } }));
+      ColumnSelection cs = new ColumnSelection();
+
+      if(expressionFirst) {
+         inetsoft.uql.erm.ExpressionRef expr = new inetsoft.uql.erm.ExpressionRef(null, "ex");
+         expr.setExpression("1");
+         cs.addAttribute(new ColumnRef(expr));
+      }
+
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "a")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "b")));
+      t.setColumnSelection(cs, false);
+      ws.addAssembly(t);
+      return t;
+   }
+
+   private static void runInsertColumn(Worksheet ws, EditRequest req) throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-IC2"), any())).thenReturn(session("TOK-IC2"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+      ctrl.edit("TOK-IC2", req, agent);
+   }
+
+   private static String csNames(EmbeddedTableAssembly t) {
+      ColumnSelection cs = t.getColumnSelection(false);
+      StringBuilder sb = new StringBuilder();
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         sb.append(i == 0 ? "" : ",").append(cs.getAttribute(i).getName());
+      }
+
+      return sb.toString();
+   }
+
+   private static String dataHeader(EmbeddedTableAssembly t) {
+      XEmbeddedTable data = t.getEmbeddedData();
+      StringBuilder sb = new StringBuilder();
+
+      for(int c = 0; c < data.getColCount(); c++) {
+         sb.append(c == 0 ? "" : ",").append(data.getObject(0, c));
+      }
+
+      return sb.toString();
+   }
+
+   @Test
+   void insertColumnRefusesAnOutOfRangeIndexAndLeavesTheTableUnchanged() throws Exception {
+      Object[][] cases = {
+         { 99, true, "0..2" }, { 3, true, "0..2" }, { -1, true, "0..2" },
+         { 99, false, "0..1" }, { 2, false, "0..1" }, { -1, false, "0..1" } };
+
+      for(Object[] c : cases) {
+         Worksheet ws = new Worksheet();
+         EmbeddedTableAssembly t = insertColumnTable(ws, false);
+
+         PairingException ex = assertThrows(PairingException.class,
+            () -> runInsertColumn(ws, insertColumnAt((Integer) c[0], (Boolean) c[1])),
+            Arrays.toString(c));
+
+         assertTrue(ex.getMessage().contains("Column index out of range: " + c[0]),
+                    ex.getMessage());
+         assertTrue(ex.getMessage().contains((String) c[2]), ex.getMessage());
+         assertEquals("a,b", dataHeader(t));
+         assertEquals("a,b", csNames(t));
+      }
+   }
+
+   @Test
+   void insertColumnAcceptsTheBoundaryIndexes() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = insertColumnTable(ws, false);
+      runInsertColumn(ws, insertColumnAt(2, true));
+      assertEquals("a,b,col1", dataHeader(t));
+      assertEquals("a,b,col1", csNames(t));
+
+      Worksheet ws2 = new Worksheet();
+      EmbeddedTableAssembly t2 = insertColumnTable(ws2, false);
+      runInsertColumn(ws2, insertColumnAt(0, true));
+      assertEquals("col1,a,b", dataHeader(t2));
+      assertEquals("col1,a,b", csNames(t2));
+
+      Worksheet ws3 = new Worksheet();
+      EmbeddedTableAssembly t3 = insertColumnTable(ws3, false);
+      runInsertColumn(ws3, insertColumnAt(1, false));
+      assertEquals("a,b,col1", dataHeader(t3));
+      assertEquals("a,b,col1", csNames(t3));
+   }
+
+   @Test
+   void insertColumnAfterAnOmittedIndexAppendsAfterTheLastColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = insertColumnTable(ws, false);
+      runInsertColumn(ws, insertColumnAt(null, false));
+      assertEquals("a,b,col1", dataHeader(t));
+      assertEquals("a,b,col1", csNames(t));
+   }
+
+   @Test
+   void insertColumnAfterPlainColumnZeroKeepsDataAndColumnSelectionConsistent() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = insertColumnTable(ws, false);
+      runInsertColumn(ws, insertColumnAt(0, false));
+      assertEquals("a,col1,b", dataHeader(t));
+      assertEquals("a,col1,b", csNames(t));
+   }
+
+   @Test
+   void insertColumnAfterAnExpressionColumnZeroStillWorks() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = insertColumnTable(ws, true);
+      runInsertColumn(ws, insertColumnAt(0, false));
+      assertEquals("col1,a,b", dataHeader(t));
+      assertEquals("ex,col1,a,b", csNames(t));
    }
 
 }
