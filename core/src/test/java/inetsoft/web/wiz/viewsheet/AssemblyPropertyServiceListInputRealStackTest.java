@@ -59,7 +59,7 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome()
-@Tag("slow")
+@Tag("core")
 class AssemblyPropertyServiceListInputRealStackTest {
    /**
     * VFI-011: before the fix the one-call patch left the static list typed "string", so the
