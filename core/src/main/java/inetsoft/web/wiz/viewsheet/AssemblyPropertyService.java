@@ -287,6 +287,9 @@ public class AssemblyPropertyService {
          // rebuild of an Image's immutable pane) cannot widen what the check accepts.
          Map<String, AssemblyReference> references = assemblyReferences(model, resolved.values());
          Set<String> unchangedReferences = new HashSet<>();
+         // Copied, not referenced: PropertyPath.set mutates the list-input editor in place.
+         ListInputEditorGuard.Snapshot listEditorBefore =
+            ListInputEditorGuard.snapshot(type, model);
 
          // PropertyPath.set returns the root the caller must keep using: if a future alias
          // ever targets a direct top-level field of an Immutables dialog model (no nested pane
@@ -364,6 +367,9 @@ public class AssemblyPropertyService {
                                  TipCustomizeDialogModel.TipFormat.CUSTOM);
 
          if(PropertyAliases.isListInputType(type)) {
+            // Before requireValidListInput, so a dataType change strict-checks the embedded
+            // values against the list type they will be stored with.
+            ListInputEditorGuard.apply(type, listEditorBefore, model, resolved.values());
             requireValidListInput(type, model, resolved.values(), rvs, user);
             model = deriveEmbeddedFromStaticList(model, resolved.values());
          }
