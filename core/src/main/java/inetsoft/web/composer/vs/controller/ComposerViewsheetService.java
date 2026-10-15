@@ -384,7 +384,7 @@ public class ComposerViewsheetService {
                                        OpenPreviewViewsheetEvent event,
                                        Principal principal,
                                        CommandDispatcher commandDispatcher,
-                                       String linkUri, boolean isAfterOpenRefresh)
+                                       String linkUri)
       throws Exception
    {
       try {
@@ -401,29 +401,7 @@ public class ComposerViewsheetService {
                .findFirst()
                .orElse(null);
 
-            if(!isAfterOpenRefresh && viewsheetService.refreshPreviewViewsheet(runtimeId, principal, vsLayout)) {
-               RuntimeViewsheet refreshedRvs = viewsheetService.getViewsheet(runtimeId, principal);
-               refreshedRvs.setSocketSessionId(commandDispatcher.getSessionId());
-               refreshedRvs.setSocketUserName(commandDispatcher.getUserName());
-
-               final Viewsheet newPreviewVS = refreshedRvs.getViewsheet();
-
-               if(newPreviewVS != null) {
-                  // remove old annotations
-                  AnnotationVSUtil.removeUselessAssemblies(viewsheet.getAssemblies(),
-                                                           newPreviewVS.getAssemblies(),
-                                                           commandDispatcher);
-                  ChangedAssemblyList clist = coreLifecycleService.createList(
-                     true, event, commandDispatcher, refreshedRvs, linkUri);
-                  coreLifecycleService.refreshViewsheet(refreshedRvs, runtimeId, linkUri,
-                                                        event.getWidth(), event.getHeight(),
-                                                        event.isMobile(), event.getUserAgent(),
-                                                        commandDispatcher, false, false, true, clist);
-               }
-
-               return true;
-            }
-            else if(isAfterOpenRefresh) {
+            if(viewsheetService.refreshPreviewViewsheet(runtimeId, principal, vsLayout)) {
                RuntimeViewsheet refreshedRvs = viewsheetService.getViewsheet(runtimeId, principal);
                refreshedRvs.setSocketSessionId(commandDispatcher.getSessionId());
                refreshedRvs.setSocketUserName(commandDispatcher.getUserName());
