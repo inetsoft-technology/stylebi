@@ -75,6 +75,25 @@ class VSSelectionServiceNeighborPathTest {
    }
 
    /**
+    * A tree neighbour on EMPLOYEE_ID > CUSTOMER_ID sends two-segment paths. Each segment is
+    * looked up on its own level: [3, 6] must reach employee 3's customer 6, not stop at the
+    * customer 1/3 found first by a depth-first lookup of "3".
+    */
+   @Test
+   void columnTreeWalksTwoSegmentPathsLevelByLevel() throws Exception {
+      SelectionTreeVSAssembly tree = createColumnTree();
+      List<String> refs = List.of(EMPLOYEE_ID, CUSTOMER_ID);
+
+      applyConditions(tree, Map.of(refs, Set.of(List.of("1", "3"), List.of("3", "6"))), true);
+
+      assertEquals(Set.of("1", "1/3", "3", "3/6"), selectedPaths(tree.getSelectionList(), ""));
+
+      applyConditions(tree, Map.of(refs, Set.of(List.of("1", "3"))), false);
+
+      assertEquals(Set.of("3", "3/6"), selectedPaths(tree.getSelectionList(), ""));
+   }
+
+   /**
     * An ID tree (1 > 2 > 3, 1 > 4) receives one-segment [id] paths, which must still reach the
     * nodes below the root.
     */
