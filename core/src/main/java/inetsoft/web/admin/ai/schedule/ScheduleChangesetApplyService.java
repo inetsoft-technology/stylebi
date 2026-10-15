@@ -346,7 +346,7 @@ public class ScheduleChangesetApplyService {
     * {@code ScheduleManager.setScheduleTask} puts a task saved without a folder entry in the root
     * folder, whatever its own path is.
     */
-   private static AssetEntry getFolderEntry(inetsoft.sree.schedule.ScheduleTask task, String orgId) {
+   static AssetEntry getFolderEntry(inetsoft.sree.schedule.ScheduleTask task, String orgId) {
       String path = task.getPath();
 
       if(path == null || path.isEmpty() || "/".equals(path)) {
