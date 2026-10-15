@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition.execution;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.IntegrationTestConfiguration;
@@ -112,5 +113,27 @@ class VSAQueryCheckHighlightExpressionTest {
       VSAQuery.checkHighlightExpression("undefinedFn(1)", false, sandbox(new VariableTable()));
 
       assertEquals(before, FormulaContext.isRestricted());
+   }
+
+   /**
+    * With javascript.java.com_org on, only the restricted mode refuses a com/org class lookup (the
+    * probe in RestrictedScriptSurfaceTest), so a non-null result proves the check runs restricted
+    * like the renderer does (bug #77396).
+    */
+   @Test
+   void theExpressionRunsRestricted() throws Exception {
+      String old = SreeEnv.getProperty("javascript.java.com_org");
+      SreeEnv.setProperty("javascript.java.com_org", "true");
+
+      try {
+         FormulaContext.setRestricted(false);
+         assertNotNull(VSAQuery.checkHighlightExpression(
+            "Java.type('org.apache.commons.lang3.StringUtils')", false,
+            sandbox(new VariableTable())));
+         assertFalse(FormulaContext.isRestricted());
+      }
+      finally {
+         SreeEnv.setProperty("javascript.java.com_org", old);
+      }
    }
 }
