@@ -17,25 +17,17 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.ComboBoxVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.ComboBoxVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
-import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
 import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
-import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
-import inetsoft.web.composer.vs.objects.controller.VSTrapService;
-import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -43,11 +35,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.awt.Dimension;
-import java.awt.Point;
 import java.security.Principal;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -56,9 +45,9 @@ import static org.mockito.Mockito.*;
 
 /**
  * Bug #78470: the couplings and checks {@link ListInputEditorGuard} applies to a
- * CheckBox/ComboBox/RadioButton editor written through {@code set_assembly_properties}. Model
- * level (the dialog service is a mock), plus a real-stack pair at the end that runs the real
- * {@code VSInputService} getter/setter over a real {@link ComboBoxVSAssembly}.
+ * CheckBox/ComboBox/RadioButton editor written through {@code set_assembly_properties}, at model
+ * level (the dialog service is a mock). The real {@code VSInputService} getter/setter runs in
+ * {@link AssemblyPropertyServiceListInputRealStackTest}.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -340,51 +329,9 @@ class AssemblyPropertyServiceListInputTest {
       assertDoesNotThrow(() -> set(model, Map.of("visible", "false")));
    }
 
-   // ── real stack: VSInputService getter/setter over a real ComboBoxVSAssembly ──
-
-   /**
-    * VFI-011: before the fix the one-call patch left the static list typed "string", so the
-    * assembly read back "string" and the next unrelated write dropped both bounds.
-    */
-   @Test
-   void realStackOneCallCalendarPatchKeepsItsBoundsAcrossTheNextWrite() throws Exception {
-      RealStack stack = realStack();
-
-      stack.service().set("tok", principal(), "ComboBox1", Map.of(
-         E + ".calendar", true, E + ".dataType", "date",
-         E + ".minDate", "2024-01-01", E + ".maxDate", "2025-10-31"), "");
-
-      ComboBoxVSAssemblyInfo info = stack.info();
-      assertEquals("date", info.getDataType());
-      assertTrue(info.isCalendar());
-
-      stack.service().set("tok", principal(), "ComboBox1", Map.of("visible", "true"), "");
-
-      info = stack.info();
-      assertEquals("date", info.getDataType());
-      assertEquals("2024-01-01", info.getMinDateValue());
-      assertEquals("2025-10-31", info.getMaxDateValue());
-   }
-
-   /** VFI-010: a malformed bound is refused and nothing reaches the assembly. */
-   @Test
-   void realStackRefusesAMalformedBoundWithoutStoringIt() {
-      RealStack stack = realStack();
-      ComboBoxVSAssemblyInfo before = stack.info();
-
-      Exception e = assertThrows(IllegalArgumentException.class,
-         () -> stack.service().set("tok", principal(), "ComboBox1", Map.of(
-            E + ".calendar", true, E + ".dataType", "date",
-            E + ".minDate", "05/12/2024", E + ".maxDate", "2025-10-31"), ""));
-
-      assertTrue(e.getMessage().contains("yyyy-MM-dd"), e.getMessage());
-      assertSame(before, stack.info());
-      assertNull(stack.info().getMinDateValue());
-   }
-
    // ── harness ─────────────────────────────────────────────────────────────
 
-   private static final String E =
+   static final String E =
       "comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel";
    private static final String CAPITALISED_E =
       "ComboboxGeneralPaneModel.ListValuesPaneModel.ComboBoxEditorModel";
@@ -483,7 +430,7 @@ class AssemblyPropertyServiceListInputTest {
       return service(rvs, input);
    }
 
-   private static AssemblyPropertyService service(RuntimeViewsheet rvs, VSInputService input) {
+   static AssemblyPropertyService service(RuntimeViewsheet rvs, VSInputService input) {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
       try {
@@ -513,53 +460,7 @@ class AssemblyPropertyServiceListInputTest {
          mock(VSColumnHandler.class), mock(DataOutputService.class));
    }
 
-   private record RealStack(AssemblyPropertyService service, ComboBoxVSAssembly combo) {
-      ComboBoxVSAssemblyInfo info() {
-         return (ComboBoxVSAssemblyInfo) combo.getVSAssemblyInfo();
-      }
-   }
-
-   /**
-    * A real {@code VSInputService} (only its table-list lookups stubbed) over a real combo, with
-    * {@code editObjectProperty} reduced to installing the info the setter built.
-    */
-   private static RealStack realStack() {
-      Viewsheet vs = new Viewsheet();
-      ComboBoxVSAssembly combo = new ComboBoxVSAssembly(vs, "ComboBox1");
-      vs.addAssembly(combo);
-      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      when(rvs.getViewsheet()).thenReturn(vs);
-      when(rvs.getID()).thenReturn("rt1");
-
-      try {
-         ViewsheetService viewsheets = mock(ViewsheetService.class);
-         when(viewsheets.getViewsheet(anyString(), any())).thenReturn(rvs);
-         VSDialogService dialogs = mock(VSDialogService.class);
-         when(dialogs.getAssemblyPosition(any(), any())).thenReturn(new Point(0, 0));
-         when(dialogs.getAssemblySize(any(), any())).thenReturn(new Dimension(100, 20));
-         VSObjectPropertyService properties = mock(VSObjectPropertyService.class);
-         doAnswer(invocation -> {
-            combo.setVSAssemblyInfo(invocation.getArgument(1, VSAssemblyInfo.class));
-            return null;
-         }).when(properties).editObjectProperty(any(), any(), any(), any(), any(), any(), any());
-
-         VSInputService input = spy(new VSInputService(
-            mock(VSObjectService.class), mock(CoreLifecycleService.class), viewsheets, properties,
-            dialogs, mock(VSTrapService.class), mock(DataRefModelFactoryService.class),
-            mock(VSAssemblyInfoHandler.class), mock(VSColumnHandler.class),
-            mock(QueryManagerService.class)));
-         doReturn(List.of(new String[0], new String[0], new String[0]))
-            .when(input).getInputTablesArray(any(), any());
-         doReturn(null).when(input).getInputTablesTree(any(), anyBoolean(), any());
-
-         return new RealStack(service(rvs, input), combo);
-      }
-      catch(Exception e) {
-         throw new IllegalStateException(e);
-      }
-   }
-
-   private static Principal principal() {
+   static Principal principal() {
       return () -> "admin";
    }
 }
