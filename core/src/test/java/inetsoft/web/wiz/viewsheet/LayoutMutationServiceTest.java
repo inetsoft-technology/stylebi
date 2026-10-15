@@ -634,6 +634,145 @@ class LayoutMutationServiceTest {
 
    // ── fixture ───────────────────────────────────────────────────────────────
 
+// ── Bug 78588: remove refuses unplaced names; remove/move_resize resolve header/footer ──
+
+   private static void place(Fixture fx, int region, String... names) {
+      PrintLayout print = fx.masterVs.getLayoutInfo().getPrintLayout();
+      List<VSAssemblyLayout> list = new ArrayList<>();
+
+      for(String name : names) {
+         list.add(new VSAssemblyLayout(name, new Point(1, 2), new Dimension(3, 4)));
+      }
+
+      fx.vsLayoutService.setVSAssemblyLayouts(print, list, region);
+   }
+
+   private static List<String> namesIn(Fixture fx, int region) {
+      return fx.vsLayoutService
+         .getVSAssemblyLayouts(fx.masterVs.getLayoutInfo().getPrintLayout(), region).stream()
+         .map(VSAssemblyLayout::getName).toList();
+   }
+
+   private static IllegalArgumentException assertRemoveRefused(Fixture fx, String layoutName,
+                                                               String... names)
+   {
+      List<Map<String, Object>> objects = new ArrayList<>();
+
+      for(String name : names) {
+         objects.add(Map.of("name", name));
+      }
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, layoutName, "remove",
+                                       VSLayoutService.CONTENT, objects, false));
+      assertTrue(thrown.getMessage().contains("is not placed in layout \"" + layoutName + "\""),
+                 thrown.getMessage());
+      return thrown;
+   }
+
+   @Test
+   void removeOfAnUnknownNameIsRefusedAndLeavesTheLayoutUnchanged() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      IllegalArgumentException thrown = assertRemoveRefused(fx, PRINT_LAYOUT, "NoSuchObject");
+
+      assertTrue(thrown.getMessage().contains("NoSuchObject"), thrown.getMessage());
+      assertEquals(List.of("Text1", "Table1"), fx.printLayoutObjectNames());
+   }
+
+   @Test
+   void removeWithOneUnknownNameInABatchRemovesNothing() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      assertRemoveRefused(fx, PRINT_LAYOUT, "Table1", "Ghost");
+
+      assertEquals(List.of("Text1", "Table1"), fx.printLayoutObjectNames());
+   }
+
+   @Test
+   void removeOfAnExistingButNeverPlacedAssemblyIsRefused() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addAssembly(new TableVSAssembly(fx.masterVs, "Table2"));
+
+      assertRemoveRefused(fx, PRINT_LAYOUT, "Table2");
+
+      assertEquals(List.of("Text1", "Table1"), fx.printLayoutObjectNames());
+   }
+
+   @Test
+   void removeOfAnUnplacedNameOnADeviceLayoutIsRefused() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installDeviceLayout();
+
+      assertRemoveRefused(fx, DEVICE_LAYOUT, "Table1");
+
+      assertTrue(fx.deviceLayoutObjects().isEmpty());
+   }
+
+   @Test
+   void removeAndMoveResizeReachAHeaderOnlyObjectFromContent() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      place(fx, VSLayoutService.HEADER, "HeaderTable");
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "HeaderTable", "x", 9, "y", 8)), false);
+
+      VSAssemblyLayout moved = fx.vsLayoutService.getVSAssemblyLayouts(
+         fx.masterVs.getLayoutInfo().getPrintLayout(), VSLayoutService.HEADER).get(0);
+      assertEquals(new Point(9, 8), moved.getPosition());
+      assertEquals(new Dimension(3, 4), moved.getSize());
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "remove", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "HeaderTable")), true);
+
+      assertTrue(namesIn(fx, VSLayoutService.HEADER).isEmpty());
+      assertEquals(List.of("Text1", "Table1"), fx.printLayoutObjectNames());
+   }
+
+   @Test
+   void aNameInContentAndHeaderActsOnContentAndLeavesTheHeaderAlone() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      place(fx, VSLayoutService.HEADER, "Table1");
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 7, "y", 7)), false);
+
+      assertEquals(new Point(7, 7), fx.printLayoutObject("Table1").getPosition());
+      assertEquals(new Point(1, 2), fx.vsLayoutService.getVSAssemblyLayouts(
+         fx.masterVs.getLayoutInfo().getPrintLayout(), VSLayoutService.HEADER).get(0)
+         .getPosition());
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "remove", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1")), true);
+
+      assertEquals(List.of("Text1"), fx.printLayoutObjectNames());
+      assertEquals(List.of("Table1"), namesIn(fx, VSLayoutService.HEADER));
+   }
+
+   @Test
+   void aNameInHeaderAndFooterButNotContentIsRefusedNamingBothRegions() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      place(fx, VSLayoutService.HEADER, "Dup");
+      place(fx, VSLayoutService.FOOTER, "Dup");
+
+      for(String op : List.of("remove", "move_resize")) {
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, op,
+               VSLayoutService.CONTENT, List.of(Map.of("name", "Dup", "x", 1, "y", 1)), true));
+         assertTrue(thrown.getMessage().contains("HEADER") &&
+                    thrown.getMessage().contains("FOOTER"), thrown.getMessage());
+      }
+
+      assertEquals(List.of("Dup"), namesIn(fx, VSLayoutService.HEADER));
+      assertEquals(List.of("Dup"), namesIn(fx, VSLayoutService.FOOTER));
+   }
+
    /**
     * Wires one {@code LayoutMutationService} against a REAL {@code LayoutSessionService}/
     * {@code VSLayoutService} (mocked only at the {@code ViewsheetSessionService}/
