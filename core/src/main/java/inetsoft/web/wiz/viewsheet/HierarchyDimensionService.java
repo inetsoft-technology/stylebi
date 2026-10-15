@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.DateRangeRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -112,7 +113,8 @@ public class HierarchyDimensionService {
     *                   {@code list_hierarchy_dimensions}' {@code availableColumns}.
     * @param dateLevels optional, parallel to {@code columns}: a date grouping
     *                   ({@link #DATE_LEVELS}) for the column at the same position, or null/blank
-    *                   for none. Ignored positions past the end of a shorter list are treated as
+    *                   for the Composer default (year; hour for a time column; none for a
+    *                   non-date column). Ignored positions past the end of a shorter list are treated as
     *                   null. Meaningless for a non-date column; not validated against the column's
     *                   own type, since a caller building a level from a column
     *                   {@code list_hierarchy_dimensions} has not yet seen may not know it yet.
@@ -122,7 +124,6 @@ public class HierarchyDimensionService {
       throws Exception
    {
       List<String> wanted = requireColumns(columns);
-      List<Integer> levels = resolveLevels(wanted, dateLevels);
       Map<String, Object> result = new LinkedHashMap<>();
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
@@ -132,6 +133,7 @@ public class HierarchyDimensionService {
          requireColumnCatalog(pane, assemblyName);
 
          OutputColumnRefModel[] catalog = columns(pane);
+         List<Integer> levels = resolveLevels(wanted, dateLevels, catalog);
          VSDimensionModel[] existing = dimensions(pane);
          Map<String, Integer> consumed = consumedColumns(existing);
          VSDimensionMemberModel[] members = new VSDimensionMemberModel[wanted.size()];
@@ -318,6 +320,18 @@ public class HierarchyDimensionService {
          String.join(", ", names(catalog)) + ". Use list_hierarchy_dimensions to see them.");
    }
 
+   private static OutputColumnRefModel findColumnOrNull(OutputColumnRefModel[] catalog,
+                                                         String wanted)
+   {
+      for(OutputColumnRefModel column : catalog) {
+         if(matches(column, wanted)) {
+            return column;
+         }
+      }
+
+      return null;
+   }
+
    private static boolean matches(OutputColumnRefModel column, String wanted) {
       if(wanted == null) {
          return false;
@@ -422,20 +436,32 @@ public class HierarchyDimensionService {
       return columns;
    }
 
-   private static List<Integer> resolveLevels(List<String> columns, List<String> dateLevels) {
+   private static List<Integer> resolveLevels(List<String> columns, List<String> dateLevels,
+                                               OutputColumnRefModel[] catalog)
+   {
       List<Integer> levels = new ArrayList<>();
 
       for(int i = 0; i < columns.size(); i++) {
          String requested = dateLevels == null || i >= dateLevels.size() ? null : dateLevels.get(i);
-         levels.add(dateLevel(requested, columns.get(i)));
+         levels.add(dateLevel(requested, columns.get(i), catalog));
       }
 
       return levels;
    }
 
-   private static int dateLevel(String requested, String columnName) {
+   private static int dateLevel(String requested, String columnName,
+                                OutputColumnRefModel[] catalog)
+   {
       if(requested == null || requested.isBlank()) {
-         return DateRangeRef.NONE_INTERVAL;
+         // same default the Composer's hierarchy pane applies when a date/time column is dragged
+         OutputColumnRefModel column = findColumnOrNull(catalog, columnName);
+         String type = column == null ? null : column.getDataType();
+
+         if(XSchema.TIME.equals(type)) {
+            return DateRangeRef.HOUR_INTERVAL;
+         }
+
+         return XSchema.isDateType(type) ? DateRangeRef.YEAR_INTERVAL : DateRangeRef.NONE_INTERVAL;
       }
 
       String key = requested.trim().toLowerCase();
@@ -444,7 +470,7 @@ public class HierarchyDimensionService {
       if(level == null) {
          throw new IllegalArgumentException(
             "'" + requested + "' is not a date level for '" + columnName + "'. Use one of: " +
-            String.join(", ", DATE_LEVELS.keySet()) + ", or omit it for no date grouping.");
+            String.join(", ", DATE_LEVELS.keySet()) + ", or omit it for the default (year for a date column, hour for a time column, none otherwise).");
       }
 
       return level;

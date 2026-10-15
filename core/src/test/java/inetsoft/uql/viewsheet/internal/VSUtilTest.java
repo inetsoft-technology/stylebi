@@ -22,9 +22,11 @@ import inetsoft.report.composition.graph.calc.RunningTotalCalc;
 import inetsoft.report.composition.graph.calc.RunningTotalColumn;
 import inetsoft.test.*;
 import inetsoft.uql.XDimension;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSCube;
 import inetsoft.uql.viewsheet.VSDimension;
 import inetsoft.uql.viewsheet.VSDimensionMember;
@@ -130,6 +132,119 @@ public class VSUtilTest {
 
       assertNotNull(nextRef);
       assertEquals("Customer.City", nextRef.getGroupColumnValue());
+   }
+
+   // Bug #76884: production shapes. Member and shelf ref columns are VS-qualified
+   // ("Customer:Region", no entity); the shelf ref carries the default level "-1" (resolves to
+   // year) while a plugin-built member stores option NONE. A string member's option must not
+   // gate the lookup.
+   @Test
+   void stringMemberOptionNoneIsFoundByDefaultLevelRef() {
+      VSCube cube = vsQualifiedCube(DateRangeRef.NONE_INTERVAL, DateRangeRef.NONE_INTERVAL);
+      VSDimensionRef regionRef = vsRegionRef("-1");
+
+      assertEquals(DateRangeRef.YEAR_INTERVAL, regionRef.getDateLevel());
+      assertEquals("+", VSUtil.getCrosstabDrillOp(cube, regionRef, new DataRef[] {regionRef}));
+
+      VSDimensionRef nextRef = VSUtil.getCubeNextLevelRef(regionRef, cube);
+      assertNotNull(nextRef);
+      assertEquals("Customer:City", nextRef.getGroupColumnValue());
+   }
+
+   // A Composer-built hierarchy (option 5) keeps working with the default-level ref.
+   @Test
+   void stringMemberOptionYearIsFoundByDefaultLevelRef() {
+      VSCube cube = vsQualifiedCube(DateRangeRef.YEAR_INTERVAL, DateRangeRef.YEAR_INTERVAL);
+      VSDimensionRef regionRef = vsRegionRef("-1");
+
+      assertEquals("+", VSUtil.getCrosstabDrillOp(cube, regionRef, new DataRef[] {regionRef}));
+      assertNotNull(VSUtil.getCubeNextLevelRef(regionRef, cube));
+   }
+
+   // An explicit "none" ref against a Composer-built (option 5) string hierarchy.
+   @Test
+   void stringMemberOptionYearIsFoundByExplicitNoneRef() {
+      VSCube cube = vsQualifiedCube(DateRangeRef.YEAR_INTERVAL, DateRangeRef.YEAR_INTERVAL);
+      VSDimensionRef regionRef = vsRegionRef("0");
+
+      assertEquals("+", VSUtil.getCrosstabDrillOp(cube, regionRef, new DataRef[] {regionRef}));
+   }
+
+   // An explicit "none" ref against a plugin-built (option 0) string hierarchy.
+   @Test
+   void stringMemberOptionNoneIsFoundByExplicitNoneRef() {
+      VSCube cube = vsQualifiedCube(DateRangeRef.NONE_INTERVAL, DateRangeRef.NONE_INTERVAL);
+      VSDimensionRef regionRef = vsRegionRef("0");
+
+      assertEquals("+", VSUtil.getCrosstabDrillOp(cube, regionRef, new DataRef[] {regionRef}));
+   }
+
+   // Date members still need the exact level: on [Year, QuarterOfYear, MonthOfYear] over one
+   // date column, the month ref resolves to index 2, not the first same-named member.
+   @Test
+   void partLevelDateHierarchyKeepsExactLevelMatching() {
+      XDimension dim = dateDimension(XSchema.DATE,
+                                     DateRangeRef.YEAR_INTERVAL,
+                                     DateRangeRef.QUARTER_OF_YEAR_PART,
+                                     DateRangeRef.MONTH_OF_YEAR_PART);
+
+      assertEquals(0, VSUtil.getScope("Order Date", dim, DateRangeRef.YEAR_INTERVAL));
+      assertEquals(1, VSUtil.getScope("Order Date", dim, DateRangeRef.QUARTER_OF_YEAR_PART));
+      assertEquals(2, VSUtil.getScope("Order Date", dim, DateRangeRef.MONTH_OF_YEAR_PART));
+   }
+
+   // TIME columns are date-like for level matching: [Hour, Minute] resolves minute to index 1.
+   @Test
+   void timeHierarchyKeepsExactLevelMatching() {
+      XDimension dim = dateDimension(XSchema.TIME,
+                                     DateRangeRef.HOUR_INTERVAL, DateRangeRef.MINUTE_INTERVAL);
+
+      assertEquals(0, VSUtil.getScope("Order Date", dim, DateRangeRef.HOUR_INTERVAL));
+      assertEquals(1, VSUtil.getScope("Order Date", dim, DateRangeRef.MINUTE_INTERVAL));
+   }
+
+   private XDimension dateDimension(String type, int... options) {
+      VSDimension dimension = new VSDimension();
+      dimension.setName("DateHierarchy");
+
+      for(int option : options) {
+         AttributeRef attr = new AttributeRef(null, "Order Date");
+         attr.setDataType(type);
+         ColumnRef column = new ColumnRef(attr);
+         column.setDataType(type);
+         VSDimensionMember member = new VSDimensionMember();
+         member.setDataRef(column);
+         member.setDateOption(option);
+         dimension.addLevel(member);
+      }
+
+      return dimension;
+   }
+
+   private VSDimensionRef vsRegionRef(String dateLevelValue) {
+      VSDimensionRef ref =
+         new VSDimensionRef(new ColumnRef(new AttributeRef(null, "Customer:Region")));
+      ref.setDateLevelValue(dateLevelValue);
+      return ref;
+   }
+
+   private VSCube vsQualifiedCube(int regionOption, int cityOption) {
+      VSDimensionMember regionMember = new VSDimensionMember();
+      regionMember.setDataRef(new ColumnRef(new AttributeRef(null, "Customer:Region")));
+      regionMember.setDateOption(regionOption);
+
+      VSDimensionMember cityMember = new VSDimensionMember();
+      cityMember.setDataRef(new ColumnRef(new AttributeRef(null, "Customer:City")));
+      cityMember.setDateOption(cityOption);
+
+      VSDimension dimension = new VSDimension();
+      dimension.setName("RegionCityHierarchy");
+      dimension.addLevel(regionMember);
+      dimension.addLevel(cityMember);
+
+      VSCube cube = new VSCube();
+      cube.setDimensions(List.<XDimension>of(dimension));
+      return cube;
    }
 
    private VSCube entityQualifiedRegionCityCube() {

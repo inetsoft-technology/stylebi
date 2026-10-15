@@ -3607,9 +3607,14 @@ public final class VSUtil {
 
          if(matches) {
             if(mbr instanceof VSDimensionMember) {
-               int level2 = ((VSDimensionMember) mbr).getDateOption();
+               DataRef mbrRef = mbr.getDataRef();
 
-               if(dlevel != level2) {
+               // the date option only tells apart levels of one date/time column; for any
+               // other column it is not meaningful, and the shelf ref's default level would
+               // otherwise never match a member stored with option NONE
+               if(mbrRef != null && XSchema.isDateType(mbrRef.getDataType()) &&
+                  dlevel != ((VSDimensionMember) mbr).getDateOption())
+               {
                   continue;
                }
             }

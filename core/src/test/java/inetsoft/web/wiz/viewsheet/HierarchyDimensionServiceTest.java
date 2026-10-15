@@ -93,13 +93,27 @@ class HierarchyDimensionServiceTest {
       assertSame(country, writtenDimensions(h)[0].getMembers()[0].getDataRef());
    }
 
+   // Bug #76884: a blank level on a date column defaults to year, as the Composer's hierarchy
+   // pane does; a non-date column stays none.
    @Test
-   void addDefaultsToNoDateGroupingWhenOmitted() throws Exception {
+   void addDefaultsADateColumnToYearAndAStringColumnToNoneWhenOmitted() throws Exception {
       Harness h = harnessChart(paneWith(column("Order Date"), column("State")));
 
       h.service.add("tok", principal(), "Chart1", List.of("Order Date", "State"), null, "");
 
-      assertEquals(DateRangeRef.NONE_INTERVAL, writtenDimensions(h)[0].getMembers()[0].getOption());
+      assertEquals(DateRangeRef.YEAR_INTERVAL, writtenDimensions(h)[0].getMembers()[0].getOption());
+      assertEquals(DateRangeRef.NONE_INTERVAL, writtenDimensions(h)[0].getMembers()[1].getOption());
+   }
+
+   @Test
+   void addDefaultsATimeColumnToHourWhenOmitted() throws Exception {
+      OutputColumnRefModel time = column("Start Time");
+      time.setDataType("time");
+      Harness h = harnessChart(paneWith(time, column("State")));
+
+      h.service.add("tok", principal(), "Chart1", List.of("Start Time"), null, "");
+
+      assertEquals(DateRangeRef.HOUR_INTERVAL, writtenDimensions(h)[0].getMembers()[0].getOption());
    }
 
    @Test
