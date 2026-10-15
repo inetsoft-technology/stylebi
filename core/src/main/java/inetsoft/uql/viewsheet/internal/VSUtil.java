@@ -3606,7 +3606,9 @@ public final class VSUtil {
          }
 
          if(matches) {
-            if(mbr instanceof VSDimensionMember) {
+            // the date option of a non-date member is meaningless: it can differ from the
+            // runtime ref level (5 by default) without the two being different levels
+            if(mbr instanceof VSDimensionMember && isDateMember((VSDimensionMember) mbr)) {
                int level2 = ((VSDimensionMember) mbr).getDateOption();
 
                if(dlevel != level2) {
@@ -3619,6 +3621,11 @@ public final class VSUtil {
       }
 
       return -1;
+   }
+
+   private static boolean isDateMember(VSDimensionMember member) {
+      DataRef ref = member.getDataRef();
+      return ref != null && AssetUtil.isDateType(ref.getDataType());
    }
 
    /**

@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.DateRangeRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -112,7 +113,7 @@ public class HierarchyDimensionService {
     *                   {@code list_hierarchy_dimensions}' {@code availableColumns}.
     * @param dateLevels optional, parallel to {@code columns}: a date grouping
     *                   ({@link #DATE_LEVELS}) for the column at the same position, or null/blank
-    *                   for none. Ignored positions past the end of a shorter list are treated as
+    *                   for the default (year for a date column, none otherwise). Ignored positions past the end of a shorter list are treated as
     *                   null. Meaningless for a non-date column; not validated against the column's
     *                   own type, since a caller building a level from a column
     *                   {@code list_hierarchy_dimensions} has not yet seen may not know it yet.
@@ -163,7 +164,8 @@ public class HierarchyDimensionService {
 
             VSDimensionMemberModel member = new VSDimensionMemberModel();
             member.setDataRef(column);
-            member.setOption(levels.get(i));
+            Integer requested = levels.get(i);
+            member.setOption(requested != null ? requested : defaultOption(column.getDataType()));
             members[i] = member;
          }
 
@@ -422,12 +424,22 @@ public class HierarchyDimensionService {
       return columns;
    }
 
+   /** The option the Composer's Hierarchy dialog gives a dropped column: a date column starts at
+    *  year (a time column at hour); a non-date column has no date grouping. */
+   private static int defaultOption(String dataType) {
+      if(XSchema.TIME.equals(dataType)) {
+         return DateRangeRef.HOUR_INTERVAL;
+      }
+
+      return XSchema.isDateType(dataType) ? DateRangeRef.YEAR_INTERVAL : DateRangeRef.NONE_INTERVAL;
+   }
+
    private static List<Integer> resolveLevels(List<String> columns, List<String> dateLevels) {
       List<Integer> levels = new ArrayList<>();
 
       for(int i = 0; i < columns.size(); i++) {
          String requested = dateLevels == null || i >= dateLevels.size() ? null : dateLevels.get(i);
-         levels.add(dateLevel(requested, columns.get(i)));
+         levels.add(requested == null || requested.isBlank() ? null : dateLevel(requested, columns.get(i)));
       }
 
       return levels;
@@ -444,7 +456,7 @@ public class HierarchyDimensionService {
       if(level == null) {
          throw new IllegalArgumentException(
             "'" + requested + "' is not a date level for '" + columnName + "'. Use one of: " +
-            String.join(", ", DATE_LEVELS.keySet()) + ", or omit it for no date grouping.");
+            String.join(", ", DATE_LEVELS.keySet()) + ", or omit it for the default (year for a date column, none otherwise).");
       }
 
       return level;
