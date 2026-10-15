@@ -21,10 +21,8 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.*;
-import inetsoft.uql.asset.AggregateFormula;
-import inetsoft.uql.asset.SourceInfo;
-import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.binding.drm.CalculateRefModel;
@@ -196,6 +194,42 @@ class ModifyCalculateFieldServiceTest {
       CrosstabVSAssembly probe = addProbe();
       assertDoesNotThrow(() -> probe.changeCalcType(CALC, vs.getCalcField(TABLE, CALC)));
       assertEquals(0, probe.getVSCrosstabInfo().getDesignAggregates().length);
+   }
+
+   @Test
+   void removeOutsideWizardSyncsUnboundCrosstabAndSkipsProbe() throws Exception {
+      CrosstabVSAssembly probe = addProbe();
+      CrosstabVSAssembly cross = addCrosstabWithoutAggregateInfo();
+
+      service.modifyCalculateField("vs1", removeEvent(false), principal, dispatcher, null);
+
+      assertNull(vs.getCalcField(TABLE, CALC));
+      assertTrue(sentCommands().stream().noneMatch(c -> c instanceof MessageCommand));
+      assertEquals(0, cross.getVSCrosstabInfo().getDesignAggregates().length);
+      assertEquals(2, probe.getVSCrosstabInfo().getDesignAggregates().length);
+      assertEquals(Set.of(VSWizardConstants.TEMP_CHART_NAME, "Crosstab1"),
+                   new HashSet<>(appliedNames()));
+   }
+
+   @Test
+   void crosstabWithAggregateInfoStillSyncsIt() {
+      CrosstabVSAssembly cross = addCrosstabWithoutAggregateInfo();
+      AggregateInfo ainfo = new AggregateInfo();
+      ainfo.addAggregate(new AggregateRef(new ColumnRef(new AttributeRef(CALC)),
+                                          AggregateFormula.SUM));
+      ainfo.addGroup(new GroupRef(new ColumnRef(new AttributeRef("Region"))));
+      ainfo.addGroup(new GroupRef(new ColumnRef(new AttributeRef(CALC))), false);
+      cross.getVSCrosstabInfo().setAggregateInfo(ainfo);
+
+      cross.renameBindingCol(CALC, "Scratch2");
+      assertEquals("Scratch2", ainfo.getAggregates()[0].getDataRef().getAttribute());
+      assertEquals("Scratch2", ainfo.getGroups()[1].getDataRef().getAttribute());
+
+      cross.removeBindingCol("Scratch2");
+      assertEquals(0, ainfo.getAggregates().length);
+      assertEquals(1, ainfo.getGroups().length);
+      assertEquals("Region", ainfo.getGroups()[0].getDataRef().getAttribute());
+      assertEquals(0, cross.getVSCrosstabInfo().getDesignAggregates().length);
    }
 
    // the shape CardinalityExecutor leaves behind: a hidden probe on the temp chart's source
