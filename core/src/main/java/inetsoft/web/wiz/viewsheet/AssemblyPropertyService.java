@@ -21,8 +21,10 @@ import inetsoft.graph.GraphConstants;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.ColumnOption;
@@ -39,6 +41,7 @@ import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
+import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RangePaneModel;
 import inetsoft.web.composer.model.vs.TableStylePaneModel;
@@ -312,6 +315,16 @@ public class AssemblyPropertyService {
          model = requireKnownSelectionMeasure(runtimeId, user, assemblyName, type, model,
                                               measureBefore);
 
+         if("selectiontree".equals(type) && resolved.values().stream().anyMatch(
+            path -> path.equalsIgnoreCase(SINGLE_SELECTION_LEVELS_PATH)))
+         {
+            model = requireKnownSingleSelectionLevels(model);
+         }
+
+         if("timeslider".equals(type)) {
+            requireApplicableRangeSize(model, resolved.values());
+         }
+
          if(PropertyAliases.derivesVariableFlagFromTable(type)) {
             model = normalizeVariableTableBinding(model);
          }
@@ -374,6 +387,147 @@ public class AssemblyPropertyService {
             writeModel(runtimeId, type, assemblyName, written, linkUri, user, dispatcher);
          }
       });
+   }
+
+   private static final String RANGE_SIZE_PANE =
+      "rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.";
+
+   /**
+    * {@code RangeSliderPropertyDialogService.setTimeInfo} rebuilds the TimeInfo on every write and
+    * persists rangeSize only for a single NUMBER slider without log scale, maxRangeSize for a
+    * single slider unless it is NUMBER with log scale, and none of the three range fields for a
+    * composite slider -- every other write reports success and reads back 0 (bug-78566). Judged
+    * on the post-patch model so {@code {rangeType:"number", rangeSize:7}} and {@code
+    * {logScale:false, rangeSize:7}} stay legal, and only for the fields the patch wrote, so a
+    * value already in the model never blocks an unrelated write.
+    */
+   static void requireApplicableRangeSize(Object model, Collection<String> resolvedPaths) {
+      boolean rangeType = writes(resolvedPaths, "rangeType");
+      boolean rangeSize = writes(resolvedPaths, "rangeSize");
+      boolean maxRangeSize = writes(resolvedPaths, "maxRangeSize");
+
+      if(!rangeType && !rangeSize && !maxRangeSize) {
+         return;
+      }
+
+      boolean composite = (Boolean) PropertyPath.get(model, "rangeSliderDataPaneModel.composite");
+      boolean logScale = (Boolean) PropertyPath.get(model, RANGE_SIZE_PANE + "logScale");
+      boolean number =
+         (Integer) PropertyPath.get(model, RANGE_SIZE_PANE + "rangeType") == TimeInfo.NUMBER;
+
+      if(composite) {
+         String field = rangeType ? "rangeType" : rangeSize ? "rangeSize" : "maxRangeSize";
+
+         throw new IllegalArgumentException(
+            field + ": a composite range slider has no range type or range size -- StyleBI " +
+            "never stores them for one, so the write would report success and read back 0. " +
+            "Set rangeSliderDataPaneModel.composite:false in the same call to use a single range.");
+      }
+
+      if(rangeSize && !number) {
+         throw new IllegalArgumentException(
+            "rangeSize: only a NUMBER range slider stores a range size, and this one is not " +
+            "(rangeType is not NUMBER), so the write would report success and read back 0. " +
+            "Set rangeType:\"number\" in the same call, or use maxRangeSize.");
+      }
+
+      if((rangeSize || maxRangeSize) && number && logScale) {
+         throw new IllegalArgumentException(
+            (rangeSize ? "rangeSize" : "maxRangeSize") + ": a log-scale NUMBER range slider " +
+            "stores neither rangeSize nor maxRangeSize, so the write would report success and " +
+            "read back 0. Set logScale:false in the same call.");
+      }
+   }
+
+   private static boolean writes(Collection<String> resolvedPaths, String leaf) {
+      return resolvedPaths.stream().anyMatch(path -> path.equalsIgnoreCase(RANGE_SIZE_PANE + leaf));
+   }
+
+   private static final String SINGLE_SELECTION_LEVELS_PATH =
+      "selectionGeneralPaneModel.singleSelectionLevels";
+
+   /**
+    * {@code setSingleSelectionLevelNames} silently drops every name that is not a level (an
+    * unknown name, a different case) and a non-string element surfaces as a bare
+    * ClassCastException; an empty list means "every level", and levels written while the tree is
+    * not single-select stay dormant (bug-78566). Checks the post-patch model, so a patch that also
+    * rebinds the columns or toggles single-select is judged as a whole, and returns it with
+    * duplicates removed.
+    */
+   static Object requireKnownSingleSelectionLevels(Object model) {
+      String field = "singleSelectionLevels: ";
+      Object levels = PropertyPath.get(model, SINGLE_SELECTION_LEVELS_PATH);
+
+      if((Integer) PropertyPath.get(model, "selectionTreePaneModel.mode") ==
+         SelectionTreeVSAssemblyInfo.ID)
+      {
+         throw new IllegalArgumentException(
+            field + "an ID-mode tree has no fixed levels, so single-select levels do not " +
+            "apply. Use singleSelection instead.");
+      }
+
+      boolean single = (Boolean) PropertyPath.get(model, "selectionGeneralPaneModel.singleSelection");
+
+      // Turning single-select off clears its levels, which is what the Composer does too.
+      if(!single && (levels == null || levels instanceof List<?> cleared && cleared.isEmpty())) {
+         return model;
+      }
+
+      if(!(levels instanceof List<?> list) || list.isEmpty()) {
+         throw new IllegalArgumentException(
+            field + "the list is empty, which StyleBI reads as \"every level\". Name the " +
+            "levels to make single-select, or set singleSelection:true for all of them.");
+      }
+
+      List<String> valid = singleSelectionLevelNames(model);
+      Set<String> distinct = new LinkedHashSet<>();
+
+      for(Object element : list) {
+         if(!(element instanceof String name)) {
+            throw new IllegalArgumentException(
+               field + "each level must be a level name string, got " + element + ". Valid " +
+               "levels: " + String.join(", ", valid));
+         }
+
+         if(!valid.contains(name)) {
+            throw new IllegalArgumentException(
+               field + "unknown level '" + name + "' (level names are case-sensitive). Valid " +
+               "levels: " + String.join(", ", valid));
+         }
+
+         distinct.add(name);
+      }
+
+      if(!single) {
+         throw new IllegalArgumentException(
+            field + "the tree is not single-select, so the levels would be stored but never " +
+            "applied. Set singleSelection:true in the same call.");
+      }
+
+      return distinct.size() == list.size() ? model :
+         PropertyPath.set(model, SINGLE_SELECTION_LEVELS_PATH, new ArrayList<>(distinct));
+   }
+
+   /**
+    * The level names {@code SelectionVSAssemblyInfo.getLevelName} yields for the tree's columns.
+    */
+   static List<String> singleSelectionLevelNames(Object model) {
+      OutputColumnRefModel[] columns =
+         (OutputColumnRefModel[]) PropertyPath.get(model, "selectionTreePaneModel.selectedColumns");
+      List<String> names = new ArrayList<>();
+
+      for(OutputColumnRefModel column : columns == null ? new OutputColumnRefModel[0] : columns) {
+         AttributeRef attribute = new AttributeRef(column.getEntity(), column.getAttribute());
+         attribute.setRefType(column.getRefType());
+         ColumnRef ref = new ColumnRef(attribute);
+         ref.setAlias(column.getAlias());
+         String name = (column.getRefType() & DataRef.CUBE_DIMENSION) == DataRef.CUBE_DIMENSION ?
+            ref.getAttribute() : ref.getName();
+         int idx = name.indexOf(':');
+         names.add(idx == -1 ? name : name.substring(idx + 1));
+      }
+
+      return names;
    }
 
    private static String selectionPane(String type) {

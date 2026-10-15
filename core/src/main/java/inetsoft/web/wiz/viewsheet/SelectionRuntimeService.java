@@ -549,6 +549,7 @@ public class SelectionRuntimeService {
             // when independently selected), not leaf paths the way the non-ID branch's
             // selectedPaths()-based count does -- the two are not directly comparable.
             int cleared = countSelected(assembly);
+            List<List<String>> beforeIds = selectedNodeIds(assembly);
             result.put("clearedCount", cleared);
 
             if(cleared > 0) {
@@ -556,7 +557,8 @@ public class SelectionRuntimeService {
                event.setType(ApplySelectionListEvent.Type.APPLY);
                selections.applySelection(runtimeId, assemblyName, event, user, dispatcher,
                                          linkUri);
-               reportRetainedAfterClear(result, assembly, cleared, countSelected(assembly), true);
+               reportRetainedAfterClear(result, assembly, beforeIds, selectedNodeIds(assembly),
+                                        true);
             }
          }
          else {
@@ -571,8 +573,7 @@ public class SelectionRuntimeService {
                selections.applySelection(runtimeId, assemblyName,
                                          deselectEvent(deselectTargets(current, current)), user,
                                          dispatcher, linkUri);
-               reportRetainedAfterClear(result, assembly, current.size(),
-                                        selectedPaths(assembly).size(), false);
+               reportRetainedAfterClear(result, assembly, current, selectedPaths(assembly), false);
             }
          }
       });
@@ -586,26 +587,56 @@ public class SelectionRuntimeService {
     * Re-states clear_selection's result from the post-apply state. With an active search,
     * {@code VSSelectionService.applySelection} adds back every selected value the search hides --
     * the interactive Clear button does the same -- so the pre-apply count overstates what was
-    * removed (bug-78294). {@code before} and {@code after} must be in the same unit.
+    * removed (bug-78294). A single-select assembly cannot stay empty either: the post-apply
+    * refresh selects its first value, so comparing counts would report "nothing cleared" for a
+    * selection that merely moved (bug-78566). {@code before} and {@code after} are therefore
+    * compared by identity and must be in the same unit.
     */
    private static void reportRetainedAfterClear(Map<String, Object> result,
-                                                SelectionVSAssembly assembly, int before,
-                                                int after, boolean idMode)
+                                                SelectionVSAssembly assembly,
+                                                List<List<String>> before,
+                                                List<List<String>> after, boolean idMode)
    {
-      result.put("clearedCount", Math.max(0, before - after));
-      result.put("selectedTotal", after);
+      result.put("clearedCount", clearedCount(before, after));
+      result.put("selectedTotal", after.size());
 
-      if(after > 0) {
-         SelectionList live = selectionListOf(assembly);
-         String search = searchString((SelectionVSAssemblyInfo) assembly.getInfo());
+      SelectionVSAssemblyInfo info = (SelectionVSAssemblyInfo) assembly.getInfo();
+      String search = searchString(info);
+      boolean searching = search != null && !search.isBlank();
 
-         if(search != null && !search.isBlank()) {
-            result.put("scopedBySearch", search);
-            result.put("scopedBySearchRetained",
-                       retainedSelection(live == null ? null : live.getSelectionValues(),
-                                         List.of(), idMode));
+      if(info.isSingleSelection() && !after.isEmpty()) {
+         List<List<String>> reselected = reselectedAfterClear(before, after);
+
+         if(reselected.isEmpty() && !searching) {
+            reselected = after;
+         }
+
+         if(!reselected.isEmpty()) {
+            result.put("reselectedBySingleSelect", reselected);
          }
       }
+
+      if(!after.isEmpty() && searching) {
+         SelectionList live = selectionListOf(assembly);
+         result.put("scopedBySearch", search);
+         result.put("scopedBySearchRetained",
+                    retainedSelection(live == null ? null : live.getSelectionValues(),
+                                      List.of(), idMode));
+      }
+   }
+
+   /** How many of the {@code before} values are no longer selected, by identity. */
+   static int clearedCount(List<List<String>> before, List<List<String>> after) {
+      Set<List<String>> remaining = new HashSet<>(after);
+      return (int) before.stream().distinct().filter(v -> !remaining.contains(v)).count();
+   }
+
+   /** The values selected after a clear that were not selected before it. */
+   static List<List<String>> reselectedAfterClear(List<List<String>> before,
+                                                  List<List<String>> after)
+   {
+      Set<List<String>> previous = new HashSet<>(before);
+      return after.stream().filter(v -> !previous.contains(v)).toList();
    }
 
    /**
@@ -1106,6 +1137,12 @@ public class SelectionRuntimeService {
             collectSelectedNodeIds(childList == null ? null : childList.getSelectionValues(), ids);
          }
       }
+   }
+
+   private static List<List<String>> selectedNodeIds(SelectionVSAssembly assembly) {
+      SelectionList list = selectionListOf(assembly);
+      return selectedNodeIds(list == null ? null : list.getSelectionValues()).stream()
+         .map(List::of).toList();
    }
 
    private static ApplySelectionListEvent.Value value(List<String> path, boolean selected) {
