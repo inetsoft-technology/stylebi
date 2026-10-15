@@ -178,15 +178,25 @@ export class FixedDropdownComponent implements OnInit, AfterViewInit, OnDestroy 
       // the target here before setTimeout, otherwise composedPath will be empty
       let target = event.composedPath()[0] || event.target;
 
+      // Bug #78604, decide now whether the target is inside this dropdown or inside one
+      // stacked above it. Chromium can dispatch the click before the timer below, and an
+      // autoClose dropdown above this one then closes itself and detaches the target first,
+      // which would make the deferred check treat the click as an outside click.
+      const insideStackedDropdown = this.elementContainsTarget(target) ||
+         !this.dropdownService.isCurrent(this) && this.isDropdown(target as Element);
+
       // wait until a newly popped up fixed dropdown to set the current dropdown so
       // the isCurrent() check would work properly
-      setTimeout(() => this.documentMousedown0(event, target), 0);
+      setTimeout(() => this.documentMousedown0(event, target, insideStackedDropdown), 0);
    }
 
-   private documentMousedown0(event: MouseEvent, target: EventTarget) {
+   private documentMousedown0(event: MouseEvent, target: EventTarget,
+                              insideStackedDropdown: boolean = false)
+   {
       const element = target as Element;
 
-      if(this.closeOnOutsideClick && !this.elementContainsTarget(target) &&
+      if(this.closeOnOutsideClick && !insideStackedDropdown &&
+         !this.elementContainsTarget(target) &&
          !this.isBackdrop(element) &&
          (!this.isDropdown(element) || this.dropdownService.isCurrent(this)))
       {
