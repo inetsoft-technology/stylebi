@@ -269,6 +269,7 @@ public class AssemblyPropertyService {
          String type = typeOf(rvs, assemblyName);
          Object model = readModel(rvs, type, assemblyName, user);
          String measureBefore = selectionMeasure(type, model);
+         SelectionSourceGuard.Snapshot sourceBefore = SelectionSourceGuard.snapshot(type, model);
 
          // Resolved whole before anything is written: a typo in the fourth key must not
          // leave the first three applied, which would be a partial edit the caller has no
@@ -315,6 +316,9 @@ public class AssemblyPropertyService {
             model = PropertyPath.set(model, entry.getValue(), value);
          }
 
+         // Before the measure check, so a measure is never looked up against a table set the
+         // patch is about to be refused for.
+         SelectionSourceGuard.requireSourceUnchanged(type, sourceBefore, model);
          model = requireKnownSelectionMeasure(runtimeId, user, assemblyName, type, model,
                                               measureBefore);
 
@@ -427,7 +431,7 @@ public class AssemblyPropertyService {
          throw new IllegalArgumentException(
             field + ": a composite range slider has no range type or range size -- StyleBI " +
             "never stores them for one, so the write would report success and read back 0. " +
-            "Set rangeSliderDataPaneModel.composite:false in the same call to use a single range.");
+            "To use a single range, rebind the slider to one column with set_selection_source.");
       }
 
       if(rangeSize && !number) {
@@ -555,7 +559,8 @@ public class AssemblyPropertyService {
     * (or a bare {@code "="}) left the bars/aggregate silently broken. Compares the pane's measure
     * before and after the patch loop -- so it catches the {@code measure} alias, a raw path in any
     * case and the tree, which has no alias -- and runs the same resolution
-    * {@code set_selection_source} does against the post-patch table, before anything is written.
+    * {@code set_selection_source} does against the stored table set (a source change in the same
+    * patch is refused first, by {@link SelectionSourceGuard}), before anything is written.
     * Blank clears the measure and is not checked.
     */
    private Object requireKnownSelectionMeasure(String runtimeId, Principal user,

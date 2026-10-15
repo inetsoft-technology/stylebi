@@ -67,6 +67,7 @@ import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -1905,6 +1906,8 @@ class AssemblyPropertyServiceTest {
    private static List<Object> lastDialogServices;
    private static SelectionListPropertyDialogService lastSelectionList;
    private static SelectionTreePropertyDialogService lastSelectionTree;
+   private static RangeSliderPropertyDialogService lastRangeSlider;
+   private static CalendarPropertyDialogService lastCalendar;
 
    private static void verifyNothingWritten() throws Exception {
       verify(lastSelectionList, never())
@@ -2068,15 +2071,246 @@ class AssemblyPropertyServiceTest {
       verifyNothingWritten();
    }
 
+   /**
+    * The measure is checked against the stored table: a table can't change in the same patch
+    * (#78480, see {@link #refusesASelectedTableWrittenTogetherWithAMeasure}).
+    */
    @Test
-   void checksTheMeasureAgainstATableSetInTheSamePatch() throws Exception {
+   void checksTheMeasureAgainstTheStoredTable() throws Exception {
       SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      model.getSelectionListPaneModel().setSelectedTable("ORDERS");
 
-      setList(model, Map.of("selectionListPaneModel.selectedTable", "ORDERS",
-                            "measure", "amount"));
+      setList(model, Map.of("measure", "amount"));
 
       assertEquals("AMOUNT", listMeasure(model));
       verify(lastDataOutput).getOutputSelectionColumns(eq("rt1"), eq(List.of("ORDERS")), any());
+   }
+
+   @Test
+   void refusesASelectedTableWrittenTogetherWithAMeasure() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> setList(model, Map.of(
+         "selectionListPaneModel.selectedTable", "ORDERS", "measure", "amount")));
+
+      assertTrue(thrown.getMessage().contains("set_selection_source"), thrown.getMessage());
+      verify(lastDataOutput, never()).getOutputSelectionColumns(any(), any(), any());
+      verifyNothingWritten();
+   }
+
+   // ── #78480: a selection's data source is set_selection_source's, not a raw path's ──
+
+   private static OutputColumnRefModel column(String table, String attribute) {
+      OutputColumnRefModel column = new OutputColumnRefModel();
+      column.setTable(table);
+      column.setEntity(table);
+      column.setAttribute(attribute);
+      column.setDataType("string");
+      return column;
+   }
+
+   private static SelectionListPropertyDialogModel sourcedList() {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      model.getSelectionListPaneModel().setSelectedTable("CUSTOMERS");
+      model.getSelectionListPaneModel().setAdditionalTables(new ArrayList<>(List.of("ORDERS")));
+      model.getSelectionListPaneModel().setSelectedColumn(column("CUSTOMERS", "STATE"));
+      return model;
+   }
+
+   private static SelectionTreePropertyDialogModel columnTree() {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      model.getSelectionTreePaneModel().setSelectedTable("CUSTOMERS");
+      model.getSelectionTreePaneModel().setAdditionalTables(new ArrayList<>());
+      model.getSelectionTreePaneModel().setMode(SelectionTreeVSAssemblyInfo.COLUMN);
+      model.getSelectionTreePaneModel().setSelectedColumns(new OutputColumnRefModel[] {
+         column("CUSTOMERS", "STATE"), column("CUSTOMERS", "CITY")});
+      return model;
+   }
+
+   private static SelectionTreePropertyDialogModel idTree() {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      model.getSelectionTreePaneModel().setSelectedTable("EMPLOYEES");
+      model.getSelectionTreePaneModel().setAdditionalTables(new ArrayList<>());
+      model.getSelectionTreePaneModel().setMode(SelectionTreeVSAssemblyInfo.ID);
+      model.getSelectionTreePaneModel().setParentId("BOSS_ID");
+      model.getSelectionTreePaneModel().setId("ID");
+      model.getSelectionTreePaneModel().setLabel("NAME");
+      model.getSelectionTreePaneModel().setParentIdRef(column("EMPLOYEES", "BOSS_ID"));
+      model.getSelectionTreePaneModel().setIdRef(column("EMPLOYEES", "ID"));
+      model.getSelectionTreePaneModel().setLabelRef(column("EMPLOYEES", "NAME"));
+      return model;
+   }
+
+   private static RangeSliderPropertyDialogModel sourcedSlider() {
+      RangeSliderPropertyDialogModel model = new RangeSliderPropertyDialogModel();
+      model.getRangeSliderDataPaneModel().setSelectedTable("ORDERS");
+      model.getRangeSliderDataPaneModel().setAdditionalTables(new ArrayList<>());
+      model.getRangeSliderDataPaneModel().setSelectedColumns(
+         new OutputColumnRefModel[] {column("ORDERS", "ORDER_DATE")});
+      return model;
+   }
+
+   private static CalendarPropertyDialogModel sourcedCalendar() {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      model.getCalendarDataPaneModel().setSelectedTable("ORDERS");
+      model.getCalendarDataPaneModel().setAdditionalTables(new ArrayList<>());
+      model.getCalendarDataPaneModel().setSelectedColumn(column("ORDERS", "ORDER_DATE"));
+      return model;
+   }
+
+   private static void setTree(SelectionTreePropertyDialogModel model, Map<String, Object> patch)
+      throws Exception
+   {
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+      service.set("tok", principal(), "Tree1", patch, "");
+   }
+
+   private static void setSlider(RangeSliderPropertyDialogModel model, Map<String, Object> patch)
+      throws Exception
+   {
+      AssemblyPropertyService service =
+         serviceWithRangeSlider(mock(TimeSliderVSAssembly.class), model);
+      service.set("tok", principal(), "Slider1", patch, "");
+   }
+
+   private static void setCalendar(CalendarPropertyDialogModel model, Map<String, Object> patch)
+      throws Exception
+   {
+      AssemblyPropertyService service =
+         serviceWithCalendar(mock(CalendarVSAssembly.class), model);
+      service.set("tok", principal(), "Calendar1", patch, "");
+   }
+
+   /** Refused naming the path and set_selection_source, and nothing reaches any apply. */
+   private static void assertSourceRefused(String path, Executable write) throws Exception {
+      Exception thrown = assertThrows(IllegalArgumentException.class, write);
+
+      assertTrue(thrown.getMessage().contains("set_selection_source"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains(path), thrown.getMessage());
+      verifyNothingWritten();
+      verify(lastRangeSlider, never())
+         .setRangeSliderPropertyModel(any(), any(), any(), any(), any(), any());
+      verify(lastCalendar, never())
+         .setCalendarPropertyModel(any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void refusesARawSelectionListSourceWriteInEverySpelling() throws Exception {
+      Map<String, Object> writes = new LinkedHashMap<>();
+      writes.put("selectionListPaneModel.additionalTables", List.of("NO_SUCH_TABLE"));
+      writes.put("SelectionListPaneModel.AdditionalTables", List.of("PRODUCTS"));
+      writes.put("selectionListPaneModel.selectedTable", "ORDERS");
+      writes.put("selectionListPaneModel.selectedColumn.attribute", "CITY");
+      // never read by the apply: refused rather than reported as an ok:true no-op
+      writes.put("selectionListPaneModel.selectedColumn.table", "ORDERS");
+
+      for(Map.Entry<String, Object> write : writes.entrySet()) {
+         String path = PropertyAliases.lowerSegmentInitials(write.getKey());
+         SelectionListPropertyDialogModel model = sourcedList();
+         assertSourceRefused(path, () -> setList(model, Map.of(write.getKey(), write.getValue())));
+      }
+   }
+
+   @Test
+   void refusesAWriteIntoASelectionListTargetTree() throws Exception {
+      SelectionListPropertyDialogModel model = sourcedList();
+      model.getSelectionListPaneModel().setTargetTree(
+         TreeNodeModel.builder().label("root").build());
+
+      assertSourceRefused("selectionListPaneModel.targetTree", () -> setList(model, Map.of(
+         "selectionListPaneModel.targetTree.label", "other")));
+   }
+
+   @Test
+   void refusesARawSelectionTreeSourceWrite() throws Exception {
+      assertSourceRefused("selectionTreePaneModel.selectedTable", () -> setTree(
+         columnTree(), Map.of("selectionTreePaneModel.selectedTable", "ORDERS")));
+      assertSourceRefused("selectionTreePaneModel.additionalTables", () -> setTree(
+         columnTree(), Map.of("selectionTreePaneModel.additionalTables", List.of("ORDERS"))));
+      assertSourceRefused("selectionTreePaneModel.parentIdRef.attribute", () -> setTree(
+         idTree(), Map.of("selectionTreePaneModel.parentIdRef.attribute", "MANAGER")));
+      assertSourceRefused("selectionTreePaneModel.parentId", () -> setTree(
+         idTree(), Map.of("selectionTreePaneModel.parentId", "MANAGER")));
+   }
+
+   /** Switching modes rebuilds the columns from the other mode's fields: an empty tree. */
+   @Test
+   void refusesAModeChangeOnABoundTreeInEverySpelling() throws Exception {
+      for(String key : List.of("mode", "selectionTreePaneModel.mode",
+                               "SelectionTreePaneModel.Mode"))
+      {
+         SelectionTreePropertyDialogModel model = columnTree();
+         assertSourceRefused("mode", () -> setTree(model, Map.of(key, "id")));
+      }
+
+      assertSourceRefused("mode", () -> setTree(idTree(), Map.of("mode", "column")));
+   }
+
+   @Test
+   void refusesARawTimeSliderSourceWrite() throws Exception {
+      assertSourceRefused("rangeSliderDataPaneModel.composite", () -> setSlider(
+         sourcedSlider(), Map.of("rangeSliderDataPaneModel.composite", true)));
+      assertSourceRefused("rangeSliderDataPaneModel.selectedTable", () -> setSlider(
+         sourcedSlider(), Map.of("rangeSliderDataPaneModel.selectedTable", "CUSTOMERS")));
+
+      // the slider apply streams the list with no null check: null is a change, not "empty"
+      Map<String, Object> clear = new LinkedHashMap<>();
+      clear.put("rangeSliderDataPaneModel.additionalTables", null);
+      assertSourceRefused("rangeSliderDataPaneModel.additionalTables",
+                          () -> setSlider(sourcedSlider(), clear));
+   }
+
+   @Test
+   void refusesARawCalendarSourceWrite() throws Exception {
+      assertSourceRefused("calendarDataPaneModel.selectedTable", () -> setCalendar(
+         sourcedCalendar(), Map.of("calendarDataPaneModel.selectedTable", "CUSTOMERS")));
+      assertSourceRefused("calendarDataPaneModel.selectedColumn.attribute", () -> setCalendar(
+         sourcedCalendar(),
+         Map.of("calendarDataPaneModel.selectedColumn.attribute", "SHIP_DATE")));
+   }
+
+   /** A write-back of what raw:true read is a no-op, not a source change. */
+   @Test
+   void acceptsAnUnchangedSourceWriteBack() throws Exception {
+      setList(sourcedList(), Map.of(
+         "selectionListPaneModel.additionalTables", List.of("ORDERS"),
+         "selectionListPaneModel.selectedTable", "CUSTOMERS",
+         "selectionListPaneModel.selectedColumn.attribute", "STATE"));
+      verify(lastSelectionList).setSelectionListPropertyModel(
+         any(), any(), any(), any(), any(), any());
+
+      setTree(columnTree(), Map.of("mode", "column"));
+      verify(lastSelectionTree).setSelectionTreePropertyModel(
+         any(), any(), any(), any(), any(), any());
+
+      setSlider(sourcedSlider(), Map.of("rangeSliderDataPaneModel.composite", false));
+      verify(lastRangeSlider).setRangeSliderPropertyModel(
+         any(), any(), any(), any(), any(), any());
+   }
+
+   /** Not the source: the measure (#78396's check) and the ID tree's selectChildren flag. */
+   @Test
+   void acceptsNonSourceWritesOnABoundSelection() throws Exception {
+      SelectionTreePropertyDialogModel tree = idTree();
+      setTree(tree, Map.of("selectChildren", true));
+      assertTrue(tree.getSelectionTreePaneModel().isSelectChildren());
+
+      SelectionListPropertyDialogModel list = sourcedList();
+      list.getSelectionListPaneModel().setAdditionalTables(new ArrayList<>());
+      setList(list, Map.of("measure", "amount"));
+      assertEquals("AMOUNT", listMeasure(list));
+   }
+
+   /** VFL-009: a tree with no bound column may still switch modes (it binds nothing). */
+   @Test
+   void acceptsAModeChangeOnAnUnboundTree() throws Exception {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      model.getSelectionTreePaneModel().setMode(SelectionTreeVSAssemblyInfo.COLUMN);
+
+      setTree(model, Map.of("mode", "id"));
+
+      assertEquals(SelectionTreeVSAssemblyInfo.ID, model.getSelectionTreePaneModel().getMode());
    }
 
    // ── selectionGeneralPaneModel.sortType alias/domain (bug #76925) ──────────
@@ -3727,6 +3961,7 @@ class AssemblyPropertyServiceTest {
       }
 
       CalendarPropertyDialogService calendar = mock(CalendarPropertyDialogService.class);
+      lastCalendar = calendar;
 
       if(model instanceof CalendarPropertyDialogModel calendarModel) {
          try {
@@ -3823,6 +4058,7 @@ class AssemblyPropertyServiceTest {
 
       RangeSliderPropertyDialogService rangeSlider =
          mock(RangeSliderPropertyDialogService.class);
+      lastRangeSlider = rangeSlider;
 
       if(model instanceof RangeSliderPropertyDialogModel rangeSliderModel) {
          try {

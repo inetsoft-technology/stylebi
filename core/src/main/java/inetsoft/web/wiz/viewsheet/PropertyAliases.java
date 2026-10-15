@@ -576,12 +576,32 @@ public final class PropertyAliases {
          return lowerSegmentInitials(key);
       }
 
+      // A selection's source is refused on every raw path too (SelectionSourceGuard), so
+      // advertising the raw escape hatch for it would only lead to a second refusal (#78480).
+      if(SELECTION_SOURCE_TYPES.contains(entry.assemblyType()) && key != null &&
+         SELECTION_SOURCE_WORDS.contains(key.toLowerCase(Locale.ROOT)))
+      {
+         throw new IllegalArgumentException(
+            "'" + key + "' is not a property of " + entry.assemblyType() + ": a " +
+            entry.assemblyType() + "'s data source (table, additional tables, bound " +
+            "column(s)) is set with set_selection_source, not set_assembly_properties.");
+      }
+
       throw new IllegalArgumentException(
          "'" + key + "' is not a property of " + entry.assemblyType() + "." +
          nearest(key, entry.aliases().keySet()) +
          " Known names: " + String.join(", ", new TreeSet<>(entry.aliases().keySet())) +
          ". A raw model path (containing a '.') is also accepted.");
    }
+
+   private static final Set<String> SELECTION_SOURCE_TYPES =
+      Set.of("selectionlist", "selectiontree", "timeslider", "calendar");
+
+   /** Lower-cased short names an agent tries for a selection's source. */
+   private static final Set<String> SELECTION_SOURCE_WORDS = Set.of(
+      "table", "tables", "selectedtable", "additionaltables", "additionaltable", "column",
+      "columns", "selectedcolumn", "selectedcolumns", "composite", "parentid", "parentidcolumn",
+      "idcolumn", "labelcolumn", "parentidref", "idref", "labelref", "source", "datasource");
 
    /**
     * PropertyPath resolves each segment through {@code get/set + capitalize(segment)}, so the
@@ -1349,11 +1369,9 @@ public final class PropertyAliases {
       aliases.put("min", "calendarAdvancedPaneModel.min");
       aliases.put("max", "calendarAdvancedPaneModel.max");
       //
-      // calendarDataPaneModel.selectedTable/selectedColumn are also deliberately absent: the
-      // parity audit flagged a possible overlap with the set_calendar_display/
-      // set_calendar_dates tool's own write path, and this pass could not confirm from this
-      // repo alone whether the two would end up writing the same underlying setter. Left out
-      // rather than guessed at -- see the handoff report for this specific gap.
+      // calendarDataPaneModel (table, additional tables, column) is the calendar's data source:
+      // set_selection_source owns it, and AssemblyPropertyService refuses a raw write to it
+      // (SelectionSourceGuard, bug #78480), so it has no alias here.
       return aliases;
    }
 
