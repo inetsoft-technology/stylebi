@@ -156,14 +156,26 @@ public abstract class VSAQuery {
 
          if(citem.getAttribute() instanceof ColumnRef) {
             ColumnRef column = (ColumnRef) citem.getAttribute();
-            fixConditionColumn(column, cols, fuzzy);
+            ColumnRef ncolumn = fixConditionColumn(column, cols, fuzzy);
+
+            // the condition is bound to a hidden date range column with a reserved name
+            if(ncolumn != null) {
+               citem.setAttribute(ncolumn);
+            }
          }
       }
    }
 
-   private static void fixConditionColumn(ColumnRef column, ColumnSelection cols, boolean fuzzy) {
+   /**
+    * Add the hidden date range column of a date range condition to the column selection.
+    * @return the column the condition must be bound to when it is not the condition's own
+    * column, i.e. a date range column renamed to a reserved name, otherwise null.
+    */
+   private static ColumnRef fixConditionColumn(ColumnRef column, ColumnSelection cols,
+                                               boolean fuzzy)
+   {
       if(column == null || cols == null || !(column.getDataRef() instanceof DateRangeRef)) {
-         return;
+         return null;
       }
 
       ColumnRef ncolumn = column.clone();
@@ -184,7 +196,20 @@ public abstract class VSAQuery {
       // column for it instead (Bug #78446). fuzzy identifies the applySharedCondition path, its
       // only caller passing true; a new fuzzy caller gets this hidden column behavior too.
       if(existing != null && (!fuzzy || isDateRangeColumn(existing))) {
-         return;
+         return null;
+      }
+
+      // the hidden date range column must not share the name of the existing column: a date
+      // comparison chart or crosstab groups on its runtime calc field by name, and a
+      // same-named hidden column took over that group, so the brushed data lost the calc
+      // column and its merged date part cells (Bug #78446). Use a reserved name for it and
+      // bind the condition to it. A condition already bound to such a column (the second
+      // call, for the other column selection) keeps its name.
+      String attr = dref.getAttribute();
+      boolean rename = existing != null && !isConditionColumnName(attr);
+
+      if(rename) {
+         attr = attr + CONDITION_COLUMN_SUFFIX;
       }
 
       String originalType = dref.getOriginalType();
@@ -192,11 +217,26 @@ public abstract class VSAQuery {
       // need to real base column (may be quanlified, e.g. Query2.orderdate), or the
       // group may be dropped in AggregateInfo.validate(). (60722)
       DataRef baseRef = baseCol instanceof ColumnRef ? ((ColumnRef) baseCol).getDataRef() : baseCol;
-      dref = new DateRangeRef(dref.getAttribute(), baseRef, dref.getDateOption());
+      dref = new DateRangeRef(attr, baseRef, dref.getDateOption());
       dref.setOriginalType(originalType);
       ncolumn.setDataRef(dref);
+
+      if(rename) {
+         // the name of the column is the date range's attribute, not an alias that a lookup
+         // by attribute would still match
+         ncolumn.setAlias(null);
+      }
+
       ncolumn.setVisible(false);
       cols.addAttribute(ncolumn);
+      return rename ? ncolumn : null;
+   }
+
+   /**
+    * Check if the name is the reserved name of a hidden date range condition column.
+    */
+   private static boolean isConditionColumnName(String name) {
+      return name != null && name.endsWith(CONDITION_COLUMN_SUFFIX);
    }
 
    /**
@@ -679,6 +719,10 @@ public abstract class VSAQuery {
          return;
       }
 
+      // fixConditionList may bind condition items to other columns. conds can hold the
+      // assembly's own tip condition items (replaceGroupValues keeps the items), so copy the
+      // items too (Bug #78446)
+      conds = conds.clone();
       table.setPreRuntimeConditionList(conds);
       // add date range ref to column selection
       fixConditionList(conds, cols, true);
@@ -2141,5 +2185,8 @@ public abstract class VSAQuery {
 
    private static final Pattern TEMP_CALC_CROSSTAB_PATTERN = Pattern.compile("^" +
       CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX + "([\\s\\S]+)_Crosstab_[\\d]+$");
+   // suffix of the reserved name of a hidden date range condition column, appended to a date
+   // range name such as WeekOfYear(Date), which a calc field name can't hold (parentheses)
+   private static final String CONDITION_COLUMN_SUFFIX = "__vscond__";
    private static final Logger LOG = LoggerFactory.getLogger(VSAQuery.class);
 }
