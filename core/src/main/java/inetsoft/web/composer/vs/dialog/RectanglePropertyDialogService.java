@@ -120,7 +120,7 @@ public class RectanglePropertyDialogService {
       GradientColor gradientColor = format.getGradientColorValue();
 
       if(gradientColor != null) {
-         fillPropPaneModel.setGradientColor(gradientColor);
+         fillPropPaneModel.setGradientColor((GradientColor) gradientColor.clone());
       }
 
       ShadowPropPaneModel shadowPropPaneModel = rectanglePropertyPaneModel.getShadowPropPaneModel();

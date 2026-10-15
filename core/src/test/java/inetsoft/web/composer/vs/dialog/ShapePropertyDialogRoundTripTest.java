@@ -316,6 +316,38 @@ class ShapePropertyDialogRoundTripTest {
       }
    }
 
+   /**
+    * Bug #78587 (d): the dialog read-model must hold a copy of the stored GradientColor, so a
+    * patch that mutates the gradient and then fails on a later key (never reaching the write)
+    * leaves the assembly's gradient unchanged.
+    */
+   @Test
+   void failedPatchLeavesStoredGradientUnchanged() throws Exception {
+      for(boolean oval : new boolean[] { true, false }) {
+         String type = oval ? "oval" : "rectangle";
+         String pane = oval ? "ovalPropertyPaneModel" : "rectanglePropertyPaneModel";
+         ShapeVSAssembly a = oval ? new OvalVSAssembly(vs, "Shape1")
+            : new RectangleVSAssembly(vs, "Shape1");
+         GradientColor stored = new GradientColor();
+         stored.setApply(true);
+         stored.setDirection("linear");
+         stored.setAngle(30);
+         userFormat(a).setGradientColorValue(stored);
+         when(vs.getAssembly("Shape1")).thenReturn(a);
+
+         Object model = getShapeModel(oval);
+         String base = pane + ".fillPropPaneModel.";
+         Object patched = inetsoft.web.wiz.viewsheet.PropertyPath.set(
+            model, base + "gradientColor.direction", "radial");
+         assertThrows(RuntimeException.class, () -> inetsoft.web.wiz.viewsheet.PropertyPath.set(
+            patched, base + "alpha", "not-a-number"), type);
+
+         GradientColor live = userFormat(a).getGradientColorValue();
+         assertEquals("linear", live.getDirection(), type);
+         assertEquals(30, live.getAngle(), type);
+      }
+   }
+
    private VSObjectPropertyService propertyService;
    private VSDialogService dialogService;
    private ViewsheetService viewsheetService;
