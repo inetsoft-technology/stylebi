@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.aesthetic.StaticColorFrame;
+import inetsoft.graph.aesthetic.StaticSizeFrame;
 import inetsoft.graph.coord.*;
 import inetsoft.graph.scale.Scale;
 import inetsoft.test.BaseTestConfiguration;
@@ -153,6 +154,34 @@ class CreateBulletGraphSampleTest {
                    ((StaticColorFrame) graph.getElement(1).getColorFrame()).getColor());
       assertEquals(new Color(0x0000FF),
                    ((StaticColorFrame) graph.getElement(2).getColorFrame()).getColor());
+   }
+
+   @Test
+   void labelOptsApplyToAVerticalChart() {
+      EGraph graph = run("createBulletGraph('Total', ['r1', 'r2'], 'Target', 0x0000FF, " +
+                         "['X'], ['Dim'], 'vertical=true,ylabel=false,xlabel=false,vlabel=false')");
+
+      assertFalse(outer(graph).getXScale().getAxisSpec().isLabelVisible());
+      assertFalse(outer(graph).getYScale().getAxisSpec().isLabelVisible());
+      assertFalse(measureScale(graph).getAxisSpec().isLabelVisible());
+   }
+
+   @Test
+   void defaultAppearanceIsUnchanged() {
+      EGraph graph = run("createBulletGraph('Total', ['r1', 'r2'], 'Target', null, " +
+                         "null, null, null)");
+
+      // ranges fade the base color with alpha 0.6 - 0.4 * (i + 1) / n
+      CategoricalColorFrame ranges = (CategoricalColorFrame) graph.getElement(0).getColorFrame();
+      assertEquals(new Color(0x65506070, true), ranges.getColor("r1"));
+      assertEquals(new Color(0x32506070, true), ranges.getColor("r2"));
+      assertEquals(new Color(0x102030),
+                   ((StaticColorFrame) graph.getElement(1).getColorFrame()).getColor());
+      assertEquals(new Color(0x102030),
+                   ((StaticColorFrame) graph.getElement(2).getColorFrame()).getColor());
+      assertEquals(20, ((StaticSizeFrame) graph.getElement(0).getSizeFrame()).getSize());
+      assertEquals(8, ((StaticSizeFrame) graph.getElement(1).getSizeFrame()).getSize());
+      assertEquals(4, ((StaticSizeFrame) graph.getElement(2).getSizeFrame()).getSize());
    }
 
    @Test
