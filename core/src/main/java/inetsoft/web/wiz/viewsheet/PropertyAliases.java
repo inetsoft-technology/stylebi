@@ -105,8 +105,7 @@ public final class PropertyAliases {
       "basicGeneralPaneModel.showEditableCheckbox", "basicGeneralPaneModel.showEnabledCheckbox",
       "basicGeneralPaneModel.showRefreshCheckbox", "basicGeneralPaneModel.showShadowCheckbox",
       "generalPropPaneModel.popLocation", "generalPropPaneModel.showEnabledGroup",
-      "generalPropPaneModel.showSubmitCheckbox", "sizePositionPaneModel.container",
-      "sizePositionPaneModel.scaleVertical");
+      "generalPropPaneModel.showSubmitCheckbox");
 
    private static Set<String> deadSet(String... specific) {
       Set<String> set = new LinkedHashSet<>(COMMON_SELECTION_DEAD);
@@ -145,12 +144,9 @@ public final class PropertyAliases {
     * and {@code CalcTablePropertyDialogService}'s apply method never reads either field back.
     */
    private static final Map<String, Set<String>> DEAD_FIELDS = Map.of(
-      "table", Set.of("shadow", "editable", "container", "shrinkEnabled", "formVisible",
-                      "cellHeight", "scaleVertical"),
-      "crosstab", Set.of("shadow", "editable", "container", "crosstabInfoNull",
-                         "sortOthersLastEnabled", "dateComparisonSupport", "cellHeight",
-                         "scaleVertical"),
-      "calctable", Set.of("cellHeight", "scaleVertical"),
+      "table", Set.of("shadow", "editable", "shrinkEnabled", "formVisible"),
+      "crosstab", Set.of("shadow", "editable", "crosstabInfoNull",
+                         "sortOthersLastEnabled", "dateComparisonSupport"),
       // groupcontainer (bug #77028): `enabled` here resolves to
       // groupContainerGeneralPane.generalPropPane.enabled (GeneralPropPaneModel.enabled) -- live
       // for most dataGeneral()/outputGeneral() types, but GroupContainerPropertyDialogService's
@@ -176,19 +172,30 @@ public final class PropertyAliases {
       "timeslider", deadSet(
          "rangeSliderGeneralPaneModel.generalPropPaneModel.submitOnChange",
          "rangeSliderGeneralPaneModel.inSelectionContainer",
-         "rangeSliderGeneralPaneModel.sizePositionPaneModel.cellHeight",
          "rangeSliderAdvancedPaneModel.sliderLabelPaneModel.label",
          "rangeSliderAdvancedPaneModel.sliderLabelPaneModel.showLabel",
          "rangeSliderDataPaneModel.grayedOutFields",
          "rangeSliderDataPaneModel.assemblySource"),
       "slider", deadSet(
          "sliderAdvancedPaneModel.sliderLabelPaneModel.showLabel",
-         "sliderGeneralPaneModel.sizePositionPaneModel.cellHeight",
          "sliderGeneralPaneModel.sizePositionPaneModel.titleHeight",
          "dataInputPaneModel.dateFormatPattern",
          "dataInputPaneModel.defaultValue",
          "dataInputPaneModel.queryDateFormat",
          "dataInputPaneModel.tableLabel"));
+
+   /**
+    * Per-field liveness of the shared {@code SizePositionPaneModel} (bugs #76871, #76883, #76895,
+    * #78573). Every type that registers {@link #sizePosition} gets these getter/setter pairs, but
+    * only the types listed here have an apply method that reads the field back: scaleVertical
+    * only in {@code TextPropertyDialogService}; cellHeight only in the selection list/tree
+    * services and {@code VSInputService} (checkbox, radiobutton); container has no consumer.
+    * Keyed by field, not by type, so a newly registered type is refused by default.
+    */
+   private static final Map<String, Set<String>> SIZE_POSITION_LIVE_TYPES = Map.of(
+      "scaleVertical", Set.of("text"),
+      "cellHeight", Set.of("selectionlist", "selectiontree", "checkbox", "radiobutton"),
+      "container", Set.of());
 
    /**
     * textinput/combobox/slider/spinner/checkbox/radiobutton's {@code dataInputPaneModel.variable}
@@ -389,6 +396,12 @@ public final class PropertyAliases {
     * Refuses a write to one of the {@link #DEAD_FIELDS}/{@link #REFRESH_DEAD_TYPES} entries --
     * fields with a getter/setter pair that this assembly type's apply method never reads back.
     */
+   private static boolean registersSizePosition(String normalizedType) {
+      TypeAliases aliases = REGISTRY.get(normalizedType);
+      return aliases != null &&
+         aliases.aliases().values().stream().anyMatch(p -> p.endsWith(".sizePositionPaneModel.top"));
+   }
+
    private static String deadFieldWriteRefusal(String normalizedType, String pathOrKey) {
       if(pathOrKey == null) {
          return null;
@@ -406,6 +419,18 @@ public final class PropertyAliases {
          return "'" + named + "' is read-only on " + normalizedType + ". It has a getter/setter " +
             "pair on the dialog model, populated on every read, but this type's apply method " +
             "never reads it back -- a write would report success and change nothing.";
+      }
+
+      String sizeField = SIZE_POSITION_LIVE_TYPES.keySet().stream()
+         .filter(f -> pathOrKey.endsWith(".sizePositionPaneModel." + f))
+         .findFirst().orElse(null);
+
+      if(sizeField != null && registersSizePosition(normalizedType) &&
+         !SIZE_POSITION_LIVE_TYPES.get(sizeField).contains(normalizedType))
+      {
+         return "'" + pathOrKey + "' is read-only on " + normalizedType + ". It has a getter/" +
+            "setter pair on the dialog model, populated on every read, but this type's apply " +
+            "method never reads it back -- a write would report success and change nothing.";
       }
 
       if("refresh".equals(leaf) && REFRESH_DEAD_TYPES.contains(normalizedType)) {
