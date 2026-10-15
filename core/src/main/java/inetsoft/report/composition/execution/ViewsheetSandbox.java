@@ -752,13 +752,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       while(it.hasNext()) {
          Object key = it.next();
 
-         if(key == null || wizard && Tool.equals(key, VSWizardConstants.TEMP_CROSSTAB_NAME)) {
+         if(key == null) {
             continue;
          }
 
          queryManager = qmgrs.get(key + "");
 
-         if(queryManager != null) {
+         // a wizard cancel must not kill the wizard's own data probes (the non-cancelable
+         // _temp_crosstab_N query managers), see getQueryManager(String)
+         if(queryManager != null && (!wizard || queryManager.isCancelable())) {
             cancel(queryManager, forChange);
          }
       }
@@ -887,7 +889,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       // cancel executing queries
-      cancelAllQueries(false, forChange);
+      cancelAllQueries(wizard, forChange);
       // cancel pending queries
       AssetDataCache.getCache().cancel(rid, !wizard);
    }

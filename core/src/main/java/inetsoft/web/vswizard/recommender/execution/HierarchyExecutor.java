@@ -116,13 +116,21 @@ public class HierarchyExecutor extends WizardDataExecutor {
       }
 
       CrosstabVSAssembly crosstab = getTempCrosstab(box, tempInfo.getTempChart().getSourceInfo());
-      VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
-      VSDimensionRef[] groups = { createDimensionRef(child) };
-      cinfo.setDesignRowHeaders(groups);
-      VSAggregateRef[] aggregates = { createAggregateRef(parent, AggregateFormula.COUNT_DISTINCT) };
-      cinfo.setDesignAggregates(aggregates);
-      VSTableLens base = box.getVSTableLens(crosstab.getAbsoluteName(), false);
-      clearTempCrosstab(box, crosstab);
+      VSTableLens base;
+
+      // the temp crosstab is added to the live viewsheet, always remove it so a cancelled or
+      // failed query doesn't leave it behind to be saved with the dashboard
+      try {
+         VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
+         VSDimensionRef[] groups = { createDimensionRef(child) };
+         cinfo.setDesignRowHeaders(groups);
+         VSAggregateRef[] aggregates = { createAggregateRef(parent, AggregateFormula.COUNT_DISTINCT) };
+         cinfo.setDesignAggregates(aggregates);
+         base = box.getVSTableLens(crosstab.getAbsoluteName(), false);
+      }
+      finally {
+         clearTempCrosstab(box, crosstab);
+      }
 
       if(base == null || getRowCount(base) <= 1) {
          return new HierarchyData(false);

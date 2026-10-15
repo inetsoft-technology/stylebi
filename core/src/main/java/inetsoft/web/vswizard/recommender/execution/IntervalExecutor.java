@@ -66,13 +66,21 @@ public class IntervalExecutor extends WizardDataExecutor {
       }
 
       CrosstabVSAssembly crosstab = getTempCrosstab(box, source);
-      VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
-      VSAggregateRef aggr0 = createAggregateRef(entry, AggregateFormula.MIN);
-      VSAggregateRef aggr1 = (VSAggregateRef) aggr0.clone();
-      aggr1.setFormula(AggregateFormula.MAX);
-      VSAggregateRef[] aggregates = {aggr0, aggr1};
-      cinfo.setDesignAggregates(aggregates);
-      return calcData(box, crosstab, type, cacheKey, fieldKey);
+
+      // the temp crosstab is added to the live viewsheet, always remove it so a cancelled or
+      // failed query doesn't leave it behind to be saved with the dashboard
+      try {
+         VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
+         VSAggregateRef aggr0 = createAggregateRef(entry, AggregateFormula.MIN);
+         VSAggregateRef aggr1 = (VSAggregateRef) aggr0.clone();
+         aggr1.setFormula(AggregateFormula.MAX);
+         VSAggregateRef[] aggregates = {aggr0, aggr1};
+         cinfo.setDesignAggregates(aggregates);
+         return calcData(box, crosstab, type, cacheKey, fieldKey);
+      }
+      finally {
+         clearTempCrosstab(box, crosstab);
+      }
    }
 
    public static IntervalData getData(ViewsheetSandbox box, VSTemporaryInfo tempInfo,
@@ -108,14 +116,22 @@ public class IntervalExecutor extends WizardDataExecutor {
       }
 
       CrosstabVSAssembly crosstab = getTempCrosstab(box, source);
-      VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
-      VSAggregateRef aggr0 = createAggregateRef(ref, false);
-      VSAggregateRef aggr1 = (VSAggregateRef) aggr0.clone();
-      aggr1.setFormula(AggregateFormula.MAX);
-      VSAggregateRef[] aggregates = { aggr0, aggr1 };
-      cinfo.setDesignAggregates(aggregates);
 
-      return calcData(box, crosstab, type, cacheKey, fieldKey);
+      // the temp crosstab is added to the live viewsheet, always remove it so a cancelled or
+      // failed query doesn't leave it behind to be saved with the dashboard
+      try {
+         VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
+         VSAggregateRef aggr0 = createAggregateRef(ref, false);
+         VSAggregateRef aggr1 = (VSAggregateRef) aggr0.clone();
+         aggr1.setFormula(AggregateFormula.MAX);
+         VSAggregateRef[] aggregates = { aggr0, aggr1 };
+         cinfo.setDesignAggregates(aggregates);
+
+         return calcData(box, crosstab, type, cacheKey, fieldKey);
+      }
+      finally {
+         clearTempCrosstab(box, crosstab);
+      }
    }
 
    private static IntervalData calcData(ViewsheetSandbox box, CrosstabVSAssembly crosstab,
@@ -126,8 +142,8 @@ public class IntervalExecutor extends WizardDataExecutor {
          return null;
       }
 
+      // the caller removes the temp crosstab
       VSTableLens tableLens = box.getVSTableLens(crosstab.getAbsoluteName(), false);
-      clearTempCrosstab(box, crosstab);
 
       try {
          IntervalData data = createIntervalData(tableLens, type);
