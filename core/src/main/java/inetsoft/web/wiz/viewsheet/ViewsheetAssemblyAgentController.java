@@ -1434,7 +1434,7 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/region-properties")
-   public void setChartRegionProperties(@PathVariable String sessionToken,
+   public Map<String, Object> setChartRegionProperties(@PathVariable String sessionToken,
                                         @RequestBody RegionPropertiesRequest request,
                                         @RequestParam(required = false, defaultValue = "")
                                         String linkUri,
@@ -1442,8 +1442,9 @@ public class ViewsheetAssemblyAgentController {
       throws Exception
    {
       requireEnabled();
-      chartRegionService.set(sessionToken, user, request.assembly(), request.region(),
-                             request.target(), request.field(), request.properties(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         chartRegionService.set(sessionToken, user, request.assembly(), request.region(),
+                             request.target(), request.field(), request.properties(), linkUri));
    }
 
    @GetMapping("/api/wiz/v1/agent/viewsheet/convert/vocabulary")
@@ -1766,7 +1767,7 @@ public class ViewsheetAssemblyAgentController {
                                          String field, Map<String, Object> properties) {}
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/element-visibility")
-   public void setChartElementVisibility(
+   public Map<String, Object> setChartElementVisibility(
       @PathVariable String sessionToken,
       @RequestBody ElementVisibilityRequest request,
       @RequestParam(required = false, defaultValue = "") String linkUri,
@@ -1780,22 +1781,24 @@ public class ViewsheetAssemblyAgentController {
             "Defaulting it either way would guess at the caller's intent.");
       }
 
-      chartElementService.setVisibility(sessionToken, user, request.assembly(),
+      return ViewsheetSessionService.warningsBody(
+         chartElementService.setVisibility(sessionToken, user, request.assembly(),
                                         request.element(), request.target(), request.visible(),
-                                        Boolean.TRUE.equals(request.secondary()), linkUri);
+                                        Boolean.TRUE.equals(request.secondary()), linkUri));
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/plot-size")
-   public void resizeChartPlot(@PathVariable String sessionToken,
+   public Map<String, Object> resizeChartPlot(@PathVariable String sessionToken,
                                @RequestBody PlotResizeRequest request,
                                @RequestParam(required = false, defaultValue = "") String linkUri,
                                Principal user)
       throws Exception
    {
       requireEnabled();
-      chartElementService.resizePlot(sessionToken, user, request.assembly(), request.ratio(),
+      return ViewsheetSessionService.warningsBody(
+         chartElementService.resizePlot(sessionToken, user, request.assembly(), request.ratio(),
                                      Boolean.TRUE.equals(request.vertical()),
-                                     Boolean.TRUE.equals(request.reset()), linkUri);
+                                     Boolean.TRUE.equals(request.reset()), linkUri));
    }
 
    /**

@@ -69,6 +69,22 @@ class ChartRegionPropertyServiceTest {
                  "the axis line properties must be discoverable by name");
    }
 
+   /** Bug #78439: the warnings the write captured (a chart that cannot be generated) are returned. */
+   @Test
+   void returnsTheWarningsTheWriteCaptured() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+      doReturn(java.util.List.of("chart warning")).when(h.sessions)
+         .mutate(anyString(), any(Principal.class), any());
+
+      java.util.List<String> warnings = h.service.set(
+         "tok", principal(), "Chart1", "axis", "y", null, Map.of("showAxisLine", false), "");
+
+      assertEquals(java.util.List.of("chart warning"), warnings);
+   }
+
    @Test
    void writesAnAxisPropertyThroughTheWholePatchRule() throws Exception {
       Harness h = harness();
@@ -2078,7 +2094,8 @@ class ChartRegionPropertyServiceTest {
       return model;
    }
 
-   private record Harness(ChartRegionPropertyService service, RegionPropertyDialogService regions) {}
+   private record Harness(ChartRegionPropertyService service, RegionPropertyDialogService regions,
+                          ViewsheetSessionService sessions) {}
 
    private static Harness harness() {
       // The default chart carries a secondary measure, so every pre-existing case that addresses
@@ -2119,7 +2136,8 @@ class ChartRegionPropertyServiceTest {
 
       RegionPropertyDialogService regions = mock(RegionPropertyDialogService.class);
       return new Harness(
-         new ChartRegionPropertyService(sessions, regions, new ChartRegionHandler()), regions);
+         new ChartRegionPropertyService(sessions, regions, new ChartRegionHandler()), regions,
+         sessions);
    }
 
    /**

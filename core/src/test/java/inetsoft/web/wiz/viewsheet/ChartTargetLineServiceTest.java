@@ -243,6 +243,30 @@ class ChartTargetLineServiceTest {
       assertEquals("#cc0000", written.getLineColor().getColor());
    }
 
+   /** Bug #78439: add and remove put the warnings the write captured into their response. */
+   @Test
+   void addAndRemoveRelayTheWarningsTheWriteCaptured() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+      doReturn(List.of("chart warning")).when(h.sessions)
+         .mutate(anyString(), any(Principal.class), any());
+
+      Map<String, Object> added =
+         h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, "");
+      Map<String, Object> removed =
+         h.service.remove("tok", principal(), "Chart1", List.of(0), "");
+
+      assertEquals(List.of("chart warning"), added.get("warnings"));
+      assertEquals(List.of("chart warning"), removed.get("warnings"));
+   }
+
+   @Test
+   void addHasNoWarningsKeyWhenNothingWarned() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      assertFalse(h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, "")
+                     .containsKey("warnings"));
+   }
+
    /** One call, one checkpoint — the same contract every other write tool in this package has. */
    @Test
    void addWritesExactlyOneModelInOneMutation() throws Exception {

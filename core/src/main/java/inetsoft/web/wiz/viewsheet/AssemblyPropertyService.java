@@ -364,6 +364,10 @@ public class AssemblyPropertyService {
          }
 
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
+
+         if("chart".equals(type)) {
+            ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
+         }
       });
    }
 

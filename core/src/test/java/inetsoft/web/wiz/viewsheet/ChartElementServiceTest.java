@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -64,6 +65,19 @@ class ChartElementServiceTest {
       assertFalse(empty.isHide(),
                   "hide defaults to false, which this event reads as show-all-titles — which " +
                   "is why the construction guard above matters");
+   }
+
+   /** Bug #78439: both write methods return the warnings the write captured. */
+   @Test
+   void returnsTheWarningsTheWriteCaptured() throws Exception {
+      Harness h = harness(mock(ChartVSAssembly.class));
+      doReturn(List.of("chart warning")).when(h.sessions)
+         .mutate(anyString(), any(Principal.class), any());
+
+      assertEquals(List.of("chart warning"), h.service.setVisibility(
+         "tok", principal(), "Chart1", "axis", "Region", false, false, ""));
+      assertEquals(List.of("chart warning"), h.service.resizePlot(
+         "tok", principal(), "Chart1", null, true, true, ""));
    }
 
    @Test
