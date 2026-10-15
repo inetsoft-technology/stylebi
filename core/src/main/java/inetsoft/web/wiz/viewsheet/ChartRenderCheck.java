@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.script.ScriptException;
@@ -26,6 +27,8 @@ import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.*;
 
 /**
  * Surfaces a chart whose data fetch throws a {@link ScriptException} (e.g. a pre-condition or
@@ -41,6 +44,13 @@ import org.slf4j.LoggerFactory;
  * completed pair with no graph, so the next consumer renders silently as "No data". After warning,
  * the chart is therefore re-armed so the Composer's own render that follows the write still throws
  * and shows its native error, and so a repeated write on a still-broken chart warns again.
+ *
+ * <p>The Composer's own render between two writes uses the re-armed failure up again, so each
+ * chart that fails is remembered per sandbox; a later build that returns a finished pair with no
+ * graph for such a chart is rebuilt once to recapture the real exception. A chart never seen
+ * failing here is not rebuilt (that state is also plain empty data). A chart already consumed by a
+ * render before its first check, with no failure recorded, cannot be told from an empty chart and
+ * is not reported until a data-changing write makes it throw again.
  *
  * <p>Failures the engine swallows (a viewsheet calc field, a chart's own assembly script) leave
  * the chart rendering and are deliberately not reported here.
@@ -85,14 +95,50 @@ public final class ChartRenderCheck {
          return;
       }
 
-      ScriptException failure = null;
+      Build build = build(box, chartName);
 
+      // A render between two writes (the Composer's chart-areas request after every broadcast)
+      // uses up the re-armed failure, leaving a completed pair with no graph and no exception,
+      // which looks exactly like a chart with no data. Only a chart this check already saw fail
+      // is rebuilt for it, so a chart that is merely empty never pays for a second build.
+      if(build.failure == null && build.consumedFailure() && hasFailed(box, chartName)) {
+         rearm(box, chartName);
+         build = build(box, chartName);
+      }
+
+      if(build.failure == null) {
+         // A build that no longer throws means the earlier failure is not current any more.
+         forget(box, chartName);
+         return;
+      }
+
+      remember(box, chartName);
+      MessageCommand command = new MessageCommand();
+      command.setType(MessageCommand.Type.WARNING);
+      command.setMessage(prefix(chartName) + build.failure.getMessage() +
+                         "\nThe edit was applied, but the chart will show no data until the " +
+                         "script is fixed.");
+
+      if(dispatcher != null) {
+         dispatcher.sendCommand(chartName, command);
+      }
+
+      rearm(box, chartName);
+   }
+
+   /** Forces the next consumer of the chart to rebuild, and so to see the failure again. */
+   private static void rearm(ViewsheetSandbox box, String chartName) {
+      box.clearGraph(chartName);
+      box.resetDataMap(chartName);
+   }
+
+   private static Build build(ViewsheetSandbox box, String chartName) {
       box.lockRead();
 
       try {
-         box.getVGraphPair(chartName, true);
+         return new Build(box.getVGraphPair(chartName, true), null);
       }
-      catch(Throwable e) {
+      catch(Exception e) {
          Throwable cause = e;
 
          while(cause instanceof RuntimeException && cause.getCause() != null) {
@@ -100,32 +146,51 @@ public final class ChartRenderCheck {
          }
 
          if(cause instanceof ScriptException script) {
-            failure = script;
+            return new Build(null, script);
          }
-         else {
-            LOG.debug("Chart '{}' could not be built after a write: {}", chartName, e.toString());
-         }
+
+         LOG.debug("Chart '{}' could not be built after a write: {}", chartName, e.toString());
+         return new Build(null, null);
       }
       finally {
          box.unlockRead();
       }
+   }
 
-      if(failure == null) {
-         return;
+   /** What one build produced: a pair (maybe without a graph), or a script failure, or neither. */
+   private record Build(VGraphPair pair, ScriptException failure) {
+      /** A finished pair that has no graph, did not fail and was not cancelled. */
+      boolean consumedFailure() {
+         return pair != null && pair.isCompleted() && !pair.isFailed() && !pair.isCancelled() &&
+            pair.getRealSizeVGraph() == null;
       }
+   }
 
-      MessageCommand command = new MessageCommand();
-      command.setType(MessageCommand.Type.WARNING);
-      command.setMessage(prefix(chartName) + failure.getMessage() +
-                         "\nThe edit was applied, but the chart will show no data until the " +
-                         "script is fixed.");
-      if(dispatcher != null) {
-         dispatcher.sendCommand(chartName, command);
+   static boolean hasFailed(ViewsheetSandbox box, String chartName) {
+      synchronized(FAILED) {
+         Set<String> names = FAILED.get(box);
+         return names != null && names.contains(chartName);
       }
+   }
 
-      box.clearGraph(chartName);
-      box.resetDataMap(chartName);
+   private static void remember(ViewsheetSandbox box, String chartName) {
+      synchronized(FAILED) {
+         FAILED.computeIfAbsent(box, k -> new HashSet<>()).add(chartName);
+      }
+   }
+
+   private static void forget(ViewsheetSandbox box, String chartName) {
+      synchronized(FAILED) {
+         Set<String> names = FAILED.get(box);
+
+         if(names != null) {
+            names.remove(chartName);
+         }
+      }
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(ChartRenderCheck.class);
+
+   /** Charts whose last build threw a script error, per sandbox, for as long as it lives. */
+   private static final Map<ViewsheetSandbox, Set<String>> FAILED = new WeakHashMap<>();
 }

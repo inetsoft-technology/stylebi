@@ -620,6 +620,7 @@ public class ChartBindingService {
          // that changes nothing else changes nothing by passing it, which is what
          // set_chart_separate_status exists for. Confirmed live twice: separated never moved.
          if(isNoOpRetype(chart, type, ref, multi, stackMeasures)) {
+            ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
             return;
          }
 

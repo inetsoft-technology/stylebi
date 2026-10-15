@@ -129,6 +129,72 @@ class ChartRenderCheckRealStackTest {
       assertTrue(String.valueOf(root.getMessage()).contains("undefinedFn"), root.toString());
    }
 
+   /**
+    * The Composer renders between two wiz writes (a broadcast follows every write) and uses up the
+    * re-armed failure; later non-invalidating writes must still warn.
+    */
+   @Test
+   void aNativeRenderBetweenWritesDoesNotSilenceTheNextWrites() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+
+      assertWarned(capture(rvs, (b, d) -> ChartRenderCheck.warnIfScriptFails(rvs, CHART, d)));
+
+      for(int i = 0; i < 2; i++) {
+         assertThrows(Exception.class, () -> box.getVGraphPair(CHART, true),
+                      "the native render still shows the error");
+         assertWarned(capture(rvs, (b, d) -> ChartRenderCheck.warnIfScriptFails(rvs, CHART, d)));
+      }
+
+      assertTrue(ChartRenderCheck.hasFailed(box, CHART));
+   }
+
+   /** Once the script is fixed the next write is silent and the failure record is gone. */
+   @Test
+   void fixingTheScriptEndsTheWarningsAndClearsTheRecord() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+      assertWarned(capture(rvs, (b, d) -> ChartRenderCheck.warnIfScriptFails(rvs, CHART, d)));
+      assertThrows(Exception.class, () -> box.getVGraphPair(CHART, true));
+      assertTrue(ChartRenderCheck.hasFailed(box, CHART));
+
+      ChartVSAssembly chart = (ChartVSAssembly) rvs.getViewsheet().getAssembly(CHART);
+      chart.setPreConditionList(new ConditionList());
+      box.resetDataMap(CHART);
+
+      assertEquals(List.of(), capture(rvs, (b, d) ->
+         ChartRenderCheck.warnIfScriptFails(rvs, CHART, d)));
+      assertFalse(ChartRenderCheck.hasFailed(box, CHART));
+   }
+
+   /** A chart that is merely empty is never rebuilt: no record, no second build, no warning. */
+   @Test
+   void anEmptyHealthyChartIsNeitherRebuiltNorWarned() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, false);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+      ChartVSAssembly chart = (ChartVSAssembly) rvs.getViewsheet().getAssembly(CHART);
+      TableVSAssembly table = (TableVSAssembly) rvs.getViewsheet().getAssembly(TABLE);
+      AssetCondition cond = new AssetCondition();
+      cond.setOperation(XCondition.EQUAL_TO);
+      cond.setType(XSchema.STRING);
+      cond.addValue("no such type");
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(table.getColumnSelection().getAttribute("type"), cond, 0));
+      chart.setPreConditionList(list);
+      box.resetDataMap(CHART);
+
+      assertEquals(List.of(), capture(rvs, (b, d) ->
+         ChartRenderCheck.warnIfScriptFails(rvs, CHART, d)));
+      VGraphPair first = box.getVGraphPair(CHART, true);
+      assertEquals(List.of(), capture(rvs, (b, d) ->
+         ChartRenderCheck.warnIfScriptFails(rvs, CHART, d)));
+      assertSame(first, box.getVGraphPair(CHART, true), "no rebuild for a chart with no failure");
+      assertFalse(ChartRenderCheck.hasFailed(box, CHART));
+   }
+
    /** A healthy chart yields no warning and the pair it built is the one the next consumer gets. */
    @Test
    void healthyChartIsSilentAndItsPairIsReused() throws Exception {
