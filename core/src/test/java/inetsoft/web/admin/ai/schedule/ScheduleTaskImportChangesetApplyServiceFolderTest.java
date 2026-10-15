@@ -175,6 +175,51 @@ class ScheduleTaskImportChangesetApplyServiceFolderTest {
       assertFiledIn(taskId, "I78592R");
    }
 
+   @Test
+   void overwriteKeepsTheStoredFolderWhenTheExportNamesAnotherFolder() throws Exception {
+      String taskId = storeTask("i78592export", "I78592E");
+      addFolder("I78592EOther");
+      // the import does not move a task into the folder its export names
+      ScheduleTask staged = task("i78592export", 11);
+      staged.setPath("I78592EOther");
+
+      ScheduleTaskImportApplyResult result =
+         importTasks(List.of(staged), List.of(change(taskId, true)));
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals(11, hourOf(taskId), "the task is overwritten");
+      assertFiledIn(taskId, "I78592E");
+      assertFalse(listedIn("I78592EOther", taskId), "listed in the folder of the export");
+   }
+
+   @Test
+   void rollbackOfSeveralOverwritesRestoresEachTaskInItsFolder() throws Exception {
+      String flatId = storeTask("i78592multi1", "I78592M1");
+      addFolder("I78592M2");
+      String nestedId = storeTask("i78592multi2", "I78592M2/Sub");
+      ScheduleTask other = task("i78592multinew", 10);
+      String otherId = other.getTaskId();
+      taskIds.add(otherId);
+      // the import of the third, new task fails, so both overwrites are rolled back
+      doThrow(new IllegalStateException("forced failure"))
+         .when(scheduleTaskService).sanitizeConditions(
+            argThat((ScheduleTask t) -> t != null && otherId.equals(t.getTaskId())),
+            any(ScheduleTask.class), any());
+
+      ScheduleTaskImportApplyResult result = importTasks(
+         List.of(task("i78592multi1", 11), task("i78592multi2", 12), other),
+         List.of(change(flatId, true), change(nestedId, true), change(otherId, false)));
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertTrue(result.rollbackFailures() == null || result.rollbackFailures().isEmpty(),
+                 "rollback failures " + result.rollbackFailures());
+      assertNull(scheduleManager.getScheduleTask(otherId), "the new task is not imported");
+      assertEquals(9, hourOf(flatId), "the first stored task is restored");
+      assertEquals(9, hourOf(nestedId), "the second stored task is restored");
+      assertFiledIn(flatId, "I78592M1");
+      assertFiledIn(nestedId, "I78592M2/Sub");
+   }
+
    /** Stores a task (at hour 9) in a folder, as a new task saved in that folder. */
    private String storeTask(String name, String folder) throws Exception {
       ScheduleTask task = task(name, 9);
