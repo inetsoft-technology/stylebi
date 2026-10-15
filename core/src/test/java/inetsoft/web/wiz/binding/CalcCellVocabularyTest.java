@@ -22,7 +22,13 @@ import inetsoft.report.GroupableCellBinding;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.util.XNamedGroupInfo;
+import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.model.GroupCondition;
+import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.table.CellBindingInfo;
+import inetsoft.web.composer.model.condition.ConditionExpression;
+import inetsoft.web.wiz.viewsheet.ConditionVocabulary;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -181,6 +187,95 @@ class CalcCellVocabularyTest {
       assertEquals("Region", described.get("value"));
       assertFalse(described.containsKey("type"), "the ambiguous keys must not come back out");
       assertFalse(described.containsKey("btype"));
+   }
+
+   // -- bug #76814: the named group a group cell carries is read back in the write vocabulary --
+
+   private static CellBindingInfo groupCell(NamedGroupInfoModel info, boolean others) {
+      CellBindingInfo cell = new CellBindingInfo();
+      cell.setType(CellBinding.BIND_COLUMN);
+      cell.setBtype(CellBinding.GROUP);
+      cell.setValue("Region");
+      cell.getOrder().setInfo(info);
+      cell.getOrder().setOthers(others);
+      return cell;
+   }
+
+   private static ConditionExpression expression(String name, ConditionVocabulary.Clause... clauses)
+   {
+      DataRefModel region = mock(DataRefModel.class);
+      when(region.getName()).thenReturn("Region");
+      ConditionExpression expr = new ConditionExpression();
+      expr.setName(name);
+      expr.setList(ConditionVocabulary.toConditionList(List.of(clauses), new DataRefModel[]{ region }));
+      return expr;
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void describesAnInlineNamedGroupInTheVocabularySetCellBindingAccepts() {
+      NamedGroupInfoModel info = new NamedGroupInfoModel();
+      info.setType(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO);
+      info.setName("Custom");
+      info.addCondition(expression("West", new ConditionVocabulary.Clause(
+         "Region", "one_of", List.of("CA", "OR"), "or", false, false, 0),
+         new ConditionVocabulary.Clause(
+            "Region", "equals", List.of("WA"), null, false, false, 0)));
+
+      Map<String, Object> described = CalcCellVocabulary.describe(groupCell(info, false));
+
+      Map<String, Object> namedGroup = (Map<String, Object>) described.get("namedGroup");
+      assertEquals("leave", namedGroup.get("others"));
+      List<Map<String, Object>> groups = (List<Map<String, Object>>) namedGroup.get("groups");
+      assertEquals(1, groups.size());
+      assertEquals("West", groups.get(0).get("name"));
+      List<Map<String, Object>> conditions =
+         (List<Map<String, Object>>) groups.get(0).get("conditions");
+      assertEquals(2, conditions.size());
+      assertEquals("one_of", conditions.get(0).get("operator"));
+      assertEquals(List.of("CA", "OR"), conditions.get(0).get("values"));
+      assertEquals("or", conditions.get(0).get("junction"));
+      assertEquals(Boolean.FALSE, conditions.get(0).get("negated"));
+      assertEquals("equals", conditions.get(1).get("operator"));
+      assertFalse(conditions.get(1).containsKey("junction"), "the last condition has none");
+      assertFalse(conditions.get(0).containsKey("field"), "the field is always the cell's column");
+      assertFalse(conditions.get(0).containsKey("level"));
+   }
+
+   @Test
+   void describesARepositoryNamedGroupByItsName() {
+      NamedGroupInfoModel info = new NamedGroupInfoModel();
+      info.setType(XNamedGroupInfo.ASSET_NAMEDGROUP_INFO);
+      info.setName("Tiers");
+
+      assertEquals("Tiers", CalcCellVocabulary.describe(groupCell(info, true)).get("namedGroup"));
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void describesAUiBuiltSimpleNamedGroupAsOneOfConditions() {
+      NamedGroupInfoModel info = new NamedGroupInfoModel();
+      info.setType(XNamedGroupInfo.SIMPLE_NAMEDGROUP_INFO);
+      info.setName("Custom");
+      info.addGroup(new GroupCondition("Coastal", List.of("CA", "OR")));
+
+      Map<String, Object> namedGroup = (Map<String, Object>)
+         CalcCellVocabulary.describe(groupCell(info, true)).get("namedGroup");
+
+      assertEquals("group", namedGroup.get("others"));
+      List<Map<String, Object>> groups = (List<Map<String, Object>>) namedGroup.get("groups");
+      assertEquals("Coastal", groups.get(0).get("name"));
+      List<Map<String, Object>> conditions =
+         (List<Map<String, Object>>) groups.get(0).get("conditions");
+      assertEquals("one_of", conditions.get(0).get("operator"));
+      assertEquals(List.of("CA", "OR"), conditions.get(0).get("values"));
+   }
+
+   @Test
+   void omitsNamedGroupWhenTheCellHasNone() {
+      assertFalse(CalcCellVocabulary.describe(groupCell(new NamedGroupInfoModel(), true))
+                     .containsKey("namedGroup"));
+      assertFalse(CalcCellVocabulary.describe(groupCell(null, true)).containsKey("namedGroup"));
    }
 
    @Test

@@ -20,9 +20,12 @@ package inetsoft.web.wiz.binding;
 import inetsoft.report.CellBinding;
 import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableDataPath;
+import inetsoft.report.LayoutTool;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.internal.binding.ExpertNamedGroupInfo;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionList;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.AggregateRef;
@@ -409,6 +412,10 @@ public class CalcTableService {
             cellBindingInfo.getOrder().setInfo(null);
          }
 
+         // Every namedGroup write path (worksheet-local by-name, inline) has set order.info by
+         // now; one check here covers them all.
+         requireSimpleNamedGroup(cellBindingInfo.getOrder().getInfo(), namedGroup);
+
          SetCellBindingEvent event = new SetCellBindingEvent();
          event.setName(assemblyName);
          event.setSelectCells(new TableCell[]{ cellAt(row, col) });
@@ -531,6 +538,91 @@ public class CalcTableService {
          "'" + namedGroup + "' is not a named group on column '" + column + "' -- it matches " +
          "neither a worksheet-local group created by add_named_group nor a repository-" +
          "registered predefined named group. list_named_groups reports what is available.");
+   }
+
+   /**
+    * Refuses a named group the calc-table render cannot bucket. {@code LayoutTool} turns a
+    * group's conditions into a {@code mapList()} only when {@link LayoutTool#isSimpleNamedGroup}
+    * accepts every group; otherwise it silently falls back to the raw values, so persisting such
+    * a group would report success and then not group anything. A repository-registered
+    * (ASSET) group is not checked here -- it only reaches {@code order.info} after
+    * {@code VSTableLayoutService.getPredefinedNamedGroup} has already filtered it through the
+    * same rule.
+    *
+    * @param namedGroup the by-name worksheet-local group the info came from, or null for an
+    *                   inline {@code field.namedGroup} object.
+    */
+   private static void requireSimpleNamedGroup(NamedGroupInfoModel info, String namedGroup)
+      throws Exception
+   {
+      if(info == null || info.getType() != XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO ||
+         info.getConditions() == null)
+      {
+         return;
+      }
+
+      List<ConditionExpression> groups = info.getConditions();
+
+      for(int i = 0; i < groups.size(); i++) {
+         ConditionExpression group = groups.get(i);
+
+         if(group.getList() == null) {
+            continue;
+         }
+
+         ConditionList list = ConditionUtil.fromModelToConditionList(
+            group.getList(), null, null, null);
+
+         if(isSimpleGroup(group.getName(), list)) {
+            continue;
+         }
+
+         String where = namedGroup != null
+            ? "Group '" + group.getName() + "' of worksheet named group '" + namedGroup + "'"
+            : "'field.namedGroup.groups[" + i + "]' ('" + group.getName() + "')";
+         String path = namedGroup != null ? "conditions[" : "'field.namedGroup.groups[" + i +
+            "].conditions[";
+         List<Map<String, Object>> described = ConditionVocabulary.describe(group.getList());
+         String culprit = null;
+
+         int clauseIndex = 0;
+
+         // Each condition on its own, so the first one the rule refuses can be named; the
+         // rule itself stays LayoutTool's.
+         for(int k = 0; k < list.getSize() && culprit == null; k++) {
+            if(list.getConditionItem(k) == null) {
+               continue;
+            }
+
+            ConditionList single = new ConditionList();
+            single.append(list.getConditionItem(k));
+
+            if(!isSimpleGroup(group.getName(), single)) {
+               Map<String, Object> clause = described.get(clauseIndex);
+               culprit = path + clauseIndex + "]" + (namedGroup != null ? "" : "'") + " uses " +
+                  (Boolean.TRUE.equals(clause.get("negated")) ? "a negated " : "operator ") +
+                  "'" + clause.get("operator") + "'";
+            }
+
+            clauseIndex++;
+         }
+
+         if(culprit == null) {
+            culprit = "its conditions are joined with 'and'";
+         }
+
+         throw new IllegalArgumentException(
+            where + " cannot be rendered by a calc table: " + culprit + ". A calc-table named " +
+            "group only buckets when every condition is 'equals' or 'one_of', not negated, and " +
+            "the conditions of a group are joined with 'or' -- otherwise the cell shows the " +
+            "raw values ungrouped.");
+      }
+   }
+
+   private static boolean isSimpleGroup(String name, ConditionList list) {
+      ExpertNamedGroupInfo single = new ExpertNamedGroupInfo();
+      single.setGroupCondition(name, list);
+      return LayoutTool.isSimpleNamedGroup(single);
    }
 
    /**
