@@ -155,7 +155,7 @@ public class ChartTargetLineService {
       String color = normalizeColor(lineColor);
       Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartPropertyDialogModel model =
             chartService.getChartPropertyDialogModel(runtimeId, assemblyName, user);
@@ -216,7 +216,9 @@ public class ChartTargetLineService {
          result.put("value", constant);
          result.put("label", target.getLabel());
          result.put("lineStyle", styleName(target.getLineStyle()));
+         ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
       });
+      ViewsheetSessionService.relayWarnings(result, warnings);
 
       return result;
    }
@@ -235,7 +237,7 @@ public class ChartTargetLineService {
       List<Integer> wanted = requireIndexes(indexes);
       Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
          ChartPropertyDialogModel model =
             chartService.getChartPropertyDialogModel(runtimeId, assemblyName, user);
@@ -314,7 +316,9 @@ public class ChartTargetLineService {
          result.put("assembly", assemblyName);
          result.put("removed", wanted);
          result.put("remaining", remaining);
+         ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
       });
+      ViewsheetSessionService.relayWarnings(result, warnings);
 
       return result;
    }

@@ -124,7 +124,7 @@ public class ChartRegionPropertyService {
     * applied — the same rule the assembly properties follow, and for the same reason: a partly
     * applied patch is worse than a rejected one because nothing reports it.
     */
-   public void set(String sessionToken, Principal user, String assembly, String region,
+   public List<String> set(String sessionToken, Principal user, String assembly, String region,
                    String target, String field, Map<String, Object> properties, String linkUri)
       throws Exception
    {
@@ -232,7 +232,7 @@ public class ChartRegionPropertyService {
       final Object written = rebuilt;
       final String writeField = field;
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          switch(name) {
          case "axis" -> regions.setAxisPropertyDialogModel(
             runtimeId, assembly, axisType(key), 0, writeField, (AxisPropertyDialogModel) written,
@@ -243,6 +243,8 @@ public class ChartRegionPropertyService {
          default -> regions.setTitleFormatDialogModel(
             runtimeId, assembly, key, (TitleFormatDialogModel) written, linkUri, user, dispatcher);
          }
+
+         ChartRenderCheck.warnIfScriptFails(rvs, assembly, dispatcher);
       });
    }
 
