@@ -2276,4 +2276,20 @@ class ChartRegionPropertyServiceTest {
    private static Principal principal() {
       return () -> "admin";
    }
+
+   /** Bug #78440: a trailing or doubled dot must not slip past the keyed guards. */
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "axisLinePaneModel.minimum.", "AxisLinePaneModel.Minimum..", "axisLinePaneModel..minimum",
+      "." })
+   void refusesAnEmptySegmentInARawRegionPath(String path) {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of(path, "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("empty segment"), thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
 }

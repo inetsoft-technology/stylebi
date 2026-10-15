@@ -505,14 +505,11 @@ public final class PropertyAliases {
          return key;
       }
 
-      String[] segments = key.split("\\.", -1);
+      String[] segments = PropertyPath.segments(key);
 
       for(int i = 0; i < segments.length; i++) {
          String segment = segments[i];
-
-         if(!segment.isEmpty()) {
-            segments[i] = Character.toLowerCase(segment.charAt(0)) + segment.substring(1);
-         }
+         segments[i] = Character.toLowerCase(segment.charAt(0)) + segment.substring(1);
       }
 
       return String.join(".", segments);

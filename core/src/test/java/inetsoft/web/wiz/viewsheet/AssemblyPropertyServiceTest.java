@@ -3987,4 +3987,93 @@ class AssemblyPropertyServiceTest {
    private static Principal principal() {
       return () -> "admin";
    }
+
+   // ── empty path segments (bug #78440) ─────────────────────────────────────
+
+   @Test
+   void refusesATrailingDotOnTheChartTrendLineStyleWithoutWritingIt() throws Exception {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+      int before = model.getChartLinePaneModel().getTrendLineStyle();
+
+      for(String key : new String[] { "chartLinePaneModel.trendLineStyle.",
+                                      "ChartLinePaneModel.TrendLineStyle..",
+                                      "chartLinePaneModel..trendLineStyle", "." })
+      {
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Chart1", Map.of(key, 999), ""), key);
+         assertTrue(e.getMessage().contains("empty segment"), e.getMessage());
+      }
+
+      assertEquals(before, model.getChartLinePaneModel().getTrendLineStyle());
+   }
+
+   @Test
+   void refusesATrailingDotOnCalendarViewModeSelectionSortTypeAndTreeMode() throws Exception {
+      CalendarPropertyDialogModel calendar = new CalendarPropertyDialogModel();
+      int viewMode = calendar.getCalendarAdvancedPaneModel().getViewMode();
+      assertThrows(IllegalArgumentException.class,
+         () -> serviceWithCalendar(mock(CalendarVSAssembly.class), calendar).set(
+            "tok", principal(), "Calendar1",
+            Map.of("calendarAdvancedPaneModel.viewMode.", 999), ""));
+      assertEquals(viewMode, calendar.getCalendarAdvancedPaneModel().getViewMode());
+
+      SelectionListPropertyDialogModel list = new SelectionListPropertyDialogModel();
+      int sortType = list.getSelectionGeneralPaneModel().getSortType();
+      assertThrows(IllegalArgumentException.class,
+         () -> serviceWithSelectionList(mock(SelectionListVSAssembly.class), list).set(
+            "tok", principal(), "Selection1",
+            Map.of("selectionGeneralPaneModel.sortType.", 999), ""));
+      assertEquals(sortType, list.getSelectionGeneralPaneModel().getSortType());
+
+      SelectionTreePropertyDialogModel tree = new SelectionTreePropertyDialogModel();
+      int mode = tree.getSelectionTreePaneModel().getMode();
+      assertThrows(IllegalArgumentException.class,
+         () -> serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), tree).set(
+            "tok", principal(), "SelectionTree1",
+            Map.of("selectionTreePaneModel.mode.", 7), ""));
+      assertEquals(mode, tree.getSelectionTreePaneModel().getMode());
+   }
+
+   @Test
+   void refusesATrailingDotOnTheDeadLockedFieldAndTheLockedFieldUnderAnyCapitalisation() {
+      for(String key : new String[] {
+         "textInputGeneralPaneModel.sizePositionPaneModel.locked.",
+         "TextInputGeneralPaneModel.SizePositionPaneModel.Locked" })
+      {
+         assertThrows(IllegalArgumentException.class,
+            () -> setTextInputColumnOption(new TextInputPropertyDialogModel(), Map.of(key, true)),
+            key);
+      }
+   }
+
+   @Test
+   void refusesCapitalisedOutOfDomainIntEnumPaths() throws Exception {
+      ChartPropertyDialogModel chart = new ChartPropertyDialogModel();
+      AssemblyPropertyService chartService = serviceWith(mock(ChartVSAssembly.class), chart);
+
+      for(String key : new String[] { "ChartLinePaneModel.trendLineStyle",
+                                      "chartLinePaneModel.TrendLineStyle",
+                                      "ChartLinePaneModel.XGridLineStyle" })
+      {
+         assertThrows(IllegalArgumentException.class,
+            () -> chartService.set("tok", principal(), "Chart1", Map.of(key, 999), ""), key);
+      }
+
+      SelectionTreePropertyDialogModel tree = new SelectionTreePropertyDialogModel();
+      assertThrows(IllegalArgumentException.class,
+         () -> serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), tree).set(
+            "tok", principal(), "SelectionTree1",
+            Map.of("SelectionTreePaneModel.mode", 7), ""));
+      CalendarPropertyDialogModel calendar = new CalendarPropertyDialogModel();
+      assertThrows(IllegalArgumentException.class,
+         () -> serviceWithCalendar(mock(CalendarVSAssembly.class), calendar).set(
+            "tok", principal(), "Calendar1",
+            Map.of("CalendarAdvancedPaneModel.viewMode", 999), ""));
+      SelectionListPropertyDialogModel list = new SelectionListPropertyDialogModel();
+      assertThrows(IllegalArgumentException.class,
+         () -> serviceWithSelectionList(mock(SelectionListVSAssembly.class), list).set(
+            "tok", principal(), "Selection1",
+            Map.of("SelectionGeneralPaneModel.sortType", 999), ""));
+   }
 }
