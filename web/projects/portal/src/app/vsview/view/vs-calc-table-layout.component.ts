@@ -274,6 +274,12 @@ export class CalcTableLayoutPane extends CommandProcessor implements AfterViewCh
    }
 
    protected processGetCellScriptCommand(command: GetCellScriptCommand): void {
+      // the script has no row/col, ignore it if the selected cell or its binding changed
+      // after it was requested, otherwise it would be written into another cell's binding
+      if(!this.editorService.isCellScriptCurrent()) {
+         return;
+      }
+
       this.editorService.getCellBinding().value = command.script;
       this.changeSelectCell(this.editorService.getCellBinding());
       // getCellScript is called after switching to formula, when the script is retrieved

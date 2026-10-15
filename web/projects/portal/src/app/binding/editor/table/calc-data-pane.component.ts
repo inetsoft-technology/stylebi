@@ -433,6 +433,12 @@ export class CalcDataPane {
       return cells && cells.length > 0;
    }
 
+   // false while the selected cell's binding is not loaded yet, the pane then shows the
+   // binding of the previously selected cell and must not be edited
+   get cellBindingReady(): boolean {
+      return this.editorService.isCellBindingReady();
+   }
+
    get cellGroupEnabled(): boolean {
       return this.cellBindingEnabled;
    }

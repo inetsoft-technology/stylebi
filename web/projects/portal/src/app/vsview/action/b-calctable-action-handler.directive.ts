@@ -29,6 +29,7 @@ import {
 } from "@angular/core";
 import { forkJoin as observableForkJoin, Subscription } from "rxjs";
 import { InsertRowColDialog } from "../../binding/editor/table/insert-row-col-dialog.component";
+import { VSCalcTableEditorService } from "../../binding/services/table/vs-calc-table-editor.service";
 import { CopyCutCalcCellEvent } from "../../binding/event/copy-cut-calc-cell-event";
 import { ModifyTableLayoutEvent } from "../../binding/event/modify-table-layout-event";
 import { AssemblyActionEvent } from "../../common/action/assembly-action-event";
@@ -263,6 +264,7 @@ export class BCalcTableActionHandlerDirective extends AbstractActionHandler impl
    private sendOperationRequest(op: string, num: number) {
       let evt: ModifyTableLayoutEvent = new ModifyTableLayoutEvent(
          this.vsObject.absoluteName, op, num, this.getSelectRect());
+      this.invalidateCellBinding();
       this.clientService.sendEvent("/events/vs/calctable/tablelayout/modifylayout", evt);
    }
 
@@ -301,7 +303,18 @@ export class BCalcTableActionHandlerDirective extends AbstractActionHandler impl
    private sendCopyCutRequest(op: string, content: Rectangle[]): void {
       let evt: CopyCutCalcCellEvent = new CopyCutCalcCellEvent(
          this.vsObject.absoluteName, op, content);
+      this.invalidateCellBinding();
       this.clientService.sendEvent("/events/vs/calctable/tablelayout/copycutcell", evt);
+   }
+
+   // the operation changes the selected cell's binding on the server, so the loaded binding
+   // is out of date until the server sends the selected cell's binding again
+   private invalidateCellBinding(): void {
+      const editorService = this.injector.get(VSCalcTableEditorService, null);
+
+      if(editorService) {
+         editorService.invalidateCellBinding();
+      }
    }
 
    private openInsertRowColDialog(): void {
