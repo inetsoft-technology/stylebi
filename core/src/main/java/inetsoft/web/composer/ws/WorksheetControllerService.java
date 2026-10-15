@@ -408,12 +408,28 @@ public class WorksheetControllerService {
       Worksheet ws, TableAssembly table, AggregateInfo newInfo,
       Map<ColumnRef, String> originalAliases)
    {
+      return findAggregateIdentityLossConflict(ws, table, newInfo, originalAliases, null);
+   }
+
+   /**
+    * As the 4-arg overload, and additionally (Bug #78595) lets a join key that is ALREADY an
+    * aggregate output of {@code table} stay one. {@code oldAggregateOutputs} holds
+    * {@link #aggregateOutputKey} of every aggregate of the pre-call, non-crosstab
+    * {@link AggregateInfo}; a join key that the new info still aggregates under that same
+    * (source attribute, output identity) is not "row-level -> aggregated", it is unchanged.
+    * {@code null} keeps the original rule that an aggregate never keeps a join key.
+    */
+   public static ColumnRef findAggregateIdentityLossConflict(
+      Worksheet ws, TableAssembly table, AggregateInfo newInfo,
+      Map<ColumnRef, String> originalAliases, Set<String> oldAggregateOutputs)
+   {
       if(newInfo == null) {
          return null;
       }
 
       for(ColumnRef colRef :
-         findAggregateOutputLossCandidates(table, newInfo, originalAliases, false))
+         findAggregateOutputLossCandidates(table, newInfo, originalAliases, false,
+                                           oldAggregateOutputs))
       {
          if(!allowsDeletion(ws, table, withPreCallAlias(colRef, originalAliases))) {
             return colRef;
@@ -475,7 +491,7 @@ public class WorksheetControllerService {
       // Bug #76891 / WBS-087 still holds: a column that survives as an aggregate under its
       // unchanged identity stays addressable downstream and is not flagged.
       for(ColumnRef colRef :
-         findAggregateOutputLossCandidates(table, newInfo, originalAliases, true))
+         findAggregateOutputLossCandidates(table, newInfo, originalAliases, true, null))
       {
          findAggregateInputLossConflicts(
             ws, table, colRef, new HashSet<>(), lostByDependent, originalAliases);
@@ -547,7 +563,7 @@ public class WorksheetControllerService {
     */
    private static List<ColumnRef> findAggregateOutputLossCandidates(
       TableAssembly table, AggregateInfo newInfo, Map<ColumnRef, String> originalAliases,
-      boolean aggregatesKeepIdentity)
+      boolean aggregatesKeepIdentity, Set<String> oldAggregateOutputs)
    {
       ColumnSelection cols = table.getColumnSelection(false);
       Set<ColumnRef> live = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -582,7 +598,8 @@ public class WorksheetControllerService {
          }
 
          if(!live.contains(colRef) ||
-            !survivesAggregateOutput(newInfo, colRef, originalAliases, aggregatesKeepIdentity))
+            !survivesAggregateOutput(newInfo, colRef, originalAliases, aggregatesKeepIdentity,
+                                     oldAggregateOutputs))
          {
             atRisk.add(colRef);
          }
@@ -593,7 +610,7 @@ public class WorksheetControllerService {
 
    private static boolean survivesAggregateOutput(
       AggregateInfo newInfo, ColumnRef col, Map<ColumnRef, String> originalAliases,
-      boolean aggregatesKeepIdentity)
+      boolean aggregatesKeepIdentity, Set<String> oldAggregateOutputs)
    {
       String preCallIdentity = outputIdentity(col, preCallAlias(col, originalAliases));
       String finalIdentity = outputIdentity(col, col.getAlias());
@@ -622,7 +639,29 @@ public class WorksheetControllerService {
          }
       }
 
+      // Bug #78595: a join key that is already an aggregate output stays one when this call
+      // still aggregates the same source column under the same output identity. Matching is
+      // by key, not by ref equality: the old refs' aliases were cleared before this runs.
+      if(!aggregatesKeepIdentity && !crosstab && oldAggregateOutputs != null &&
+         oldAggregateOutputs.contains(aggregateOutputKey(col, finalIdentity)))
+      {
+         for(int i = 0; i < newInfo.getAggregateCount(); i++) {
+            if(isSameOutputColumn(newInfo.getAggregate(i).getDataRef(), col)) {
+               return true;
+            }
+         }
+      }
+
       return false;
+   }
+
+   /**
+    * Identity of one aggregate output for {@code oldAggregateOutputs}: its source attribute
+    * plus its output identity (alias, else attribute). Bug #78595.
+    */
+   public static String aggregateOutputKey(ColumnRef col, String alias) {
+      return col.getAttribute() + " " +
+         (alias == null || alias.isEmpty() ? col.getAttribute() : alias);
    }
 
    /**
@@ -828,7 +867,7 @@ public class WorksheetControllerService {
 
       if(newInfo != null) {
          for(ColumnRef colRef :
-            findAggregateOutputLossCandidates(table, newInfo, originalAliases, true))
+            findAggregateOutputLossCandidates(table, newInfo, originalAliases, true, null))
          {
             findColumnReferenceLossConflicts(ws, table, withPreCallAlias(colRef, originalAliases),
                new HashSet<>(), refsByDependent);
