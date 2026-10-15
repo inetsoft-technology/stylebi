@@ -122,6 +122,7 @@ public class ChartVSAScriptableTest {
 
       assertEquals(java.util.List.of(), chartVSAScriptable.getUnrecognizedWrites());
       assertSame(graph, chartVSAScriptable.getMember("graph"));
+      assertSame(dataset, chartVSAScriptable.getMember("dataset"), "data was applied");
       assertEquals("ws:global:Examples/AllSales",
                    chartVSAssemblyInfo.getSourceInfo().getSource());
 
