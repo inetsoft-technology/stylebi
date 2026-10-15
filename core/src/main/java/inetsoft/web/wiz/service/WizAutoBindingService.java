@@ -577,6 +577,13 @@ public class WizAutoBindingService {
       applyAestheticFieldConfig(chartInfo.getShapeField(), configMap, chartType);
       applyAestheticFieldConfig(chartInfo.getSizeField(), configMap, chartType);
       applyAestheticFieldConfig(chartInfo.getTextField(), configMap, chartType);
+
+      // A multi-style chart carries its aesthetics per measure instead -- a donut puts its category
+      // on the measure's own color field (DonutChartFilter.putInside) and has no chart-level one.
+      // Empty unless the chart is multi-aesthetic (#78535).
+      for(AestheticRef aref : chartInfo.getAggregateAestheticRefs(false)) {
+         applyAestheticFieldConfig(aref, configMap, chartType);
+      }
    }
 
    /**
@@ -774,7 +781,87 @@ public class WizAutoBindingService {
          }
       }
 
+      // A column bound both statically and through a "$(...)" reference that currently resolves to
+      // it: collectFlatBinding keeps whichever ref it visits first (it dedups on the RESOLVED full
+      // name), and the rebuild binds each column once anyway, so only one binding can survive. Make
+      // it the dynamic one regardless of visit order -- the static survivor follows the reference
+      // too -- and changeType reports the collapse through dynamicColumnCollisions (#78535).
+      for(DynamicColumnCollision collision : dynamicColumnCollisions(target)) {
+         for(SimpleFieldInfo config : configs) {
+            boolean sameKind = collision.dimension() ? config instanceof DimensionFieldInfo
+               : config instanceof MeasureFieldInfo;
+
+            if(sameKind && config.getDynamicColumnValue() == null &&
+               collision.column().equals(config.getField()))
+            {
+               config.setDynamicColumnValue(collision.dynamicValue());
+            }
+         }
+      }
+
       return configs;
+   }
+
+   /**
+    * A column {@code target} binds both statically and through a "$(...)" reference of the same
+    * kind (dimension or measure) that currently resolves to that column.
+    */
+   record DynamicColumnCollision(String column, String dynamicValue, boolean dimension) {
+   }
+
+   /**
+    * Every {@link DynamicColumnCollision} on {@code target}, in binding order. Matched by kind, so a
+    * static dimension is never made dynamic by a "$(...)" MEASURE over the same column. Empty for the
+    * common chart without a dynamic ref.
+    */
+   List<DynamicColumnCollision> dynamicColumnCollisions(VSAssembly target) {
+      List<DataRef> refs = bindingRefsOf(target);
+      Map<String, String> dynamicDims = new LinkedHashMap<>();
+      Map<String, String> dynamicMeasures = new LinkedHashMap<>();
+      Set<String> staticDims = new HashSet<>();
+      Set<String> staticMeasures = new HashSet<>();
+
+      for(DataRef ref : refs) {
+         if(ref instanceof VSDimensionRef dim) {
+            String designValue = dim.getGroupColumnValue();
+
+            if(isDynamicVariableReference(designValue)) {
+               addDynamicResolution(dynamicDims, designValue, dim.getName());
+            }
+            else if(!Tool.isEmptyString(designValue)) {
+               staticDims.add(designValue);
+            }
+         }
+         else if(ref instanceof VSAggregateRef agg) {
+            String designValue = agg.getColumnValue();
+
+            if(isDynamicVariableReference(designValue)) {
+               addDynamicResolution(dynamicMeasures, designValue, agg.getName());
+            }
+            else if(!Tool.isEmptyString(designValue)) {
+               staticMeasures.add(designValue);
+            }
+         }
+      }
+
+      List<DynamicColumnCollision> collisions = new ArrayList<>();
+      addCollisions(collisions, dynamicDims, staticDims, true);
+      addCollisions(collisions, dynamicMeasures, staticMeasures, false);
+      return collisions;
+   }
+
+   private static void addCollisions(List<DynamicColumnCollision> collisions,
+                                     Map<String, String> dynamicToColumn, Set<String> staticColumns,
+                                     boolean dimension)
+   {
+      Set<String> columns = new HashSet<>();
+
+      for(Map.Entry<String, String> e : dynamicToColumn.entrySet()) {
+         // The first reference wins when two resolve to the same column, as resolution order does.
+         if(staticColumns.contains(e.getValue()) && columns.add(e.getValue())) {
+            collisions.add(new DynamicColumnCollision(e.getValue(), e.getKey(), dimension));
+         }
+      }
    }
 
    /**
@@ -1147,7 +1234,8 @@ public class WizAutoBindingService {
 
    /**
     * {@link #restoreDynamicColumnValues(DataRef[], Map)} over every ref of a chart binding -- x/y/group
-    * plus the aesthetics, matching the set {@link #applyFieldConfigs} walks.
+    * plus the chart-level and per-measure aesthetics, matching the set {@link #applyFieldConfigs} walks
+    * and the set {@link #bindingRefsOf} resolves (#78535).
     */
    static void restoreChartDynamicColumnValues(VSChartInfo chartInfo,
                                                Map<String, SimpleFieldInfo> configMap)
@@ -1160,10 +1248,13 @@ public class WizAutoBindingService {
       restoreDynamicColumnValues(chartInfo.getYFields(), configMap);
       restoreDynamicColumnValues(chartInfo.getGroupFields(), configMap);
 
-      for(AestheticRef aref : new AestheticRef[]{
+      List<AestheticRef> arefs = new ArrayList<>(Arrays.asList(
          chartInfo.getColorField(), chartInfo.getShapeField(),
-         chartInfo.getSizeField(), chartInfo.getTextField()
-      }) {
+         chartInfo.getSizeField(), chartInfo.getTextField()));
+      // A multi-style chart (a donut, say) carries its category on a measure's own aesthetic.
+      arefs.addAll(chartInfo.getAggregateAestheticRefs(false));
+
+      for(AestheticRef aref : arefs) {
          if(aref != null && aref.getDataRef() != null) {
             restoreDynamicColumnValues(new DataRef[]{ aref.getDataRef() }, configMap);
          }
@@ -2968,6 +3059,17 @@ public class WizAutoBindingService {
          // Forward the newly created autoBindingRuntimeId so the client can use the fast
          // path on subsequent changeType calls instead of triggering another full autoBinding.
          result.setAutoBindingRuntimeId(resp.getAutoBindingRuntimeId());
+
+         // The field list carried one binding per column, so a column the target bound both
+         // statically and through a "$(...)" reference now has one field, following the reference
+         // (see resolveDynamicFieldConfigs). Say so rather than drop the static binding silently.
+         if(!targetFieldConfigs.isEmpty()) {
+            for(DynamicColumnCollision collision : dynamicColumnCollisions(targetAssembly)) {
+               result.addWarning("binding", collision.column() + " was bound both directly and " +
+                  "through " + collision.dynamicValue() + "; the rebuilt binding has one " +
+                  collision.column() + " field, which follows " + collision.dynamicValue() + ".");
+            }
+         }
 
          // Populate headers/rows for data insight (same as the fast path below).
          if(result.getAssemblyName() != null) {
