@@ -147,6 +147,22 @@ class SelectionPropertyGuardsTest {
    }
 
    @Test
+   void emptyOrNullLevelsAreAcceptedWhenSingleSelectIsOff() {
+      for(List<String> cleared : Arrays.asList(List.<String>of(), null)) {
+         SelectionTreePropertyDialogModel model =
+            tree(false, SelectionTreeVSAssemblyInfo.COLUMN, cleared, "Region");
+
+         assertSame(model, AssemblyPropertyService.requireKnownSingleSelectionLevels(model));
+      }
+   }
+
+   @Test
+   void nullLevelsAreRefusedWhileSingleSelectIsOn() {
+      assertTrue(levelsRefusal(
+         tree(true, SelectionTreeVSAssemblyInfo.COLUMN, null, "Region")).contains("empty"));
+   }
+
+   @Test
    void validLevelsPassAndDuplicatesAreRemoved() {
       SelectionTreePropertyDialogModel model = tree(
          true, SelectionTreeVSAssemblyInfo.COLUMN, List.of("State", "State", "Region"), "Region",
@@ -199,7 +215,7 @@ class SelectionPropertyGuardsTest {
    @Test
    void compositeSliderRefusesRangeTypeAndSizes() {
       for(String leaf : List.of("rangeType", "rangeSize", "maxRangeSize")) {
-         assertTrue(sliderRefusal(slider(true, TimeInfo.NUMBER, false), leaf).contains("composite"),
+         assertTrue(sliderRefusal(slider(true, TimeInfo.NUMBER, false), leaf).contains("rangeSliderDataPaneModel.composite:false"),
                     leaf);
       }
    }

@@ -416,7 +416,7 @@ public class AssemblyPropertyService {
          throw new IllegalArgumentException(
             field + ": a composite range slider has no range type or range size -- StyleBI " +
             "never stores them for one, so the write would report success and read back 0. " +
-            "Set composite:false first to use a single range.");
+            "Set rangeSliderDataPaneModel.composite:false in the same call to use a single range.");
       }
 
       if(rangeSize && !number) {
@@ -461,6 +461,13 @@ public class AssemblyPropertyService {
             "apply. Use singleSelection instead.");
       }
 
+      boolean single = (Boolean) PropertyPath.get(model, "selectionGeneralPaneModel.singleSelection");
+
+      // Turning single-select off clears its levels, which is what the Composer does too.
+      if(!single && (levels == null || levels instanceof List<?> cleared && cleared.isEmpty())) {
+         return model;
+      }
+
       if(!(levels instanceof List<?> list) || list.isEmpty()) {
          throw new IllegalArgumentException(
             field + "the list is empty, which StyleBI reads as \"every level\". Name the " +
@@ -486,7 +493,7 @@ public class AssemblyPropertyService {
          distinct.add(name);
       }
 
-      if(!(Boolean) PropertyPath.get(model, "selectionGeneralPaneModel.singleSelection")) {
+      if(!single) {
          throw new IllegalArgumentException(
             field + "the tree is not single-select, so the levels would be stored but never " +
             "applied. Set singleSelection:true in the same call.");
