@@ -161,11 +161,21 @@ public class RelationElement extends GraphElement {
       // all cases, "most recent" (largest) tie-break value wins,
       // and a missing/unbound color field falls back to the first row encountered -- an
       // exact no-op match for the pre-fix behavior.
+      //
+      // The To-node loop below doesn't draw a leaf from a row whose size is null (e.g. a
+      // brushed row of a BrushDataSet, where the __all__ columns are null), so such rows
+      // are not eligible as a leaf's representative row either. Otherwise a brushed leaf
+      // in the all-data element would read its __all__ size and label from a brushed row
+      // and be drawn at the minimum size without a label. Roots are drawn from every row
+      // and keep their pre-existing selection. (78569)
       ColorFrame rootColorFrame = isApplyAestheticsToSource() ? getNodeColorFrame() : getColorFrame();
+      String leafNullSizeField = sizeField != null &&
+         (overlay || sizeField.startsWith(ElementVO.ALL_PREFIX)) ? sizeField : null;
       Map<String, Integer> rootRepresentativeRows = findRepresentativeRows(
-         data, sdata, fromDim, toDim, resolveTieField(rootColorFrame, data));
+         data, sdata, fromDim, toDim, resolveTieField(rootColorFrame, data), null);
       Map<String, Integer> leafRepresentativeRows = findRepresentativeRows(
-         data, sdata, toDim, fromDim, resolveTieField(getNodeColorFrame(), data));
+         data, sdata, toDim, fromDim, resolveTieField(getNodeColorFrame(), data),
+         leafNullSizeField);
 
       // add To nodes
       for(int i = getStartRow(data); i < max; i++) {
@@ -184,9 +194,7 @@ public class RelationElement extends GraphElement {
             continue;
          }
 
-         if(sizeField != null && (overlay || sizeField.startsWith(ElementVO.ALL_PREFIX)) &&
-            data.getData(sizeField, i) == null)
-         {
+         if(leafNullSizeField != null && data.getData(leafNullSizeField, i) == null) {
             continue;
          }
 
@@ -603,9 +611,15 @@ public class RelationElement extends GraphElement {
     *       for the pre-fix, order-dependent selection when there is no color field to
     *       tie-break on.</li>
     * </ol>
+    * If {@code nullSizeField} is non-null, a row whose {@code nullSizeField} value is null
+    * is skipped before any of the steps above, so it can neither be the first row nor set
+    * the rank. This is the same rule the To-node loop uses to skip rows it doesn't draw a
+    * leaf from (78569). A group with no eligible row has no entry, and the caller falls
+    * back to its own row.
     */
    private Map<String, Integer> findRepresentativeRows(
-      DataSet data, SortedDataSet sdata, String groupDim, String rankField, String tieField)
+      DataSet data, SortedDataSet sdata, String groupDim, String rankField, String tieField,
+      String nullSizeField)
    {
       Map<String, Integer> result = new HashMap<>();
       Map<String, Object> ranks = new HashMap<>();
@@ -615,6 +629,10 @@ public class RelationElement extends GraphElement {
 
       for(int i = getStartRow(data); i < max; i++) {
          if(!isAccepted(data, i)) {
+            continue;
+         }
+
+         if(nullSizeField != null && data.getData(nullSizeField, i) == null) {
             continue;
          }
 
