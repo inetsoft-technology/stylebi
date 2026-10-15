@@ -27,6 +27,7 @@ import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
 import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
+import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.Tag;
@@ -329,6 +330,126 @@ class AssemblyPropertyServiceListInputTest {
       assertDoesNotThrow(() -> set(model, Map.of("visible", "false")));
    }
 
+   // ── tester additions ────────────────────────────────────────────────────
+
+   @Test
+   void refusesMoreImpossibleBoundShapes() throws Exception {
+      String[][] cases = {
+         { "date", E, "minDate", "2023-02-29", "yyyy-MM-dd" },
+         { "date", E, "maxDate", "2024-13-01", "yyyy-MM-dd" },
+         { "date", CAPITALISED_E, "MinDate", "05/12/2024", "yyyy-MM-dd" },
+         { "timeInstant", E, "minDate", "2024-01-01T10:00:00", "yyyy-MM-dd HH:mm:ss" },
+         { "timeInstant", E, "minDate", "2024-01-01 24:00:00", "yyyy-MM-dd HH:mm:ss" },
+         { "timeInstant", E, "maxDate", "2024-01-01 10:60:00", "yyyy-MM-dd HH:mm:ss" },
+      };
+
+      for(String[] c : cases) {
+         ComboboxPropertyDialogModel model = combobox("string", false, "", "");
+         Map<String, Object> patch = new LinkedHashMap<>();
+         patch.put(c[1] + ".calendar", true);
+         patch.put(c[1] + ".dataType", c[0]);
+         patch.put(c[1] + "." + c[2], c[3]);
+
+         Exception e = assertThrows(IllegalArgumentException.class, () -> set(model, patch),
+                                    String.join(" ", c));
+
+         String field = Character.toLowerCase(c[2].charAt(0)) + c[2].substring(1);
+         assertTrue(e.getMessage().contains(E + "." + field), e.getMessage());
+         assertTrue(e.getMessage().contains(c[4]), e.getMessage());
+         verifyNothingWritten();
+      }
+   }
+
+   /** A dynamic bound is skipped, but the other bound of the pair is still checked. */
+   @Test
+   void checksTheOtherBoundNextToADynamicOne() throws Exception {
+      ComboboxPropertyDialogModel model = combobox("date", true, "", "");
+
+      Exception e = assertThrows(IllegalArgumentException.class, () -> set(model, Map.of(
+         E + ".minDate", "$(start)", E + ".maxDate", "2024-02-30")));
+
+      assertTrue(e.getMessage().contains(E + ".maxDate"), e.getMessage());
+      verifyNothingWritten();
+   }
+
+   @Test
+   void acceptsALeapDayAndOrdersTimeInstantBoundsByTime() throws Exception {
+      ComboboxPropertyDialogModel leap = combobox("date", true, "", "");
+      set(leap, Map.of(E + ".minDate", " 2024-2-29 ", E + ".maxDate", "2024-12-31"));
+      assertEquals("2024-02-29", editor(leap).getMinDate());
+
+      ComboboxPropertyDialogModel inverted = combobox("timeInstant", true, "", "");
+      assertThrows(IllegalArgumentException.class, () -> set(inverted, Map.of(
+         E + ".minDate", "2024-01-01 10:00:01", E + ".maxDate", "2024-01-01 10:00:00")));
+      verifyNothingWritten();
+
+      ComboboxPropertyDialogModel equal = combobox("timeInstant", true, "", "");
+      set(equal, Map.of(E + ".minDate", "2024-01-01 10:0:0",
+                        E + ".maxDate", "2024-01-01 10:00:00"));
+      assertEquals("2024-01-01 10:00:00", editor(equal).getMinDate());
+   }
+
+   /** Refute C1 in the capitalised spelling: a field the patch writes is never overridden. */
+   @Test
+   void keepsCapitalisedExplicitFieldsWrittenWithADataTypeChange() {
+      ComboboxPropertyDialogModel list = combobox("string", false, "", "");
+      set(list, Map.of(CAPITALISED_E + ".DataType", "date",
+                       CAPITALISED_E + ".VariableListDialogModel.DataType", "string"));
+      assertEquals("string", editor(list).getVariableListDialogModel().getDataType());
+
+      ComboboxPropertyDialogModel tz = combobox("date", false, "", "");
+      editor(tz).setServerTZ(false);
+      set(tz, Map.of(CAPITALISED_E + ".DataType", "timeInstant",
+                     CAPITALISED_E + ".ServerTZ", false));
+      assertFalse(editor(tz).isServerTZ());
+   }
+
+   /** The reporter's one-call shape on a query-populated combo, and bounds on a time combo. */
+   @Test
+   void refusesTheOneCallCalendarPatchOnAQueryComboAndBoundsOnATimeCombo() throws Exception {
+      ComboboxPropertyDialogModel query = combobox("string", false, "", "");
+      editor(query).setQuery(true);
+      Exception e = assertThrows(IllegalArgumentException.class, () -> set(query, Map.of(
+         E + ".calendar", true, E + ".dataType", "date", E + ".minDate", "2024-01-01")));
+      assertTrue(e.getMessage().contains("query:false"), e.getMessage());
+      verifyNothingWritten();
+
+      ComboboxPropertyDialogModel time = combobox("string", false, "", "");
+      e = assertThrows(IllegalArgumentException.class, () -> set(time, Map.of(
+         E + ".calendar", true, E + ".dataType", "time", E + ".minDate", "2024-01-01")));
+      assertTrue(e.getMessage().contains("would be dropped"), e.getMessage());
+      verifyNothingWritten();
+   }
+
+   @Test
+   void syncsARadioButtonListTypeAndChecksTheValuesAgainstIt() {
+      RadioButtonPropertyDialogModel ok = radio("1", "2");
+      setRadio(ok, Map.of(RADIO_E + ".dataType", "integer"));
+      assertEquals("integer", ok.getRadioButtonGeneralPaneModel().getListValuesPaneModel()
+         .getComboBoxEditorModel().getVariableListDialogModel().getDataType());
+
+      RadioButtonPropertyDialogModel bad = radio("1", "abc");
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setRadio(bad, Map.of(RADIO_E + ".dataType", "integer")));
+      assertTrue(e.getMessage().contains("'abc'"), e.getMessage());
+   }
+
+   /** A write that leaves the editor's dataType alone touches none of the coupled fields. */
+   @Test
+   void leavesTheCoupledFieldsAloneWhenTheDataTypeIsNotChanged() {
+      ComboboxPropertyDialogModel model = combobox("date", true, "2024-1-5", "2024-12-31");
+      editor(model).getVariableListDialogModel().setDataType("string");
+      editor(model).setServerTZ(false);
+
+      set(model, Map.of("embedded", true));
+
+      ComboBoxEditorModel ed = editor(model);
+      assertEquals("string", ed.getVariableListDialogModel().getDataType());
+      assertEquals("2024-1-5", ed.getMinDate());
+      assertTrue(ed.isCalendar());
+      assertFalse(ed.isServerTZ());
+   }
+
    // ── harness ─────────────────────────────────────────────────────────────
 
    static final String E =
@@ -337,6 +458,8 @@ class AssemblyPropertyServiceListInputTest {
       "ComboboxGeneralPaneModel.ListValuesPaneModel.ComboBoxEditorModel";
    private static final String CHECKBOX_E =
       "checkboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel";
+   private static final String RADIO_E =
+      "radioButtonGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel";
 
    private static VSInputService lastInputService;
 
@@ -357,6 +480,18 @@ class AssemblyPropertyServiceListInputTest {
       CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
       ComboBoxEditorModel editor =
          model.getCheckboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel();
+      editor.setDataType("string");
+      editor.setEmbedded(true);
+      editor.getVariableListDialogModel().setDataType("string");
+      editor.getVariableListDialogModel().setLabels(values);
+      editor.getVariableListDialogModel().setValues(values);
+      return model;
+   }
+
+   private static RadioButtonPropertyDialogModel radio(String... values) {
+      RadioButtonPropertyDialogModel model = new RadioButtonPropertyDialogModel();
+      ComboBoxEditorModel editor = model.getRadioButtonGeneralPaneModel().getListValuesPaneModel()
+         .getComboBoxEditorModel();
       editor.setDataType("string");
       editor.setEmbedded(true);
       editor.getVariableListDialogModel().setDataType("string");
@@ -397,6 +532,21 @@ class AssemblyPropertyServiceListInputTest {
 
       run(service(mock(inetsoft.uql.viewsheet.CheckBoxVSAssembly.class), input), "CheckBox1",
           patch);
+   }
+
+   private static void setRadio(RadioButtonPropertyDialogModel model, Map<String, Object> patch) {
+      VSInputService input = mock(VSInputService.class);
+
+      try {
+         when(input.getRadioButtonPropertyModel(anyString(), anyString(), any(Principal.class)))
+            .thenReturn(model);
+      }
+      catch(Exception ex) {
+         throw new IllegalStateException(ex);
+      }
+
+      run(service(mock(inetsoft.uql.viewsheet.RadioButtonVSAssembly.class), input),
+          "RadioButton1", patch);
    }
 
    private static void run(AssemblyPropertyService service, String name,

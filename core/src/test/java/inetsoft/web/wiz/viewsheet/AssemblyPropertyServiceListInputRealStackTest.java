@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.ComboBoxVSAssembly;
+import inetsoft.uql.viewsheet.ListData;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ComboBoxVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
@@ -98,6 +99,72 @@ class AssemblyPropertyServiceListInputRealStackTest {
       assertTrue(e.getMessage().contains("yyyy-MM-dd"), e.getMessage());
       assertSame(before, stack.info());
       assertNull(stack.info().getMinDateValue());
+   }
+
+   /** A timeInstant pair in the dialog's H:m:s shape is stored zero-padded and survives. */
+   @Test
+   void storesTimeInstantBoundsPaddedAndKeepsThemAcrossTheNextWrite() throws Exception {
+      RealStack stack = realStack();
+
+      stack.service().set("tok", principal(), "ComboBox1", Map.of(
+         E + ".calendar", true, E + ".dataType", "timeInstant",
+         E + ".minDate", "2024-1-5 9:5:0", E + ".maxDate", "2024-12-31 23:59:59"), "");
+      stack.service().set("tok", principal(), "ComboBox1", Map.of("visible", "true"), "");
+
+      ComboBoxVSAssemblyInfo info = stack.info();
+      assertEquals("timeInstant", info.getDataType());
+      assertEquals("2024-01-05 09:05:00", info.getMinDateValue());
+      assertEquals("2024-12-31 23:59:59", info.getMaxDateValue());
+   }
+
+   /**
+    * Lead decision C3: a malformed bound stored by another writer (the native dialog only
+    * warns) does not block an unrelated write, but a write of the calendar flag checks it.
+    */
+   @Test
+   void leavesALegacyMalformedBoundAloneUntilTheCalendarIsWritten() throws Exception {
+      RealStack stack = realStack();
+      stack.service().set("tok", principal(), "ComboBox1", Map.of(
+         E + ".calendar", true, E + ".dataType", "date",
+         E + ".minDate", "2024-01-01", E + ".maxDate", "2025-10-31"), "");
+      stack.info().setMinDateValue("05/12/2024");
+
+      stack.service().set("tok", principal(), "ComboBox1", Map.of("visible", "true"), "");
+      assertEquals("05/12/2024", stack.info().getMinDateValue());
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> stack.service().set("tok", principal(), "ComboBox1",
+                                   Map.of(E + ".calendar", true), ""));
+      assertTrue(e.getMessage().contains(E + ".minDate"), e.getMessage());
+   }
+
+   /**
+    * Refute C2: a combo left drifted by the old write path (dtype date, static list typed
+    * string, so it reads "string") is repaired by re-sending the dataType with its bounds.
+    */
+   @Test
+   void repairsADriftedComboWhenTheBoundsAreReSentWithTheDataType() throws Exception {
+      RealStack stack = realStack();
+      ComboBoxVSAssemblyInfo drifted = stack.info();
+      drifted.setDataType("date");
+      ListData list = new ListData();
+      list.setDataType("string");
+      drifted.setListData(list);
+      drifted.setCalendar(true);
+      drifted.setMinDateValue("2024-01-01");
+      drifted.setMaxDateValue("2025-10-31");
+      assertEquals("string", drifted.getDataType());
+
+      stack.service().set("tok", principal(), "ComboBox1", Map.of(
+         E + ".dataType", "date", E + ".minDate", "2024-01-01",
+         E + ".maxDate", "2025-10-31"), "");
+      stack.service().set("tok", principal(), "ComboBox1", Map.of("visible", "true"), "");
+
+      ComboBoxVSAssemblyInfo info = stack.info();
+      assertEquals("date", info.getDataType());
+      assertTrue(info.isCalendar());
+      assertEquals("2024-01-01", info.getMinDateValue());
+      assertEquals("2025-10-31", info.getMaxDateValue());
    }
 
    // ── harness ─────────────────────────────────────────────────────────────
