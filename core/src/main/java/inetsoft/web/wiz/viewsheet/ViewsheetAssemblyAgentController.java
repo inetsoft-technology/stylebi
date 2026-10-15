@@ -54,6 +54,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.report.io.viewsheet.excel.CSVUtil;
 import inetsoft.util.Catalog;
@@ -1148,8 +1149,21 @@ public class ViewsheetAssemblyAgentController {
       }
 
       ByteArrayOutputStream out = new ByteArrayOutputStream();
-      String[] bookmarkNames = bookmarks == null || bookmarks.isEmpty() ?
-         new String[0] : bookmarks.split(",");
+      String[] bookmarkNames = resolveExportBookmarks(rvs, user, bookmarks);
+      boolean includeCurrent = current == null || current;
+
+      // Mirrors the Export dialog's "not void" rule (export-dialog.component.ts ok()): with the
+      // Current View off and no bookmark chosen the workbook/archive would be empty. Snapshot
+      // serializes the live state and ignores both options, so it is exempt there too.
+      if(!includeCurrent && bookmarkNames.length == 0 &&
+         formatType != FileFormatInfo.EXPORT_TYPE_SNAPSHOT)
+      {
+         throw new IllegalArgumentException(
+            "export_viewsheet: nothing to export -- 'current' is false and no 'bookmarks' were " +
+            "given, so the " + format + " export would be empty. Pass current:true (the " +
+            "default) or name at least one bookmark.");
+      }
+
       // CSV data must always be fully expanded rather than clipped to the on-screen layout,
       // regardless of what the caller asked for via 'match' -- mirrors ExportController /
       // WizExportController's own "always expand tables when export to csv" convention.
@@ -1158,7 +1172,7 @@ public class ViewsheetAssemblyAgentController {
 
       try {
          exportService.exportViewsheet(rvs, formatType, effectiveMatch,
-            expandSelections != null && expandSelections, current == null || current, false, false,
+            expandSelections != null && expandSelections, includeCurrent, false, false,
             bookmarkNames, false, onlyDataComponents != null && onlyDataComponents, csvConfig,
             exportAllTabbedTables != null && exportAllTabbedTables, new ExportResponse(out), user);
       }
@@ -1169,6 +1183,98 @@ public class ViewsheetAssemblyAgentController {
       writeAttachment(servletResponse, out.toByteArray(), VSExportService.getMime(formatType),
          "export." + VSExportService.getSuffix(formatType));
       return null;
+   }
+
+   /**
+    * Resolves the comma-separated {@code bookmarks} request value to the spellings
+    * {@link VSExportService}'s own bookmark filter accepts, refusing any name that is not one of
+    * the caller's visible bookmarks. That filter silently drops what it does not recognize, so
+    * without this check an unknown (or mis-spelled) name produced a quietly empty or partial
+    * export. Accepted: the caller's own bookmark by plain name, "(Home)", and another owner's
+    * shared/group bookmark as {@code name(alias)} -- or, forgiving of what {@link #listBookmarks}
+    * reports (plain {@code name} plus a separate {@code owner}), as the plain name when exactly
+    * one visible bookmark of that name is another owner's; that is normalized to the
+    * {@code name(alias)} form the filter needs. A plain name shared by several other owners with
+    * no own bookmark of that name is ambiguous and refused, naming the candidates. Blank entries
+    * (e.g. a trailing comma) are ignored. An unsaved viewsheet has no bookmarks, so any name is
+    * refused rather than passed through the way the filter's own null-entry bypass would.
+    */
+   private String[] resolveExportBookmarks(RuntimeViewsheet rvs, Principal user, String bookmarks) {
+      if(bookmarks == null || bookmarks.isBlank()) {
+         return new String[0];
+      }
+
+      List<String> requested = java.util.Arrays.stream(bookmarks.split(","))
+         .map(String::trim).filter(b -> !b.isEmpty()).collect(Collectors.toList());
+
+      if(requested.isEmpty()) {
+         return new String[0];
+      }
+
+      IdentityID caller = ownerOf(user);
+      List<VSBookmarkInfo> visible = rvs.getEntry() == null ?
+         List.of() : visibleBookmarks(rvs, user);
+      // accepted spelling -> itself, in the order the filter would report them
+      List<String> accepted = new java.util.ArrayList<>();
+      // plain name -> the name(alias) spellings of other owners' bookmarks of that name
+      Map<String, List<String>> othersByPlainName = new LinkedHashMap<>();
+      java.util.Set<String> ownPlainNames = new java.util.HashSet<>();
+
+      for(VSBookmarkInfo info : visible) {
+         String name = info.getName();
+
+         if(VSBookmark.HOME_BOOKMARK.equals(name) || info.getOwner() == null ||
+            caller.equals(info.getOwner()))
+         {
+            accepted.add(name);
+            ownPlainNames.add(name);
+         }
+         else {
+            String aliased = name + "(" + bookmarkOwnerAlias(info.getOwner()) + ")";
+            accepted.add(aliased);
+            othersByPlainName.computeIfAbsent(name, k -> new java.util.ArrayList<>()).add(aliased);
+         }
+      }
+
+      List<String> unknown = new java.util.ArrayList<>();
+      List<String> resolved = new java.util.ArrayList<>();
+
+      for(String name : requested) {
+         if(accepted.contains(name)) {
+            resolved.add(name);
+            continue;
+         }
+
+         List<String> others = othersByPlainName.get(name);
+
+         if(others == null) {
+            unknown.add(name);
+         }
+         else if(others.size() == 1) {
+            resolved.add(others.get(0));
+         }
+         else {
+            throw new IllegalArgumentException(
+               "export_viewsheet: bookmark '" + name + "' is ambiguous -- several owners share a " +
+               "bookmark of that name; use one of: " + String.join(", ", others) + ".");
+         }
+      }
+
+      if(!unknown.isEmpty()) {
+         throw new IllegalArgumentException(
+            "export_viewsheet: unknown bookmark" + (unknown.size() > 1 ? "s " : " ") +
+            unknown.stream().map(n -> "'" + n + "'").collect(Collectors.joining(", ")) +
+            " -- valid bookmarks: " +
+            (accepted.isEmpty() ? "(none)" : String.join(", ", accepted)) + ".");
+      }
+
+      return resolved.toArray(new String[0]);
+   }
+
+   /** Package-private seam over {@link VSUtil#getUserAlias} (a security-provider lookup) so unit
+    *  tests can supply an alias without a live security engine. */
+   String bookmarkOwnerAlias(IdentityID owner) {
+      return VSUtil.getUserAlias(owner);
    }
 
    private static void writeAttachment(HttpServletResponse response, byte[] bytes, String mime,
