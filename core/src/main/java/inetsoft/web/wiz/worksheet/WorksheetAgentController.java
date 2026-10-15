@@ -2140,6 +2140,15 @@ public class WorksheetAgentController {
 
       WizUtil.requireNoCaret(name, "name");
 
+      // Bug #78593: a leading, trailing or doubled '/' leaves an empty folder/entry name, which
+      // setWorksheet() rejects with "Invalid entry found: " and nothing after the colon.
+      // "Folder/Name" stays legal.
+      if(name != null && (name.startsWith("/") || name.endsWith("/") || name.contains("//"))) {
+         throw new PairingException(
+            "'name' must not start or end with '/' or contain '//' (empty folder name); " +
+            "use \"Folder/Name\" for a nested path.");
+      }
+
       if(entry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
          if(name == null || name.isEmpty()) {
             throw new PairingException(
@@ -2254,8 +2263,6 @@ public class WorksheetAgentController {
                        "Worksheet saved; renamed column(s)/table(s) propagated to dependent asset(s).");
          }
 
-         SaveWorksheetService.initWorksheetOldName(rws);
-
          // Bug PVA-002: a connected viewsheet's bindable-fields view (list_bindable_fields) is
          // served from a lazy wall-clock Worksheet.getLastModified() comparison
          // (BindableFieldsService.list() / CubeTreeModelBuilder), re-checked only on the next read
@@ -2273,11 +2280,44 @@ public class WorksheetAgentController {
          }
       }
 
+      // Bug #78593: a confirmed Save-As onto a different EXISTING worksheet overwrites that
+      // target's content, so its connected viewsheets need the same reset as an in-place save.
+      // The rename cascade stays skipped: the session's oldName markers describe the old entry's
+      // history, not the overwritten target's.
+      if(isSaveAs && isDuplicatedEntry) {
+         List<RuntimeViewsheet> targetViewsheets = connectedViewsheets(entry, user);
+         List<String> resetIds = connectedViewsheetIds(targetViewsheets);
+
+         for(RuntimeViewsheet connected : targetViewsheets) {
+            connected.resetRuntime();
+         }
+
+         if(!resetIds.isEmpty()) {
+            result.put("resetViewsheets", resetIds);
+            result.put("warnings", List.of("Overwrote existing worksheet \"" + entry.toView() +
+               "\"; refreshed " + resetIds.size() + " connected viewsheet(s): " + resetIds +
+               ". Bindings to columns absent from the new content are not rewritten."));
+         }
+      }
+
+      // Bug #78593: exactly once per successful save, after the in-place rename cascade above
+      // has consumed the oldName markers (and for the Save-As branches that skip it, so the
+      // session's stale markers cannot cascade onto the new entry's dependents on the next save).
+      SaveWorksheetService.initWorksheetOldName(rws);
+
       if(!affectedViewsheets.isEmpty()) {
-         result.put("warning", "This Save-As created a new copy at \"" + entry.toView() +
-            "\". The following open viewsheet(s) still point at the original worksheet (\"" +
-            oldEntry.toView() + "\") and will not see this copy's changes: " +
-            affectedViewsheets + ".");
+         if(isDuplicatedEntry) {
+            result.put("warning", "This Save-As moved the session to the existing worksheet \"" +
+               entry.toView() + "\" (overwritten). The following open viewsheet(s) still point " +
+               "at the original worksheet (\"" + oldEntry.toView() + "\") and will not see " +
+               "further changes made in this session: " + affectedViewsheets + ".");
+         }
+         else {
+            result.put("warning", "This Save-As created a new copy at \"" + entry.toView() +
+               "\". The following open viewsheet(s) still point at the original worksheet (\"" +
+               oldEntry.toView() + "\") and will not see this copy's changes: " +
+               affectedViewsheets + ".");
+         }
       }
 
       return result;
