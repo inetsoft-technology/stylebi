@@ -1630,4 +1630,74 @@ class PropertyAliasesTest {
       assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(
          "slider", "sliderGeneralPaneModel.generalPropPaneModel.submitOnChange"));
    }
+
+   // ── bug-78573: dead SizePositionPaneModel fields on every sizePosition-registered type ────
+
+   private static final List<String> SIZE_POSITION_TYPES = List.of(
+      "gauge", "text", "image", "chart", "table", "crosstab", "calctable", "selectionlist",
+      "selectiontree", "checkbox", "radiobutton", "slider", "combobox", "spinner", "textinput",
+      "timeslider", "calendar", "tab", "groupcontainer", "line", "oval", "rectangle",
+      "selectioncontainer", "submit");
+
+   private static final Map<String, List<String>> SIZE_POSITION_LIVE = Map.of(
+      "scaleVertical", List.of("text"),
+      "cellHeight", List.of("selectionlist", "selectiontree", "checkbox", "radiobutton"),
+      "container", List.of());
+
+   private static String sizePositionPath(String type, String field) {
+      String top = PropertyAliases.forType(type).aliases().get("top");
+      return top == null ? null : top.substring(0, top.length() - "top".length()) + field;
+   }
+
+   @Test
+   void sizePositionFieldsAreRefusedExactlyWhereTheyAreDead() {
+      int checked = 0;
+
+      for(String type : SIZE_POSITION_TYPES) {
+         for(Map.Entry<String, List<String>> field : SIZE_POSITION_LIVE.entrySet()) {
+            String path = sizePositionPath(type, field.getKey());
+
+            if(path == null) {
+               continue;
+            }
+
+            boolean live = field.getValue().contains(type);
+            assertEquals(!live, refused(type, path), type + " " + path);
+            checked++;
+         }
+      }
+
+      assertTrue(checked >= 60, "checked " + checked);
+   }
+
+   @Test
+   void reportedDeadSizePositionFieldsAreRefusedWithReadOnlyMessage() {
+      for(String type : List.of("gauge", "chart", "image", "combobox", "spinner", "calendar")) {
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+            PropertyAliases.resolveForWrite(type, sizePositionPath(type, "scaleVertical")));
+         assertTrue(e.getMessage().contains("is read-only on " + type) &&
+                    e.getMessage().contains("sizePositionPaneModel.scaleVertical"),
+                    e.getMessage());
+      }
+
+      for(String type : List.of("gauge", "chart", "combobox", "text")) {
+         assertTrue(refused(type, sizePositionPath(type, "cellHeight")), type);
+      }
+
+      for(String type : List.of("gauge", "calctable")) {
+         assertTrue(refused(type, sizePositionPath(type, "container")), type);
+      }
+   }
+
+   @Test
+   void liveSizePositionFieldsStayWritable() {
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("text", "scaleVertical"));
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(
+         "text", sizePositionPath("text", "scaleVertical")));
+
+      for(String type : List.of("selectionlist", "selectiontree", "checkbox", "radiobutton")) {
+         assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(
+            type, sizePositionPath(type, "cellHeight")), type);
+      }
+   }
 }
