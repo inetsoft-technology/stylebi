@@ -89,10 +89,33 @@ public final class ChartRenderCheck {
    public static void warnIfScriptFails(RuntimeViewsheet rvs, String chartName,
                                         CommandDispatcher dispatcher)
    {
+      String failure = scriptFailure(rvs, chartName);
+
+      if(failure == null) {
+         return;
+      }
+
+      MessageCommand command = new MessageCommand();
+      command.setType(MessageCommand.Type.WARNING);
+      command.setMessage(prefix(chartName) + failure +
+                         "\nThe edit was applied, but the chart will show no data until the " +
+                         "script is fixed.");
+
+      if(dispatcher != null) {
+         dispatcher.sendCommand(chartName, command);
+      }
+   }
+
+   /**
+    * The script error text when {@code chartName} cannot be built right now, else null. Leaves the
+    * chart re-armed after a failure (see the class comment), so this can be asked of a chart
+    * without costing the Composer's own render its error.
+    */
+   public static String scriptFailure(RuntimeViewsheet rvs, String chartName) {
       ViewsheetSandbox box = rvs == null ? null : rvs.getViewsheetSandbox().orElse(null);
 
       if(box == null || chartName == null) {
-         return;
+         return null;
       }
 
       Build build = build(box, chartName);
@@ -109,21 +132,17 @@ public final class ChartRenderCheck {
       if(build.failure == null) {
          // A build that no longer throws means the earlier failure is not current any more.
          forget(box, chartName);
-         return;
+         return null;
       }
 
       remember(box, chartName);
-      MessageCommand command = new MessageCommand();
-      command.setType(MessageCommand.Type.WARNING);
-      command.setMessage(prefix(chartName) + build.failure.getMessage() +
-                         "\nThe edit was applied, but the chart will show no data until the " +
-                         "script is fixed.");
-
-      if(dispatcher != null) {
-         dispatcher.sendCommand(chartName, command);
-      }
-
       rearm(box, chartName);
+      return build.failure.getMessage();
+   }
+
+   /** The refusal text for a read or write that needs the chart's rendered areas. */
+   public static String unavailableMessage(String chartName, String failure, String what) {
+      return prefix(chartName) + failure + "; " + what + " are unavailable until the script is fixed.";
    }
 
    /** Forces the next consumer of the chart to rebuild, and so to see the failure again. */

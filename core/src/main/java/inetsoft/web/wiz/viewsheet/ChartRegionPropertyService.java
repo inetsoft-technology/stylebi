@@ -90,6 +90,7 @@ public class ChartRegionPropertyService {
    {
       String name = requireRegion(region);
       String key = requireTarget(target, name);
+      requireBuildable(sessionToken, user, assembly);
       requireExistingTarget(sessionToken, user, assembly, name, key);
 
       if("axis".equals(name)) {
@@ -130,6 +131,7 @@ public class ChartRegionPropertyService {
    {
       String name = requireRegion(region);
       String key = requireTarget(target, name);
+      requireBuildable(sessionToken, user, assembly);
       requireExistingTarget(sessionToken, user, assembly, name, key);
 
       if(properties == null || properties.isEmpty()) {
@@ -246,6 +248,22 @@ public class ChartRegionPropertyService {
 
          ChartRenderCheck.warnIfScriptFails(rvs, assembly, dispatcher);
       });
+   }
+
+   /**
+    * Refuses with the script error when the chart cannot be built. The region dialogs read the
+    * rendered chart areas, which a failed chart does not have, so they died with a
+    * NullPointerException and an opaque 500 (bug #78439).
+    */
+   private void requireBuildable(String sessionToken, Principal user, String assembly)
+      throws Exception
+   {
+      String failure = ChartRenderCheck.scriptFailure(sessions.resolve(sessionToken, user), assembly);
+
+      if(failure != null) {
+         throw new IllegalArgumentException(
+            ChartRenderCheck.unavailableMessage(assembly, failure, "its region properties"));
+      }
    }
 
    /** Axis properties that only mean something on a linear (measure) axis. */

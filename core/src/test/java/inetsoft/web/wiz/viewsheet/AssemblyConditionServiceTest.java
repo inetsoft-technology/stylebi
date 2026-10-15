@@ -287,6 +287,36 @@ class AssemblyConditionServiceTest {
 
    // ── harness ───────────────────────────────────────────────────────────────
 
+   /**
+    * Bug #78439: on a chart the pre-check text is table-worded and unnamed, so the chart's own
+    * warning (named, with the script error) replaces it - exactly one message.
+    */
+   @Test
+   void aChartWarningReplacesTheTableWordedPreCheckWarning() throws Exception {
+      Harness h = harness(model(), (exp, box) -> "ReferenceError: undefinedFn is not defined");
+      String chartWarning = "Chart 'Chart1' cannot be generated: Script error: ReferenceError: " +
+         "undefinedFn is not defined (line 1)";
+      runMutationThenReturn(h.sessions, List.of(chartWarning));
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Chart1", List.of(expression("undefinedFn(1)", "js")), "");
+
+      assertEquals(List.of(chartWarning), result.warnings());
+   }
+
+   /** Without a chart warning (the chart still builds) the pre-check warning stays. */
+   @Test
+   void thePreCheckWarningStaysWhenTheChartDidNotFail() throws Exception {
+      Harness h = harness(model(), (exp, box) -> "ReferenceError: undefinedFn is not defined");
+      runMutationThenReturn(h.sessions, List.of());
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Chart1", List.of(expression("undefinedFn(1)", "js")), "");
+
+      assertEquals(1, result.warnings().size());
+      assertTrue(result.warnings().get(0).startsWith("The expression 'undefinedFn(1)' threw"));
+   }
+
    private record Harness(AssemblyConditionService service, ViewsheetSessionService sessions,
                           VSConditionDialogService conditions) {}
 

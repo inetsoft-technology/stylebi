@@ -35,6 +35,8 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.script.ScriptException;
+import inetsoft.web.composer.vs.dialog.RegionPropertyDialogService;
+import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
@@ -51,6 +53,10 @@ import java.security.Principal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Bug #78439: a wiz chart write returned a clean success while the chart's data fetch threw a
@@ -193,6 +199,59 @@ class ChartRenderCheckRealStackTest {
          ChartRenderCheck.warnIfScriptFails(rvs, CHART, d)));
       assertSame(first, box.getVGraphPair(CHART, true), "no rebuild for a chart with no failure");
       assertFalse(ChartRenderCheck.hasFailed(box, CHART));
+   }
+
+   /**
+    * Region properties read the rendered chart areas, which a failed chart lacks: they used to die
+    * with an NPE and an opaque 500. Now both give the named script error, and the chart is left
+    * re-armed so the native render still shows its own.
+    */
+   @Test
+   void regionPropertiesOnABrokenChartGiveTheNamedErrorNotAnNpe() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true);
+      ChartRegionPropertyService service = regionService(rvs);
+
+      IllegalArgumentException read = assertThrows(IllegalArgumentException.class,
+         () -> service.list("tok", principal(), CHART, "axis", "y", null));
+      assertRegionRefusal(read);
+
+      IllegalArgumentException write = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), CHART, "axis", "y", null,
+                           java.util.Map.of("showAxisLine", false), ""));
+      assertRegionRefusal(write);
+
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+      assertThrows(Exception.class, () -> box.getVGraphPair(CHART, true),
+                   "the native render still throws");
+   }
+
+   /** A chart that builds is not refused by the up-front check. */
+   @Test
+   void regionPropertiesOnAHealthyChartAreNotRefusedForAScriptError() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, false);
+      ChartRegionPropertyService service = regionService(rvs);
+
+      try {
+         service.list("tok", principal(), CHART, "axis", "y", null);
+      }
+      catch(Exception e) {
+         assertFalse(String.valueOf(e.getMessage()).contains("cannot be generated"), e.toString());
+      }
+   }
+
+   private static void assertRegionRefusal(IllegalArgumentException e) {
+      assertTrue(ChartRenderCheck.isWarningFor(e.getMessage(), CHART), e.getMessage());
+      assertTrue(e.getMessage().contains("undefinedFn"), e.getMessage());
+      assertTrue(e.getMessage().contains("region properties are unavailable"), e.getMessage());
+   }
+
+   private ChartRegionPropertyService regionService(RuntimeViewsheet rvs) throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(anyString(), any())).thenReturn(rvs);
+      return new ChartRegionPropertyService(
+         sessions, mock(RegionPropertyDialogService.class), new ChartRegionHandler());
    }
 
    /** A healthy chart yields no warning and the pair it built is the one the next consumer gets. */

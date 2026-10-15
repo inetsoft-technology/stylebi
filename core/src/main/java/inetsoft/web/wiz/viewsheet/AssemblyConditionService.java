@@ -175,15 +175,20 @@ public class AssemblyConditionService {
 
 
       // The pre-check already reported a throwing expression; the refresh then reports the same
-      // failure again as a script-failure message on this assembly, so drop that duplicate.
+      // failure again as a script-failure message on this assembly, so drop that duplicate. On a
+      // chart the pre-check text is table-worded ("the table shows no rows") and has no chart
+      // name, so the chart's own warning replaces it rather than joining it.
       String ownFailure = BaseTableService.SCRIPT_FAILURE_PREFIX + assemblyName + '\n';
+      List<String> relayed = sessionWarnings == null ? List.<String>of() : sessionWarnings;
+
+      if(relayed.stream().anyMatch(w -> ChartRenderCheck.isWarningFor(w, assemblyName))) {
+         warnings.clear();
+      }
 
       boolean preCheckWarned = !warnings.isEmpty();
 
-      for(String warning : sessionWarnings == null ? List.<String>of() : sessionWarnings) {
-         if(!preCheckWarned || !(warning.startsWith(ownFailure) ||
-                                ChartRenderCheck.isWarningFor(warning, assemblyName)))
-         {
+      for(String warning : relayed) {
+         if(!preCheckWarned || !warning.startsWith(ownFailure)) {
             warnings.add(warning);
          }
       }
