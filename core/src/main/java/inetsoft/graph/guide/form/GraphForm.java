@@ -82,11 +82,24 @@ public abstract class GraphForm extends Graphable {
    }
 
    /**
-    * set the target alpha.
+    * Set the alpha, a percentage of opacity from 0 (transparent) to 100 (opaque).
     */
    @TernMethod
    public void setAlpha(int alpha) {
-      this.alpha = alpha;
+      this.alpha = checkAlpha(alpha);
+   }
+
+   /**
+    * Reject an alpha outside 0-100 when it is set, instead of failing the chart when the form
+    * is painted (e.g. a 0-255 value from java.awt.Color).
+    */
+   static int checkAlpha(int alpha) {
+      if(alpha < 0 || alpha > 100) {
+         throw new IllegalArgumentException(
+            "alpha must be 0-100 (percent opacity), got " + alpha);
+      }
+
+      return alpha;
    }
    /**
     * Get z-index property.
