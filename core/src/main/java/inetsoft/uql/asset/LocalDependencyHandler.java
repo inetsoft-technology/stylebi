@@ -1336,7 +1336,9 @@ public class LocalDependencyHandler implements DependencyHandler {
                   AssetEntry.Type.SCRIPT, token.val,
                   IdentityID.getIdentityIDFromKey(principal.getName()), null);
 
-               if(scriptEntry.equals(entry)) {
+               // a function never depends on itself, but a self edge written before that rule
+               // must still be removed on the remove pass (#78583)
+               if(add && scriptEntry.equals(entry)) {
                   return;
                }
 
