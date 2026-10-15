@@ -37,6 +37,7 @@ import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.FieldRef;
+import inetsoft.web.wiz.viewsheet.ChartRenderCheck;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -83,7 +84,7 @@ public class ChartAestheticAgentService {
     *                    can acquire its first field — a word cloud is nothing but a text channel —
     *                    so it establishes a source on the same terms the shelf writes do.
     */
-   public void setField(String sessionToken, Principal user, String assemblyName, String channel,
+   public List<String> setField(String sessionToken, Principal user, String assemblyName, String channel,
                         FieldRef field, String sourceTable, String linkUri) throws Exception
    {
       // Validated before the runtime is touched, so a bad channel costs nothing and does not
@@ -99,7 +100,7 @@ public class ChartAestheticAgentService {
       requireNotMultiAesthetic(sessionToken, user, assemblyName);
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          ChartBindingService.applySource(model, sourceTable);
@@ -112,10 +113,11 @@ public class ChartAestheticAgentService {
          event.setFieldType(name);
          event.setModel(model);
          aestheticService.changeChartAesthetic(runtimeId, event, user, dispatcher, linkUri);
+         ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
       });
    }
 
-   public void clearField(String sessionToken, Principal user, String assemblyName,
+   public List<String> clearField(String sessionToken, Principal user, String assemblyName,
                           String channel, String linkUri) throws Exception
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
@@ -126,17 +128,17 @@ public class ChartAestheticAgentService {
       requireNotMultiAesthetic(sessionToken, user, assemblyName);
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
-      apply(sessionToken, user, assemblyName, name, linkUri,
+      return apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> ChartAestheticMutator.clearField(model, name, relationChart));
    }
 
-   public void setFrame(String sessionToken, Principal user, String assemblyName, String channel,
+   public List<String> setFrame(String sessionToken, Principal user, String assemblyName, String channel,
                         Map<String, Object> frame, String linkUri) throws Exception
    {
-      setFrame(sessionToken, user, assemblyName, channel, frame, null, linkUri);
+      return setFrame(sessionToken, user, assemblyName, channel, frame, null, linkUri);
    }
 
-   public void setFrame(String sessionToken, Principal user, String assemblyName, String channel,
+   public List<String> setFrame(String sessionToken, Principal user, String assemblyName, String channel,
                         Map<String, Object> frame, String measure, String linkUri) throws Exception
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
@@ -144,14 +146,14 @@ public class ChartAestheticAgentService {
          channel, relationChart, isShapeFrameSupported(sessionToken, user, assemblyName));
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
-      apply(sessionToken, user, assemblyName, name, linkUri,
+      return apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> ChartAestheticMutator.setFrame(
                model, name, frame, relationChart, perMeasureFrameChannels(chart), measure,
                isMultiAesthetic(chart)));
    }
 
    /** The aesthetic panes' "Reset to Default" button. */
-   public void resetFrame(String sessionToken, Principal user, String assemblyName, String channel,
+   public List<String> resetFrame(String sessionToken, Principal user, String assemblyName, String channel,
                           String measure, String linkUri) throws Exception
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
@@ -160,7 +162,7 @@ public class ChartAestheticAgentService {
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
-      apply(sessionToken, user, assemblyName, name, linkUri,
+      return apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> ChartAestheticMutator.resetFrame(
                model, name, relationChart, perMeasureFrameChannels(chart), measure,
                isMultiAesthetic(chart)));
@@ -568,12 +570,13 @@ public class ChartAestheticAgentService {
       return shape != null && family.isInstance(shape.getVisualFrame()) ? shape : null;
    }
 
-   private void apply(String sessionToken, Principal user, String assemblyName, String channel,
+   private List<String> apply(String sessionToken, Principal user, String assemblyName,
+                              String channel,
                       String linkUri,
                       java.util.function.BiConsumer<ChartVSAssembly, ChartBindingModel> mutation)
       throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          mutation.accept(chart, model);
@@ -583,6 +586,7 @@ public class ChartAestheticAgentService {
          event.setFieldType(channel);
          event.setModel(model);
          aestheticService.changeChartAesthetic(runtimeId, event, user, dispatcher, linkUri);
+         ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
       });
    }
 

@@ -118,6 +118,37 @@ class ChartBindingServiceTest {
       assertEquals("Chart1", captor.getValue().getName());
    }
 
+   /** Bug #78439: every chart binding write returns the warnings the write captured. */
+   @Test
+   void everyWriteReturnsTheWarningsTheWriteCaptured() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doReturn(List.of("chart warning")).when(sessions)
+         .mutate(anyString(), any(Principal.class), any());
+      ChartBindingService service = new ChartBindingService(
+         sessions, mock(VSBindingService.class), mock(ChangeChartRefService.class),
+         mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+         mock(ChangeSeparateStatusService.class),
+         mock(inetsoft.web.binding.service.DataRefModelFactoryService.class));
+      List<String> expected = List.of("chart warning");
+      FieldRef field = new FieldRef("Region", "dimension", null, null, null);
+
+      assertEquals(expected, service.setShelf(
+         "tok", principal(), "Chart1", "x", List.of(field), null, ""));
+      assertEquals(expected, service.setSource("tok", principal(), "Chart1", "T", true, ""));
+      assertEquals(expected, service.setSingleShelf(
+         "tok", principal(), "Chart1", "open", field, null, ""));
+      assertEquals(expected, service.setSort(
+         "tok", principal(), "Chart1", "x", "Region", null,
+         new DimensionSortRanking.Sort("asc", null, null), ""));
+      assertEquals(expected, service.setRanking(
+         "tok", principal(), "Chart1", "x", "Region", null,
+         new DimensionSortRanking.Ranking("top", 3, "Sales", null), ""));
+      assertEquals(expected, service.setChartType(
+         "tok", principal(), "Chart1", GraphTypes.CHART_LINE, null, null, null, null, ""));
+      assertEquals(expected, service.setSeparateStatus("tok", principal(), "Chart1", true, ""));
+      assertEquals(expected, service.swapAxes("tok", principal(), "Chart1", ""));
+   }
+
    @Test
    void swapAxesDelegatesTheAssemblyName() throws Exception {
       SwapXYBindingService swap = mock(SwapXYBindingService.class);
