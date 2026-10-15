@@ -2323,6 +2323,129 @@ class TableBindingMutatorTest {
       return model;
    }
 
+   // ── bug #77025 P3/P4/P6: per-ref state FieldRef cannot carry ──────────────
+
+   private static void setNumValue(CrosstabBindingModel model, int index, String n) {
+      model.getAggregates().get(index).setNumValue(n);
+   }
+
+   @Test
+   void aggregatesWriteKeepsNthNAcrossResubmitAddAndShift() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Cost", "Sum"), measure("Sales", "NthLargest")));
+      setNumValue(model, 1, "3");
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Cost", "Sum"), measure("Sales", "NthLargest")));
+      assertEquals("3", model.getAggregates().get(1).getNumValue(), "resubmit");
+
+      TableBindingMutator.addField(model, "aggregates", measure("Qty", "Sum"), null);
+      assertEquals("3", model.getAggregates().get(1).getNumValue(), "add");
+
+      // Removing Cost shifts Sales from index 1 to 0; an index-locked match would lose N.
+      TableBindingMutator.removeField(model, "aggregates", "Cost");
+      assertEquals("Sales", model.getAggregates().get(0).getName());
+      assertEquals("3", model.getAggregates().get(0).getNumValue(), "shift by remove");
+   }
+
+   @Test
+   void aggregatesWriteDoesNotCarryNWhenTheFormulaChanges() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Sales", "NthLargest")));
+      setNumValue(model, 0, "3");
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Sales", "Sum")));
+
+      assertNull(model.getAggregates().get(0).getNumValue());
+   }
+
+   @Test
+   void aggregatesWriteMatchesDuplicateMeasuresByOccurrence() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Sales", "NthLargest"), measure("Sales", "NthLargest")));
+      setNumValue(model, 0, "2");
+      setNumValue(model, 1, "5");
+      model.getAggregates().get(1).setCaption("Fifth");
+
+      // Both shift by one position behind a new leading aggregate.
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Cost", "Sum"), measure("Sales", "NthLargest"),
+                 measure("Sales", "NthLargest")));
+
+      assertEquals("2", model.getAggregates().get(1).getNumValue());
+      assertEquals("5", model.getAggregates().get(2).getNumValue());
+      assertEquals("Fifth", model.getAggregates().get(2).getCaption());
+   }
+
+   private static TableBindingModel tableWithLabels() {
+      TableBindingModel model = new TableBindingModel();
+      TableBindingMutator.setShelf(model, "details",
+         List.of(dim("Region"), dim("State"), dim("Zip")));
+      TableBindingMutator.setColumnLabels(model, Map.of("Region", "Area", "State", "St"));
+      ((ColumnRefModel) model.getDetails().get(1)).setWidth(120);
+      return model;
+   }
+
+   private static String alias(TableBindingModel model, int index) {
+      return ((ColumnRefModel) model.getDetails().get(index)).getAlias();
+   }
+
+   @Test
+   void detailsWritesKeepHeaderAliasesAndWidths() {
+      TableBindingModel model = tableWithLabels();
+
+      TableBindingMutator.setShelf(model, "details",
+         List.of(dim("Region"), dim("State"), dim("Zip")));
+      assertEquals("Area", alias(model, 0), "replace");
+      assertEquals("St", alias(model, 1));
+      assertEquals(120, ((ColumnRefModel) model.getDetails().get(1)).getWidth());
+
+      TableBindingMutator.addField(model, "details", dim("City"), null);
+      assertEquals("Area", alias(model, 0), "add");
+      assertEquals("St", alias(model, 1));
+      assertNull(alias(model, 3));
+
+      // Removing Region shifts State from index 1 to 0; the alias must follow the column.
+      TableBindingMutator.removeField(model, "details", "Region");
+      assertEquals("St", alias(model, 0), "remove shifts");
+      assertEquals(120, ((ColumnRefModel) model.getDetails().get(0)).getWidth());
+   }
+
+   @Test
+   void detailsReplaceHonoursAnExplicitLabelOverThePreviousAlias() {
+      TableBindingModel model = tableWithLabels();
+
+      TableBindingMutator.setShelf(model, "details",
+         List.of(new FieldRef("Region", "dimension", null, null, null, null, null, null, null,
+                              "Zone"),
+                 dim("State")));
+
+      assertEquals("Zone", alias(model, 0));
+      assertEquals("St", alias(model, 1));
+   }
+
+   @Test
+   void detailsWithoutLabelsIsUnchanged() {
+      TableBindingModel model = new TableBindingModel();
+      TableBindingMutator.setShelf(model, "details", List.of(dim("Region")));
+      TableBindingMutator.addField(model, "details", dim("State"), null);
+
+      assertNull(alias(model, 0));
+      assertNull(alias(model, 1));
+   }
+
+   private static CrosstabBindingModel rankedCrosstab(String rankingCol, String sortCol) {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Sales", "Sum"), measure("Cost", "Sum")));
+      model.getRows().get(0).setRankingCol(rankingCol);
+      model.getRows().get(0).setSortByCol(sortCol);
+      return model;
+   }
+
    @Test
    void aCrossTableStringCalcFieldDoesNotMakeABoundDoubleColumnCount() {
       RuntimeViewsheet rvs = rvsWithCalcsByTable("Ratio", "Revenue", true, "string");
@@ -2394,5 +2517,63 @@ class TableBindingMutatorTest {
 
       assertNotNull(found);
       assertFalse(found.isBaseOnDetail());
+   }
+
+   @Test
+   void formulaChangeRewritesFullNameRankingAndSortReferences() {
+      CrosstabBindingModel model = rankedCrosstab("Sum(Sales)", "Sum(Sales)");
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Sales", "Average"), measure("Cost", "Sum")));
+
+      assertEquals("Average(Sales)", model.getRows().get(0).getRankingCol());
+      assertEquals("Average(Sales)", model.getRows().get(0).getSortByCol());
+   }
+
+   @Test
+   void formulaChangeLeavesBareAndUnrelatedReferencesAlone() {
+      CrosstabBindingModel model = rankedCrosstab("Sales", "Sum(Cost)");
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Sales", "Average"), measure("Cost", "Sum")));
+
+      assertEquals("Sales", model.getRows().get(0).getRankingCol(),
+                   "a bare column name is formula-agnostic");
+      assertEquals("Sum(Cost)", model.getRows().get(0).getSortByCol());
+   }
+
+   @Test
+   void formulaChangeDoesNotRewriteWhileTheOldFullNameIsStillBound() {
+      CrosstabBindingModel model = rankedCrosstab("Sum(Sales)", null);
+
+      // Sum(Sales) stays and an Average(Sales) is added: no aggregate changed formula.
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Sales", "Sum"), measure("Sales", "Average"), measure("Cost", "Sum")));
+
+      assertEquals("Sum(Sales)", model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void formulaChangeSurvivesAPositionShiftInTheSameWrite() {
+      CrosstabBindingModel model = rankedCrosstab("Sum(Sales)", null);
+
+      // Cost moves ahead and Sales changes formula in one replace.
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Cost", "Sum"), measure("Sales", "Max")));
+
+      assertEquals("Max(Sales)", model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void formulaChangeRewritesCalcAggregateBaseNameToo() {
+      CrosstabBindingModel model = rankedCrosstab("Sum(Sales)", "Sum(Sales)");
+      BDimensionRefModel.CalcAggregate calc = new BDimensionRefModel.CalcAggregate();
+      calc.setBaseAggregateName("Sum(Sales)");
+      model.getRows().get(0).setRankingAgg(calc);
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Sales", "Average"), measure("Cost", "Sum")));
+
+      assertEquals("Average(Sales)", calc.getBaseAggregateName());
    }
 }
