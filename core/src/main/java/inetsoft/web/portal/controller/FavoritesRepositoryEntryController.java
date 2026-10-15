@@ -19,17 +19,20 @@ package inetsoft.web.portal.controller;
 
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.RepositoryEntry;
-import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
+import inetsoft.util.log.LogLevel;
 import inetsoft.web.portal.model.FavoritesEntryEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
-import java.util.Date;
 
 /**
  * Controller that provides a REST endpoint used to modify the contents of the
@@ -57,16 +60,21 @@ public class FavoritesRepositoryEntryController {
       throws Exception
    {
       RepositoryEntry entry = event.entry().createRepositoryEntry();
-      addFavoritesUser(entry, event.confirmed(), principal);
+      addFavoritesUser(entry, event.confirmed(), principal, false);
    }
 
-   private void addFavoritesUser(RepositoryEntry entry, boolean confirmed, Principal principal)
+   /**
+    * @param child <tt>true</tt> if the server listed the entry below a folder the user asked
+    *              for, <tt>false</tt> if it came from the request.
+    */
+   private void addFavoritesUser(RepositoryEntry entry, boolean confirmed, Principal principal,
+                                 boolean child)
       throws Exception
    {
       AssetEntry assetEntry = entry.getAssetEntry();
 
       if(assetEntry != null) {
-         addVSFavorites(assetEntry, entry, confirmed, principal);
+         changeVSFavorites(assetEntry, confirmed, principal, child, true);
       }
       else {
          addFolderFavorites(entry, confirmed, principal);
@@ -84,16 +92,21 @@ public class FavoritesRepositoryEntryController {
       throws Exception
    {
       RepositoryEntry entry = event.entry().createRepositoryEntry();
-      deleteFavoritesUser(entry, event.confirmed(), principal);
+      deleteFavoritesUser(entry, event.confirmed(), principal, false);
    }
 
-   private void deleteFavoritesUser(RepositoryEntry entry, boolean confirmed, Principal principal)
+   /**
+    * @param child <tt>true</tt> if the server listed the entry below a folder the user asked
+    *              for, <tt>false</tt> if it came from the request.
+    */
+   private void deleteFavoritesUser(RepositoryEntry entry, boolean confirmed, Principal principal,
+                                    boolean child)
       throws Exception
    {
       AssetEntry assetEntry = entry.getAssetEntry();
 
       if(assetEntry != null) {
-         deleteVSFavorites(assetEntry, entry, confirmed, principal);
+         changeVSFavorites(assetEntry, confirmed, principal, child, false);
       }
       else {
          deleteFolderFavorites(entry, confirmed, principal);
@@ -110,6 +123,8 @@ public class FavoritesRepositoryEntryController {
       boolean registryChanged = false;
 
       if(entry.isFolder()) {
+         checkFolderReadPermission(entry, principal);
+
          if(registry != null) {
             registry.addFolderFavoritesUser(entry.getPath(), principal.getName());
             registryChanged = true;
@@ -124,39 +139,13 @@ public class FavoritesRepositoryEntryController {
 
          for(RepositoryEntry entry0: entries) {
             //add principals for entry's all child
-            addFavoritesUser(entry0, confirmed, principal);
+            addFavoritesUser(entry0, confirmed, principal, true);
          }
       }
 
       if(registry != null && registryChanged) {
          registry.save();
       }
-   }
-
-   /**
-    * add VS
-    */
-   private void addVSFavorites(AssetEntry assetEntry, RepositoryEntry entry,
-                               boolean confirmed, Principal principal)
-      throws Exception
-   {
-      AssetEntry nentry = getAssetEntry(assetEntry, entry);
-      AssetRepository rep = AssetUtil.getAssetRepository(false);
-      nentry.addFavoritesUser(principal.getName());
-      rep.changeSheet(assetEntry, nentry, principal, confirmed, false, true);
-   }
-
-   /**
-    * delete VS
-    */
-   private void deleteVSFavorites(AssetEntry assetEntry, RepositoryEntry entry, boolean confirmed,
-                                  Principal principal)
-      throws Exception
-   {
-      AssetEntry nentry = getAssetEntry(assetEntry, entry);
-      AssetRepository rep = AssetUtil.getAssetRepository(false);
-      nentry.deleteFavoritesUser(principal.getName());
-      rep.changeSheet(assetEntry, nentry, principal, confirmed, false, true);
    }
 
    /**
@@ -168,6 +157,8 @@ public class FavoritesRepositoryEntryController {
       RepletRegistry registry = repositoryTreeService.getRegistry(entry.getPath(), principal);
 
       if(entry.isFolder()) {
+         checkFolderReadPermission(entry, principal);
+
          if(registry != null) {
             registry.deleteFolderFavoritesUser(entry.getPath(), principal.getName());
          }
@@ -180,7 +171,7 @@ public class FavoritesRepositoryEntryController {
          }
 
          for(RepositoryEntry entry0: entries) {
-            deleteFavoritesUser(entry0, confirmed, principal);
+            deleteFavoritesUser(entry0, confirmed, principal, true);
          }
       }
 
@@ -189,21 +180,79 @@ public class FavoritesRepositoryEntryController {
       }
    }
 
-   private AssetEntry getAssetEntry(AssetEntry assetEntry, RepositoryEntry entry) {
-      boolean reAlias = assetEntry.getAlias() != null;
-      String name = assetEntry.getScope() == AssetRepository.USER_SCOPE ?
-         entry.getPath().substring(Tool.MY_DASHBOARD.length() + 1) : entry.getPath();
-      AssetEntry nentry = new AssetEntry(assetEntry.getScope(), assetEntry.getType(),
-                                         name, assetEntry.getUser());
-      nentry.copyProperties(assetEntry);
+   /**
+    * Adds or removes the user's favorite on a viewsheet or viewsheet snapshot.
+    *
+    * The entry in the request, or in a folder listing, only identifies the sheet. What is
+    * written back is the stored entry with only this user added to or removed from its
+    * favorites, so the sheet's path, scope, alias and properties, and the other users'
+    * favorites, never come from the client (Bug #78491). The change skips the WRITE and DELETE
+    * checks so that a user who can only read a viewsheet can mark it. That is safe only because
+    * the identifier never changes, and READ is checked here instead.
+    *
+    * @param requested the entry that identifies the sheet.
+    * @param child     <tt>true</tt> to skip a sheet that no longer exists, as one listed below
+    *                  a folder may have been removed since; <tt>false</tt> to report it.
+    * @param add       <tt>true</tt> to add the favorite, <tt>false</tt> to remove it.
+    */
+   private void changeVSFavorites(AssetEntry requested, boolean confirmed, Principal principal,
+                                  boolean child, boolean add)
+      throws Exception
+   {
+      AssetRepository rep = AssetUtil.getAssetRepository(false);
+      // getAssetEntry returns the given object itself for some scopes and types, so only a
+      // sheet, which it reads from storage, is accepted. A sheet of another organization, such
+      // as a host organization viewsheet shared read-only, is not offered for favorites in the
+      // portal and is not changed from this one.
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      AssetEntry stored = (requested.isViewsheet() || requested.isVSSnapshot()) &&
+         orgID.equalsIgnoreCase(requested.getOrgID()) ? rep.getAssetEntry(requested) : null;
 
-      if(reAlias) {
-         assetEntry.setAlias(assetEntry.getProperty("localStr"));
-         nentry = assetEntry;
+      if(stored == null) {
+         if(child) {
+            LOG.debug("Skipping a missing sheet below a favorites folder: {}", requested);
+            return;
+         }
+
+         throw new MessageException(Catalog.getCatalog().getString(
+            "common.sheetNotFound", requested.getPath()), LogLevel.INFO, false);
       }
 
-      return nentry;
+      rep.checkAssetPermission(principal, stored, ResourceAction.READ);
+      AssetEntry oentry = AssetEntry.createAssetEntry(stored.toIdentifier());
+
+      if(add) {
+         stored.addFavoritesUser(principal.getName());
+      }
+      else {
+         stored.deleteFavoritesUser(principal.getName());
+      }
+
+      rep.changeSheet(oentry, stored, principal, confirmed, false, true);
+   }
+
+   /**
+    * Checks that the user can read a portal folder before the favorites on it and on the
+    * sheets below it are changed. The folder is checked as the asset engine checks a repository
+    * folder of the user's organization; one under My Dashboards belongs to this user.
+    */
+   private void checkFolderReadPermission(RepositoryEntry entry, Principal principal)
+      throws Exception
+   {
+      String path = entry.getPath();
+      boolean myReport = SUtil.isMyReport(path);
+      String folderPath = !myReport ? path :
+         Tool.MY_DASHBOARD.equals(path) ? "/" : path.substring(Tool.MY_DASHBOARD.length() + 1);
+      AssetEntry folder = new AssetEntry(
+         myReport ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.REPOSITORY_FOLDER, folderPath,
+         myReport ? IdentityID.getIdentityIDFromKey(principal.getName()) : null,
+         OrganizationManager.getInstance().getCurrentOrgID(principal));
+      AssetUtil.getAssetRepository(false).checkAssetPermission(
+         principal, folder, ResourceAction.READ);
    }
 
    private final RepositoryTreeService repositoryTreeService;
+   private static final Logger LOG =
+      LoggerFactory.getLogger(FavoritesRepositoryEntryController.class);
 }
