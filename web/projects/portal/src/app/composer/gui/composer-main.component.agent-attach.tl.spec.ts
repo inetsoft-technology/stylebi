@@ -25,6 +25,8 @@
  */
 
 import "@angular/compiler";
+import { Subject } from "rxjs";
+import { OpenComposerAssetCommand } from "../command/open-composer-asset-command";
 import { ComponentTool } from "../../common/util/component-tool";
 import { ComposerTabModel } from "./composer-tab-model";
 import { Worksheet } from "../data/ws/worksheet";
@@ -113,25 +115,27 @@ describe("ComposerMainComponent.openSheet -- agent runtime vs existing worksheet
 
    it("modified tab, human keeps: tab and runtime unchanged", async () => {
       const { comp, ws } = await setup("W-17", { modified: true });
-      vi.spyOn(ComponentTool, "showMessageDialog").mockResolvedValue("no");
+      const dialog = vi.spyOn(ComponentTool, "showMessageDialog").mockResolvedValue("no");
 
       comp.openWorksheet("wsId", false, "W-20");
       await Promise.resolve();
       await Promise.resolve();
 
       expect(wsTabs(comp)).toEqual([ws]);
+      expect(dialog).toHaveBeenCalledTimes(1);
       expect(ws.runtimeId).toBe("W-17");
    });
 
    it("modified tab, dialog dismissed: treated as keep", async () => {
       const { comp, ws } = await setup("W-17", { modified: true });
-      vi.spyOn(ComponentTool, "showMessageDialog").mockRejectedValue("cancel");
+      const dialog = vi.spyOn(ComponentTool, "showMessageDialog").mockRejectedValue("cancel");
 
       comp.openWorksheet("wsId", false, "W-20");
       await Promise.resolve();
       await Promise.resolve();
 
       expect(wsTabs(comp)).toEqual([ws]);
+      expect(dialog).toHaveBeenCalledTimes(1);
    });
 
    it("modified tab, human discards: replaced by a tab on the agent runtime", async () => {
@@ -188,5 +192,35 @@ describe("ComposerMainComponent.openSheet -- agent runtime vs existing worksheet
       expect(ws.runtimeId).toBe("W-17");
       expect(dialog).not.toHaveBeenCalled();
       expect((comp as any).notifications.warning).toHaveBeenCalled();
+   });
+});
+
+describe("ComposerMainComponent editAsset -- agent state survives the deferred Discard replace", () => {
+   // Review r1 #1: the replacement tab is created after the dialog answer, long after the
+   // command handler's synchronous applyAgentActive ran, so the indicator was lost.
+   it("sets agentConnected on the tab created after the human picks Discard", async () => {
+      const editAsset = new Subject<OpenComposerAssetCommand>();
+      const mocks = makeMocks();
+      mocks.composerClient.editAsset = editAsset as any;
+      const { comp } = await renderComponent({ deployed: false }, mocks);
+      const old = new Worksheet();
+      old.id = "wsId";
+      old.localId = 1;
+      old.runtimeId = "W-17";
+      old.closeOnServer = false;
+      vi.spyOn(old, "isModified").mockReturnValue(true);
+      comp.sheets.push(old);
+      comp.openedTabs.push(new ComposerTabModel("worksheet", old));
+      vi.spyOn(ComponentTool, "showMessageDialog").mockResolvedValue("yes");
+
+      editAsset.next({
+         assetId: "wsId", folderId: null, viewsheet: false, wsWizard: false,
+         runtimeId: "W-20", agentActive: true, agentOwnerLabel: "alice(host-org)",
+      } as OpenComposerAssetCommand);
+
+      await vi.waitFor(() => expect(comp.sheets.find(s => s.runtimeId === "W-20")).toBeTruthy());
+      const ws = comp.sheets.find(s => s.runtimeId === "W-20");
+      expect(ws.agentConnected).toBe(true);
+      expect(ws.agentOwnerLabel).toBe("alice(host-org)");
    });
 });

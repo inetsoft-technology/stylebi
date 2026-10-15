@@ -302,6 +302,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    @ViewChild("saveTableStyleDialog") saveTableStyleDialog: TemplateRef<any>;
    @ViewChild("viewsheetPropertyDialog") viewsheetPropertyDialog: TemplateRef<any>;
    @ViewChild("notifications") notifications: NotificationsComponent;
+   /** Agent open commands whose tab may be created after the command handler returns. */
+   private pendingAgentCommands = new Map<string, OpenComposerAssetCommand>();
    @ViewChild("tabContent") tabContentEle: ElementRef;
    @ViewChild("vsFormatsPane") vsFormatsPane: VSFormatsPane;
    @ViewChild("saveScriptDialog") saveScriptDialog: TemplateRef<any>;
@@ -1788,6 +1790,12 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       const replace = () => {
          this.closeSheet(sheet);
          this.openSheet(event, false, runtimeId, newSheet, gettingStarted);
+         const command = this.pendingAgentCommands.get(runtimeId);
+         this.pendingAgentCommands.delete(runtimeId);
+
+         if(command) {
+            this.applyAgentActive(command);
+         }
       };
       const keep = () => this.navigateToExisting(this.sheets.indexOf(sheet));
 
@@ -3029,8 +3037,15 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             }
             else {
                this.composerRecentService.addRecentlyViewed(createAssetEntry(command.assetId));
+               this.pendingAgentCommands.set(command.runtimeId, command);
                this.openWorksheet(command.assetId, false, command.runtimeId);
                this.applyAgentActive(command);
+
+               // a tab that was not created in this tick (modified-tab Discard dialog) applies
+               // it from attachAgentWorksheetRuntime once the tab exists
+               if(this.sheets.some((s) => s.runtimeId === command.runtimeId)) {
+                  this.pendingAgentCommands.delete(command.runtimeId);
+               }
             }
          });
       });
