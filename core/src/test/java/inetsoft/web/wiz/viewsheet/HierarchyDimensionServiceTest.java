@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.DateRangeRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
@@ -97,7 +98,9 @@ class HierarchyDimensionServiceTest {
    // pane does; a non-date column stays none.
    @Test
    void addDefaultsADateColumnToYearAndAStringColumnToNoneWhenOmitted() throws Exception {
-      Harness h = harnessChart(paneWith(column("Order Date"), column("State")));
+      OutputColumnRefModel date = column("Order Date");
+      date.setDataType(XSchema.TIME_INSTANT);
+      Harness h = harnessChart(paneWith(date, column("State")));
 
       h.service.add("tok", principal(), "Chart1", List.of("Order Date", "State"), null, "");
 
@@ -108,7 +111,7 @@ class HierarchyDimensionServiceTest {
    @Test
    void addDefaultsATimeColumnToHourWhenOmitted() throws Exception {
       OutputColumnRefModel time = column("Start Time");
-      time.setDataType("time");
+      time.setDataType(XSchema.TIME);
       Harness h = harnessChart(paneWith(time, column("State")));
 
       h.service.add("tok", principal(), "Chart1", List.of("Start Time"), null, "");

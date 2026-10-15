@@ -221,20 +221,26 @@ public class VSUtilTest {
       return dimension;
    }
 
+   private ColumnRef stringColumn(String name) {
+      ColumnRef column = new ColumnRef(new AttributeRef(null, name));
+      column.setDataType(XSchema.STRING);
+      return column;
+   }
+
    private VSDimensionRef vsRegionRef(String dateLevelValue) {
       VSDimensionRef ref =
-         new VSDimensionRef(new ColumnRef(new AttributeRef(null, "Customer:Region")));
+         new VSDimensionRef(stringColumn("Customer:Region"));
       ref.setDateLevelValue(dateLevelValue);
       return ref;
    }
 
    private VSCube vsQualifiedCube(int regionOption, int cityOption) {
       VSDimensionMember regionMember = new VSDimensionMember();
-      regionMember.setDataRef(new ColumnRef(new AttributeRef(null, "Customer:Region")));
+      regionMember.setDataRef(stringColumn("Customer:Region"));
       regionMember.setDateOption(regionOption);
 
       VSDimensionMember cityMember = new VSDimensionMember();
-      cityMember.setDataRef(new ColumnRef(new AttributeRef(null, "Customer:City")));
+      cityMember.setDataRef(stringColumn("Customer:City"));
       cityMember.setDateOption(cityOption);
 
       VSDimension dimension = new VSDimension();

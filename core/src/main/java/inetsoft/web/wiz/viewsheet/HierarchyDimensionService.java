@@ -114,8 +114,8 @@ public class HierarchyDimensionService {
     * @param dateLevels optional, parallel to {@code columns}: a date grouping
     *                   ({@link #DATE_LEVELS}) for the column at the same position, or null/blank
     *                   for the Composer default (year; hour for a time column; none for a
-    *                   non-date column). Ignored positions past the end of a shorter list are treated as
-    *                   null. Meaningless for a non-date column; not validated against the column's
+    *                   non-date column). Ignored positions past the end of a shorter list are
+    *                   treated as null. Meaningless for a non-date column; not validated against the column's
     *                   own type, since a caller building a level from a column
     *                   {@code list_hierarchy_dimensions} has not yet seen may not know it yet.
     */
@@ -470,7 +470,8 @@ public class HierarchyDimensionService {
       if(level == null) {
          throw new IllegalArgumentException(
             "'" + requested + "' is not a date level for '" + columnName + "'. Use one of: " +
-            String.join(", ", DATE_LEVELS.keySet()) + ", or omit it for the default (year for a date column, hour for a time column, none otherwise).");
+            String.join(", ", DATE_LEVELS.keySet()) + ", or omit it for the default " +
+            "(year for a date column, hour for a time column, none otherwise).");
       }
 
       return level;
