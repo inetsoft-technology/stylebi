@@ -171,15 +171,24 @@ public final class TableBindingMutator {
                default -> ((TableBindingModel) model).setGroups(next);
             }
          }
-         case "details" -> ((TableBindingModel) model).setDetails(details(refs));
+         case "details" -> {
+            // Captured before the overwrite, for the same reason as the arms around it: a header
+            // alias (set_column_labels) and the other ColumnRefModel scalars live only on the
+            // model, FieldRef carries none of them. Bug #77025 P4.
+            List<DataRefModel> previous = ((TableBindingModel) model).getDetails();
+            ((TableBindingModel) model).setDetails(
+               details(refs, previous == null ? List.of() : previous));
+         }
          default -> {
             // Captured before the overwrite below, for the same reason the rows/cols/groups arm
             // above captures previous -- an unchanged aggregate's calculateInfo (Trend/Calculator)
             // must not reset to none on every write. Bug #76881, porting VTB-004's own pattern to
             // this shelf (left unfixed by that fix -- see aggregates()'s own note).
             List<BAggregateRefModel> previous = model.getAggregates();
-            model.setAggregates(
-               aggregates(refs, previous == null ? List.of() : previous, model, rvs, source));
+            List<BAggregateRefModel> before = previous == null ? List.of() : previous;
+            List<BAggregateRefModel> next = aggregates(refs, before, model, rvs, source);
+            model.setAggregates(next);
+            syncAggregateReferences(model, before, next);
          }
       }
 
@@ -734,15 +743,24 @@ public final class TableBindingMutator {
             ref.setSecondaryColumnValue(field.secondaryColumn());
          }
 
+         // Matched by (column, formula, k-th occurrence), not by absolute index, so an add/remove
+         // that shifts the aggregate still finds its own previous state (bug #77025 P3).
+         BAggregateRefModel match = previousOccurrence(previous, fields, i);
+
+         if(match != null) {
+            // FieldRef has no slot for any of these, so an untouched aggregate must keep them
+            // (an Nth/Pth N reset to null renders as N=1).
+            ref.setNumValue(match.getNumValue());
+            ref.setCaption(match.getCaption());
+            ref.setPercentage(match.getPercentage());
+            ref.setComboType(match.getComboType());
+         }
+
          if(field.calculateInfo() != null) {
             ref.setCalculateInfo(field.calculateInfo());
          }
-         else {
-            BAggregateRefModel match = i < previous.size() ? previous.get(i) : null;
-
-            if(matches(match, field)) {
-               ref.setCalculateInfo(match.getCalculateInfo());
-            }
+         else if(match != null) {
+            ref.setCalculateInfo(match.getCalculateInfo());
          }
 
          out.add(ref);
@@ -775,8 +793,9 @@ public final class TableBindingMutator {
     * Detail columns are {@code ColumnRefModel} wrapping an attribute ref — a plainer shape
     * than every other shelf in the plugin.
     */
-   private static List<DataRefModel> details(List<FieldRef> fields) {
+   private static List<DataRefModel> details(List<FieldRef> fields, List<DataRefModel> previous) {
       List<DataRefModel> out = new ArrayList<>();
+      Map<String, Integer> seen = new HashMap<>();
 
       for(FieldRef field : fields) {
          AttributeRefModel attribute = new AttributeRefModel();
@@ -788,10 +807,193 @@ public final class TableBindingMutator {
          column.setAttribute(field.column());
          column.setDataRefModel(attribute);
          column.setVisible(true);
+
+         // Matched by column and k-th occurrence, not by position, so an add/remove/move that
+         // shifts the column keeps its header alias and the other scalars FieldRef cannot carry
+         // (bug #77025 P4).
+         String key = field.column() == null ? "" : field.column().toLowerCase();
+         int occurrence = seen.merge(key, 1, Integer::sum) - 1;
+         ColumnRefModel match = previousColumn(previous, field.column(), occurrence);
+
+         if(match != null) {
+            column.setAlias(match.getAlias());
+            column.setWidth(match.getWidth());
+            column.setValid(match.isValid());
+            column.setSql(match.isSql());
+            column.setDescription(match.getDescription());
+            column.setOrder(match.getOrder());
+            column.setView(match.getView());
+            column.setDataType(match.getDataType());
+         }
+
+         if(field.label() != null) {
+            column.setAlias(field.label());
+         }
+
          out.add(column);
       }
 
       return out;
+   }
+
+   private static ColumnRefModel previousColumn(List<DataRefModel> previous, String name,
+                                                int occurrence)
+   {
+      if(name == null) {
+         return null;
+      }
+
+      for(DataRefModel ref : previous) {
+         if(ref instanceof ColumnRefModel column) {
+            String attr = column.getAttribute() == null ? column.getName() : column.getAttribute();
+
+            if(name.equalsIgnoreCase(attr) && occurrence-- == 0) {
+               return column;
+            }
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * The previous aggregate that is the same occurrence as {@code fields.get(index)}: same column
+    * and formula (case-insensitive), and the same k-th duplicate of that pair.
+    */
+   private static BAggregateRefModel previousOccurrence(List<BAggregateRefModel> previous,
+                                                        List<FieldRef> fields, int index)
+   {
+      FieldRef field = fields.get(index);
+      int occurrence = 0;
+
+      for(int i = 0; i < index; i++) {
+         if(sameMeasure(fields.get(i), field)) {
+            occurrence++;
+         }
+      }
+
+      for(BAggregateRefModel candidate : previous) {
+         if(matches(candidate, field) && occurrence-- == 0) {
+            return candidate;
+         }
+      }
+
+      return null;
+   }
+
+   private static boolean sameMeasure(FieldRef a, FieldRef b) {
+      return a.column() != null && a.column().equalsIgnoreCase(b.column()) &&
+         (a.aggregate() == null ? b.aggregate() == null : a.aggregate().equalsIgnoreCase(b.aggregate()));
+   }
+
+   /**
+    * Mirrors the Composer UI's {@code syncAgg} (table-fieldmc.component.ts): when an aggregate's
+    * formula changes, a dimension's {@code sortByCol}/{@code rankingCol} that named the old full
+    * name ({@code Sum(X)}) is rewritten to the new one, otherwise the by-value sort and ranking
+    * silently stop applying (bug #77025 P6). A bare column name ({@code X}) is formula-agnostic
+    * and is left alone.
+    *
+    * <p>An old {@code (column, formula)} still bound by a new aggregate is not a change (so a
+    * reference to {@code Sum(X)} is never rewritten while {@code Sum(X)} remains, which is the
+    * UI's "more than one aggregate shares the name" guard). The remaining vanished old
+    * aggregates pair, per column and in order, with the new aggregates that had no counterpart.
+    * Dynamic and multi-argument formulas (second column / N, whose full name {@code FieldRef}
+    * cannot rebuild) are skipped.
+    */
+   private static void syncAggregateReferences(BaseTableBindingModel model,
+                                               List<BAggregateRefModel> before,
+                                               List<BAggregateRefModel> after)
+   {
+      List<BAggregateRefModel> vanished = new ArrayList<>();
+      List<BAggregateRefModel> fresh = new ArrayList<>();
+
+      for(BAggregateRefModel old : before) {
+         if(simpleFullName(old) != null && after.stream().noneMatch(a -> sameAggregate(old, a))) {
+            vanished.add(old);
+         }
+      }
+
+      for(BAggregateRefModel agg : after) {
+         if(simpleFullName(agg) != null && before.stream().noneMatch(b -> sameAggregate(agg, b))) {
+            fresh.add(agg);
+         }
+      }
+
+      Map<String, String> renames = new LinkedHashMap<>();
+
+      for(BAggregateRefModel old : vanished) {
+         for(int i = 0; i < fresh.size(); i++) {
+            if(columnOf(fresh.get(i)).equalsIgnoreCase(columnOf(old))) {
+               renames.put(simpleFullName(old), simpleFullName(fresh.remove(i)));
+               break;
+            }
+         }
+      }
+
+      if(renames.isEmpty()) {
+         return;
+      }
+
+      for(String shelf : shelvesOf(model)) {
+         if("aggregates".equals(shelf) || "details".equals(shelf)) {
+            continue;
+         }
+
+         for(BDimensionRefModel dim : dimensionsOf(model, shelf)) {
+            dim.setSortByCol(renamed(dim.getSortByCol(), renames));
+            dim.setRankingCol(renamed(dim.getRankingCol(), renames));
+
+            if(dim.getSortByColAgg() != null) {
+               dim.getSortByColAgg().setBaseAggregateName(
+                  renamed(dim.getSortByColAgg().getBaseAggregateName(), renames));
+            }
+
+            if(dim.getRankingAgg() != null) {
+               dim.getRankingAgg().setBaseAggregateName(
+                  renamed(dim.getRankingAgg().getBaseAggregateName(), renames));
+            }
+         }
+      }
+   }
+
+   private static String renamed(String name, Map<String, String> renames) {
+      if(name == null) {
+         return null;
+      }
+
+      for(Map.Entry<String, String> rename : renames.entrySet()) {
+         if(rename.getKey().equalsIgnoreCase(name)) {
+            return rename.getValue();
+         }
+      }
+
+      return name;
+   }
+
+   private static String columnOf(BAggregateRefModel agg) {
+      return agg.getColumnValue() == null ? agg.getName() : agg.getColumnValue();
+   }
+
+   private static boolean sameAggregate(BAggregateRefModel a, BAggregateRefModel b) {
+      String ca = columnOf(a);
+
+      return ca != null && ca.equalsIgnoreCase(columnOf(b)) &&
+         (a.getFormula() == null ? b.getFormula() == null : a.getFormula().equalsIgnoreCase(b.getFormula()));
+   }
+
+   /** {@code Formula(column)}, or null when the full name is not that simple shape. */
+   private static String simpleFullName(BAggregateRefModel agg) {
+      String column = columnOf(agg);
+      String formula = agg.getFormula();
+
+      if(column == null || formula == null || formula.isBlank() || isVariableValue(formula) ||
+         formula.startsWith("=") || agg.getSecondaryColumnValue() != null ||
+         MULTI_ARG_FORMULA_NAMES.contains(formula.toLowerCase()))
+      {
+         return null;
+      }
+
+      return formula + "(" + column + ")";
    }
 
    private static FieldRef fieldOf(DataRefModel ref, String shelf) {
