@@ -2239,7 +2239,23 @@ public class ViewsheetAssemblyAgentController {
       return layoutReadService.list(sessionToken, user);
    }
 
-   /** {@code get_layout}. */
+   /**
+    * {@code get_layout}. The name is a query parameter, so a layout named "list" is not
+    * shadowed by {@link #listLayouts}.
+    */
+   @GetMapping(value = "/api/wiz/v1/agent/viewsheet/{sessionToken}/layout", params = "name")
+   public LayoutModel getLayoutByName(@PathVariable String sessionToken,
+                                      @RequestParam("name") String layoutName, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return layoutReadService.get(sessionToken, user, layoutName);
+   }
+
+   /**
+    * {@code get_layout} of older plugins. A layout named "list" can't be read here, because
+    * {@link #listLayouts} takes that path.
+    */
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/{layoutName}")
    public LayoutModel getLayout(@PathVariable String sessionToken,
                                 @PathVariable String layoutName, Principal user)
