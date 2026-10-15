@@ -204,6 +204,44 @@ class LocalDependencyHandlerTest {
                       .toList());
    }
 
+   /*
+    * Bug #78583: the SSL-002 self-skip above also ran on the remove pass (add=false, the old
+    * text's pass of an update), so a self edge written before that fix could never be removed.
+    * The skip now applies only when adding; the remove pass drops the stale self edge and keeps a
+    * real caller's edge.
+    */
+   @Test
+   void updateScriptDependencies_removePassDropsAStaleSelfEdgeButKeepsRealCallers()
+      throws Exception
+   {
+      ThreadContext.setContextPrincipal(mockPrincipal());
+      LibManager manager = mock(LibManager.class);
+      when(manager.findScriptName(anyString())).thenAnswer(
+         invocation -> invocation.getArgument(0));
+      AssetEntry selfEntry = scriptEntry(SCRIPT_NAME);
+      AssetEntry callerEntry = scriptEntry(HELPER_SCRIPT_NAME);
+      DependenciesInfo seeded = new DependenciesInfo();
+      seeded.setDependencies(new ArrayList<>(List.of(selfEntry, callerEntry)));
+      when(dependencyStorageService.get(anyString())).thenReturn(seeded);
+
+      try(MockedStatic<LibManagerProvider> provider = mockStatic(LibManagerProvider.class)) {
+         LibManagerProvider libManagerProvider = mock(LibManagerProvider.class);
+         provider.when(LibManagerProvider::getInstance).thenReturn(libManagerProvider);
+         when(libManagerProvider.getManager()).thenReturn(manager);
+
+         handler.updateScriptDependencies(
+            "function " + SCRIPT_NAME + "(value) { return value; }", selfEntry, false, false);
+      }
+
+      ArgumentCaptor<RenameTransformObject> captor =
+         ArgumentCaptor.forClass(RenameTransformObject.class);
+      verify(dependencyStorageService).put(anyString(), captor.capture());
+      assertEquals(List.of(callerEntry.toIdentifier()),
+                   ((DependenciesInfo) captor.getValue()).getDependencies().stream()
+                      .map(asset -> ((AssetEntry) asset).toIdentifier())
+                      .toList());
+   }
+
    private AssetEntry scriptEntry(String name) {
       return new AssetEntry(AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, name, null);
    }

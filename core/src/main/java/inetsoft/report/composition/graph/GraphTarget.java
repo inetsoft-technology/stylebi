@@ -577,7 +577,9 @@ public class GraphTarget implements Cloneable, Serializable, XMLSerializable {
       form.setTextSpec(GraphUtil.getTextSpec(fmt, null, null));
       form.setFillAbove(fillAboveColor);
       form.setFillBelow(fillBelowColor);
-      form.setAlpha(alphaValue);
+      // a stored alpha is not range-checked when it is loaded, keep an out-of-range one from
+      // failing the chart
+      form.setAlpha(Math.max(0, Math.min(100, alphaValue)));
       form.setColor(lineColor);
       form.setLine(lineStyle);
       form.setChartScope(chartScope);

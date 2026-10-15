@@ -106,6 +106,34 @@ public class ChartVSAScriptableTest {
       assert chartVSAScriptable.getMember("dateComparisonEnabled") instanceof Boolean;
    }
 
+   /**
+    * Bug #78583: graph/data/query are applied by putMember itself, so they must not be reported
+    * as unrecognized writes. table (no setter) and unknown names still are.
+    */
+   @Test
+   void appliedGraphDataQueryWritesAreNotReportedAsUnrecognized() {
+      chartVSAScriptable.addProperties();
+      EGraph graph = new EGraph();
+      DefaultDataSet dataset = new DefaultDataSet(new Object[][] { { "a" }, { 1 } });
+
+      chartVSAScriptable.putMember("graph", graph);
+      chartVSAScriptable.putMember("data", dataset);
+      chartVSAScriptable.putMember("query", "ws:global:Examples/AllSales");
+
+      assertEquals(java.util.List.of(), chartVSAScriptable.getUnrecognizedWrites());
+      assertSame(graph, chartVSAScriptable.getMember("graph"));
+      assertSame(dataset, chartVSAScriptable.getMember("dataset"), "data was applied");
+      assertEquals("ws:global:Examples/AllSales",
+                   chartVSAssemblyInfo.getSourceInfo().getSource());
+
+      chartVSAScriptable.putMember("table", new Object[][] { { "a" } });
+      chartVSAScriptable.putMember("noSuchProp", 1);
+      chartVSAScriptable.putMember("graph", "not a graph");
+
+      assertEquals(java.util.List.of("table", "noSuchProp", "graph"),
+                   chartVSAScriptable.getUnrecognizedWrites());
+   }
+
    @Test
    void testBarCornerRadiusScriptProperty() {
       chartVSAScriptable.addProperties();
