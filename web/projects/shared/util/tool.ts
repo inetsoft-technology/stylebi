@@ -1053,6 +1053,11 @@ export namespace Tool {
    }
 
    export function getLimitedMessage(message: string): string {
+      // a MessageCommand may arrive without a message
+      if(message == null) {
+         return "";
+      }
+
       message = message.replace(Tool.TEXT_LIMIT_PREFIX, "");
       message = message.replace(Tool.TEXT_LIMIT_SUFFIX, "");
       message = message.replace(Tool.COLUMN_LIMIT_PREFIX, "");
