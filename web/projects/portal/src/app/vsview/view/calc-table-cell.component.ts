@@ -211,6 +211,9 @@ export class CalcTableCellComponent {
       this.dndService.processOnDrop(event, dropTarget);
       this.editorService.getTableLayout().selectedRect = this.getCellRect(cell);
       this.editorService.setSelectCells([].concat(cell));
+      // the drop changes the cell's binding on the server, the loaded binding is out of date
+      // until the binding is reloaded after the new layout arrives
+      this.editorService.invalidateCellBinding();
    }
 
    private getCellRect(cell: TableCell): Rectangle {

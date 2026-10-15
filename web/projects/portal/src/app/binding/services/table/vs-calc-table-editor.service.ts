@@ -49,6 +49,15 @@ export class VSCalcTableEditorService {
    _groupNum: number;
    _namedGroups: string[];
    _layoutModel: CalcTableLayout;
+   // the cell (row/col) the loaded _cellBinding belongs to, null if none is loaded
+   private bindingCell: { row: number, col: number } = null;
+   // true while a reload of the selected cell's binding has been requested (selection
+   // change or a change of the cell's content on the server) and not yet answered
+   private bindingPending: boolean = false;
+   // incremented whenever the loaded binding is invalidated, so that an asynchronous answer
+   // (cell script, trap check) started before can tell that it is out of date
+   private bindingEpoch: number = 0;
+   private scriptRequest: { row: number, col: number, epoch: number } = null;
 
    constructor(private bindingService: BindingService,
                private clientService: ViewsheetClientService,
@@ -72,12 +81,24 @@ export class VSCalcTableEditorService {
    }
 
    loadCellBinding() {
+      // the selection moved to another cell, the loaded binding is not the selected cell's
+      if(!this.isBindingForCell(this.getLastSelectedCell())) {
+         this.invalidateCellBinding();
+      }
+
       let evt: GetCellBindingEvent = new GetCellBindingEvent(
          this.bindingService.assemblyName, this.getSelectCells());
       this.clientService.sendEvent("/events/vs/calctable/tablelayout/getcellbinding", evt);
    }
 
    setCellBinding(cellBinding?: any) {
+      // don't send the binding of another cell (or an outdated binding) for the selected cell
+      if(!cellBinding && !this.isCellBindingReady()) {
+         return;
+      }
+
+      const epoch = this.bindingEpoch;
+      const cell = this.getLastSelectedCell();
       let evt = new SetCellBindingEvent(
          this.bindingService.assemblyName, this.getSelectCells(),
          cellBinding ? cellBinding : this._cellBinding);
@@ -93,7 +114,12 @@ export class VSCalcTableEditorService {
             if(body != null && body.btype != null) {
                ComponentTool.showTrapAlert(this.modalService).then((result: string) => {
                   if(result == "undo") {
-                     this._cellBinding = body;
+                     // only restore the binding if it is still the selected cell's binding
+                     if(epoch == this.bindingEpoch && this.isBindingForCell(cell) &&
+                        this.isCellBindingReady())
+                     {
+                        this._cellBinding = body;
+                     }
                   }
                   else {
                      this.setCellBinding0(evt);
@@ -124,6 +150,7 @@ export class VSCalcTableEditorService {
    }
 
    changeColumnValue(val: string) {
+      this.invalidateCellBinding();
       const event: ChangeColumnValueEvent = new ChangeColumnValueEvent(
          this.bindingService.assemblyName,
          val,
@@ -137,6 +164,8 @@ export class VSCalcTableEditorService {
    loadCellScript(): void {
       if(this.getSelectCells() != null && this.getSelectCells().length >= 0) {
          let cell: CalcTableCell = this.getSelectCells()[this.getSelectCells().length - 1];
+         this.scriptRequest = cell ?
+            { row: cell.row, col: cell.col, epoch: this.bindingEpoch } : null;
          let evt: GetCellScriptEvent = new GetCellScriptEvent(
             this.bindingService.assemblyName, cell.row, cell.col);
          this.clientService.sendEvent("/events/vs/calctable/tablelayout/getcellscript", evt);
@@ -151,10 +180,16 @@ export class VSCalcTableEditorService {
    }
 
    resetCellBinding(command: GetCellBindingCommand): void {
-      if(!this.isSelectedCell(command.cellRow, command.cellCol)) {
+      const cell = this.getLastSelectedCell();
+
+      // the server reads and writes the binding of the last selected cell only, so accept
+      // only the answer for that cell
+      if(!cell || cell.row != command.cellRow || cell.col != command.cellCol) {
          return;
       }
 
+      this.bindingCell = { row: command.cellRow, col: command.cellCol };
+      this.bindingPending = false;
       this._cellBinding = command.binding;
       this._cellScript = command.cellScript;
       this._cellNames = command.cellNames;
@@ -165,10 +200,43 @@ export class VSCalcTableEditorService {
       this.loadNamedGroups();
    }
 
-   isSelectedCell(row: number, col: number) {
-      return !!this.getSelectCells().find((element) => {
-                return element.row == row && element.col == col;
-             });
+   /**
+    * Mark the loaded binding as out of date, e.g. when the selected cell changes or the
+    * selected cell's content is changed on the server (column pick, paste, remove, merge,
+    * split, drop). It stays out of date until the GetCellBindingCommand of the last selected
+    * cell arrives. Edits are not sent in the meantime.
+    */
+   invalidateCellBinding(): void {
+      this.bindingPending = true;
+      this.bindingEpoch++;
+   }
+
+   /**
+    * Check if the loaded binding is the current binding of the last selected cell, i.e. it
+    * can be shown and edited.
+    */
+   isCellBindingReady(): boolean {
+      return !this.bindingPending && this.isBindingForCell(this.getLastSelectedCell());
+   }
+
+   /**
+    * Check if a cell script that just arrived answers the last loadCellScript() request
+    * for the current binding of the selected cell.
+    */
+   isCellScriptCurrent(): boolean {
+      const req = this.scriptRequest;
+      return !!req && req.epoch == this.bindingEpoch && this.isCellBindingReady() &&
+         this.isBindingForCell(req);
+   }
+
+   private isBindingForCell(cell: { row: number, col: number }): boolean {
+      return !!cell && !!this.bindingCell && this.bindingCell.row == cell.row &&
+         this.bindingCell.col == cell.col;
+   }
+
+   private getLastSelectedCell(): CalcTableCell {
+      const cells = this.getSelectCells();
+      return cells && cells.length > 0 ? cells[cells.length - 1] : null;
    }
 
    getCellBinding(): CellBindingInfo {
@@ -244,6 +312,10 @@ export class VSCalcTableEditorService {
 
    clearAllData(): void {
       this._cellBinding = new CellBindingInfo();
+      this.bindingCell = null;
+      this.bindingPending = false;
+      this.bindingEpoch++;
+      this.scriptRequest = null;
       this._cellScript = null;
       this._cellNames = [];
       this._aggregates = [];

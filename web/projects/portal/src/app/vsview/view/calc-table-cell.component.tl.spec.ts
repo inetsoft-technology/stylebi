@@ -47,6 +47,7 @@ const editorServiceMock = {
    getSelectCells: vi.fn(() => []),
    getTableLayout: vi.fn(() => ({ selectedRect: null })),
    setSelectCells: vi.fn(),
+   invalidateCellBinding: vi.fn(),
 };
 
 const dndServiceMock = {
@@ -175,6 +176,8 @@ describe("CalcTableCellComponent — single pass", () => {
          const dropTarget = dndServiceMock.processOnDrop.mock.calls[0][1];
          expect(dropTarget).toBeInstanceOf(CalcDropTarget);
          expect(editorServiceMock.setSelectCells).toHaveBeenCalled();
+         // Bug #78560: the drop changes the cell's binding, the loaded binding is out of date
+         expect(editorServiceMock.invalidateCellBinding).toHaveBeenCalled();
       });
    });
 

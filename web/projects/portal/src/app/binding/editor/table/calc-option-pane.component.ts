@@ -38,6 +38,11 @@ export class CalcOptionPane {
       return <CellBindingInfo> this.editorService.getCellBinding();
    }
 
+   // false while the selected cell's binding is not loaded yet
+   get cellBindingReady(): boolean {
+      return this.editorService.isCellBindingReady();
+   }
+
    getCellNames() {
       const cells: any[] = this.editorService.getCellNamesWithDefaults();
 
