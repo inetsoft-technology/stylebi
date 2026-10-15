@@ -462,14 +462,31 @@ public class CalcTableService {
                                                    String assemblyName, String column)
       throws Exception
    {
+      return predefinedNamedGroupNames(
+         runtimeId, user, dispatcher, assemblyName, column, false);
+   }
+
+   /**
+    * @param includeNonSimple also list the groups a calc table cannot bucket, which the plain
+    *                         list leaves out.
+    */
+   private List<String> predefinedNamedGroupNames(String runtimeId, Principal user,
+                                                   CapturingCommandDispatcher dispatcher,
+                                                   String assemblyName, String column,
+                                                   boolean includeNonSimple)
+      throws Exception
+   {
       GetPredefinedNamedGroupEvent event = new GetPredefinedNamedGroupEvent();
       event.setName(assemblyName);
       event.setColumn(column);
+      event.setIncludeNonSimple(includeNonSimple);
+      int before = dispatcher.getCapturedCommands().size();
       layoutService.getNamedGroup(runtimeId, event, user, dispatcher);
 
       List<String> groups = new ArrayList<>();
+      List<CapturingCommandDispatcher.Command> captured = dispatcher.getCapturedCommands();
 
-      for(CapturingCommandDispatcher.Command command : dispatcher.getCapturedCommands()) {
+      for(CapturingCommandDispatcher.Command command : captured.subList(before, captured.size())) {
          if(command.getCommand() instanceof GetPredefinedNamedGroupCommand named &&
             named.getNamedGroups() != null)
          {
@@ -532,6 +549,14 @@ public class CalcTableService {
          ngInfoModel.setName(namedGroup);
          order.setInfo(ngInfoModel);
          return;
+      }
+
+      if(predefinedNamedGroupNames(runtimeId, user, dispatcher, assembly.getAbsoluteName(),
+                                   column, true).contains(namedGroup))
+      {
+         throw new IllegalArgumentException(
+            "Named group '" + namedGroup + "' exists on column '" + column + "' but cannot be " +
+            "used in a calc table. " + NAMED_GROUP_RESTRICTION);
       }
 
       throw new IllegalArgumentException(
@@ -612,12 +637,15 @@ public class CalcTableService {
          }
 
          throw new IllegalArgumentException(
-            where + " cannot be rendered by a calc table: " + culprit + ". A calc-table named " +
-            "group only buckets when every condition is 'equals' or 'one_of', not negated, and " +
-            "the conditions of a group are joined with 'or' -- otherwise the cell shows the " +
-            "raw values ungrouped.");
+            where + " cannot be rendered by a calc table: " + culprit + ". " +
+            NAMED_GROUP_RESTRICTION);
       }
    }
+
+   private static final String NAMED_GROUP_RESTRICTION =
+      "A calc-table named group only buckets when every condition is 'equals' or 'one_of', " +
+      "not negated, and the conditions of a group are joined with 'or' -- otherwise the cell " +
+      "shows the raw values ungrouped.";
 
    private static boolean isSimpleGroup(String name, ConditionList list) {
       ExpertNamedGroupInfo single = new ExpertNamedGroupInfo();

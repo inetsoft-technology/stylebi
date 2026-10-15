@@ -860,6 +860,38 @@ class CalcTableServiceTest {
       verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class), any());
    }
 
+   /**
+    * A repository group the calc render cannot bucket is filtered out of the plain list; the
+    * refusal must say that, not that the group does not exist.
+    */
+   @Test
+   void verify76814_aRepositoryGroupTheCalcRenderCannotBucketIsRefusedWithTheRealReason()
+      throws Exception
+   {
+      Harness h = harness(3, 3);
+      doAnswer(invocation -> {
+         GetPredefinedNamedGroupEvent event = invocation.getArgument(1);
+         CommandDispatcher dispatcher = invocation.getArgument(3);
+         GetPredefinedNamedGroupCommand command =
+            new GetPredefinedNamedGroupCommand(new AssetNamedGroupInfo[0]);
+         command.setNamedGroups(event.isIncludeNonSimple() ? new String[]{ "Prefixes" } : new String[0]);
+         dispatcher.sendCommand("Calc1", command);
+         return null;
+      }).when(h.layoutService).getNamedGroup(anyString(),
+                                             any(GetPredefinedNamedGroupEvent.class),
+                                             any(Principal.class), any());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+            spec("content", "column", "grouping", "group", "expand", "vertical",
+                 "field", Map.of("column", "REGION", "type", "dimension",
+                                 "namedGroup", "Prefixes"))));
+
+      assertTrue(thrown.getMessage().contains("'Prefixes' exists"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'equals' or 'one_of'"), thrown.getMessage());
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class), any());
+   }
+
    // ── field.dateLevel (applyDateGroup) ──────────────────────────────────────────
 
    @Test
