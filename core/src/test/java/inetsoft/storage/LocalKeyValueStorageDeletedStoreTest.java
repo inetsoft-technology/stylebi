@@ -117,6 +117,12 @@ class LocalKeyValueStorageDeletedStoreTest {
          deleteStore(kvA, id);
          assertEquals(List.of(), kvB.<String>getStorage(id).stream().toList());
 
+         // a write through the stale instance after a deletion reaches every node
+         deleteStore(kvA, id);
+         storeB.put("k3", "written-on-b").get(1, TimeUnit.MINUTES);
+         assertEquals("written-on-b", storeB.get("k3"));
+         assertEquals("written-on-b", kvA.<String>getStorage(id).get("k3"));
+
          // a node that is shut down still fails with CacheStoppedException (503 "System is
          // shutting down") instead of reading an empty store
          // closing the node also removes the listeners of its storages
