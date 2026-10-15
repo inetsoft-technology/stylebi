@@ -169,6 +169,8 @@ public class AssemblyConditionService {
 
             throw e;
          }
+
+         ChartRenderCheck.warnIfChartScriptFails(rvs, assemblyName, dispatcher);
       });
 
 
@@ -179,7 +181,9 @@ public class AssemblyConditionService {
       boolean preCheckWarned = !warnings.isEmpty();
 
       for(String warning : sessionWarnings == null ? List.<String>of() : sessionWarnings) {
-         if(!preCheckWarned || !warning.startsWith(ownFailure)) {
+         if(!preCheckWarned || !(warning.startsWith(ownFailure) ||
+                                ChartRenderCheck.isWarningFor(warning, assemblyName)))
+         {
             warnings.add(warning);
          }
       }
