@@ -660,7 +660,7 @@ public class WorksheetControllerService {
     * plus its output identity (alias, else attribute). Bug #78595.
     */
    public static String aggregateOutputKey(ColumnRef col, String alias) {
-      return col.getAttribute() + " " +
+      return col.getAttribute() + "\0" +
          (alias == null || alias.isEmpty() ? col.getAttribute() : alias);
    }
 

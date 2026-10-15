@@ -199,6 +199,18 @@ class WorksheetAggregateJoinKey78595Test {
       assertTrue(ex.getMessage().contains("still used as a join key"), ex.getMessage());
    }
 
+   // aggregate N_CUST -> same alias re-pointed at a different source column: still refused
+   @Test
+   void rePointingTheAggregateKeyToAnotherSourceColumnIsStillRefused() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetEditService svc = joinedOnAggregate(ws);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> aggregate(svc, state(), List.of(agg("CUSTOMER_ID", "COUNT", "N_CUST"))));
+
+      assertTrue(ex.getMessage().contains("still used as a join key"), ex.getMessage());
+   }
+
    // row-level group key COMPANY_NAME -> aggregated under the same name: still refused
    @Test
    void rowLevelKeyBecomingAnAggregateIsStillRefused() throws Exception {
