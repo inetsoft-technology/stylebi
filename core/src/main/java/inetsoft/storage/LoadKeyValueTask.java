@@ -18,6 +18,7 @@
 package inetsoft.storage;
 
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.internal.cluster.SingletonRunnableTask;
 import inetsoft.util.ShutdownException;
 import org.slf4j.LoggerFactory;
@@ -57,7 +58,7 @@ public class LoadKeyValueTask<T extends Serializable>
    @Override
    public void run() {
       try {
-         Map<String, T> map = getMap();
+         DistributedMap<String, T> map = getMap();
 
          if(map.isEmpty() || external || map.size() != getEngine().size(getId())) {
             TreeMap<String, T> temp = new TreeMap<>();
@@ -80,8 +81,16 @@ public class LoadKeyValueTask<T extends Serializable>
                loadBlobReferences(temp);
             }
 
-            map.clear();
-            map.putAll(temp);
+            if(external) {
+               // an external change replaced the stored content, so the listeners on every node
+               // are told that every entry was added again (e.g. Plugins loads a plugin whose
+               // version changed only from an added event)
+               map.clear();
+               map.putAll(temp);
+            }
+            else {
+               replaceContents(map, temp);
+            }
          }
       }
       catch(ShutdownException e) {
@@ -115,6 +124,55 @@ public class LoadKeyValueTask<T extends Serializable>
     */
    protected void validate(Map<String, T> map) throws Exception {
       // no-op
+   }
+
+   /**
+    * Checks if a value already in the distributed map is the same as the stored value, so that the
+    * reload does not write it again.
+    *
+    * @param current the value in the distributed map.
+    * @param stored  the value loaded from the key-value store.
+    *
+    * @return {@code true} if the values are the same.
+    */
+   protected boolean isSameValue(T current, T stored) {
+      return Objects.equals(current, stored);
+   }
+
+   /**
+    * Makes the distributed map hold the loaded content without ever removing a key that is
+    * still stored. Readers on every node read the map directly while this runs, so clearing the
+    * map first made every stored key look absent to them until the content was put back, and a
+    * reader that creates a missing entry, such as the data source registry root, then replaced
+    * the stored entry with an empty one (Bug #78532).
+    */
+   private void replaceContents(DistributedMap<String, T> map, SortedMap<String, T> temp) {
+      Map<String, T> current = new HashMap<>();
+
+      for(Map.Entry<String, T> e : map.entrySet()) {
+         current.put(e.getKey(), e.getValue());
+      }
+
+      SortedMap<String, T> changed = new TreeMap<>();
+
+      for(Map.Entry<String, T> e : temp.entrySet()) {
+         T value = current.get(e.getKey());
+
+         if(value == null || !isSameValue(value, e.getValue())) {
+            changed.put(e.getKey(), e.getValue());
+         }
+      }
+
+      if(!changed.isEmpty()) {
+         map.putAll(changed);
+      }
+
+      Set<String> removed = new HashSet<>(current.keySet());
+      removed.removeAll(temp.keySet());
+
+      if(!removed.isEmpty()) {
+         map.removeAll(removed);
+      }
    }
 
    private void loadBlobReferences(Map<String, ?> map) {

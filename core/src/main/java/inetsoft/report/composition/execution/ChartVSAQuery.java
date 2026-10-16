@@ -1511,6 +1511,33 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
             }
          }
       }
+      // Show Details on a node legend item filters on the node dimension. A date level of it
+      // is a date range column that the detail table doesn't have, so add it hidden for the
+      // detail condition. (78481)
+      else if(isDetail() && cinfo instanceof RelationVSChartInfo) {
+         RelationVSChartInfo rinfo = (RelationVSChartInfo) cinfo;
+
+         for(AestheticRef nodeARef : new AestheticRef[] {
+            rinfo.getNodeColorField(), rinfo.getNodeSizeField() })
+         {
+            if(nodeARef == null || !(nodeARef.getDataRef() instanceof VSDimensionRef)) {
+               continue;
+            }
+
+            GroupRef nodeGroup = ((VSDimensionRef) nodeARef.getDataRef()).createGroupRef(cols);
+
+            if(nodeGroup == null) {
+               continue;
+            }
+
+            ColumnRef nodeCol = (ColumnRef) nodeGroup.getDataRef();
+
+            if(nodeCol.getDataRef() instanceof DateRangeRef && !cols.containsAttribute(nodeCol)) {
+               nodeCol.setVisible(false);
+               cols.addAttribute(nodeCol);
+            }
+         }
+      }
 
       // @by billh, flag indicates whether to merge aggregate info to query
       // regardless of ranking condition. If ranking condition exists but it's
@@ -1695,7 +1722,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       // Align generated grouping/sorting refs with the final private column selection before
       // resetColumnSelection() validates and rebuilds public columns.
       for(GroupRef group : ainfo.getGroups()) {
-         ColumnRef column = AssetUtil.getColumnRefFromAttribute(cols, group.getDataRef());
+         ColumnRef column = findAlignedColumn(cols, group.getDataRef());
 
          if(column != null) {
             group.setDataRef(column);
@@ -1706,7 +1733,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       }
 
       for(SortRef sort : sorts.getSorts()) {
-         ColumnRef column = AssetUtil.getColumnRefFromAttribute(cols, sort.getDataRef());
+         ColumnRef column = findAlignedColumn(cols, sort.getDataRef());
 
          if(column != null) {
             sort.setDataRef(column);
@@ -1887,6 +1914,24 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
 
       fixAggregateInfo(table, cassembly);
       return table;
+   }
+
+   /**
+    * Find the column of the column selection a generated group or sort ref is bound to. The
+    * ref's own column (same entity and attribute) is used when it is in the selection. The
+    * name lookup is only a fallback, since it returns the last column with the same attribute,
+    * e.g. the pass-through of a date comparison runtime calc field WeekOfYear(Date) of the
+    * mirrored table instead of the WeekOfYear(Date) date range column of this chart, which
+    * would group the chart on the calc field's values (Bug #78446).
+    */
+   private static ColumnRef findAlignedColumn(ColumnSelection cols, DataRef ref) {
+      DataRef own = ref == null ? null : cols.findAttribute(ref);
+
+      if(own instanceof ColumnRef) {
+         return (ColumnRef) own;
+      }
+
+      return AssetUtil.getColumnRefFromAttribute(cols, ref);
    }
 
    private boolean isApplyMaxRows(VSChartInfo cinfo) {

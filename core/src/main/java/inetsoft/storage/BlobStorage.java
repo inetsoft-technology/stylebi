@@ -897,6 +897,17 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
          super.validate(map);
       }
 
+      @Override
+      protected boolean isSameValue(Blob<T> current, Blob<T> stored) {
+         // the metadata types, e.g. the AssetFolder of a folder blob, may not implement equals(),
+         // so Blob.equals() is false for an unchanged blob read again from the store. A write of
+         // a blob gives it a new last modified time or digest, so compare those instead
+         return Objects.equals(current.getPath(), stored.getPath()) &&
+            Objects.equals(current.getDigest(), stored.getDigest()) &&
+            current.getLength() == stored.getLength() &&
+            Objects.equals(current.getLastModified(), stored.getLastModified());
+      }
+
       private void initIndexedStorage(Map<String, Blob<T>> map, String orgID) {
          initializeRoot(AssetEntry.Type.REPOSITORY_FOLDER, map, orgID);
          initializeRoot(AssetEntry.Type.FOLDER, map, orgID);

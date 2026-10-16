@@ -714,7 +714,8 @@ public class XAttribute implements Cloneable, Serializable, XMLSerializable {
     * Return xAttribute's outer dependencies.
     */
    public DependencyException getDependencyException() {
-      Object[] entries = getOuterDependencies();
+      // Bug #78430, don't report sheets that were renamed, moved or deleted
+      Object[] entries = DependencyException.getExistingDependencies(getOuterDependencies());
 
       if(entries == null || entries.length == 0) {
          return null;

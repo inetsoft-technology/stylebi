@@ -614,22 +614,26 @@ public class CrosstabVSAssembly extends CrossBaseVSAssembly implements
       }
 
       if(cinfo != null) {
-         // clean the aggregate info
+         // clean the aggregate info, which is null until the binding is built
+         // (e.g. a wizard _temp_crosstab_N probe or a crosstab with nothing bound)
          AggregateInfo ainfo = cinfo.getAggregateInfo();
-         AggregateRef[] aggs = ainfo.getAggregates();
 
-         for(int i = 0; i < aggs.length; i++) {
-            if(VSUtil.matchRef(aggs[i], ref)) {
-               ainfo.removeAggregate(i);
-               break;
+         if(ainfo != null) {
+            AggregateRef[] aggs = ainfo.getAggregates();
+
+            for(int i = 0; i < aggs.length; i++) {
+               if(VSUtil.matchRef(aggs[i], ref)) {
+                  ainfo.removeAggregate(i);
+                  break;
+               }
             }
-         }
 
-         GroupRef[] grps = ainfo.getGroups();
+            GroupRef[] grps = ainfo.getGroups();
 
-         for(int i = grps.length - 1; i >= 0; i--) {
-            if(VSUtil.matchRef(grps[i], ref)) {
-               ainfo.removeGroup(i);
+            for(int i = grps.length - 1; i >= 0; i--) {
+               if(VSUtil.matchRef(grps[i], ref)) {
+                  ainfo.removeGroup(i);
+               }
             }
          }
 
@@ -700,21 +704,24 @@ public class CrosstabVSAssembly extends CrossBaseVSAssembly implements
       }
 
       if(cinfo != null) {
-         // change the aggregate info
+         // change the aggregate info, which is null until the binding is built
          AggregateInfo ainfo = cinfo.getAggregateInfo();
-         AggregateRef[] aggs = ainfo.getAggregates();
 
-         for(int i = 0; i < aggs.length; i++) {
-            if(VSUtil.matchRef(aggs[i], oname)) {
-               VSUtil.renameDataRef(aggs[i].getDataRef(), nname);
+         if(ainfo != null) {
+            AggregateRef[] aggs = ainfo.getAggregates();
+
+            for(int i = 0; i < aggs.length; i++) {
+               if(VSUtil.matchRef(aggs[i], oname)) {
+                  VSUtil.renameDataRef(aggs[i].getDataRef(), nname);
+               }
             }
-         }
 
-         GroupRef[] grps = ainfo.getGroups();
+            GroupRef[] grps = ainfo.getGroups();
 
-         for(int i = 0; i < grps.length; i++) {
-            if(VSUtil.matchRef(grps[i], oname)) {
-               VSUtil.renameDataRef(grps[i].getDataRef(), nname);
+            for(int i = 0; i < grps.length; i++) {
+               if(VSUtil.matchRef(grps[i], oname)) {
+                  VSUtil.renameDataRef(grps[i].getDataRef(), nname);
+               }
             }
          }
 

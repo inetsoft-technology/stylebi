@@ -119,10 +119,16 @@ public class ArrangeDashboardDialogController {
       for(String name : all) {
          String label = name;
          boolean global = false;
+         // a user's copy of a global dashboard keeps the __GLOBAL name in the user registry;
+         // the user's own dashboards have plain names and get no suffix
+         boolean globalCopy = false;
 
          if(label.endsWith("__GLOBAL")) {
             if(uregistry.getDashboard(label) == null) {
                global = true;
+            }
+            else {
+               globalCopy = true;
             }
 
             label = label.substring(0, label.length() - 8);
@@ -133,7 +139,7 @@ public class ArrangeDashboardDialogController {
          if(global) {
             label += catalog.getString("dashboard.globalLabel");
          }
-         else {
+         else if(globalCopy) {
             label += catalog.getString("dashboard.globalCopyLabel");
          }
 

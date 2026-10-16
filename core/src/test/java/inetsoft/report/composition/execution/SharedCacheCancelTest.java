@@ -38,6 +38,7 @@ import inetsoft.util.*;
 import org.apache.derby.jdbc.EmbeddedDataSource;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -263,6 +264,67 @@ class SharedCacheCancelTest {
       assertEquals(Catalog.getCatalog().getString("common.table.queryCancelled"),
                    ex.getMessage());
       shared.assertFirstReaderSilent();
+   }
+
+   /**
+    * Bug #78407: an interactive viewer's sandbox reports isScheduleAction() true (the default,
+    * meaning only that a scheduled task is not cancelled by script), which must not make its
+    * reader fail: it keeps the rows read and is told.
+    */
+   @Test
+   void cancelOfTheFirstReaderWarnsAnInteractiveViewsheetReader() throws Exception {
+      Shared shared = plain(new VariableTable(), new VariableTable(), true);
+      shared.box1.getQueryManager().cancel();
+
+      int rows2 = assertDoesNotThrow(() -> rows(shared.lens2),
+                                     "the interactive reader of a viewsheet failed");
+      assertTrue(rows2 > 0, "the interactive reader lost its rows");
+      assertWholeOrTold(rows2, PFULL, CoreTool.getUserMessage(), "QueryManager.cancel()");
+      shared.assertFirstReaderSilent();
+   }
+
+   /** A real scheduled run of a viewsheet still fails, however the marker is typed. */
+   @Test
+   void cancelOfTheFirstReaderFailsAScheduledViewsheetReader() throws Exception {
+      VariableTable boolVars = new VariableTable();
+      boolVars.put("__is_scheduler__", Boolean.TRUE);
+      Shared shared = plain(scheduled(), boolVars, true);
+      shared.box1.getQueryManager().cancel();
+
+      TableLoadException ex = assertThrows(TableLoadException.class,
+                                           () -> rows(shared.lens2),
+                                           "the scheduled reader took the rows read so far");
+      assertEquals(Catalog.getCatalog().getString("common.table.queryCancelled"),
+                   ex.getMessage());
+   }
+
+   /** The AssetQuery reader (an aggregate over the shared base) of an interactive viewsheet. */
+   @Test
+   void cancelOfTheFirstReaderWarnsAnInteractiveAggregateReader() throws Exception {
+      Worksheet ws = aggregateWorksheet(
+         "select a.id, a.g from sc78200 a, sc78200 b where b.id <= 300 and a.id > -" +
+         RUN.incrementAndGet());
+      AssetQuerySandbox box1 = viewsheetBacked(new AssetQuerySandbox(ws));
+      box1.setQueryManager(new QueryManager());
+      TableLens lens1 = box1.getTableLens("A1", AssetQuerySandbox.RUNTIME_MODE,
+                                          new VariableTable());
+      assertNotNull(lens1, "the query failed, see the log");
+      AssetQuerySandbox box2 = viewsheetBacked(new AssetQuerySandbox(ws));
+      box2.setQueryManager(new QueryManager());
+      TableLens lens2 = box2.getTableLens("A1", AssetQuerySandbox.RUNTIME_MODE,
+                                          new VariableTable());
+      assertNotNull(lens2, "the query failed, see the log");
+      CoreTool.clearUserMessage();
+
+      box1.getQueryManager().cancel();
+      assertDoesNotThrow(() -> rows(lens2), "the interactive aggregate reader failed");
+   }
+
+   private static AssetQuerySandbox viewsheetBacked(AssetQuerySandbox box) {
+      ViewsheetSandbox vsbox = Mockito.mock(ViewsheetSandbox.class);
+      Mockito.when(vsbox.isScheduleAction()).thenReturn(true);
+      box.setViewsheetSandbox(vsbox);
+      return box;
    }
 
    /**
@@ -498,6 +560,13 @@ class SharedCacheCancelTest {
 
    /** The two readers of the plain table, with their variables. */
    private static Shared plain(VariableTable vars1, VariableTable vars2) throws Exception {
+      return plain(vars1, vars2, false);
+   }
+
+   /** As above, the sandboxes of a viewsheet whose isScheduleAction() is true when asked. */
+   private static Shared plain(VariableTable vars1, VariableTable vars2, boolean viewsheet)
+      throws Exception
+   {
       Shared shared = new Shared();
       shared.ws = new Worksheet();
       int run = RUN.incrementAndGet();
@@ -506,6 +575,11 @@ class SharedCacheCancelTest {
                "where b.id <= 300 and a.id > -" + run, "id", "g");
 
       shared.box1 = new AssetQuerySandbox(shared.ws);
+
+      if(viewsheet) {
+         viewsheetBacked(shared.box1);
+      }
+
       shared.box1.setQueryManager(new QueryManager());
       shared.lens1 = shared.box1.getTableLens("T1", AssetQuerySandbox.RUNTIME_MODE,
                                               vars1);
@@ -513,6 +587,11 @@ class SharedCacheCancelTest {
       shared.x1 = (XNodeTableLens) Util.getNestedTable(shared.lens1, XNodeTableLens.class);
 
       shared.box2 = new AssetQuerySandbox(shared.ws);
+
+      if(viewsheet) {
+         viewsheetBacked(shared.box2);
+      }
+
       shared.box2.setQueryManager(new QueryManager());
       shared.lens2 = shared.box2.getTableLens("T1", AssetQuerySandbox.RUNTIME_MODE,
                                               vars2);

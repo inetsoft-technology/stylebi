@@ -101,14 +101,22 @@ public class CardinalityExecutor extends WizardDataExecutor {
       }
 
       CrosstabVSAssembly crosstab = getTempCrosstab(box, tempInfo.getTempChart().getSourceInfo());
-      VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
-      VSAggregateRef aggr0 = createAggregateRef(entry, AggregateFormula.COUNT_ALL);
-      VSAggregateRef aggr1 = (VSAggregateRef) aggr0.clone();
-      aggr1.setFormula(AggregateFormula.COUNT_DISTINCT);
-      VSAggregateRef[] aggregates = { aggr0, aggr1 };
-      cinfo.setDesignAggregates(aggregates);
-      VSTableLens lens = box.getVSTableLens(crosstab.getAbsoluteName(), false);
-      clearTempCrosstab(box, crosstab);
+      VSTableLens lens;
+
+      // the temp crosstab is added to the live viewsheet, always remove it so a cancelled or
+      // failed query doesn't leave it behind to be saved with the dashboard
+      try {
+         VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
+         VSAggregateRef aggr0 = createAggregateRef(entry, AggregateFormula.COUNT_ALL);
+         VSAggregateRef aggr1 = (VSAggregateRef) aggr0.clone();
+         aggr1.setFormula(AggregateFormula.COUNT_DISTINCT);
+         VSAggregateRef[] aggregates = { aggr0, aggr1 };
+         cinfo.setDesignAggregates(aggregates);
+         lens = box.getVSTableLens(crosstab.getAbsoluteName(), false);
+      }
+      finally {
+         clearTempCrosstab(box, crosstab);
+      }
       int rowCount = getRowCount(lens);
 
       if(rowCount > 1) {

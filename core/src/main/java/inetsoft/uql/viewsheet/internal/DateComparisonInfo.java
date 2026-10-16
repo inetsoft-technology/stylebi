@@ -1128,7 +1128,7 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          }
 
          if(!periods.isInclusive()) {
-            calendar.setTime(endDate);
+            calendar.setTime(getPeriodAnchorDate(periods));
             calendar.add(calendarLevel, -(isQuarter ? 3 : 1));
             endDate = setDateToEndOfPeriod(calendar.getTime(), periods.getDateLevel());
          }
@@ -1191,7 +1191,7 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
 
    public Date getStartDate() {
       if(getPeriods() instanceof StandardPeriods) {
-         return ((StandardPeriods) getPeriods()).getStartDate();
+         return getStartDate(((StandardPeriods) getPeriods()).getPreCount());
       }
 
       return getStartDate(0);
@@ -1203,7 +1203,7 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          boolean isQuarter = periods.getDateLevel() == XConstants.QUARTER_DATE_GROUP;
          int calendarLevel = getCalendarLevel(periods.getDateLevel());
          Calendar calendar = getCalendar();
-         calendar.setTime(periods.getRuntimeEndDay());
+         calendar.setTime(getPeriodAnchorDate(periods));
 
          resetLowDateLevel(calendar);
          setDateToLevelStart(calendar, periods.getDateLevel());
@@ -1213,6 +1213,28 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
 
       CustomPeriods periods = (CustomPeriods) getPeriods();
       return periods.getDatePeriods().stream().findFirst().map(p -> p.getStart()).orElse(null);
+   }
+
+   /**
+    * Get the date whose period is the End Date's period. When weeks are aligned, a year,
+    * quarter or month holds the full weeks that start in it (the *_OF_FULL_WEEK convention
+    * used by the labels and by getStandardPeriodsIntervalCondition()), so the End Date belongs
+    * to the period its week starts in. Every builder that counts periods back from the End
+    * Date must use the same anchor, or the ANDed conditions select one week of an extra
+    * period and drop a full one. (78454)
+    */
+   private Date getPeriodAnchorDate(StandardPeriods periods) {
+      Date endDay = periods.getRuntimeEndDay();
+
+      if(dcInterval == null || !alignWeek()) {
+         return endDay;
+      }
+
+      Calendar calendar = getCalendar();
+      calendar.setTime(endDay);
+      setDateToLevelStart(calendar, XConstants.WEEK_DATE_GROUP);
+
+      return calendar.getTime();
    }
 
    private Date setTimeToEndOfDay(Date date) {

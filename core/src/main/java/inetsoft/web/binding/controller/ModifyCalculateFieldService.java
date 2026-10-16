@@ -54,6 +54,7 @@ import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.command.*;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
+import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.model.VSWizardEditModes;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import org.slf4j.Logger;
@@ -205,9 +206,7 @@ public class ModifyCalculateFieldService {
          }
       }
       catch(Exception e) {
-         MessageCommand command = new MessageCommand();
-         command.setMessage(e.getMessage());
-         dispatcher.sendCommand(new MessageCommand());
+         sendErrorMessage(e, dispatcher);
          return null;
       }
 
@@ -441,7 +440,7 @@ public class ModifyCalculateFieldService {
          }
       }
       catch(Exception e) {
-         dispatcher.sendCommand(new MessageCommand());
+         sendErrorMessage(e, dispatcher);
       }
 
       engine.flushRuntimeSheet(id);
@@ -463,6 +462,28 @@ public class ModifyCalculateFieldService {
          "\" was saved, but a secondary step (" + step + ") failed -- some assemblies bound " +
          "to this table may not reflect the change until the sheet is reopened.");
       dispatcher.sendCommand(command);
+   }
+
+   /**
+    * Log the failure and tell the client, always with a non-null message.
+    */
+   private void sendErrorMessage(Exception e, CommandDispatcher dispatcher) {
+      LOG.warn("Failed to modify calculated field", e);
+      MessageCommand command = new MessageCommand();
+      command.setMessage(e.getMessage() != null ? e.getMessage() : e.toString());
+      command.setType(MessageCommand.Type.ERROR);
+      dispatcher.sendCommand(command);
+   }
+
+   /**
+    * Check if the assembly is one of the wizard's hidden _temp_crosstab_N probes
+    * (cardinality/interval/hierarchy). They are owned by the recommender threads and
+    * discarded after use, so a calc field change must not sync, apply or report them. This is
+    * not gated on wizard mode because a leaked probe may have been saved into the viewsheet.
+    */
+   private static boolean isWizardProbe(Assembly assembly) {
+      String name = assembly.getName();
+      return name != null && name.startsWith(VSWizardConstants.TEMP_CROSSTAB_NAME);
    }
 
    private AggregateInfo createAggregateInfo(AssetRepository engine, Viewsheet vs,
@@ -503,7 +524,7 @@ public class ModifyCalculateFieldService {
          BindableVSAssembly bind = ((BindableVSAssembly) assembies[i]);
          String vtable = bind.getTableName();
 
-         if(!Tool.equals(tname, vtable)) {
+         if(!Tool.equals(tname, vtable) || isWizardProbe(bind)) {
             continue;
          }
 
@@ -647,7 +668,7 @@ public class ModifyCalculateFieldService {
          BindableVSAssembly bind = ((BindableVSAssembly) assembies[i]);
          String vtable = bind.getTableName();
 
-         if(!Tool.equals(tname, vtable)) {
+         if(!Tool.equals(tname, vtable) || isWizardProbe(bind)) {
             continue;
          }
 

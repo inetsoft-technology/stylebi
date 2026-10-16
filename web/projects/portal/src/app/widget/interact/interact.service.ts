@@ -412,9 +412,9 @@ export class InteractService implements OnDestroy {
          const containerRect = GuiTool.getElementRect(this.container.element.nativeElement);
          const containerX = relativeToContainer ? 0 : containerRect.left;
          const containerY = relativeToContainer ? 0 : containerRect.top;
-         // resize border adds 2 pixels around the obj, so we subtract it.
-         // otherwise the positions will be 2, 22, 42, ...
-         const borderAdj = draggables ? draggables[0].resizeAdjustment : 2;
+         // subtract the draggable's resize border (if any) so its content box lands on the
+         // grid. a plain point (drop/paste) has no border, so it snaps to the grid exactly.
+         const borderAdj = draggables ? draggables[0].resizeAdjustment : 0;
 
          if(this.container.snapToGuides) {
             const selectionWidth = selectionBounds

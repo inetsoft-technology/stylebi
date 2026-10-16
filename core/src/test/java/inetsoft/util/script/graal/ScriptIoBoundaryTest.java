@@ -22,15 +22,21 @@ import inetsoft.test.*;
 import inetsoft.util.script.FormulaContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import com.sun.net.httpserver.HttpServer;
 import java.io.File;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -316,6 +322,163 @@ class ScriptIoBoundaryTest {
          run(e.engine(), src);
          assertFalse(out.exists(),
                      e.name() + ": DriverPluginGenerator wrote a file via minted File: " + out);
+      }));
+   }
+
+   // ---- mxSvgCanvas embedded image: raw URL/file body into the SVG DOM ----------------
+
+   private static final String MARKER = "MARKER-78079-SVG-BODY";
+   private static final String SVG_CANVAS = "inetsoft.graph.mxgraph.canvas.mxSvgCanvas";
+   private static final String VIEW_READER = "inetsoft.graph.mxgraph.reader.mxGraphViewImageReader";
+
+   /**
+    * Draws an image shape for {@code url} on an embedded mxSvgCanvas built by
+    * {@code newCanvas} and returns the SVG, or the caught error as {@code REFUSED:...}
+    * (caught inside the script so the report engine does not swallow the reason).
+    */
+   private static String svgCanvasScript(String newCanvas, String url) {
+      return "try {" +
+         " var doc = Java.type('inetsoft.graph.mxgraph.util.mxDomUtils').createSvgDocument(100, 100);" +
+         " var c = " + newCanvas + ";" +
+         " c.setEmbedded(true);" +
+         " var st = new (Java.type('java.util.HashMap'))();" +
+         " st.put('shape', 'image'); st.put('image', '" + url + "');" +
+         " c.drawShape(0, 0, 10, 10, st);" +
+         " 'LEAK:' + Java.type('inetsoft.graph.mxgraph.util.mxXmlUtils').getXml(c.getDocument());" +
+         "} catch(ex) { 'REFUSED:' + String(ex); }";
+   }
+
+   @Test
+   void mxSvgCanvasEmbeddedImageIsRefused() throws Exception {
+      AtomicInteger hits = new AtomicInteger();
+      HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+      server.createContext("/", ex -> {
+         hits.incrementAndGet();
+         byte[] body = MARKER.getBytes(StandardCharsets.UTF_8);
+         ex.sendResponseHeaders(200, body.length);
+
+         try(OutputStream out = ex.getResponseBody()) {
+            out.write(body);
+         }
+      });
+      server.start();
+
+      try {
+         String base = "http://127.0.0.1:" + server.getAddress().getPort();
+         List<String> urls = List.of(base + "/x.png", base + "/any?x=.png",
+                                     secretFile.toURI() + "#.png");
+         List<String> routes = List.of("new (Java.type('" + SVG_CANVAS + "'))(doc)",
+                                       "new " + SVG_CANVAS + "(doc)");
+         String b64Marker = Base64.getEncoder().encodeToString(MARKER.getBytes(StandardCharsets.UTF_8));
+         String b64Secret = Base64.getEncoder().encodeToString(SECRET.getBytes(StandardCharsets.UTF_8));
+         List<Executable> checks = new ArrayList<>();
+
+         for(Eng e : engines()) {
+            for(String route : routes) {
+               for(String url : urls) {
+                  checks.add(() -> {
+                     String r = runString(e.engine(), svgCanvasScript(route, url));
+                     String what = e.name() + " [" + route + "] " + url + ": ";
+                     assertNotNull(r, what + "no result");
+                     assertFalse(r.contains(b64Marker) || r.contains(MARKER),
+                                 what + "listener body reached the script: " + r);
+                     assertFalse(r.contains(b64Secret) || r.contains(SECRET),
+                                 what + "file content reached the script: " + r);
+                     assertTrue(r.startsWith("REFUSED:") && r.contains(
+                                   "instantiate on " + SVG_CANVAS + " failed due to: Message not supported."),
+                                what + "expected the type-deny refusal, got " + r);
+                  });
+               }
+            }
+         }
+
+         assertAll(checks.stream());
+         assertEquals(0, hits.get(), "mxSvgCanvas made a server-side request for a script");
+      }
+      finally {
+         server.stop(0);
+      }
+   }
+
+   // ---- mxGraphViewImageReader.convert(String): server-file existence oracle ----------
+
+   @Test
+   void mxGraphViewImageReaderConvertIsRefused() {
+      String missing = js(tmp.resolve("missing-78079.txt").toFile());
+      List<String> routes = List.of("Java.type('" + VIEW_READER + "')", VIEW_READER);
+
+      assertAll(engines().stream().flatMap(e -> routes.stream().<Executable>map(route -> () -> {
+         String what = e.name() + " [" + route + "]: ";
+         String existing = runString(e.engine(), convertScript(route, js(secretFile)));
+         String absent = runString(e.engine(), convertScript(route, missing));
+
+         for(String r : new String[] { existing, absent }) {
+            assertNotNull(r, what + "no result");
+            assertFalse(r.contains("FileNotFoundException") || r.contains("SAXParseException"),
+                        what + "convert opened the path: " + r);
+            assertTrue(r.startsWith("REFUSED:") && r.contains("Unknown identifier: convert"),
+                       what + "expected the type-deny refusal, got " + r);
+         }
+
+         // the refusal must not depend on whether the file exists (no oracle)
+         assertEquals(normalize(existing, js(secretFile)), normalize(absent, missing),
+                      what + "existing and missing paths are distinguishable");
+      })));
+   }
+
+   private static String normalize(String r, String path) {
+      return r.replace(path, "<path>").replaceAll("@[0-9a-f]+", "@<id>");
+   }
+
+   private static String convertScript(String route, String path) {
+      return "try { " + route + ".convert('" + path + "', null); 'OPENED'; }" +
+         " catch(ex) { 'REFUSED:' + String(ex); }";
+   }
+
+   @Test
+   void mxgraphSinkOwnersAreTypeDenied() throws Exception {
+      assertTrue(ScriptHostAccess.isTypeDenied(Class.forName(SVG_CANVAS)),
+                 "mxSvgCanvas (getResource/createDataUrl sink owner) must be denied by type");
+      assertTrue(ScriptHostAccess.isTypeDenied(Class.forName(VIEW_READER)),
+                 "mxGraphViewImageReader (convert(String) sink owner) must be denied by type");
+   }
+
+   // ---- Bug #78490: java.awt.Toolkit decodes a local image file for the script --------
+
+   @Test
+   void awtToolkitImageLoadIsRefused() throws Exception {
+      File png = tmp.resolve("toolkit-78490.png").toFile();
+      javax.imageio.ImageIO.write(
+         new java.awt.image.BufferedImage(3, 2, java.awt.image.BufferedImage.TYPE_INT_RGB),
+         "png", png);
+      // by name, by the legacy package shim, and an instance from an admitted java.awt type
+      List<String> routes = List.of(
+         "Java.type('java.awt.Toolkit').getDefaultToolkit()",
+         "java.awt.Toolkit.getDefaultToolkit()",
+         "new (Java.type('java.awt.Canvas'))().getToolkit()");
+
+      assertAll(engines().stream().flatMap(e -> routes.stream().<Executable>map(route -> () -> {
+         String src = "try { var t = " + route + "; var a = t.getImage('" + js(png) + "');" +
+            " var b = t.createImage('" + js(png) + "'); 'LOADED:' + (a != null || b != null); }" +
+            " catch(ex) { 'REFUSED:' + String(ex); }";
+         String r = runString(e.engine(), src);
+         assertTrue(r == null || r.startsWith("REFUSED:"),
+                    e.name() + " [" + route + "]: Toolkit loaded a local image: " + r);
+      })));
+
+      assertTrue(ScriptHostAccess.isTypeDenied(java.awt.Toolkit.class),
+                 "java.awt.Toolkit (getImage/createImage(String) sink owner) must be denied by type");
+   }
+
+   /** java.awt stays admitted: an ordinary value type still works. */
+   @Test
+   void awtValueTypeStillWorks() {
+      String src = "new (Java.type('java.awt.Color'))(1, 2, 3).getGreen()";
+
+      assertAll(engines().stream().map(e -> () -> {
+         Object r = run(e.engine(), src);
+         assertNotNull(r, e.name() + ": java.awt.Color must stay reachable");
+         assertEquals(2.0, ((Number) r).doubleValue(), 1e-9, e.name() + ": Color.getGreen()");
       }));
    }
 

@@ -27,13 +27,15 @@ package inetsoft.web.admin.presentation;
  *
  *   users  → ResourceType.SECURITY_USER   + ADMIN
  *   groups → ResourceType.SECURITY_GROUP  + ADMIN
- *   roles  → ResourceType.SECURITY_USER   + ADMIN  (same type as users, not SECURITY_ROLE)
+ *   roles  → ResourceType.SECURITY_ROLE   + ADMIN
  *
  * Behavioral guarantees covered:
  *
  * [G1] Users for which checkPermission returns true are included; others are excluded.
  * [G2] Groups for which checkPermission returns true are included; others are excluded.
- * [G3] Roles are filtered against ResourceType.SECURITY_USER (not SECURITY_ROLE).
+ * [G3] Roles are filtered against ResourceType.SECURITY_ROLE, keyed by the role's
+ *      IdentityID.convertToKey(); an ADMIN grant on a same-named user (SECURITY_USER)
+ *      does not list the role (Bug #78484).
  */
 
 import inetsoft.sree.security.*;
@@ -44,6 +46,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -92,17 +95,22 @@ class LookAndFeelSettingsControllerTest {
             deniedGroup.convertToKey(), ResourceAction.ADMIN))
          .thenReturn(false);
 
-      // roles — filtered via SECURITY_USER type, same as users
+      // roles: ADMIN is granted on "Manager" as a role, and on "Viewer" only as a user of
+      // the same name, which must not list the role
       lenient().when(securityProvider.getRoles())
          .thenReturn(new IdentityID[]{ permittedRole, deniedRole });
       lenient().when(securityProvider.checkPermission(
-            principal, ResourceType.SECURITY_USER,
+            principal, ResourceType.SECURITY_ROLE,
             permittedRole.convertToKey(), ResourceAction.ADMIN))
          .thenReturn(true);
       lenient().when(securityProvider.checkPermission(
-            principal, ResourceType.SECURITY_USER,
+            principal, ResourceType.SECURITY_ROLE,
             deniedRole.convertToKey(), ResourceAction.ADMIN))
          .thenReturn(false);
+      lenient().when(securityProvider.checkPermission(
+            principal, ResourceType.SECURITY_USER,
+            deniedRole.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
    }
 
    // [G1] only users with ADMIN permission on SECURITY_USER are included
@@ -123,17 +131,21 @@ class LookAndFeelSettingsControllerTest {
       assertFalse(response.groups().contains(deniedGroup));
    }
 
-   // [G3] roles are filtered using ResourceType.SECURITY_USER, not SECURITY_ROLE
+   // [G3] roles are filtered using ResourceType.SECURITY_ROLE, not SECURITY_USER (Bug #78484)
    @Test
-   void getIdentities_rolesPermissionCheckedWithSecurityUserType() {
+   void getIdentities_rolesPermissionCheckedWithSecurityRoleType() {
       GetAllIdentitiesResponse response = controller.getIdentities(principal);
 
-      assertTrue(response.roles().contains(permittedRole));
-      assertFalse(response.roles().contains(deniedRole));
+      assertEquals(List.of(permittedRole), response.roles());
 
-      // confirm SECURITY_USER type was used (not SECURITY_ROLE)
-      verify(securityProvider, atLeastOnce()).checkPermission(
-         eq(principal), eq(ResourceType.SECURITY_USER),
-         eq(permittedRole.convertToKey()), eq(ResourceAction.ADMIN));
+      verify(securityProvider).checkPermission(
+         principal, ResourceType.SECURITY_ROLE,
+         permittedRole.convertToKey(), ResourceAction.ADMIN);
+      verify(securityProvider, never()).checkPermission(
+         principal, ResourceType.SECURITY_USER,
+         permittedRole.convertToKey(), ResourceAction.ADMIN);
+      verify(securityProvider, never()).checkPermission(
+         principal, ResourceType.SECURITY_USER,
+         deniedRole.convertToKey(), ResourceAction.ADMIN);
    }
 }

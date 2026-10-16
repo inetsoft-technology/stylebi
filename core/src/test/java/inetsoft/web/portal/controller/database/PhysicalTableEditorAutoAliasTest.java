@@ -69,6 +69,9 @@ class PhysicalTableEditorAutoAliasTest {
       when(cache.remove(any())).thenAnswer(i -> store.remove(i.<String>getArgument(0)) != null);
       Cluster cluster = mock(Cluster.class);
       when(cluster.getCache(anyString(), anyBoolean(), any())).thenReturn((Cache) cache);
+      // RuntimePartitionService updates a runtime in a transaction
+      when(cluster.runInTransaction(org.mockito.ArgumentMatchers.anyLong(), any(), any()))
+         .thenAnswer(i -> i.<inetsoft.sree.internal.cluster.TransactionalAction<?, ?>>getArgument(2).run());
 
       runtimePartitionService = new RuntimePartitionService(cluster);
       runtimePartitionService.init();
@@ -274,9 +277,10 @@ class PhysicalTableEditorAutoAliasTest {
       String id = openModel(buildOrderView());
 
       removeJoin(id, "CUSTOMERS", "REGION_ID", "REGIONS", "REGION_ID");
-      RuntimePartitionService.RuntimeXPartition rp = runtime(id);
-      rp.getPartition().addTable("Customer Region", new Rectangle(0, 0, 50, 50));
-      runtimePartitionService.saveRuntimePartition(rp);
+      runtimePartitionService.update(id, rp -> {
+         rp.getPartition().addTable("Customer Region", new Rectangle(0, 0, 50, 50));
+         return null;
+      });
       addJoin(id, "CUSTOMERS", "REGION_ID", "REGIONS", "REGION_ID");
 
       assertEquals(List.of("SALES_EMPLOYEES->Salesperson Region"),

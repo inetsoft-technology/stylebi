@@ -510,22 +510,37 @@ public class JDBCUtil {
                }
             }
             else {
-               table = SQLTypes.getSQLTypes(xds).getQualifiedTableNode(
+               SQLTypes sqlTypes = SQLTypes.getSQLTypes(xds);
+               XNode qualified = sqlTypes.getQualifiedTableNode(
                   name.toString(),
                   "true".equals(root.getAttribute("hasCatalog")),
                   "true".equals(root.getAttribute("hasSchema")),
                   (String) root.getAttribute("catalogSep"), xds,
                   stable.getCatalog(), stable.getSchema());
-               String sourceName = SQLTypes.getSQLTypes(xds).getQualifiedName(table, xds);
+               // a name written with more qualifiers than the table name option expects
+               // (Bug #78466)
+               XNode written = stable.getCatalog() == null && stable.getSchema() == null ?
+                  sqlTypes.getWrittenTableNode(name.toString(), root, xds) : null;
+               table = written != null ? written : qualified;
+               table.setAttribute("supportCatalog", root.getAttribute("supportCatalog"));
+               XTypeNode cols = getTableColumns(table, repository, session, xds,
+                                                refetchEmpty && wildcard);
+
+               // a dotted table name stored unquoted is one name, as before
+               if(cols.getChildCount() == 0 && written != null) {
+                  table = qualified;
+                  table.setAttribute("supportCatalog", root.getAttribute("supportCatalog"));
+                  cols = getTableColumns(table, repository, session, xds,
+                                         refetchEmpty && wildcard);
+               }
+
+               String sourceName = sqlTypes.getQualifiedName(table, xds);
                String dataSourceName = sql.getDataSource() != null ?
                   sql.getDataSource().getFullName() : null;
                BiFunction<String, String, Boolean> vpmHiddenCols = VpmProcessor.getInstance()
                   .getHiddenColumnsSelector(
                      new String[] { sourceName }, new String[0], dataSourceName,
                      null, null, principal);
-               table.setAttribute("supportCatalog", root.getAttribute("supportCatalog"));
-               XTypeNode cols = getTableColumns(table, repository, session, xds,
-                                                refetchEmpty && wildcard);
 
                if(cols.getChildCount() > 0) {
                   known.add(alias);

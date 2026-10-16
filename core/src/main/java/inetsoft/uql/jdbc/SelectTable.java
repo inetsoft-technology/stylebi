@@ -213,6 +213,25 @@ public class SelectTable implements Serializable, Cloneable {
    }
 
    /**
+    * Get the SQL Server/Sybase table hint of this table, e.g. "nolock, index(ix)" for
+    * "from t with (nolock, index(ix))". It is the body of the WITH (...) clause, rebuilt
+    * from the parsed tokens, and is written back after the alias when the sql is
+    * regenerated (Bug #78382).
+    * @return the hint, or <tt>null</tt> if the table has none.
+    */
+   public String getHint() {
+      return hint;
+   }
+
+   /**
+    * Set the table hint, the body of the WITH (...) clause.
+    * @param hint the hint, or <tt>null</tt> (or empty) for none.
+    */
+   public void setHint(String hint) {
+      this.hint = hint == null || hint.trim().isEmpty() ? null : hint;
+   }
+
+   /**
     * Get the catalog.
     */
    public String getCatalog() {
@@ -263,7 +282,7 @@ public class SelectTable implements Serializable, Cloneable {
     */
    public String toString() {
       return "Table: " + name + "[" + alias + "]{" +
-         catalog + ", " + schema + "}";
+         catalog + ", " + schema + "}" + (hint == null ? "" : " with (" + hint + ")");
    }
 
    /**
@@ -305,6 +324,7 @@ public class SelectTable implements Serializable, Cloneable {
    private Object name;
    private String alias;
    private int[] quotedSegments; // indexes of the name segments written quoted
+   private String hint; // the table hint, the body of WITH (...)
    private Point location;
    private Point scrollLocation;
    private String catalog;

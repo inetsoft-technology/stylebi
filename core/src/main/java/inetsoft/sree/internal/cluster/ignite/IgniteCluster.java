@@ -26,6 +26,8 @@ import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.util.*;
 import inetsoft.util.config.*;
+import inetsoft.util.health.ClusterHealthService;
+import inetsoft.util.health.ClusterHealthStatus;
 import inetsoft.web.messaging.MessageContextHolder;
 import org.apache.ignite.*;
 import org.apache.ignite.binary.BinaryObject;
@@ -163,9 +165,23 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          islandDetector =
             new MinorityIslandDetector(ignite, islandCheckMillis, islandConfirmMillis);
          islandDetector.start();
+
+         Long stuckExchangeHaltMinutes =
+            InetsoftConfig.getInstance().getCluster().getStuckExchangeHaltMinutes();
+
+         if(stuckExchangeHaltMinutes != null && stuckExchangeHaltMinutes > 0) {
+            healthWatchdog = new ClusterHealthWatchdog(ignite, this::sampleHealthStatus,
+               () -> getMinorityIslandMessage() != null, -1L,
+               TimeUnit.MINUTES.toMillis(stuckExchangeHaltMinutes));
+            healthWatchdog.start();
+         }
+         else {
+            healthWatchdog = null;
+         }
       }
       else {
          islandDetector = null;
+         healthWatchdog = null;
       }
 
       if("reportServer".equals(System.getProperty("inetsoft.cluster.node.type"))) {
@@ -173,6 +189,27 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       registerSpringProxyPartitionedCache(WorksheetEngine.CACHE_NAME);
+   }
+
+   /**
+    * Samples the current cluster health status for {@link #healthWatchdog} (Bug #78141).
+    * <p>
+    * Looks the Spring-managed {@link ClusterHealthService} singleton up lazily, on the watchdog's
+    * own thread, instead of resolving it once in the constructor: this constructor runs inside
+    * the {@code Cluster} bean's own {@code @Bean} factory method
+    * ({@code EngineConfiguration.cluster(InetsoftConfig)}), so the {@code Cluster} bean is not
+    * registered yet, and {@code ClusterHealthService}'s {@code @Autowired} constructor needs a
+    * {@code Cluster} — resolving it here would be a circular bean dependency. {@link #start} only
+    * schedules the watchdog's first tick after its sampling interval, well after this constructor
+    * (and the {@code @Bean} method it runs inside) has returned, so by the time this method is
+    * actually invoked the {@code Cluster} bean is safely registered. If the application context
+    * is not yet set at all, {@link ConfigurationContext#getSpringBean} throws
+    * {@link ShutdownException}, which {@link ClusterHealthWatchdog#check()} already treats as an
+    * inconclusive tick that neither starts nor clears the not-ready timer — so a lookup this early
+    * cannot be mistaken for a genuinely stuck exchange.
+    */
+   private ClusterHealthStatus sampleHealthStatus() {
+      return ConfigurationContext.getContext().getSpringBean(ClusterHealthService.class).getStatus();
    }
 
    public static IgniteConfiguration getDefaultConfig(Path workDir) {
@@ -349,6 +386,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       config.setExecutorConfiguration(executePools);
+      // a server runs the lock and atomic jobs of the client nodes on these
+      ClientDataStructures.addExecutors(config);
       IgniteUtils.configBinaryTypes(config);
 
       return config;
@@ -853,11 +892,43 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public Lock getLock(String name) {
+      if(isClientNode()) {
+         return new DistributedLockProxy(name, ClientDataStructures.getLock(ignite, name));
+      }
+
       return new DistributedLockProxy(name, ignite.reentrantLock(name, true, false, true));
+   }
+
+   /**
+    * Checks if this is a client node (a cloud-runner task container). A client node must not
+    * create or obtain an Ignite lock, atomic or queue: that registers one of Ignite's internal
+    * continuous queries on every server, and after the client is killed every lock change or
+    * queue update on a server waits for it until it is dropped (bug #78451). Its locks, atomics
+    * and queues are kept on a server by {@link ClientDataStructures}.
+    */
+   private boolean isClientNode() {
+      return ignite.cluster().localNode().isClient();
+   }
+
+   /**
+    * Refuses a remote event listener on a client node. It would make every server send the
+    * client its events, and after the client is killed each send waits for it until it is dropped
+    * (bug #78451). No caller registers one on a client node.
+    */
+   private void checkRemoteListenerAllowed() {
+      if(isClientNode()) {
+         throw new UnsupportedOperationException(
+            "A client node can't listen to the events of other nodes");
+      }
    }
 
    @Override
    public void destroyLock(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyLock(ignite, name);
+         return;
+      }
+
       IgniteLock lock = ignite.reentrantLock(name, true, false, false);
 
       if(lock != null) {
@@ -866,6 +937,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    public void unlockLock(String name) {
+      if(isClientNode()) {
+         getLock(name).unlock();
+         return;
+      }
+
       IgniteLock lock = ignite.reentrantLock(name, true, false, false);
 
       if(lock != null) {
@@ -1568,6 +1644,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
+      checkRemoteListenerAllowed();
       UUID id = ignite.events()
          .remoteListen(new RebalanceListenerAdapter(listener),
                        new RebalanceEventFilter(cacheName),
@@ -1603,11 +1680,21 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       queueConfig.setBackups(getDefaultBackupCount());
       queueConfig.setCacheMode(getDefaultCacheMode());
       queueConfig.setAtomicityMode(CacheAtomicityMode.ATOMIC);
+
+      if(isClientNode()) {
+         return ClientDataStructures.getQueue(ignite, name, queueConfig);
+      }
+
       return ignite.queue(name, 0, queueConfig);
    }
 
    @Override
    public void destroyQueue(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyQueue(ignite, name);
+         return;
+      }
+
       IgniteQueue<?> queue = ignite.queue(name, 0, null);
 
       if(queue != null) {
@@ -1651,11 +1738,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public DistributedLong getLong(String name) {
+      if(isClientNode()) {
+         return ClientDataStructures.getLong(ignite, name);
+      }
+
       return new IgniteDistributedLong(ignite.atomicLong(name, 0, true));
    }
 
    @Override
    public void destroyLong(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyLong(ignite, name);
+         return;
+      }
+
       IgniteAtomicLong igniteAtomicLong = ignite.atomicLong(name, 0, false);
 
       if(igniteAtomicLong != null) {
@@ -1665,11 +1761,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <V> DistributedReference<V> getReference(String name) {
+      if(isClientNode()) {
+         return ClientDataStructures.getReference(ignite, name);
+      }
+
       return new IgniteDistributedReference<>(ignite.atomicReference(name, null, true));
    }
 
    @Override
    public void destroyReference(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyReference(ignite, name);
+         return;
+      }
+
       IgniteAtomicReference<?> igniteAtomicReference = ignite.atomicReference(name, null, false);
 
       if(igniteAtomicReference != null) {
@@ -2047,6 +2152,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          islandDetector.close();
       }
 
+      if(healthWatchdog != null) {
+         // not healthService.close(): sampleHealthStatus() looks up the Spring-managed
+         // ClusterHealthService singleton lazily, it does not own an instance of its own
+         healthWatchdog.close();
+      }
+
       clusterFileTransfer.close();
       ignite.close();
       closed = true;
@@ -2329,6 +2440,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                      EventType.EVT_CACHE_OBJECT_EXPIRED);
                }
                else {
+                  checkRemoteListenerAllowed();
                   remoteListenerId = ignite.events().remoteListen(
                      adapter, new CacheEventFilter(cache.getName()),
                      EventType.EVT_CACHE_OBJECT_PUT,
@@ -2395,6 +2507,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final ExecutorService listenerExecutor;
    private final ClientMessageSender clientMessageSender;
    private final MinorityIslandDetector islandDetector;
+   private final ClusterHealthWatchdog healthWatchdog;
 
    private static final int DEFAULT_BACKUP_COUNT = 2;
    private static final int DEFAULT_AFFINITY_POOL_MAX_SIZE = 64;

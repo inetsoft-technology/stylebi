@@ -253,9 +253,10 @@ public class DefaultVSGauge extends VSGauge {
 
             if(i < rangeColors.length) {
                c1 = rangeColors[i];
-               // the next row with a value, else the blend slot (#78009)
+               // the next row with a value, else the blend slot (#78009), else darker()
+               // below, as the other range renderers do (#78464)
                int end = getRangeEndColorIndex(ranges, rangeColors, i);
-               c2 = end >= 0 ? rangeColors[end] : c1;
+               c2 = end >= 0 ? rangeColors[end] : null;
             }
 
             if(c2 == null && c1 != null) {

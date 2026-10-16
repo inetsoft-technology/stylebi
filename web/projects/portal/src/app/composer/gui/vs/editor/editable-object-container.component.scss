@@ -36,6 +36,12 @@
   padding: 0;
 }
 
+// selection container children sit inside an overflow:hidden scroller sized to the child,
+// so draw the selection/highlight outline inside the box instead of outside it.
+.container-child > .object {
+  outline-offset: -2px;
+}
+
 .handle {
   z-index: 200;
 }

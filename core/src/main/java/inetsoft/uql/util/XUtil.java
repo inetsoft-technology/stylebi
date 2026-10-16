@@ -451,24 +451,52 @@ public final class XUtil {
             talias + "." + column;
       }
 
-      if(!sql.isTableColumn(column)) {
-         return column;
-      }
+      boolean tableColumn = sql.isTableColumn(column);
 
       for(int i = 0; i < sql.getTableCount(); i++) {
          SelectTable stable = sql.getSelectTable(i);
          Object name = stable.getName();
          String alias = stable.getAlias();
          alias = alias == null || alias.length() == 0 ? name.toString() : alias;
+         // the column of a table is output by its own name. On a case-sensitive helper the
+         // parser stores the qualifier quoted in the text ("c".CITY for alias c), and a
+         // column whose table didn't resolve (no metadata) is still qualified by the table
+         // (Bug #78409)
+         String prefix = getSubQueryColumnPrefix(column, alias);
 
-         if(column.startsWith(alias + ".")) {
-            column = column.substring(alias.length() + 1);
+         if(prefix == null && name instanceof String) {
+            prefix = getSubQueryColumnPrefix(column, (String) name);
+         }
+
+         // an expression (c.a || c.b) is not a column of the table
+         if(prefix != null && !tableColumn &&
+            !SUB_QUERY_COLUMN_NAME.matcher(column.substring(prefix.length())).matches())
+         {
+            prefix = null;
+         }
+
+         if(prefix != null) {
+            column = column.substring(prefix.length());
             return talias == null || talias.length() == 0 ? column :
                talias + "." + column;
          }
+      }
 
-         if((name instanceof String) && column.startsWith(name + ".")) {
-            column = column.substring(((String) name).length() + 1);
+      // a table without an alias is referenced by its last name segments (CUSTOMERS.CITY
+      // from "public"."CUSTOMERS"), or by more segments than written (APP.CUSTOMERS.CITY
+      // from CUSTOMERS). The parser stores such a table's alias as its full name (Bug #78409)
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         SelectTable stable = sql.getSelectTable(i);
+         Object name = stable.getName();
+
+         if(!(name instanceof String) || !name.equals(stable.getAlias())) {
+            continue;
+         }
+
+         String prefix = getSubQueryColumnSegmentPrefix(column, (String) name, tableColumn);
+
+         if(prefix != null) {
+            column = column.substring(prefix.length());
             return talias == null || talias.length() == 0 ? column :
                talias + "." + column;
          }
@@ -476,6 +504,149 @@ public final class XUtil {
 
       return column;
    }
+
+   /**
+    * Get the qualifier of a column, with its dot, if its name segments and the name segments
+    * of the table end the same way. A segment matches as written or quoted.
+    */
+   private static String getSubQueryColumnSegmentPrefix(String column, String table,
+                                                        boolean tableColumn)
+   {
+      List<String> tableSegments = splitSubQueryName(table);
+
+      if(tableSegments == null) {
+         return null;
+      }
+
+      List<String> qualifier = new ArrayList<>();
+      int start = 0;
+
+      for(int dot = getSubQueryNameDot(column, 0); dot >= 0;
+          dot = getSubQueryNameDot(column, start))
+      {
+         String segment = column.substring(start, dot);
+
+         // a qualifier is a dotted name, not an expression
+         if(!SUB_QUERY_NAME_SEGMENT.matcher(segment).matches()) {
+            return null;
+         }
+
+         qualifier.add(segment);
+         start = dot + 1;
+         String rest = column.substring(start);
+
+         // an expression (c.a || c.b) is not a column of the table
+         if(!rest.isEmpty() && isSubQueryNameSuffix(qualifier, tableSegments) &&
+            (tableColumn || SUB_QUERY_COLUMN_NAME.matcher(rest).matches()))
+         {
+            return column.substring(0, start);
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Check if the shorter of two names is the end of the other, segment by segment.
+    */
+   private static boolean isSubQueryNameSuffix(List<String> name1, List<String> name2) {
+      int n = Math.min(name1.size(), name2.size());
+
+      for(int i = 1; i <= n; i++) {
+         String segment1 = name1.get(name1.size() - i);
+         String segment2 = name2.get(name2.size() - i);
+
+         if(!segment1.equals(segment2) &&
+            !unquoteSubQueryName(segment1).equals(unquoteSubQueryName(segment2)))
+         {
+            return false;
+         }
+      }
+
+      return n > 0;
+   }
+
+   /**
+    * Split a name at the dots outside quotes, or return null if a segment is not one
+    * identifier.
+    */
+   private static List<String> splitSubQueryName(String name) {
+      List<String> segments = new ArrayList<>();
+      int start = 0;
+
+      while(true) {
+         int dot = getSubQueryNameDot(name, start);
+         String segment = dot < 0 ? name.substring(start) : name.substring(start, dot);
+
+         if(!SUB_QUERY_NAME_SEGMENT.matcher(segment).matches()) {
+            return null;
+         }
+
+         segments.add(segment);
+
+         if(dot < 0) {
+            return segments;
+         }
+
+         start = dot + 1;
+      }
+   }
+
+   /**
+    * Get the index of the next dot outside quotes ("..." or `...`), or -1.
+    */
+   private static int getSubQueryNameDot(String name, int from) {
+      char quote = 0;
+
+      for(int i = from; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if(quote != 0) {
+            quote = c == quote ? 0 : quote;
+         }
+         else if(c == '"' || c == '`') {
+            quote = c;
+         }
+         else if(c == '.') {
+            return i;
+         }
+      }
+
+      return -1;
+   }
+
+   /**
+    * Remove the quotes of a name segment.
+    */
+   private static String unquoteSubQueryName(String segment) {
+      return segment.length() > 1 && (segment.charAt(0) == '"' || segment.charAt(0) == '`') ?
+         segment.substring(1, segment.length() - 1) : segment;
+   }
+
+   /**
+    * Get the qualifier of a column, with its dot, if it is the table, written as is or
+    * quoted.
+    */
+   private static String getSubQueryColumnPrefix(String column, String table) {
+      if(table == null || table.isEmpty()) {
+         return null;
+      }
+
+      for(String prefix : new String[] { table + ".", "\"" + table + "\"." }) {
+         if(column.startsWith(prefix) && column.length() > prefix.length()) {
+            return prefix;
+         }
+      }
+
+      return null;
+   }
+
+   // one identifier, bare or quoted
+   private static final Pattern SUB_QUERY_COLUMN_NAME =
+      Pattern.compile("[\\p{L}\\p{N}_$#@]+|\"[^\"]+\"");
+   // one name segment, bare or quoted
+   private static final Pattern SUB_QUERY_NAME_SEGMENT =
+      Pattern.compile("[\\p{L}\\p{N}_$#@]+|\"[^\"]+\"|`[^`]+`");
 
    /**
     * Use different path split for data model folder to distinguish

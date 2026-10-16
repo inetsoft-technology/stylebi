@@ -35,6 +35,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.filter.Formula;
@@ -49,6 +50,8 @@ import inetsoft.report.lens.JoinTableLens;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.schedule.ScheduleViewsheetService;
+import inetsoft.sree.schedule.ViewsheetAction;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.test.*;
@@ -65,6 +68,9 @@ import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.util.*;
 import inetsoft.util.credential.CredentialService;
 import inetsoft.util.script.JavaScriptEngine;
@@ -87,14 +93,24 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.Principal;
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.zip.ZipInputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -717,8 +733,8 @@ class RowFetchFailureTest {
 
    // Bug #78071: a viewsheet onLoad script stops at its read of a table that failed to load
    // in a scheduled run, and the export records that as the script error, instead of the
-   // script going on with a null column. Like any onLoad error it does not fail the run. An
-   // interactive script reads the rows that were loaded, as before
+   // script going on with a null column. Unlike other onLoad errors, a load failure fails the
+   // export (#78445). An interactive script reads the rows that were loaded, as before
    @Test
    void onLoadScriptOverAFailedTable() throws Exception {
       String script = "var a = TableV.table['id']; " +
@@ -735,9 +751,16 @@ class RowFetchFailureTest {
 
          ViewsheetSandbox vbox = vsTable(ws, box);
          vbox.getViewsheet().getViewsheetInfo().setOnLoad(script);
-         vbox.prepareForExport();
-         Exception error = vbox.getExportScriptError();
 
+         if(scheduler) {
+            assertLoadFailure(assertThrows(TableLoadException.class, vbox::prepareForExport),
+                              DB_MESSAGE);
+         }
+         else {
+            vbox.prepareForExport();
+         }
+
+         Exception error = vbox.getExportScriptError();
          assertNotNull(error, "scheduler " + scheduler);
 
          if(scheduler) {
@@ -936,7 +959,8 @@ class RowFetchFailureTest {
          String message = failure[1];
 
          ViewsheetSandbox vbox = executeFailureSandbox(true, script);
-         vbox.prepareForExport();
+         assertLoadFailure(assertThrows(TableLoadException.class, vbox::prepareForExport),
+                           message);
          assertLoadFailure(vbox.getExportScriptError(), message);
 
          // the failed read was not cached as no data: a later read fails again, and the export
@@ -966,6 +990,276 @@ class RowFetchFailureTest {
          exporter3.export(executeFailureSandbox(false, null), "TableV", null);
          exporter3.write();
       }
+   }
+
+   // Bug #78445: a scheduled CSV export of a viewsheet whose onLoad reads a hidden table that
+   // failed to load fails with the database error, instead of finishing with an empty file and
+   // only a logged script error. The hidden table is not exported, so the onLoad read is the
+   // only reader. An interactive export, and a scheduled export whose onLoad fails for another
+   // reason, still complete with the script error recorded for the warning (#76780)
+   @Test
+   void scheduledExportOfAnOnLoadReadOfAHiddenFailedTableFails() throws Exception {
+      String read = "var n = TableV.table.length; parameter.r = 'rows=' + n;";
+
+      ViewsheetSandbox scheduled = hiddenFailedTableSandbox(true, read);
+      CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+         exporter.export(scheduled, "Text", null);
+         exporter.write();
+      });
+      assertLoadFailure(ex, DB_MESSAGE);
+      assertTrue(hasSqlException(TableLoadException.find(ex)), String.valueOf(ex));
+
+      // interactive: the script reads the rows that were loaded and the export completes
+      ViewsheetSandbox interactive = hiddenFailedTableSandbox(false, read);
+      CSVVSExporter exporter2 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      exporter2.export(interactive, "Text", null);
+      exporter2.write();
+      assertNull(interactive.getExportScriptError());
+      // the header row and the rows read before the failure
+      assertEquals("rows=" + FAIL_ROW, interactive.getVariableTable().get("r"));
+
+      // a scheduled onLoad error that is not a load failure warns and continues
+      ViewsheetSandbox plain = hiddenFailedTableSandbox(true, "throw 'PLAINX';");
+      CSVVSExporter exporter3 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      exporter3.export(plain, "Text", null);
+      exporter3.write();
+      Exception error = plain.getExportScriptError();
+      assertNotNull(error);
+      assertNull(TableLoadException.find(error), String.valueOf(error));
+      assertTrue(String.valueOf(error.getMessage()).contains("PLAINX"), String.valueOf(error));
+   }
+
+   // Bug #78445: the export's script error keeps the first error, so a plain onLoad error of the
+   // host must not hide a load failure of an embedded viewsheet's onLoad, which runs after it:
+   // the scheduled export still fails
+   @Test
+   void hostOnLoadErrorDoesNotHideAnEmbeddedLoadFailure() throws Exception {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", true);
+      Viewsheet child = viewsheet(ws);
+      child.setEntry(new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "test/RowFetchFailureTest/child",
+         null, OrganizationManager.getInstance().getCurrentOrgID()));
+      child.createVSAssembly("Viewsheet1");
+      TableVSAssembly table = new TableVSAssembly(child, "TableV");
+      table.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "T1"));
+      ColumnSelection cols = new ColumnSelection();
+
+      for(String name : new String[] { "id", "g", "x" }) {
+         cols.addAttribute(new ColumnRef(new AttributeRef(null, name)));
+      }
+
+      table.setColumnSelection(cols);
+      child.addAssembly(table);
+      child.getViewsheetInfo().setOnLoad("var n = TableV.table.length; parameter.n = n;");
+
+      Viewsheet host = viewsheet(ws);
+      host.getViewsheetInfo().setOnLoad("throw 'HOSTX';");
+      host.addAssembly(child);
+      ViewsheetSandbox box = viewsheetSandbox(host, querySandbox(ws, true));
+      assertNotNull(box.getSandbox("Viewsheet1"));
+
+      assertLoadFailure(assertThrows(TableLoadException.class, box::prepareForExport),
+                        DB_MESSAGE);
+      // the first error, the host's, is still the one recorded for the warning
+      assertTrue(String.valueOf(box.getExportScriptError()).contains("HOSTX"),
+                 String.valueOf(box.getExportScriptError()));
+   }
+
+   // Bug #78445: through the real ViewsheetAction save to disk (CSV), a scheduled task whose
+   // onLoad reads a hidden table that failed to load fails with the database error, and neither
+   // the target file nor the task's temp file is left behind. A plain onLoad error still warns,
+   // and the task finishes and saves the file
+   @Test
+   void scheduledSaveToDiskFailsOnAnOnLoadLoadFailure() throws Exception {
+      String read = "var n = TableV.table.length; parameter.r = 'rows=' + n;";
+      Path dir = Files.createTempDirectory("vsaction78445");
+
+      try {
+         Set<String> cache = cacheListing();
+         List<String> saved = new ArrayList<>();
+         Throwable ex = runSaveToDisk(hiddenFailedTableSandbox(true, read), dir, saved);
+         assertLoadFailure(ex, DB_MESSAGE);
+         assertTrue(hasSqlException(TableLoadException.find(ex)), String.valueOf(ex));
+         assertTrue(saved.isEmpty(), String.valueOf(saved));
+         assertEquals(0, dir.toFile().list().length);
+         assertEquals(cache, cacheListing());
+
+         ViewsheetSandbox plain = hiddenFailedTableSandbox(true, "throw 'PLAINX';");
+         assertNull(runSaveToDisk(plain, dir, saved));
+         assertEquals(1, saved.size(), String.valueOf(saved));
+      }
+      finally {
+         Tool.deleteFile(dir.toFile());
+      }
+   }
+
+   // Bug #78445: a load failure in the onLoad of a viewsheet embedded two levels down fails the
+   // scheduled export; interactive, the same sheet exports without an error
+   @Test
+   void embeddedLoadFailureTwoLevelsDownFails() throws Exception {
+      for(boolean scheduler : new boolean[] { true, false }) {
+         Worksheet ws = new Worksheet();
+         sqlTable(ws, "T1", true);
+         Viewsheet leaf = embeddedViewsheet(ws, "Leaf", true,
+                                            "var n = TableV.table.length; parameter.n = n;");
+         Viewsheet mid = embeddedViewsheet(ws, "Mid", false, "parameter.m = 1;");
+         mid.addAssembly(leaf);
+         Viewsheet host = viewsheet(ws);
+         host.getViewsheetInfo().setOnLoad("parameter.h = 1;");
+         host.addAssembly(mid);
+         ViewsheetSandbox box = viewsheetSandbox(host, querySandbox(ws, scheduler));
+         assertNotNull(box.getSandbox("Mid"));
+         assertNotNull(box.getSandbox("Mid.Leaf"));
+
+         if(scheduler) {
+            assertLoadFailure(assertThrows(TableLoadException.class, box::prepareForExport),
+                              DB_MESSAGE);
+         }
+         else {
+            box.prepareForExport();
+            assertNull(box.getExportScriptError());
+         }
+      }
+   }
+
+   // Bug #78445: a host onLoad load failure followed by a plain error in an embedded onLoad
+   // still fails the scheduled export, and the host's failure stays the recorded error
+   @Test
+   void hostLoadFailureThenEmbeddedPlainErrorFails() throws Exception {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", true);
+      ViewsheetSandbox box = vsTable(ws, querySandbox(ws, true));
+      Viewsheet host = box.getViewsheet();
+      host.getViewsheetInfo().setOnLoad("var n = TableV.table.length; parameter.n = n;");
+      host.addAssembly(embeddedViewsheet(ws, "Viewsheet1", false, "throw 'CHILDX';"));
+      assertNotNull(box.getSandbox("Viewsheet1"));
+
+      assertLoadFailure(assertThrows(TableLoadException.class, box::prepareForExport),
+                        DB_MESSAGE);
+      assertNotNull(TableLoadException.find(box.getExportScriptError()));
+   }
+
+   // an embedded viewsheet named name over ws, with the table TableV bound to T1 if table
+   private static Viewsheet embeddedViewsheet(Worksheet ws, String name, boolean table,
+                                              String onLoad)
+      throws Exception
+   {
+      Viewsheet child = viewsheet(ws);
+      child.setEntry(new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         "test/RowFetchFailureTest/" + name, null,
+         OrganizationManager.getInstance().getCurrentOrgID()));
+      child.createVSAssembly(name);
+
+      if(table) {
+         TableVSAssembly tableV = new TableVSAssembly(child, "TableV");
+         tableV.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "T1"));
+         ColumnSelection cols = new ColumnSelection();
+
+         for(String col : new String[] { "id", "g", "x" }) {
+            cols.addAttribute(new ColumnRef(new AttributeRef(null, col)));
+         }
+
+         tableV.setColumnSelection(cols);
+         child.addAssembly(tableV);
+      }
+
+      child.getViewsheetInfo().setOnLoad(onLoad);
+      return child;
+   }
+
+   private static Set<String> cacheListing() throws Exception {
+      Path cdir =
+         Paths.get(FileSystemService.getInstance().getCacheDirectory());
+
+      try(Stream<Path> files = Files.list(cdir)) {
+         return files.map(f -> f.getFileName().toString())
+            .collect(Collectors.toCollection(TreeSet::new));
+      }
+   }
+
+   // runs a real ViewsheetAction that saves the home bookmark of the sandbox's viewsheet as CSV
+   // to dir, with only the viewsheet open/close, the bookmark list and the external storage
+   // stood in for; returns what the task threw, and adds each saved file to saved
+   private static Throwable runSaveToDisk(ViewsheetSandbox box, Path dir,
+                                          List<String> saved)
+      throws Exception
+   {
+      inetsoft.sree.security.IdentityID pid = new inetsoft.sree.security.IdentityID(
+         "admin", OrganizationManager.getInstance().getCurrentOrgID());
+      Principal principal = new inetsoft.sree.security.SRPrincipal(pid);
+      Principal oldPrincipal = ThreadContext.getContextPrincipal();
+      Viewsheet vs = box.getViewsheet();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn("rvs-78445");
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(rvs.getEntry()).thenReturn(box.getAssetEntry());
+      when(rvs.getOriginalBookmark(any(), any())).thenReturn(vs);
+
+      ViewsheetAction action =
+         new ViewsheetAction(box.getAssetEntry().toIdentifier(), null)
+      {
+         @Override
+         public RuntimeViewsheet getRuntimeViewsheet(
+            Principal user, ScheduleViewsheetService service)
+         {
+            return rvs;
+         }
+
+         @Override
+         public void closeViewsheet(String id, Principal user,
+                                    ScheduleViewsheetService service)
+         {
+         }
+      };
+      action.setBookmarks(new String[] { VSBookmark.HOME_BOOKMARK });
+      action.setBookmarkTypes(new int[] { 0 });
+      action.setBookmarkUsers(new inetsoft.sree.security.IdentityID[] { pid });
+      action.setFilePath(FileFormatInfo.EXPORT_TYPE_CSV, dir.resolve("out78445").toString());
+
+      VSBookmarkInfo home = new VSBookmarkInfo(VSBookmark.HOME_BOOKMARK, 0, pid, false, 0L);
+      inetsoft.storage.ExternalStorageService storage =
+         mock(inetsoft.storage.ExternalStorageService.class);
+      doAnswer(inv -> saved.add(inv.getArgument(0)))
+         .when(storage).write(any(), any(Path.class), any());
+
+      try(MockedStatic<inetsoft.uql.viewsheet.internal.VSUtil> vsUtil =
+             mockStatic(inetsoft.uql.viewsheet.internal.VSUtil.class, CALLS_REAL_METHODS);
+          MockedStatic<ScheduleViewsheetService> service =
+             mockStatic(ScheduleViewsheetService.class);
+          MockedStatic<inetsoft.storage.ExternalStorageService> external =
+             mockStatic(inetsoft.storage.ExternalStorageService.class))
+      {
+         vsUtil.when(() -> inetsoft.uql.viewsheet.internal.VSUtil.getBookmarks(
+            any(AssetEntry.class), any())).thenReturn(new VSBookmarkInfo[] { home });
+         service.when(ScheduleViewsheetService::getInstance)
+            .thenReturn(mock(ScheduleViewsheetService.class));
+         external.when(inetsoft.storage.ExternalStorageService::getInstance).thenReturn(storage);
+         action.run(principal);
+         return null;
+      }
+      catch(Throwable ex) {
+         return ex;
+      }
+      finally {
+         ThreadContext.setContextPrincipal(oldPrincipal);
+      }
+   }
+
+   // the table TableV bound to the failing T1, hidden, and the text Text1, with the onLoad script
+   private static ViewsheetSandbox hiddenFailedTableSandbox(boolean scheduler, String script)
+      throws Exception
+   {
+      ViewsheetSandbox vbox = executeFailureSandbox(scheduler, script);
+      Viewsheet vs = vbox.getViewsheet();
+      vs.addAssembly(new TextVSAssembly(vs, "Text1"));
+      VSAssembly hidden = (VSAssembly) vs.getAssembly("TableV");
+      hidden.getVSAssemblyInfo().setVisibleValue(String.valueOf(VSAssembly.ALWAYS_HIDE));
+      assertFalse(hidden.isVisible());
+      return vbox;
    }
 
    @Test
@@ -1047,6 +1341,267 @@ class RowFetchFailureTest {
       return false;
    }
 
+   // Bug #78083 (follow-up of #6558): a chart script that reads a hidden table which failed to
+   // load in a scheduled run fails the export of the chart, instead of VGraphPair swallowing
+   // the script failure and rendering the chart without the script's effect. An interactive
+   // plot renders past the script error, and a scheduled plot over good tables is unchanged
+   @Test
+   void scheduledChartScriptOverAHiddenFailedTable() throws Exception {
+      String script = "parameter.probe_reached = 'start'; var n = TableV.table.length; " +
+         "parameter.probe_reached = 'len ' + n;";
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         assertLoadFailure(() -> chartScriptSandbox(true, true, script)
+            .getVGraphPair("Chart1", true, null, true, 1));
+
+         for(boolean fail : new boolean[] { true, false }) {
+            CoreTool.clearUserMessage();
+            // interactive over the failed table, scheduled over the good one
+            ViewsheetSandbox box = chartScriptSandbox(fail, !fail, script);
+            VGraphPair pair = box.getVGraphPair("Chart1", true, null, true, 1);
+
+            assertNotNull(pair, "fail " + fail);
+            assertTrue(pair.isCompleted() && pair.getEGraph() != null, "fail " + fail);
+            // the header row and the rows read (before the failure)
+            assertEquals("len " + (fail ? FAIL_ROW : ROWS + 1),
+                         box.getVariableTable().get("probe_reached"), "fail " + fail);
+         }
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // Bug #78083 (follow-up of #6558): an onLoad script that reads the data of a chart bound to
+   // a table which failed to load in a scheduled run stops at that read, as for a calc table,
+   // instead of going on with an empty chart table or a null dataset. Not merged into the
+   // chart's SQL, the row fetch fails; merged, the query fails at execute, which a scheduled
+   // run reports as a load failure too (Bug #78411). Interactive and successful reads get the
+   // chart data, as before
+   @Test
+   void scriptReadOfChartDataOverAFailedTable() throws Exception {
+      String[] scripts = {
+         "var t = Chart1.table; throw new Error(t == null ? 'null' : 'len ' + t.length);",
+         "var d = Chart1.dataset; throw new Error(d == null ? 'null' : 'rows ' + d.getRowCount());" };
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         assertAll(IntStream.range(0, scripts.length).mapToObj(i -> (Executable) () -> {
+            String script = scripts[i];
+            Exception error = chartOnLoadError(true, true, script);
+            assertNotNull(error, script);
+            assertNotNull(TableLoadException.find(error), script + ": " + error);
+            assertTrue(error.getMessage().contains(DB_MESSAGE), script + ": " + error);
+
+            // merged into the chart's SQL, the query fails at execute (Bug #78411)
+            error = chartOnLoadError(true, true, script, true);
+            assertNotNull(error, script);
+            assertNotNull(TableLoadException.find(error), "merged " + script + ": " + error);
+            assertTrue(error.getMessage().contains(DB_MESSAGE), "merged " + script + ": " + error);
+
+            // interactive: the chart of the rows read before the failure, with the warning
+            CoreTool.clearUserMessage();
+            error = chartOnLoadError(true, false, script);
+            assertNotNull(error, script);
+            assertNull(TableLoadException.find(error), script + ": " + error);
+            assertTrue(error.getMessage().contains(i == 0 ? "len 11" : "rows 10"),
+                       script + ": " + error);
+
+            // successful scheduled read
+            error = chartOnLoadError(false, true, script);
+            assertNotNull(error, script);
+            assertNull(TableLoadException.find(error), script + ": " + error);
+            assertTrue(error.getMessage().contains(i == 0 ? "len 11" : "rows 10"),
+                       script + ": " + error);
+         }));
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // Bug #78083 (follow-up of #6558): the scheduled export of a chart bound to a table which
+   // failed to load fails, instead of VSDataSet taking the load failure for an empty data set
+   // and the chart plotting no data. Interactive and successful plots are unchanged
+   @Test
+   void scheduledChartOverAFailedTable() throws Exception {
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         assertLoadFailure(() -> chartSandbox(true, true)
+            .getVGraphPair("Chart1", true, null, true, 1));
+
+         for(boolean fail : new boolean[] { true, false }) {
+            CoreTool.clearUserMessage();
+            VGraphPair pair = chartSandbox(fail, !fail)
+               .getVGraphPair("Chart1", true, null, true, 1);
+
+            assertNotNull(pair, "fail " + fail);
+            assertTrue(pair.isCompleted() && pair.getEGraph() != null, "fail " + fail);
+            assertEquals(10, pair.getData().getRowCount(), "fail " + fail);
+         }
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // Bug #78083: a chart script that sets its dataset from a hidden table which failed to load
+   // (a script-created dataset, #75580) fails the scheduled export as well; interactive plots
+   @Test
+   void scheduledChartScriptDatasetFromAFailedTable() throws Exception {
+      String script = "dataset = TableV.table; parameter.probe_reached = 'set';";
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         assertLoadFailure(() -> chartScriptSandbox(true, true, script)
+            .getVGraphPair("Chart1", true, null, true, 1));
+
+         CoreTool.clearUserMessage();
+         ViewsheetSandbox box = chartScriptSandbox(true, false, script);
+         VGraphPair pair = box.getVGraphPair("Chart1", true, null, true, 1);
+
+         assertNotNull(pair);
+         assertTrue(pair.isCompleted() && pair.getEGraph() != null);
+         assertEquals("set", box.getVariableTable().get("probe_reached"));
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // Bug #78083: a chart script error that is not a load failure is still rendered past, also
+   // in a scheduled export (only DataUnavailable and TableLoadException are rethrown)
+   @Test
+   void chartScriptErrorOverGoodTablesStillPlots() throws Exception {
+      String script = "parameter.probe_reached = 'start'; throw new Error('plain');";
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         for(boolean scheduler : new boolean[] { true, false }) {
+            ViewsheetSandbox box = chartScriptSandbox(false, scheduler, script);
+            VGraphPair pair = box.getVGraphPair("Chart1", true, null, true, 1);
+
+            assertNotNull(pair, "scheduler " + scheduler);
+            assertTrue(pair.isCompleted() && pair.getEGraph() != null, "scheduler " + scheduler);
+            assertEquals("start", box.getVariableTable().get("probe_reached"),
+                         "scheduler " + scheduler);
+         }
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // a viewsheet with the chart Chart1 bound to T1, which fails if fail; T1 is not merged
+   // into the chart's SQL, so the chart's group and sort are done in memory over the fetched
+   // rows (merged, the query fails at execute; see scriptReadOfChartDataOverAFailedTable)
+   private static ViewsheetSandbox chartSandbox(boolean fail, boolean scheduler)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", fail).setSQLMergeable(false);
+      Viewsheet vs = viewsheet(ws);
+      vs.addAssembly(chart(vs, "T1", "Sum"));
+      return viewsheetSandbox(vs, querySandbox(ws, scheduler));
+   }
+
+   // a viewsheet with the hidden table TableV bound to T1, which fails if fail, and the bar
+   // chart Chart1 (x g, y Sum(id)) bound to the good table T2 with the chart script
+   private static ViewsheetSandbox chartScriptSandbox(boolean fail, boolean scheduler,
+                                                      String script)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", fail);
+      sqlTable(ws, "T2", false);
+      Viewsheet vs = viewsheet(ws);
+      TableVSAssembly table = new TableVSAssembly(vs, "TableV");
+      table.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "T1"));
+      ColumnSelection cols = new ColumnSelection();
+
+      for(String name : new String[] { "id", "g", "x" }) {
+         cols.addAttribute(new ColumnRef(new AttributeRef(null, name)));
+      }
+
+      table.setColumnSelection(cols);
+      table.getVSAssemblyInfo().setVisibleValue(String.valueOf(VSAssembly.ALWAYS_HIDE));
+      vs.addAssembly(table);
+      ChartVSAssembly chart = chart(vs, "T2", "Sum");
+      chart.getVSAssemblyInfo().setScriptEnabled(true);
+      chart.getVSAssemblyInfo().setScript(script);
+      vs.addAssembly(chart);
+      return viewsheetSandbox(vs, querySandbox(ws, scheduler));
+   }
+
+   // the error of an onLoad script of a viewsheet with the chart Chart1 bound to T1
+   private static Exception chartOnLoadError(boolean fail, boolean scheduler, String script)
+      throws Exception
+   {
+      return chartOnLoadError(fail, scheduler, script, false);
+   }
+
+   // the error of an onLoad script of a viewsheet with the chart Chart1 bound to T1. Not
+   // merged, the chart's group and sort are done in memory, so its rows are fetched and the
+   // fetch fails; merged into the SQL (Sum(id) group by g), the query fails at execute
+   private static Exception chartOnLoadError(boolean fail, boolean scheduler, String script,
+                                             boolean merged)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", fail).setSQLMergeable(merged);
+      Viewsheet vs = viewsheet(ws);
+      vs.addAssembly(chart(vs, "T1", "Sum"));
+      vs.getViewsheetInfo().setOnLoad(script);
+      ViewsheetSandbox vbox = viewsheetSandbox(vs, querySandbox(ws, scheduler));
+
+      // Bug #78445: a scheduled load failure fails the export, and is recorded as the script
+      // error as well. Any other run must not throw
+      if(fail && scheduler) {
+         TableLoadException ex = assertThrows(TableLoadException.class, vbox::prepareForExport,
+                                              script);
+         assertNotNull(TableLoadException.find(vbox.getExportScriptError()), script);
+         return ex;
+      }
+
+      vbox.prepareForExport();
+      return vbox.getExportScriptError();
+   }
+
+   // a bar chart Chart1, x g, y formula(id), over the worksheet table
+   private static ChartVSAssembly chart(Viewsheet vs, String source, String formula) {
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, source));
+      VSChartInfo info = chart.getVSChartInfo();
+      VSChartDimensionRef dim =
+         new VSChartDimensionRef(new ColumnRef(new AttributeRef(null, "g")));
+      dim.setGroupColumnValue("g");
+      info.addXField(dim);
+      VSChartAggregateRef agg = new VSChartAggregateRef();
+      agg.setColumnValue("id");
+      agg.setFormulaValue(formula);
+      info.addYField(agg);
+      info.setChartType(GraphTypes.CHART_BAR);
+      info.setRTChartType(GraphTypes.CHART_BAR);
+      return chart;
+   }
+
    // the error of an onLoad script of a viewsheet with the calc table Calc1 (sum of id) and
    // the text Text1 (Sum of id), both bound to T1
    private static Exception onLoadError(boolean fail, boolean scheduler, String script)
@@ -1068,6 +1623,16 @@ class RowFetchFailureTest {
       vs.getViewsheetInfo().setOnLoad(script);
 
       ViewsheetSandbox vbox = viewsheetSandbox(vs, querySandbox(ws, scheduler));
+
+      // Bug #78445: a scheduled load failure fails the export, and is recorded as the script
+      // error as well. Any other run must not throw
+      if(fail && scheduler) {
+         TableLoadException ex = assertThrows(TableLoadException.class, vbox::prepareForExport,
+                                              script);
+         assertNotNull(TableLoadException.find(vbox.getExportScriptError()), script);
+         return ex;
+      }
+
       vbox.prepareForExport();
       return vbox.getExportScriptError();
    }

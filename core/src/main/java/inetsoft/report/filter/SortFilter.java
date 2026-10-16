@@ -309,20 +309,9 @@ public class SortFilter extends AbstractTableLens
          return;
       }
 
-      boolean isSnapShot = isBaseBySnapshot(table);
-      Comparer comp = new DefaultComparer();
-      // @by larryl, 1/19/04, use collator to sort string to be locale sensitive
-      Comparer strcomp = Locale.getDefault().getLanguage().equals("en") ? comp
-         : new TextComparer(Collator_CN.getCollator(), isSnapShot);
-
       for(int i = 0; i < cols.length && cols[i] < comparers.length; i++) {
          if(comparers[cols[i]] == null) {
-            if(table.getColType(cols[i]) == String.class) {
-               comparers[cols[i]] = strcomp;
-            }
-            else {
-               comparers[cols[i]] = comp;
-            }
+            comparers[cols[i]] = getDefaultComparer(table, cols[i]);
          }
       }
 
@@ -441,7 +430,21 @@ public class SortFilter extends AbstractTableLens
       completed = true;
    }
 
-   private boolean isBaseBySnapshot(TableLens table) {
+   /**
+    * Get the comparer a column is sorted with when no comparer is set for it.
+    * @param table the table to sort.
+    * @param col table column index.
+    */
+   public static Comparer getDefaultComparer(TableLens table, int col) {
+      // @by larryl, 1/19/04, use collator to sort string to be locale sensitive
+      if(table.getColType(col) == String.class && !Locale.getDefault().getLanguage().equals("en")) {
+         return new TextComparer(Collator_CN.getCollator(), isBaseBySnapshot(table));
+      }
+
+      return new DefaultComparer();
+   }
+
+   private static boolean isBaseBySnapshot(TableLens table) {
       if(table == null) {
          return false;
       }

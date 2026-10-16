@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
+import inetsoft.web.vswizard.recommender.execution.WizardDataExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +32,7 @@ import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.concurrent.locks.*;
 
 @Service
@@ -89,7 +91,9 @@ public class VSWizardTemporaryInfoService {
 
       return this.getVSTemporaryInfo(rvs) != null
          || vs.getAssembly(VSWizardConstants.TEMP_CHART_NAME) != null
-         || vs.getAssembly(VSWizardConstants.TEMP_CROSSTAB_NAME) != null
+         || Arrays.stream(vs.getAssemblies(false, false, true)).anyMatch(a ->
+               a instanceof CrosstabVSAssembly &&
+               WizardRecommenderUtil.isWizardTempBindingAssembly(a.getName()))
          || vs.getLatestTempAssembly() != null;
    }
 
@@ -116,8 +120,8 @@ public class VSWizardTemporaryInfoService {
 
       // destroy temp chart
       vs.removeAssembly(VSWizardConstants.TEMP_CHART_NAME);
-      // destroy temp crosstab
-      vs.removeAssembly(VSWizardConstants.TEMP_CROSSTAB_NAME);
+      // destroy temp crosstabs, including the numbered probe crosstabs
+      WizardDataExecutor.removeTempCrosstabs(vs);
       // destroy temp primary assembly. need to update sandbox info.
       destroyTempAssembly(rvs);
    }

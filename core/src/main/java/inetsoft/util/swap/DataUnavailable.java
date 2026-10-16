@@ -117,6 +117,21 @@ public final class DataUnavailable {
    }
 
    /**
+    * The cause for a new exception that a reader throws in place of {@code failure}, e.g. a
+    * condition that throws its own script exception for a failed value script. A reader up
+    * the stack, e.g. one that must not cache the failure, finds a lock stall, a swap file read
+    * failure or a load failure in the cause chain, so the new exception must keep it there
+    * (bug #78450).
+    *
+    * @return {@link #copyInChain(Throwable) a copy} of the failure in the cause chain of
+    * {@code failure}, or {@code null} if its chain has none.
+    */
+   public static Throwable causeInChain(Throwable failure) {
+      return find(failure) != null || TableLoadException.find(failure) != null ?
+         copyInChain(failure) : null;
+   }
+
+   /**
     * Copy a table load failure, see {@link #copy(RuntimeException)}.
     */
    public static TableLoadException copy(TableLoadException failure) {

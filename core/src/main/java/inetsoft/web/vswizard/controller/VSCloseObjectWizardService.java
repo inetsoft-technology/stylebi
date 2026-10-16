@@ -36,6 +36,7 @@ import inetsoft.web.vswizard.model.VSWizardEditModes;
 import inetsoft.web.vswizard.model.VSWizardOriginalModel;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
+import inetsoft.web.vswizard.recommender.execution.WizardDataExecutor;
 import inetsoft.web.vswizard.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -185,6 +186,7 @@ public class VSCloseObjectWizardService {
          }
          else {
             temporaryInfoService.destroyTempAssembly(rvs);
+            WizardDataExecutor.removeTempCrosstabs(rvs.getViewsheet());
          }
 
          if(save && event.getOldOriginalName() != null) {

@@ -193,6 +193,8 @@ public class SummaryFilterInvalidateRaceTest {
       try {
          pool.submit(summary::getRowCount).get(CAP_SECONDS, TimeUnit.SECONDS);
          Thread first = base.awaitParked(0);
+         // the parked pass is seen running, so the wait for its end below is not trivial
+         assertTrue(isIn(first, SummaryFilter.class), "the parked pass is running");
          summary.invalidate();
          pool.submit(summary::getRowCount).get(CAP_SECONDS, TimeUnit.SECONDS);
          base.awaitParked(1);
@@ -337,23 +339,6 @@ public class SummaryFilterInvalidateRaceTest {
                    .noneMatch(t -> t != Thread.currentThread() && isIn(t, SummaryFilter.class)),
                 CAP_SECONDS, "a pass is still running");
       Thread.sleep(IDLE_MS);
-   }
-
-   private static boolean isIn(Thread thread, Class<?> cls) {
-      for(StackTraceElement element : thread.getStackTrace()) {
-         // a pool thread appends the stack that created it
-         if(element.getClassName().equals(Thread.class.getName()) &&
-            element.getMethodName().equals("getStackTrace"))
-         {
-            break;
-         }
-
-         if(element.getClassName().startsWith(cls.getName())) {
-            return true;
-         }
-      }
-
-      return false;
    }
 
    /**

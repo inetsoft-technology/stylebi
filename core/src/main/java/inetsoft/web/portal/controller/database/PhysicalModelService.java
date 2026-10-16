@@ -917,7 +917,17 @@ public class PhysicalModelService {
       return relationship;
    }
 
-   public void fixTableBounds(String runtimeId, XPartition partition, String tableName)
+   /**
+    * Fixes the bounds of a table added to a partition. It reads meta-data, so it must not be
+    * called in {@link RuntimePartitionService#update}.
+    *
+    * @param runtimeId the runtime identifier.
+    * @param partition the partition the table was added to, whose bounds are changed.
+    * @param tableName the name of the table.
+    *
+    * @return a copy of the fixed bounds of the table.
+    */
+   public Rectangle fixTableBounds(String runtimeId, XPartition partition, String tableName)
       throws Exception
    {
       RuntimePartitionService.RuntimeXPartition rPartition
@@ -981,6 +991,8 @@ public class PhysicalModelService {
       partition.getBounds(tableName).y =
          (int) Math.round((maxTop + PORTAL_GRAPH_NODE_HEIGHT + PORTAL_ADD_NODE_TOP_GAP) / SCALE_Y);
       rPartition.addMovedTable(tableName);
+
+      return partition.getBounds(tableName).getBounds();
    }
 
    /**

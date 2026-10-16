@@ -893,6 +893,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             // the name segments written quoted in the parsed sql (#77569)
             if(namenode != null && name instanceof String) {
                stable.setQuotedSegmentsString(Tool.getAttribute(namenode, "quotedSegments"));
+               // the table hint, with (nolock), missing before Bug #78382
+               stable.setHint(Tool.getAttribute(namenode, "tableHint"));
             }
          }
       }
@@ -1341,9 +1343,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
          else {
             String quotedSegments = name instanceof String ? table.getQuotedSegmentsString() : null;
+            String hint = name instanceof String ? table.getHint() : null;
             String text = String.valueOf(name);
             writer.println("<name" + (quotedSegments != null ?
-               " quotedSegments=\"" + quotedSegments + "\"" : "") + Tool.cdataDataAttr(text) +
+               " quotedSegments=\"" + quotedSegments + "\"" : "") +
+               (hint != null ? " tableHint=\"" + Tool.escape(hint) + "\"" : "") +
+               Tool.cdataDataAttr(text) +
                "><![CDATA[" + Tool.cdataData(text) + "]]></name>");
          }
 
@@ -4021,9 +4026,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          nstable.setCatalog(ostable.getCatalog());
          nstable.setSchema(ostable.getSchema());
 
-         // the quoted segments describe the name, keep them only for the same name
+         // the quoted segments describe the name, keep them only for the same name, as
+         // the table hint (Bug #78382)
          if(Tool.equals(ostable.getName(), name)) {
             nstable.setQuotedSegments(ostable.getQuotedSegments());
+            nstable.setHint(ostable.getHint());
          }
 
          tables.set(index, nstable);
@@ -4048,9 +4055,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          nstable.setCatalog(ostable.getCatalog());
          nstable.setSchema(ostable.getSchema());
 
-         // the quoted segments describe the name, keep them only for the same name
+         // the quoted segments describe the name, keep them only for the same name, as
+         // the table hint (Bug #78382)
          if(Tool.equals(ostable.getName(), name)) {
             nstable.setQuotedSegments(ostable.getQuotedSegments());
+            nstable.setHint(ostable.getHint());
          }
 
          tables.set(index, nstable);
@@ -5136,6 +5145,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          Objects.equals(xselect2, that.xselect2) &&
          Objects.equals(tables, that.tables) &&
          equalsQuotedSegments(tables, that.tables) &&
+         equalsTableHints(tables, that.tables) &&
          Objects.equals(fields, that.fields) &&
          Objects.equals(orderByList, that.orderByList) &&
          Arrays.equals(groups, that.groups) &&
@@ -5166,6 +5176,26 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          if(!Arrays.equals(tables1.get(i).getQuotedSegments(),
                            tables2.get(i).getQuotedSegments()))
          {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Check if the tables at each index have the same table hint (Bug #78382).
+    */
+   private static boolean equalsTableHints(Vector<SelectTable> tables1,
+                                           Vector<SelectTable> tables2)
+   {
+      // different tables are told apart by the table comparison
+      if(tables1 == null || tables2 == null || tables1.size() != tables2.size()) {
+         return true;
+      }
+
+      for(int i = 0; i < tables1.size(); i++) {
+         if(!Objects.equals(tables1.get(i).getHint(), tables2.get(i).getHint())) {
             return false;
          }
       }
@@ -5801,7 +5831,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
 
             boolean legacyCycle = isLegacyCycleJoins(this);
-            boolean result = (sql.lossy != null && sql.lossy) || legacyCycle;
+            // a query saved when a table hint was parsed as the alias with(nolock) (1.1.x) is
+            // regenerated with that alias and without the hint, which can bind a column of a
+            // subquery to another table (Bug #77492). Its sql string, which now parses with
+            // the hint, is kept (Bug #78382)
+            boolean result = (sql.lossy != null && sql.lossy) || legacyCycle ||
+               hasLegacyTableHintAlias(this);
             // a legacy query with an outer join whose join clauses can't be recorded is
             // regenerated in the outer-last order. Lossy isn't enough, vpm regenerates a lossy
             // query (XUtil.isParsedSQL ignores lossy), so it's refused with a data source and
@@ -6066,6 +6101,70 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Check if a query, at any level (subqueries, derived tables and select list subqueries),
+    * has a table hint kept as the alias, with(nolock), as the parser stored it before table
+    * hints were refused (Bug #77492) and then kept (Bug #78382).
+    */
+   private static boolean hasLegacyTableHintAlias(UniformSQL sql) {
+      return hasLegacyTableHintAlias(sql, sql,
+                                     Collections.newSetFromMap(new IdentityHashMap<>()));
+   }
+
+   /**
+    * @param top the query whose sql string is the text being parsed, which isn't checked.
+    */
+   private static boolean hasLegacyTableHintAlias(UniformSQL sql, UniformSQL top,
+                                                  Set<UniformSQL> visited)
+   {
+      List<UniformSQL> queries = new ArrayList<>();
+      addQueryLevels(sql, queries);
+
+      for(UniformSQL query : queries) {
+         if(!visited.add(query)) {
+            continue;
+         }
+
+         // a derived table or a subquery loaded from its text
+         if(query != top && query.sqlstring != null &&
+            LEGACY_HINT_TEXT.matcher(query.sqlstring).find())
+         {
+            return true;
+         }
+
+         for(SelectTable table : query.getSelectTable()) {
+            if(table == null) {
+               continue;
+            }
+
+            if(table.getAlias() != null &&
+               LEGACY_HINT_ALIAS.matcher(table.getAlias()).matches())
+            {
+               return true;
+            }
+
+            if(table.getName() instanceof UniformSQL &&
+               hasLegacyTableHintAlias((UniformSQL) table.getName(), top, visited))
+            {
+               return true;
+            }
+         }
+
+         XSelection selection = query.getSelection();
+
+         // a select list subquery is kept as its text
+         for(int i = 0; selection != null && i < selection.getColumnCount(); i++) {
+            String column = selection.getColumn(i);
+
+            if(column != null && LEGACY_HINT_TEXT.matcher(column).find()) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * Add a query and its where and having subqueries, in the order of its conditions. A derived
     * table is not added, it is parsed again from its own sql string.
     */
@@ -6202,6 +6301,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       "[A-Za-z_\\u00AA\\u00B5\\u00BA\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u00FF\\u0100-\\uFFFE]" +
       "[A-Za-z0-9_\\u00AA\\u00B5\\u00B7\\u00BA\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u00FF" +
       "\\u0100-\\uFFFE]*";
+
+   // a table hint kept as the alias, with(nolock), and its quoted form in a generated text
+   // ("with(nolock)"), see hasLegacyTableHintAlias (Bug #78382)
+   private static final Pattern LEGACY_HINT_ALIAS =
+      Pattern.compile("with\\(.*\\)", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+   private static final Pattern LEGACY_HINT_TEXT =
+      Pattern.compile("[\"\\[`]with\\(", Pattern.CASE_INSENSITIVE);
 
    // a double quoted name, or a name that isn't quoted
    private static final Pattern MATCH_NAME =

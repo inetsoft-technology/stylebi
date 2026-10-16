@@ -869,6 +869,184 @@ public class LocalDependencyHandler implements DependencyHandler {
    }
 
    /**
+    * Bug #78430: the outer dependency lists of the logical models, their attributes and the data
+    * sources hold the full entry of each sheet that uses them. A renamed or moved sheet (including
+    * a move into or out of the Recycle Bin) must be listed under its new entry, or the old entry is
+    * never removed and the model reports a sheet that no longer exists. Only the lists of the
+    * models and data sources the sheet is bound to are rewritten, and a model or data source is
+    * saved only when its list changed.
+    */
+   @Override
+   public void renameSheetOuterDependencies(AbstractSheet sheet, AssetEntry oentry,
+                                            AssetEntry nentry)
+   {
+      if(sheet == null || oentry == null || nentry == null || oentry.equals(nentry)) {
+         return;
+      }
+
+      // data source name -> names of the logical models bound in it
+      Map<String, Set<String>> models = new LinkedHashMap<>();
+      Set<String> dataSources = new LinkedHashSet<>();
+
+      if(sheet instanceof Worksheet) {
+         collectOuterDependencySources((Worksheet) sheet, models, dataSources);
+      }
+      else if(sheet instanceof Viewsheet) {
+         collectOuterDependencySources((Viewsheet) sheet, models, dataSources);
+      }
+
+      AssetEntry entry = (AssetEntry) nentry.clone();
+
+      for(Map.Entry<String, Set<String>> e : models.entrySet()) {
+         try {
+            renameModelOuterDependencies(e.getKey(), e.getValue(), oentry, entry);
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to rename the logical model dependencies of {} to {} in {}",
+                     oentry, nentry, e.getKey(), ex);
+         }
+      }
+
+      for(String dsName : dataSources) {
+         try {
+            XDataSource dataSource = getXRepository().getDataSource(dsName);
+
+            if(dataSource != null && dataSource.removeOuterDependency(oentry)) {
+               dataSource.addOuterDependency(entry);
+               DataSourceRegistry.getRegistry()
+                  .setDataSource(dataSource, null, false, false, false, true);
+            }
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to rename the data source dependencies of {} to {} in {}",
+                     oentry, nentry, dsName, ex);
+         }
+      }
+   }
+
+   private void collectOuterDependencySources(Worksheet ws, Map<String, Set<String>> models,
+                                              Set<String> dataSources)
+   {
+      for(Assembly assembly : ws.getAssemblies()) {
+         SourceInfo source = null;
+
+         if(assembly instanceof BoundTableAssembly) {
+            source = ((BoundTableAssembly) assembly).getSourceInfo();
+         }
+         else if(assembly instanceof AttachedAssembly) {
+            source = ((AttachedAssembly) assembly).getAttachedSource();
+         }
+
+         if(source == null || source.getPrefix() == null) {
+            continue;
+         }
+
+         if(source.getType() == XSourceInfo.MODEL && source.getSource() != null) {
+            models.computeIfAbsent(source.getPrefix(), k -> new LinkedHashSet<>())
+               .add(source.getSource());
+         }
+         else if(source.getType() == XSourceInfo.PHYSICAL_TABLE ||
+            source.getType() == XSourceInfo.CUBE)
+         {
+            dataSources.add(source.getPrefix());
+         }
+      }
+   }
+
+   private void collectOuterDependencySources(Viewsheet vs, Map<String, Set<String>> models,
+                                              Set<String> dataSources)
+   {
+      AssetEntry base = vs.getBaseEntry();
+      String prefix = base == null ? null : base.getProperty("prefix");
+
+      if(prefix == null) {
+         return;
+      }
+
+      if(base.getType() == AssetEntry.Type.PHYSICAL_TABLE) {
+         dataSources.add(prefix);
+      }
+      else if(ObjectInfo.LOGICAL_MODEL.equals(base.getProperty("mainType")) &&
+         base.getProperty("source") != null)
+      {
+         models.computeIfAbsent(prefix, k -> new LinkedHashSet<>())
+            .add(base.getProperty("source"));
+      }
+   }
+
+   private void renameModelOuterDependencies(String dxname, Set<String> names,
+                                             AssetEntry oentry, AssetEntry nentry)
+      throws Exception
+   {
+      XRepository xrep = getXRepository();
+      XDataModel xdm = xrep.getDataModel(dxname);
+
+      if(xdm == null) {
+         return;
+      }
+
+      boolean changed = false;
+
+      for(String name : names) {
+         XLogicalModel logical = xdm.getLogicalModel(name);
+
+         if(logical == null) {
+            continue;
+         }
+
+         for(String extendName : logical.getLogicalModelNames()) {
+            XLogicalModel extended = logical.getLogicalModel(extendName);
+
+            if(extended != null && renameOuterDependency(extended, oentry, nentry)) {
+               logical.addLogicalModel(extended, false);
+               changed = true;
+            }
+         }
+
+         if(renameOuterDependency(logical, oentry, nentry)) {
+            // dependency bookkeeping, the model itself is not modified
+            xdm.addLogicalModel(logical, false);
+            changed = true;
+         }
+      }
+
+      if(changed) {
+         xrep.updateDataModel(xdm.clone());
+      }
+   }
+
+   /**
+    * Replace oentry with nentry in the list of the model and of each of its attributes.
+    *
+    * @return true if any list changed.
+    */
+   private static boolean renameOuterDependency(XLogicalModel model, AssetEntry oentry,
+                                                AssetEntry nentry)
+   {
+      boolean changed = false;
+
+      if(model.removeOuterDependency(oentry)) {
+         model.addOuterDependency(nentry);
+         changed = true;
+      }
+
+      for(Enumeration<XEntity> entities = model.getEntities(); entities.hasMoreElements();) {
+         for(Enumeration<XAttribute> attrs = entities.nextElement().getAttributes();
+             attrs.hasMoreElements();)
+         {
+            XAttribute attribute = attrs.nextElement();
+
+            if(attribute.removeOuterDependency(oentry)) {
+               attribute.addOuterDependency(nentry);
+               changed = true;
+            }
+         }
+      }
+
+      return changed;
+   }
+
+   /**
     * Update the worksheet dependencies.
     *
     * @param ws    the specified worksheet.

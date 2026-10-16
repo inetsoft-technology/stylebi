@@ -20,23 +20,24 @@ package inetsoft.storage;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.internal.cluster.SingletonRunnableTask;
+import inetsoft.web.GlobalExceptionHandler;
+import org.apache.ignite.internal.processors.cache.CacheStoppedException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * {@link LocalKeyValueStorage#isLoaded()} must reflect whether the constructor's initial load
@@ -85,5 +86,115 @@ public class LocalKeyValueStorageTest {
 
       assertTrue(storage.isLoaded(),
          "isLoaded() must remain true for the normal, successful load case (regression check)");
+   }
+
+   /**
+    * Bug #78559, a read on a store that another node deleted re-creates the cache and is retried
+    * once, so it returns the (empty) content instead of failing with CacheStoppedException.
+    */
+   @Test
+   public void readReattachesWhenCacheIsStopped() {
+      Cluster cluster = mock(Cluster.class);
+      DistributedMap<String, String> stale = mock(DistributedMap.class);
+      DistributedMap<String, String> fresh = mock(DistributedMap.class);
+      doReturn(stale, fresh).when(cluster).getReplicatedMap(anyString());
+      doReturn(CompletableFuture.completedFuture(null))
+         .when(cluster).submit(anyString(), any(SingletonRunnableTask.class));
+      when(stale.get("k")).thenThrow(cacheStopped());
+      when(stale.containsKey("k")).thenThrow(cacheStopped());
+      when(stale.size()).thenThrow(cacheStopped());
+      when(stale.keySet()).thenThrow(cacheStopped());
+      when(stale.entrySet()).thenThrow(cacheStopped());
+      when(fresh.get("k")).thenReturn(null);
+      when(fresh.containsKey("k")).thenReturn(false);
+      when(fresh.size()).thenReturn(0);
+      when(fresh.keySet()).thenReturn(Set.of());
+      when(fresh.entrySet()).thenReturn(Set.of());
+
+      LocalKeyValueStorage<String> storage = createStorage(cluster);
+
+      assertNull(storage.get("k"));
+      assertFalse(storage.contains("k"));
+      assertEquals(0, storage.size());
+      assertEquals(List.of(), storage.keys().toList());
+      assertEquals(List.of(), storage.stream().toList());
+      // reattached once, later reads use the new map
+      verify(cluster, times(2)).getReplicatedMap(anyString());
+      verify(stale, times(1)).get("k");
+   }
+
+   /**
+    * During a node shutdown the cache cannot be created again, so the original exception must be
+    * thrown and still be recognized as a CacheStoppedException (503 "System is shutting down").
+    */
+   @Test
+   public void readRethrowsWhenCacheCannotBeCreatedAgain() {
+      Cluster cluster = mock(Cluster.class);
+      DistributedMap<String, String> stale = mock(DistributedMap.class);
+      IllegalStateException stopping = new IllegalStateException("Grid is stopping");
+      doReturn(stale).doThrow(stopping).when(cluster).getReplicatedMap(anyString());
+      doReturn(CompletableFuture.completedFuture(null))
+         .when(cluster).submit(anyString(), any(SingletonRunnableTask.class));
+      IllegalStateException stopped = cacheStopped();
+      when(stale.get("k")).thenThrow(stopped);
+
+      LocalKeyValueStorage<String> storage = createStorage(cluster);
+
+      IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> storage.get("k"));
+      assertSame(stopped, thrown);
+      assertTrue(GlobalExceptionHandler.isCacheStoppedException(thrown));
+      assertArrayEquals(new Throwable[] { stopping }, thrown.getSuppressed());
+      verify(stale, times(1)).get("k");
+   }
+
+   /**
+    * The read is retried only once, so a cache that is stopped again does not loop.
+    */
+   @Test
+   public void readRetriesOnlyOnce() {
+      Cluster cluster = mock(Cluster.class);
+      DistributedMap<String, String> stale = mock(DistributedMap.class);
+      DistributedMap<String, String> alsoStale = mock(DistributedMap.class);
+      doReturn(stale, alsoStale).when(cluster).getReplicatedMap(anyString());
+      doReturn(CompletableFuture.completedFuture(null))
+         .when(cluster).submit(anyString(), any(SingletonRunnableTask.class));
+      when(stale.get("k")).thenThrow(cacheStopped());
+      IllegalStateException second = cacheStopped();
+      when(alsoStale.get("k")).thenThrow(second);
+
+      LocalKeyValueStorage<String> storage = createStorage(cluster);
+
+      assertSame(second, assertThrows(IllegalStateException.class, () -> storage.get("k")));
+      verify(cluster, times(2)).getReplicatedMap(anyString());
+      verify(alsoStale, times(1)).get("k");
+   }
+
+   /**
+    * Other read failures are not treated as a deleted store.
+    */
+   @Test
+   public void readDoesNotReattachOnOtherFailures() {
+      Cluster cluster = mock(Cluster.class);
+      DistributedMap<String, String> map = mock(DistributedMap.class);
+      doReturn(map).when(cluster).getReplicatedMap(anyString());
+      doReturn(CompletableFuture.completedFuture(null))
+         .when(cluster).submit(anyString(), any(SingletonRunnableTask.class));
+      IllegalStateException other = new IllegalStateException("other");
+      when(map.get("k")).thenThrow(other);
+
+      LocalKeyValueStorage<String> storage = createStorage(cluster);
+
+      assertSame(other, assertThrows(IllegalStateException.class, () -> storage.get("k")));
+      verify(cluster, times(1)).getReplicatedMap(anyString());
+   }
+
+   private static LocalKeyValueStorage<String> createStorage(Cluster cluster) {
+      return new LocalKeyValueStorage<>(
+         "test-store", new LoadKeyValueTask<>("test-store"), cluster);
+   }
+
+   // the form Ignite's GridCacheGateway throws for an operation on a stopped cache
+   private static IllegalStateException cacheStopped() {
+      return new IllegalStateException(new CacheStoppedException("inetsoft.storage.kv.test-store"));
    }
 }

@@ -26,8 +26,10 @@
  *   Group 4 [Risk 1] — Bookmark action dispatchers: all six EventEmitter outputs
  *   Group 5 [Risk 1] — Visibility helpers: isSetDefaultBookmarkVisible, isEditBookmarkVisible
  *   Group 6 [Risk 1] — resetSearchMode, closeFilterDropDown null guard
+ *   Group 7 [Risk 2] — Row buttons: click/Enter must not bubble to the row's gotoBookmark (Bug #78628)
  *
- * Confirmed bugs: none
+ * Confirmed bugs:
+ *   Bug #78628 (fixed) — Edit click and Enter on Edit/Remove/Set Default bubbled to the row and went to the bookmark
  *
  * Out of scope:
  *   ngOnInit() — empty body, no observable side effects
@@ -279,5 +281,89 @@ describe("VsBookmarkPaneComponent — resetSearchMode / closeFilterDropDown", ()
       const comp = await renderComp();
       // NO_ERRORS_SCHEMA stubs the directive; the ViewChild will be undefined in this env
       expect(() => comp.closeFilterDropDown()).not.toThrow();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 7: row buttons must not also go to the bookmark (Bug #78628)
+// ---------------------------------------------------------------------------
+
+describe("VsBookmarkPaneComponent — row buttons do not go to the bookmark", () => {
+   const q1 = makeBookmark({ name: "Q1", label: "Q1" });
+
+   async function renderRows(): Promise<{ comp: VsBookmarkPaneComponent, row: HTMLElement }> {
+      const { fixture } = await render(VsBookmarkPaneComponent, {
+         providers: [{ provide: NgbModal, useValue: MODAL_MOCK }],
+         schemas: [NO_ERRORS_SCHEMA],
+         componentInputs: { vsBookmarkList: [q1], principal: "alice~;~org1", isDefaultOrgAsset: false },
+      });
+      const row: HTMLElement = fixture.nativeElement.querySelector("li.bookmark-item[aria-label='Q1']");
+      return { comp: fixture.componentInstance, row };
+   }
+
+   const button = (row: HTMLElement, title: string): HTMLButtonElement =>
+      row.querySelector(`button[title='${title}']`);
+
+   it("emits edit and delete for the clicked row without going to that bookmark", async () => {
+      const { comp, row } = await renderRows();
+      const edit = vi.fn();
+      const del = vi.fn();
+      const goTo = vi.fn();
+      comp.onEditBookmark.subscribe(edit);
+      comp.onDeleteBookmark.subscribe(del);
+      comp.onGoToBookmark.subscribe(goTo);
+
+      button(row, "_#(Edit)").click();
+      button(row, "_#(Remove)").click();
+
+      expect(edit.mock.calls.map(c => c[0].name)).toEqual(["Q1"]);
+      expect(del.mock.calls.map(c => c[0].name)).toEqual(["Q1"]);
+      expect(goTo).not.toHaveBeenCalled();
+   });
+
+   // The row's enterClick turns any Enter keydown that bubbles to it into a row click, so
+   // Enter on a focused row button must not reach the row either. jsdom has no keyboard
+   // activation for buttons, so the browser's part (Enter clicks a button unless the
+   // keydown's default is prevented) is played here by hand.
+   it("runs only the focused button's action on Enter, without going to that bookmark", async () => {
+      const { comp, row } = await renderRows();
+      const edit = vi.fn();
+      const del = vi.fn();
+      const setDefault = vi.fn();
+      const goTo = vi.fn();
+      comp.onEditBookmark.subscribe(edit);
+      comp.onDeleteBookmark.subscribe(del);
+      comp.onSetDefaultBookmark.subscribe(setDefault);
+      comp.onGoToBookmark.subscribe(goTo);
+      const pressEnter = (target: HTMLButtonElement) => {
+         const enter = new KeyboardEvent("keydown",
+            { key: "Enter", keyCode: 13, bubbles: true, cancelable: true } as KeyboardEventInit);
+         target.focus();
+
+         if(target.dispatchEvent(enter)) {
+            target.click();
+         }
+      };
+
+      pressEnter(button(row, "_#(Edit)"));
+      pressEnter(button(row, "_#(Remove)"));
+      pressEnter(button(row, "_#(viewer.viewsheet.bookmark.setDefault)"));
+
+      expect(goTo).not.toHaveBeenCalled();
+      expect(edit.mock.calls.map(c => c[0].name)).toEqual(["Q1"]);
+      expect(del.mock.calls.map(c => c[0].name)).toEqual(["Q1"]);
+      expect(setDefault.mock.calls.map(c => c[0].name)).toEqual(["Q1"]);
+   });
+
+   it("still goes to the bookmark on a click or Enter on the row itself", async () => {
+      const { comp, row } = await renderRows();
+      const goTo = vi.fn();
+      comp.onGoToBookmark.subscribe(goTo);
+
+      row.click();
+      row.dispatchEvent(new KeyboardEvent("keydown",
+         { key: "Enter", keyCode: 13, bubbles: true } as KeyboardEventInit));
+
+      expect(goTo.mock.calls.map(c => c[0].name)).toEqual(["Q1", "Q1"]);
    });
 });

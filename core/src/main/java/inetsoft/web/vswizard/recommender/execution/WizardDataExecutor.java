@@ -104,6 +104,25 @@ public class WizardDataExecutor {
       }
    }
 
+   /**
+    * Remove every wizard probe crosstab (_temp_crosstab_N) from the viewsheet, e.g. one left
+    * behind by a probe that is still running or one already saved with a dashboard. The wizard's
+    * temp chart is kept.
+    */
+   public static void removeTempCrosstabs(Viewsheet vs) {
+      if(vs == null) {
+         return;
+      }
+
+      for(Assembly assembly : vs.getAssemblies(false, false, true)) {
+         if(assembly instanceof CrosstabVSAssembly &&
+            WizardRecommenderUtil.isWizardTempBindingAssembly(assembly.getName()))
+         {
+            vs.removeAssembly(assembly.getName(), false);
+         }
+      }
+   }
+
    public static String getColumnName(DataRef ref) {
       String name = ref.getName();
 

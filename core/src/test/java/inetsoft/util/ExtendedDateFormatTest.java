@@ -1150,6 +1150,83 @@ public class ExtendedDateFormatTest {
       }
    }
 
+   // Bug #78455: a pattern with w moved the date itself to January 1 when the JVM default
+   // calendar said week 1 in December, so the month, day and weekday were wrong, a quoted
+   // 'w' triggered it, and the week rules and zone came from the JVM default instead of the
+   // format. Only a year + week pattern (no calendar month or day) prints the week year now.
+   // Each case is checked under JVM defaults with different week rules and zones
+   @ParameterizedTest(name = "{0} {1} {2} {3}")
+   @CsvSource(delimiter = '|', quoteCharacter = '"', value = {
+      // calendar date patterns print the calendar year, like SimpleDateFormat
+      "yyyy-MM-dd ww           | en-US | 2012-12-31 | America/New_York   | 2012-12-31 01",
+      "MM/dd/yyyy EEE 'Week' w | en-US | 2012-12-31 | America/New_York   | 12/31/2012 Mon Week 1",
+      "yyyy-MM-dd 'w'          | en-US | 2012-12-31 | America/New_York   | 2012-12-31 w",
+      "MMM d, yyyy (w)         | en-US | 2012-12-30 | America/New_York   | Dec 30, 2012 (1)",
+      "yyyy-MM-dd HH:mm ww     | en-US | 2012-12-31 | Pacific/Kiritimati | 2012-12-31 12:00 01",
+      "YYYY-ww-EEE             | en-US | 2012-12-31 | America/New_York   | 2013-01-Mon",
+      // the week rules come from the format locale, not the JVM default
+      "yyyy-ww                 | en-GB | 2020-12-31 | Europe/London      | 2020-53",
+      // year + week patterns print the week year
+      "yyyy ww                 | en-US | 2001-12-30 | America/New_York   | 2002 01",
+      "yy ww                   | en-US | 2001-12-30 | America/New_York   | 02 01",
+      "yyyy ww                 | en-US | 2012-12-30 | Pacific/Kiritimati | 2013 01",
+      "yyyy ww                 | en-GB | 2001-12-31 | Europe/London      | 2002 01",
+      "yyyy ww                 | de-DE | 2024-12-30 | Europe/Berlin      | 2025 01",
+      "yyyy ww EEE             | en-US | 2012-12-31 | America/New_York   | 2013 01 Mon",
+      "yyyy 'Week' ww          | en-US | 2012-12-30 | America/New_York   | 2013 Week 01",
+      "yyyy''ww                | en-US | 2012-12-30 | America/New_York   | 2013'01",
+      "yyyy ww                 | en-US | 2012-06-15 | America/New_York   | 2012 24",
+      // early January in the last week of the previous year prints the previous year
+      "yyyy ww                 | en-GB | 2021-01-01 | Europe/London      | 2020 53",
+      // an explicit week year keeps y as the calendar year
+      "YYYY ww yyyy            | en-US | 2012-12-30 | America/New_York   | 2013 01 2012"
+   })
+   public void weekOfYearPrintsWeekYearWithoutMovingDate(String pattern, String locale,
+                                                         String day, String zone,
+                                                         String expected)
+   {
+      final Locale oldLocale = Locale.getDefault();
+      final TimeZone oldZone = TimeZone.getDefault();
+      final String[][] defaults = {
+         { "en-US", "America/New_York" }, { "en-GB", "Europe/London" },
+         { "zh-CN", "Asia/Shanghai" }
+      };
+
+      try {
+         for(String[] jvm : defaults) {
+            Locale.setDefault(Locale.forLanguageTag(jvm[0]));
+            TimeZone.setDefault(TimeZone.getTimeZone(jvm[1]));
+
+            final ExtendedDateFormat format =
+               new ExtendedDateFormat(pattern, Locale.forLanguageTag(locale));
+            format.setTimeZone(TimeZone.getTimeZone(zone));
+            final Date date = Date.from(LocalDate.parse(day).atTime(12, 0)
+                                           .atZone(ZoneId.of(zone)).toInstant());
+
+            assertEquals(expected, format.format(date), "JVM default " + Arrays.toString(jvm));
+         }
+      }
+      finally {
+         Locale.setDefault(oldLocale);
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
+   // Bug #78455: the week year is only used for printing, the pattern stays the user's
+   @Test
+   public void weekYearPatternKeepsUserPattern() {
+      final ExtendedDateFormat format = new ExtendedDateFormat("yyyy ww", Locale.US);
+      format.format(new Date());
+
+      assertEquals("yyyy ww", format.toPattern());
+      assertEquals("yyyy ww", format.userPattern());
+      assertEquals("YYYY ww", ExtendedDateFormat.getWeekYearPattern("yyyy ww"));
+      assertEquals("'y' YY ww", ExtendedDateFormat.getWeekYearPattern("'y' yy ww"));
+      assertEquals("yyyy 'w'", ExtendedDateFormat.getWeekYearPattern("yyyy 'w'"));
+      assertEquals("yyyy W", ExtendedDateFormat.getWeekYearPattern("yyyy W"));
+      assertEquals("yyyy-MM ww", ExtendedDateFormat.getWeekYearPattern("yyyy-MM ww"));
+   }
+
    private static Date date(int year, int month, int day) {
       return Date.from(LocalDate.of(year, month, day).atStartOfDay(ZoneId.systemDefault())
                           .toInstant());

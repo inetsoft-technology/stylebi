@@ -171,6 +171,9 @@ class ExtendedModelCacheTest {
       }).when(cache).put(any(), any());
       Cluster cluster = mock(Cluster.class);
       when(cluster.getCache(anyString(), anyBoolean(), any())).thenReturn((Cache) cache);
+      // RuntimePartitionService updates a runtime in a transaction
+      when(cluster.runInTransaction(org.mockito.ArgumentMatchers.anyLong(), any(), any()))
+         .thenAnswer(i -> i.<inetsoft.sree.internal.cluster.TransactionalAction<?, ?>>getArgument(2).run());
       RuntimePartitionService runtimePartitionService = new RuntimePartitionService(cluster);
       runtimePartitionService.init();
 

@@ -299,9 +299,7 @@ public class VSChartFlyoverService extends VSChartControllerService<VSChartFlyov
          int hint = hints.remove(0);
 
          if(hint != VSAssembly.NONE_CHANGED) {
-            // cancel any query still in flight for this tip assembly from a
-            // prior, now-superseded hover event before starting the new one
-            box.getQueryManager(tip.getAbsoluteName()).cancel();
+            cancelTipQuery(box, tip.getAbsoluteName());
             execute(rvs, tip.getAbsoluteName(), linkUri, hint, dispatcher);
             refreshVSAssembly(rvs, view, dispatcher);
          }
@@ -322,6 +320,18 @@ public class VSChartFlyoverService extends VSChartControllerService<VSChartFlyov
             tassembly.setPreRuntimeConditionList(preList);
          }
       }
+   }
+
+   /**
+    * Cancel the queries in flight for the tip assembly before the flyover runs its own. This
+    * is a newer query of the tip, not a stop: a request loading the tip at the same time (e.g.
+    * a filter applied just before the hover) runs its query again or skips it, and goes on
+    * loading its other tables (see ViewsheetSandbox.executeDataAfterChangeCancel()). A plain
+    * cancel would end that request silently and leave its other tables stale (#78241). An
+    * older flyover on the tip is stopped earlier, by ViewsheetSandbox.startFlyoverRequest().
+    */
+   static void cancelTipQuery(ViewsheetSandbox box, String tip) {
+      box.getQueryManager(tip).cancelForQuery();
    }
 
    /**

@@ -210,6 +210,18 @@ public class MapDBKeyValueEngine implements KeyValueEngine {
    }
 
    private CacheEntry openDB(String id) {
+      // MapDB's DB constructor requires a non-null context class loader (and the shared
+      // Serializer.ELSA captures it on first use). If make() fails after the file store has
+      // been created, the file lock is never released and a new file is left uninitialized,
+      // so give threads without one (e.g. JVM system threads) this module's loader. A non-null
+      // loader is left as is so that the loader captured by Serializer.ELSA doesn't change.
+      Thread thread = Thread.currentThread();
+      boolean setLoader = thread.getContextClassLoader() == null;
+
+      if(setLoader) {
+         thread.setContextClassLoader(MapDBKeyValueEngine.class.getClassLoader());
+      }
+
       try {
          DB db = DBMaker
             .fileDB(directory.resolve(id + ".db").toFile())
@@ -220,13 +232,26 @@ public class MapDBKeyValueEngine implements KeyValueEngine {
          return new CacheEntry(db);
       }
       catch(DBException.FileLocked e) {
-         Cluster cluster = Cluster.getInstance();
+         Object member;
+
+         try {
+            member = Cluster.getInstance().getLocalMember();
+         }
+         catch(Exception ex) {
+            // don't let an unavailable cluster hide the original exception
+            member = null;
+         }
 
          LoggerFactory.getLogger(getClass()).error(
             "Concurrent access to MapDB {} attempted in cluster from member {}",
-            id, cluster.getLocalMember(), e);
+            id, member, e);
 
          throw e;
+      }
+      finally {
+         if(setLoader) {
+            thread.setContextClassLoader(null);
+         }
       }
    }
 

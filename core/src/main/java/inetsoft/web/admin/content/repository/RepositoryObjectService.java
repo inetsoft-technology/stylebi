@@ -214,20 +214,8 @@ public class RepositoryObjectService {
                if(permanent || RecycleUtils.isInRecycleBin(node.path())) {
                   AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
 
-                  try {
-                     AbstractSheet assetSheet =
-                        assetRepository.getSheet(asset, principal, true, AssetContent.CONTEXT);
-                     RecycleBin.Entry binEntry = recycleBin.getEntry(path);
-                     AssetEntry dasset = new AssetEntry(
-                        binEntry.getOriginalScope(), type, binEntry.getOriginalPath(),
-                        node.owner());
-                     this.dependencyHandler.updateSheetDependencies(assetSheet, dasset, false);
-                  }
-                  catch(MissingAssetClassNameException e) {
-                     LOG.error(
-                        "Cannot update dependencies for corrupt asset {}", asset.getPath(), e);
-                  }
-
+                  // Bug #78430: removeSheet removes the sheet from its dependencies, under the
+                  // entry it is listed by (its Recycle Bin path once it was moved there)
                   assetRepository.removeSheet(asset, principal, true);
                   recycleBin.removeEntry(node.path());
                }

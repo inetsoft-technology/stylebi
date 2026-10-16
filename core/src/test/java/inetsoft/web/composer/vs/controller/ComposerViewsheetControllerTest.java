@@ -73,7 +73,7 @@ class ComposerViewsheetControllerTest {
          anyString(), eq(ResourceAction.ACCESS))).thenReturn(true);
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("closed-runtime-id");
       when(composerViewsheetService.refreshPreviewViewsheet(
-         eq("closed-runtime-id"), any(), eq(principal), eq(dispatcher), any(), eq(false)))
+         eq("closed-runtime-id"), any(), eq(principal), eq(dispatcher), any()))
          .thenReturn(null);
 
       assertDoesNotThrow(() -> controller.refreshPreviewViewsheet(
@@ -88,7 +88,7 @@ class ComposerViewsheetControllerTest {
          anyString(), eq(ResourceAction.ACCESS))).thenReturn(true);
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("runtime-id");
       when(composerViewsheetService.refreshPreviewViewsheet(
-         eq("runtime-id"), any(), eq(principal), eq(dispatcher), any(), eq(false)))
+         eq("runtime-id"), any(), eq(principal), eq(dispatcher), any()))
          .thenReturn(false);
 
       controller.refreshPreviewViewsheet(new OpenPreviewViewsheetEvent(), principal, dispatcher, "/");
@@ -102,7 +102,7 @@ class ComposerViewsheetControllerTest {
          anyString(), eq(ResourceAction.ACCESS))).thenReturn(true);
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("runtime-id");
       when(composerViewsheetService.refreshPreviewViewsheet(
-         eq("runtime-id"), any(), eq(principal), eq(dispatcher), any(), eq(false)))
+         eq("runtime-id"), any(), eq(principal), eq(dispatcher), any()))
          .thenReturn(true);
 
       controller.refreshPreviewViewsheet(new OpenPreviewViewsheetEvent(), principal, dispatcher, "/");

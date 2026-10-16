@@ -63,8 +63,8 @@ public class GraphQLRuntime extends RestJsonRuntime implements TabularCatalogPro
       return super.runQuery(tabularQuery, params);
    }
 
-   private void addParams(GraphQLQuery query, AbstractGraphQLDataSource dataSource, boolean postRequest) {
-      final Set<HttpParameter> httpParams = new LinkedHashSet<>();
+   void addParams(GraphQLQuery query, AbstractGraphQLDataSource dataSource, boolean postRequest) {
+      final List<HttpParameter> httpParams = new ArrayList<>();
 
       // preserve the user-configured query HTTP parameters (e.g. an Authorization
       // header); otherwise they are overwritten below and lost during execution
@@ -74,22 +74,43 @@ public class GraphQLRuntime extends RestJsonRuntime implements TabularCatalogPro
          httpParams.addAll(Arrays.asList(existing));
       }
 
-      httpParams.addAll(Arrays.asList(dataSource.getRequestParameters()));
+      for(HttpParameter param : dataSource.getRequestParameters()) {
+         replaceParam(httpParams, param);
+      }
 
       if(!postRequest) {
          final String variables = query.getVariables();
-         httpParams.add(HttpParameter.builder()
-                           .type(HttpParameter.ParameterType.QUERY)
-                           .name(GraphQLDataSource.VARIABLE_KEY)
-                           .value(variables)
-                           .build());
-         httpParams.add(HttpParameter.builder()
-                           .type(HttpParameter.ParameterType.QUERY)
-                           .name("query")
-                           .value(query.getQueryString())
-                           .build());
+         replaceParam(httpParams, HttpParameter.builder()
+                                     .type(HttpParameter.ParameterType.QUERY)
+                                     .name(GraphQLDataSource.VARIABLE_KEY)
+                                     .value(variables)
+                                     .build());
+         replaceParam(httpParams, HttpParameter.builder()
+                                     .type(HttpParameter.ParameterType.QUERY)
+                                     .name("query")
+                                     .value(query.getQueryString())
+                                     .build());
       }
 
       dataSource.setQueryHttpParameters(httpParams.toArray(new HttpParameter[0]));
+   }
+
+   /**
+    * Adds a generated parameter, replacing any parameter of the same type and name. The query
+    * HTTP parameters are saved with the data source, so they may already hold an earlier copy.
+    */
+   private static void replaceParam(List<HttpParameter> params, HttpParameter param) {
+      params.removeIf(p -> p != null && isSameParam(p, param));
+      params.add(param);
+   }
+
+   private static boolean isSameParam(HttpParameter a, HttpParameter b) {
+      if(a.getType() != b.getType() || a.getName() == null || b.getName() == null) {
+         return false;
+      }
+
+      // header names are case-insensitive
+      return a.getType() == HttpParameter.ParameterType.HEADER ?
+         a.getName().equalsIgnoreCase(b.getName()) : a.getName().equals(b.getName());
    }
 }

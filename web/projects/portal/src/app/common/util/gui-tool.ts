@@ -359,9 +359,11 @@ export class GuiTool {
          }
       }
 
-      // account for the border on editable-object
+      // account for the border on editable-object. outline-highlight editors draw their ring
+      // with outline, which takes no layout space, so their box is the object's own bounds.
       const adj = element.classList.contains("object-editor")  &&
-         !element.classList.contains("wizard-object-editor") ? 2 : 0;
+         !element.classList.contains("wizard-object-editor") &&
+         !element.classList.contains("outline-highlight") ? 2 : 0;
 
       return clientRect && {
          left  : clientRect.left + adj,

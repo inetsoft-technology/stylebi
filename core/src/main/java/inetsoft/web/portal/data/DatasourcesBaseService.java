@@ -495,7 +495,8 @@ public abstract class DatasourcesBaseService {
    }
 
    public void checkModelOuterDependencies(XLogicalModel model) {
-      Object[] entries = model.getOuterDependencies();
+      // Bug #78430, don't report sheets that were renamed, moved or deleted
+      Object[] entries = DependencyException.getExistingDependencies(model.getOuterDependencies());
 
       if(entries != null && entries.length != 0) {
          DependencyException ex = new DependencyException(model);

@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
-  <fieldset>
+  <fieldset [disabled]="!cellBindingReady">
     <div class="form-row-checkbox row">
       <div class="col">
         <div class="form-check">

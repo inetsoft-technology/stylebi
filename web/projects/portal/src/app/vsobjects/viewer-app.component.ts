@@ -2088,6 +2088,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          mouseEvent.stopPropagation();
       }
 
+      // the pane's Edit button stops propagation, so close the dropdown it would have closed
+      this.bookmarkDropdownBtn?.close();
       this.propertyBookmark = Tool.clone(bookmark);
       const options: SlideOutOptions = {backdrop: "static", popup: true};
       this.dialogService.open(this.bookmarkDialog, options).result.then(

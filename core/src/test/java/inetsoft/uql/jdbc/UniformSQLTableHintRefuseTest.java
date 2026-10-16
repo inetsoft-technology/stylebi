@@ -48,6 +48,10 @@ import static org.mockito.Mockito.mock;
  * so a qualified column ({@code a.id}) failed, and in a subquery of the same table it bound to
  * the outer query's table and silently returned wrong rows. The parse must fail at every query
  * level, so the original sql runs.
+ * <p>
+ * Since Bug #78382 the hint is kept on the table and written back on a SQL Server or Sybase
+ * data source (UniformSQLTableHintRepresentTest). The refusal stays for no data source and for
+ * the dialects without table hints, and for a hint on a derived table or after AS.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, PluginsTestConfiguration.class,
@@ -75,8 +79,9 @@ class UniformSQLTableHintRefuseTest {
    private static final String DERBY_URL = "jdbc:derby:memory:bug77492";
    private static final String HSQLDB_URL = "jdbc:hsqldb:mem:bug77492";
 
-   // no data source, and SQL Server with and without ansi joins
-   private static final String[] TYPES = { null, "sql server", "sql server-ansi" };
+   // no data source, and dialects without table hints. SQL Server and Sybase keep the hint
+   // (Bug #78382)
+   private static final String[] TYPES = { null, "postgresql", "oracle" };
 
    // a table hint at every query level and in every from clause position. each fails on
    // the hint itself
@@ -143,8 +148,8 @@ class UniformSQLTableHintRefuseTest {
       "select a.id from a join (select id from b) with (nolock) on a.id = 1",
    };
 
-   // a hint the grammar never matched (an aliased table, a hint with arguments or several
-   // words) is a syntax error, as before
+   // a hint the grammar didn't match before Bug #78382 (an aliased table, a hint with
+   // arguments or several words) fails the parse too without a T-SQL data source
    private static final String[] SYNTAX_ERRORS = {
       "select x.id from a x with (nolock)",
       "select x.id from a as x with (nolock)",
@@ -211,7 +216,9 @@ class UniformSQLTableHintRefuseTest {
    }
 
    // the syntax checks of a parse with no model don't refuse the hint. XUtil falls back to
-   // that parse on a refusal (Bug #77493), so a scalar subquery with a hint stays valid
+   // that parse on a refusal (Bug #77493), so a scalar subquery with a hint stays valid. A
+   // parse without a statement accepts the hint of a table since Bug #78382, and refuses the
+   // hint of a derived table
    @ParameterizedTest
    @ValueSource(strings = {
       "select a.id from a with (nolock)",
@@ -224,9 +231,13 @@ class UniformSQLTableHintRefuseTest {
    void scalarSubqueryWithHintIsValid(String subquery) throws Exception {
       String exp = "(" + subquery + ")";
 
-      // the normal parse refuses the hint of the subquery
-      assertThrows(antlr.SemanticException.class,
-                   () -> new SQLParser(new SQLLexer(new StringReader(exp))).value_exp(), exp);
+      if(subquery.contains(") with")) {
+         assertThrows(antlr.SemanticException.class,
+                      () -> new SQLParser(new SQLLexer(new StringReader(exp))).value_exp(), exp);
+      }
+      else {
+         new SQLParser(new SQLLexer(new StringReader(exp))).value_exp();
+      }
 
       assertTrue(XUtil.isSQLExpressionValid(exp), exp);
       assertNotNull(XUtil.parseSQLExpressionSyntax(exp), exp);
@@ -263,7 +274,8 @@ class UniformSQLTableHintRefuseTest {
    // a self-referencing IN subquery, as written by a user who puts with (nolock) on every
    // table. before the fix it parsed, and the regenerated alias "with(nolock)" hid the inner
    // b, so the inner b.k and b.id bound to the outer b and the query returned 2 rows instead
-   // of 3. now the parse fails, and the original sql is sent
+   // of 3. now the parse fails without a T-SQL data source, and the original sql is sent (on
+   // SQL Server the hint is kept, see UniformSQLTableHintRepresentTest)
    @Test
    void inSubqueryKeepsOriginalSql() throws Exception {
       String text = "select b.id from b where b.k in " +
@@ -381,11 +393,23 @@ class UniformSQLTableHintRefuseTest {
    private static JDBCDataSource dataSource(String type) {
       JDBCDataSource ds = new JDBCDataSource();
       ds.setName("ds_77492_" + type);
-      ds.setProductVersion("19.0");
-      ds.setDriver("com.microsoft.sqlserver.jdbc.SQLServerDriver");
-      ds.setURL("jdbc:sqlserver://localhost:1433;databaseName=test");
+
+      if(type.startsWith("postgresql")) {
+         ds.setDriver("org.postgresql.Driver");
+         ds.setURL("jdbc:postgresql://localhost:5432/test");
+      }
+      else if(type.startsWith("oracle")) {
+         ds.setDriver("oracle.jdbc.OracleDriver");
+         ds.setURL("jdbc:oracle:thin:@localhost:1521:test");
+      }
+      else {
+         ds.setProductVersion("19.0");
+         ds.setDriver("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+         ds.setURL("jdbc:sqlserver://localhost:1433;databaseName=test");
+      }
+
       ds.setAnsiJoin(type.endsWith("-ansi"));
-      assertEquals("sql server", SQLHelper.getSQLHelper(ds).getSQLHelperType(),
+      assertEquals(type.replace("-ansi", ""), SQLHelper.getSQLHelper(ds).getSQLHelperType(),
                    "helper for " + type);
       return ds;
    }

@@ -367,8 +367,9 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
                });
          }
 
-         // offset for the selection border
-         const selBorderSize = element.classList.contains("line-resize-container") ? 3 : 2;
+         // offset for the selection border (outline-highlight editors have none)
+         const selBorderSize = element.classList.contains("line-resize-container") ? 3
+            : element.classList.contains("outline-highlight") ? 0 : 2;
 
          draggableRestrictionRect = {
             top: containerRect.top + offsetY - selBorderSize,

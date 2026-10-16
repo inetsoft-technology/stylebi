@@ -159,6 +159,8 @@ public final class ScriptHostAccess {
       "java.lang.Compiler",
       "java.util.ServiceLoader",
       "java.awt.Desktop",
+      // Bug #78490: Toolkit.getImage/createImage(String) read a local image file
+      "java.awt.Toolkit",
       "javax.swing.JFileChooser",
       "java.io.File",
       "java.io.FileInputStream",
@@ -597,7 +599,26 @@ public final class ScriptHostAccess {
                   .deny(inetsoft.graph.internal.GDebug.class)
                   .deny(inetsoft.report.internal.graph.MapHelper.class)
                   .deny(inetsoft.report.afm.afm.AFMGenerator.class)
-                  .deny(inetsoft.uql.erm.transform.ERMExporter.class);
+                  .deny(inetsoft.uql.erm.transform.ERMExporter.class)
+                  // -- confirmed reproduced: mxSvgCanvas.drawShape on an embedded canvas
+                  // (setEmbedded, declared here) copies the raw body of any URL whose
+                  // string ends in .png/.jpg/.gif (getResource -> URL.openStream, e.g.
+                  // http://... or file:/<any path>#.png) into the script-readable SVG
+                  // DOM; the deny also closes getResource's getResourceAsStream classpath
+                  // fallback. mxGraphViewImageReader.convert(String) opens any path with
+                  // FileInputStream, a server-file existence oracle. Neither has a script
+                  // API; mxCellRenderer.createSvgDocument builds a non-embedded canvas
+                  // from Java and is unaffected
+                  .deny(inetsoft.graph.mxgraph.canvas.mxSvgCanvas.class)
+                  .deny(inetsoft.graph.mxgraph.reader.mxGraphViewImageReader.class)
+                  // Bug #78490: Toolkit.getImage(String)/createImage(String) decode any
+                  // local image file for the script, outside the
+                  // javascript.getImageFunction.disabled switch the inetsoft loaders
+                  // honor. java.awt is admitted whole and a Toolkit instance is also
+                  // handed out by Component.getToolkit(), so the sink owner is denied by
+                  // type (with its subclasses, e.g. the headless toolkit). Toolkit is not
+                  // script API and no shipped script uses it
+                  .deny(java.awt.Toolkit.class);
 
                builder
                   // legacy convenience: scripts pass JS numbers to Java APIs.

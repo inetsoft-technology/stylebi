@@ -20,6 +20,8 @@ package inetsoft.util.stall;
 import inetsoft.report.TableLens;
 import inetsoft.report.lens.DefaultTableLens;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
@@ -174,6 +176,38 @@ public final class StallTestSupport {
          assertTrue(System.currentTimeMillis() < deadline, what);
          Thread.sleep(20);
       }
+   }
+
+   /**
+    * Get the frames {@code thread} is running now, or an empty array if it has ended.
+    * {@link Thread#getStackTrace()} of a {@link inetsoft.util.GroupedThread} appends the
+    * stack that created the thread (or that submitted its current task) after the live
+    * frames, with no frame that marks where the live frames end (bug #78453). The thread
+    * MXBean returns the live frames only.
+    */
+   public static StackTraceElement[] liveStack(Thread thread) {
+      ThreadInfo info = ManagementFactory.getThreadMXBean()
+         .getThreadInfo(new long[] { thread.threadId() }, false, false, Integer.MAX_VALUE)[0];
+      return info == null ? new StackTraceElement[0] : info.getStackTrace();
+   }
+
+   /**
+    * Check if {@code thread} is running code of one of {@code classes} or of their nested
+    * classes now. Only the live frames count: an idle pool thread that was created by a
+    * pass of the class is not in the class.
+    */
+   public static boolean isIn(Thread thread, Class<?>... classes) {
+      for(StackTraceElement element : liveStack(thread)) {
+         String name = element.getClassName();
+
+         for(Class<?> cls : classes) {
+            if(name.equals(cls.getName()) || name.startsWith(cls.getName() + "$")) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**

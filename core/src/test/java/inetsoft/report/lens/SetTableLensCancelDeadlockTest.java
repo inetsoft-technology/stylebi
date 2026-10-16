@@ -44,6 +44,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static inetsoft.util.stall.StallTestSupport.isIn;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -219,6 +220,8 @@ public class SetTableLensCancelDeadlockTest {
       Thread reader = daemon(() -> lens.moreRows(1), "first reader");
       Thread worker = lens.awaitParked();
       assertNotSame(reader, worker, "the merge runs in the background");
+      // the parked merge is seen running, so a wait for the merges to end is not trivial
+      assertTrue(isInMerge(worker), "the parked merge is running");
       return lens;
    }
 
@@ -339,23 +342,11 @@ public class SetTableLensCancelDeadlockTest {
       }
    }
 
+   /**
+    * Check if {@code thread} runs code of a merge now.
+    */
    private static boolean isInMerge(Thread thread) {
-      for(StackTraceElement element : thread.getStackTrace()) {
-         // a pool thread appends the stack that created it
-         if(element.getClassName().equals(Thread.class.getName()) &&
-            element.getMethodName().equals("getStackTrace"))
-         {
-            break;
-         }
-
-         if(element.getClassName().startsWith(SetTableLens.class.getName()) ||
-            element.getClassName().startsWith(MergedTable.class.getName()))
-         {
-            return true;
-         }
-      }
-
-      return false;
+      return isIn(thread, SetTableLens.class, MergedTable.class);
    }
 
    private static void awaitTrue(java.util.function.BooleanSupplier condition, String what)

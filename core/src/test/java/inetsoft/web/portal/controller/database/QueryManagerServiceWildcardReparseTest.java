@@ -48,9 +48,10 @@ import java.lang.reflect.Constructor;
 import java.nio.file.Path;
 import java.security.Principal;
 import java.time.Duration;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -118,9 +119,12 @@ class QueryManagerServiceWildcardReparseTest {
    /**
     * The engine with the metadata of the database: RG_LATE has no columns until it is
     * created. A missing table is not an error for the handler, it returns an empty result.
+    * Its writes of the metadata cache to disk are kept, to wait for them, or deferred.
     */
-   private static class TestEngine extends XEngine {
+   private class TestEngine extends XEngine {
       final AtomicInteger tableFetches = new AtomicInteger();
+      final List<Runnable> deferredWrites = new ArrayList<>();
+      volatile boolean deferWrites;
 
       TestEngine(Cluster cluster) {
          super(cluster, null, mock(DataSourceRegistry.class), mock(ConnectionPoolFactory.class));
@@ -135,6 +139,18 @@ class QueryManagerServiceWildcardReparseTest {
          tableFetches.incrementAndGet();
          return tableMeta(created ? new String[] { "ID", "SECRET" } : new String[0]);
       }
+
+      @Override
+      protected void startMetaDataCacheWrite(Runnable write) {
+         if(deferWrites) {
+            deferredWrites.add(write);
+            return;
+         }
+
+         Thread thread = new Thread(write, "MetaDataCacheWrite78427");
+         writes.add(thread);
+         thread.start();
+      }
    }
 
    @BeforeEach
@@ -148,7 +164,10 @@ class QueryManagerServiceWildcardReparseTest {
    }
 
    @AfterEach
-   void tearDown() {
+   void tearDown() throws Exception {
+      // no write outlives the test, or reaches the next test's metadata directory
+      joinWrites();
+
       if(savedMetadataDir == null) {
          SreeEnv.remove("inetsoft.metadata.dir");
       }
@@ -286,6 +305,31 @@ class QueryManagerServiceWildcardReparseTest {
       awaitDiskColumns(2);
    }
 
+   /**
+    * Bug #78427. The cache is written to disk in the background, in any order. The empty
+    * column list cached first and written last must not replace the fetched columns on disk,
+    * where they would be used again after a restart.
+    */
+   @Test
+   void olderDiskWriteDoesNotReplaceNewerOne() throws Exception {
+      engine.deferWrites = true;
+      assertEquals(0, JDBCUtil.getTableColumns(table(), engine, null, ds).getChildCount());
+      created = true;
+      assertEquals(2, JDBCUtil.getTableColumns(table(), engine, null, ds, true).getChildCount());
+
+      List<Runnable> deferred = new ArrayList<>(engine.deferredWrites);
+      assertTrue(deferred.size() >= 2, "writes: " + deferred.size());
+      Collections.reverse(deferred);
+      deferred.forEach(Runnable::run);
+      assertEquals(2, diskColumns());
+
+      // after a restart the columns come from the disk
+      JDBCUtil.clearTableMeta();
+      TestEngine restarted = new TestEngine(cluster);
+      assertEquals(2, JDBCUtil.getTableColumns(table(), restarted, null, ds).getChildCount());
+      assertEquals(0, restarted.tableFetches.get());
+   }
+
    // the query parsed and saved while RG_LATE was missing, as loaded from the worksheet
    private UniformSQL savedWhileMissing() throws Exception {
       UniformSQL usql = new UniformSQL();
@@ -336,11 +380,21 @@ class QueryManagerServiceWildcardReparseTest {
    }
 
    /**
-    * Wait until the metadata cache on disk has the columns of RG_LATE, it is written by a
-    * background thread, which must not outlive the test.
+    * Wait for the writes of the metadata cache to disk, then check the columns of RG_LATE
+    * on disk.
     */
-   private void awaitDiskColumns(int count) {
-      await().atMost(Duration.ofSeconds(10)).until(() -> diskColumns() == count);
+   private void awaitDiskColumns(int count) throws InterruptedException {
+      joinWrites();
+      assertEquals(count, diskColumns());
+   }
+
+   private void joinWrites() throws InterruptedException {
+      for(Thread thread : writes) {
+         thread.join(Duration.ofSeconds(30).toMillis());
+         assertFalse(thread.isAlive(), "metadata cache write did not finish");
+      }
+
+      writes.clear();
    }
 
    private int diskColumns() {
@@ -436,4 +490,5 @@ class QueryManagerServiceWildcardReparseTest {
    private TestEngine engine;
    private JDBCDataSource ds;
    private RuntimeQueryService.RuntimeXQuery runtimeQuery;
+   private final List<Thread> writes = new CopyOnWriteArrayList<>();
 }

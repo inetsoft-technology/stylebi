@@ -54,6 +54,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -524,6 +525,10 @@ public final class XSwapper {
          SnapshotEmbeddedTableAssembly.removeStaleFileReferences(cluster);
          Map<String, Integer> snapshotMap =
             cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
+         // Bug #78463, a live JVM that is not in this cluster may read a copy it has no
+         // count of
+         Predicate<String> snapshotElsewhere =
+            SnapshotEmbeddedTableAssembly.getFilesInUseElsewhere(dir);
          File[] files = dir.listFiles();
 
          for(int i = 0; files != null && i < files.length; i++) {
@@ -538,6 +543,7 @@ public final class XSwapper {
                !snapshotMap.containsKey(files[i].getAbsolutePath()) &&
                !SnapshotEmbeddedTableAssembly.isFileInUseLocally(
                   files[i].getAbsolutePath()) &&
+               !snapshotElsewhere.test(files[i].getAbsolutePath()) &&
                !isOwnSwapFile(files[i].getName()) &&
                System.currentTimeMillis() - files[i].lastModified() >= SWAP_FILE_GRACE_PERIOD)
             {

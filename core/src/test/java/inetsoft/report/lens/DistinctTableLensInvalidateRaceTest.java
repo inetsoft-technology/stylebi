@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 
+import static inetsoft.util.stall.StallTestSupport.isIn;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -507,23 +508,6 @@ public class DistinctTableLensInvalidateRaceTest {
       }
 
       Thread.sleep(IDLE_MS);
-   }
-
-   private static boolean isIn(Thread thread, Class<?> cls) {
-      for(StackTraceElement element : thread.getStackTrace()) {
-         // a pool thread appends the stack that created it
-         if(element.getClassName().equals(Thread.class.getName()) &&
-            element.getMethodName().equals("getStackTrace"))
-         {
-            break;
-         }
-
-         if(element.getClassName().equals(cls.getName())) {
-            return true;
-         }
-      }
-
-      return false;
    }
 
    private static void awaitTrue(java.util.function.BooleanSupplier condition, String what)

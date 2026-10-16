@@ -34,6 +34,7 @@ import java.nio.file.attribute.FileTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -597,6 +598,10 @@ public class FileSystemService {
                   SnapshotEmbeddedTableAssembly.removeStaleFileReferences(
                      FileSystemService.this.cluster);
                   Map<String, Integer> snapshotMap = FileSystemService.this.cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
+                  // Bug #78463, a live JVM that is not in this cluster may read a copy it
+                  // has no count of
+                  Predicate<String> snapshotElsewhere =
+                     SnapshotEmbeddedTableAssembly.getFilesInUseElsewhere(filePath.toFile());
                   XSwapper swapper = XSwapper.getSwapper();
 
                   for(int i = 0; files != null && i < files.length; i++) {
@@ -616,6 +621,7 @@ public class FileSystemService {
                         // Bug #78082, the count of a copy that this JVM reads may be gone
                         !SnapshotEmbeddedTableAssembly.isFileInUseLocally(
                            files[i].getAbsolutePath()) &&
+                        !snapshotElsewhere.test(files[i].getAbsolutePath()) &&
                         !swapper.isOwnSwapFile(files[i].getName()) &&
                         (!files[i].getName().endsWith(".tdat") ||
                          System.currentTimeMillis() - files[i].lastModified() >=

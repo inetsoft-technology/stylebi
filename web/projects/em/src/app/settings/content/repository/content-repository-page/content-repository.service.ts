@@ -268,8 +268,13 @@ export class ContentRepositoryService implements OnDestroy {
 
    /**
     * Get the editor model for a given node
+    *
+    * @param node  the node to edit.
+    * @param quiet true when the node was selected automatically by a tree reload rather than by
+    *              the user. An error saying the item no longer exists is then not shown, because
+    *              it only means that the reloaded tree was out of date (Bug #78414).
     */
-   public getEditor(node: RepositoryFlatNode): Observable<RepositoryEditorModel> {
+   public getEditor(node: RepositoryFlatNode, quiet: boolean = false): Observable<RepositoryEditorModel> {
       const data = node.data;
 
       if(data.readOnly) {
@@ -333,7 +338,7 @@ export class ContentRepositoryService implements OnDestroy {
             "../api/em/content/repository/viewsheet", { params })
             .pipe(
                catchError((error) => {
-                  if(!!error.error && error.error.type === "MissingResourceException") {
+                  if(!quiet && !!error.error && error.error.type === "MissingResourceException") {
                      this.showMessage(Tool.formatCatalogString(
                         "_#(js:em.repository.missingResource)", [data.label]));
                   }
@@ -341,6 +346,11 @@ export class ContentRepositoryService implements OnDestroy {
                   return of(null);
                }),
                map(viewsheetSettings => {
+                  // Bug #78414, a failed load has no editor, like the folder editors below
+                  if(!viewsheetSettings) {
+                     return null;
+                  }
+
                   return <RepositoryViewsheetEditorModel>{
                      path: data.path, type: data.type,
                      owner: data.owner,
@@ -373,6 +383,10 @@ export class ContentRepositoryService implements OnDestroy {
          return this.http.get<RepositoryDashboardSettingsModel>(
             "../api/em/content/repository/dashboard", { params })
             .pipe(map(dashboardSettings => {
+               if(!dashboardSettings) {
+                  return null;
+               }
+
                return <RepositoryDashboardEditorModel>{
                   path: data.path, type: data.type,
                   owner: data.owner,
@@ -389,8 +403,10 @@ export class ContentRepositoryService implements OnDestroy {
          const params = new HttpParams().set("path", data.path);
          return this.http.get<DataSourceSettingsModel>("../api/data/databases", { params }).pipe(
             catchError((error) => {
-               if(error.error != null && error.error.message == "Datasource does not exist!") {
-                  this.showMessage("_#(js:data.datasources.findDataSourceError)");
+               if(this.isMissingDataSourceError(error)) {
+                  if(!quiet) {
+                     this.showMessage("_#(js:data.datasources.findDataSourceError)");
+                  }
                }
                else {
                   this.showMessage("_#(js:em.data.databases.getDatabaseError)");
@@ -399,6 +415,10 @@ export class ContentRepositoryService implements OnDestroy {
                return of(null);
             }),
             map(model => {
+               if(!model) {
+                  return null;
+               }
+
                return <DataSourceEditorModel>{
                   path: data.path, type: data.type,
                   fullPath: data.fullPath,
@@ -488,7 +508,8 @@ export class ContentRepositoryService implements OnDestroy {
          return this.http.get<DataSourceFolderSettingsModel>(uri, { params })
             .pipe(
                catchError((error) => {
-                  if(!!error.error && error.error.type === "MessageException") {
+                  // a MessageException here means the folder is missing (em.common.invalidTreeNode)
+                  if(!quiet && !!error.error && error.error.type === "MessageException") {
                      this.showMessage(error.error.message);
                   }
 
@@ -521,7 +542,9 @@ export class ContentRepositoryService implements OnDestroy {
             "../api/em/content/repository/folder/", { params })
             .pipe(
                catchError((error) => {
-                  if(!!error.error && error.error.type === "MessageException") {
+                  // a reload only re-selects a folder that was opened, so a MessageException then
+                  // means the folder is missing (the owner check refused it on the first open)
+                  if(!quiet && !!error.error && error.error.type === "MessageException") {
                      this.showMessage(error.error.message);
                   }
 
@@ -557,6 +580,10 @@ export class ContentRepositoryService implements OnDestroy {
                   return of(null);
                }),
                map(model => {
+                  if(!model) {
+                     return null;
+                  }
+
                   return <RepositoryScriptEditorModel>{
                      path: data.path, type: data.type,
                      owner: data.owner,
@@ -582,6 +609,18 @@ export class ContentRepositoryService implements OnDestroy {
                })
             );
       }
+   }
+
+   /**
+    * Check if an editor request failed because its item no longer exists.
+    */
+   public isMissingResourceError(error: any): boolean {
+      return error?.status === 404 || error?.error?.type === "MissingResourceException" ||
+         this.isMissingDataSourceError(error);
+   }
+
+   private isMissingDataSourceError(error: any): boolean {
+      return error?.error != null && error.error.message == "Datasource does not exist!";
    }
 
    private getEditNodeMetaMap(node: RepositoryTreeNode): RepositoryFolderMeta {

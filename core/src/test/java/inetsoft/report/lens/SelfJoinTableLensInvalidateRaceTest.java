@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static inetsoft.util.stall.StallTestSupport.isIn;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -155,6 +156,8 @@ public class SelfJoinTableLensInvalidateRaceTest {
          // the first pass stops at the stall row
          assertTrue(lens.moreRows(1));
          Thread first = base.stalled.get(CAP_SECONDS, TimeUnit.SECONDS);
+         // the stalled pass is seen running, so the wait for its end below is not trivial
+         assertTrue(isIn(first, SelfJoinTableLens.class), "the stalled pass is running");
 
          lens.invalidate();
          // the next pass stops at a later row
@@ -203,23 +206,6 @@ public class SelfJoinTableLensInvalidateRaceTest {
          thread.setDaemon(true);
          return thread;
       };
-   }
-
-   private static boolean isIn(Thread thread, Class<?> cls) {
-      for(StackTraceElement element : thread.getStackTrace()) {
-         // a pool thread appends the stack that created it
-         if(element.getClassName().equals(Thread.class.getName()) &&
-            element.getMethodName().equals("getStackTrace"))
-         {
-            break;
-         }
-
-         if(element.getClassName().startsWith(cls.getName())) {
-            return true;
-         }
-      }
-
-      return false;
    }
 
    private static void awaitTrue(java.util.function.BooleanSupplier condition, String what)

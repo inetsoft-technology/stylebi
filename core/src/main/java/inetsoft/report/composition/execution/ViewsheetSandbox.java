@@ -150,7 +150,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.flyoverCancelled = ConcurrentHashMap.newKeySet();
       this.dmap = new DataMap();
       this.dKeyMap = new DataMap();
-      this.fmap = new HashMap<>();
+      this.fmap = new ConcurrentHashMap<>();
+      this.fgens = new ConcurrentHashMap<>();
       this.scriptChangedFormSet = Collections.synchronizedSet(new HashSet<>());
       this.tmap = Collections.synchronizedMap(new HashMap<>());
       this.vset = Collections.synchronizedSet(new HashSet<>());
@@ -753,13 +754,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       while(it.hasNext()) {
          Object key = it.next();
 
-         if(key == null || wizard && Tool.equals(key, VSWizardConstants.TEMP_CROSSTAB_NAME)) {
+         if(key == null) {
             continue;
          }
 
          queryManager = qmgrs.get(key + "");
 
-         if(queryManager != null) {
+         // a wizard cancel must not kill the wizard's own data probes (the non-cancelable
+         // _temp_crosstab_N query managers), see getQueryManager(String)
+         if(queryManager != null && (!wizard || queryManager.isCancelable())) {
             cancel(queryManager, forChange);
          }
       }
@@ -888,7 +891,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       // cancel executing queries
-      cancelAllQueries(false, forChange);
+      cancelAllQueries(wizard, forChange);
       // cancel pending queries
       AssetDataCache.getCache().cancel(rid, !wizard);
    }
@@ -2591,13 +2594,22 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * reset) swallow script errors, and remembering those would report a failure of another request
     * (the current-view export reuses the live viewer box). Like the existing re-run of this sheet's
     * own onLoad, re-running an embedded onLoad changes the live embedded box's variables. (#78255)
+    *
+    * <p>A script error is recorded and the export goes on with a warning (#76780), except a load
+    * failure: an onLoad script that read a table which failed to load in a scheduled run (a
+    * {@link TableLoadException} in the cause chain) fails the export with it, after every onLoad
+    * has run, as a failed exported table does. Only a reader that must fail (a scheduled run) ever
+    * gets one. (#78445)
+    *
+    * @throws TableLoadException if an onLoad script, this sheet's or an embedded one's, failed on
+    *                            a table that failed to load.
     */
    public void prepareForExport() {
       exportScriptError = null;
+      exportLoadFailure = null;
       synchronized(exportFailedAssemblies) {
          exportFailedAssemblies.clear();
       }
-
 
       try {
          // executeVSScript() (invoked by processOnLoad() to actually run the onLoad
@@ -2619,6 +2631,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       prepareEmbeddedForExport(vs);
+
+      // thrown only here, after every onLoad ran, so the box is left as by a recorded error
+      if(exportLoadFailure != null) {
+         throw new TableLoadException(exportLoadFailure);
+      }
    }
 
    /**
@@ -2672,6 +2689,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private void recordExportScriptError(Exception ex, String sheetName) {
       if(exportScriptError == null) {
          exportScriptError = ex;
+      }
+
+      // kept apart from the first error, so an earlier plain error can't hide it (#78445)
+      if(exportLoadFailure == null) {
+         exportLoadFailure = TableLoadException.find(ex);
       }
 
       LOG.error("Failed to process the onLoad script for export of \"{}\"; the exported " +
@@ -3427,6 +3449,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       VSAScriptable scriptable = getScope().getVSAScriptable(name);
 
       if(scriptable instanceof TableDataVSAScriptable && !scriptChangedFormSet.contains(name)) {
+         // a form table being built from the data before this reset must not be cached (#78398)
+         fgens.merge(name, 1L, Long::sum);
          fmap.remove(name);
          scriptable.setAssembly(name);
       }
@@ -6346,6 +6370,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             throw cex;
          }
          catch(MVExecutionException ex) {
+            // the MV query wraps every failure of its job, e.g. XJobPool, so unavailable data
+            // (a lock stall, a lost swap file, a scheduled load failure) or a stopped script
+            // arrives here too. The MV isn't broken: don't cache it as no data (#77908,
+            // #78071, #77949), and don't recreate the MV on demand, which would return no
+            // data to this reader without an error (#78450)
+            if(DataUnavailable.find(ex) != null || TableLoadException.find(ex) != null ||
+               ScriptTimeoutGuard.isStop(ex))
+            {
+               cache = false;
+               throw ex;
+            }
+
             boolean ondemand = "true".equals(
                SreeEnv.getProperty("mv.ondemand")) &&
                vs.getViewsheetInfo().isMVOnDemand() &&
@@ -6359,15 +6395,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             else {
                LOG.warn("Failed to query materialized view: {}", name, ex);
                CoreTool.addUserMessage(ex.getMessage());
-
-               // the MV query wraps any failure, a lost swap file must not be cached as no
-               // data either, see catch(Exception) below (#77908), nor a stopped script (#77949)
-               // nor a scheduled load failure (#78071)
-               if(SwapFileReadException.find(ex) != null || ScriptTimeoutGuard.isStop(ex) ||
-                  TableLoadException.find(ex) != null)
-               {
-                  cache = false;
-               }
 
                // error should be shown to user
                throw ex;
@@ -8164,26 +8191,68 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       FormTableLens flens = fmap.get(name);
 
-      if(flens == null) {
+      // the fetch runs without the sandbox locks (#74001), so other threads may build the same
+      // form table at the same time, e.g. a table load and a script. The first one built is
+      // kept and returned to all of them, edits are only made on the cached one (#78398)
+      for(int attempt = 1; flens == null; attempt++) {
+         long gen = fgens.getOrDefault(name, 0L);
+         ColumnSelection cols = getFormColumnSelection(info);
+         FormTableLens nlens = new FormTableLens(getFormData(name));
+         nlens.setEdit(info.isEdit());
+         nlens.setColumnSelection(cols);
+         // one built from the data before a reset is dropped and built again, a bounded number
+         // of times, the last one is cached as the newest data there is
+         boolean last = attempt >= MAX_FORM_RESET_ATTEMPTS;
+         flens = fmap.compute(name, (key, cached) -> cached != null ? cached :
+            last || fgens.getOrDefault(key, 0L) == gen ? nlens : null);
+
+         if(flens == null) {
+            LOG.debug("Form table {} reset while it was built, build it again", name);
+         }
+      }
+
+      return flens;
+   }
+
+   /**
+    * Get the column selection of a form table with every column a FormRef. A selection that
+    * isn't converted yet is converted on a copy that replaces it, the shared selection is never
+    * cleared, other threads may be reading it (#78398).
+    */
+   private static ColumnSelection getFormColumnSelection(TableVSAssemblyInfo info) {
+      synchronized(info) {
          ColumnSelection cols = info.getColumnSelection();
-         ColumnSelection ncols = (ColumnSelection) cols.clone();
-         cols.clear();
+         // a copy, the selection may be changed while it's read, e.g. by a query
+         ColumnSelection fcols = cols.clone(true);
+         boolean converted = true;
+
+         for(int i = 0; i < fcols.getAttributeCount(); i++) {
+            DataRef ref = fcols.getAttribute(i);
+
+            if(ref != null && !(ref instanceof FormRef)) {
+               converted = false;
+               break;
+            }
+         }
+
+         if(converted) {
+            return cols;
+         }
+
+         ColumnSelection ncols = fcols.clone();
+         fcols.clear();
 
          for(int i = 0; i < ncols.getAttributeCount(); i++) {
             DataRef ref = ncols.getAttribute(i);
 
             if(ref != null) {
-               cols.addAttribute(i, FormRef.toFormRef(ref));
+               fcols.addAttribute(i, FormRef.toFormRef(ref));
             }
          }
 
-         flens = new FormTableLens(getFormData(name));
-         flens.setEdit(info.isEdit());
-         flens.setColumnSelection(cols);
-         fmap.put(name, flens);
+         info.setColumnSelection(fcols);
+         return fcols;
       }
-
-      return flens;
    }
 
    /**
@@ -9455,11 +9524,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private final DataMap dKeyMap; // data map
    private final VariableTable myvars = new VariableTable();
    private final Map<String, FormTableLens> fmap; // form table map
+   // the times each form table is reset, a form table built across a reset isn't cached
+   private final Map<String, Long> fgens;
    private final Set<String> scriptChangedFormSet; // form table updated by script.
    private final Map<String, Long> tmap; // clear timestamp map
    // the times a query cancelled by newer changes is run at most, see
    // executeDataAfterChangeCancel()
    private static final int MAX_CHANGE_CANCEL_ATTEMPTS = 20;
+   // the times a form table reset while it is built is built at most, see getFormTableLens()
+   private static final int MAX_FORM_RESET_ATTEMPTS = 3;
    private final Set<String> vset; // view set
    private final Map<String, ViewsheetSandbox> bmap; // viewsheet sandbox map
    // the root variables this embedded sandbox inherited, at creation or the last push
@@ -9515,6 +9588,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private VSBookmarkInfo openedBookmark; // the current opened bookmark
    private boolean onLoadExeced = false;
    private Exception exportScriptError; // onLoad failure from prepareForExport()
+   private TableLoadException exportLoadFailure; // onLoad load failure from prepareForExport()
    private final Set<String> exportFailedAssemblies = new LinkedHashSet<>();
    private boolean parametersApplied = false;
    // Accessed only while the write lock is held (resetRuntime → reset → applyParameterToInput),

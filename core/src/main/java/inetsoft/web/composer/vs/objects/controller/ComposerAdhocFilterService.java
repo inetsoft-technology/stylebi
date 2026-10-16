@@ -31,6 +31,8 @@ import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.AestheticRef;
+import inetsoft.uql.viewsheet.graph.RelationChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.*;
@@ -197,10 +199,20 @@ public class ComposerAdhocFilterService {
       DataRef chartRef;
 
       if(event.isLegend()) {
-         chartRef = Arrays.stream(chartInfo.getAestheticRefs(true))
+         List<AestheticRef> arefs = new ArrayList<>(Arrays.asList(chartInfo.getAestheticRefs(true)));
+
+         // getAestheticRefs() leaves out relation node color/size bound to a dimension (#75253),
+         // but their legends offer Filter too
+         if(chartInfo instanceof RelationChartInfo) {
+            arefs.add(((RelationChartInfo) chartInfo).getNodeColorField());
+            arefs.add(((RelationChartInfo) chartInfo).getNodeSizeField());
+         }
+
+         chartRef = arefs.stream()
+            .filter(Objects::nonNull)
             .filter(ref -> ref.getFullName().equals(event.getColumnName()))
             .findFirst()
-            .get();
+            .orElse(null);
       }
       else {
          chartRef = chartInfo.getFieldByName(event.getColumnName(), true);
