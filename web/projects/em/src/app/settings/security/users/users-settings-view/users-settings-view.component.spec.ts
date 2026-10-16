@@ -86,6 +86,43 @@ describe("UsersSettingsViewComponent", () => {
       expect(component).toBeTruthy();
    });
 
+   describe("selectedNodes keeps unsaved changes for a re-sent node (Bug #78726)", () => {
+      const alice = { identityID: { name: "alice", orgID: "o1" }, type: IdentityType.USER } as any;
+      const bob = { identityID: { name: "bob", orgID: "o1" }, type: IdentityType.USER } as any;
+
+      beforeEach(() => {
+         component.selectedNodes = [alice];
+         component.onPageChanged(true);
+      });
+
+      it("keeps pageChanged when the page re-sends the same node in a new array", () => {
+         component.selectedNodes = [alice];
+
+         expect(component.pageChanged).toBe(true);
+         expect(component.selectedIdentity).toBe(alice);
+      });
+
+      it("clears pageChanged when another node is selected", () => {
+         component.selectedNodes = [bob];
+
+         expect(component.pageChanged).toBe(false);
+         expect(component.selectedIdentity).toBe(bob);
+      });
+
+      it("clears pageChanged for an equal but different node object", () => {
+         component.selectedNodes = [{ ...alice }];
+
+         expect(component.pageChanged).toBe(false);
+      });
+
+      it("leaves pageChanged and the edited identity alone for a multi-selection", () => {
+         component.selectedNodes = [alice, bob];
+
+         expect(component.pageChanged).toBe(true);
+         expect(component.selectedIdentity).toBe(alice);
+      });
+   });
+
    it("lists affected tasks in the confirm dialog, then emits delete on confirm", () => {
       component.selectedProvider = "provider1";
       component.selectedNodes = [
