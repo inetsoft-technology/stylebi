@@ -411,7 +411,7 @@
             </environment>
             <labels>
               <org.opencontainers.image.title>StyleBI</org.opencontainers.image.title>
-              <org.opencontainers.image.version>1.2.${docker.build.version}</org.opencontainers.image.version>
+              <org.opencontainers.image.version>2.1.${docker.build.version}</org.opencontainers.image.version>
               <org.opencontainers.image.source>https://github.com/inetsoft-technology/stylebi</org.opencontainers.image.source>
               <org.opencontainers.image.revision>${git.commit.id.abbrev}</org.opencontainers.image.revision>
               <org.opencontainers.image.url>https://www.inetsoft.com/</org.opencontainers.image.url>
