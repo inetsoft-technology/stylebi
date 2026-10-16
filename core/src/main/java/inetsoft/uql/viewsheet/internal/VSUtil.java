@@ -4355,9 +4355,15 @@ public final class VSUtil {
       List<int[]> spans = new ArrayList<>();
       List<String> texts = new ArrayList<>();
       boolean ambiguous = false;
+      // references only count in code, not in string literals, template text or comments
+      boolean[] code = codeMask(expression);
       Matcher matcher = FIELD_ACCESSOR_PATTERN.matcher(expression);
 
       while(matcher.find()) {
+         if(!code[matcher.start()]) {
+            continue;
+         }
+
          String content = matcher.group(2);
          int match = classifyFieldName(content, oname, otherNames);
          String ncontent = content;
@@ -4385,7 +4391,6 @@ public final class VSUtil {
       }
 
       // field.X, outside string literals and comments
-      boolean[] code = codeMask(expression);
       matcher = FIELD_DOT_PATTERN.matcher(expression);
 
       while(matcher.find()) {
@@ -4500,38 +4505,110 @@ public final class VSUtil {
    }
 
    /**
-    * @return for each character of the script, whether it is code, i.e. outside string literals
-    *         and comments.
+    * @return for each character of the script, whether it is code, i.e. outside string literals,
+    *         template literal text and comments. A <code>${...}</code> interpolation inside a
+    *         template literal is code. If the scan ends inside an unterminated literal, template
+    *         or block comment (e.g. a regex literal containing a quote desynchronizes it), every
+    *         character is reported as code so a real reference is never silently dropped.
     */
    private static boolean[] codeMask(String script) {
-      boolean[] code = new boolean[script.length()];
-      char quote = 0;
+      int n = script.length();
+      boolean[] code = new boolean[n];
+      // open interpolations, each holding the count of unclosed '{' inside it
+      Deque<int[]> braces = new ArrayDeque<>();
+      boolean ok = true;
+      int i = 0;
+      // 0 = code, 1 = template text
+      int mode = 0;
 
-      for(int i = 0; i < script.length(); i++) {
+      while(i < n && ok) {
          char c = script.charAt(i);
 
-         if(quote != 0) {
+         if(mode == 1) {
             if(c == '\\') {
+               i += 2;
+            }
+            else if(c == '`') {
+               mode = 0;
                i++;
             }
-            else if(c == quote) {
-               quote = 0;
+            else if(c == '$' && i + 1 < n && script.charAt(i + 1) == '{') {
+               braces.push(new int[] { 0 });
+               mode = 0;
+               i += 2;
+            }
+            else {
+               i++;
+            }
+
+            if(i >= n && mode == 1) {
+               ok = false;
+            }
+
+            continue;
+         }
+
+         if(c == '\'' || c == '"') {
+            int j = i + 1;
+
+            while(j < n && script.charAt(j) != c) {
+               j += script.charAt(j) == '\\' ? 2 : 1;
+            }
+
+            if(j >= n) {
+               ok = false;
+            }
+
+            i = j + 1;
+         }
+         else if(c == '`') {
+            mode = 1;
+            i++;
+
+            if(i >= n) {
+               ok = false;
             }
          }
-         else if(c == '\'' || c == '"') {
-            quote = c;
-         }
-         else if(c == '/' && i + 1 < script.length() && script.charAt(i + 1) == '/') {
+         else if(c == '/' && i + 1 < n && script.charAt(i + 1) == '/') {
             int end = script.indexOf('\n', i);
-            i = end < 0 ? script.length() : end;
+            i = end < 0 ? n : end;
          }
-         else if(c == '/' && i + 1 < script.length() && script.charAt(i + 1) == '*') {
+         else if(c == '/' && i + 1 < n && script.charAt(i + 1) == '*') {
             int end = script.indexOf("*/", i + 2);
-            i = end < 0 ? script.length() : end + 1;
+
+            if(end < 0) {
+               ok = false;
+            }
+
+            i = end < 0 ? n : end + 2;
+         }
+         else if(!braces.isEmpty() && c == '{') {
+            braces.peek()[0]++;
+            code[i++] = true;
+         }
+         else if(!braces.isEmpty() && c == '}') {
+            if(braces.peek()[0] == 0) {
+               // end of the interpolation, back to template text without consuming more
+               braces.pop();
+               mode = 1;
+               i++;
+
+               if(i >= n) {
+                  ok = false;
+               }
+            }
+            else {
+               braces.peek()[0]--;
+               code[i++] = true;
+            }
          }
          else {
-            code[i] = true;
+            code[i++] = true;
          }
+      }
+
+      if(!ok || !braces.isEmpty()) {
+         Arrays.fill(code, true);
       }
 
       return code;

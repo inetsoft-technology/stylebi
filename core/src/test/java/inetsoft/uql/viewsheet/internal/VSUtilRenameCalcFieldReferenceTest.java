@@ -234,4 +234,68 @@ class VSUtilRenameCalcFieldReferenceTest {
       assertFalse(VSUtil.referencesCalcField("field.Taxes", "Tax", List.of()));
       assertFalse(VSUtil.referencesCalcField("field['tax']", "Tax", List.of("tax")));
    }
+
+   // Bug #78649: references inside literals and comments are not references.
+   private static String renameVat(String expression) {
+      return VSUtil.renameCalcFieldReference(expression, "Vat", "VatR", List.of());
+   }
+
+   private static boolean refsVat(String expression) {
+      return VSUtil.referencesCalcField(expression, "Vat", List.of());
+   }
+
+   private static void assertIgnored(String expression) {
+      assertFalse(refsVat(expression), expression);
+      assertSame(expression, renameVat(expression), expression);
+   }
+
+   private static void assertRenamed(String expected, String expression) {
+      assertTrue(refsVat(expression), expression);
+      assertEquals(expected, renameVat(expression));
+   }
+
+   @Test
+   void ignoresAccessorsInStringLiteralsAndComments() {
+      assertIgnored("field['ORDER_ID'] + \" field['Vat'] \"");
+      assertIgnored("field['ORDER_ID'] + ' field[\"Vat\"] '");
+      assertIgnored("field['ORDER_ID'] + \" field['Sum(Vat)'] \"");
+      assertIgnored("/* field['Vat'] */ field['ORDER_ID']");
+      assertIgnored("// field['Vat']\nfield['ORDER_ID']");
+      assertIgnored("field['ORDER_ID'] + \"a\\\" field['Vat']\"");
+      assertIgnored("field['ORDER_ID'] + `field['Vat']`");
+      assertIgnored("field['ORDER_ID'] + `field.Vat`");
+   }
+
+   @Test
+   void onlyRewritesTheRealReferenceNextToALiteral() {
+      assertRenamed("field['VatR'] + \" field['Vat'] \"", "field['Vat'] + \" field['Vat'] \"");
+      assertRenamed("\" field['Vat'] \" + field['VatR']", "\" field['Vat'] \" + field['Vat']");
+   }
+
+   @Test
+   void stillSeesReferencesAroundTemplateLiterals() {
+      assertRenamed("`don't` + field['VatR']", "`don't` + field['Vat']");
+      assertRenamed("`it's ${field['VatR']}`", "`it's ${field['Vat']}`");
+      assertRenamed("`a\"b` + field['VatR'] + \"c\"", "`a\"b` + field['Vat'] + \"c\"");
+      assertRenamed("`${`don't`}` + field['VatR']", "`${`don't`}` + field['Vat']");
+      assertRenamed("`${'}'}` + field['VatR']", "`${'}'}` + field['Vat']");
+      assertRenamed("`x ${field['VatR']}`", "`x ${field['Vat']}`");
+      assertRenamed("`a\\`b' ${field['VatR']}`", "`a\\`b' ${field['Vat']}`");
+      assertRenamed("`${ {a: 1}.a }don't` + field['VatR']", "`${ {a: 1}.a }don't` + field['Vat']");
+      assertRenamed("`don't ${field['VatR']} it's` + field['VatR']",
+                    "`don't ${field['Vat']} it's` + field['Vat']");
+   }
+
+   @Test
+   void seesTheDotFormAfterATemplateLiteral() {
+      assertTrue(refsVat("`don't` + field.Vat"));
+      assertTrue(refsVat("`it's ${field.Vat}`"));
+   }
+
+   @Test
+   void unterminatedLiteralFallsBackToUnmaskedMatching() {
+      // the regex literal's quote desynchronizes the scan; a real reference must not be dropped
+      assertTrue(refsVat("/'/.test(field['ORDER_ID']) ? field['Vat'] : 0"));
+      assertTrue(refsVat("`unclosed ${field['Vat']}"));
+   }
 }
