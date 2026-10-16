@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
@@ -106,6 +107,7 @@ public class InputValueService {
             VSUtil.isDynamicValue(range.getMaxValue());
          checkValue(info0, assembly.getDataType(), values, dynamicMax, assemblyName,
                     describe(assembly));
+         checkWriteBack(rvs, assemblyName, info0);
 
          result.put("assembly", assemblyName);
          result.put("type", describe(assembly));
@@ -132,6 +134,52 @@ public class InputValueService {
 
       result.put("persistsOnSave", true);
       return result;
+   }
+
+   /**
+    * Refuses, before anything is stored, a value the write-back would refuse.
+    *
+    * <p>{@code applySelection0} stores the value first and writes it back after, so a target the
+    * write refuses would leave the input holding a value the caller was told was refused (bug
+    * #78579). This asks the same predicate the write uses, against the same sandbox, table,
+    * design-time column and cached row, so it refuses exactly what the write would and nothing
+    * else. A binding with no table or column stays the silent no-op it is in the UI.
+    */
+   private void checkWriteBack(RuntimeViewsheet rvs, String assemblyName, VSAssemblyInfo info0) {
+      if(!(info0 instanceof InputVSAssemblyInfo info) || !info.getWriteBackValue()) {
+         return;
+      }
+
+      ViewsheetSandbox root = rvs.getViewsheetSandbox().orElse(null);
+      ViewsheetSandbox box = root == null ? null : inputs.getWriteBackSandbox(root, assemblyName);
+
+      if(box == null) {
+         return;
+      }
+
+      String table = VSUtil.stripOuter(info.getTableName());
+      String column = info.getColumnValue();
+      int row = info.getRow();
+      ViewsheetSandbox.WriteBackRefusal refusal = box.getWriteBackRefusal(table, column, row);
+
+      if(refusal == null) {
+         return;
+      }
+
+      String range = "";
+
+      if(refusal.firstDataRow() >= 0) {
+         range = refusal.lastDataRow() >= refusal.firstDataRow()
+            ? " Its data rows are " + refusal.firstDataRow() + ".." + refusal.lastDataRow() + "."
+            : " It has no data rows.";
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' writes its value back to worksheet table '" + table +
+         "', column '" + column + "', rowValue '" + info.getRowValue() + "' (" +
+         (row == -1 ? "-1, not evaluated" : "resolved row " + row) + "), and that target " +
+         "cannot be written: " + refusal.message() + range + " Nothing was changed. Fix the " +
+         "input's table/columnValue/rowValue binding, or turn writeBackDirectly off.");
    }
 
    /**
