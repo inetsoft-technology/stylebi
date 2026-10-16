@@ -21,8 +21,8 @@ import { UntypedFormGroup } from "@angular/forms";
 import { MatBottomSheet, MatBottomSheetRef } from "@angular/material/bottom-sheet";
 import { MatDialog } from "@angular/material/dialog";
 import { Router } from "@angular/router";
-import { NEVER, Observable, of, of as observableOf } from "rxjs";
-import { catchError, map, switchMap } from "rxjs/operators";
+import { Observable, of as observableOf } from "rxjs";
+import { catchError, filter, map, switchMap } from "rxjs/operators";
 import { MapModel } from "../../../../../../portal/src/app/common/data/map-model";
 import { ErrorHandlerService } from "../../../common/util/error/error-handler.service";
 import { OrganizationDropdownService } from "../../../navbar/organization-dropdown.service";
@@ -198,7 +198,9 @@ export class SecurityProviderService {
             isSysAdmin: sysAdmin
          }
       }).afterClosed().pipe(
-         switchMap((roles: string[]) => roles === null ? NEVER : of(roles))
+         // Cancel closes with null; Escape and a backdrop click close with undefined.
+         // Neither is a selection, so emit nothing and leave the roles field unchanged.
+         filter((roles: string[]) => roles != null)
       );
    }
 

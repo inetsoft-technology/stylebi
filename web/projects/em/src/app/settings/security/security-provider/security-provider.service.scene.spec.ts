@@ -19,11 +19,11 @@
 /**
  * SecurityProviderService — scene-layer tests (HTTP calls + side effects)
  *
- * Risk-first coverage (4 groups, 11 cases):
+ * Risk-first coverage (4 groups, 13 cases):
  *   Group 1 [Risk 3, 3, 2] — updateAuthorizationProvider (3 cases)
  *   Group 2 [Risk 3, 3, 2] — updateAuthenticationProvider (3 cases)
  *   Group 3 [Risk 2, 2]    — testConnection / testDatabaseConnection (2 cases)
- *   Group 4 [Risk 3, 2, 2] — getAdminRoles (3 cases)
+ *   Group 4 [Risk 3, 2, 2, 2, 2] — getAdminRoles (5 cases)
  *
  * Confirmed bugs (it.failing — remove wrapper once fixed):
  *   - none
@@ -33,7 +33,8 @@
  *     EDIT URL + name when truthy
  *   - catchError on update methods calls errorService.showSnackBar and does NOT trigger navigation
  *   - getAdminRoles catchError returns {ids: []} so the dialog always opens (graceful degradation)
- *   - getAdminRoles dialog cancel (null afterClosed result) → NEVER (pipeline stops, no emission)
+ *   - getAdminRoles dialog dismiss (Cancel → null, Escape/backdrop → undefined) is filtered out:
+ *     no emission, the observable just completes, so callers leave the roles field unchanged
  *
  * Design gaps:
  *   - triggerXxx void methods chain multiple dialogs and are skipped; better covered by
@@ -255,18 +256,41 @@ describe("SecurityProviderService — scene layer", () => {
          );
       });
 
-      it("[Risk 2] should not emit when dialog is dismissed without a selection (null)", () => {
-         // 🔁 Regression-sensitive: cancel returns NEVER (not EMPTY/complete); a refactor that switches
-         //    to EMPTY would cause the downstream map to run with undefined and silently clear the roles field
-         dialogSpy.open.mockReturnValue({ afterClosed: () => of(null) });
+      // 🔁 Regression-sensitive (Bug #78720): the dialog's Cancel button closes with null, while
+      //    MatDialog's own Escape and backdrop closes give undefined. Both must be dropped before the
+      //    downstream map, which would turn them into "" and silently clear the admin roles field.
+      //    The observable completes without emitting, so callers' take(1) subscriptions end cleanly.
+      it.each([
+         ["Cancel (null)", null],
+         ["Escape / backdrop (undefined)", undefined]
+      ])("[Risk 2] should not emit and should complete when dialog is dismissed by %s", (_label, result) => {
+         dialogSpy.open.mockReturnValue({ afterClosed: () => of(result) });
 
          let emitted = false;
-         service.getAdminRoles("admin", makeFileAuthnForm(), true).subscribe(() => { emitted = true; });
+         let completed = false;
+         service.getAdminRoles("admin", makeFileAuthnForm(), true).subscribe({
+            next: () => { emitted = true; },
+            complete: () => { completed = true; }
+         });
 
          const req = httpMock.expectOne("../api/em/security/get-roles");
          req.flush({ ids: [], type: 0 });
 
          expect(emitted).toBe(false);
+         expect(completed).toBe(true);
+      });
+
+      it("[Risk 2] should emit an empty string when the user removes every role and clicks OK", () => {
+         // A deliberate clear-all closes with [] (not null/undefined) and must still clear the field
+         dialogSpy.open.mockReturnValue({ afterClosed: () => of([]) });
+
+         let result: string | undefined;
+         service.getAdminRoles("admin", makeFileAuthnForm(), true).subscribe(value => { result = value; });
+
+         const req = httpMock.expectOne("../api/em/security/get-roles");
+         req.flush({ ids: [], type: 0 });
+
+         expect(result).toBe("");
       });
 
       it("[Risk 2] should emit the role list joined with ', ' when dialog returns a non-null array", () => {
