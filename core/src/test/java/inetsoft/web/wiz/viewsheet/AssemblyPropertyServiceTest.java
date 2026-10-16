@@ -1207,6 +1207,62 @@ class AssemblyPropertyServiceTest {
       assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateInput", patch, ""));
    }
 
+   // The writable rows of an embedded table are getHeaderRowCount()..getRowCount()-1 -- the
+   // same bounds InputVSAssemblyInfo.update() (InputVSAssemblyInfo.java:544) and the write-back
+   // sandbox guard (ViewsheetSandbox.java:9173) apply. The header row and rowCount itself are
+   // both rejected there, so accepting them here is the VOF-013 silent no-op (bug #76803 reopen).
+
+   @Test
+   void vof013HeaderRowValueIsRefused() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, embeddedTableWorksheet());
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "0");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateInput", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.rowValue"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   @Test
+   void vof013RowValueEqualToRowCountIsRefused() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, embeddedTableWorksheet());
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "3");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateInput", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.rowValue"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   /** Control for the two refusals above: the last data row (rowCount - 1) is writable. */
+   @Test
+   void lastDataRowValueStillSucceeds() throws Exception {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, embeddedTableWorksheet());
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "2");
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateInput", patch, ""));
+   }
+
    /**
     * VOF-014's real repro shape: the table binding is already set from a prior call, and this
     * patch touches only {@code columnValue}. The gating condition ORs on either field, so
