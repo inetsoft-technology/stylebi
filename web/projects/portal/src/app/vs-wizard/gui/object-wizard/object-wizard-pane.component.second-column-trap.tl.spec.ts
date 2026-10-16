@@ -109,10 +109,10 @@ function aggregate(name: string, formula: string, second: any): any {
    };
 }
 
-async function setup() {
+async function setup(formula = "Correlation") {
    const qty = column("Qty", "integer");
    const price = column("Price", "double");
-   const sales = aggregate("Sales", "Correlation", qty);
+   const sales = aggregate("Sales", formula, qty);
    const units = aggregate("Units", "Sum", null);
    const { fixture } = await render(ObjectWizardPane, {
       schemas: [NO_ERRORS_SCHEMA],
@@ -167,6 +167,13 @@ function withCombo(item: any): DynamicComboBox {
    const combo = combos(item).find((c: any) => c.value === "Qty" || c.value === "Price");
    expect(combo).toBeTruthy();
    return combo;
+}
+
+// the text the With combo renders
+function withText(item: any): string {
+   const de = item.queryAll(By.directive(DynamicComboBox))
+      .find((d: any) => d.componentInstance.value === "Qty" || d.componentInstance.value === "Price");
+   return de.nativeElement.querySelector(".display-style").textContent.trim();
 }
 
 const modalWindow = () => document.querySelector<HTMLElement>("ngb-modal-window");
@@ -322,5 +329,43 @@ describe("ObjectWizardPane — With column trap warning (Bug #78716)", () => {
       expect(sales.secondaryColumnValue).toBe("Qty");
       expect(refreshes().length).toBe(0);
       expect(unhandled).toEqual([]);
+   });
+
+   it("Escape after an earlier Keep restores and shows the kept column", async () => {
+      const { sales, price, items } = await setup();
+
+      await pickWith(items[0], "Price");
+      await clickButton("Keep and Continue");
+      client.sendEvent.mockClear();
+      MessageDialog.lastMessageTS = 0;
+
+      await pickWith(items[0], "Qty");
+      expect(withText(items[0])).toBe("Qty");
+      await pressEscape();
+
+      expect(sales.secondaryColumn).toBe(price);
+      expect(sales.secondaryColumnValue).toBe("Price");
+      expect(withText(items[0])).toBe("Price");
+      expect(refreshes().length).toBe(0);
+      expect(unhandled).toEqual([]);
+   });
+
+   it("a By formula (First) restores the previous column on Escape and Undo", async () => {
+      const { sales, qty, items } = await setup("First");
+
+      await pickWith(items[0], "Price");
+      await pressEscape();
+
+      expect(sales.secondaryColumn).toBe(qty);
+      expect(withText(items[0])).toBe("Qty");
+
+      MessageDialog.lastMessageTS = 0;
+      await pickWith(items[0], "Price");
+      await clickButton("Undo");
+
+      expect(sales.secondaryColumn).toBe(qty);
+      expect(sales.secondaryColumnValue).toBe("Qty");
+      expect(withText(items[0])).toBe("Qty");
+      expect(refreshes().length).toBe(0);
    });
 });
