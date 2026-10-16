@@ -29,7 +29,6 @@ import inetsoft.uql.viewsheet.vslayout.PrintInfo;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
-import inetsoft.web.composer.vs.controller.VSLayoutControllerServiceProxy;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import inetsoft.web.wiz.pairing.TestPrincipals;
@@ -205,15 +204,13 @@ class LayoutUndoServiceTest {
       final ViewsheetSessionService viewsheetSessions = mock(ViewsheetSessionService.class);
       final ViewsheetService viewsheetService = mock(ViewsheetService.class);
       final VSLayoutService vsLayoutService = new VSLayoutService();
-      final VSLayoutControllerServiceProxy vsLayoutControllerService =
-         mock(VSLayoutControllerServiceProxy.class);
       final DeviceRegistry deviceRegistry = mock(DeviceRegistry.class);
       final ViewsheetPropertyDialogService dialogService =
          mock(ViewsheetPropertyDialogService.class);
       final LayoutSessionService layoutSessions =
          new LayoutSessionService(viewsheetSessions, viewsheetService, vsLayoutService);
       final LayoutMutationService mutationService = new LayoutMutationService(
-         layoutSessions, viewsheetSessions, vsLayoutService, vsLayoutControllerService);
+         layoutSessions, viewsheetSessions, vsLayoutService);
       final LayoutReadService readService = new LayoutReadService(
          viewsheetSessions, layoutSessions, vsLayoutService, deviceRegistry, dialogService);
       final LayoutUndoService undoService =

@@ -19,20 +19,22 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AbstractSheet;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TipVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.VSEditableAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
-import inetsoft.web.composer.vs.controller.VSLayoutControllerServiceProxy;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.event.AddVSLayoutObjectEvent;
-import inetsoft.web.viewsheet.DataTipInLayoutCheckResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -54,7 +56,7 @@ import java.util.Map;
  * <p>The plan's own Interfaces note for this task says to "call the underlying logic, not the
  * STOMP controller ... widen visibility or extract the shared body ... check at implementation
  * time rather than assuming." Having checked: those three methods are already {@code public} and
- * already reachable off a generated {@code @ClusterProxy} bean ({@link
+ * already reachable off a generated {@code @ClusterProxy} bean ({@code
  * VSLayoutControllerServiceProxy}) exactly the way {@code WizComposerController}/
  * {@code WizDashboardService} already call sibling {@code @ClusterProxy} services in this
  * codebase -- no visibility widening turned out to be necessary. But calling them as-is with our
@@ -97,30 +99,26 @@ import java.util.Map;
  * objects not to overlap in a print layout is responsible for spacing them; this is a known,
  * deliberate scope cut from the interactive Composer's behavior, not an oversight.
  *
- * <h2>The {@code check_assembly_in_layout} guard on remove</h2>
+ * <h2>The confirmation guard on remove</h2>
  *
- * <p>{@link VSLayoutControllerServiceProxy#checkAssemblyInLayout} is a pure read (no {@code
- * apply()}, no checkpoint) -- safe to call with the master's own runtime id. Its real-world
- * semantics for "does removing this object break a data-tip relationship" could not be fully
- * pinned down from source alone (it reports whether an assembly is present in a given/{@code
- * "null"}-sentinel runtime layout, which is a narrower question than "is this assembly some other
- * object's data-tip target"); this class treats {@code isAssemblyInLayout() == true} on the
- * layout being edited as "yes, something depends on this," which is the interpretation the unit
- * tests below fix in place via mocking. <b>Flagged for the Phase 5 live-verification pass</b> to
- * confirm this polarity against a real data-tip setup before relying on it in production.
+ * <p>An unconfirmed remove asks for confirmation only when another assembly on the master uses
+ * the object as its data-tip view or pop component. The scan covers every master assembly
+ * (embedded viewsheets and the object itself excluded), whether or not the dependent is placed
+ * in the layout being edited, and does not depend on the region the object sits in. Flyover
+ * views are not treated as a dependency. (Bug 78614: the guard used to call {@code
+ * checkAssemblyInLayout}, which only reports whether the object is placed, so every placed
+ * object was blocked.)
  */
 @Service
 public class LayoutMutationService {
    @Autowired
    public LayoutMutationService(LayoutSessionService layoutSessions,
                                  ViewsheetSessionService viewsheetSessions,
-                                 VSLayoutService vsLayoutService,
-                                 VSLayoutControllerServiceProxy vsLayoutControllerService)
+                                 VSLayoutService vsLayoutService)
    {
       this.layoutSessions = layoutSessions;
       this.viewsheetSessions = viewsheetSessions;
       this.vsLayoutService = vsLayoutService;
-      this.vsLayoutControllerService = vsLayoutControllerService;
    }
 
    public static final String OP_ADD = "add";
@@ -456,6 +454,37 @@ public class LayoutMutationService {
 
    // ── op: remove ────────────────────────────────────────────────────────────
 
+   /**
+    * True when some other assembly on the master has {@code name} as its data-tip view or pop
+    * component. Reads the design-time values, like {@code VSDataTipService}. Flyover views are
+    * deliberately not a dependency: removing one from a layout does not break a popup.
+    */
+   private static boolean isDataTipOrPopTarget(Viewsheet master, String name) {
+      for(Assembly assembly : master.getAssemblies()) {
+         if(assembly instanceof Viewsheet || name.equals(assembly.getName())) {
+            continue;
+         }
+
+         AssemblyInfo info = assembly.getInfo();
+
+         if(info instanceof TipVSAssemblyInfo tip &&
+            tip.getTipOptionValue() == TipVSAssemblyInfo.VIEWTIP_OPTION &&
+            name.equals(tip.getTipViewValue()))
+         {
+            return true;
+         }
+
+         if(info instanceof PopVSAssemblyInfo pop &&
+            pop.getPopOptionValue() == PopVSAssemblyInfo.POP_OPTION &&
+            name.equals(pop.getPopComponentValue()))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    private Map<String, Object> removeObjects(String sessionToken, Principal agent,
                                               String layoutName, int region,
                                               List<Map<String, Object>> objects, boolean confirmed)
@@ -480,14 +509,10 @@ public class LayoutMutationService {
       }
 
       if(!confirmed) {
-         RuntimeViewsheet master = placementMaster;
          List<String> dependent = new ArrayList<>();
 
          for(String name : names) {
-            DataTipInLayoutCheckResult check = vsLayoutControllerService
-               .checkAssemblyInLayout(master.getID(), layoutName, name, agent);
-
-            if(check.isAssemblyInLayout()) {
+            if(isDataTipOrPopTarget(placementMaster.getViewsheet(), name)) {
                dependent.add(name);
             }
          }
@@ -631,5 +656,4 @@ public class LayoutMutationService {
    private final LayoutSessionService layoutSessions;
    private final ViewsheetSessionService viewsheetSessions;
    private final VSLayoutService vsLayoutService;
-   private final VSLayoutControllerServiceProxy vsLayoutControllerService;
 }
