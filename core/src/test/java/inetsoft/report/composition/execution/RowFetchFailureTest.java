@@ -1456,6 +1456,48 @@ class RowFetchFailureTest {
       }
    }
 
+   // Bug #78727: the scheduled export of a viewsheet whose hidden chart is bound to a table which
+   // failed to load completes: the chart is not exported, so its own read does not fail the
+   // export, as for a hidden table (#78083). The same chart shown fails the export with the load
+   // failure (#78083), in both layouts
+   @Test
+   void scheduledExportOfAHiddenChartOverAFailedTable() throws Exception {
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         for(boolean match : new boolean[] { false, true }) {
+            String shape = "match " + match;
+            ViewsheetSandbox box = chartSandbox(true, true);
+            VSAssembly chart = (VSAssembly) box.getViewsheet().getAssembly("Chart1");
+            chart.getVSAssemblyInfo().setVisibleValue(String.valueOf(VSAssembly.ALWAYS_HIDE));
+            assertFalse(chart.isVisible(), shape);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            CSVVSExporter exporter = new CSVVSExporter(out, null);
+            exporter.setMatchLayout(match);
+
+            assertDoesNotThrow(() -> {
+               exporter.export(box, "Chart1", null);
+               exporter.write();
+            }, shape);
+            assertTrue(out.size() > 0, shape);
+
+            ViewsheetSandbox shown = chartSandbox(true, true);
+            CSVVSExporter exporter2 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+            exporter2.setMatchLayout(match);
+            assertLoadFailure(() -> {
+               exporter2.export(shown, "Chart1", null);
+               exporter2.write();
+            }, shape);
+         }
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
    // Bug #78083: a chart script that sets its dataset from a hidden table which failed to load
    // (a script-created dataset, #75580) fails the scheduled export as well; interactive plots
    @Test

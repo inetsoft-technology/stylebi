@@ -1,0 +1,158 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.report.io.viewsheet;
+
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
+import inetsoft.test.*;
+import inetsoft.uql.asset.DateRangeRef;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.io.ByteArrayOutputStream;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Bug #78727: since #78220 a chart whose graph fails to initialize fails every request for its
+ * graph pair instead of only the first. The export asks for the pair of every chart, hidden or
+ * not, in {@code prepareSheet} (the EGraph-populate loop, and the match-layout loop), which had
+ * no catch, so a hidden chart bound to a column its table lacks failed the whole export. A
+ * chart that is not exported must not fail the export; an exported chart whose graph fails to
+ * initialize still does (#77227).
+ *
+ * <p>CSV is used because painting a chart needs batik, which core's test classpath lacks.</p>
+ */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(
+   classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
+   initializers = ConfigurationContextInitializer.class
+)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome(importResources = "/inetsoft/graph/GraphRenderTest.zip")
+@Tag("core")
+@Tag("integration")
+class AbstractVSExporterChartInitFailureTest {
+   @ParameterizedTest(name = "match layout {0}")
+   @ValueSource(booleans = { false, true })
+   void hiddenChartWhoseGraphFailsDoesNotFailTheExport(boolean match) throws Exception {
+      ViewsheetSandbox box = getBox();
+      ChartVSAssembly chart = bindMissingColumn(box);
+      setVisible(chart, false);
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      CSVVSExporter exporter = new CSVVSExporter(out, null);
+      exporter.setMatchLayout(match);
+
+      assertDoesNotThrow(() -> {
+         exporter.export(box, "Current View", 0, null);
+         exporter.write();
+      });
+      assertTrue(out.size() > 0, "the export should be written");
+   }
+
+   // #77227: a chart that is exported and whose graph fails to initialize fails the export
+   @ParameterizedTest(name = "match layout {0}")
+   @ValueSource(booleans = { false, true })
+   void exportedChartWhoseGraphFailsStillFailsTheExport(boolean match) throws Exception {
+      ViewsheetSandbox box = getBox();
+      ChartVSAssembly chart = bindMissingColumn(box);
+      setVisible(chart, true);
+      CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      exporter.setMatchLayout(match);
+
+      Exception ex = assertThrows(Exception.class, () -> {
+         exporter.export(box, "Current View", 0, null);
+         exporter.write();
+      });
+      assertMissingColumn(ex);
+   }
+
+   /**
+    * Bind the x axis of the chart to only a date column its table does not have, as the
+    * reported chart's, so every init of the chart's graph fails: the chart query drops the
+    * unknown ref, which leaves no runtime x field, and the graph generator then falls back to
+    * the design x field and asks the data set for the column.
+    */
+   private static ChartVSAssembly bindMissingColumn(ViewsheetSandbox box) {
+      ChartVSAssembly chart = (ChartVSAssembly) box.getViewsheet().getAssembly(CHART);
+      VSChartInfo info = chart.getVSChartInfo();
+      VSChartDimensionRef dim = new VSChartDimensionRef();
+      dim.setGroupColumnValue(MISSING);
+      dim.setDataType(XSchema.DATE);
+      dim.setDateLevelValue(String.valueOf(DateRangeRef.MONTH_INTERVAL));
+      dim.setTimeSeries(true);
+      info.removeXFields();
+      info.addXField(dim);
+
+      // precondition: the graph of the chart cannot be built, on every request
+      for(int i = 0; i < 2; i++) {
+         assertMissingColumn(assertThrows(Exception.class, () -> box.getVGraphPair(CHART)));
+      }
+
+      return chart;
+   }
+
+   private static void setVisible(ChartVSAssembly chart, boolean visible) {
+      String value = String.valueOf(visible ? VSAssembly.ALWAYS_SHOW : VSAssembly.ALWAYS_HIDE);
+      chart.getVSAssemblyInfo().setVisibleValue(value);
+      chart.getVSAssemblyInfo().setVisible(value);
+      assertEquals(visible, chart.isVisible());
+   }
+
+   private static void assertMissingColumn(Throwable ex) {
+      for(Throwable t = ex; t != null; t = t.getCause()) {
+         if(t instanceof ColumnNotFoundException && t.getMessage().contains(MISSING)) {
+            return;
+         }
+      }
+
+      fail("expected the missing column failure, got " + ex, ex);
+   }
+
+   private ViewsheetSandbox getBox() {
+      RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
+      return rvs.getViewsheetSandbox().orElseThrow();
+   }
+
+   private static OpenViewsheetEvent createOpenViewsheetEvent() {
+      OpenViewsheetEvent event = new OpenViewsheetEvent();
+      event.setEntryId(ASSET_ID);
+      event.setViewer(true);
+      return event;
+   }
+
+   @RegisterExtension
+   RuntimeViewsheetExtension viewsheetResource =
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
+
+   private static final String ASSET_ID = "1^128^__NULL__^TEST_GraphRender";
+   private static final String CHART = "Chart1";
+   private static final String MISSING = "No Such Column";
+}
