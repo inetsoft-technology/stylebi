@@ -1062,7 +1062,9 @@ public class AssemblyPropertyService {
     * {@link VSInputService#resolvesToVariableBinding} throws a {@link MessageException} for an
     * unresolvable binding (bug #78263). Called directly from the guards it would bypass the
     * reflective IllegalArgumentException translation in {@code writeModel} and surface as an
-    * opaque 500, so refuse it here as a named 400, message unchanged.
+    * opaque 500, so refuse it here as a named 400. The message is prefixed with the data input
+    * field ({@code table}, which {@code columnValue} aliases into) so the caller can tell which
+    * write was refused; the original text follows unchanged.
     */
    private static boolean resolvesToVariableBindingOrRefuse(
       Worksheet ws, Viewsheet vs, String table, String columnValue)
@@ -1071,7 +1073,8 @@ public class AssemblyPropertyService {
          return VSInputService.resolvesToVariableBinding(ws, vs, table, columnValue);
       }
       catch(MessageException e) {
-         throw new IllegalArgumentException(e.getMessage(), e);
+         throw new IllegalArgumentException(
+            "'dataInputPaneModel.table' (or 'columnValue'): " + e.getMessage(), e);
       }
    }
 
