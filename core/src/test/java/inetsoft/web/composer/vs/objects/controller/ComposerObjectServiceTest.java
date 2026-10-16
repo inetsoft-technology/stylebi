@@ -223,6 +223,34 @@ class ComposerObjectServiceTest {
    }
 
    @Test
+   void aDraggedCalendarIsFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      CalendarVSAssembly calendar = new CalendarVSAssembly(vs, "Calendar1");
+      calendar.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      calendar.getVSAssemblyInfo().setPixelSize(new Dimension(300, 332));
+      vs.addAssembly(calendar);
+
+      resize(vs, "Calendar1", 300, 400);
+
+      assertTrue(calendar.getVSAssemblyInfo().isUserSize());
+   }
+
+   @Test
+   void aCalendarResizedToItsOwnSizeIsNotFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      CalendarVSAssembly calendar = new CalendarVSAssembly(vs, "Calendar1");
+      calendar.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      calendar.getVSAssemblyInfo().setPixelSize(new Dimension(300, 332));
+      vs.addAssembly(calendar);
+
+      resize(vs, "Calendar1", 300, 332);
+
+      assertFalse(calendar.getVSAssemblyInfo().isUserSize(), "a position-only change is not the author's size");
+   }
+
+   @Test
    void aDraggedTableIsNotFlagged() throws Exception {
       Viewsheet vs = new Viewsheet();
       vs.getVSAssemblyInfo().setName("vs1");

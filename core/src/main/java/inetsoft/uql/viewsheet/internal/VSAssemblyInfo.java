@@ -1485,6 +1485,14 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
+    * Write this type's density size. Runs at creation and on a dashboard density change only, not
+    * on a restore, Modernize or Revert. Empty for a type with no size rule, or whose rule runs in
+    * seedChromeDefaults.
+    */
+   protected void seedDensitySize(VizContext ctx) {
+   }
+
+   /**
     * Whether a format.css class set this assembly's padding. setCSSDefaults writes it before the
     * seed runs and there is no tier to record it in, so the dictionary is asked directly.
     */

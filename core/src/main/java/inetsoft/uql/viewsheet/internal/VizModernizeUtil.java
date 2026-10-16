@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 
@@ -101,11 +102,48 @@ public final class VizModernizeUtil {
    /**
     * Re-seed every target under the mark it already holds, stamping nothing. For a density change,
     * which moves no mark and so collects nothing through applyMark, but still has to re-fire the
-    * density-derived control-height substitution.
+    * density-derived control-height substitution and move a density size.
     */
    public static int reseed(Viewsheet vs) {
+      List<VSAssemblyInfo> targets = collect(vs, info -> true);
       // mark is inert here: nothing is stamped, so every target keeps the one it has
-      return seedAll(vs, null, collect(vs, info -> true), false, false);
+      int seeded = seedAll(vs, null, targets, false, false);
+
+      // the one re-seed that calls seedDensitySize; a restore, Modernize and Revert do not
+      for(VSAssemblyInfo info : targets) {
+         info.seedDensitySize(VizContext.of(info));
+      }
+
+      keepOnBottomTabs(vs);
+      return seeded;
+   }
+
+   /**
+    * A bottom-tabs strip sits under its children, and a density change can alter how tall a child
+    * stands on it: a box the size rule resized, or a dropdown's title lane. Re-flush them all.
+    */
+   private static void keepOnBottomTabs(Viewsheet vs) {
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(!(assembly instanceof TabVSAssembly tab) ||
+            !((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).getBottomTabsValue())
+         {
+            continue;
+         }
+
+         TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
+         String[] children = tab.getAssemblies();
+
+         if(children == null) {
+            continue;
+         }
+
+         for(String name : children) {
+            if(vs.getAssembly(name) instanceof VSAssembly child) {
+               TabVSAssemblyInfo.repositionChildForBottomTabs(
+                  tabInfo, child.getVSAssemblyInfo(), child.getPixelSize());
+            }
+         }
+      }
    }
 
    /**

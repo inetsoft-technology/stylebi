@@ -279,6 +279,60 @@ public final class VSDensityDefaults {
    private static final int CONTAINER_LANES = 12;
 
    /**
+    * The default size of a calendar: its title lane, the month band and seven rows - the weekday
+    * header and six weeks. Rows fill the box, so this is the only way density reaches them.
+    * Compact equals the legacy 300x300, so the default tier is unchanged. Density has no opinion
+    * on the width.
+    */
+   public static Dimension calendarSize(VizContext ctx) {
+      if(!ctx.modern) {
+         return legacyCalendarSize();
+      }
+
+      return calendarSizeForMode(ctx.density);
+   }
+
+   /**
+    * Whether a size is one calendarSize() could have written. Anything else is an author size.
+    */
+   public static boolean isSeededCalendarSize(Dimension size) {
+      if(size == null) {
+         return false;
+      }
+
+      return size.equals(legacyCalendarSize())
+         || size.equals(calendarSizeForMode(COMFORTABLE))
+         || size.equals(calendarSizeForMode(COMPACT))
+         || size.equals(calendarSizeForMode(DENSE));
+   }
+
+   /**
+    * The pre-density default, read by both the producer and the recognizer so they cannot drift.
+    * Must equal the size CalendarVSAssemblyInfo's constructor sets.
+    */
+   private static Dimension legacyCalendarSize() {
+      return new Dimension(CALENDAR_WIDTH, LEGACY_CALENDAR_HEIGHT);
+   }
+
+   private static Dimension calendarSizeForMode(String mode) {
+      return new Dimension(CALENDAR_WIDTH, titleHeightForMode(mode) + CALENDAR_NAV_BAND
+         + CALENDAR_ROWS * calendarRowHeightForMode(mode));
+   }
+
+   private static final int CALENDAR_WIDTH = 300;
+   private static final int LEGACY_CALENDAR_HEIGHT = 300;
+
+   /**
+    * The browser's month band, which holds the 32px navigation buttons at every tier.
+    */
+   private static final int CALENDAR_NAV_BAND = 36;
+
+   /**
+    * The weekday header and six weeks.
+    */
+   private static final int CALENDAR_ROWS = 7;
+
+   /**
     * Title-lane height for one assembly: the density row when the assembly is marked, its author
     * has not set a height, and the stored height is still the type's pre-density default;
     * otherwise the stored height unchanged. The stored height is a parameter so a composer dialog
@@ -350,6 +404,20 @@ public final class VSDensityDefaults {
          return 28;
       default:
          return 24;
+      }
+   }
+
+   /**
+    * Calendar row height for a density mode. Unrecognized modes fall back to dense.
+    */
+   static int calendarRowHeightForMode(String mode) {
+      switch(mode) {
+      case COMFORTABLE:
+         return 38;
+      case COMPACT:
+         return 34;
+      default:
+         return 30;
       }
    }
 

@@ -108,6 +108,10 @@ public class CalendarPropertyDialogService {
          calendarAssemblyInfo.getVizMark() == null ? null :
             !calendarAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(calendarAssembly.getContainer() != null);
+      // a dropdown draws no stored height, and the rule's 300 width would squeeze a double calendar
+      VSDialogService.readSizeFollowsDensity(calendarAssemblyInfo, sizePositionPaneModel,
+         calendarAssemblyInfo.getShowTypeValue() == CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE &&
+            calendarAssemblyInfo.getViewModeValue() == CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE);
 
       generalPropPaneModel.setShowEnabledGroup(true);
       generalPropPaneModel.setEnabled(calendarAssemblyInfo.getEnabledValue());
@@ -242,7 +246,43 @@ public class CalendarPropertyDialogService {
       info.setTitleVisibleValue(titlePropPaneModel.isVisible());
       info.setTitleValue(titlePropPaneModel.getTitle());
 
-      dialogService.setAssemblySize(info, sizePositionPaneModel);
+      // the dialog resizes the box itself on a show type or view mode switch, so that size is
+      // neither reset to the density size nor recorded as the author's
+      boolean switched = calendarAdvancedPaneModel.getShowType() != info.getShowTypeValue() ||
+         calendarAdvancedPaneModel.getViewMode() != info.getViewModeValue();
+      Boolean followsSize = sizePositionPaneModel.getSizeFollowsDensity();
+
+      if(switched) {
+         dialogService.setAssemblySize(info, sizePositionPaneModel);
+
+         // an untick never resizes, so it holds through the switch
+         if(Boolean.FALSE.equals(followsSize)) {
+            info.setUserSize(true);
+         }
+      }
+      else {
+         // Apply keeps the dialog open, so a tick can predate a switch to dropdown or double
+         if(Boolean.TRUE.equals(followsSize) &&
+            (calendarAdvancedPaneModel.getShowType() != CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE ||
+             calendarAdvancedPaneModel.getViewMode() != CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE))
+         {
+            sizePositionPaneModel.setSizeFollowsDensity(null);
+         }
+
+         // only ticking moves a box; one already following keeps its size, and the locked fields
+         // can still hold a size from before an Apply
+         boolean keepSize = Boolean.TRUE.equals(sizePositionPaneModel.getSizeFollowsDensity()) &&
+            info.followsDensitySize();
+
+         if(!keepSize) {
+            Dimension shownSize =
+               new Dimension(dialogService.getAssemblySize(info, viewsheet.getViewsheet()));
+            VSDialogService.applyDensitySize(info, sizePositionPaneModel);
+            dialogService.setAssemblySize(info, sizePositionPaneModel);
+            VSDialogService.recordAuthorSize(info, sizePositionPaneModel, shownSize);
+         }
+      }
+
       dialogService.setAssemblyPosition(info, sizePositionPaneModel);
       Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
 
