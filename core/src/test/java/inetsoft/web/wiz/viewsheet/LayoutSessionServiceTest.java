@@ -314,6 +314,63 @@ class LayoutSessionServiceTest {
     * {@code Viewsheet} with one real {@code TextVSAssembly} ("Text1") and a real
     * {@code LayoutInfo}.
     */
+   /** Bug 78577: a cached clone must not be served once its master layout is gone. */
+   @Test
+   void focusedLayoutRemovedFromMasterIsUnknownAndItsStateIsEvicted() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.service.resolveForRead("tok1", AGENT, PRINT_LAYOUT);
+      String cloneId = fx.lastMintedCloneId();
+      fx.masterVs.getLayoutInfo().setPrintLayout(null);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.resolveForRead("tok1", AGENT, PRINT_LAYOUT));
+
+      assertTrue(thrown.getMessage().contains("Unknown layout"), thrown.getMessage());
+      verify(fx.viewsheetService).flushRuntimeSheet(cloneId);
+      verify(fx.masterRvs, times(2)).resetLayoutUndoRedo(); // mint + eviction
+      assertThrows(IllegalArgumentException.class,
+                   () -> fx.service.focusLayout("tok1", AGENT, PRINT_LAYOUT));
+   }
+
+   /** An unknown name must not open a temporary runtime, nor disturb the focused good layout. */
+   @Test
+   void unrelatedUnknownNameOpensNothingAndKeepsTheFocusedLayout() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.service.mutateLayout("tok1", AGENT, PRINT_LAYOUT, (c, m, id, d) -> { });
+      clearInvocations(fx.viewsheetService, fx.masterRvs);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> fx.service.resolveForRead("tok1", AGENT, "NoSuch"));
+
+      verify(fx.viewsheetService, never())
+         .openTemporaryViewsheet(anyString(), any(AssetEntry.class), any());
+      verify(fx.viewsheetService, never()).flushRuntimeSheet(anyString());
+      verify(fx.masterRvs, never()).resetLayoutUndoRedo();
+      fx.service.resolveForRead("tok1", AGENT, PRINT_LAYOUT);
+      verify(fx.viewsheetService, never())
+         .openTemporaryViewsheet(anyString(), any(AssetEntry.class), any());
+   }
+
+   @Test
+   void evictLayoutOnlyAffectsTheMatchingFocusedLayout() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.installNamedLayout("A");
+      fx.service.resolveForRead("tok1", AGENT, "A");
+      String cloneId = fx.lastMintedCloneId();
+      clearInvocations(fx.viewsheetService, fx.masterRvs);
+
+      fx.service.evictLayout("tok1", PRINT_LAYOUT, fx.masterRvs);
+      verify(fx.viewsheetService, never()).flushRuntimeSheet(anyString());
+      verify(fx.masterRvs, never()).resetLayoutUndoRedo();
+
+      fx.service.evictLayout("tok1", "A", fx.masterRvs);
+      verify(fx.viewsheetService).flushRuntimeSheet(cloneId);
+      verify(fx.masterRvs).resetLayoutUndoRedo();
+   }
+
    private static final class Fixture {
       final ViewsheetSessionService viewsheetSessions = mock(ViewsheetSessionService.class);
       final ViewsheetService viewsheetService = mock(ViewsheetService.class);

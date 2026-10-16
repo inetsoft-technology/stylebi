@@ -181,6 +181,26 @@ class LayoutUndoServiceTest {
     * VSLayoutControllerServiceProxy}/{@code DeviceRegistry} boundary), the same fixture shape
     * {@code LayoutMutationServiceTest} uses.
     */
+   /** Bug 78577 S2: undo must not resurrect a cleared print layout. */
+   @Test
+   void layoutUndoAfterThePrintLayoutIsClearedIsUnknownLayoutAndRestoresNothing()
+      throws Exception
+   {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.mutationService.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize",
+         VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 555, "y", 666, "width", 70, "height", 80)), false);
+      fx.masterVs.getLayoutInfo().setPrintLayout(null);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> fx.undoService.layoutUndo("tok1", AGENT, PRINT_LAYOUT));
+      assertThrows(IllegalArgumentException.class,
+                   () -> fx.undoService.layoutRedo("tok1", AGENT, PRINT_LAYOUT));
+
+      assertNull(fx.masterVs.getLayoutInfo().getPrintLayout());
+   }
+
    private static final class Fixture {
       final ViewsheetSessionService viewsheetSessions = mock(ViewsheetSessionService.class);
       final ViewsheetService viewsheetService = mock(ViewsheetService.class);

@@ -219,6 +219,19 @@ public class LayoutSessionService {
    {
       ActiveClone active = clones.get(sessionToken);
 
+      // The existence check comes first: the clone cache and the master's layout undo stack must
+      // not outlive the master layout they were minted from (print clear, device delete, or any
+      // non-plugin delete), and no temporary runtime should be opened for an unknown name.
+      AbstractLayout found = vsLayoutService.findViewsheetLayout(master.getViewsheet(), layoutName)
+         .orElse(null);
+
+      if(found == null) {
+         // Only the missing layout's own state is dropped. An unrelated typo must leave the
+         // currently focused (good) layout's clone and undo history untouched.
+         evictLayout(sessionToken, layoutName, master);
+         throw unknownLayout(layoutName);
+      }
+
       if(active != null && active.layoutName().equals(layoutName)) {
          return new Resolved(viewsheetService.getViewsheet(active.cloneRuntimeId(), agent),
                               active.cloneRuntimeId());
@@ -233,11 +246,6 @@ public class LayoutSessionService {
          master.getID(), (AssetEntry) master.getEntry().clone(), agent);
       RuntimeViewsheet clone = viewsheetService.getViewsheet(cloneRuntimeId, agent);
       clone.setOriginalID(master.getID());
-
-      AbstractLayout found = vsLayoutService.findViewsheetLayout(master.getViewsheet(), layoutName)
-         .orElseThrow(() -> new IllegalArgumentException(
-            "Unknown layout \"" + layoutName + "\" -- call list_layouts to see the print and " +
-            "device layouts defined on this viewsheet."));
 
       AbstractLayout layoutClone = found.clone();
       // Use scale font 1 when editing layouts, mirroring changeViewsheetLayout /
@@ -256,6 +264,30 @@ public class LayoutSessionService {
 
       clones.put(sessionToken, new ActiveClone(layoutName, cloneRuntimeId));
       return new Resolved(clone, cloneRuntimeId);
+   }
+
+   /**
+    * Drops the cached clone for {@code layoutName} and resets {@code master}'s layout undo/redo
+    * stack, but only when that layout is the one currently focused for {@code sessionToken}; a
+    * different focused layout's clone and undo history are left alone. Called when the master
+    * layout is removed or replaced (print clear, device delete/create) so a later same-named
+    * layout never inherits the old one's clone or undo checkpoints.
+    */
+   public void evictLayout(String sessionToken, String layoutName, RuntimeViewsheet master) {
+      ActiveClone active = clones.get(sessionToken);
+
+      if(active != null && active.layoutName().equals(layoutName)) {
+         clones.remove(sessionToken);
+         viewsheetService.flushRuntimeSheet(active.cloneRuntimeId());
+         master.resetLayoutUndoRedo();
+      }
+   }
+
+   /** The one Unknown-layout error every layout tool raises. */
+   static IllegalArgumentException unknownLayout(String layoutName) {
+      return new IllegalArgumentException(
+         "Unknown layout \"" + layoutName + "\" -- call list_layouts to see the print and " +
+         "device layouts defined on this viewsheet.");
    }
 
    /** One mutation against a layout's preview-clone runtime. */

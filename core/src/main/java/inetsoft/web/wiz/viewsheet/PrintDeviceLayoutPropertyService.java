@@ -72,11 +72,13 @@ public class PrintDeviceLayoutPropertyService {
    @Autowired
    public PrintDeviceLayoutPropertyService(ViewsheetSessionService sessions,
                                             ViewsheetPropertyDialogService dialogService,
-                                            DeviceRegistry deviceRegistry)
+                                            DeviceRegistry deviceRegistry,
+                                            LayoutSessionService layoutSessions)
    {
       this.sessions = sessions;
       this.dialogService = dialogService;
       this.deviceRegistry = deviceRegistry;
+      this.layoutSessions = layoutSessions;
    }
 
    /**
@@ -226,6 +228,8 @@ public class PrintDeviceLayoutPropertyService {
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
       });
 
+      layoutSessions.evictLayout(
+         sessionToken, Catalog.getCatalog(user).getString("Print Layout"), rvs);
       return new ClearPrintLayoutResult(true, discarded, warnings);
    }
 
@@ -395,7 +399,7 @@ public class PrintDeviceLayoutPropertyService {
       Boolean mobileOnly = safePatch.containsKey("mobileOnly")
          ? toNullableBoolean("mobileOnly", safePatch.get("mobileOnly")) : null;
 
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
          ScreensPaneModel screensPane = model.screensPane();
          List<VSDeviceLayoutDialogModel> layouts = screensPane.getDeviceLayouts();
@@ -472,6 +476,14 @@ public class PrintDeviceLayoutPropertyService {
          requireUsableUnits(screensPane);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
       });
+
+      // After the mutation (the master is no longer mid-write). A delete drops the layout, and a
+      // create may reuse a name whose old clone/undo stack must not leak into the new layout.
+      if("create".equals(normalizedAction) || "delete".equals(normalizedAction)) {
+         layoutSessions.evictLayout(sessionToken, name, sessions.resolve(sessionToken, user));
+      }
+
+      return warnings;
    }
 
    /**
@@ -747,4 +759,5 @@ public class PrintDeviceLayoutPropertyService {
    private final ViewsheetSessionService sessions;
    private final ViewsheetPropertyDialogService dialogService;
    private final DeviceRegistry deviceRegistry;
+   private final LayoutSessionService layoutSessions;
 }

@@ -270,7 +270,7 @@ class LayoutReadServiceTest {
       ViewsheetPropertyDialogService dialogService = mock(ViewsheetPropertyDialogService.class);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       PrintDeviceLayoutPropertyService writeService = new PrintDeviceLayoutPropertyService(
-         writeSessions, dialogService, mock(DeviceRegistry.class));
+         writeSessions, dialogService, mock(DeviceRegistry.class), mock(LayoutSessionService.class));
 
       ScreensPaneModel[] screensPaneHolder = { new ScreensPaneModel() };
       when(dialogService.getViewsheetInfo(eq("rt1"), eq(AGENT))).thenAnswer(
@@ -327,6 +327,27 @@ class LayoutReadServiceTest {
     * {@code LayoutSessionService}/{@code DeviceRegistry} and a real {@code VSLayoutService},
     * backed by a real master {@code Viewsheet}.
     */
+   /** Bug 78577: S1 (print) and S3 (device) after the layout is removed. */
+   @Test
+   void getAfterLayoutRemovalIsUnknownLayoutForPrintAndDevice() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.installDeviceLayout("Device A", true, "d1");
+      fx.service.get("tok1", AGENT, PRINT_LAYOUT);
+      fx.service.get("tok1", AGENT, "Device A");
+
+      fx.masterVs.getLayoutInfo().setPrintLayout(null);
+      IllegalArgumentException print = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.get("tok1", AGENT, PRINT_LAYOUT));
+      assertTrue(print.getMessage().contains("Unknown layout"), print.getMessage());
+
+      fx.service.get("tok1", AGENT, "Device A");
+      fx.masterVs.getLayoutInfo().setViewsheetLayouts(new ArrayList<>());
+      IllegalArgumentException device = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.get("tok1", AGENT, "Device A"));
+      assertTrue(device.getMessage().contains("Unknown layout"), device.getMessage());
+   }
+
    private static final class Fixture {
       final ViewsheetSessionService viewsheetSessions = mock(ViewsheetSessionService.class);
       final LayoutSessionService layoutSessions = mock(LayoutSessionService.class);
