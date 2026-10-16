@@ -83,7 +83,6 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.MockedStatic;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -302,7 +301,7 @@ class DataSpaceSettingsServiceTest {
 
       // 3 files, keep 2 -> delete exactly 1, the oldest.
       verify(externalStorageService, times(1)).delete(anyString());
-      verify(externalStorageService).delete("ai-snapshots" + File.separator + "admin-1-20260101.zip");
+      verify(externalStorageService).delete("ai-snapshots/admin-1-20260101.zip");
    }
 
    // [G6] at or under the limit: nothing is deleted
@@ -428,10 +427,60 @@ class DataSpaceSettingsServiceTest {
       // 2 files, keep 1 -> delete exactly 1: the OLDEST. With the broken (int) cast, this pair
       // sorts backwards and the NEWEST is deleted instead.
       verify(externalStorageService, times(1)).delete(anyString());
-      verify(externalStorageService)
-         .delete("ai-snapshots" + File.separator + "admin-old-20230101000000.zip");
-      verify(externalStorageService, never())
-         .delete("ai-snapshots" + File.separator + "admin-new-20260101000000.zip");
+      verify(externalStorageService).delete("ai-snapshots/admin-old-20230101000000.zip");
+      verify(externalStorageService, never()).delete("ai-snapshots/admin-new-20260101000000.zip");
+   }
+
+   // Bug #78676: the AI-snapshot delete key is joined with "/", as getBackFile() writes it, never
+   // the host File.separator. On Windows "ai-snapshots\x.zip" is a different, missing key in
+   // S3/GCS/Azure, and their deletes of a missing key are silent no-ops, so the folder grew
+   // without bound.
+   @Test
+   void aiSnapshotPruning_deleteKeysUseForwardSlashRegardlessOfHostSeparator() throws Exception {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("ai.snapshot.count")).thenReturn("1");
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of(
+         "admin-a-20261016100000.zip", "admin-b-20261016110000.zip"));
+
+      service.doBackup(BackupDataModel.builder().dataspace("admin-chg-15").aiSnapshot(true).build());
+
+      verify(externalStorageService, times(1)).delete("ai-snapshots/admin-a-20261016100000.zip");
+      verify(externalStorageService, times(1)).delete(anyString());
+      verify(externalStorageService, never()).delete(contains("\\"));
+   }
+
+   // Bug #78676: two snapshots of one transaction in the same second tie on the timestamp, and
+   // getAvailableFile() names the later one x(1).zip. Storage lists names lexicographically, so
+   // x(1).zip comes before x.zip ("(" < "."); without the copy-number tiebreak the prune deleted
+   // the newer copy and kept the older one.
+   @Test
+   void aiSnapshotPruning_sameSecondCopyIsNewerThanItsTwin() throws Exception {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("ai.snapshot.count")).thenReturn("1");
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of(
+         "admin-t-20261016120000(1).zip", "admin-t-20261016120000.zip"));
+
+      service.doBackup(BackupDataModel.builder().dataspace("admin-chg-16").aiSnapshot(true).build());
+
+      verify(externalStorageService, times(1)).delete("ai-snapshots/admin-t-20261016120000.zip");
+      verify(externalStorageService, times(1)).delete(anyString());
+   }
+
+   // Bug #78676: the copy number is compared numerically, so (10) is newer than (9) and (2),
+   // although a lexicographic listing puts (10) right after (1).
+   @Test
+   void aiSnapshotPruning_copyNumbersCompareNumerically() throws Exception {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("ai.snapshot.count")).thenReturn("1");
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of(
+         "admin-t-20261016120000(1).zip", "admin-t-20261016120000(10).zip",
+         "admin-t-20261016120000(2).zip", "admin-t-20261016120000(9).zip",
+         "admin-t-20261016120000.zip"));
+
+      service.doBackup(BackupDataModel.builder().dataspace("admin-chg-17").aiSnapshot(true).build());
+
+      verify(externalStorageService, times(4)).delete(anyString());
+      verify(externalStorageService).delete("ai-snapshots/admin-t-20261016120000.zip");
+      verify(externalStorageService).delete("ai-snapshots/admin-t-20261016120000(1).zip");
+      verify(externalStorageService).delete("ai-snapshots/admin-t-20261016120000(2).zip");
+      verify(externalStorageService).delete("ai-snapshots/admin-t-20261016120000(9).zip");
    }
 
    // [G8] a pruning failure must not discard a snapshot that was already durably written
@@ -488,7 +537,7 @@ class DataSpaceSettingsServiceTest {
       service.doBackup(BackupDataModel.builder().dataspace("admin-chg-11").aiSnapshot(true).build());
 
       verify(externalStorageService, times(1)).delete(anyString());
-      verify(externalStorageService).delete("ai-snapshots" + File.separator + zips.get(0));
+      verify(externalStorageService).delete("ai-snapshots/" + zips.get(0));
    }
 
    // [G9] the warning is half the fix: without it the fallback is silent, and how many snapshots
@@ -627,6 +676,26 @@ class DataSpaceSettingsServiceTest {
       assertEquals(2, actual.size());
       assertEquals(20260101120000L, actual.get(0).timestamp());
       assertEquals(20260101120000L, actual.get(1).timestamp());
+   }
+
+   // Bug #78676: same-second copies are listed oldest first - x.zip, then x(1).zip, x(2).zip,
+   // x(10).zip - although storage lists x(1).zip and x(10).zip before x.zip.
+   @Test
+   void listAiSnapshots_ordersSameSecondCopiesByCopyNumber() {
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of(
+         "admin-chg-1-20260101120000(1).zip",
+         "admin-chg-1-20260101120000(10).zip",
+         "admin-chg-1-20260101120000(2).zip",
+         "admin-chg-1-20260101120000.zip"));
+
+      List<AiSnapshotInfo> actual = service.listAiSnapshots("chg-1");
+
+      assertEquals(List.of(
+         "ai-snapshots/admin-chg-1-20260101120000.zip",
+         "ai-snapshots/admin-chg-1-20260101120000(1).zip",
+         "ai-snapshots/admin-chg-1-20260101120000(2).zip",
+         "ai-snapshots/admin-chg-1-20260101120000(10).zip"),
+         actual.stream().map(AiSnapshotInfo::path).toList());
    }
 
    // A transactionId with no matching files returns an empty list, not an error - the zero-row

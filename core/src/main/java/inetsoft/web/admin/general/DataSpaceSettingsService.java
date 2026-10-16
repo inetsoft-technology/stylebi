@@ -245,17 +245,7 @@ public class DataSpaceSettingsService extends BackupSupport {
 
       List<String> zips = this.externalStorageService.listFiles(AI_SNAPSHOT_FOLDER).stream()
          .filter(f -> f.endsWith(".zip") && f.contains(BACKUP_PATH_SPLIT))
-         .sorted((z1, z2) -> {
-            long z1Time = getTimestamp(z1);
-            long z2Time = getTimestamp(z2);
-
-            // Long.compare, NOT (int) (z1Time - z2Time): these are 14-digit yyyyMMddHHmmss
-            // timestamps, and a long difference that size overflows int (limit ~2.15 billion) for
-            // any pair more than roughly a year apart, which can invert the sign and delete the
-            // newest snapshot instead of the oldest - or, with enough files, make sorted() throw
-            // "Comparison method violates its general contract!".
-            return Long.compare(z1Time, z2Time);
-         })
+         .sorted(AI_SNAPSHOT_ORDER)
          .toList();
 
       if(zips.size() <= count) {
@@ -266,7 +256,9 @@ public class DataSpaceSettingsService extends BackupSupport {
 
       for(int i = 0; i < deleteCount; i++) {
          try {
-            this.externalStorageService.delete(AI_SNAPSHOT_FOLDER + File.separator + zips.get(i));
+            // external storage keys always use "/" (as getBackFile() writes them); File.separator
+            // is "\\" on Windows, which S3/GCS/Azure treat as a different, missing key
+            this.externalStorageService.delete(AI_SNAPSHOT_FOLDER + "/" + zips.get(i));
          }
          catch(IOException e) {
             LOG.error("Failed to delete AI snapshot file {}", zips.get(i), e);
@@ -304,8 +296,8 @@ public class DataSpaceSettingsService extends BackupSupport {
       return this.externalStorageService.listFiles(AI_SNAPSHOT_FOLDER).stream()
          .filter(f -> f.endsWith(".zip") && f.startsWith(prefix))
          .filter(f -> transactionId.equals(extractTransactionId(f, prefix)))
+         .sorted(AI_SNAPSHOT_ORDER)
          .map(f -> new AiSnapshotInfo(AI_SNAPSHOT_FOLDER + "/" + f, getTimestamp(f)))
-         .sorted(Comparator.comparingLong(AiSnapshotInfo::timestamp))
          .toList();
    }
 
@@ -460,6 +452,19 @@ public class DataSpaceSettingsService extends BackupSupport {
    // name-yyyyMMddHHmmss.zip, as written by getBackFile(), with the "(n)" of getAvailableFile()
    private static final Pattern BACKUP_FILE_NAME =
       Pattern.compile("^.+-\\d{14}(?:\\((\\d+)\\))?\\.zip$");
+
+   /**
+    * Oldest first, for both {@link #deleteRedundantAiSnapshotFiles} and {@link #listAiSnapshots}.
+    * The timestamp has second resolution, so two snapshots of one transaction written in the
+    * same second tie, and {@link ExternalStorageService#getAvailableFile} names the later one
+    * {@code x(1).zip}; the copy number breaks that tie (numerically, so {@code (10)} follows
+    * {@code (9)}). Without it the order is the listing order, which puts {@code x(1).zip} before
+    * {@code x.zip} ("(" sorts before "."). comparingLong, not a subtracted difference: these
+    * 14-digit timestamps overflow int for any pair more than about a year apart.
+    */
+   private static final Comparator<String> AI_SNAPSHOT_ORDER =
+      Comparator.comparingLong(DataSpaceSettingsService::getTimestamp)
+         .thenComparingInt(DataSpaceSettingsService::getCopyNumber);
 
    private static final Lock backupLock = new ReentrantLock();
    private static final Logger LOG = LoggerFactory.getLogger(DataSpaceSettingsService.class);
