@@ -28,6 +28,7 @@ import { StompClientService } from "../../../../../../../../shared/stomp/stomp-c
 import { pressEscape, settle, trackDialog } from "../../../../../testing/escape-press";
 import { ImportAssetResponse } from "../../model/import-asset-response";
 import { RepositoryTreeNode } from "../../repository-tree-node";
+import { InputNameDialogComponent } from "../input-name-dialog/input-name-dialog.component";
 import { SelectAssetFolderDialogComponent } from "../select-asset-folder-dialog/select-asset-folder-dialog.component";
 import { ImportAssetDialogComponent } from "./import-asset-dialog.component";
 
@@ -167,6 +168,33 @@ describe("ImportAssetDialogComponent Escape", () => {
       expect(locationState.closed).toBe(false);
       expect(importState.closed).toBe(false);
       expect(dialog.openDialogs).toEqual([importRef, locationRef]);
+   });
+
+   // Input Name keeps its own window keyup listener; only it may close on that press
+   it("closes only Input Name when Escape is pressed in it over Select Target Location", async () => {
+      const importRef = await openImport();
+      const importState = trackDialog(importRef);
+      const locationRef = await openTargetLocation(importRef);
+      const locationState = trackDialog(locationRef);
+      (locationRef.componentInstance as SelectAssetFolderDialogComponent).doContextMenu(<any> {
+         menu: { name: "new-folder" }, node: { data: {} }
+      });
+      await settle();
+      const nameRef = dialog.openDialogs[2];
+      expect(nameRef.componentInstance).toBeInstanceOf(InputNameDialogComponent);
+      const nameState = trackDialog(nameRef);
+      (document.querySelector("em-input-name-dialog input") as HTMLElement).focus();
+
+      await pressEscape();
+
+      expect(nameState).toEqual({ closed: true, result: null });
+      expect(locationState.closed).toBe(false);
+      expect(importState.closed).toBe(false);
+      expect(dialog.openDialogs).toEqual([importRef, locationRef]);
+
+      await pressEscape();
+      expect(locationState.closed).toBe(true);
+      expect(importState.closed).toBe(false);
    });
 
    it("cancels on Escape when it is the only dialog", async () => {
