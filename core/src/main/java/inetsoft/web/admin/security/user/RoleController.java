@@ -386,27 +386,26 @@ public class RoleController {
          .map(m -> systemAdminService.createIdentity(m.identityID(), m.type()))
          .collect(Collectors.toSet());
 
-      List<IdentityID> modelIds = Arrays.stream(models)
-         .map(m -> m.identityID())
-         .collect(Collectors.toList());
-      List<String> modelNames = modelIds.stream().map(id -> id.name).toList();
-
       boolean includesDefaultOrg = false;
       boolean includesSelfOrg = false;
 
-      if(modelNames.contains(Organization.getDefaultOrganizationName()) ||
-         modelNames.contains(Organization.getSelfOrganizationName())) {
-         for(IdentityModel model:models) {
-            if(model.type() == Identity.ORGANIZATION && Organization.getDefaultOrganizationName().equals(model.identityID().name)) {
-               includesDefaultOrg = true;
-               break;
-            }
-            else if(model.type() == Identity.ORGANIZATION && Organization.getSelfOrganizationName().equals(model.identityID().name)) {
-               includesSelfOrg = true;
-               break;
-            }
+      for(IdentityModel model : models) {
+         if(model.type() != Identity.ORGANIZATION) {
+            continue;
+         }
+
+         String orgId = model.identityID().orgID;
+
+         if(IdentityService.isDefaultOrganizationID(orgId)) {
+            includesDefaultOrg = true;
+            break;
+         }
+         else if(IdentityService.isSelfOrganizationID(orgId)) {
+            includesSelfOrg = true;
+            break;
          }
       }
+
       if(includesDefaultOrg) {
          warnings.add(Catalog.getCatalog().getString("em.security.delDefOrg"));
       }
