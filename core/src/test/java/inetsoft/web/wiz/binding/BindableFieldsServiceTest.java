@@ -23,7 +23,10 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.CheckBoxVSAssembly;
 import inetsoft.uql.viewsheet.ComboBoxVSAssembly;
+import inetsoft.uql.viewsheet.ListInputVSAssembly;
+import inetsoft.uql.viewsheet.RadioButtonVSAssembly;
 import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
@@ -516,8 +519,12 @@ class BindableFieldsServiceTest {
       when(calendar.getTableName()).thenReturn("ORDERS1");
       ComboBoxVSAssembly combo = mock(ComboBoxVSAssembly.class);
       when(combo.getBoundTableName()).thenReturn("ORDERS1");
+      RadioButtonVSAssembly radio = mock(RadioButtonVSAssembly.class);
+      when(radio.getBoundTableName()).thenReturn("ORDERS1");
+      CheckBoxVSAssembly check = mock(CheckBoxVSAssembly.class);
+      when(check.getBoundTableName()).thenReturn("ORDERS1");
 
-      for(VSAssembly target : List.of(gauge, text, list, slider, calendar, combo)) {
+      for(VSAssembly target : List.of(gauge, text, list, slider, calendar, combo, radio, check)) {
          VSBindingTreeService tree = mock(VSBindingTreeService.class);
          List<BindableTable> tables = realisticServiceFor(twoTableTree(), "A1", target, tree)
             .list("rt1", "A1", principal());
@@ -530,32 +537,41 @@ class BindableFieldsServiceTest {
       }
    }
 
+   private static List<ListInputVSAssembly> listInputs() {
+      return List.of(mock(ComboBoxVSAssembly.class), mock(RadioButtonVSAssembly.class),
+                     mock(CheckBoxVSAssembly.class));
+   }
+
    @Test
    void aListInputMarksItsListBindingTableOverItsWriteBackTable() throws Exception {
-      ComboBoxVSAssembly combo = mock(ComboBoxVSAssembly.class);
-      when(combo.getBoundTableName()).thenReturn("ORDERS1");
-      when(combo.getTableName()).thenReturn("ORDER_DETAILS1");
+      for(ListInputVSAssembly input : listInputs()) {
+         when(input.getBoundTableName()).thenReturn("ORDERS1");
+         when(input.getTableName()).thenReturn("ORDER_DETAILS1");
 
-      List<BindableTable> tables = realisticServiceFor(
-         twoTableTree(), "A1", combo, mock(VSBindingTreeService.class))
-         .list("rt1", "A1", principal());
+         List<BindableTable> tables = realisticServiceFor(
+            twoTableTree(), "A1", input, mock(VSBindingTreeService.class))
+            .list("rt1", "A1", principal());
 
-      assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current());
-      assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current());
+         String type = input.getClass().getName();
+         assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current(), type);
+         assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current(), type);
+      }
    }
 
    @Test
    void aListInputWithoutAListBindingKeepsItsWriteBackTable() throws Exception {
-      ComboBoxVSAssembly combo = mock(ComboBoxVSAssembly.class);
-      when(combo.getBoundTableName()).thenReturn(null);
-      when(combo.getTableName()).thenReturn("ORDERS1");
+      for(ListInputVSAssembly input : listInputs()) {
+         when(input.getBoundTableName()).thenReturn(null);
+         when(input.getTableName()).thenReturn("ORDERS1");
 
-      List<BindableTable> tables = realisticServiceFor(
-         twoTableTree(), "A1", combo, mock(VSBindingTreeService.class))
-         .list("rt1", "A1", principal());
+         List<BindableTable> tables = realisticServiceFor(
+            twoTableTree(), "A1", input, mock(VSBindingTreeService.class))
+            .list("rt1", "A1", principal());
 
-      assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current());
-      assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current());
+         String type = input.getClass().getName();
+         assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current(), type);
+         assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current(), type);
+      }
    }
 
    @Test
