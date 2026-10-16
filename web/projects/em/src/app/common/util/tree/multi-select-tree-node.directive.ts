@@ -89,7 +89,7 @@ export class MultiSelectTreeNodeDirective {
             }
          }
       }
-      else if(event.ctrlKey) {
+      else if(event.ctrlKey || event.metaKey) {
          const index = newSelection.findIndex((n) => n.data == nodeData.data &&
             n.label == nodeData.label && n.level == nodeData.level);
 
