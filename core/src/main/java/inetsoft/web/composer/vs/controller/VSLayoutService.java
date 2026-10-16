@@ -24,6 +24,7 @@ import inetsoft.report.Margin;
 import inetsoft.report.composition.*;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.viewsheet.vslayout.*;
@@ -138,6 +139,13 @@ public class VSLayoutService {
       }
 
       assembly.initDefaultFormat();
+
+      // layout-only text: no dashboard density change reaches it, so it keeps the legacy height
+      if(assembly instanceof TextVSAssembly) {
+         Dimension size = assembly.getVSAssemblyInfo().getPixelSize();
+         assembly.getVSAssemblyInfo().setPixelSize(new Dimension(size.width, AssetUtil.defh));
+      }
+
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
       info.setPixelOffset(position);
 
