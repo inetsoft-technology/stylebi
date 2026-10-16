@@ -302,6 +302,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    @ViewChild("saveTableStyleDialog") saveTableStyleDialog: TemplateRef<any>;
    @ViewChild("viewsheetPropertyDialog") viewsheetPropertyDialog: TemplateRef<any>;
    @ViewChild("notifications") notifications: NotificationsComponent;
+   /** Agent open commands whose tab may be created after the command handler returns. */
+   private pendingAgentCommands = new Map<string, OpenComposerAssetCommand>();
    @ViewChild("tabContent") tabContentEle: ElementRef;
    @ViewChild("vsFormatsPane") vsFormatsPane: VSFormatsPane;
    @ViewChild("saveScriptDialog") saveScriptDialog: TemplateRef<any>;
@@ -1774,6 +1776,59 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       this.openSheet({ type: "viewsheet", assetId }, embedded, runtimeId, newSheet, gettingStarted);
    }
 
+   /**
+    * An agent (open_base_worksheet) opened worksheet {@code event.assetId} on a server runtime
+    * that differs from the one this tab is attached to. Re-point the tab at the agent's runtime
+    * only when that cannot lose or clobber the human's work; otherwise leave the tab alone and
+    * say so.
+    */
+   private attachAgentWorksheetRuntime(event: OpenSheetEvent, sheet: Worksheet,
+                                       runtimeId: string, newSheet: boolean,
+                                       gettingStarted: boolean): void
+   {
+      const stillStale = () => this.sheets.indexOf(sheet) >= 0 && sheet.runtimeId !== runtimeId;
+      const replace = () => {
+         this.closeSheet(sheet);
+         this.openSheet(event, false, runtimeId, newSheet, gettingStarted);
+         const command = this.pendingAgentCommands.get(runtimeId);
+         this.pendingAgentCommands.delete(runtimeId);
+
+         if(command) {
+            this.applyAgentActive(command);
+         }
+      };
+      const keep = () => this.navigateToExisting(this.sheets.indexOf(sheet));
+
+      if(sheet.closeProhibited) {
+         keep();
+         this.notifications.warning("_#(js:viewer.worksheet.agentRuntimeBusy)");
+      }
+      else if(!sheet.isModified()) {
+         replace();
+      }
+      else {
+         keep();
+         ComponentTool.showMessageDialog(this.modalService, "_#(js:Confirm)",
+            "_#(js:viewer.worksheet.agentRuntimeUnsaved)",
+            {
+               "yes": "_#(js:viewer.worksheet.agentRuntimeDiscard)",
+               "no": "_#(js:viewer.worksheet.agentRuntimeKeep)"
+            })
+            .then((button) => {
+               if(button !== "yes" || !stillStale()) {
+                  return;
+               }
+
+               if(sheet.closeProhibited) {
+                  this.notifications.warning("_#(js:viewer.worksheet.agentRuntimeBusy)");
+               }
+               else {
+                  replace();
+               }
+            }, () => { });
+      }
+   }
+
    public openSheet(event: OpenSheetEvent, embedded: boolean = false,
       runtimeId: string = null, newSheet = false, gettingStarted?: boolean): void {
       const type = event.type;
@@ -1781,6 +1836,14 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       let index = this.sheets.findIndex((sheet) =>
          sheet.id === id && sheet.runtimeId.indexOf(AssetConstants.PREVIEW_VIEWSHEET) == -1);
       this.scriptDisabled = true;
+
+      if(type === "worksheet" && runtimeId && index >= 0 &&
+         this.sheets[index].runtimeId !== runtimeId)
+      {
+         this.attachAgentWorksheetRuntime(event, <Worksheet> this.sheets[index], runtimeId,
+                                          newSheet, gettingStarted);
+         return;
+      }
 
       if(this.focusedSheet && this.focusedSheet.id === id && index >= 0) {
          return;
@@ -2974,8 +3037,15 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             }
             else {
                this.composerRecentService.addRecentlyViewed(createAssetEntry(command.assetId));
+               this.pendingAgentCommands.set(command.runtimeId, command);
                this.openWorksheet(command.assetId, false, command.runtimeId);
                this.applyAgentActive(command);
+
+               // a tab that was not created in this tick (modified-tab Discard dialog) applies
+               // it from attachAgentWorksheetRuntime once the tab exists
+               if(this.sheets.some((s) => s.runtimeId === command.runtimeId)) {
+                  this.pendingAgentCommands.delete(command.runtimeId);
+               }
             }
          });
       });

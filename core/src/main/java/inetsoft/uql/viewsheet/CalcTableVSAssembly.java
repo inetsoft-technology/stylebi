@@ -354,7 +354,9 @@ public class CalcTableVSAssembly extends TableDataVSAssembly implements FormulaT
                for(int c = 0; c < region.getColCount(); c++) {
                   CellBinding cellBinding = region.getCellBinding(r, c);
 
-                  if(cellBinding != null && ref.equals(cellBinding.getValue())) {
+                  if(cellBinding != null && cellBinding.getType() == CellBinding.BIND_COLUMN &&
+                     ref.equals(cellBinding.getValue()))
+                  {
                      region.setCellBinding(r, c, new TableCellBinding());
                   }
                }

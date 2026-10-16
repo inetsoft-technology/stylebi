@@ -28,6 +28,7 @@ import inetsoft.util.swap.SwapFileReadException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
+import inetsoft.util.script.ScriptException;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -245,5 +246,142 @@ class TableArrayTest {
          assertEquals(lost.getFile(),
             assertThrows(SwapFileReadException.class, () -> arr.getMember("*")).getFile());
       }
+   }
+
+   private static TableArray strictArray() {
+      TableArray arr = new TableArray(table());
+      arr.setCalcArray(true);
+      arr.setStrictMissing(true);
+      return arr;
+   }
+
+   /**
+    * Bug #78599: a calc-table formula reading data['NOPE'] (bare, '@' and ':' forms)
+    * must fail with a named error instead of reading as undefined/null.
+    */
+   @Test
+   void strictMissingColumnThrowsNamedError() {
+      TableArray arr = strictArray();
+
+      for(String id : new String[] { "NOPE", "NOPE@col1:a", "NOPE?col2=1", "Ent:NOPE" }) {
+         assertTrue(arr.hasMember(id), id);
+         ScriptException ex = assertThrows(ScriptException.class, () -> arr.getMember(id), id);
+         assertTrue(ex.getMessage().contains(id.replaceAll("[@?].*", "")), ex.getMessage());
+         assertTrue(ex.getMessage().contains("not found"), ex.getMessage());
+      }
+   }
+
+   @Test
+   void strictKeepsLegitimateForms() {
+      TableArray arr = strictArray();
+
+      assertArrayEquals(new Object[] { "a", "b", "c" }, (Object[]) arr.getMember("col1"));
+      assertArrayEquals(new Object[] { "a", "b", "c" }, (Object[]) arr.getMember("COL1"));
+      assertNotNull(arr.getMember("col1@col2:1"));
+      assertTrue(arr.getMember("*") instanceof TableArray);
+      assertEquals(4, arr.getMember("length"));
+      assertEquals(3, arr.getMember("size"));
+      assertFalse(arr.hasMember("toString"));
+      assertFalse(arr.hasMember("0"));
+   }
+
+   @Test
+   void strictSkipsEmptyAndHeaderlessTables() {
+      TableArray empty = new TableArray(new DefaultTableLens(0, 0));
+      empty.setStrictMissing(true);
+      assertNull(empty.getMember("NOPE"));
+
+      TableArray headerless = new TableArray(new DefaultTableLens(new Object[][] {{ "a" }}) {
+         @Override
+         public int getHeaderRowCount() {
+            return 0;
+         }
+      });
+      headerless.setStrictMissing(true);
+      assertNull(headerless.getMember("NOPE"));
+   }
+
+   @Test
+   void defaultModeStaysSilentOnMissingColumn() {
+      TableArray arr = new TableArray(table());
+      assertFalse(arr.hasMember("NOPE"));
+      assertNull(arr.getMember("Ent:NOPE"));
+   }
+
+   /**
+    * Bug #78599 scope guard: outside a strict (calc-table) array a missing column keeps
+    * reading as absent/null, in both calc and plain array modes.
+    */
+   @Test
+   void nonStrictMissingColumnStaysSilent() {
+      for(boolean calc : new boolean[] { false, true }) {
+         TableArray arr = new TableArray(table());
+         arr.setCalcArray(calc);
+
+         assertFalse(arr.hasMember("NOPE"));
+         assertNull(arr.getMember("NOPE"));
+         assertNull(arr.getMember("NOPE@col1:a"));
+         assertNull(arr.getMember("Ent:NOPE"));
+      }
+   }
+
+   /**
+    * Bug #78599 scope guard: strict mode leaves the condition form, index access and
+    * entity:attribute names working as before.
+    */
+   @Test
+   void strictKeepsConditionIndexAndEntityAttrForms() {
+      TableArray arr = strictArray();
+
+      TableArray plain = new TableArray(table());
+      plain.setCalcArray(true);
+      assertArrayEquals((Object[]) plain.getMember("col1?col2=1"),
+                        (Object[]) arr.getMember("col1?col2=1"));
+      assertTrue(arr.hasMember("col1?col2=1"));
+      assertTrue(arr.getArrayElement(1) instanceof TableRow);
+      assertEquals("a", ((TableRow) arr.getArrayElement(1)).getMember("col1"));
+
+      XTable ent = new DefaultTableLens(new Object[][] {
+         { "Ent:Attr", "col2" },
+         { "x", 1 },
+         { "y", 2 }
+      });
+      TableArray earr = new TableArray(ent);
+      earr.setCalcArray(true);
+      earr.setStrictMissing(true);
+      assertArrayEquals(new Object[] { "x", "y" }, (Object[]) earr.getMember("Ent:Attr"));
+      assertArrayEquals(new Object[] { "x", "y" }, (Object[]) earr.getMember("ent:attr"));
+   }
+
+   /**
+    * Bug #78599 scope guard: '=expr' keys bypass the missing-column check and evaluate
+    * exactly as in non-strict mode.
+    */
+   @Test
+   void strictExpressionKeyEvaluatesAsBefore() {
+      TableArray plain = new TableArray(table());
+      plain.setCalcArray(true);
+      TableArray arr = strictArray();
+      String id = "=col2 * 2";
+
+      assertTrue(arr.hasMember(id));
+      Object expected = plain.getMember(id);
+      assertNotNull(expected);
+      assertArrayEquals((Object[]) expected, (Object[]) arr.getMember(id));
+   }
+
+   /**
+    * Bug #78599 scope guard: '{summary}' keys bypass the missing-column check; on a
+    * plain table they behave as in non-strict mode (no named missing-column error).
+    */
+   @Test
+   void strictSummaryKeyBehavesAsBefore() {
+      TableArray plain = new TableArray(table());
+      plain.setCalcArray(true);
+      TableArray arr = strictArray();
+      String id = "{Sum(col2)}";
+
+      assertTrue(arr.hasMember(id));
+      assertEquals(plain.getMember(id), arr.getMember(id));
    }
 }

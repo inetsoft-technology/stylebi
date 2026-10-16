@@ -17,7 +17,7 @@
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { NEVER, of, Subject } from "rxjs";
+import { NEVER, of, ReplaySubject, Subject } from "rxjs";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ConnectToClaudeComponent } from "./connect-to-claude.component";
 
@@ -244,6 +244,189 @@ describe("ConnectToClaudeComponent", () => {
          fixture.destroy();
 
          expect(whenConnectedSubject.observers.length).toBe(0);
+      });
+   });
+
+   describe("settle-once request (bug 78589: hang when the socket drops mid-mint)", () => {
+      let mintHandler: ((msg: any) => void) | null;
+      let mintSub: { unsubscribe: ReturnType<typeof vi.fn> };
+      let errors: ReplaySubject<string | null>;
+      let connected: ReplaySubject<any>;
+
+      const reply = (body: any) => mintHandler!({ frame: { body: JSON.stringify(body) } });
+
+      beforeEach(() => {
+         vi.useFakeTimers();
+         mintHandler = null;
+         mintSub = { unsubscribe: vi.fn() };
+         mockStompConnection.subscribe.mockImplementation((_d: string, h: any) => {
+            mintHandler = h;
+            return mintSub;
+         });
+         errors = new ReplaySubject<string | null>(1);
+         connected = new ReplaySubject<any>(1);
+         mockSocketConnection.connectionError = vi.fn(() => errors.asObservable());
+         mockSocketConnection.whenConnected = vi.fn(() => connected.asObservable());
+      });
+
+      afterEach(() => vi.useRealTimers());
+
+      // Timing: socket drops after send, before the reply, and never recovers.
+      it("times out when no reply ever arrives after the send, re-enabling the button", () => {
+         connected.next(mockStompConnection);
+         component.requestCode();
+         expect(mockStompConnection.send).toHaveBeenCalledTimes(1);
+         vi.advanceTimersByTime(29999);
+         expect(component.loading).toBe(true);
+
+         vi.advanceTimersByTime(1);
+         fixture.detectChanges();
+
+         expect(component.loading).toBe(false);
+         expect(component.error).toBe("Timed out connecting to the server. Please try again.");
+         expect(fixture.nativeElement.querySelector("button").disabled).toBe(false);
+         expect(mintSub.unsubscribe).toHaveBeenCalled();
+      });
+
+      // Timing: drop after send, before reply; error seen while the socket reconnects.
+      it("settles on a connection error pushed after the send (during reconnect)", () => {
+         connected.next(mockStompConnection);
+         errors.next(null);
+         component.requestCode();
+
+         errors.next("Client disconnected!");
+
+         expect(component.loading).toBe(false);
+         expect(component.error).toBe("Client disconnected!");
+         expect(errors.observers.length).toBe(0);
+         expect(mintSub.unsubscribe).toHaveBeenCalled();
+      });
+
+      // Timing: reconnect pushes null, then the reply arrives -- the healthy path.
+      it("ignores null connection pushes and still accepts a reply after a reconnect", () => {
+         connected.next(mockStompConnection);
+         errors.next(null);
+         component.requestCode();
+
+         errors.next(null);
+         vi.advanceTimersByTime(5000);
+         reply({ code: "ABC123" });
+
+         expect(component.code).toBe("ABC123");
+         expect(component.loading).toBe(false);
+         expect(component.error).toBeNull();
+      });
+
+      // Timing: socket down before the click (stale connection AND stored error replayed).
+      it("settles immediately, with no mint, when the socket is already down at click (6)", () => {
+         connected.next(mockStompConnection);
+         errors.next("Client disconnected!");
+
+         component.requestCode();
+
+         expect(component.loading).toBe(false);
+         expect(component.error).toBe("Client disconnected!");
+         expect(mockStompConnection.send).not.toHaveBeenCalled();
+         expect(mockStompConnection.subscribe).not.toHaveBeenCalledWith(
+            "/user/commands/wiz/pairing/mint", expect.any(Function));
+         expect(errors.observers.length).toBe(0);
+
+         // the first error is neither replaced by the timer nor accompanied by a late code
+         vi.advanceTimersByTime(60000);
+         expect(component.error).toBe("Client disconnected!");
+         expect(component.code).toBeNull();
+      });
+
+      // Timing: never connected, error already stored (initial connect failed).
+      it("keeps the first error when never connected and an error is replayed at click", () => {
+         errors.next("Client disconnected!");
+
+         component.requestCode();
+         vi.advanceTimersByTime(60000);
+
+         expect(component.error).toBe("Client disconnected!");
+         expect(component.loading).toBe(false);
+         expect(mockStompConnection.send).not.toHaveBeenCalled();
+      });
+
+      // Timing: never connected, no error either.
+      it("times out when the socket never connects and nothing is reported", () => {
+         component.requestCode();
+         vi.advanceTimersByTime(30000);
+
+         expect(component.loading).toBe(false);
+         expect(component.error).toBe("Timed out connecting to the server. Please try again.");
+      });
+
+      // Timing: timer fires, then the reply arrives late.
+      it("drops a late reply after the timer settled the request (7)", () => {
+         connected.next(mockStompConnection);
+         component.requestCode();
+         vi.advanceTimersByTime(30000);
+
+         reply({ code: "LATE" });
+
+         expect(component.code).toBeNull();
+         expect(component.error).toBe("Timed out connecting to the server. Please try again.");
+      });
+
+      // Timing: reply, then a connection error much later.
+      it("ignores a connection error after the reply settled the request (8)", () => {
+         connected.next(mockStompConnection);
+         component.requestCode();
+         reply({ code: "ABC123" });
+
+         errors.next("Client disconnected!");
+         vi.advanceTimersByTime(60000);
+
+         expect(component.code).toBe("ABC123");
+         expect(component.error).toBeNull();
+         expect(errors.observers.length).toBe(0);
+      });
+
+      it("clears the request timer once the reply settles it", () => {
+         connected.next(mockStompConnection);
+         component.requestCode();
+         reply({ error: "Feature disabled" });
+
+         expect(vi.getTimerCount()).toBe(0);
+         expect(component.error).toBe("Feature disabled");
+      });
+
+      it("a second click after a timeout starts a fresh request", () => {
+         connected.next(mockStompConnection);
+         component.requestCode();
+         vi.advanceTimersByTime(30000);
+
+         component.requestCode();
+         expect(component.loading).toBe(true);
+         expect(component.error).toBeNull();
+         reply({ code: "SECOND" });
+
+         expect(component.code).toBe("SECOND");
+         expect(mockStompConnection.send).toHaveBeenCalledTimes(2);
+      });
+
+      it("tears down timer and listeners on destroy", () => {
+         connected.next(mockStompConnection);
+         component.requestCode();
+         fixture.destroy();
+
+         expect(vi.getTimerCount()).toBe(0);
+         expect(errors.observers.length).toBe(0);
+         expect(mintSub.unsubscribe).toHaveBeenCalled();
+      });
+
+      it("runtimeId change settles the request and drops its late reply", () => {
+         connected.next(mockStompConnection);
+         component.requestCode();
+         component.runtimeId = "rt-2";
+         component.ngOnChanges({ runtimeId: { firstChange: false } as any });
+
+         expect(component.loading).toBe(false);
+         expect(vi.getTimerCount()).toBe(0);
+         reply({ code: "STALE" });
+         expect(component.code).toBeNull();
       });
    });
 

@@ -24,6 +24,7 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.BindableVSAssembly;
 import inetsoft.uql.viewsheet.DataVSAssembly;
+import inetsoft.uql.viewsheet.ListInputVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
@@ -36,7 +37,9 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Projects the Composer's binding tree into a flat table/column list.
@@ -114,14 +117,31 @@ public class BindableFieldsService {
          }
       }
 
-      TreeNodeModel root = tree.getBinding(runtimeId, treeScope, false, user);
+      // Bug #78640: components left out of the tree (script failure / no runtime columns) arrive
+      // here out of band, not as nodes of the shared tree.
+      Map<String, String> skipped = new LinkedHashMap<>();
+      TreeNodeModel root = tree.getBinding(runtimeId, treeScope, false, user, skipped::put);
       List<BindableTable> tables = new ArrayList<>();
 
       if(root != null) {
          collect(root, tables, null, modelName);
       }
 
+      addSkipped(tables, skipped);
+
       return assembly == null ? tables : marked(tables, source);
+   }
+
+   /**
+    * A zero-field entry carrying the reason, for each component the tree left out: the listing
+    * says a table exists but its columns are unknown, instead of silently omitting it.
+    */
+   private static void addSkipped(List<BindableTable> tables, Map<String, String> skipped) {
+      skipped.forEach((name, reason) -> {
+         if(tables.stream().noneMatch(t -> name.equalsIgnoreCase(t.name()))) {
+            tables.add(new BindableTable(name, null, List.of(), List.of(name + ": " + reason)));
+         }
+      });
    }
 
    /** The table an assembly is bound to right now, or {@code null} if it has none yet. */
@@ -130,6 +150,16 @@ public class BindableFieldsService {
          SourceInfo source = data.getSourceInfo();
 
          return source == null || source.isEmpty() ? null : source.getSource();
+      }
+
+      // Bug #78599: a ComboBox/RadioButton/CheckBox's table is its list-values binding;
+      // getTableName() is only the data-input write-back target, so it is the fallback.
+      if(assembly instanceof ListInputVSAssembly list) {
+         String bound = list.getBoundTableName();
+
+         if(!Tool.isEmptyString(bound)) {
+            return bound;
+         }
       }
 
       // Bug #76592: Gauge/Text (OutputVSAssembly) keep their table in BindingInfo, not a SourceInfo
@@ -186,7 +216,7 @@ public class BindableFieldsService {
          if(model.equalsIgnoreCase(seen.name())) {
             List<BindableField> all = new ArrayList<>(seen.fields());
             all.addAll(fields);
-            tables.set(i, new BindableTable(seen.name(), seen.current(), all));
+            tables.set(i, new BindableTable(seen.name(), seen.current(), all, seen.warnings()));
             return;
          }
       }
@@ -210,7 +240,7 @@ public class BindableFieldsService {
       for(BindableTable table : tables) {
          // equalsIgnoreCase is null-safe on its argument, so a sourceless assembly yields false.
          out.add(new BindableTable(table.name(), table.name().equalsIgnoreCase(source),
-                                   table.fields()));
+                                   table.fields(), table.warnings()));
       }
 
       return out;

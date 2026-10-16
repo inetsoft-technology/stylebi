@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
@@ -36,6 +37,8 @@ import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetRuntimeAccess;
 import inetsoft.web.wiz.pairing.SheetSessionService;
 import inetsoft.web.wiz.pairing.SheetType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -58,6 +61,8 @@ import java.security.Principal;
  */
 @Service
 public class SheetOpenService {
+   private static final Logger LOG = LoggerFactory.getLogger(SheetOpenService.class);
+
    @Autowired
    public SheetOpenService(ViewsheetSessionService viewsheetSessions,
                             SheetSessionService sheetSessions,
@@ -178,6 +183,7 @@ public class SheetOpenService {
       // two principals for the same user differing only by session. A paired viewsheet is already
       // browser-owned with the agent reaching in through the flag; this matches it.
       String runtimeId = worksheetService.openWorksheet(baseEntry, rvs.getUser());
+      linkViewsheetSandbox(runtimeId, rvs);
 
       // The base worksheet is a distinct runtime from the viewsheet script pane that opened
       // it -- any editorContext on vsSession names a location on the VIEWSHEET, not this new
@@ -205,6 +211,25 @@ public class SheetOpenService {
       broadcast.sendToComposer(vsSession.socketSessionId(), command);
 
       return wsSession;
+   }
+
+   /**
+    * Links the new base worksheet's sandbox to the viewsheet's, as the Edit Data / status-bar open
+    * does in WorksheetEventService, so a script expression such as {@code worksheet[k].value} can
+    * resolve viewsheet assemblies. A failure here never fails the open.
+    */
+   private void linkViewsheetSandbox(String wsRuntimeId, RuntimeViewsheet rvs) {
+      try {
+         RuntimeWorksheet rws = worksheetService.getWorksheet(wsRuntimeId, rvs.getUser());
+
+         if(rws != null) {
+            rvs.getViewsheetSandbox()
+               .ifPresent(box -> rws.getAssetQuerySandbox().setViewsheetSandbox(box));
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Unable to link worksheet {} sandbox to its viewsheet", wsRuntimeId, e);
+      }
    }
 
    /**

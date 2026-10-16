@@ -231,18 +231,31 @@ public class ScriptLibraryController {
             "different name, or delete_script_library_function('" + newName + "') first.");
       }
 
-      String oldText = lib.getScript(name);
-      lib.renameScript(name, newName);
+      // Rename and save under the library monitor (the same one reloadLibrary()/save() use), so a
+      // reload triggered by another thread cannot wipe the unsaved in-memory rename.
+      synchronized(lib) {
+         String oldText = lib.getScript(name);
+         lib.renameScript(name, newName);
 
-      String newText = Util.renameScriptDepended(name, newName, oldText);
+         String newText = Util.renameScriptDepended(name, newName, oldText);
 
-      if(!Objects.equals(oldText, newText)) {
-         lib.setScript(newName, newText);
+         if(!Objects.equals(oldText, newText)) {
+            lib.setScript(newName, newText);
+         }
+
+         lib.save();
+
+         if(lib.getScript(name) != null || lib.getScript(newName) == null ||
+            !Objects.equals(lib.getScript(newName), newText))
+         {
+            throw new IllegalStateException(
+               "Renaming script library function '" + name + "' to '" + newName +
+               "' did not take effect; the library was reloaded concurrently. Retry the rename.");
+         }
+
+         return new ScriptLibraryFunctionDetail(
+            newName, lib.getScript(newName), lib.getScriptComment(newName), RESYNC_WARNING);
       }
-
-      lib.save();
-      return new ScriptLibraryFunctionDetail(
-         newName, lib.getScript(newName), lib.getScriptComment(newName), RESYNC_WARNING);
    }
 
    /**
@@ -278,8 +291,17 @@ public class ScriptLibraryController {
          }
       }
 
-      lib.removeScript(name);
-      lib.save();
+      synchronized(lib) {
+         lib.removeScript(name);
+         lib.save();
+
+         if(lib.getScript(name) != null) {
+            throw new IllegalStateException(
+               "Deleting script library function '" + name + "' did not take effect; the " +
+               "library was reloaded concurrently. Retry the delete.");
+         }
+      }
+
       return new DeleteScriptLibraryFunctionResult(RESYNC_WARNING);
    }
 

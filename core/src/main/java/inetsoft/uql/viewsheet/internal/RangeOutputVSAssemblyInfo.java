@@ -292,7 +292,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          return null;
       }
 
-      String[] arr = new String[rangeValues.length];
+      String[] arr = new String[Math.min(rangeDesignCount, rangeValues.length)];
 
       for(int i = 0; i < arr.length; i++) {
          arr[i] = rangeValues[i].getDValue();
@@ -462,9 +462,9 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          return null;
       }
 
-      Color[] colors = new Color[rangeColorsValue.length];
+      Color[] colors = new Color[Math.min(rangeColorDesignCount, rangeColorsValue.length)];
 
-      for(int i = 0; i < rangeColorsValue.length; i++) {
+      for(int i = 0; i < colors.length; i++) {
          colors[i] = rangeColorsValue[i].getColorValue(true, null);
       }
 

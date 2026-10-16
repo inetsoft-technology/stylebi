@@ -787,6 +787,69 @@ class ScriptExecuteServiceTest {
       assertNull(currentObserver());
    }
 
+   /**
+    * Bug #78583: a scope-less runQuery('ws:<path>') parses to REPORT_SCOPE, which no StyleBI
+    * runtime can resolve, and used to produce no note at all. The note names the missing scope
+    * token and, since the worksheet exists at global scope, the address that reaches it. The
+    * REPORT_SCOPE entry itself is never probed.
+    */
+   @Test
+   void runLiveNotesAScopeLessWsAddressAndNamesTheGlobalWorksheet() throws Exception {
+      AssetRepository repo = repoWithGlobalSibling();
+      String summary = runObserved("runQuery('ws:Examples/AllSales')", repo,
+                                   "ws:Examples/AllSales", XUtil.RunQueryOutcome.ERROR).summary();
+
+      assertNotNull(summary);
+      assertTrue(summary.contains("runQuery('ws:Examples/AllSales')"), summary);
+      assertTrue(summary.contains("no scope token"), summary);
+      assertTrue(summary.contains("Use \"ws:global:Examples/AllSales\""), summary);
+      verify(repo, never()).containsEntry(
+         argThat(e -> e != null && e.getScope() == AssetRepository.REPORT_SCOPE));
+   }
+
+   /** Bug #78583: the caller's own user scope is the other sibling probed. */
+   @Test
+   void runLiveNotesAScopeLessWsAddressAndNamesTheCallersUserWorksheet() throws Exception {
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.containsEntry(any(AssetEntry.class))).thenAnswer(inv -> {
+         AssetEntry e = inv.getArgument(0);
+         return e.getScope() == AssetRepository.USER_SCOPE &&
+            new IdentityID("admin", "host-org").equals(e.getUser());
+      });
+
+      String summary = runObserved("runQuery('ws:mine')", repo, "ws:mine",
+                                   XUtil.RunQueryOutcome.ERROR).summary();
+
+      assertTrue(summary.contains("no scope token"), summary);
+      assertTrue(summary.contains("Use \"ws:admin:mine\""), summary);
+      assertFalse(summary.contains("ws:global:mine\" to reach"), summary);
+   }
+
+   /** Bug #78583: no worksheet at either sibling -> one generic note naming both forms. */
+   @Test
+   void runLiveNotesAScopeLessWsAddressWithNoMatchingWorksheet() throws Exception {
+      String summary = runObserved("runQuery('ws:missing')", repoWithNothing(), "ws:missing",
+                                   XUtil.RunQueryOutcome.NOT_FOUND).summary();
+
+      assertTrue(summary.contains("runQuery('ws:missing')"), summary);
+      assertTrue(summary.contains("no scope token"), summary);
+      assertTrue(summary.contains("ws:global:missing"), summary);
+      assertTrue(summary.contains("ws:admin:missing"), summary);
+      assertFalse(summary.contains("exists at"), summary);
+   }
+
+   /** Bug #78583: a bare 'ws:' names no worksheet; no sibling (root folder) entry is probed. */
+   @Test
+   void runLiveNotesABareWsAddressWithoutProbing() throws Exception {
+      AssetRepository repo = repoWithGlobalSibling();
+      String summary = runObserved("runQuery('ws:')", repo, "ws:",
+                                   XUtil.RunQueryOutcome.ERROR).summary();
+
+      assertTrue(summary.contains("runQuery('ws:')"), summary);
+      assertTrue(summary.contains("names no worksheet"), summary);
+      verify(repo, never()).containsEntry(any(AssetEntry.class));
+   }
+
    // ---- Bug #78285 helpers: drive XUtil's observer from inside the mocked scope.execute ----
 
    private ViewsheetScope scopeObserving(String script, Object value, String literal,

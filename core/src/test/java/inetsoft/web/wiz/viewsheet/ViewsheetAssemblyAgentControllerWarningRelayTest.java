@@ -44,6 +44,48 @@ import static org.mockito.Mockito.when;
 class ViewsheetAssemblyAgentControllerWarningRelayTest {
    private static final List<String> WARNED = List.of("Script execution error in assembly: T1");
 
+   /** Bug #78439: the chart element, plot-size and region-property writes relay the warnings. */
+   @Test
+   void chartWritesRelayTheWarnings() throws Exception {
+      List<String> chartWarned = List.of("Chart 'Chart1' cannot be generated: x");
+      ChartElementService elements = mock(ChartElementService.class);
+      when(elements.setVisibility(eq("tok"), any(), eq("Chart1"), eq("axis"), eq("Region"),
+                                  eq(false), eq(false), anyString())).thenReturn(chartWarned);
+      when(elements.resizePlot(eq("tok"), any(), eq("Chart1"), eq(2.0), eq(false), eq(false),
+                               anyString())).thenReturn(chartWarned);
+      ChartRegionPropertyService regions = mock(ChartRegionPropertyService.class);
+      when(regions.set(eq("tok"), any(), eq("Chart1"), eq("axis"), eq("y"), eq(null), any(),
+                       anyString())).thenReturn(chartWarned);
+      ViewsheetAssemblyAgentController controller = controller(Map.of(
+         ChartElementService.class, elements, ChartRegionPropertyService.class, regions));
+      Map<String, Object> expected = Map.of("warnings", chartWarned);
+
+      assertEquals(expected, controller.setChartElementVisibility(
+         "tok", new ViewsheetAssemblyAgentController.ElementVisibilityRequest(
+            "Chart1", "axis", "Region", false, false), "", principal()));
+      assertEquals(expected, controller.resizeChartPlot(
+         "tok", new ViewsheetAssemblyAgentController.PlotResizeRequest("Chart1", 2.0, false, false),
+         "", principal()));
+      assertEquals(expected, controller.setChartRegionProperties(
+         "tok", new ViewsheetAssemblyAgentController.RegionPropertiesRequest(
+            "Chart1", "axis", "y", null, Map.of("showAxisLine", false)), "", principal()));
+   }
+
+   @Test
+   void chartWritesAnswerAnEmptyBodyWhenNothingWarned() throws Exception {
+      ChartElementService elements = mock(ChartElementService.class);
+      when(elements.setVisibility(anyString(), any(), anyString(), anyString(), any(),
+                                  org.mockito.ArgumentMatchers.anyBoolean(),
+                                  org.mockito.ArgumentMatchers.anyBoolean(), anyString()))
+         .thenReturn(List.of());
+      ViewsheetAssemblyAgentController controller =
+         controller(ChartElementService.class, elements);
+
+      assertNull(controller.setChartElementVisibility(
+         "tok", new ViewsheetAssemblyAgentController.ElementVisibilityRequest(
+            "Chart1", "axis", "Region", false, false), "", principal()));
+   }
+
    @Test
    void gotoBookmarkRelaysTheWarnings() throws Exception {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);

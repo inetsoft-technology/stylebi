@@ -68,6 +68,9 @@ class SheetOpenServiceTest {
    /** Populated by {@code serviceWithBase} so tests can assert which principal opened the runtime. */
    private WorksheetService worksheetService;
 
+   /** Populated by {@code serviceWithBase} -- the paired viewsheet runtime the sandbox link reads. */
+   private RuntimeViewsheet viewsheetRuntime;
+
    /** Populated by {@code serviceWithBase} so a refusal test can assert NO session was minted. */
    private SheetSessionService sheetSessions;
 
@@ -328,6 +331,40 @@ class SheetOpenServiceTest {
       service.openBaseWorksheet("tok-vs", principal());
 
       verify(worksheetService).openWorksheet(any(AssetEntry.class), same(BROWSER_PRINCIPAL));
+   }
+
+   /**
+    * Bug #78587 (b): the base worksheet an agent opens must resolve viewsheet assemblies
+    * ({@code worksheet['TextInput1'].value}) just like Edit Data does, which only links the
+    * viewsheet sandbox when the browser sends the vsId -- the agent path never does.
+    */
+   @Test
+   void linksTheViewsheetSandboxToTheNewlyOpenedBaseWorksheet() throws Exception {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, null);
+      inetsoft.report.composition.execution.ViewsheetSandbox vsbox =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      when(viewsheetRuntime.getViewsheetSandbox()).thenReturn(java.util.Optional.of(vsbox));
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      inetsoft.report.composition.execution.AssetQuerySandbox wsbox =
+         mock(inetsoft.report.composition.execution.AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(wsbox);
+      when(worksheetService.getWorksheet("ws-runtime-1", BROWSER_PRINCIPAL)).thenReturn(rws);
+
+      service.openBaseWorksheet("tok-vs", principal());
+
+      verify(wsbox).setViewsheetSandbox(vsbox);
+   }
+
+   @Test
+   void aFailureLinkingTheSandboxDoesNotFailTheOpen() throws Exception {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, null);
+      when(worksheetService.getWorksheet(anyString(), any(Principal.class)))
+         .thenThrow(new IllegalStateException("boom"));
+
+      JoinSession opened = service.openBaseWorksheet("tok-vs", principal());
+
+      assertEquals("ws-runtime-1", opened.runtimeId());
+      verify(broadcast).sendToComposer(anyString(), any(OpenComposerAssetCommand.class));
    }
 
    /**
@@ -1121,6 +1158,7 @@ class SheetOpenServiceTest {
          when(vs.getBaseEntry()).thenReturn(base);
 
          RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+         viewsheetRuntime = rvs;
          when(rvs.getViewsheet()).thenReturn(vs);
          when(rvs.getUser()).thenReturn(BROWSER_PRINCIPAL);
 

@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.scriptlibrary;
 
+import inetsoft.report.internal.Util;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
@@ -159,12 +160,14 @@ public class ScriptLibraryChangePlanService {
       }
 
       String before = project(entry);
-      String after = project(newName, entry.description(), entry.text());
+      String after = project(newName, entry.description(),
+                             renamedText(name, newName, entry.text()));
       return new PlanChange("scriptlibrary:" + name, null, before, after,
                             AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_STORAGE, true,
                             "rename script library entry \"" + name + "\" to \"" + newName +
-                            "\" -- any script/viewsheet/task that calls it by name must be " +
-                            "updated separately; this does not rewrite callers");
+                            "\" -- the function's own declaration is renamed too, and the asset " +
+                            "scripts that call it by name are rewritten in the background " +
+                            "after the apply");
    }
 
    private PlanChange resolveUpdate(String label, ScriptLibraryChangeRequest change,
@@ -281,6 +284,15 @@ public class ScriptLibraryChangePlanService {
       }
 
       return trimmed;
+   }
+
+   /**
+    * The entry's text after a rename: its own declaration (and any self-reference) renamed with
+    * the same {@code Util.renameScriptDepended} rewrite the composer-chat rename endpoint and the
+    * caller transform use, so the function keeps declaring the name it is stored under.
+    */
+   static String renamedText(String name, String newName, String text) {
+      return text == null ? null : Util.renameScriptDepended(name, newName, text);
    }
 
    /** Canonical projection of an existing entry -- used as both the plan hash input and the audit

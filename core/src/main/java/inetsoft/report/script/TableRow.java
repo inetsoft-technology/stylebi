@@ -293,7 +293,7 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
       return strictMissing;
    }
 
-   private static boolean isIntrinsic(String id) {
+   static boolean isIntrinsic(String id) {
       if(INTRINSICS.contains(id)) {
          return true;
       }

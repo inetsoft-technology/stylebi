@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.DateRangeRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -112,7 +113,7 @@ public class HierarchyDimensionService {
     *                   {@code list_hierarchy_dimensions}' {@code availableColumns}.
     * @param dateLevels optional, parallel to {@code columns}: a date grouping
     *                   ({@link #DATE_LEVELS}) for the column at the same position, or null/blank
-    *                   for none. Ignored positions past the end of a shorter list are treated as
+    *                   for the default (year for a date column, none otherwise). Ignored positions past the end of a shorter list are treated as
     *                   null. Meaningless for a non-date column; not validated against the column's
     *                   own type, since a caller building a level from a column
     *                   {@code list_hierarchy_dimensions} has not yet seen may not know it yet.
@@ -132,6 +133,8 @@ public class HierarchyDimensionService {
          requireColumnCatalog(pane, assemblyName);
 
          OutputColumnRefModel[] catalog = columns(pane);
+         VSDimensionModel[] existing = dimensions(pane);
+         Map<String, Integer> consumed = consumedColumns(existing);
          VSDimensionMemberModel[] members = new VSDimensionMemberModel[wanted.size()];
          Set<String> seen = new HashSet<>();
 
@@ -145,16 +148,30 @@ public class HierarchyDimensionService {
                   "level can only use a column once.");
             }
 
+            // Kept apart from `seen`: relaxing that for a Year->Month repeat inside one dimension
+            // must not relax this. Dates get no exemption -- the Composer's Hierarchy dialog
+            // (isDragAccepted) also refuses a date column held by another dimension.
+            Integer holder = consumed.get(key);
+
+            if(holder != null) {
+               throw new IllegalArgumentException(
+                  "'" + wanted.get(i) + "' is already a level of hierarchy dimension " + holder +
+                  " on '" + assemblyName + "' -- a column can belong to only one dimension (the " +
+                  "Composer's Hierarchy dialog enforces the same). Remove that dimension first " +
+                  "(remove_hierarchy_dimension index " + holder + ") or pick a column from " +
+                  "list_hierarchy_dimensions' availableColumns.");
+            }
+
             VSDimensionMemberModel member = new VSDimensionMemberModel();
             member.setDataRef(column);
-            member.setOption(levels.get(i));
+            Integer requested = levels.get(i);
+            member.setOption(requested != null ? requested : defaultOption(column.getDataType()));
             members[i] = member;
          }
 
          VSDimensionModel newDimension = new VSDimensionModel();
          newDimension.setMembers(members);
 
-         VSDimensionModel[] existing = dimensions(pane);
          VSDimensionModel[] updated = Arrays.copyOf(existing, existing.length + 1);
          updated[existing.length] = newDimension;
          pane.setDimensions(updated);
@@ -347,27 +364,36 @@ public class HierarchyDimensionService {
    private static OutputColumnRefModel[] withoutConsumedColumns(OutputColumnRefModel[] catalog,
                                                                  VSDimensionModel[] dimensions)
    {
-      Set<String> consumed = new HashSet<>();
-
-      for(VSDimensionModel dimension : dimensions) {
-         for(VSDimensionMemberModel member : members(dimension)) {
-            OutputColumnRefModel ref = member.getDataRef();
-
-            if(ref != null) {
-               consumed.add(columnKey(ref));
-            }
-         }
-      }
-
+      Map<String, Integer> consumed = consumedColumns(dimensions);
       List<OutputColumnRefModel> remaining = new ArrayList<>();
 
       for(OutputColumnRefModel column : catalog) {
-         if(!consumed.contains(columnKey(column))) {
+         if(!consumed.containsKey(columnKey(column))) {
             remaining.add(column);
          }
       }
 
       return remaining.toArray(new OutputColumnRefModel[0]);
+   }
+
+   /**
+    * The {@link #columnKey} of every column a member of {@code dimensions} uses, mapped to the
+    * index of the first dimension that uses it.
+    */
+   private static Map<String, Integer> consumedColumns(VSDimensionModel[] dimensions) {
+      Map<String, Integer> consumed = new HashMap<>();
+
+      for(int i = 0; i < dimensions.length; i++) {
+         for(VSDimensionMemberModel member : members(dimensions[i])) {
+            OutputColumnRefModel ref = member.getDataRef();
+
+            if(ref != null) {
+               consumed.putIfAbsent(columnKey(ref), i);
+            }
+         }
+      }
+
+      return consumed;
    }
 
    private static VSDimensionModel[] dimensions(HierarchyPropertyPaneModel pane) {
@@ -398,12 +424,22 @@ public class HierarchyDimensionService {
       return columns;
    }
 
+   /** The option the Composer's Hierarchy dialog gives a dropped column: a date column starts at
+    *  year (a time column at hour); a non-date column has no date grouping. */
+   private static int defaultOption(String dataType) {
+      if(XSchema.TIME.equals(dataType)) {
+         return DateRangeRef.HOUR_INTERVAL;
+      }
+
+      return XSchema.isDateType(dataType) ? DateRangeRef.YEAR_INTERVAL : DateRangeRef.NONE_INTERVAL;
+   }
+
    private static List<Integer> resolveLevels(List<String> columns, List<String> dateLevels) {
       List<Integer> levels = new ArrayList<>();
 
       for(int i = 0; i < columns.size(); i++) {
          String requested = dateLevels == null || i >= dateLevels.size() ? null : dateLevels.get(i);
-         levels.add(dateLevel(requested, columns.get(i)));
+         levels.add(requested == null || requested.isBlank() ? null : dateLevel(requested, columns.get(i)));
       }
 
       return levels;
@@ -420,7 +456,7 @@ public class HierarchyDimensionService {
       if(level == null) {
          throw new IllegalArgumentException(
             "'" + requested + "' is not a date level for '" + columnName + "'. Use one of: " +
-            String.join(", ", DATE_LEVELS.keySet()) + ", or omit it for no date grouping.");
+            String.join(", ", DATE_LEVELS.keySet()) + ", or omit it for the default (year for a date column, none otherwise).");
       }
 
       return level;

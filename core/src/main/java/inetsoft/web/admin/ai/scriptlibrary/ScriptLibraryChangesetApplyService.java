@@ -256,8 +256,18 @@ public class ScriptLibraryChangesetApplyService {
 
       String before = ScriptLibraryChangePlanService.project(entry);
       Permission permission = scriptLibraryService.securityEngine.getPermission(ResourceType.SCRIPT, name);
+      String oldText = lib.getScript(name);
+      String newText = ScriptLibraryChangePlanService.renamedText(name, newName, oldText);
+      boolean rewritten = !Objects.equals(oldText, newText);
       mutationEntered.set(true);
       lib.renameScript(name, newName);
+
+      // rename the function's own declaration in the same save, or it keeps installing the old
+      // global name while its callers are rewritten to the new one
+      if(rewritten) {
+         lib.setScript(newName, newText);
+      }
+
       lib.save();
 
       if(permission != null) {
@@ -268,7 +278,7 @@ public class ScriptLibraryChangesetApplyService {
       boolean verified = !scriptLibraryService.exists(name, user) &&
          scriptLibraryService.exists(newName, user);
       String after = verified ?
-         ScriptLibraryChangePlanService.project(newName, entry.description(), entry.text()) : null;
+         ScriptLibraryChangePlanService.project(newName, entry.description(), newText) : null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ScriptLibraryApplyOutcome(key, before, after, status,
          verified ? null : "script library entry not found under the new name after rename", null));
@@ -276,7 +286,7 @@ public class ScriptLibraryChangesetApplyService {
                 before, after, status, backupRef, reviewOutcome, user);
 
       if(verified) {
-         undoable.add(Undo.rename(key, newName, name, permission));
+         undoable.add(Undo.rename(key, newName, name, permission, rewritten ? oldText : null));
       }
    }
 
@@ -384,6 +394,11 @@ public class ScriptLibraryChangesetApplyService {
          }
          case RENAME -> {
             lib.renameScript(undo.newName, undo.name);
+
+            if(undo.text != null) {
+               lib.setScript(undo.name, undo.text);
+            }
+
             lib.save();
 
             if(undo.permission != null) {
@@ -470,8 +485,11 @@ public class ScriptLibraryChangesetApplyService {
          return new Undo(UndoKind.CREATE, key, name, null, null, null, null);
       }
 
-      static Undo rename(String key, String newName, String name, Permission permission) {
-         return new Undo(UndoKind.RENAME, key, name, newName, null, null, permission);
+      /** {@code priorText} is the text to restore, or null when the rename did not rewrite it. */
+      static Undo rename(String key, String newName, String name, Permission permission,
+                         String priorText)
+      {
+         return new Undo(UndoKind.RENAME, key, name, newName, null, priorText, permission);
       }
 
       static Undo update(String key, String name, String priorDescription) {

@@ -18,9 +18,12 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.VSAQuery;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSDimensionRef;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -29,10 +32,14 @@ import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.wiz.binding.VisualFrameAliases;
+import inetsoft.web.composer.model.condition.ConditionModel;
+import inetsoft.web.composer.model.condition.ConditionValueModel;
+import inetsoft.web.composer.model.condition.ExpressionValueModel;
 import inetsoft.web.composer.model.vs.HighlightDialogModel;
 import inetsoft.web.composer.model.vs.HighlightModel;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
 import inetsoft.web.composer.vs.dialog.HighlightDialogService;
+import inetsoft.web.service.HighlightService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -57,13 +64,30 @@ import java.util.*;
  */
 @Service
 public class AssemblyHighlightService {
+   /** Evaluates a highlight expression the way the renderer will. */
+   @FunctionalInterface
+   interface ExpressionChecker {
+      /** @return null when it evaluates, else the script error; throws if it does not compile. */
+      String check(String expression, boolean sql, ViewsheetSandbox box) throws Exception;
+   }
+
    @Autowired
    public AssemblyHighlightService(ViewsheetSessionService sessions,
                                    HighlightDialogService highlightService)
    {
+      this(sessions, highlightService, VSAQuery::checkHighlightExpression);
+   }
+
+   AssemblyHighlightService(ViewsheetSessionService sessions,
+                            HighlightDialogService highlightService, ExpressionChecker checker)
+   {
       this.sessions = sessions;
       this.highlightService = highlightService;
+      this.checker = checker;
    }
+
+   /** The outcome of a highlight write: anything the caller should be told (bug #78567). */
+   public record SetResult(List<String> warnings) {}
 
    /** Where a highlight lives. All-defaults means the assembly itself. */
    public record Region(Integer row, Integer col, String colName, boolean axis, boolean text) {
@@ -97,8 +121,8 @@ public class AssemblyHighlightService {
    public Map<String, Object> list(String sessionToken, Principal user, String assemblyName,
                                    Region region) throws Exception
    {
-      HighlightDialogModel model = read(sessions.resolve(sessionToken, user).getID(),
-                                       assemblyName, region, user);
+      HighlightDialogModel model = read(sessions.resolve(sessionToken, user), assemblyName,
+                                       region, user);
 
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
@@ -129,15 +153,16 @@ public class AssemblyHighlightService {
     *
     * <p>One {@code sessions.mutate}, so one undo checkpoint.
     */
-   public void set(String sessionToken, Principal user, String assemblyName, Region region,
-                   Highlight highlight, boolean replace, String linkUri) throws Exception
+   public SetResult set(String sessionToken, Principal user, String assemblyName, Region region,
+                        Highlight highlight, boolean replace, String linkUri) throws Exception
    {
       requireName(highlight);
+      List<String> warnings = new ArrayList<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireHighlightRenderable(rvs, assemblyName);
          requireChartRegionDrawn(rvs, assemblyName, region);
-         HighlightDialogModel model = read(runtimeId, assemblyName, region, user);
+         HighlightDialogModel model = read(rvs, assemblyName, region, user);
 
          if(model == null) {
             throw new IllegalArgumentException(
@@ -148,6 +173,9 @@ public class AssemblyHighlightService {
          // Before the shared condition vocabulary gets a chance to blame the field name.
          requireHighlightableRegion(model, assemblyName, region);
          requireRowApplicable(model, assemblyName, highlight);
+         requireNoDerivedConditionField(rvs.getViewsheet().getAssembly(assemblyName), highlight);
+         requireNoDerivedConditionField(highlight, highlightService.getDateComparisonFields(
+            runtimeId, assemblyName, model.getRow(), model.getCol(), user));
 
          List<HighlightModel> highlights = new ArrayList<>();
          boolean found = false;
@@ -198,23 +226,84 @@ public class AssemblyHighlightService {
             highlights.add(build(highlight, model));
          }
 
+         checkExpressions(rvs, highlight, model, warnings);
          model.setHighlights(highlights.toArray(new HighlightModel[0]));
          model.setRejectDerivedMeasure(true);
          highlightService.setHighlightDialogModel(runtimeId, assemblyName, model, linkUri, user,
                                                  dispatcher);
       });
+
+      if(sessionWarnings != null) {
+         warnings.addAll(sessionWarnings);
+      }
+
+      return new SetResult(warnings);
    }
 
-   /** Removes one highlight by name. Removing one that is not there is an error, not a no-op. */
-   public void delete(String sessionToken, Principal user, String assemblyName, Region region,
+   /**
+    * Evaluates each expression operand before anything is committed (bug #78567). The renderer
+    * swallows a highlight expression's script failure, so the highlight would silently never
+    * apply while the write read as a success. A syntax error is refused (it can never become
+    * valid); a runtime failure is committed with a warning, since it can be transient, e.g. an
+    * expression reading a selection that has no value yet.
+    */
+   private void checkExpressions(RuntimeViewsheet rvs, Highlight highlight,
+                                 HighlightDialogModel model, List<String> warnings)
+   {
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+      if(box == null) {
+         return;
+      }
+
+      Object[] conditionList = build(highlight, model).getVsConditionDialogModel().getConditionList();
+
+      for(Object item : conditionList) {
+         if(!(item instanceof ConditionModel condition) || condition.getValues() == null) {
+            continue;
+         }
+
+         for(ConditionValueModel value : condition.getValues()) {
+            if(value == null || !(value.getValue() instanceof ExpressionValueModel expression)) {
+               continue;
+            }
+
+            boolean sql = expression.getType() == ExpressionValueModel.SQL;
+            String text = expression.getExpression();
+            String error;
+
+            try {
+               error = checker.check(text, sql, box);
+            }
+            catch(Exception e) {
+               throw new IllegalArgumentException(
+                  "The " + (sql ? "sql" : "js") + " expression '" + text + "' does not compile: " +
+                  e.getMessage() + " Nothing was changed.");
+            }
+
+            if(error != null) {
+               warnings.add("The expression '" + text + "' threw: " + error +
+                            "; the highlight never applies until it evaluates.");
+            }
+         }
+      }
+   }
+
+   /**
+    * Removes one highlight by name. Removing one that is not there is an error, not a no-op.
+    *
+    * @return the warnings {@code sessions.mutate} captured while the table re-ran, empty when
+    *         clean.
+    */
+   public List<String> delete(String sessionToken, Principal user, String assemblyName, Region region,
                       String name, String linkUri) throws Exception
    {
       if(name == null || name.isBlank()) {
          throw new IllegalArgumentException("delete_highlight needs the highlight's 'name'.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         HighlightDialogModel model = read(runtimeId, assemblyName, region, user);
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         HighlightDialogModel model = read(rvs, assemblyName, region, user);
          HighlightModel[] existing = model == null || model.getHighlights() == null
             ? new HighlightModel[0] : model.getHighlights();
          List<HighlightModel> kept = new ArrayList<>();
@@ -242,6 +331,8 @@ public class AssemblyHighlightService {
          highlightService.setHighlightDialogModel(runtimeId, assemblyName, model, linkUri, user,
                                                  dispatcher);
       });
+
+      return warnings == null ? List.of() : warnings;
    }
 
    // ── conversions ───────────────────────────────────────────────────────────
@@ -346,9 +437,11 @@ public class AssemblyHighlightService {
       }
    }
 
-   private HighlightDialogModel read(String runtimeId, String assemblyName, Region region,
+   private HighlightDialogModel read(RuntimeViewsheet rvs, String assemblyName, Region region,
                                      Principal user) throws Exception
    {
+      String runtimeId = rvs.getID();
+      requireTableRendered(rvs, assemblyName);
       Region target = region == null ? Region.whole() : region;
       HighlightDialogModel model = readAt(runtimeId, assemblyName, target, user);
 
@@ -390,6 +483,25 @@ public class AssemblyHighlightService {
    /** Whether {@code cell} falls inside the assembly's own reported header extent. */
    private static boolean isHeaderCell(Region cell, Region firstDataCell) {
       return cell.row() < firstDataCell.row() || cell.col() < firstDataCell.col();
+   }
+
+   /**
+    * A highlight on a table is stored per rendered cell, and {@code HighlightDialogService}
+    * dereferences the table's lens unguarded, so a table that did not render surfaced as an NPE
+    * (a masked 500). Refuse it by name instead, for a script failure on the first read and for
+    * the cached failed load alike.
+    */
+   private static void requireTableRendered(RuntimeViewsheet rvs, String assemblyName)
+      throws Exception
+   {
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(assembly instanceof TableDataVSAssembly && rvs.getViewsheetSandbox().isPresent()) {
+         TableLensGuard.requireRenderedLens(
+            rvs, assembly, assemblyName, "its highlights cannot be addressed (they are stored " +
+            "per rendered cell)");
+      }
    }
 
    /**
@@ -765,6 +877,79 @@ public class AssemblyHighlightService {
     * highlight on a Crosstab is excluded from the per-cell store AND never reaches the row store —
     * stored nowhere, with the call still reporting success.
     */
+   /**
+    * Refuses a condition on a field the active date comparison derives (e.g. "Change from
+    * previous year of Year(D): Sum(M)"). It is listed as a conditionable field while the
+    * comparison is on, but it has no design-time field behind it, so the condition dangles once the comparison is
+    * cleared or changed. Chart; the crosstab is the overload below. Matched case-insensitively, the way {@link ConditionVocabulary} resolves field names.
+    */
+   static void requireNoDerivedConditionField(VSAssembly assembly, Highlight highlight) {
+      requireNoDerivedConditionField(highlight, new HighlightService.DateComparisonFields(
+         derivedDateComparisonFields(assembly), Set.of()));
+   }
+
+   /**
+    * The crosstab half: refuses a condition on a field a crosstab lists only because of the active
+    * date comparison (a derived measure, a date dimension it re-leveled or inserted, a temp group).
+    * A derived measure's highlight is deleted by the next binding apply even with the comparison
+    * kept on; a re-leveled dimension's is deleted when the comparison is cleared; an inserted
+    * period dimension's dangles. {@code fields} is classified in the listed names (see
+    * {@link HighlightService#getDateComparisonFields(RuntimeViewsheet, VSAssembly,
+    * inetsoft.report.TableDataPath)}); a field it cannot classify is refused, not let through.
+    */
+   static void requireNoDerivedConditionField(Highlight highlight,
+                                              HighlightService.DateComparisonFields fields)
+   {
+      if(highlight.conditions() == null || highlight.conditions().isEmpty() ||
+         fields.isEmpty())
+      {
+         return;
+      }
+
+      int index = 0;
+
+      for(ConditionVocabulary.Clause clause : highlight.conditions()) {
+         index++;
+         String field = clause == null || clause.field() == null ? "" : clause.field().trim();
+
+         if(fields.isDerived(field)) {
+            throw new IllegalArgumentException(
+               "Condition " + index + "'s field '" + field + "' is derived by the active date " +
+               "comparison and has no design-time field behind it, so the highlight would be " +
+               "lost or left dangling as soon as the comparison changes or is cleared. " +
+               "Put the condition on the base measure instead.");
+         }
+
+         if(fields.isAmbiguous(field)) {
+            throw new IllegalArgumentException(
+               "Condition " + index + "'s field '" + field + "' cannot be told apart from a " +
+               "field the active date comparison derives, so it is refused rather than risk a " +
+               "highlight that is lost or left dangling once the comparison changes or is " +
+               "cleared. Put the condition on a field that is listed without the comparison, " +
+               "or clear the date comparison first.");
+         }
+      }
+   }
+
+   private static Set<String> derivedDateComparisonFields(VSAssembly assembly) {
+      Set<String> names = new HashSet<>();
+
+      if(assembly != null && assembly.getInfo() instanceof ChartVSAssemblyInfo info) {
+         VSChartInfo chartInfo = info.getVSChartInfo();
+         ChartRef[] refs = chartInfo == null ? null : chartInfo.getRuntimeDateComparisonRefs();
+
+         for(ChartRef ref : refs == null ? new ChartRef[0] : refs) {
+            String name = ref.getFullName();
+
+            if(HighlightDialogService.isDerivedDateComparisonRef(chartInfo, name, ref)) {
+               names.add(name);
+            }
+         }
+      }
+
+      return names;
+   }
+
    private static void requireRowApplicable(HighlightDialogModel model, String assemblyName,
                                             Highlight highlight)
    {
@@ -830,4 +1015,5 @@ public class AssemblyHighlightService {
 
    private final ViewsheetSessionService sessions;
    private final HighlightDialogService highlightService;
+   private final ExpressionChecker checker;
 }

@@ -159,6 +159,40 @@ class ChartAestheticAgentServiceTest {
                    spec("type", "palette", "palette", "Blues"), ""));
    }
 
+   /** Bug #78439: aesthetic writes do not swallow an inner script error (see binding). */
+   @Test
+   void aScriptErrorFromTheInnerServiceIsNotSwallowedByAestheticWrites() throws Exception {
+      ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
+      doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(aesthetics).changeChartAesthetic(any(), any(), any(), any(), any());
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(mock(ChartVSAssembly.class)), new ChartBindingModel(), aesthetics);
+
+      assertThrows(RuntimeException.class, () -> service.setField(
+         "tok", principal(), "Chart1", "color",
+         new FieldRef("Region", "dimension", null, null, null), null, ""));
+   }
+
+   /** Bug #78439: every aesthetic write returns the warnings the write captured. */
+   @Test
+   void everyWriteReturnsTheWarningsTheWriteCaptured() throws Exception {
+      ViewsheetSessionService sessions = sessionsFor(mock(ChartVSAssembly.class));
+      doReturn(List.of("chart warning")).when(sessions)
+         .mutate(anyString(), any(Principal.class), any());
+      ChartAestheticAgentService service = serviceWith(sessions, new ChartBindingModel(),
+                                                  mock(ChangeChartAestheticService.class));
+      List<String> expected = List.of("chart warning");
+
+      assertEquals(expected, service.setField(
+         "tok", principal(), "Chart1", "color",
+         new FieldRef("Region", "dimension", null, null, null), null, ""));
+      assertEquals(expected, service.clearField("tok", principal(), "Chart1", "color", ""));
+      assertEquals(expected, service.setFrame(
+         "tok", principal(), "Chart1", "color", spec("type", "static", "color", "#4E79A7"),
+         ""));
+      assertEquals(expected, service.resetFrame(
+         "tok", principal(), "Chart1", "color", null, ""));
+   }
+
    @Test
    void eachMutationIsExactlyOneCheckpoint() throws Exception {
       ViewsheetSessionService sessions = sessionsFor(mock(ChartVSAssembly.class));

@@ -21,7 +21,9 @@ import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.internal.CompositeTableAssemblyInfo;
 import inetsoft.uql.erm.*;
+import inetsoft.util.MessageException;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -398,7 +400,157 @@ class RenameColumnComposedIdentityTest {
       assertEquals("U", filterAttr(j).getEntity());
    }
 
+   /**
+    * Bug #78527: re-levelling A's Year(d) must not touch K = B join C, which keys on its own
+    * same-named Year(d) columns (A is in no join, so the wiz guard lets this through).
+    */
+   @Test
+   void reLevelLeavesAnUnrelatedJoinOnASameNamedRangeKeyIntact() {
+      Worksheet ws = new Worksheet();
+      TableAssembly a = rangeSource(ws, "A");
+      TableAssembly b = rangeSource(ws, "B");
+      TableAssembly c = rangeSource(ws, "C");
+      rangeJoin(ws, "K", b, c);
+
+      reLevel(ws, a);
+
+      assertEquals(List.of("B.Year(d)=C.Year(d)"), operators(ws, "K"));
+   }
+
+   /** Bug #78527: in J = A join B on Year(d), only A's side follows A's re-level. */
+   @Test
+   void reLevelRewritesOnlyTheRenamedSourcesSideOfAJoinOperator() {
+      Worksheet ws = new Worksheet();
+      TableAssembly a = rangeSource(ws, "A");
+      TableAssembly b = rangeSource(ws, "B");
+      rangeJoin(ws, "J", a, b);
+
+      reLevel(ws, a);
+
+      assertEquals(List.of("A.Quarter(d)=B.Year(d)"), operators(ws, "J"));
+   }
+
+   /**
+    * Bug #78527: the scoped operator rewrite does not change a native rename of an expression
+    * join key. Before and after the fix, renaming A's e under J = A join B is stopped by J's own
+    * validity check (the key is gone from A) before any operator is rewritten, and J's
+    * operators are left as they were.
+    */
+   @Test
+   void expressionKeyRenameUnderAJoinIsStoppedBeforeTheOperatorsAsBefore() {
+      Worksheet ws = new Worksheet();
+      TableAssembly a = expressionSource(ws, "A");
+      TableAssembly b = expressionSource(ws, "B");
+      rangeJoin(ws, "J", a, b);
+
+      MessageException ex = assertThrows(MessageException.class, () -> rename(ws, a, "e", "e2"));
+
+      assertTrue(ex.getMessage().contains("cross join in J"), ex.getMessage());
+      assertEquals(List.of("A.e=B.e"), operators(ws, "J"));
+   }
+
+   /**
+    * Bug #78527 (refute B3): the same for J = A join M, M a mirror of A, on A's expression key:
+    * no worse than before the fix.
+    */
+   @Test
+   void expressionKeyRenameUnderAJoinWithItsOwnMirrorIsStoppedBeforeTheOperatorsAsBefore() {
+      Worksheet ws = new Worksheet();
+      TableAssembly a = expressionSource(ws, "A");
+      MirrorTableAssembly m = mirror(ws, "M", a);
+      rangeJoin(ws, "J", a, m);
+
+      MessageException ex = assertThrows(MessageException.class, () -> rename(ws, a, "e", "e2"));
+
+      assertTrue(ex.getMessage().contains("cross join in J"), ex.getMessage());
+      assertEquals(List.of("A.e=M.e"), operators(ws, "J"));
+   }
+
    // ----------------------------------------------------------------------------------- helpers
+
+   /** An embedded table whose first column is a Year(d) range column, then d. */
+   private static TableAssembly rangeSource(Worksheet ws, String name) {
+      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, name);
+      ColumnSelection cs = new ColumnSelection();
+      DateRangeRef range = new DateRangeRef(
+         DateRangeRef.getName("d", DateRangeRef.YEAR_INTERVAL), new AttributeRef(null, "d"),
+         DateRangeRef.YEAR_INTERVAL);
+      ColumnRef rangeCol = new ColumnRef(range);
+      rangeCol.setDataType("integer");
+      cs.addAttribute(rangeCol);
+      ColumnRef d = new ColumnRef(new AttributeRef(null, "d"));
+      d.setDataType("date");
+      cs.addAttribute(d);
+      table.setColumnSelection(cs, false);
+      table.setColumnSelection(cs.clone(), true);
+      ws.addAssembly(table);
+      return table;
+   }
+
+   /** An embedded table whose first column is an expression column e, then k. */
+   private static TableAssembly expressionSource(Worksheet ws, String name) {
+      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, name);
+      ColumnSelection cs = new ColumnSelection();
+      ExpressionRef expr = new ExpressionRef(null, "e");
+      expr.setExpression("field['k'] + 1");
+      ColumnRef e = new ColumnRef(expr);
+      e.setDataType("integer");
+      cs.addAttribute(e);
+      ColumnRef k = new ColumnRef(new AttributeRef(null, "k"));
+      k.setDataType("integer");
+      cs.addAttribute(k);
+      table.setColumnSelection(cs, false);
+      table.setColumnSelection(cs.clone(), true);
+      ws.addAssembly(table);
+      return table;
+   }
+
+   /** A join on each side's first column, with the operator holding copies, as addJoin does. */
+   private static ComposedTableAssembly rangeJoin(Worksheet ws, String name, TableAssembly left,
+                                                  TableAssembly right)
+   {
+      ComposedTableAssembly j = join(ws, name, "inner", left, right);
+      CompositeTableAssemblyInfo info = (CompositeTableAssemblyInfo) j.getTableInfo();
+
+      for(TableAssemblyOperator.Operator op :
+         info.getOperator(left.getName(), right.getName()).getOperators())
+      {
+         op.setLeftAttribute(((ColumnRef) op.getLeftAttribute()).clone());
+         op.setRightAttribute(((ColumnRef) op.getRightAttribute()).clone());
+      }
+
+      return j;
+   }
+
+   /** Re-levels the Year(d) range column of {@code table} to Quarter(d), as the wiz edit does. */
+   private static void reLevel(Worksheet ws, TableAssembly table) {
+      ColumnRef rangeCol = (ColumnRef) table.getColumnSelection(false).getAttribute(0);
+      DateRangeRef range = (DateRangeRef) rangeCol.getDataRef();
+      ColumnRef original = rangeCol.clone();
+      range.setDateOption(DateRangeRef.QUARTER_INTERVAL);
+      range.setName(DateRangeRef.getName("d", DateRangeRef.QUARTER_INTERVAL));
+      rangeCol.setDataRef(range);
+      RenameColumnController.renameTableColumn(ws, table, original, rangeCol);
+   }
+
+   private static List<String> operators(Worksheet ws, String join) {
+      CompositeTableAssemblyInfo info = (CompositeTableAssemblyInfo)
+         ((CompositeTableAssembly) ws.getAssembly(join)).getTableInfo();
+      List<String> names = new ArrayList<>();
+      Enumeration<?> iter = info.getOperatorTables();
+
+      while(iter.hasMoreElements()) {
+         String[] pair = (String[]) iter.nextElement();
+
+         for(TableAssemblyOperator.Operator op : info.getOperator(pair[0], pair[1]).getOperators()) {
+            names.add(op.getLeftTable() + "." + out((ColumnRef) op.getLeftAttribute()) + "=" +
+                      op.getRightTable() + "." + out((ColumnRef) op.getRightAttribute()));
+         }
+      }
+
+      return names;
+   }
+
 
    private static void rename(Worksheet ws, TableAssembly table, String column, String newName) {
       ColumnSelection cs = table.getColumnSelection(false);

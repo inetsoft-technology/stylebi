@@ -562,7 +562,7 @@ public class TargetForm extends GraphForm {
     */
    @Override
    public void setAlpha(int alphaValue) {
-      this.alphaValue = alphaValue;
+      this.alphaValue = checkAlpha(alphaValue);
    }
 
    /**

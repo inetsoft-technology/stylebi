@@ -38,7 +38,8 @@ import java.util.Set;
 /**
  * Bug #78357: what a column that is about to disappear from a table is still used for. Shared by
  * {@code remove_column}'s confirmation text and the replace-import refusal, so both name
- * dependents the same way.
+ * dependents the same way. Bug #78527: also by the edit_sql_query / edit_table refusal and the
+ * edit_date_range_column join-key guard, each checking its own {@link Scope} of dependents.
  */
 final class ColumnLossReport {
    private ColumnLossReport() {
@@ -75,16 +76,54 @@ final class ColumnLossReport {
    }
 
    /**
+    * Which kinds of dependent a column loss is checked against (Bug #78527). Downstream
+    * conditions, rankings, expressions and range columns are always checked; the rest depends
+    * on the write.
+    *
+    * @param keys       a join or composite table keyed on the column
+    * @param aggregates a downstream aggregate or group-by on the column
+    * @param ownState   the table's own conditions and sort
+    * @param ownDerived the table's own expression and range columns, which the write keeps
+    */
+   record Scope(boolean keys, boolean aggregates, boolean ownState, boolean ownDerived) {
+      /** replace-import: every dependent, including the derived columns the replace keeps. */
+      static final Scope IMPORT = new Scope(true, true, true, true);
+
+      /**
+       * edit_sql_query / edit_table: downstream references only. Join keys and key types are
+       * refused by the caller's own checks; an aggregate stays accept-and-warn (WSQ-009).
+       */
+      static final Scope QUERY_EDIT = new Scope(false, false, false, false);
+   }
+
+   /**
     * Refuses a replace-import that would drop a column something else still uses: a join keyed
     * on it, a downstream condition, ranking, expression, range, or aggregate/group-by, or the
-    * table's own condition or sort. Everything is listed in one message. Nothing has been
-    * mutated when this runs.
+    * table's own condition, sort, expression or range column. Everything is listed in one
+    * message. Nothing has been mutated when this runs.
     *
     * @param keptNames the names the table's columns will have after the import
     */
    static void requireImportKeepsReferencedColumns(
       Worksheet ws, TableAssembly assembly, String tableName,
       List<ColumnRef> oldColumns, Set<String> keptNames) throws PairingException
+   {
+      requireNoDependentLoss(
+         ws, assembly, tableName, oldColumns, keptNames, Scope.IMPORT,
+         "Replacing the data of '" + tableName + "'",
+         "Keep these columns, under the same names, in the file, or remove or rewrite those " +
+         "dependents first. Nothing was changed.");
+   }
+
+   /**
+    * Refuses a write that would drop a column of {@code oldColumns} whose name is not in
+    * {@code keptNames} while a dependent in {@code scope} still uses it. The message is
+    * {@code <lead> would drop column(s) "a" that other tables still use: <dependents>.
+    * <remedy>}. Nothing has been mutated when this runs.
+    */
+   static void requireNoDependentLoss(
+      Worksheet ws, TableAssembly assembly, String tableName, List<ColumnRef> oldColumns,
+      Set<String> keptNames, Scope scope, String lead, String remedy) throws PairingException
    {
       Set<String> dropped = new LinkedHashSet<>();
       List<String> parts = new ArrayList<>();
@@ -95,14 +134,29 @@ final class ColumnLossReport {
          }
 
          List<String> keyDependents = new ArrayList<>();
-         collectKeyDependents(ws, assembly, old, keyDependents, new LinkedHashSet<>());
-         boolean keyBlocked = !WorksheetControllerService.allowsDeletion(ws, assembly, old);
-         List<AggregateInputLossConflict> aggregates =
-            WorksheetControllerService.findAggregateInputLossConflicts(ws, assembly, old);
+         boolean keyBlocked = false;
+
+         if(scope.keys()) {
+            collectKeyDependents(ws, assembly, old, keyDependents, new LinkedHashSet<>());
+            keyBlocked = !WorksheetControllerService.allowsDeletion(ws, assembly, old);
+         }
+
+         List<AggregateInputLossConflict> aggregates = scope.aggregates()
+            ? WorksheetControllerService.findAggregateInputLossConflicts(ws, assembly, old)
+            : List.of();
          List<ColumnReferenceLossConflict> references =
             WorksheetControllerService.findColumnReferenceLossConflicts(ws, assembly, old);
-         List<String> own = new ArrayList<>(new LinkedHashSet<>(
-            WorksheetControllerService.findOwnColumnReferences(assembly, old)));
+         Set<String> ownSet = new LinkedHashSet<>();
+
+         if(scope.ownState()) {
+            ownSet.addAll(WorksheetControllerService.findOwnColumnReferences(assembly, old));
+         }
+
+         if(scope.ownDerived()) {
+            ownSet.addAll(WorksheetControllerService.findOwnDerivedColumnReferences(assembly, old));
+         }
+
+         List<String> own = new ArrayList<>(ownSet);
 
          if(!keyBlocked && aggregates.isEmpty() && references.isEmpty() &&
             own.isEmpty())
@@ -136,10 +190,31 @@ final class ColumnLossReport {
       }
 
       throw new PairingException(
-         "Replacing the data of '" + tableName + "' would drop column(s) " +
-         String.join(", ", dropped) + " that other tables still use: " +
-         String.join("; ", parts) + ". Keep these columns, under the same names, in the file, " +
-         "or remove or rewrite those dependents first. Nothing was changed.");
+         lead + " would drop column(s) " + String.join(", ", dropped) +
+         " that other tables still use: " + String.join("; ", parts) + ". " + remedy);
+   }
+
+   /**
+    * Refuses a write that renames {@code ref} while a join or composite table is keyed on it
+    * (Bug #78527), naming those tables: {@code <lead>: it is a join key of 'J' (join key on
+    * "a"). <remedy>}. Nothing has been mutated when this runs.
+    */
+   static void requireNotJoinKey(Worksheet ws, TableAssembly table, ColumnRef ref, String lead,
+                                 String remedy) throws PairingException
+   {
+      if(WorksheetControllerService.allowsDeletion(ws, table, ref)) {
+         return;
+      }
+
+      List<String> keyDependents = new ArrayList<>();
+      collectKeyDependents(ws, table, ref, keyDependents, new LinkedHashSet<>());
+      String named = keyDependents.isEmpty()
+         ? "a join or composite table"
+         : String.join(", ", keyDependents.stream().map(d -> "'" + d + "'").toList());
+
+      throw new PairingException(
+         lead + ": it is a join key of " + named + " (join key on \"" + ref.getName() + "\"). " +
+         remedy);
    }
 
    /**

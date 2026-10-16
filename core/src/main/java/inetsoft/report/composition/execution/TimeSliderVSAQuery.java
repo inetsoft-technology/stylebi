@@ -458,7 +458,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       }
 
       // execute script so max/min set from script would be used here
-      box.executeScript(assembly);
+      box.executeScriptForExport(assembly);
       TimeInfo tinfo = assembly.getTimeInfo();
       TableAssembly tassembly = getTableAssembly();
       if(tassembly == null) {

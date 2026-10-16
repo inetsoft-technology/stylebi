@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.test.*;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.binding.event.GetPredefinedNamedGroupEvent;
@@ -34,6 +35,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.Condition;
 import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.asset.Assembly;
@@ -45,6 +47,7 @@ import inetsoft.uql.asset.AbstractTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
@@ -62,7 +65,11 @@ import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Dimension;
 import java.security.Principal;
@@ -72,6 +79,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+// Spring + @SreeHome: an inline/worksheet-local named group is converted to a real ConditionList
+// (Condition reads SreeEnv) to be checked against LayoutTool.isSimpleNamedGroup.
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 class CalcTableServiceTest {
    private static Map<String, Object> spec(Object... pairs) {
@@ -359,6 +372,128 @@ class CalcTableServiceTest {
                                                        any());
    }
 
+   private static List<BindableTable> orderTables() {
+      return List.of(new BindableTable("Orders", true,
+                                       List.of(new BindableField("Customer:State", "string",
+                                                                 "dimension"),
+                                               new BindableField("Order:Discount", "double",
+                                                                 "measure"))));
+   }
+
+   private static SetCellBindingEvent bindAndCapture(Harness h, Map<String, Object> binding)
+      throws Exception
+   {
+      h.service.setCellBinding("tok", principal(), "Calc1", 1, 1, binding);
+      ArgumentCaptor<SetCellBindingEvent> captor =
+         ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
+                                             any());
+      return captor.getValue();
+   }
+
+   @Test
+   void storesTheRealSpellingOfAMisCasedGroupColumn() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h, columnCell("customer:state"));
+
+      assertEquals("Customer:State", event.getBinding().getValue());
+   }
+
+   @Test
+   void storesTheRealSpellingOfAMisCasedSummaryColumn() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h,
+         spec("content", "column", "grouping", "summary", "expand", "none", "formula", "Sum",
+              "field", Map.of("column", "order:discount", "type", "measure")));
+
+      assertEquals("Order:Discount", event.getBinding().getValue());
+   }
+
+   /** The default cell name StyleBI derives for the binding the layout service received. */
+   private static String runtimeCellName(CellBindingInfo info) {
+      TableCellBinding cell = info.getBtype() == CellBinding.SUMMARY
+         ? TableCellBinding.getSummaryBinding(info.getValue())
+         : TableCellBinding.getGroupBinding(info.getValue());
+      cell.setFormula(info.getFormula());
+      return cell.getRuntimeCellName();
+   }
+
+   @Test
+   void derivedSummaryCellNameFollowsTheCanonicalSpelling() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h,
+         spec("content", "column", "grouping", "summary", "expand", "none", "formula", "Sum",
+              "field", Map.of("column", "order:discount", "type", "measure")));
+
+      assertEquals("Sum_Order_Discount_", runtimeCellName(event.getBinding()));
+   }
+
+   @Test
+   void derivedGroupCellNameFollowsTheCanonicalSpelling() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h, columnCell("customer:state"));
+
+      assertEquals("Customer_State", runtimeCellName(event.getBinding()));
+   }
+
+   @Test
+   void leavesAnExactCaseColumnUnchanged() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h, columnCell("Customer:State"));
+
+      assertEquals("Customer:State", event.getBinding().getValue());
+   }
+
+   @Test
+   void stillRefusesAnUnknownColumnWhenCanonicalizing() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.setCellBinding("tok", principal(), "Calc1", 1, 1,
+                                                  columnCell("customer:nosuch")));
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class),
+                                                       any());
+   }
+
+   @Test
+   void leavesADynamicColumnReferenceUntouched() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h, columnCell("$(PickColumn)"));
+
+      assertEquals("$(PickColumn)", event.getBinding().getValue());
+   }
+
+   @Test
+   void aListingFailureKeepsTheTypedColumnAndSkipsTheCheck() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenThrow(new IllegalStateException("tree unavailable"));
+
+      SetCellBindingEvent event = bindAndCapture(h, columnCell("customer:state"));
+
+      assertEquals("customer:state", event.getBinding().getValue());
+   }
+
    @Test
    void eachBindIsExactlyOneCheckpoint() throws Exception {
       Harness h = harness(3, 3);
@@ -624,36 +759,6 @@ class CalcTableServiceTest {
                                       "conditions", List.of(condition))))));
    }
 
-   private static inetsoft.web.composer.model.condition.ConditionModel firstCondition(Harness h)
-      throws Exception
-   {
-      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
-      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
-      return (inetsoft.web.composer.model.condition.ConditionModel) captor.getValue().getBinding()
-         .getOrder().getInfo().getConditions().get(0).getList()[0];
-   }
-
-   /** less_than + equal:true is <=; clausesOf used to hard-code equal=false. */
-   @Test
-   void inlineNamedGroupConditionCarriesEqual() throws Exception {
-      Harness h = harness(3, 3);
-
-      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0, namedGroupCell(
-         spec("operator", "less_than", "values", List.of(10), "equal", true)));
-
-      assertTrue(firstCondition(h).isEqual());
-   }
-
-   @Test
-   void inlineNamedGroupConditionCarriesNegated() throws Exception {
-      Harness h = harness(3, 3);
-
-      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0, namedGroupCell(
-         spec("operator", "one_of", "values", List.of("CA"), "negated", true)));
-
-      assertTrue(firstCondition(h).isNegated());
-   }
-
    @Test
    void refusesAStringNegatedOrEqualOnAnInlineNamedGroupConditionByName() throws Exception {
       for(String key : List.of("negated", "equal")) {
@@ -755,22 +860,158 @@ class CalcTableServiceTest {
       }
    }
 
-   /** less_than + equal:true is <=, negated + equal both survive, and absent means false. */
-   @Test
-   void verify78400_namedGroupEqualAndNegatedReachTheConditionModel() throws Exception {
-      Harness both = harness(3, 3);
-      both.service.setCellBinding("tok", principal(), "Calc1", 0, 0, namedGroupCell(
-         spec("operator", "less_than", "values", List.of(10), "equal", true, "negated", true)));
-      inetsoft.web.composer.model.condition.ConditionModel c = firstCondition(both);
-      assertTrue(c.isEqual());
-      assertTrue(c.isNegated());
+   // -- bug #76814: a named group the calc render cannot bucket is refused, not persisted --
 
-      Harness neither = harness(3, 3);
-      neither.service.setCellBinding("tok", principal(), "Calc1", 0, 0, namedGroupCell(
-         spec("operator", "less_than", "values", List.of(10), "equal", false)));
-      inetsoft.web.composer.model.condition.ConditionModel d = firstCondition(neither);
-      assertFalse(d.isEqual());
-      assertFalse(d.isNegated());
+   private static Map<String, Object> namedGroupCellOf(List<Map<String, Object>>... groups) {
+      List<Object> all = new ArrayList<>();
+
+      for(int i = 0; i < groups.length; i++) {
+         all.add(spec("name", "G" + i, "conditions", groups[i]));
+      }
+
+      return spec("content", "column", "grouping", "group", "expand", "vertical",
+                  "field", spec("column", "REGION", "type", "dimension",
+                                "namedGroup", spec("groups", all)));
+   }
+
+   private static void assertInlineRefused(Map<String, Object> cell, String pathFragment,
+                                           String reasonFragment) throws Exception
+   {
+      Harness h = harness(3, 3);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         h.service.setCellBinding("tok", principal(), "Calc1", 0, 0, cell));
+
+      assertTrue(thrown.getMessage().contains(pathFragment), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains(reasonFragment), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'equals' or 'one_of'"), thrown.getMessage());
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class), any());
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void verify76814_refusesAnInlineNamedGroupOperatorOtherThanEqualsOrOneOf() throws Exception {
+      for(String operator : List.of("between", "starts_with", "less_than", "contains")) {
+         List<Object> values = "between".equals(operator) ? List.of("A", "B") : List.of("A");
+         assertInlineRefused(
+            namedGroupCellOf(List.of(spec("operator", operator, "values", values))),
+            "'field.namedGroup.groups[0].conditions[0]'", "operator '" + operator + "'");
+      }
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void verify76814_refusesANegatedInlineNamedGroupCondition() throws Exception {
+      assertInlineRefused(
+         namedGroupCellOf(List.of(spec("operator", "one_of", "values", List.of("CA"),
+                                       "negated", true))),
+         "'field.namedGroup.groups[0].conditions[0]'", "a negated 'one_of'");
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void verify76814_refusesAnAndJunctionBetweenInlineNamedGroupConditions() throws Exception {
+      assertInlineRefused(
+         namedGroupCellOf(List.of(
+            spec("operator", "one_of", "values", List.of("CA"), "junction", "and"),
+            spec("operator", "one_of", "values", List.of("OR")))),
+         "'field.namedGroup.groups[0]'", "joined with 'and'");
+   }
+
+   /** One non-simple group disables bucketing for every group on the cell, so name the right one. */
+   @Test
+   @SuppressWarnings("unchecked")
+   void verify76814_namesTheOffendingGroupAndConditionIndex() throws Exception {
+      assertInlineRefused(
+         namedGroupCellOf(
+            List.of(spec("operator", "one_of", "values", List.of("CA"))),
+            List.of(spec("operator", "one_of", "values", List.of("OR"), "junction", "or"),
+                    spec("operator", "between", "values", List.of("A", "B")))),
+         "'field.namedGroup.groups[1].conditions[1]'", "operator 'between'");
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void verify76814_acceptsOrChainedEqualsAndOneOf() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0, namedGroupCellOf(
+         List.of(spec("operator", "one_of", "values", List.of("CA", "OR"), "junction", "or"),
+                 spec("operator", "equals", "values", List.of("WA")))));
+
+      assertEquals(1, bound(h).getOrder().getInfo().getConditions().size());
+   }
+
+   @Test
+   void verify76814_refusesAWorksheetLocalNamedGroupBuiltWithAnOperatorTheRenderCannotBucket()
+      throws Exception
+   {
+      Harness h = harness(3, 3);
+      when(h.assemblyInfo().getSourceInfo())
+         .thenReturn(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+
+      Condition condition = new Condition(XSchema.STRING);
+      condition.setOperation(XCondition.STARTING_WITH);
+      condition.addValue("A");
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "REGION"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("A-names", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Prefixes");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource())
+         .thenReturn(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "REGION"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new Assembly[]{ ngAssembly });
+      when(h.viewsheet().getBaseWorksheet()).thenReturn(ws);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+            spec("content", "column", "grouping", "group", "expand", "vertical",
+                 "field", Map.of("column", "REGION", "type", "dimension",
+                                 "namedGroup", "Prefixes"))));
+
+      assertTrue(thrown.getMessage().contains("worksheet named group 'Prefixes'"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("operator 'starts_with'"), thrown.getMessage());
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class), any());
+   }
+
+   /**
+    * A repository group the calc render cannot bucket is filtered out of the plain list; the
+    * refusal must say that, not that the group does not exist.
+    */
+   @Test
+   void verify76814_aRepositoryGroupTheCalcRenderCannotBucketIsRefusedWithTheRealReason()
+      throws Exception
+   {
+      Harness h = harness(3, 3);
+      doAnswer(invocation -> {
+         GetPredefinedNamedGroupEvent event = invocation.getArgument(1);
+         CommandDispatcher dispatcher = invocation.getArgument(3);
+         GetPredefinedNamedGroupCommand command =
+            new GetPredefinedNamedGroupCommand(new AssetNamedGroupInfo[0]);
+         command.setNamedGroups(event.isIncludeNonSimple() ? new String[]{ "Prefixes" } : new String[0]);
+         dispatcher.sendCommand("Calc1", command);
+         return null;
+      }).when(h.layoutService).getNamedGroup(anyString(),
+                                             any(GetPredefinedNamedGroupEvent.class),
+                                             any(Principal.class), any());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+            spec("content", "column", "grouping", "group", "expand", "vertical",
+                 "field", Map.of("column", "REGION", "type", "dimension",
+                                 "namedGroup", "Prefixes"))));
+
+      assertTrue(thrown.getMessage().contains("'Prefixes' exists"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'equals' or 'one_of'"), thrown.getMessage());
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class), any());
    }
 
    // ── field.dateLevel (applyDateGroup) ──────────────────────────────────────────

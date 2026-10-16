@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.schedule;
 import inetsoft.sree.schedule.ScheduleAction;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
 import inetsoft.web.admin.ai.*;
@@ -254,7 +255,9 @@ public class ScheduleTaskImportChangesetApplyService {
       }
 
       mutationEntered.set(true);
-      scheduleManager.setScheduleTask(taskId, staged, user);
+      // Bug #78592, an overwrite keeps the task in the folder it is stored in, a save without a
+      // folder entry puts it in the root folder and leaves its entry in the old folder
+      scheduleManager.setScheduleTask(taskId, staged, getFolderEntry(existing), user);
 
       boolean verified = scheduleManager.getScheduleTask(taskId) != null;
       String after = verified ? ScheduleXmlProjection.project(staged) : null;
@@ -339,7 +342,8 @@ public class ScheduleTaskImportChangesetApplyService {
          verified = scheduleManager.getScheduleTask(undo.taskId) == null;
       }
       else {
-         scheduleManager.setScheduleTask(undo.taskId, undo.task, user);
+         // restore the overwritten task in the folder it was stored in
+         scheduleManager.setScheduleTask(undo.taskId, undo.task, getFolderEntry(undo.task), user);
          verified = scheduleManager.getScheduleTask(undo.taskId) != null;
       }
 
@@ -351,6 +355,19 @@ public class ScheduleTaskImportChangesetApplyService {
          failures.add(new RollbackFailure(undo.key,
             "rollback of " + undo.kind.name().toLowerCase() + " did not restore the prior state"));
       }
+   }
+
+   /**
+    * Gets the entry of the folder a stored task is in, {@code null} for the root folder or for a
+    * task that isn't stored yet.
+    */
+   private static AssetEntry getFolderEntry(ScheduleTask task) {
+      if(task == null) {
+         return null;
+      }
+
+      String orgId = task.getOwner() == null ? null : task.getOwner().getOrgID();
+      return ScheduleChangesetApplyService.getFolderEntry(task, orgId);
    }
 
    private void writeAudit(String txId, String task, String key, String risk, String adminAction,

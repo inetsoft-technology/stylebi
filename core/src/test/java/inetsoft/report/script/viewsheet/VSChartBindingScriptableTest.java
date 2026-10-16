@@ -530,7 +530,8 @@ public class VSChartBindingScriptableTest {
       //test setTopNReverse on other fields
       vsChartBindingScriptable.setPathField(new Object[] { "city", ChartConstants.STRING });
       vsChartBindingScriptable.setTopNReverse("city", true, 0);
-      assertFalse(vsChartBindingScriptable.isTopNReverse("city", 0));
+      // #78585: type 0 now resolves symmetrically with the setter
+      assertTrue(vsChartBindingScriptable.isTopNReverse("city", 0));
 
       //test setTopNReverse on BINDING_FIELD
       Object[] xField = { "state", ChartConstants.STRING } ;
@@ -582,7 +583,8 @@ public class VSChartBindingScriptableTest {
       //test setGroupOrder on other fields
       vsChartBindingScriptable.setPathField(new Object[] { "date", ChartConstants.DATE });
       vsChartBindingScriptable.setGroupOrder("date", ChartConstants.QUARTER_INTERVAL, 0);
-      assertEquals(ChartConstants.YEAR_INTERVAL, vsChartBindingScriptable.getGroupOrder("date", 0));
+      // #78585: type 0 now resolves symmetrically with the setter
+      assertEquals(ChartConstants.QUARTER_INTERVAL, vsChartBindingScriptable.getGroupOrder("date", 0));
 
       //test setGroupOrder on BINDING_FIELD
       Object[] xField = { "date", ChartConstants.DATE } ;

@@ -206,6 +206,45 @@ class CalcFieldAgentServiceTest {
       verifyNoInteractions(proxy);
    }
 
+   /**
+    * Redmine #78437: ColumnRef.setDataType is case-sensitive and stores "string" for any
+    * spelling it does not know, so "Double" became a string dimension that defaulted to Count.
+    */
+   @Test
+   void refusesAnUnknownDataTypeSpelling() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Doubled", null, "field['Total'] * 2", "Double", null, null, false, true);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("dataType"), thrown.getMessage());
+      verifyNoInteractions(proxy);
+      verifyNoInteractions(sessions);
+   }
+
+   @Test
+   void refusesAnUnknownDataTypeSpellingOnEditToo() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Doubled", null, "field['Total'] * 2", "number", null, null, false,
+         false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("dataType"), thrown.getMessage());
+      verifyNoInteractions(proxy);
+      verifyNoInteractions(sessions);
+   }
+
    @Test
    void refusesATableTheListingDoesNotHave() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);

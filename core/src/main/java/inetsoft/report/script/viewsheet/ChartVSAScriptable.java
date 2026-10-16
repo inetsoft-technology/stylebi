@@ -155,11 +155,16 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
     */
    @Override
    public void putMember(String name, Object value) {
+      // graph/data/query are applied here; a value that was applied is kept in the var map like
+      // the base class does, but is not reported as an unrecognized write (#78583)
+      boolean applied = false;
+
       if(name.equals("graph") && creator != null) {
          value = JavaScriptEngine.unwrap(value);
 
          if(value instanceof EGraph) {
             creator.setGraph((EGraph) value);
+            applied = true;
          }
       }
       else if(name.equals("chartStyle")) {
@@ -189,6 +194,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
             }
 
             data.table = new DataSetTable(nset);
+            applied = true;
          }
       }
       else if(name.equals("dataset")) {
@@ -222,8 +228,14 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
                sinfo.setSource(source.startsWith("cube::") ?
                   Assembly.CUBE_VS + source.substring(6) : source);
                getInfo().setSourceInfo(sinfo);
+               applied = true;
             }
          }
+      }
+
+      if(applied) {
+         getVarMap().put(name, value);
+         return;
       }
 
       super.putMember(name, value);

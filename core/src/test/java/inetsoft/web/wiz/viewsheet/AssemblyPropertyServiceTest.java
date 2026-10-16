@@ -38,9 +38,11 @@ import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ChartLinePaneModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
+import inetsoft.web.composer.model.vs.CrosstabPropertyDialogModel;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.GroupContainerPropertyDialogModel;
+import inetsoft.web.composer.model.vs.ImageAdvancedPaneModel;
 import inetsoft.web.composer.model.vs.ImageGeneralPaneModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
@@ -53,7 +55,9 @@ import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
 import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TextInputPropertyDialogModel;
+import inetsoft.web.composer.model.vs.TextPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
+import inetsoft.web.composer.model.vs.TipPaneModel;
 import inetsoft.web.composer.model.vs.VariableListDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
@@ -63,6 +67,7 @@ import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -873,6 +878,20 @@ class AssemblyPropertyServiceTest {
    }
 
    @Test
+   void bug78579UnknownVariableRefusalNamesTheDataInputField() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(Nope)");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Input", patch, ""));
+      assertTrue(thrown.getMessage().contains("columnValue"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Nope"), thrown.getMessage());
+   }
+
+   @Test
    void bug78263TableUnknownVariableWithVariableFlagIsRefusedByName() {
       TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
       AssemblyPropertyService service =
@@ -1202,6 +1221,62 @@ class AssemblyPropertyServiceTest {
       assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateInput", patch, ""));
    }
 
+   // The writable rows of an embedded table are getHeaderRowCount()..getRowCount()-1 -- the
+   // same bounds InputVSAssemblyInfo.update() (InputVSAssemblyInfo.java:544) and the write-back
+   // sandbox guard (ViewsheetSandbox.java:9173) apply. The header row and rowCount itself are
+   // both rejected there, so accepting them here is the VOF-013 silent no-op (bug #76803 reopen).
+
+   @Test
+   void vof013HeaderRowValueIsRefused() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, embeddedTableWorksheet());
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "0");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateInput", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.rowValue"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   @Test
+   void vof013RowValueEqualToRowCountIsRefused() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, embeddedTableWorksheet());
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "3");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateInput", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.rowValue"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   /** Control for the two refusals above: the last data row (rowCount - 1) is writable. */
+   @Test
+   void lastDataRowValueStillSucceeds() throws Exception {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, embeddedTableWorksheet());
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "2");
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateInput", patch, ""));
+   }
+
    /**
     * VOF-014's real repro shape: the table binding is already set from a prior call, and this
     * patch touches only {@code columnValue}. The gating condition ORs on either field, so
@@ -1464,6 +1539,250 @@ class AssemblyPropertyServiceTest {
                   "an explicit tipOption must not be overridden by the alpha implication");
    }
 
+   // ── assembly-reference values: tipView / flyOverViews / popComponent (bug #78537) ──
+   //
+   // The native dialogs offer these through a <select> over the pane's own list, and the
+   // *PropertyDialogService setters store whatever arrives -- so a name outside the list was
+   // written verbatim, read back masked (null on a chart), and the prior view was lost.
+
+   private static ChartPropertyDialogModel chartWithTipView(String tipView, boolean tipOption) {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      TipPaneModel tip = model.getChartGeneralPaneModel().getTipPaneModel();
+      tip.setPopComponents(new String[] { "T1", "Img1" });
+      tip.setFlyoverComponents(new String[] { "T1", "T2" });
+      tip.setTipView(tipView);
+      tip.setTipOption(tipOption);
+      return model;
+   }
+
+   private static void assertNothingWrittenBy(List<Object> services) {
+      for(Object service : services) {
+         assertTrue(mockingDetails(service).getInvocations().stream()
+                       .noneMatch(call -> call.getMethod().getName().startsWith("set")),
+                    "a refused patch must not reach the native setter: " + service);
+      }
+   }
+
+   @Test
+   void refusesAChartTipViewOutsideItsPopComponentsAndKeepsThePriorView() throws Exception {
+      for(String bad : new String[] { "NoSuchAssembly_xyz", "R1", "$(C1)", "=Chart1.x" }) {
+         ChartPropertyDialogModel model = chartWithTipView("T1", true);
+         AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Chart1", Map.of("tipView", bad), ""));
+
+         assertTrue(e.getMessage().contains("'tipView'"), e.getMessage());
+         assertTrue(e.getMessage().contains("chartGeneralPaneModel.tipPaneModel.tipView"),
+                    e.getMessage());
+         assertTrue(e.getMessage().contains("\"T1\", \"Img1\""), e.getMessage());
+         assertTrue(e.getMessage().contains("previous value is kept"), e.getMessage());
+         assertEquals("T1", model.getChartGeneralPaneModel().getTipPaneModel().getTipView(), bad);
+         assertNothingWrittenBy(lastDialogServices);
+      }
+   }
+
+   @Test
+   void refusesADynamicTipViewNamingTheScriptRoute() {
+      AssemblyPropertyService service =
+         serviceWith(mock(ChartVSAssembly.class), chartWithTipView("T1", true));
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Chart1", Map.of("tipView", "$(C1)"), ""));
+
+      assertTrue(e.getMessage().contains("script"), e.getMessage());
+   }
+
+   @Test
+   void refusesAnUnknownTableAndCrosstabTipView() {
+      TableViewPropertyDialogModel table = new TableViewPropertyDialogModel();
+      table.getTableAdvancedPaneModel().getTipPaneModel().setPopComponents(new String[] { "T2" });
+      table.getTableAdvancedPaneModel().getTipPaneModel().setTipView("T2");
+      AssemblyPropertyService tableService = serviceWithTable(mock(TableVSAssembly.class), table);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> tableService.set("tok", principal(), "Table1", Map.of("tipView", "Ghost"), ""));
+      assertEquals("T2", table.getTableAdvancedPaneModel().getTipPaneModel().getTipView());
+      assertNothingWrittenBy(lastDialogServices);
+
+      CrosstabPropertyDialogModel crosstab = new CrosstabPropertyDialogModel();
+      crosstab.getCrosstabAdvancedPaneModel().getTipPaneModel()
+         .setPopComponents(new String[] { "T2" });
+      AssemblyPropertyService crosstabService =
+         serviceWith(mock(CrosstabVSAssembly.class), crosstab);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> crosstabService.set("tok", principal(), "Crosstab1", Map.of("tipView", "Ghost"),
+                                   ""));
+      assertNull(crosstab.getCrosstabAdvancedPaneModel().getTipPaneModel().getTipView());
+      assertNothingWrittenBy(lastDialogServices);
+   }
+
+   @Test
+   void refusesOnlyTheFlyOverViewsEntriesOutsideFlyoverComponents() {
+      ChartPropertyDialogModel model = chartWithTipView("T1", true);
+      model.getChartGeneralPaneModel().getTipPaneModel().setFlyOverViews(new String[] { "T2" });
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Chart1",
+                           Map.of("flyOverViews", List.of("T1", "Nope")), ""));
+
+      assertTrue(e.getMessage().contains("'Nope'"), e.getMessage());
+      assertFalse(e.getMessage().contains("'T1'"), e.getMessage());
+      assertArrayEquals(new String[] { "T2" },
+                        model.getChartGeneralPaneModel().getTipPaneModel().getFlyOverViews());
+      assertNothingWrittenBy(lastDialogServices);
+   }
+
+   /**
+    * The list is snapshotted before the patch loop, so a write to the list in the same patch
+    * cannot widen what the reference check accepts.
+    */
+   @Test
+   void refusesATipViewWhoseOnlyListingIsASamePatchWriteToPopComponents() {
+      ChartPropertyDialogModel model = chartWithTipView("T1", true);
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("chartGeneralPaneModel.tipPaneModel.popComponents", List.of("Ghost"));
+      patch.put("tipView", "Ghost");
+
+      assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Chart1", patch, ""));
+      assertEquals("T1", model.getChartGeneralPaneModel().getTipPaneModel().getTipView());
+      assertNothingWrittenBy(lastDialogServices);
+   }
+
+   private static TextPropertyDialogModel textWithPopComponent(String current) {
+      TextPropertyDialogModel model = new TextPropertyDialogModel();
+      model.getTextGeneralPaneModel().setPopComponents(new String[] { "T1" });
+      model.getTextGeneralPaneModel().setPopComponent(current);
+      return model;
+   }
+
+   /**
+    * Text and Image store a literal {@code "null"} as a pop target with pop on -- unlike the tip
+    * panes, where the native write treats it as none -- so it is refused and {@code ""} named.
+    */
+   @Test
+   void refusesAnUnknownOrLiteralNullTextPopComponent() {
+      for(String bad : new String[] { "null", "Ghost", "$(V)" }) {
+         TextPropertyDialogModel model = textWithPopComponent("T1");
+         AssemblyPropertyService service = serviceWith(mock(TextVSAssembly.class), model);
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Text1", Map.of("popComponent", bad), ""));
+
+         assertTrue(e.getMessage().contains("textGeneralPaneModel.popComponent"), e.getMessage());
+         assertTrue(e.getMessage().contains("\"\""), e.getMessage());
+         assertEquals("T1", model.getTextGeneralPaneModel().getPopComponent(), bad);
+         assertNothingWrittenBy(lastDialogServices);
+      }
+   }
+
+   private static ImagePropertyDialogModel imageWithPopComponent(String current) {
+      return ImagePropertyDialogModel.builder()
+         .imageAdvancedPaneModel(ImageAdvancedPaneModel.builder()
+                                    .popComponents(new String[] { "T1" })
+                                    .popComponent(current)
+                                    .build())
+         .build();
+   }
+
+   @Test
+   void refusesAnUnknownOrLiteralNullImagePopComponent() {
+      for(String bad : new String[] { "Ghost", "null" }) {
+         ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+         AssemblyPropertyService service = serviceWithImage(
+            mock(ImageVSAssembly.class), imageWithPopComponent("T1"), imageService);
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Image1",
+                              Map.of("imageAdvancedPaneModel.popComponent", bad), ""));
+
+         assertTrue(e.getMessage().contains("imageAdvancedPaneModel.popComponent"),
+                    e.getMessage());
+         assertNothingWrittenBy(List.of(imageService));
+      }
+   }
+
+   @Test
+   void acceptsAListedAssemblyReferenceOnEachField() throws Exception {
+      ChartPropertyDialogModel chart = chartWithTipView("T1", true);
+      AssemblyPropertyService chartService = serviceWith(mock(ChartVSAssembly.class), chart);
+      chartService.set("tok", principal(), "Chart1", Map.of("tipView", "Img1"), "");
+      chartService.set("tok", principal(), "Chart1", Map.of("flyOverViews", List.of("T2")), "");
+      assertEquals("Img1", chart.getChartGeneralPaneModel().getTipPaneModel().getTipView());
+      assertArrayEquals(new String[] { "T2" },
+                        chart.getChartGeneralPaneModel().getTipPaneModel().getFlyOverViews());
+
+      TextPropertyDialogModel text = textWithPopComponent("");
+      serviceWith(mock(TextVSAssembly.class), text)
+         .set("tok", principal(), "Text1", Map.of("popComponent", "T1"), "");
+      assertEquals("T1", text.getTextGeneralPaneModel().getPopComponent());
+
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      serviceWithImage(mock(ImageVSAssembly.class), imageWithPopComponent(null), imageService)
+         .set("tok", principal(), "Image1", Map.of("imageAdvancedPaneModel.popComponent", "T1"),
+              "");
+      ArgumentCaptor<ImagePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ImagePropertyDialogModel.class);
+      verify(imageService).setImagePropertyDialogModel(anyString(), anyString(), captor.capture(),
+                                                       any(), any(), any());
+      assertEquals("T1", captor.getValue().imageAdvancedPaneModel().popComponent());
+   }
+
+   @Test
+   void acceptsBlankOnEachFieldAndLiteralNullOnTipView() throws Exception {
+      for(String clear : new String[] { "", "   ", "null" }) {
+         ChartPropertyDialogModel chart = chartWithTipView("T1", true);
+         assertDoesNotThrow(() -> serviceWith(mock(ChartVSAssembly.class), chart)
+            .set("tok", principal(), "Chart1", Map.of("tipView", clear), ""), clear);
+      }
+
+      for(String clear : new String[] { "", "   " }) {
+         assertDoesNotThrow(() -> serviceWith(mock(TextVSAssembly.class), textWithPopComponent("T1"))
+            .set("tok", principal(), "Text1", Map.of("popComponent", clear), ""), clear);
+         assertDoesNotThrow(() -> serviceWithImage(mock(ImageVSAssembly.class),
+                                                   imageWithPopComponent("T1"),
+                                                   mock(ImagePropertyDialogService.class))
+            .set("tok", principal(), "Image1",
+                 Map.of("imageAdvancedPaneModel.popComponent", clear), ""), clear);
+      }
+
+      ChartPropertyDialogModel chart = chartWithTipView("T1", true);
+      chart.getChartGeneralPaneModel().getTipPaneModel().setFlyOverViews(new String[] { "T2" });
+      serviceWith(mock(ChartVSAssembly.class), chart)
+         .set("tok", principal(), "Chart1", Map.of("flyOverViews", List.of()), "");
+      assertArrayEquals(new String[0],
+                        chart.getChartGeneralPaneModel().getTipPaneModel().getFlyOverViews());
+   }
+
+   /**
+    * Echoing the value just read is the same store an unrelated-key patch makes, so it is
+    * accepted even when the list no longer offers it -- and, being a no-op, it does not turn
+    * view tips on either.
+    */
+   @Test
+   void acceptsTheCurrentValueEchoedUnchangedWithoutImplyingTipOption() throws Exception {
+      ChartPropertyDialogModel chart = chartWithTipView("Legacy", false);
+      serviceWith(mock(ChartVSAssembly.class), chart)
+         .set("tok", principal(), "Chart1", Map.of("tipView", "Legacy"), "");
+      assertEquals("Legacy", chart.getChartGeneralPaneModel().getTipPaneModel().getTipView());
+      assertFalse(chart.getChartGeneralPaneModel().getTipPaneModel().isTipOption(),
+                  "an unchanged tipView is a no-op and must not flip tipOption");
+
+      // Crosstab has no read mask, so a script-era dynamic value reads back verbatim.
+      CrosstabPropertyDialogModel crosstab = new CrosstabPropertyDialogModel();
+      TipPaneModel tip = crosstab.getCrosstabAdvancedPaneModel().getTipPaneModel();
+      tip.setPopComponents(new String[] { "T2" });
+      tip.setTipView("$(C1)");
+      tip.setTipOption(true);
+      serviceWith(mock(CrosstabVSAssembly.class), crosstab)
+         .set("tok", principal(), "Crosstab1", Map.of("tipView", "$(C1)"), "");
+      assertEquals("$(C1)", tip.getTipView());
+   }
+
    /**
     * {@code customTip} is only applied when {@code customRB == TipFormat.CUSTOM}; otherwise it is
     * actively nulled out. So {@code tooltip} set alone -- without {@code tooltipMode: "CUSTOM"}
@@ -1653,8 +1972,12 @@ class AssemblyPropertyServiceTest {
    // ── #78396: selection measure written through set_assembly_properties ──────
 
    private static DataOutputService lastDataOutput;
+   /** The chart/table/text/crosstab dialog-service mocks the last {@code serviceWith} built. */
+   private static List<Object> lastDialogServices;
    private static SelectionListPropertyDialogService lastSelectionList;
    private static SelectionTreePropertyDialogService lastSelectionTree;
+   private static RangeSliderPropertyDialogService lastRangeSlider;
+   private static CalendarPropertyDialogService lastCalendar;
 
    private static void verifyNothingWritten() throws Exception {
       verify(lastSelectionList, never())
@@ -1818,15 +2141,246 @@ class AssemblyPropertyServiceTest {
       verifyNothingWritten();
    }
 
+   /**
+    * The measure is checked against the stored table: a table can't change in the same patch
+    * (#78480, see {@link #refusesASelectedTableWrittenTogetherWithAMeasure}).
+    */
    @Test
-   void checksTheMeasureAgainstATableSetInTheSamePatch() throws Exception {
+   void checksTheMeasureAgainstTheStoredTable() throws Exception {
       SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      model.getSelectionListPaneModel().setSelectedTable("ORDERS");
 
-      setList(model, Map.of("selectionListPaneModel.selectedTable", "ORDERS",
-                            "measure", "amount"));
+      setList(model, Map.of("measure", "amount"));
 
       assertEquals("AMOUNT", listMeasure(model));
       verify(lastDataOutput).getOutputSelectionColumns(eq("rt1"), eq(List.of("ORDERS")), any());
+   }
+
+   @Test
+   void refusesASelectedTableWrittenTogetherWithAMeasure() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> setList(model, Map.of(
+         "selectionListPaneModel.selectedTable", "ORDERS", "measure", "amount")));
+
+      assertTrue(thrown.getMessage().contains("set_selection_source"), thrown.getMessage());
+      verify(lastDataOutput, never()).getOutputSelectionColumns(any(), any(), any());
+      verifyNothingWritten();
+   }
+
+   // ── #78480: a selection's data source is set_selection_source's, not a raw path's ──
+
+   private static OutputColumnRefModel column(String table, String attribute) {
+      OutputColumnRefModel column = new OutputColumnRefModel();
+      column.setTable(table);
+      column.setEntity(table);
+      column.setAttribute(attribute);
+      column.setDataType("string");
+      return column;
+   }
+
+   private static SelectionListPropertyDialogModel sourcedList() {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      model.getSelectionListPaneModel().setSelectedTable("CUSTOMERS");
+      model.getSelectionListPaneModel().setAdditionalTables(new ArrayList<>(List.of("ORDERS")));
+      model.getSelectionListPaneModel().setSelectedColumn(column("CUSTOMERS", "STATE"));
+      return model;
+   }
+
+   private static SelectionTreePropertyDialogModel columnTree() {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      model.getSelectionTreePaneModel().setSelectedTable("CUSTOMERS");
+      model.getSelectionTreePaneModel().setAdditionalTables(new ArrayList<>());
+      model.getSelectionTreePaneModel().setMode(SelectionTreeVSAssemblyInfo.COLUMN);
+      model.getSelectionTreePaneModel().setSelectedColumns(new OutputColumnRefModel[] {
+         column("CUSTOMERS", "STATE"), column("CUSTOMERS", "CITY")});
+      return model;
+   }
+
+   private static SelectionTreePropertyDialogModel idTree() {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      model.getSelectionTreePaneModel().setSelectedTable("EMPLOYEES");
+      model.getSelectionTreePaneModel().setAdditionalTables(new ArrayList<>());
+      model.getSelectionTreePaneModel().setMode(SelectionTreeVSAssemblyInfo.ID);
+      model.getSelectionTreePaneModel().setParentId("BOSS_ID");
+      model.getSelectionTreePaneModel().setId("ID");
+      model.getSelectionTreePaneModel().setLabel("NAME");
+      model.getSelectionTreePaneModel().setParentIdRef(column("EMPLOYEES", "BOSS_ID"));
+      model.getSelectionTreePaneModel().setIdRef(column("EMPLOYEES", "ID"));
+      model.getSelectionTreePaneModel().setLabelRef(column("EMPLOYEES", "NAME"));
+      return model;
+   }
+
+   private static RangeSliderPropertyDialogModel sourcedSlider() {
+      RangeSliderPropertyDialogModel model = new RangeSliderPropertyDialogModel();
+      model.getRangeSliderDataPaneModel().setSelectedTable("ORDERS");
+      model.getRangeSliderDataPaneModel().setAdditionalTables(new ArrayList<>());
+      model.getRangeSliderDataPaneModel().setSelectedColumns(
+         new OutputColumnRefModel[] {column("ORDERS", "ORDER_DATE")});
+      return model;
+   }
+
+   private static CalendarPropertyDialogModel sourcedCalendar() {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      model.getCalendarDataPaneModel().setSelectedTable("ORDERS");
+      model.getCalendarDataPaneModel().setAdditionalTables(new ArrayList<>());
+      model.getCalendarDataPaneModel().setSelectedColumn(column("ORDERS", "ORDER_DATE"));
+      return model;
+   }
+
+   private static void setTree(SelectionTreePropertyDialogModel model, Map<String, Object> patch)
+      throws Exception
+   {
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+      service.set("tok", principal(), "Tree1", patch, "");
+   }
+
+   private static void setSlider(RangeSliderPropertyDialogModel model, Map<String, Object> patch)
+      throws Exception
+   {
+      AssemblyPropertyService service =
+         serviceWithRangeSlider(mock(TimeSliderVSAssembly.class), model);
+      service.set("tok", principal(), "Slider1", patch, "");
+   }
+
+   private static void setCalendar(CalendarPropertyDialogModel model, Map<String, Object> patch)
+      throws Exception
+   {
+      AssemblyPropertyService service =
+         serviceWithCalendar(mock(CalendarVSAssembly.class), model);
+      service.set("tok", principal(), "Calendar1", patch, "");
+   }
+
+   /** Refused naming the path and set_selection_source, and nothing reaches any apply. */
+   private static void assertSourceRefused(String path, Executable write) throws Exception {
+      Exception thrown = assertThrows(IllegalArgumentException.class, write);
+
+      assertTrue(thrown.getMessage().contains("set_selection_source"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains(path), thrown.getMessage());
+      verifyNothingWritten();
+      verify(lastRangeSlider, never())
+         .setRangeSliderPropertyModel(any(), any(), any(), any(), any(), any());
+      verify(lastCalendar, never())
+         .setCalendarPropertyModel(any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void refusesARawSelectionListSourceWriteInEverySpelling() throws Exception {
+      Map<String, Object> writes = new LinkedHashMap<>();
+      writes.put("selectionListPaneModel.additionalTables", List.of("NO_SUCH_TABLE"));
+      writes.put("SelectionListPaneModel.AdditionalTables", List.of("PRODUCTS"));
+      writes.put("selectionListPaneModel.selectedTable", "ORDERS");
+      writes.put("selectionListPaneModel.selectedColumn.attribute", "CITY");
+      // never read by the apply: refused rather than reported as an ok:true no-op
+      writes.put("selectionListPaneModel.selectedColumn.table", "ORDERS");
+
+      for(Map.Entry<String, Object> write : writes.entrySet()) {
+         String path = PropertyAliases.lowerSegmentInitials(write.getKey());
+         SelectionListPropertyDialogModel model = sourcedList();
+         assertSourceRefused(path, () -> setList(model, Map.of(write.getKey(), write.getValue())));
+      }
+   }
+
+   @Test
+   void refusesAWriteIntoASelectionListTargetTree() throws Exception {
+      SelectionListPropertyDialogModel model = sourcedList();
+      model.getSelectionListPaneModel().setTargetTree(
+         TreeNodeModel.builder().label("root").build());
+
+      assertSourceRefused("selectionListPaneModel.targetTree", () -> setList(model, Map.of(
+         "selectionListPaneModel.targetTree.label", "other")));
+   }
+
+   @Test
+   void refusesARawSelectionTreeSourceWrite() throws Exception {
+      assertSourceRefused("selectionTreePaneModel.selectedTable", () -> setTree(
+         columnTree(), Map.of("selectionTreePaneModel.selectedTable", "ORDERS")));
+      assertSourceRefused("selectionTreePaneModel.additionalTables", () -> setTree(
+         columnTree(), Map.of("selectionTreePaneModel.additionalTables", List.of("ORDERS"))));
+      assertSourceRefused("selectionTreePaneModel.parentIdRef.attribute", () -> setTree(
+         idTree(), Map.of("selectionTreePaneModel.parentIdRef.attribute", "MANAGER")));
+      assertSourceRefused("selectionTreePaneModel.parentId", () -> setTree(
+         idTree(), Map.of("selectionTreePaneModel.parentId", "MANAGER")));
+   }
+
+   /** Switching modes rebuilds the columns from the other mode's fields: an empty tree. */
+   @Test
+   void refusesAModeChangeOnABoundTreeInEverySpelling() throws Exception {
+      for(String key : List.of("mode", "selectionTreePaneModel.mode",
+                               "SelectionTreePaneModel.Mode"))
+      {
+         SelectionTreePropertyDialogModel model = columnTree();
+         assertSourceRefused("mode", () -> setTree(model, Map.of(key, "id")));
+      }
+
+      assertSourceRefused("mode", () -> setTree(idTree(), Map.of("mode", "column")));
+   }
+
+   @Test
+   void refusesARawTimeSliderSourceWrite() throws Exception {
+      assertSourceRefused("rangeSliderDataPaneModel.composite", () -> setSlider(
+         sourcedSlider(), Map.of("rangeSliderDataPaneModel.composite", true)));
+      assertSourceRefused("rangeSliderDataPaneModel.selectedTable", () -> setSlider(
+         sourcedSlider(), Map.of("rangeSliderDataPaneModel.selectedTable", "CUSTOMERS")));
+
+      // the slider apply streams the list with no null check: null is a change, not "empty"
+      Map<String, Object> clear = new LinkedHashMap<>();
+      clear.put("rangeSliderDataPaneModel.additionalTables", null);
+      assertSourceRefused("rangeSliderDataPaneModel.additionalTables",
+                          () -> setSlider(sourcedSlider(), clear));
+   }
+
+   @Test
+   void refusesARawCalendarSourceWrite() throws Exception {
+      assertSourceRefused("calendarDataPaneModel.selectedTable", () -> setCalendar(
+         sourcedCalendar(), Map.of("calendarDataPaneModel.selectedTable", "CUSTOMERS")));
+      assertSourceRefused("calendarDataPaneModel.selectedColumn.attribute", () -> setCalendar(
+         sourcedCalendar(),
+         Map.of("calendarDataPaneModel.selectedColumn.attribute", "SHIP_DATE")));
+   }
+
+   /** A write-back of what raw:true read is a no-op, not a source change. */
+   @Test
+   void acceptsAnUnchangedSourceWriteBack() throws Exception {
+      setList(sourcedList(), Map.of(
+         "selectionListPaneModel.additionalTables", List.of("ORDERS"),
+         "selectionListPaneModel.selectedTable", "CUSTOMERS",
+         "selectionListPaneModel.selectedColumn.attribute", "STATE"));
+      verify(lastSelectionList).setSelectionListPropertyModel(
+         any(), any(), any(), any(), any(), any());
+
+      setTree(columnTree(), Map.of("mode", "column"));
+      verify(lastSelectionTree).setSelectionTreePropertyModel(
+         any(), any(), any(), any(), any(), any());
+
+      setSlider(sourcedSlider(), Map.of("rangeSliderDataPaneModel.composite", false));
+      verify(lastRangeSlider).setRangeSliderPropertyModel(
+         any(), any(), any(), any(), any(), any());
+   }
+
+   /** Not the source: the measure (#78396's check) and the ID tree's selectChildren flag. */
+   @Test
+   void acceptsNonSourceWritesOnABoundSelection() throws Exception {
+      SelectionTreePropertyDialogModel tree = idTree();
+      setTree(tree, Map.of("selectChildren", true));
+      assertTrue(tree.getSelectionTreePaneModel().isSelectChildren());
+
+      SelectionListPropertyDialogModel list = sourcedList();
+      list.getSelectionListPaneModel().setAdditionalTables(new ArrayList<>());
+      setList(list, Map.of("measure", "amount"));
+      assertEquals("AMOUNT", listMeasure(list));
+   }
+
+   /** VFL-009: a tree with no bound column may still switch modes (it binds nothing). */
+   @Test
+   void acceptsAModeChangeOnAnUnboundTree() throws Exception {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      model.getSelectionTreePaneModel().setMode(SelectionTreeVSAssemblyInfo.COLUMN);
+
+      setTree(model, Map.of("mode", "id"));
+
+      assertEquals(SelectionTreeVSAssemblyInfo.ID, model.getSelectionTreePaneModel().getMode());
    }
 
    // ── selectionGeneralPaneModel.sortType alias/domain (bug #76925) ──────────
@@ -3222,6 +3776,65 @@ class AssemblyPropertyServiceTest {
                     .getComboBoxEditorModel().isQuery());
    }
 
+   /** Bug #78590 P2: a table written with query off, then query turned on, binds nothing. */
+   @Test
+   void refusesTurningQueryOnOverAStoredTableWithNoColumnOnEveryListInputType() {
+      assertQueryOnAfterTableRefused(mock(CheckBoxVSAssembly.class),
+                                     new CheckboxPropertyDialogModel(), "a CheckBox");
+      assertQueryOnAfterTableRefused(mock(ComboBoxVSAssembly.class),
+                                     new ComboboxPropertyDialogModel(), "a ComboBox");
+      assertQueryOnAfterTableRefused(mock(RadioButtonVSAssembly.class),
+                                     new RadioButtonPropertyDialogModel(), "a RadioButton");
+   }
+
+   private static void assertQueryOnAfterTableRefused(VSAssembly assembly, Object model,
+                                                      String control)
+   {
+      AssemblyPropertyService service = listInputServiceWithColumns(assembly, model);
+
+      setList(service, Map.of("table", "CUSTOMERS"));
+      assertListRefused(service, Map.of("query", true), control + " with query:true requires",
+                        "selectionListEditorModel.column");
+   }
+
+   @Test
+   void acceptsTurningQueryOnOverAStoredTableAndColumn() {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         listInputServiceWithColumns(mock(CheckBoxVSAssembly.class), model);
+
+      setList(service, Map.of("table", "CUSTOMERS", "column", "COMPANY_NAME"));
+      setList(service, Map.of("query", true));
+
+      assertTrue(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                    .getComboBoxEditorModel().isQuery());
+   }
+
+   /** Writing query:true back over a source that already has query on is not a transition. */
+   @Test
+   void doesNotRefuseAnEchoOfQueryTrueOverAnExistingQuerySource() {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      model.getComboboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
+         .setQuery(true);
+      model.getComboboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
+         .getSelectionListDialogModel().getSelectionListEditorModel().setTable("CUSTOMERS");
+      AssemblyPropertyService service =
+         listInputServiceWithColumns(mock(ComboBoxVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> setList(service, Map.of("query", true)));
+   }
+
+   @Test
+   void refusesTurningQueryOnWhenWrittenThroughTheRawPath() {
+      AssemblyPropertyService service = listInputServiceWithColumns(
+         mock(CheckBoxVSAssembly.class), new CheckboxPropertyDialogModel());
+
+      setList(service, Map.of(CHECKBOX_EDITOR + ".selectionListDialogModel" +
+                              ".selectionListEditorModel.table", "CUSTOMERS"));
+      assertListRefused(service, Map.of(CHECKBOX_EDITOR + ".query", true),
+                        "a CheckBox with query:true requires");
+   }
+
    /**
     * The label/value count check must not break a get -> set round trip: writing back the list
     * as read, replacing values with the same count, or replacing both with a new count.
@@ -3268,6 +3881,168 @@ class AssemblyPropertyServiceTest {
       assertArrayEquals(new String[] { "a", "b", "c" },
                         model.getRadioButtonGeneralPaneModel().getListValuesPaneModel()
                            .getComboBoxEditorModel().getVariableListDialogModel().getValues());
+   }
+
+   // ── checkbox dead Data Input keys (bug #78579) ───────────────────────────
+
+   private static Exception refuseCheckbox(CheckboxPropertyDialogModel model, Worksheet ws,
+                                           Map<String, Object> patch)
+   {
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, ws);
+
+      return assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Check1", patch, ""));
+   }
+
+   private static CheckboxPropertyDialogModel embBoundCheckbox() {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      return model;
+   }
+
+   private static void assertRefusedKeys(Exception thrown, String... keys) {
+      String msg = thrown.getMessage();
+      assertTrue(msg.startsWith("A checkbox cannot store a column, row or write-back target: " +
+                                "refused " + String.join(", ", keys) + "."), msg);
+   }
+
+   @Test
+   void checkboxColumnValueOnlyIsRefused() {
+      assertRefusedKeys(refuseCheckbox(embBoundCheckbox(), embeddedTableWorksheet(),
+         Map.of("dataInputPaneModel.columnValue", "state")),
+         "dataInputPaneModel.columnValue");
+   }
+
+   @Test
+   void checkboxRowValueOnlyIsRefused() {
+      assertRefusedKeys(refuseCheckbox(embBoundCheckbox(), embeddedTableWorksheet(),
+         Map.of("dataInputPaneModel.rowValue", "1")),
+         "dataInputPaneModel.rowValue");
+   }
+
+   @Test
+   void checkboxWriteBackDirectlyTrueIsRefused() {
+      assertRefusedKeys(refuseCheckbox(embBoundCheckbox(), embeddedTableWorksheet(),
+         Map.of("dataInputPaneModel.writeBackDirectly", true)),
+         "dataInputPaneModel.writeBackDirectly");
+   }
+
+   @Test
+   void checkboxThreeKeyPatchIsRefusedInOneMessageNamingExactlyTheRefusedKeys() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "1");
+      patch.put("dataInputPaneModel.writeBackDirectly", true);
+
+      assertRefusedKeys(refuseCheckbox(embBoundCheckbox(), embeddedTableWorksheet(), patch),
+         "dataInputPaneModel.columnValue", "dataInputPaneModel.rowValue",
+         "dataInputPaneModel.writeBackDirectly");
+   }
+
+   @Test
+   void checkboxTwoKeyPatchDoesNotNameTheAcceptedKey() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.writeBackDirectly", false);
+
+      assertRefusedKeys(refuseCheckbox(embBoundCheckbox(), embeddedTableWorksheet(), patch),
+         "dataInputPaneModel.columnValue");
+   }
+
+   @Test
+   void checkboxColumnValueIsNotACarrierWhenTheTableIsAVariableReference() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "v"));
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.table", "$(v)");
+      patch.put("dataInputPaneModel.columnValue", "x");
+
+      assertRefusedKeys(refuseCheckbox(new CheckboxPropertyDialogModel(), ws, patch),
+         "dataInputPaneModel.columnValue");
+   }
+
+   @Test
+   void checkboxEmptyAndFalseValuesAreAcceptedNoOps() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "");
+      patch.put("dataInputPaneModel.rowValue", "");
+      patch.put("dataInputPaneModel.writeBackDirectly", false);
+      AssemblyPropertyService service = serviceWithCheckbox(
+         mock(CheckBoxVSAssembly.class), embBoundCheckbox(), embeddedTableWorksheet());
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Check1", patch, ""));
+   }
+
+   @Test
+   void checkboxVariablesFolderLabelCarrierStillBindsTheVariable() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, ws);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.table", "Variables");
+      patch.put("dataInputPaneModel.columnValue", "StartDate");
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Check1", patch, ""));
+   }
+
+   @Test
+   void checkboxVariablesLabelIsNotACarrierWhenAWorksheetVariableIsNamedVariables() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "Variables"));
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.table", "Variables");
+      patch.put("dataInputPaneModel.columnValue", "StartDate");
+
+      assertRefusedKeys(refuseCheckbox(new CheckboxPropertyDialogModel(), ws, patch),
+         "dataInputPaneModel.columnValue");
+   }
+
+   @Test
+   void checkboxDollarVariableColumnValueWithEmptyTableStillBinds() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      AssemblyPropertyService service = serviceWithCheckbox(
+         mock(CheckBoxVSAssembly.class), new CheckboxPropertyDialogModel(), ws);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Check1",
+         Map.of("dataInputPaneModel.columnValue", "$(StartDate)"), ""));
+   }
+
+   @Test
+   void checkboxUnknownDollarVariableKeepsTheUnknownVariableMessage() {
+      Exception thrown = refuseCheckbox(new CheckboxPropertyDialogModel(), new Worksheet(),
+         Map.of("dataInputPaneModel.columnValue", "$(nope)"));
+
+      assertTrue(thrown.getMessage().contains("Unknown variable 'nope'"), thrown.getMessage());
+   }
+
+   @Test
+   void otherInputTypesStillAcceptAllThreeKeys() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "1");
+      patch.put("dataInputPaneModel.writeBackDirectly", true);
+
+      TextInputPropertyDialogModel text = new TextInputPropertyDialogModel();
+      text.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      RadioButtonPropertyDialogModel radio = new RadioButtonPropertyDialogModel();
+      radio.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      ComboboxPropertyDialogModel combo = new ComboboxPropertyDialogModel();
+      combo.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+
+      assertDoesNotThrow(() -> serviceWithTextInput(
+         mock(TextInputVSAssembly.class), text, embeddedTableWorksheet())
+         .set("tok", principal(), "A", patch, ""));
+      assertDoesNotThrow(() -> serviceWithRadioButton(
+         mock(RadioButtonVSAssembly.class), radio, embeddedTableWorksheet())
+         .set("tok", principal(), "A", patch, ""));
+      assertDoesNotThrow(() -> serviceWithCombobox(
+         mock(ComboBoxVSAssembly.class), combo, embeddedTableWorksheet())
+         .set("tok", principal(), "A", patch, ""));
    }
 
    private static AssemblyPropertyService serviceWithTextInput(
@@ -3477,6 +4252,7 @@ class AssemblyPropertyServiceTest {
       }
 
       CalendarPropertyDialogService calendar = mock(CalendarPropertyDialogService.class);
+      lastCalendar = calendar;
 
       if(model instanceof CalendarPropertyDialogModel calendarModel) {
          try {
@@ -3573,6 +4349,7 @@ class AssemblyPropertyServiceTest {
 
       RangeSliderPropertyDialogService rangeSlider =
          mock(RangeSliderPropertyDialogService.class);
+      lastRangeSlider = rangeSlider;
 
       if(model instanceof RangeSliderPropertyDialogModel rangeSliderModel) {
          try {
@@ -3599,11 +4376,32 @@ class AssemblyPropertyServiceTest {
          }
       }
 
+      TextPropertyDialogService text = mock(TextPropertyDialogService.class);
+      CrosstabPropertyDialogService crosstab = mock(CrosstabPropertyDialogService.class);
+
+      try {
+         if(model instanceof TextPropertyDialogModel textModel) {
+            when(text.getTextPropertyDialogModel(anyString(), anyString(), any(Principal.class)))
+               .thenReturn(textModel);
+         }
+
+         if(model instanceof CrosstabPropertyDialogModel crosstabModel) {
+            when(crosstab.getCrosstabPropertyDialogModel(anyString(), anyString(),
+                                                         any(Principal.class)))
+               .thenReturn(crosstabModel);
+         }
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      lastDialogServices = List.of(chart, table, text, crosstab);
+
       return new AssemblyPropertyService(
          sessions, gauge, imageService,
-         mock(TextPropertyDialogService.class),
+         text,
          chart, table,
-         mock(CrosstabPropertyDialogService.class),
+         crosstab,
          selectionList,
          selectionTree,
          inputService,
@@ -3715,5 +4513,94 @@ class AssemblyPropertyServiceTest {
 
    private static Principal principal() {
       return () -> "admin";
+   }
+
+   // ── empty path segments (bug #78440) ─────────────────────────────────────
+
+   @Test
+   void refusesATrailingDotOnTheChartTrendLineStyleWithoutWritingIt() throws Exception {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+      int before = model.getChartLinePaneModel().getTrendLineStyle();
+
+      for(String key : new String[] { "chartLinePaneModel.trendLineStyle.",
+                                      "ChartLinePaneModel.TrendLineStyle..",
+                                      "chartLinePaneModel..trendLineStyle", "." })
+      {
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Chart1", Map.of(key, 999), ""), key);
+         assertTrue(e.getMessage().contains("empty segment"), e.getMessage());
+      }
+
+      assertEquals(before, model.getChartLinePaneModel().getTrendLineStyle());
+   }
+
+   @Test
+   void refusesATrailingDotOnCalendarViewModeSelectionSortTypeAndTreeMode() throws Exception {
+      CalendarPropertyDialogModel calendar = new CalendarPropertyDialogModel();
+      int viewMode = calendar.getCalendarAdvancedPaneModel().getViewMode();
+      assertThrows(IllegalArgumentException.class,
+         () -> serviceWithCalendar(mock(CalendarVSAssembly.class), calendar).set(
+            "tok", principal(), "Calendar1",
+            Map.of("calendarAdvancedPaneModel.viewMode.", 999), ""));
+      assertEquals(viewMode, calendar.getCalendarAdvancedPaneModel().getViewMode());
+
+      SelectionListPropertyDialogModel list = new SelectionListPropertyDialogModel();
+      int sortType = list.getSelectionGeneralPaneModel().getSortType();
+      assertThrows(IllegalArgumentException.class,
+         () -> serviceWithSelectionList(mock(SelectionListVSAssembly.class), list).set(
+            "tok", principal(), "Selection1",
+            Map.of("selectionGeneralPaneModel.sortType.", 999), ""));
+      assertEquals(sortType, list.getSelectionGeneralPaneModel().getSortType());
+
+      SelectionTreePropertyDialogModel tree = new SelectionTreePropertyDialogModel();
+      int mode = tree.getSelectionTreePaneModel().getMode();
+      assertThrows(IllegalArgumentException.class,
+         () -> serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), tree).set(
+            "tok", principal(), "SelectionTree1",
+            Map.of("selectionTreePaneModel.mode.", 7), ""));
+      assertEquals(mode, tree.getSelectionTreePaneModel().getMode());
+   }
+
+   @Test
+   void refusesATrailingDotOnTheDeadLockedFieldAndTheLockedFieldUnderAnyCapitalisation() {
+      for(String key : new String[] {
+         "textInputGeneralPaneModel.sizePositionPaneModel.locked.",
+         "TextInputGeneralPaneModel.SizePositionPaneModel.Locked" })
+      {
+         assertThrows(IllegalArgumentException.class,
+            () -> setTextInputColumnOption(new TextInputPropertyDialogModel(), Map.of(key, true)),
+            key);
+      }
+   }
+
+   @Test
+   void refusesCapitalisedOutOfDomainIntEnumPaths() throws Exception {
+      ChartPropertyDialogModel chart = new ChartPropertyDialogModel();
+      AssemblyPropertyService chartService = serviceWith(mock(ChartVSAssembly.class), chart);
+
+      for(String key : new String[] { "ChartLinePaneModel.trendLineStyle",
+                                      "chartLinePaneModel.TrendLineStyle",
+                                      "ChartLinePaneModel.XGridLineStyle" })
+      {
+         assertThrows(IllegalArgumentException.class,
+            () -> chartService.set("tok", principal(), "Chart1", Map.of(key, 999), ""), key);
+      }
+
+      SelectionTreePropertyDialogModel tree = new SelectionTreePropertyDialogModel();
+      assertThrows(IllegalArgumentException.class,
+         () -> serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), tree).set(
+            "tok", principal(), "SelectionTree1",
+            Map.of("SelectionTreePaneModel.mode", 7), ""));
+      CalendarPropertyDialogModel calendar = new CalendarPropertyDialogModel();
+      assertThrows(IllegalArgumentException.class,
+         () -> serviceWithCalendar(mock(CalendarVSAssembly.class), calendar).set(
+            "tok", principal(), "Calendar1",
+            Map.of("CalendarAdvancedPaneModel.viewMode", 999), ""));
+      SelectionListPropertyDialogModel list = new SelectionListPropertyDialogModel();
+      assertThrows(IllegalArgumentException.class,
+         () -> serviceWithSelectionList(mock(SelectionListVSAssembly.class), list).set(
+            "tok", principal(), "Selection1",
+            Map.of("SelectionGeneralPaneModel.sortType", 999), ""));
    }
 }

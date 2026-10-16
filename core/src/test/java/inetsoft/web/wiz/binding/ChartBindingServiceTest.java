@@ -118,6 +118,53 @@ class ChartBindingServiceTest {
       assertEquals("Chart1", captor.getValue().getName());
    }
 
+   /**
+    * Bug #78439: binding writes have steps after the inner service call (calculator checks and
+    * their rollback, multi-style), so a script error from it is NOT swallowed: it propagates
+    * rather than claiming an edit was applied.
+    */
+   @Test
+   void aScriptErrorFromTheInnerServiceIsNotSwallowedByBindingWrites() throws Exception {
+      SwapXYBindingService swap = mock(SwapXYBindingService.class);
+      doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(swap).swapXYBinding(any(), any(), any(), any(), any());
+      ChartBindingService service = harnessWithAssembly(
+         mock(ChartVSAssembly.class), new ChartBindingModel(), mock(ChangeChartRefService.class),
+         mock(ChangeChartTypeService.class), swap, mock(ChangeSeparateStatusService.class));
+
+      assertThrows(RuntimeException.class, () -> service.swapAxes("tok", principal(), "Chart1", ""));
+   }
+
+   /** Bug #78439: every chart binding write returns the warnings the write captured. */
+   @Test
+   void everyWriteReturnsTheWarningsTheWriteCaptured() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doReturn(List.of("chart warning")).when(sessions)
+         .mutate(anyString(), any(Principal.class), any());
+      ChartBindingService service = new ChartBindingService(
+         sessions, mock(VSBindingService.class), mock(ChangeChartRefService.class),
+         mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+         mock(ChangeSeparateStatusService.class),
+         mock(inetsoft.web.binding.service.DataRefModelFactoryService.class));
+      List<String> expected = List.of("chart warning");
+      FieldRef field = new FieldRef("Region", "dimension", null, null, null);
+
+      assertEquals(expected, service.setShelf(
+         "tok", principal(), "Chart1", "x", List.of(field), null, ""));
+      assertEquals(expected, service.setSource("tok", principal(), "Chart1", "T", true, ""));
+      assertEquals(expected, service.setSingleShelf(
+         "tok", principal(), "Chart1", "open", field, null, ""));
+      assertEquals(expected, service.setSort(
+         "tok", principal(), "Chart1", "x", "Region", null,
+         new DimensionSortRanking.Sort("asc", null, null), ""));
+      assertEquals(expected, service.setRanking(
+         "tok", principal(), "Chart1", "x", "Region", null,
+         new DimensionSortRanking.Ranking("top", 3, "Sales", null), ""));
+      assertEquals(expected, service.setChartType(
+         "tok", principal(), "Chart1", GraphTypes.CHART_LINE, null, null, null, null, ""));
+      assertEquals(expected, service.setSeparateStatus("tok", principal(), "Chart1", true, ""));
+      assertEquals(expected, service.swapAxes("tok", principal(), "Chart1", ""));
+   }
+
    @Test
    void swapAxesDelegatesTheAssemblyName() throws Exception {
       SwapXYBindingService swap = mock(SwapXYBindingService.class);
@@ -147,6 +194,7 @@ class ChartBindingServiceTest {
          mock(inetsoft.uql.viewsheet.graph.VSChartInfo.class);
       when(chart.getVSChartInfo()).thenReturn(chartInfo);
       when(chartInfo.isMultiStyles()).thenReturn(true);
+      when(chartInfo.isDesignMultiStyles()).thenReturn(true);
 
       harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
                           mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
@@ -951,6 +999,7 @@ class ChartBindingServiceTest {
 
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.isMultiStyles()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(true);
       when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
       when(info.getXFieldCount()).thenReturn(1);
       when(info.getXField(0)).thenReturn(paid);
@@ -981,6 +1030,7 @@ class ChartBindingServiceTest {
 
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.isMultiStyles()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(true);
       when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
       when(info.getXFieldCount()).thenReturn(1);
       when(info.getXField(0)).thenReturn(paid);
@@ -1015,7 +1065,9 @@ class ChartBindingServiceTest {
 
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.isMultiStyles()).thenReturn(multi);
+      when(info.isDesignMultiStyles()).thenReturn(multi);
       when(info.isSeparatedGraph()).thenReturn(true);
+      when(info.isDesignSeparated()).thenReturn(true);
       when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
       when(info.getXFieldCount()).thenReturn(1);
       when(info.getXField(0)).thenReturn(paid);
@@ -1050,7 +1102,9 @@ class ChartBindingServiceTest {
       when(descriptor.getPlotDescriptor()).thenReturn(plot);
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.isMultiStyles()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(true);
       when(info.isSeparatedGraph()).thenReturn(false);
+      when(info.isDesignSeparated()).thenReturn(false);
       when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getVSChartInfo()).thenReturn(info);
@@ -1087,7 +1141,9 @@ class ChartBindingServiceTest {
       when(descriptor.getPlotDescriptor()).thenReturn(plot);
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.isMultiStyles()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(true);
       when(info.isSeparatedGraph()).thenReturn(true);
+      when(info.isDesignSeparated()).thenReturn(true);
       when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getVSChartInfo()).thenReturn(info);
@@ -1127,7 +1183,9 @@ class ChartBindingServiceTest {
       ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.isMultiStyles()).thenReturn(false);
+      when(info.isDesignMultiStyles()).thenReturn(false);
       when(info.isSeparatedGraph()).thenReturn(true);
+      when(info.isDesignSeparated()).thenReturn(true);
       when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getVSChartInfo()).thenReturn(info);
@@ -1156,6 +1214,7 @@ class ChartBindingServiceTest {
       ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.isMultiStyles()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(true);
       when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getVSChartInfo()).thenReturn(info);
@@ -1169,6 +1228,84 @@ class ChartBindingServiceTest {
    }
 
    /**
+    * Under a changeAndValue date comparison the no-arg getter answers true for a chart whose
+    * design multiStyles is false. set_chart_separate_status must send the design value, or
+    * ChangeSeparateStatusProcessor persists the comparison's override into the design.
+    */
+   @Test
+   void setSeparateStatusSendsTheDesignMultiStyleNotTheDateComparisonOverride() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(false);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
+                          mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                          separateStatus)
+         .setSeparateStatus("tok", principal(), "Chart1", true, "");
+
+      ArgumentCaptor<ChangeSeparateStatusEvent> captor =
+         ArgumentCaptor.forClass(ChangeSeparateStatusEvent.class);
+      verify(separateStatus).changeSeparateStatus(eq("rt1"), captor.capture(),
+                                                  any(Principal.class), any(), anyString());
+      assertFalse(captor.getValue().isMulti());
+      assertTrue(captor.getValue().isSeparate());
+   }
+
+   @Test
+   void setSeparateStatusStillSendsMultiWhenTheDesignIsMultiStyle() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(true);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
+                          mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                          separateStatus)
+         .setSeparateStatus("tok", principal(), "Chart1", true, "");
+
+      ArgumentCaptor<ChangeSeparateStatusEvent> captor =
+         ArgumentCaptor.forClass(ChangeSeparateStatusEvent.class);
+      verify(separateStatus).changeSeparateStatus(eq("rt1"), captor.capture(),
+                                                  any(Principal.class), any(), anyString());
+      assertTrue(captor.getValue().isMulti());
+   }
+
+   /**
+    * Same axis as above, other direction: a requested multi:true was compared with the date
+    * comparison's runtime true and skipped as already satisfied, so the design flag was never set.
+    */
+   @Test
+   void turnsMultiStyleOnWhenOnlyTheDateComparisonOverrideHasItOn() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(false);
+      when(info.isDesignSeparated()).thenReturn(true);
+      when(info.isSeparatedGraph()).thenReturn(false);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
+                          types, mock(SwapXYBindingService.class), separateStatus)
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_BAR, true, null, null, null, "");
+
+      ArgumentCaptor<ChangeSeparateStatusEvent> captor =
+         ArgumentCaptor.forClass(ChangeSeparateStatusEvent.class);
+      verify(separateStatus).changeSeparateStatus(eq("rt1"), captor.capture(),
+                                                  any(Principal.class), any(), anyString());
+      assertTrue(captor.getValue().isMulti());
+      assertTrue(captor.getValue().isSeparate(),
+                 "an unstated separate keeps the design value, not the comparison's runtime one");
+   }
+
+   /**
     * An omitted multi means "not asked for", not "off". Coercing it to false is what the shared
     * event builder does, and it is why a plain retype cannot leave the flag alone.
     */
@@ -1177,6 +1314,7 @@ class ChartBindingServiceTest {
       ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.isMultiStyles()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(true);
       when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getVSChartInfo()).thenReturn(info);
@@ -1296,6 +1434,7 @@ class ChartBindingServiceTest {
       model.setMultiStyles(false);
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.isMultiStyles()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(true);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getVSChartInfo()).thenReturn(info);
 
@@ -1317,6 +1456,7 @@ class ChartBindingServiceTest {
       model.setMultiStyles(false);
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.isMultiStyles()).thenReturn(false);
+      when(info.isDesignMultiStyles()).thenReturn(false);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getVSChartInfo()).thenReturn(info);
 

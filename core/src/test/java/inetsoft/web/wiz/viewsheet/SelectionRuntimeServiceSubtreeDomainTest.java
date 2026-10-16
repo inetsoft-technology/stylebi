@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.CompositeSelectionValue;
 import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
+import inetsoft.uql.viewsheet.SelectionVSAssembly;
 import inetsoft.uql.viewsheet.SelectionValue;
 import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
@@ -341,6 +342,81 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       assertEquals(0, result.get("deselected"));
       assertEquals(List.of(List.of("East", "NY")), result.get("scopedBySearchRetained"));
       assertEquals("Beta", result.get("scopedBySearch"));
+   }
+
+   /** East{NY, Boston} + West{LA, SF}, with NY and LA selected, East/West selected as ancestors. */
+   private static SelectionList eastWestSelected() {
+      SelectionList domain = new SelectionList();
+      domain.addSelectionValue(region("East", "NY", "Boston", "NY"));
+      domain.addSelectionValue(region("West", "LA", "SF", "LA"));
+      return domain;
+   }
+
+   private static CompositeSelectionValue region(String name, String a, String b, String selected) {
+      CompositeSelectionValue node = new CompositeSelectionValue(name, name);
+      node.setSelected(true);
+      SelectionList children = new SelectionList();
+
+      for(String c : new String[] { a, b }) {
+         SelectionValue v = new SelectionValue(c, c);
+         v.setSelected(c.equals(selected));
+         v.setLevel(1);
+         children.addSelectionValue(v);
+      }
+
+      node.setSelectionList(children);
+      return node;
+   }
+
+   /**
+    * bug-78576: NY really goes, East is left selected with no selected child. East/NY must not be
+    * reported as retained.
+    */
+   @Test
+   void deselectUnderASearchDoesNotRetainAPathWhoseParentIsLeftSelectedEmpty() throws Exception {
+      SelectionList domain = eastWestSelected();
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(false, domain, "Bos"));
+      doAnswer(inv -> {
+         CompositeSelectionValue east = (CompositeSelectionValue) domain.getSelectionValue(0);
+         east.getSelectionList().getSelectionValue(0).setSelected(false);
+         return null;
+      }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                             any(Principal.class), any(), anyString());
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("East", "NY")), null, null, null, "");
+
+      assertEquals(1, result.get("deselected"));
+      assertFalse(result.containsKey("scopedBySearchRetained"));
+   }
+
+   /** bug-78216 merge-back: West/LA really stays selected, so it is still reported. */
+   @Test
+   void deselectUnderASearchStillRetainsAMergedBackLeaf() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(
+         searchedTree(false, eastWestSelected(), "Bos"));
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("West", "LA")), null, null, null, "");
+
+      assertEquals(0, result.get("deselected"));
+      assertEquals(List.of(List.of("West", "LA")), result.get("scopedBySearchRetained"));
+   }
+
+   /** A parent-only request whose child survives (merged back) is still reported. */
+   @Test
+   void deselectOfAParentUnderASearchRetainsItWhileAChildSurvives() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(
+         searchedTree(false, eastWestSelected(), "Bos"));
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("West")), null, null, null, "");
+
+      assertEquals(List.of(List.of("West")), result.get("scopedBySearchRetained"));
    }
 
    /** Control: the apply really clears it (no merge-back), so it is deselected and not retained. */
@@ -874,5 +950,81 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       assertEquals(Boolean.TRUE, result.get("rangeWasFull"));
       assertEquals(Boolean.FALSE, result.get("fullRange"));
       assertEquals(2, result.get("selectedBuckets"));
+   }
+
+   // -- deselect path validation (bug 78565) --------------------------------------------------
+
+   private Exception deselectRefusal(SelectionVSAssembly assembly, String name, List<String> path) {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service().setSelection("tok", SelectionRuntimeServiceTest.principal(), name, null,
+                                        List.of(path), null, null, null, ""));
+      verifyNoInteractions(h.selections());
+      return e;
+   }
+
+   private static SelectionTreeVSAssembly plainTree() {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.getSelectionList()).thenReturn(plainDomain());
+      return assembly;
+   }
+
+   /** A path that runs past a real leaf is refused by naming the extra segment. */
+   @Test
+   void deselectRefusesAnOverLongPath() {
+      Exception e = deselectRefusal(plainTree(), "Tree1", List.of("East", "NY", "Fabricated"));
+
+      assertTrue(e.getMessage().contains("not found: 'Fabricated'"), e.getMessage());
+      assertTrue(e.getMessage().contains("browse_condition_values"), e.getMessage());
+   }
+
+   @Test
+   void deselectRefusesAFabricatedTopLevelSegment() {
+      Exception e = deselectRefusal(plainTree(), "Tree1", List.of("Nowhere"));
+
+      assertTrue(e.getMessage().contains("not found: 'Nowhere'"), e.getMessage());
+   }
+
+   @Test
+   void deselectRefusesAFabricatedMidPathSegment() {
+      Exception e = deselectRefusal(plainTree(), "Tree1", List.of("East", "Nowhere"));
+
+      assertTrue(e.getMessage().contains("not found: 'Nowhere'"), e.getMessage());
+   }
+
+   @Test
+   void deselectRefusesAFabricatedValueOnAList() {
+      SelectionListVSAssembly assembly = SelectionRuntimeServiceTest.list(0, false, null);
+      SelectionList domain = new SelectionList();
+      domain.addSelectionValue(new SelectionValue("East", "East"));
+      when(assembly.getSelectionList()).thenReturn(domain);
+
+      Exception e = deselectRefusal(assembly, "Filter1", List.of("Nowhere"));
+
+      assertTrue(e.getMessage().contains("not found: 'Nowhere'"), e.getMessage());
+   }
+
+   /** A real value that is simply not selected stays a legal no-op, as does a parent-only path. */
+   @Test
+   void deselectAcceptsARealButUnselectedPathAndAParentOnlyPath() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(plainTree());
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("East", "NY"), List.of("East")), null, null, null, "");
+
+      assertFalse(result.containsKey("deselected"));
+      verifyNoInteractions(h.selections());
+   }
+
+   /** The refusal is not scoped by search: a real value the search hides is still resolvable. */
+   @Test
+   void deselectOfARealValueHiddenBySearchIsNotRefused() {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(
+         searchedTree(false, eastNyAndBeta(), "Beta"));
+
+      assertDoesNotThrow(() -> h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("East", "NY")), null, null, null, ""));
    }
 }

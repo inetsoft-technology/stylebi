@@ -22,6 +22,7 @@ import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -117,7 +118,16 @@ public class ScriptFunction implements ProxyExecutable {
          return ScriptValueConverter.toGuest(result);
       }
       catch(Exception ex) {
-         throw new RuntimeException("Failed to invoke script function: " + name, ex);
+         Throwable cause = ex instanceof InvocationTargetException && ex.getCause() != null ?
+            ex.getCause() : ex;
+         String msg = cause.getMessage();
+         String text = "Failed to invoke script function: " + name;
+
+         if(msg != null) {
+            text += ": " + msg;
+         }
+
+         throw new RuntimeException(text, cause);
       }
    }
 

@@ -69,6 +69,55 @@ class ChartRegionPropertyServiceTest {
                  "the axis line properties must be discoverable by name");
    }
 
+   /**
+    * Bug #78439: a chart script error thrown by the inner dialog service is tolerated after the
+    * write was attempted; any other error still escapes.
+    */
+   @Test
+   void aScriptErrorFromTheInnerServiceDoesNotEscapeButOtherErrorsDo() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+      doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(h.regions).setAxisPropertyDialogModel(
+         anyString(), anyString(), anyString(), anyInt(), any(), any(), anyString(),
+         any(Principal.class), any());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("showAxisLine", false), "");
+      verify(h.regions).setAxisPropertyDialogModel(
+         anyString(), anyString(), anyString(), anyInt(), any(), any(), anyString(),
+         any(Principal.class), any());
+
+      Harness other = harness();
+      when(other.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(),
+                                                    anyString(), any(), anyString(),
+                                                    any(Principal.class)))
+         .thenReturn(axisModel());
+      doThrow(new IllegalStateException("boom")).when(other.regions).setAxisPropertyDialogModel(
+         anyString(), anyString(), anyString(), anyInt(), any(), any(), anyString(),
+         any(Principal.class), any());
+
+      assertThrows(IllegalStateException.class, () -> other.service.set(
+         "tok", principal(), "Chart1", "axis", "y", null, Map.of("showAxisLine", false), ""));
+   }
+
+   /** Bug #78439: the warnings the write captured (a chart that cannot be generated) are returned. */
+   @Test
+   void returnsTheWarningsTheWriteCaptured() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+      doReturn(java.util.List.of("chart warning")).when(h.sessions)
+         .mutate(anyString(), any(Principal.class), any());
+
+      java.util.List<String> warnings = h.service.set(
+         "tok", principal(), "Chart1", "axis", "y", null, Map.of("showAxisLine", false), "");
+
+      assertEquals(java.util.List.of("chart warning"), warnings);
+   }
+
    @Test
    void writesAnAxisPropertyThroughTheWholePatchRule() throws Exception {
       Harness h = harness();
@@ -2078,7 +2127,8 @@ class ChartRegionPropertyServiceTest {
       return model;
    }
 
-   private record Harness(ChartRegionPropertyService service, RegionPropertyDialogService regions) {}
+   private record Harness(ChartRegionPropertyService service, RegionPropertyDialogService regions,
+                          ViewsheetSessionService sessions) {}
 
    private static Harness harness() {
       // The default chart carries a secondary measure, so every pre-existing case that addresses
@@ -2119,7 +2169,8 @@ class ChartRegionPropertyServiceTest {
 
       RegionPropertyDialogService regions = mock(RegionPropertyDialogService.class);
       return new Harness(
-         new ChartRegionPropertyService(sessions, regions, new ChartRegionHandler()), regions);
+         new ChartRegionPropertyService(sessions, regions, new ChartRegionHandler()), regions,
+         sessions);
    }
 
    /**
@@ -2275,5 +2326,21 @@ class ChartRegionPropertyServiceTest {
 
    private static Principal principal() {
       return () -> "admin";
+   }
+
+   /** Bug #78440: a trailing or doubled dot must not slip past the keyed guards. */
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "axisLinePaneModel.minimum.", "AxisLinePaneModel.Minimum..", "axisLinePaneModel..minimum",
+      "." })
+   void refusesAnEmptySegmentInARawRegionPath(String path) {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of(path, "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("empty segment"), thrown.getMessage());
+      verifyNoInteractions(h.regions);
    }
 }

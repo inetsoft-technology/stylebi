@@ -372,6 +372,9 @@ class BindingAgentControllerTest {
       inetsoft.report.composition.RuntimeViewsheet rvs =
          mock(inetsoft.report.composition.RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
+      // setTableFields first runs the read-only type gate (bug #78533), which resolves the same
+      // session that mutate() runs against.
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
       doAnswer(invocation -> {
          ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
          mutation.run(rvs, "rt1", null);
@@ -447,7 +450,9 @@ class BindingAgentControllerTest {
          () -> controller.setTableFields("tok", request, principal()));
 
       assertTrue(thrown.getMessage().contains("Sales"), thrown.getMessage());
-      verifyNoInteractions(tableService);
+      // The read-only type gate (bug #78533) is the only service call; nothing is written.
+      verify(tableService).requireTableAssembly(eq("tok"), any(Principal.class), eq("Crosstab1"));
+      verifyNoMoreInteractions(tableService);
    }
 
    /** @see #setTableFieldsRefusesATableTheListingDoesNotHave -- add_table_field shares the gap. */
@@ -475,7 +480,9 @@ class BindingAgentControllerTest {
          () -> controller.addTableField("tok", request, principal()));
 
       assertTrue(thrown.getMessage().contains("Sales"), thrown.getMessage());
-      verifyNoInteractions(tableService);
+      // The read-only type gate (bug #78533) is the only service call; nothing is written.
+      verify(tableService).requireTableAssembly(eq("tok"), any(Principal.class), eq("Crosstab1"));
+      verifyNoMoreInteractions(tableService);
    }
 
    /**
@@ -619,7 +626,9 @@ class BindingAgentControllerTest {
             null), principal()));
 
       assertTrue(thrown.getMessage().contains("'Ab'"));
-      verifyNoInteractions(tableService);
+      // The read-only type gate (bug #78533) is the only service call; nothing is written.
+      verify(tableService).requireTableAssembly(eq("tok"), any(Principal.class), eq("Crosstab1"));
+      verifyNoMoreInteractions(tableService);
    }
 
    @Test
@@ -630,7 +639,7 @@ class BindingAgentControllerTest {
       java.util.Map<String, Double> widths = java.util.Map.of("Region", 120.0);
       when(tableService.setColumnWidths(eq("tok"), any(Principal.class), eq("Table1"),
                                         eq(widths)))
-         .thenReturn(List.of("Region -> 120px"));
+         .thenReturn(new TableBindingService.TableWrite(List.of("Region -> 120px"), List.of()));
 
       BindingAgentController controller = new BindingAgentController(
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -647,6 +656,57 @@ class BindingAgentControllerTest {
          controller.setTableColumnWidth("tok", request, principal());
 
       assertEquals(List.of("Region -> 120px"), response.get("applied"));
+   }
+
+   /** Bug #78406: the three table writes that bypass apply() relay mutate's warnings. */
+   @Test
+   void tableColumnWidthLabelsAndCrosstabVisibilityRelayWarningsOnlyWhenPresent()
+      throws Exception
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      TableBindingService tableService = mock(TableBindingService.class);
+      List<String> warned = List.of("script failed");
+      when(tableService.setColumnWidths(any(), any(), any(), any()))
+         .thenReturn(new TableBindingService.TableWrite(List.of("Region -> 120px"), warned));
+      when(tableService.setColumnLabels(any(), any(), any(), any(), any()))
+         .thenReturn(new TableBindingService.TableWrite(List.of("Region -> R"), warned));
+      when(tableService.setCrosstabColumnVisibility(any(), any(), any(), any(), any(),
+                                                    anyBoolean()))
+         .thenReturn(new TableBindingService.TableWrite(List.of("Region -> hidden"), warned));
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(ViewsheetSessionService.class), mock(BindableFieldsService.class),
+         mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(ViewsheetFormatService.class), mock(SheetAgentBroadcastService.class));
+
+      java.util.Map<String, Object> width = controller.setTableColumnWidth(
+         "tok", new BindingAgentController.TableColumnWidthRequest(
+            "Table1", java.util.Map.of("Region", 120.0)), principal());
+      java.util.Map<String, Object> labels = controller.setTableLabels(
+         "tok", new BindingAgentController.TableLabelRequest(
+            "Table1", java.util.Map.of("Region", "R"), null), principal());
+      java.util.Map<String, Object> visibility = controller.setCrosstabColumnVisibility(
+         "tok", new BindingAgentController.CrosstabColumnVisibilityRequest(
+            "Crosstab1", List.of("Region"), null, false), principal());
+
+      assertEquals(warned, width.get("warnings"));
+      assertEquals(warned, labels.get("warnings"));
+      assertEquals(warned, visibility.get("warnings"));
+      assertEquals(List.of("Region -> 120px"), width.get("applied"));
+      assertEquals(List.of("Region -> R"), labels.get("applied"));
+      assertEquals(List.of("Region -> hidden"), visibility.get("applied"));
+
+      when(tableService.setColumnWidths(any(), any(), any(), any()))
+         .thenReturn(new TableBindingService.TableWrite(List.of("Region -> 120px"), List.of()));
+      java.util.Map<String, Object> clean = controller.setTableColumnWidth(
+         "tok", new BindingAgentController.TableColumnWidthRequest(
+            "Table1", java.util.Map.of("Region", 120.0)), principal());
+
+      assertFalse(clean.containsKey("warnings"), clean.toString());
    }
 
    @Test

@@ -37,6 +37,8 @@ import inetsoft.uql.erm.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.adhoc.model.FontInfo;
@@ -49,9 +51,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.awt.*;
+import java.io.Serial;
+import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 @Component
 public class HighlightService {
@@ -361,78 +366,11 @@ public class HighlightService {
 
       if(assembly instanceof CrosstabVSAssembly) {
          VSCrosstabInfo info = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
-         DataRef[] cheaders = info.getRuntimeColHeaders();
-         DataRef[] rheaders = isHighlight ?
-            info.getRuntimeRowHeaders() : info.getPeriodRuntimeRowHeaders();
-         XDimensionRef[] dcTempGroups = info.getDcTempGroups();
-         DataRef[] aggregates = info.getRuntimeAggregates();
          Object data = box.get().getData(assembly.getAbsoluteName());
 
          if(data instanceof TableLens) {
-            TableLens table = (TableLens) data;
-            Field[] fields = TableHighlightAttr.getAvailableFields(table, dpath);
-
-            if(fields != null && fields.length > 0) {
-               for(int i = 0; !isHighlight && i < fields.length; i++) {
-                  String name = fields[i].getName();
-
-                  if(name.equals(CrossTabFilter.ROW_GRAND_TOTAL_HEADER) ||
-                     name.equals(CrossTabFilter.COL_GRAND_TOTAL_HEADER))
-                  {
-                     AttributeRef attr = new AttributeRef(null, name);
-                     attr.setDataType(fields[i].getDataType());
-                     fieldList.add(attr);
-                  }
-               }
-
-               for(DataRef rheader : rheaders) {
-                  DataRef ref = getDimensionColumnRef(rheader);
-
-                  for(Field f : fields) {
-                     if(isSameField(ref, f)) {
-                        fieldList.add(ref);
-                        break;
-                     }
-                  }
-               }
-
-               for(DataRef cheader : cheaders) {
-                  DataRef ref = getDimensionColumnRef(cheader);
-
-                  for(Field f : fields) {
-                     if(isSameField(ref, f)) {
-                        fieldList.add(ref);
-                        break;
-                     }
-                  }
-               }
-
-               for(DataRef tempGroup : dcTempGroups) {
-                  DataRef ref = getDimensionColumnRef(tempGroup);
-
-                  for(Field f : fields) {
-                     if(isSameField(ref, f)) {
-                        fieldList.add(ref);
-                        break;
-                     }
-                  }
-               }
-
-               for(DataRef aggregate : aggregates) {
-                  DataRef ref = getAggregateColumn(aggregate);
-
-                  for(Field f : fields) {
-                     if(isSameField(ref, f, true)) {
-                        if(fieldList.contains(f)) {
-                           continue;
-                        }
-
-                        fieldList.add(f);
-                        break;
-                     }
-                  }
-               }
-            }
+            Field[] fields = TableHighlightAttr.getAvailableFields((TableLens) data, dpath);
+            addCrosstabRefs(info, fields, isHighlight, fieldList, null);
          }
       }
       else if(assembly instanceof TableVSAssembly) {
@@ -527,6 +465,308 @@ public class HighlightService {
       }
 
       return fieldList;
+   }
+
+   /**
+    * The crosstab branch of {@link #getRefsForVSAssembly}: adds the refs listed for the lens
+    * {@code fields} of one cell. {@code sources}, when not null, is told the runtime ref each
+    * listed ref was produced from (null for a grand total header), so a caller can classify the
+    * listed names without re-deriving them.
+    */
+   private void addCrosstabRefs(VSCrosstabInfo info, Field[] fields, boolean isHighlight,
+                                List<DataRef> fieldList, BiConsumer<DataRef, DataRef> sources)
+   {
+      if(fields == null || fields.length == 0) {
+         return;
+      }
+
+      DataRef[] cheaders = info.getRuntimeColHeaders();
+      DataRef[] rheaders = isHighlight ?
+         info.getRuntimeRowHeaders() : info.getPeriodRuntimeRowHeaders();
+      XDimensionRef[] dcTempGroups = info.getDcTempGroups();
+      DataRef[] aggregates = info.getRuntimeAggregates();
+
+      for(int i = 0; !isHighlight && i < fields.length; i++) {
+         String name = fields[i].getName();
+
+         if(name.equals(CrossTabFilter.ROW_GRAND_TOTAL_HEADER) ||
+            name.equals(CrossTabFilter.COL_GRAND_TOTAL_HEADER))
+         {
+            AttributeRef attr = new AttributeRef(null, name);
+            attr.setDataType(fields[i].getDataType());
+            addRef(fieldList, sources, attr, null);
+         }
+      }
+
+      for(DataRef rheader : rheaders) {
+         DataRef ref = getDimensionColumnRef(rheader);
+
+         for(Field f : fields) {
+            if(isSameField(ref, f)) {
+               addRef(fieldList, sources, ref, rheader);
+               break;
+            }
+         }
+      }
+
+      for(DataRef cheader : cheaders) {
+         DataRef ref = getDimensionColumnRef(cheader);
+
+         for(Field f : fields) {
+            if(isSameField(ref, f)) {
+               addRef(fieldList, sources, ref, cheader);
+               break;
+            }
+         }
+      }
+
+      for(DataRef tempGroup : dcTempGroups) {
+         DataRef ref = getDimensionColumnRef(tempGroup);
+
+         for(Field f : fields) {
+            if(isSameField(ref, f)) {
+               addRef(fieldList, sources, ref, tempGroup);
+               break;
+            }
+         }
+      }
+
+      for(DataRef aggregate : aggregates) {
+         DataRef ref = getAggregateColumn(aggregate);
+
+         for(Field f : fields) {
+            if(isSameField(ref, f, true)) {
+               if(fieldList.contains(f)) {
+                  continue;
+               }
+
+               addRef(fieldList, sources, f, aggregate);
+               break;
+            }
+         }
+      }
+   }
+
+   private static void addRef(List<DataRef> fieldList, BiConsumer<DataRef, DataRef> sources,
+                              DataRef listed, DataRef source)
+   {
+      fieldList.add(listed);
+
+      if(sources != null) {
+         sources.accept(listed, source);
+      }
+   }
+
+   /**
+    * The crosstab fields a highlight at {@code dpath} lists only because of the active date
+    * comparison, classified in the names {@link #getRefsForVSAssembly} lists (which a highlight
+    * condition is resolved against), never in the runtime refs' own full names: live, a pushed-down
+    * derived aggregate is {@code Change ...: Sum(Sum(X))} while its listed lens field is
+    * {@code Change ...: Sum(X).1}.
+    *
+    * @see #getDateComparisonFields(CrosstabVSAssemblyInfo, Field[])
+    */
+   public DateComparisonFields getDateComparisonFields(RuntimeViewsheet rvs, VSAssembly assembly,
+                                                       TableDataPath dpath)
+      throws Exception
+   {
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(!(assembly instanceof CrosstabVSAssembly) || box.isEmpty() || dpath == null) {
+         return DateComparisonFields.NONE;
+      }
+
+      Object data = box.get().getData(assembly.getAbsoluteName());
+
+      if(!(data instanceof TableLens)) {
+         return DateComparisonFields.NONE;
+      }
+
+      return getDateComparisonFields((CrosstabVSAssemblyInfo) assembly.getVSAssemblyInfo(),
+                                     TableHighlightAttr.getAvailableFields((TableLens) data, dpath));
+   }
+
+   /**
+    * Replays the crosstab producer over the lens {@code fields} and classifies each listed name by
+    * the runtime ref it was produced from:
+    * <ul>
+    *   <li>an aggregate is derived when it carries the comparison's calculator (the one on the
+    *   comparison's own runtime aggregate refs). {@code CrosstabDcProcessor.updateRuntimeAggregates}
+    *   clears the design calculator of the aggregates it keeps, so a running total is not one;</li>
+    *   <li>a dimension (header or comparison temp group) is derived when the comparison created or
+    *   re-leveled it (its listed name is one of the comparison's own runtime dimension refs' or
+    *   temp groups') and the design binding does not list that name. This catches a re-leveled
+    *   date dimension (Month to MonthOfYear) and an inserted period dimension, and leaves alone a
+    *   design dimension the comparison kept, and a runtime header the comparison did not make.</li>
+    * </ul>
+    *
+    * <p>A listed name whose classification would depend on the producer's pairing order is reported
+    * as ambiguous rather than defaulted to "not derived": another runtime aggregate with the
+    * opposite verdict also matches its lens field; two sources list the same name; or it is a base
+    * aggregate paired through the {@code ".N"} suffix while some comparison aggregate was paired to
+    * no lens field at all.
+    *
+    * <p>Nothing is derived without an applied comparison, so a design calculator such as a running
+    * total is never refused here.
+    */
+   public DateComparisonFields getDateComparisonFields(CrosstabVSAssemblyInfo assemblyInfo,
+                                                       Field[] fields)
+   {
+      if(!DateComparisonUtil.appliedDateComparison(assemblyInfo)) {
+         return DateComparisonFields.NONE;
+      }
+
+      VSCrosstabInfo info = assemblyInfo.getVSCrosstabInfo();
+      DataRef[] aggregates = info.getRuntimeAggregates();
+      Set<String> comparisonDims = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+      Set<String> designDims = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+      List<Calculator> comparisonCalcs = new ArrayList<>();
+
+      for(DataRef ref : info.getRuntimeDateComparisonRefs()) {
+         if(ref instanceof VSAggregateRef && ((VSAggregateRef) ref).getCalculator() != null) {
+            comparisonCalcs.add(((VSAggregateRef) ref).getCalculator());
+         }
+         else if(ref instanceof XDimensionRef) {
+            comparisonDims.add(getDimensionColumnRef(ref).getName());
+         }
+      }
+
+      for(DataRef ref : info.getDcTempGroups()) {
+         comparisonDims.add(getDimensionColumnRef(ref).getName());
+      }
+
+      for(DataRef[] headers : new DataRef[][] { info.getRowHeaders(), info.getColHeaders() }) {
+         for(DataRef ref : headers == null ? new DataRef[0] : headers) {
+            // a design dimension the last update could not resolve has no listed name
+            if(ref instanceof VSDimensionRef && ((VSDimensionRef) ref).getDataRef() != null) {
+               designDims.add(getDimensionColumnRef(ref).getName());
+            }
+         }
+      }
+
+      Map<String, Boolean> verdicts = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+      Set<String> ambiguous = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+      Set<DataRef> paired = Collections.newSetFromMap(new IdentityHashMap<>());
+      Set<String> suffixPaired = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+
+      addCrosstabRefs(info, fields, true, new ArrayList<>(), (listed, source) -> {
+         String name = listed.getName();
+
+         if(name == null) {
+            return;
+         }
+
+         boolean derived;
+
+         if(source instanceof VSAggregateRef) {
+            derived = isComparisonAggregate(source, comparisonCalcs);
+            paired.add(source);
+
+            if(!derived && !isSameField(getAggregateColumn(source), listed)) {
+               suffixPaired.add(name);
+            }
+
+            for(DataRef other : aggregates) {
+               if(other != source && isComparisonAggregate(other, comparisonCalcs) != derived &&
+                  isSameField(getAggregateColumn(other), listed, true))
+               {
+                  ambiguous.add(name);
+               }
+            }
+         }
+         else {
+            derived = source != null && comparisonDims.contains(name) && !designDims.contains(name);
+         }
+
+         Boolean previous = verdicts.put(name, derived);
+
+         if(previous != null && previous != derived) {
+            ambiguous.add(name);
+         }
+      });
+
+      // A comparison aggregate that took no lens field: its column is listed under some other
+      // aggregate's name, and only a ".N" pairing could have taken it.
+      for(DataRef aggregate : aggregates) {
+         if(isComparisonAggregate(aggregate, comparisonCalcs) && !paired.contains(aggregate)) {
+            ambiguous.addAll(suffixPaired);
+            break;
+         }
+      }
+
+      Set<String> derived = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+      verdicts.forEach((name, isDerived) -> {
+         if(isDerived && !ambiguous.contains(name)) {
+            derived.add(name);
+         }
+      });
+
+      return new DateComparisonFields(derived, ambiguous);
+   }
+
+   /**
+    * Whether {@code ref} carries the comparison's own calculator. Not any calculator: the
+    * aggregate pushdown ({@code AbstractCrosstabVSAQuery}) gives a base aggregate with a percentage
+    * option a {@code PercentCalc} after the comparison has run.
+    */
+   private static boolean isComparisonAggregate(DataRef ref, List<Calculator> comparisonCalcs) {
+      if(!(ref instanceof VSAggregateRef) || ((VSAggregateRef) ref).getCalculator() == null) {
+         return false;
+      }
+
+      Calculator calc = ((VSAggregateRef) ref).getCalculator();
+      return comparisonCalcs.stream().anyMatch(c -> c == calc || c.equals(calc));
+   }
+
+   /**
+    * Listed field names a crosstab lists only because of the active date comparison, and those
+    * that cannot be classified either way. Matched case-insensitively, the way
+    * {@code ConditionVocabulary} resolves field names.
+    *
+    * <p>A plain {@code Serializable} class with lower-cased names in {@code HashSet}s, not a
+    * record or a comparator-ordered set: it is returned through a {@code @ClusterProxyMethod},
+    * and Ignite's binary marshaller can neither marshal a record on JDK 21 nor be relied on to
+    * bring a {@code TreeSet}'s comparator back.
+    */
+   public static final class DateComparisonFields implements Serializable {
+      public static final DateComparisonFields NONE =
+         new DateComparisonFields(Collections.emptySet(), Collections.emptySet());
+
+      public DateComparisonFields(Collection<String> derived, Collection<String> ambiguous) {
+         this.derived = lowerCase(derived);
+         this.ambiguous = lowerCase(ambiguous);
+      }
+
+      public boolean isEmpty() {
+         return derived.isEmpty() && ambiguous.isEmpty();
+      }
+
+      /** Whether {@code field} names a field listed only because of the comparison. */
+      public boolean isDerived(String field) {
+         return field != null && derived.contains(field.toLowerCase());
+      }
+
+      /** Whether {@code field} names a field that cannot be told apart from a derived one. */
+      public boolean isAmbiguous(String field) {
+         return field != null && ambiguous.contains(field.toLowerCase());
+      }
+
+      private static HashSet<String> lowerCase(Collection<String> names) {
+         HashSet<String> lower = new HashSet<>();
+
+         for(String name : names) {
+            if(name != null) {
+               lower.add(name.toLowerCase());
+            }
+         }
+
+         return lower;
+      }
+
+      @Serial
+      private static final long serialVersionUID = 1L;
+      private final HashSet<String> derived;
+      private final HashSet<String> ambiguous;
    }
 
    public List<String> getNamedGroupFields(RuntimeCalcTableLens table, List<DataRef> fields) {

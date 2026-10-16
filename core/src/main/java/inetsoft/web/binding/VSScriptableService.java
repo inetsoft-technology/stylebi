@@ -758,7 +758,8 @@ public class VSScriptableService {
          ScriptPropertyTool.fixPropertyLink(scriptable, null, name, child);
          object.set("bindingInfo", child);
          createBindingInfoDefinition(
-            mapper, library, child, ((CrosstabVSAScriptable) scriptable).getBindingInfo());
+            mapper, library, child, ((CrosstabVSAScriptable) scriptable).getBindingInfo(),
+            "Crosstab.bindingInfo.");
       }
       else if(scriptable instanceof CalcTableVSAScriptable && "layoutInfo".equals(name)) {
          ObjectNode child = mapper.createObjectNode();
@@ -772,7 +773,8 @@ public class VSScriptableService {
          ScriptPropertyTool.fixPropertyLink(scriptable, null, name, child);
          object.set("bindingInfo", child);
          createBindingInfoDefinition(
-            mapper, library, child, ((ChartVSAScriptable) scriptable).getBindingInfo());
+            mapper, library, child, ((ChartVSAScriptable) scriptable).getBindingInfo(),
+            "Chart.bindingInfo.");
       }
       else if(writeBinding && "xAxis".equals(name)) {
          Object[] ids = ((ChartVSAScriptable) scriptable).getAxisIds();
@@ -1329,6 +1331,15 @@ public class VSScriptableService {
 
       if(ScriptPropertyTool.getPropertyLink(scriptable, prefix, property) != null) {
          ScriptPropertyTool.fixPropertyLink(scriptable, prefix, property, propNode);
+
+         // a value member documented as "?" must not lose the type inferred from its value
+         if(prefix != null && prefix.endsWith("bindingInfo.") && !(value instanceof ScriptFunction) &&
+            !(value instanceof JSObject) && (!propNode.has("!type") ||
+            "?".equals(propNode.get("!type").asText())))
+         {
+            propNode.put("!type", getScriptType(mapper, library, value));
+         }
+
          object.set(property, propNode);
       }
       else {
@@ -1468,9 +1479,11 @@ public class VSScriptableService {
    }
 
    private void createBindingInfoDefinition(ObjectMapper mapper, ObjectNode library,
-                                            ObjectNode object, PropertyScriptable bindingScriptable)
+                                            ObjectNode object, PropertyScriptable bindingScriptable,
+                                            String prefix)
    {
-      createProperties(mapper, library, object, bindingScriptable, bindingScriptable.getMemberKeys());
+      createProperties0(mapper, library, object, bindingScriptable,
+                        bindingScriptable.getMemberKeys(), prefix);
    }
 
    /**

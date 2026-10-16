@@ -29,7 +29,6 @@ import inetsoft.uql.viewsheet.vslayout.PrintInfo;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
-import inetsoft.web.composer.vs.controller.VSLayoutControllerServiceProxy;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import inetsoft.web.wiz.pairing.TestPrincipals;
@@ -181,19 +180,37 @@ class LayoutUndoServiceTest {
     * VSLayoutControllerServiceProxy}/{@code DeviceRegistry} boundary), the same fixture shape
     * {@code LayoutMutationServiceTest} uses.
     */
+   /** Bug 78577 S2: undo must not resurrect a cleared print layout. */
+   @Test
+   void layoutUndoAfterThePrintLayoutIsClearedIsUnknownLayoutAndRestoresNothing()
+      throws Exception
+   {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.mutationService.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize",
+         VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 555, "y", 666, "width", 70, "height", 80)), false);
+      fx.masterVs.getLayoutInfo().setPrintLayout(null);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> fx.undoService.layoutUndo("tok1", AGENT, PRINT_LAYOUT));
+      assertThrows(IllegalArgumentException.class,
+                   () -> fx.undoService.layoutRedo("tok1", AGENT, PRINT_LAYOUT));
+
+      assertNull(fx.masterVs.getLayoutInfo().getPrintLayout());
+   }
+
    private static final class Fixture {
       final ViewsheetSessionService viewsheetSessions = mock(ViewsheetSessionService.class);
       final ViewsheetService viewsheetService = mock(ViewsheetService.class);
       final VSLayoutService vsLayoutService = new VSLayoutService();
-      final VSLayoutControllerServiceProxy vsLayoutControllerService =
-         mock(VSLayoutControllerServiceProxy.class);
       final DeviceRegistry deviceRegistry = mock(DeviceRegistry.class);
       final ViewsheetPropertyDialogService dialogService =
          mock(ViewsheetPropertyDialogService.class);
       final LayoutSessionService layoutSessions =
          new LayoutSessionService(viewsheetSessions, viewsheetService, vsLayoutService);
       final LayoutMutationService mutationService = new LayoutMutationService(
-         layoutSessions, viewsheetSessions, vsLayoutService, vsLayoutControllerService);
+         layoutSessions, viewsheetSessions, vsLayoutService);
       final LayoutReadService readService = new LayoutReadService(
          viewsheetSessions, layoutSessions, vsLayoutService, deviceRegistry, dialogService);
       final LayoutUndoService undoService =

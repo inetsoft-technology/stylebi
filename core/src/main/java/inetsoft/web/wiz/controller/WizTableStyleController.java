@@ -135,6 +135,21 @@ public class WizTableStyleController {
       return new TableStyleDetail(null, "", "", new TableStyleFormatModel(style));
    }
 
+   /**
+    * {@code read_table_style}. The styleId is a query parameter, so a style whose styleId is
+    * "defaults" is not shadowed by {@link #defaults()}.
+    */
+   @GetMapping(params = "styleId")
+   public TableStyleDetail readById(@RequestParam("styleId") String styleId,
+                                    Principal principal)
+   {
+      return read(styleId, principal);
+   }
+
+   /**
+    * {@code read_table_style} of older plugins. A style whose styleId is "defaults" can't be
+    * read here, because {@link #defaults()} takes that path.
+    */
    @GetMapping("/{styleId}")
    public TableStyleDetail read(@PathVariable String styleId, Principal principal) {
       LibManager lib = libManagerProvider.getManager(principal);
@@ -181,18 +196,18 @@ public class WizTableStyleController {
             "(e.g. 'User Defined/Sales').");
       }
 
-      String internalFolder = toInternalFolder(request.folder());
+      String folder = request.folder() == null ? null : normalizeFolder(request.folder());
+      String internalFolder = toInternalFolder(folder);
       LibManager lib = libManagerProvider.getManager(principal);
       List<String> missingFolders =
-         requireFoldersAllowed(lib, internalFolder, request.createFolders(), request.folder());
+         requireFoldersAllowed(lib, internalFolder, request.createFolders(), folder);
       String styleName = tableStyleService.getTableStyleLabel(internalFolder, request.name());
       requirePermission(principal, styleName, ResourceAction.WRITE);
 
       if(tableStyleService.contains(internalFolder, request.name())) {
          throw new IllegalArgumentException(
             "A table style named '" + request.name() + "' already exists" +
-            (request.folder() != null && !request.folder().isBlank()
-                ? " in folder '" + request.folder() + "'" : "") +
+            (folder != null && !folder.isEmpty() ? " in folder '" + folder + "'" : "") +
             ". Use update_table_style to change it, or pick a different name/folder.");
       }
 
@@ -252,10 +267,11 @@ public class WizTableStyleController {
                "(e.g. 'User Defined/Sales').");
          }
 
+         String folder = request.folder() == null ? null : normalizeFolder(request.folder());
          String oldInternalFolder = internalFolderOf(oldFullName);
          String newLeaf = request.name() != null ? request.name() : leafName(oldFullName);
-         String newInternalFolder = request.folder() != null ?
-            toInternalFolder(request.folder()) : oldInternalFolder;
+         String newInternalFolder = folder != null ?
+            toInternalFolder(folder) : oldInternalFolder;
          String newFullName = newInternalFolder == null ?
             newLeaf : newInternalFolder + LibManager.SEPARATOR + newLeaf;
 
@@ -277,7 +293,7 @@ public class WizTableStyleController {
 
             if(!Objects.equals(newInternalFolder, oldInternalFolder)) {
                missingFolders = requireFoldersAllowed(
-                  lib, newInternalFolder, request.createFolders(), request.folder());
+                  lib, newInternalFolder, request.createFolders(), folder);
                requireFolderWritePermission(principal, newInternalFolder);
             }
 
@@ -339,7 +355,7 @@ public class WizTableStyleController {
 
       String path = null;
 
-      for(String segment : internalFolder.split(java.util.regex.Pattern.quote(LibManager.SEPARATOR))) {
+      for(String segment : internalFolder.split(java.util.regex.Pattern.quote(LibManager.SEPARATOR), -1)) {
          path = path == null ? segment : path + LibManager.SEPARATOR + segment;
 
          if(!lib.containsFolder(path) || lib.isAuditStyleFolder(path)) {
@@ -449,6 +465,35 @@ public class WizTableStyleController {
    private static String internalFolderOf(String name) {
       int sep = name.lastIndexOf(LibManager.SEPARATOR);
       return sep < 0 ? null : name.substring(0, sep);
+   }
+
+   /**
+    * Canonicalizes a caller-supplied display folder before any validation, folder registration or
+    * storage: trims it and strips a single trailing {@code "/"} (so {@code "Bands/"} is
+    * {@code "Bands"} and a lone {@code "/"} is the root, {@code ""}). Any empty segment left
+    * after that ({@code "/X"}, {@code "Bands//X"}, {@code "Bands//"}, {@code "//"}) is ambiguous
+    * and refused, so it can never be stored as an unlistable {@code "Bands~"}-style parent or
+    * registered as an empty-named folder.
+    */
+   private static String normalizeFolder(String folder) {
+      String f = folder.trim();
+
+      if(f.endsWith("/")) {
+         f = f.substring(0, f.length() - 1);
+      }
+
+      if(!f.isEmpty()) {
+         for(String segment : f.split("/", -1)) {
+            if(segment.isEmpty()) {
+               throw new IllegalArgumentException(
+                  "'folder' '" + folder + "' contains an empty path segment -- join folder " +
+                  "names with a single '/' (e.g. 'User Defined/Sales'), with no leading or " +
+                  "doubled '/'; omit it or pass '' for the library root.");
+            }
+         }
+      }
+
+      return f;
    }
 
    /** {@code null}/blank means the library root, {@code LibManager}'s own root sentinel. */

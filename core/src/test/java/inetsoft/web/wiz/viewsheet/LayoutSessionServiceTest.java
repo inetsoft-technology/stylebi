@@ -255,7 +255,11 @@ class LayoutSessionServiceTest {
       assertEquals(-1, fx.masterRvs.getLayoutPoint());
    }
 
-   /** An unknown layout name fails loud, before any clone is minted or cached. */
+   /**
+    * An unknown layout name fails loud, before any clone is minted or cached. With no clone
+    * focused yet this asserts the minting half of that; the focused-clone half is covered by the
+    * rejected-lookup tests below.
+    */
    @Test
    void mutateLayoutOnAnUnknownLayoutNameFailsLoud() throws Exception {
       Fixture fx = new Fixture();
@@ -266,6 +270,93 @@ class LayoutSessionServiceTest {
                                         (clone, master, cloneRuntimeId, dispatcher) -> {}));
 
       assertTrue(thrown.getMessage().contains("Does Not Exist"), thrown.getMessage());
+      verify(fx.viewsheetService, never())
+         .openTemporaryViewsheet(anyString(), any(AssetEntry.class), any());
+   }
+
+   /** Focuses "A" and builds some undo history on it; returns A's clone id. */
+   private static String focusAWithHistory(Fixture fx) throws Exception {
+      fx.installNamedLayout("A");
+      fx.service.mutateLayout("tok1", AGENT, "A", (clone, master, id, dispatcher) -> {});
+      fx.service.mutateLayout("tok1", AGENT, "A", (clone, master, id, dispatcher) -> {});
+      return fx.lastMintedCloneId();
+   }
+
+   private static void assertFocusAndHistoryIntact(Fixture fx, String cloneA, int points,
+                                                    int point) throws Exception
+   {
+      verify(fx.viewsheetService, never()).flushRuntimeSheet(anyString());
+      verify(fx.viewsheetService, times(1))
+         .openTemporaryViewsheet(anyString(), any(AssetEntry.class), eq(AGENT));
+      assertEquals(points, fx.masterRvs.getLayoutPointsSize());
+      assertEquals(point, fx.masterRvs.getLayoutPoint());
+
+      List<String> seen = new ArrayList<>();
+      fx.service.focusLayout("tok1", AGENT, "A");
+      fx.service.mutateLayout("tok1", AGENT, "A",
+                               (clone, master, id, dispatcher) -> seen.add(id));
+      assertEquals(List.of(cloneA), seen, "re-focusing A must reuse the same clone");
+      verify(fx.viewsheetService, never()).flushRuntimeSheet(anyString());
+      assertEquals(points + 1, fx.masterRvs.getLayoutPointsSize(),
+                   "A's history must be kept, with only the new edit appended");
+   }
+
+   /** Bug #78573: a rejected get_layout lookup must not evict the focused layout's clone. */
+   @Test
+   void rejectedReadLookupKeepsTheFocusedLayoutsCloneAndHistory() throws Exception {
+      Fixture fx = new Fixture();
+      String cloneA = focusAWithHistory(fx);
+      int points = fx.masterRvs.getLayoutPointsSize();
+      int point = fx.masterRvs.getLayoutPoint();
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> fx.service.resolveForRead("tok1", AGENT, "NoSuch"));
+
+      assertFocusAndHistoryIntact(fx, cloneA, points, point);
+   }
+
+   /** Bug #78573: a rejected layout_undo/layout_redo focus must not evict the focused clone. */
+   @Test
+   void rejectedFocusLookupKeepsTheFocusedLayoutsCloneAndHistory() throws Exception {
+      Fixture fx = new Fixture();
+      String cloneA = focusAWithHistory(fx);
+      int points = fx.masterRvs.getLayoutPointsSize();
+      int point = fx.masterRvs.getLayoutPoint();
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> fx.service.focusLayout("tok1", AGENT, "NoSuch"));
+
+      assertFocusAndHistoryIntact(fx, cloneA, points, point);
+   }
+
+   /** Bug #78573: a rejected edit_layout_objects lookup must not evict the focused clone. */
+   @Test
+   void rejectedMutateLookupKeepsTheFocusedLayoutsCloneAndHistory() throws Exception {
+      Fixture fx = new Fixture();
+      String cloneA = focusAWithHistory(fx);
+      int points = fx.masterRvs.getLayoutPointsSize();
+      int point = fx.masterRvs.getLayoutPoint();
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> fx.service.mutateLayout("tok1", AGENT, "NoSuch",
+                                                  (clone, master, id, dispatcher) -> {}));
+
+      assertFocusAndHistoryIntact(fx, cloneA, points, point);
+   }
+
+   /** A failure after the new clone is minted must not leave that clone orphaned. */
+   @Test
+   void failureAfterMintingFlushesTheFreshlyMintedClone() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installNamedLayout("A");
+      fx.installNamedLayout("B");
+      fx.service.mutateLayout("tok1", AGENT, "A", (clone, master, id, dispatcher) -> {});
+      doThrow(new IllegalStateException("boom")).when(fx.masterRvs).resetLayoutUndoRedo();
+
+      assertThrows(IllegalStateException.class,
+                   () -> fx.service.focusLayout("tok1", AGENT, "B"));
+
+      verify(fx.viewsheetService).flushRuntimeSheet(fx.lastMintedCloneId());
    }
 
    /**
@@ -314,6 +405,63 @@ class LayoutSessionServiceTest {
     * {@code Viewsheet} with one real {@code TextVSAssembly} ("Text1") and a real
     * {@code LayoutInfo}.
     */
+   /** Bug 78577: a cached clone must not be served once its master layout is gone. */
+   @Test
+   void focusedLayoutRemovedFromMasterIsUnknownAndItsStateIsEvicted() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.service.resolveForRead("tok1", AGENT, PRINT_LAYOUT);
+      String cloneId = fx.lastMintedCloneId();
+      fx.masterVs.getLayoutInfo().setPrintLayout(null);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.resolveForRead("tok1", AGENT, PRINT_LAYOUT));
+
+      assertTrue(thrown.getMessage().contains("Unknown layout"), thrown.getMessage());
+      verify(fx.viewsheetService).flushRuntimeSheet(cloneId);
+      verify(fx.masterRvs, times(2)).resetLayoutUndoRedo(); // mint + eviction
+      assertThrows(IllegalArgumentException.class,
+                   () -> fx.service.focusLayout("tok1", AGENT, PRINT_LAYOUT));
+   }
+
+   /** An unknown name must not open a temporary runtime, nor disturb the focused good layout. */
+   @Test
+   void unrelatedUnknownNameOpensNothingAndKeepsTheFocusedLayout() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.service.mutateLayout("tok1", AGENT, PRINT_LAYOUT, (c, m, id, d) -> { });
+      clearInvocations(fx.viewsheetService, fx.masterRvs);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> fx.service.resolveForRead("tok1", AGENT, "NoSuch"));
+
+      verify(fx.viewsheetService, never())
+         .openTemporaryViewsheet(anyString(), any(AssetEntry.class), any());
+      verify(fx.viewsheetService, never()).flushRuntimeSheet(anyString());
+      verify(fx.masterRvs, never()).resetLayoutUndoRedo();
+      fx.service.resolveForRead("tok1", AGENT, PRINT_LAYOUT);
+      verify(fx.viewsheetService, never())
+         .openTemporaryViewsheet(anyString(), any(AssetEntry.class), any());
+   }
+
+   @Test
+   void evictLayoutOnlyAffectsTheMatchingFocusedLayout() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.installNamedLayout("A");
+      fx.service.resolveForRead("tok1", AGENT, "A");
+      String cloneId = fx.lastMintedCloneId();
+      clearInvocations(fx.viewsheetService, fx.masterRvs);
+
+      fx.service.evictLayout("tok1", PRINT_LAYOUT, fx.masterRvs);
+      verify(fx.viewsheetService, never()).flushRuntimeSheet(anyString());
+      verify(fx.masterRvs, never()).resetLayoutUndoRedo();
+
+      fx.service.evictLayout("tok1", "A", fx.masterRvs);
+      verify(fx.viewsheetService).flushRuntimeSheet(cloneId);
+      verify(fx.masterRvs).resetLayoutUndoRedo();
+   }
+
    private static final class Fixture {
       final ViewsheetSessionService viewsheetSessions = mock(ViewsheetSessionService.class);
       final ViewsheetService viewsheetService = mock(ViewsheetService.class);

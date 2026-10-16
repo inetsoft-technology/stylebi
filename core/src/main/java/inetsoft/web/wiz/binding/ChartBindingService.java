@@ -50,6 +50,7 @@ import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.binding.model.ChartTypeState;
 import inetsoft.web.wiz.binding.model.FieldRef;
+import inetsoft.web.wiz.viewsheet.ChartRenderCheck;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -95,10 +96,11 @@ public class ChartBindingService {
     *                    correctly its shelves are filled in, and the Composer avoids that by taking
     *                    the source from the drag; this is the same thing, one call rather than two.
     */
-   public void setShelf(String sessionToken, Principal user, String assemblyName, String shelf,
+   public List<String> setShelf(String sessionToken, Principal user, String assemblyName, String shelf,
                         List<FieldRef> fields, String sourceTable, String linkUri) throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
@@ -131,7 +133,7 @@ public class ChartBindingService {
 
             throw new IllegalArgumentException(refusalMessage(e.getMessage(), restored), e);
          }
-      });
+      }));
    }
 
    /** Appends whether the refused write was undone -- "not applied" only when it really was. */
@@ -245,7 +247,7 @@ public class ChartBindingService {
     * field whose column still resolves in the new source rather than clearing everything (bug
     * #76495, the sibling of {@code TableBindingService}'s own bug #76302).
     */
-   public void setSource(String sessionToken, Principal user, String assemblyName, String table,
+   public List<String> setSource(String sessionToken, Principal user, String assemblyName, String table,
                          boolean force, String linkUri) throws Exception
    {
       if(table == null || table.isBlank()) {
@@ -254,7 +256,8 @@ public class ChartBindingService {
             "list_bindable_fields reports what this chart can bind to.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          String resolved = BindingSources.resolve(model, table, assemblyName);
@@ -273,7 +276,7 @@ public class ChartBindingService {
          // No fieldType: this changes no shelf, and changeChartRef never reads it.
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
-      });
+      }));
    }
 
    /**
@@ -502,11 +505,12 @@ public class ChartBindingService {
     * <p>Goes through the same {@code changeChartRef} event as the list shelves, so the 13
     * snapshotted aesthetic fields are preserved identically.
     */
-   public void setSingleShelf(String sessionToken, Principal user, String assemblyName,
+   public List<String> setSingleShelf(String sessionToken, Principal user, String assemblyName,
                               String shelf, FieldRef field, String sourceTable, String linkUri)
       throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
@@ -519,7 +523,7 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
-      });
+      }));
    }
 
    /**
@@ -528,11 +532,12 @@ public class ChartBindingService {
     * order/sortByCol fields {@code TableBindingService.setSort} already drives on a crosstab's
     * dimensions, {@code FieldRefFactory.toChartRef} just never set them from a shelf write.
     */
-   public void setSort(String sessionToken, Principal user, String assemblyName, String shelf,
+   public List<String> setSort(String sessionToken, Principal user, String assemblyName, String shelf,
                        String column, Integer index, DimensionSortRanking.Sort sort,
                        String linkUri) throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          ChartBindingMutator.setSort(model, shelf, column, index, sort);
@@ -542,15 +547,16 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
-      });
+      }));
    }
 
    /** @see #setSort */
-   public void setRanking(String sessionToken, Principal user, String assemblyName, String shelf,
+   public List<String> setRanking(String sessionToken, Principal user, String assemblyName, String shelf,
                           String column, Integer index, DimensionSortRanking.Ranking ranking,
                           String linkUri) throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          ChartBindingMutator.setRanking(model, shelf, column, index, ranking);
@@ -560,14 +566,15 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
-      });
+      }));
    }
 
-   public void setChartType(String sessionToken, Principal user, String assemblyName, int type,
+   public List<String> setChartType(String sessionToken, Principal user, String assemblyName, int type,
                             Boolean multi, Boolean stackMeasures, Boolean separate, String field,
                             String linkUri) throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          String ref = requireTypeableField(chart, assemblyName, field);
 
@@ -638,7 +645,7 @@ public class ChartBindingService {
          typeService.changeChartType(runtimeId, event, user, dispatcher, linkUri);
 
          applyMultiStyle(rvs, runtimeId, assemblyName, multi, separate, user, dispatcher, linkUri);
-      });
+      }));
    }
 
    /**
@@ -679,7 +686,7 @@ public class ChartBindingService {
       // Nothing to change, nothing to call. This is a second write with its own undo step, so
       // firing it on a state that already matches would put a no-op into the Composer's history
       // for every retype.
-      if(info == null || info.isMultiStyles() == multi) {
+      if(info == null || info.isDesignMultiStyles() == multi) {
          return;
       }
 
@@ -689,7 +696,7 @@ public class ChartBindingService {
       // The forced-separate refusal that used to sit here now runs in setChartType, before the
       // retype: raising it at this point meant the chart had already been retyped by the time the
       // caller was told no.
-      boolean separated = separate == null ? info.isSeparatedGraph() : separate;
+      boolean separated = separate == null ? info.isDesignSeparated() : separate;
 
       ChangeSeparateStatusEvent event =
          new ChangeSeparateStatusEvent(assemblyName, multi, separated);
@@ -705,13 +712,18 @@ public class ChartBindingService {
     * endpoint directly, the way the Composer's own separate-status toggle does, with {@code multi}
     * read from the chart's current state so the caller does not have to know or restate it.</p>
     */
-   public void setSeparateStatus(String sessionToken, Principal user, String assemblyName,
+   public List<String> setSeparateStatus(String sessionToken, Principal user, String assemblyName,
                                  boolean separate, String linkUri) throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          VSChartInfo chartInfo = chart.getVSChartInfo();
-         boolean multi = chartInfo.isMultiStyles();
+         // The design flag, not the runtime one: a changeAndValue date comparison makes the no-arg
+         // getter answer true for a chart whose design multiStyles is false, and the service writes
+         // whatever it is sent into the design, so the override would be persisted and outlive the
+         // comparison. The Composer's own toggle sends the design value for the same reason.
+         boolean multi = chartInfo.isDesignMultiStyles();
 
          // ChangeSeparateStatusService forces separated=true unconditionally for these types,
          // regardless of what is requested (event.isSeparate() is OR'd with the type checks, so
@@ -732,7 +744,7 @@ public class ChartBindingService {
 
          ChangeSeparateStatusEvent event = new ChangeSeparateStatusEvent(assemblyName, multi, separate);
          separateStatusService.changeSeparateStatus(runtimeId, event, user, dispatcher, linkUri);
-      });
+      }));
    }
 
    /**
@@ -769,16 +781,17 @@ public class ChartBindingService {
       return null;
    }
 
-   public void swapAxes(String sessionToken, Principal user, String assemblyName, String linkUri)
+   public List<String> swapAxes(String sessionToken, Principal user, String assemblyName, String linkUri)
       throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
 
          ChangeSeparateStatusEvent event = new ChangeSeparateStatusEvent();
          event.setName(assemblyName);
          swapService.swapXYBinding(runtimeId, event, user, dispatcher, linkUri);
-      });
+      }));
    }
 
    /**
@@ -907,7 +920,7 @@ public class ChartBindingService {
       Integer current = currentChartType(chart, ref);
 
       return current != null && current == type &&
-         (multi == null || multi == isMultiStyles(chart)) &&
+         (multi == null || multi == isDesignMultiStyles(chart)) &&
          (stackMeasures == null || stackMeasures == isStackMeasures(chart));
    }
 
@@ -938,6 +951,12 @@ public class ChartBindingService {
 
       return info.getFieldByName(ref, true) instanceof ChartAggregateRef aggregate
          ? aggregate.getChartType() : null;
+   }
+
+   /** What a caller-stated {@code multi} is compared with: the design flag, not the DC override. */
+   private static boolean isDesignMultiStyles(ChartVSAssembly chart) {
+      VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
+      return info != null && info.isDesignMultiStyles();
    }
 
    private static boolean isMultiStyles(ChartVSAssembly chart) {

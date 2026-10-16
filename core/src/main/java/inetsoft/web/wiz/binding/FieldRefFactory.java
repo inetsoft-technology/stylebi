@@ -570,7 +570,7 @@ public final class FieldRefFactory {
                                              RuntimeViewsheet rvs, SourceInfo source,
                                              String column)
    {
-      CalculateRef found = findCalcField(rvs, source, column);
+      CalculateRef found = findCalcField(model, rvs, source, column);
       CalculateRef calc = found != null && !found.isBaseOnDetail() ? found : null;
 
       if(calc != null) {
@@ -597,7 +597,10 @@ public final class FieldRefFactory {
          String dataType = found != null ? found.getDataType() : null;
 
          if(dataType == null) {
-            dataType = dataTypeOf(model, column);
+            BindingModel.SourceTable bound = boundTable(model, effectiveSource(model, source));
+            BindingModel.SourceTableColumn own =
+               bound == null ? null : ownedColumn(bound, column);
+            dataType = own != null ? own.getDataType() : dataTypeOf(model, column);
          }
 
          ref.setFormula(dataType != null && NUMERIC_TYPES.contains(dataType) ? SUM : COUNT);
@@ -619,10 +622,10 @@ public final class FieldRefFactory {
     * default an aggregate calc field to {@code Sum} and aggregate an already-aggregated value
     * twice, which renders plausibly wrong rather than failing.
     */
-   public static CalculateRef aggregateCalcField(RuntimeViewsheet rvs, SourceInfo source,
-                                                 String column)
+   public static CalculateRef aggregateCalcField(BindingModel model, RuntimeViewsheet rvs,
+                                                 SourceInfo source, String column)
    {
-      CalculateRef calc = findCalcField(rvs, source, column);
+      CalculateRef calc = findCalcField(model, rvs, source, column);
       return calc != null && !calc.isBaseOnDetail() ? calc : null;
    }
 
@@ -630,8 +633,8 @@ public final class FieldRefFactory {
     * The calc field {@code column} names on the bound source, detail or aggregate mode, or
     * {@code null} if it is not one. See {@link #aggregateCalcField} for the lookup.
     */
-   public static CalculateRef findCalcField(RuntimeViewsheet rvs, SourceInfo source,
-                                            String column)
+   public static CalculateRef findCalcField(BindingModel model, RuntimeViewsheet rvs,
+                                            SourceInfo source, String column)
    {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
 
@@ -639,22 +642,80 @@ public final class FieldRefFactory {
          return null;
       }
 
-      CalculateRef calc = source == null
-         ? null : vs.getCalcField(source.getSource(), column);
+      // The assembly's SourceInfo is still null on the first write to a fresh assembly, while
+      // the model already carries the table that write names.
+      String effective = effectiveSource(model, source);
+      CalculateRef calc = effective == null ? null : vs.getCalcField(effective, column);
 
-      if(calc == null) {
-         Collection<String> sources = vs.getCalcFieldSources();
+      if(calc != null) {
+         return calc;
+      }
 
-         for(String table : sources == null ? List.<String>of() : sources) {
-            calc = vs.getCalcField(table, column);
+      // A calc field cannot share a name with a real column of its own table, so a same-named
+      // calc field on another table must not decide this table's column.
+      BindingModel.SourceTable bound = boundTable(model, effective);
 
-            if(calc != null) {
-               break;
-            }
+      if(bound != null && ownedColumn(bound, column) != null) {
+         return null;
+      }
+
+      Collection<String> sources = vs.getCalcFieldSources();
+
+      for(String table : sources == null ? List.<String>of() : sources) {
+         calc = vs.getCalcField(table, column);
+
+         if(calc != null) {
+            break;
          }
       }
 
       return calc;
+   }
+
+   private static String effectiveSource(BindingModel model, SourceInfo source) {
+      if(source != null && source.getSource() != null) {
+         return source.getSource();
+      }
+
+      inetsoft.web.binding.model.SourceInfo modelSource =
+         model == null ? null : model.getSource();
+      return modelSource == null ? null : modelSource.getSource();
+   }
+
+   private static BindingModel.SourceTable boundTable(BindingModel model, String name) {
+      if(model == null || model.getTables() == null || name == null) {
+         return null;
+      }
+
+      for(BindingModel.SourceTable table : model.getTables()) {
+         if(name.equalsIgnoreCase(table.getName())) {
+            return table;
+         }
+      }
+
+      return null;
+   }
+
+   private static BindingModel.SourceTableColumn ownedColumn(BindingModel.SourceTable table,
+                                                             String column)
+   {
+      if(table.getColumns() == null) {
+         return null;
+      }
+
+      String bareColumn = TableBindingService.unqualified(column);
+
+      for(BindingModel.SourceTableColumn col : table.getColumns()) {
+         String name = col.getName();
+
+         if(column.equalsIgnoreCase(name) || bareColumn.equalsIgnoreCase(name) ||
+            column.equalsIgnoreCase(TableBindingService.unqualified(name)))
+         {
+            return col;
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -674,21 +735,11 @@ public final class FieldRefFactory {
          return null;
       }
 
-      String bareColumn = TableBindingService.unqualified(column);
-
       for(BindingModel.SourceTable table : tables) {
-         if(table.getColumns() == null) {
-            continue;
-         }
+         BindingModel.SourceTableColumn col = ownedColumn(table, column);
 
-         for(BindingModel.SourceTableColumn col : table.getColumns()) {
-            String name = col.getName();
-
-            if(column.equalsIgnoreCase(name) || bareColumn.equalsIgnoreCase(name) ||
-               column.equalsIgnoreCase(TableBindingService.unqualified(name)))
-            {
-               return col.getDataType();
-            }
+         if(col != null) {
+            return col.getDataType();
          }
       }
 
