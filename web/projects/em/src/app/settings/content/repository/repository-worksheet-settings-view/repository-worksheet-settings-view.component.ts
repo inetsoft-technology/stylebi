@@ -97,6 +97,9 @@ export class RepositoryWorksheetSettingsViewComponent {
 
       this._sheetModel = Tool.clone(this.origSheetModel);
       this.worksheetChanged = false;
+      // Bug #78724, the sheet settings view takes the restored model without reporting its
+      // validity again
+      this.valid = true;
    }
 
    editSheet() {
