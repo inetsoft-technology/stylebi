@@ -1292,7 +1292,7 @@ public class VSSelectionService {
          for(List<String> selectedPath : selectedPaths) {
             final int level = selectedPath.size() - 1;
 
-            if(level > dataRefSubsets.size() - 1 || !assembly.isIDMode()) {
+            if(level > dataRefSubsets.size() - 1) {
                continue;
             }
 
