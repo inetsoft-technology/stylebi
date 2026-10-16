@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
@@ -145,7 +146,26 @@ public class ScriptExecuteService {
       return execute(rvs, target);
    }
 
+   /**
+    * A script runs against the live runtime and can write to any assembly, but, unlike every
+    * other agent write, never added an undo checkpoint -- so the runtime still read as unchanged
+    * since its last save and a later reload from storage (Bug #78662) would silently discard
+    * the script's effect. Mark the runtime changed whenever a script was attempted.
+    */
    private ScriptExecResult execute(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {
+      try {
+         return executeScript(rvs, target);
+      }
+      finally {
+         Viewsheet vs = rvs.getViewsheet();
+
+         if(vs != null) {
+            rvs.addCheckpoint(vs.prepareCheckpoint());
+         }
+      }
+   }
+
+   private ScriptExecResult executeScript(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {
       String text = readService.read(rvs, target).text();
 
       if(text == null || text.isEmpty()) {

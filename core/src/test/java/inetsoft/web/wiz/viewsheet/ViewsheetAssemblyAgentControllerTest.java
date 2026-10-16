@@ -2016,6 +2016,80 @@ class ViewsheetAssemblyAgentControllerTest {
       order.verify(viewsheetService).renameDep("rt-vs-6");
    }
 
+   /**
+    * Bug #78662: when the save applied a pending rename to storage, the open runtime (which
+    * renameDep never touches) is reloaded from the just-healed copy and the caller is told so;
+    * write-then-renameDep order is unchanged.
+    */
+   @Test
+   void saveReloadsRuntimeFromStorageWhenAPendingRenameWasApplied78662() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetEntry savedEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Existing VS", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(savedEntry);
+      when(rvs.getCurrent()).thenReturn(2);
+      when(rvs.getID()).thenReturn("rt-vs-78662");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(viewsheetService.needRenameDep("rt-vs-78662")).thenReturn(true);
+      AssetRepository repo = mock(AssetRepository.class);
+      when(viewsheetService.getAssetRepository()).thenReturn(repo);
+      inetsoft.uql.viewsheet.Viewsheet storedVs = mock(inetsoft.uql.viewsheet.Viewsheet.class);
+      when(storedVs.clone()).thenReturn(storedVs);
+      when(repo.getSheet(any(), any(), anyBoolean(), any())).thenReturn(storedVs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, viewsheetService,
+         mock(SheetAgentBroadcastService.class));
+
+      Map<String, Object> result;
+
+      try(MockedStatic<inetsoft.analytic.composition.event.VSEventUtil> util =
+             mockStatic(inetsoft.analytic.composition.event.VSEventUtil.class))
+      {
+         result = controller.save("tok",
+            new ViewsheetAssemblyAgentController.SaveRequest(null, null), agent);
+      }
+
+      InOrder order = inOrder(viewsheetService, rvs);
+      order.verify(viewsheetService).setViewsheet(any(), eq(savedEntry), any(), eq(true), eq(true));
+      order.verify(viewsheetService).fixRenameDepEntry("rt-vs-78662", savedEntry);
+      order.verify(viewsheetService).renameDep("rt-vs-78662");
+      order.verify(rvs).setViewsheet(any(inetsoft.uql.viewsheet.Viewsheet.class));
+      order.verify(rvs).resetCheckpoints(any());
+      assertEquals(Boolean.TRUE, result.get("reloaded"));
+      assertTrue(result.get("message").toString().contains("reloaded"));
+   }
+
+   /** Bug #78662: a save with nothing pending leaves the runtime alone, as before. */
+   @Test
+   void saveDoesNotReloadRuntimeWhenNoRenameWasPending78662() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetEntry savedEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Existing VS", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(savedEntry);
+      when(rvs.getCurrent()).thenReturn(2);
+      when(rvs.getID()).thenReturn("rt-vs-78662b");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      Map<String, Object> result = controller.save("tok",
+         new ViewsheetAssemblyAgentController.SaveRequest(null, null), agent);
+
+      verify(rvs, never()).setViewsheet(any());
+      assertNull(result.get("reloaded"));
+   }
+
    // ---------------------------------------------------------------------------
    // attachBaseWorksheet -- Bug 76332 / PVA-007: no mcp__composer-chat__* tool could attach an
    // existing worksheet asset as a baseless viewsheet's base. Viewsheet tracks "what worksheet
