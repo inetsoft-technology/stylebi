@@ -332,6 +332,10 @@ public class AssemblyPropertyService {
             requireApplicableRangeSize(model, resolved.values());
          }
 
+         if("checkbox".equals(type)) {
+            requireNoDeadCheckboxDataInputWrites(model, resolved, patch, rvs.getViewsheet());
+         }
+
          if(PropertyAliases.derivesVariableFlagFromTable(type)) {
             model = normalizeVariableTableBinding(model);
          }
@@ -348,7 +352,7 @@ public class AssemblyPropertyService {
             requireVariableFlagAchievable(type, model, rvs.getViewsheet());
          }
 
-         if(PropertyAliases.derivesVariableFlagFromTable(type) &&
+         if(PropertyAliases.derivesVariableFlagFromTable(type) && !"checkbox".equals(type) &&
             (resolved.containsValue("dataInputPaneModel.columnValue") ||
              resolved.containsValue("dataInputPaneModel.rowValue")))
          {
@@ -1036,6 +1040,102 @@ public class AssemblyPropertyService {
       }
       catch(NumberFormatException e) {
          return null;
+      }
+   }
+
+   /**
+    * Refuses a checkbox {@code dataInputPaneModel.columnValue}/{@code rowValue}/{@code
+    * writeBackDirectly} write that {@code VSInputService.setCheckboxPropertyModel} would
+    * silently drop (bug #78579): a checkbox is multi-select, so the Composer's Data Input pane
+    * hides Column, Row and Write Back and the assembly has nowhere to store them. All offending
+    * keys are collected and refused in ONE message, before anything is written.
+    *
+    * <p>Not refused, because nothing is lost: an empty/null {@code columnValue}/{@code rowValue}
+    * and {@code writeBackDirectly} false (what the native pane itself submits), and a {@code
+    * columnValue} that is consumed as the variable binding -- the "Variables" folder label
+    * paired with a known variable (bug #76478), or {@code "$(variable)"} with no table set
+    * ({@link #normalizeVariableTableBinding}). Must run on the post-patch model but before that
+    * normalization rewrites {@code table}.
+    */
+   private static void requireNoDeadCheckboxDataInputWrites(
+      Object model, Map<String, String> resolved, Map<String, Object> patch, Viewsheet vs)
+   {
+      String table = (String) PropertyPath.get(model, "dataInputPaneModel.table");
+      Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
+      List<String> refused = new ArrayList<>();
+
+      for(Map.Entry<String, String> entry : resolved.entrySet()) {
+         String path = entry.getValue();
+         Object value = patch.get(entry.getKey());
+         String leaf;
+
+         if(path.equalsIgnoreCase("dataInputPaneModel.columnValue")) {
+            leaf = "columnValue";
+            String text = value == null ? "" : value.toString();
+
+            if(text.isEmpty() || isCheckboxVariableCarrier(ws, vs, table, text)) {
+               continue;
+            }
+         }
+         else if(path.equalsIgnoreCase("dataInputPaneModel.rowValue")) {
+            leaf = "rowValue";
+
+            if(value == null || value.toString().isEmpty()) {
+               continue;
+            }
+         }
+         else if(path.equalsIgnoreCase("dataInputPaneModel.writeBackDirectly")) {
+            leaf = "writeBackDirectly";
+
+            if(value == null || "false".equalsIgnoreCase(value.toString().trim())) {
+               continue;
+            }
+         }
+         else {
+            continue;
+         }
+
+         if(!refused.contains(leaf)) {
+            refused.add(leaf);
+         }
+      }
+
+      if(!refused.isEmpty()) {
+         throw new IllegalArgumentException(
+            "A checkbox cannot store a column, row or write-back target: refused " +
+            String.join(", ", refused.stream().map(k -> "dataInputPaneModel." + k).toList()) +
+            ". The Composer's checkbox Data Input pane hides Column, Row and Write Back (a " +
+            "checkbox is multi-select), and a checkbox binds only a variable, through " +
+            "dataInputPaneModel.table = \"$(varName)\". Remove these keys (an empty " +
+            "columnValue/rowValue or writeBackDirectly:false is accepted).");
+      }
+   }
+
+   /**
+    * Whether a non-empty checkbox {@code columnValue} is consumed to build the variable binding
+    * rather than dropped, mirroring {@code VSInputService.resolveInputTableBinding}'s order. An
+    * unknown variable is refused here with that resolver's own named message.
+    */
+   private static boolean isCheckboxVariableCarrier(Worksheet ws, Viewsheet vs, String table,
+                                                    String columnValue)
+   {
+      if(table == null || table.isEmpty()) {
+         return columnValue.startsWith("$(") && columnValue.endsWith(")") &&
+            resolvesToVariableBindingOrRefuse(ws, vs, columnValue, null);
+      }
+
+      if(ws == null || !"Variables".equals(table)) {
+         return false;
+      }
+
+      try {
+         // Resolves without throwing only when "Variables" is itself a variable or worksheet
+         // assembly, in which case columnValue is ignored.
+         VSInputService.resolvesToVariableBinding(ws, vs, table, "");
+         return false;
+      }
+      catch(MessageException e) {
+         return resolvesToVariableBindingOrRefuse(ws, vs, table, columnValue);
       }
    }
 
