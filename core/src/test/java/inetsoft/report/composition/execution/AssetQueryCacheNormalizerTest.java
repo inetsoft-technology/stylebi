@@ -73,6 +73,7 @@ public class AssetQueryCacheNormalizerTest {
    private static String aliasAfterNormalize(String expression, boolean visible) {
       ColumnRef id = new ColumnRef(new AttributeRef(null, "CATEGORY_ID"));
       id.setAlias("CID");
+      id.setVisible(visible);
       ColumnRef other = new ColumnRef(new AttributeRef(null, "OTHER"));
       ExpressionRef eref = new ExpressionRef(null, "Dbl");
       eref.setExpression(expression);
@@ -115,7 +116,13 @@ public class AssetQueryCacheNormalizerTest {
       "field['CID'] * 2",
       "field[\"CID\"] * 2",
       "field ['CID'] * 2",
-      "field['cid'] * 2"
+      "field['cid'] * 2",
+      "field[ 'CID' ] * 2",
+      "// customer's id\nfield['CID'] * 2",
+      "/* it's */ field['CID'] * 2",
+      "'a\\' + field['CID']",
+      "eval(\"field['CID']\")",
+      "// it's\nfield.CID * 2"
    })
    public void testAliasKeptWhenExpressionReadsIt(String expression) {
       assertEquals("CID", aliasAfterNormalize(expression));
