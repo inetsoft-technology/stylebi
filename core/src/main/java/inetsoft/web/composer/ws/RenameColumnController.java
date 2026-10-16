@@ -685,6 +685,15 @@ public class RenameColumnController extends WorksheetController {
       }
 
       ColumnSelection columns = composedTable.getColumnSelection();
+      Set<String> outputs = new HashSet<>();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         if(columns.getAttribute(i) instanceof ColumnRef col) {
+            outputs.add(outputName(col));
+         }
+      }
+
+      outputs.removeAll(renames.keySet());
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
          DataRef column = columns.getAttribute(i);
@@ -700,7 +709,7 @@ public class RenameColumnController extends WorksheetController {
          if(ref instanceof ExpressionRef && !(ref instanceof RangeRef)) {
             ExpressionRef exp = (ExpressionRef) ref;
             String expr = exp.getExpression();
-            String renamed = FieldReferenceMatcher.rename(expr, renames);
+            String renamed = FieldReferenceMatcher.rename(expr, renames, outputs);
 
             if(renamed != expr) {
                exp.setExpression(renamed);

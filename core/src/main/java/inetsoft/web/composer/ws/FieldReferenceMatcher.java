@@ -43,12 +43,37 @@ public final class FieldReferenceMatcher {
     * {@code names}.
     */
    public static boolean references(String expr, Collection<String> names) {
+      return references(expr, names, Set.of());
+   }
+
+   /**
+    * As {@link #references(String, Collection)}, but a name that differs from one of
+    * {@code names} only by case also counts, because the runtime column lookup falls back to an
+    * ignore-case match (Bug #78679). A token that exactly equals one of {@code otherOutputNames}
+    * (another column's output name) is that other column's read and never a case-different read of
+    * this one -- an exact match always wins.
+    */
+   public static boolean references(String expr, Collection<String> names,
+                                    Collection<String> otherOutputNames)
+   {
       if(expr == null || expr.isEmpty() || names == null || names.isEmpty()) {
          return false;
       }
 
+      Set<String> folded = fold(names);
+
       for(Piece piece : tokenize(expr)) {
-         if(piece.fieldRef && names.contains(piece.token.val)) {
+         if(!piece.fieldRef) {
+            continue;
+         }
+
+         String val = piece.token.val;
+
+         if(names.contains(val)) {
+            return true;
+         }
+
+         if(!isExact(val, otherOutputNames) && folded.contains(val.toLowerCase())) {
             return true;
          }
       }
@@ -64,17 +89,39 @@ public final class FieldReferenceMatcher {
     * not touch is never re-serialized.
     */
    public static String rename(String expr, Map<String, String> renames) {
+      return rename(expr, renames, Set.of());
+   }
+
+   /**
+    * As {@link #rename(String, Map)}, but a reference that differs from a key of {@code renames}
+    * only by case is rewritten too (the runtime resolves it ignoring case, Bug #78679); only the
+    * name token is replaced, so the author's quoting and surrounding text are kept. A token that
+    * exactly equals one of {@code otherOutputNames} belongs to another column and is left alone.
+    */
+   public static String rename(String expr, Map<String, String> renames,
+                               Collection<String> otherOutputNames)
+   {
       if(expr == null || expr.isEmpty() || renames == null || renames.isEmpty()) {
          return expr;
       }
 
       List<Piece> pieces = tokenize(expr);
+      Map<String, String> foldedRenames = new HashMap<>();
+      renames.forEach((k, v) -> foldedRenames.putIfAbsent(k.toLowerCase(), v));
       List<String> out = new ArrayList<>();
       boolean changed = false;
 
       for(Piece piece : pieces) {
          ScriptIterator.Token token = piece.token;
-         String nname = piece.fieldRef ? renames.get(token.val) : null;
+         String nname = null;
+
+         if(piece.fieldRef) {
+            nname = renames.get(token.val);
+
+            if(nname == null && !isExact(token.val, otherOutputNames)) {
+               nname = foldedRenames.get(token.val.toLowerCase());
+            }
+         }
 
          if(nname == null || nname.equals(token.val)) {
             out.add(token.toString());
@@ -105,6 +152,20 @@ public final class FieldReferenceMatcher {
       }
 
       return changed ? String.join("", out) : expr;
+   }
+
+   private static Set<String> fold(Collection<String> names) {
+      Set<String> folded = new HashSet<>();
+
+      for(String name : names) {
+         folded.add(name.toLowerCase());
+      }
+
+      return folded;
+   }
+
+   private static boolean isExact(String val, Collection<String> names) {
+      return names != null && names.contains(val);
    }
 
    private static String bracket(String name) {
