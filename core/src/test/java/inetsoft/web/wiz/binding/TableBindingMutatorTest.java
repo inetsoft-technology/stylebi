@@ -2237,8 +2237,9 @@ class TableBindingMutatorTest {
    void movingAnAggregateCalcFieldOntoAggregatesDefaultsToNone() throws Exception {
       CrosstabBindingModel model = new CrosstabBindingModel();
       RuntimeViewsheet rvs = rvsWithCalcField("Orders", "Discount Share", false);
-      TableBindingMutator.setShelf(model, "rows", List.of(dim("Discount Share")), rvs,
-                                   ORDERS_SOURCE, refModelService());
+      // Seeded without context: Bug #78530 refuses an aggregate calc field on rows, so this is
+      // the already-stuck state an earlier server left, which moving it off rows must clear.
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Discount Share")));
 
       TableBindingMutator.moveField(model, "rows", "aggregates", "Discount Share", null, rvs,
                                     ORDERS_SOURCE, refModelService());

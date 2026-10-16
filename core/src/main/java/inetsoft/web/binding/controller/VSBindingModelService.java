@@ -31,6 +31,7 @@ import inetsoft.util.Catalog;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
 import inetsoft.web.binding.event.RefreshVSBindingEvent;
+import inetsoft.web.binding.handler.ClearTableHeaderAliasHandler;
 import inetsoft.web.binding.handler.CrosstabBindingHandler;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.model.BindingModel;
@@ -192,7 +193,15 @@ public class VSBindingModelService {
       VSAssembly clone = (VSAssembly) assembly.clone();
       clone = bfactory.updateAssembly(binding, clone, principal);
       VSAssemblyInfo ninfo = (VSAssemblyInfo) clone.getInfo();
-      assemblyInfoHandler.apply(rvs, ninfo, engine, false, false, false, false, dispatcher);
+
+      if(event.isClearVacatedAliases()) {
+         assemblyInfoHandler.apply(rvs, ninfo, engine, false, false, false, false, dispatcher,
+                                   null, null, null, null,
+                                   ClearTableHeaderAliasHandler::processClearAliasFormat);
+      }
+      else {
+         assemblyInfoHandler.apply(rvs, ninfo, engine, false, false, false, false, dispatcher);
+      }
 
       if(assembly instanceof CrosstabVSAssembly) {
          refreshDrillFilters(assembly, oinfo, ninfo);
