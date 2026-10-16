@@ -17,11 +17,12 @@
  */
 
 /**
- * Bug #78707: Cancel in Edit Mapping, through the viewsheet Edit Geographic caller.
+ * Bug #78707: Cancel in Edit Mapping, through the Edit Geographic callers.
  *
  * Real NgbModal, EditGeographicDialog, GeoOptionPane, GeoMappingDialog and VSGeoProvider;
- * VSBindingPane.processOpenEditGeographicCommand runs on its real prototype with a fake
- * `this`. ModelService answers in the server's reply shapes; like
+ * VSBindingPane.processOpenEditGeographicCommand, VSBindingTreeActions.editGeographic and
+ * WizardBindingTree.processOpenEditGeographicCommand run on their real prototypes with a
+ * fake `this`. ModelService answers in the server's reply shapes; like
  * ChartController.getMappingData, a value the posted field maps is not unmatched.
  */
 
@@ -33,6 +34,8 @@ import { of } from "rxjs";
 import { UIContextService } from "../../../../common/services/ui-context.service";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { VSBindingPane } from "../../../../vsview/edit/vs-binding-pane.component";
+import { WizardBindingTree } from "../../../../vs-wizard/gui/object-wizard/wizard-binding-tree.component";
+import { VSBindingTreeActions } from "../../../widget/binding-tree/vs-binding-tree-actions";
 import { ModelService } from "../../../../widget/services/model.service";
 
 const mapping = () => ({ id: "Built-in", type: "World", layer: 2, algorithm: "Distance",
@@ -116,6 +119,36 @@ describe("GeoMappingDialog Cancel through VS Edit Geographic (Bug #78707)", () =
       await settle();
    }
 
+   // binding tree right-click Edit Geographic; real changeRef/sendEvent
+   async function openTreeEditGeographic(): Promise<void> {
+      const proto = VSBindingTreeActions.prototype as any;
+      const actions = {
+         dialogService: TestBed.inject(NgbModal), modelService,
+         currentEntry: { properties: {} },
+         treeService: { getTableName: () => "Query1" },
+         socket: pane.clientService,
+         getChartGeoInfo: () => geo,
+         changeRef: proto.changeRef, sendEvent: proto.sendEvent
+      };
+      proto.editGeographic.call(actions, {
+         assemblyName: "Chart1", urlParams: pane.params,
+         bindingModel: { mapType: "World", geoCols: [geo] }
+      });
+      await settle();
+   }
+
+   async function openWizardEditGeographic(): Promise<void> {
+      const bindingModel = { mapType: "World", geoCols: [geo] };
+      const wizard = {
+         dialogService: TestBed.inject(NgbModal), modelService, params: pane.params,
+         treeInfo: { tempAssemblyName: "Chart1", tempBinding: bindingModel },
+         viewsheetClient: pane.clientService
+      };
+      (WizardBindingTree.prototype as any).processOpenEditGeographicCommand.call(wizard,
+         { bindingModel, chartGeoRefModel: geo, measureName: null });
+      await settle();
+   }
+
    const sentMappings = () => sent.map(([url, event]) =>
       [url, event.model.geoCols[0].option.mapping.mappings]);
 
@@ -170,6 +203,52 @@ describe("GeoMappingDialog Cancel through VS Edit Geographic (Bug #78707)", () =
       await openEditMapping();
       await removeFlordia();
       await press("Cancel");
+      await press("OK");
+
+      expect(sentMappings()).toEqual([["/events/vs/chart/changeChartRef", { Flordia: "FL" }]]);
+   });
+
+   it("binding tree: Add + Cancel and Edit Geographic Cancel leave the field untouched", async () => {
+      await openTreeEditGeographic();
+      await openEditMapping();
+      await addFlordia();
+      await press("Cancel");
+      await press("Cancel");
+
+      expect(geo.option.mapping.mappings).toEqual({});
+      expect(sent).toEqual([]);
+
+      await openTreeEditGeographic();
+      await press("OK");
+
+      expect(sentMappings()).toEqual([["/events/vs/chart/changeChartRef", {}]]);
+   });
+
+   it("binding tree: Add + OK, then Edit Geographic OK sends the mapping", async () => {
+      await openTreeEditGeographic();
+      await openEditMapping();
+      await addFlordia();
+      await press("OK");
+      await press("OK");
+
+      expect(sentMappings()).toEqual([["/events/vs/chart/changeChartRef", { Flordia: "FL" }]]);
+   });
+
+   it("wizard binding tree: Add + Cancel, then Edit Geographic OK sends no mapping", async () => {
+      await openWizardEditGeographic();
+      await openEditMapping();
+      await addFlordia();
+      await press("Cancel");
+      await press("OK");
+
+      expect(sentMappings()).toEqual([["/events/vs/chart/changeChartRef", {}]]);
+   });
+
+   it("wizard binding tree: Add + OK, then Edit Geographic OK sends the mapping", async () => {
+      await openWizardEditGeographic();
+      await openEditMapping();
+      await addFlordia();
+      await press("OK");
       await press("OK");
 
       expect(sentMappings()).toEqual([["/events/vs/chart/changeChartRef", { Flordia: "FL" }]]);
