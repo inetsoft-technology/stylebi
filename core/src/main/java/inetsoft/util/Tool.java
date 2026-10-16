@@ -2526,12 +2526,20 @@ public final class Tool extends CoreTool {
    }
 
    /**
-    * Get the Style Report version. The version is in dot separated format,
-    * e.g. 1.3.1.
-    * @return Style Report version.
+    * Get the product version. The version is in dot separated format, e.g. 2.1.0, taken
+    * from the core jar's Specification-Version (the Maven project version) without its
+    * qualifier, such as -SNAPSHOT.
+    * @return the product version, or "Development Build" when not running from the jar.
     */
    public static String getReportVersion() {
-      return "1.2.0";
+      String version = reportVersion;
+
+      if(version == null || version.isEmpty() || version.startsWith("$")) {
+         return Catalog.getCatalog().getString("Development Build");
+      }
+
+      int index = version.indexOf('-');
+      return index < 0 ? version : version.substring(0, index);
    }
 
    /**
@@ -5434,6 +5442,7 @@ public final class Tool extends CoreTool {
                                           new Color(100, 100, 30) };
 
    private static volatile String buildNumber;
+   private static volatile String reportVersion;
    private static boolean isServer;
    private static final Map<Object, Image> imgcache = new HashMap<>(); // optimization
 
@@ -5518,6 +5527,7 @@ public final class Tool extends CoreTool {
 
       if(pkg != null) {
          buildNumber = pkg.getImplementationVersion();
+         reportVersion = pkg.getSpecificationVersion();
       }
 
       if(buildNumber == null) {
