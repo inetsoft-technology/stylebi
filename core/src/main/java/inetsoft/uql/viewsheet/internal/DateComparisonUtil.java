@@ -141,6 +141,46 @@ public class DateComparisonUtil {
    public static DateComparisonInfo getDateComparison(DateCompareAbleAssemblyInfo assemblyInfo,
                                                       Viewsheet vs)
    {
+      DateComparisonInfo dcInfo = getDesignDateComparison(assemblyInfo, vs);
+      return dcInfo != null && dcInfo.invalid() ? null : dcInfo;
+   }
+
+   /**
+    * Resolve the date comparison to apply to an assembly during its update, and settle the
+    * assembly's runtime state accordingly. A missing comparison (nothing defined, or a share
+    * source that does not resolve) resets everything, including the share link. A comparison that
+    * is present but invalid once its dynamic values have been resolved (for example a bound
+    * Spinner currently holding a level coarser than the interval) is NOT applied, but the
+    * authored comparison and share link are kept, so the comparison applies again as soon as the
+    * values become valid.
+    *
+    * @return the comparison to apply, or <tt>null</tt> if none applies.
+    */
+   public static DateComparisonInfo resolveDateComparisonForUpdate(
+      DateCompareAbleAssemblyInfo assemblyInfo, Viewsheet vs)
+   {
+      DateComparisonInfo dcInfo = getDesignDateComparison(assemblyInfo, vs);
+
+      if(dcInfo == null) {
+         assemblyInfo.resetRuntimeDateComparisonInfo();
+         return null;
+      }
+
+      if(dcInfo.invalid()) {
+         assemblyInfo.clearRuntimeDateComparisonRefs();
+         return null;
+      }
+
+      return dcInfo;
+   }
+
+   /**
+    * Get the assembly design or share date comparison, whether or not it is currently valid.
+    * Callers that apply the comparison should use {@link #getDateComparison}.
+    */
+   public static DateComparisonInfo getDesignDateComparison(
+      DateCompareAbleAssemblyInfo assemblyInfo, Viewsheet vs)
+   {
       if(assemblyInfo instanceof DataVSAssemblyInfo &&
          !((DataVSAssemblyInfo) assemblyInfo).isDateComparisonEnabled())
       {
@@ -301,6 +341,20 @@ public class DateComparisonUtil {
    }
 
    /**
+    * Check whether the specified assembly defines a date comparison that is not currently
+    * invalid. A comparison whose dynamic values resolve to an invalid combination stays defined
+    * (so it can be edited and recovers when the values are valid again) but is not applicable.
+    */
+   public static boolean isDateComparisonApplicable(VSAssemblyInfo info) {
+      if(!isDateComparisonDefined(info)) {
+         return false;
+      }
+
+      return !(info instanceof DateCompareAbleAssemblyInfo) ||
+         getDateComparison((DateCompareAbleAssemblyInfo) info, info.getViewsheet()) != null;
+   }
+
+   /**
     * Get a text description of the date comparison definition.
     */
    public static String getDateComparisonDescription(VSAssemblyInfo info) {
@@ -444,7 +498,7 @@ public class DateComparisonUtil {
          info.setNoData(false);
       }
 
-      if(!isDateComparisonDefined(info)) {
+      if(!isDateComparisonApplicable(info)) {
          return;
       }
 
@@ -558,7 +612,7 @@ public class DateComparisonUtil {
    }
 
    public static void checkGraphValidity(VSAssemblyInfo info, TableLens table) {
-      if(!isDateComparisonDefined(info)) {
+      if(!isDateComparisonApplicable(info)) {
          return;
       }
 
