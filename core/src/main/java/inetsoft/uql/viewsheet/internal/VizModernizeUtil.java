@@ -22,6 +22,7 @@ import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 
+import java.awt.Point;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -61,7 +62,7 @@ public final class VizModernizeUtil {
       VizMark mark = VizMark.fromGate();
       // unmarked(), not applyMark()'s differing predicate: an already-marked sibling (e.g. dark)
       // must survive a light-gated modernize untouched, which "differs from target mark" would not
-      return mark == null ? 0 : seedAll(vs, mark, unmarked(vs), true, true);
+      return mark == null ? 0 : moveMark(vs, mark, unmarked(vs));
    }
 
    /**
@@ -96,7 +97,21 @@ public final class VizModernizeUtil {
     * MODERN_LIGHT to MODERN_DARK flip, which neither of the one-way operations above can reach.
     */
    public static int applyMark(Viewsheet vs, VizMark mark) {
-      return seedAll(vs, mark, collect(vs, info -> info.getVizMark() != mark), true, true);
+      return moveMark(vs, mark, collect(vs, info -> info.getVizMark() != mark));
+   }
+
+   /**
+    * Stamp and seed the targets. A mark change re-seeds sizes and title lanes, so it re-flushes
+    * bottom-tabs children as a density change does. Nothing moves when nothing was seeded.
+    */
+   private static int moveMark(Viewsheet vs, VizMark mark, List<VSAssemblyInfo> targets) {
+      int seeded = seedAll(vs, mark, targets, true, true);
+
+      if(seeded > 0) {
+         keepOnBottomTabs(vs);
+      }
+
+      return seeded;
    }
 
    /**
@@ -119,11 +134,11 @@ public final class VizModernizeUtil {
    }
 
    /**
-    * A bottom-tabs strip sits under its children, and a density change can alter how tall a child
-    * stands on it: a box the size rule resized, or a dropdown's title lane. Re-flush them all.
+    * A bottom-tabs strip sits under its children, and a re-seed can alter how tall a child stands
+    * on it: a box a size rule resized, or a dropdown's title lane. Re-flush them all.
     */
    private static void keepOnBottomTabs(Viewsheet vs) {
-      for(Assembly assembly : vs.getAssemblies()) {
+      for(Assembly assembly : vs.getAssemblies(false)) {
          if(!(assembly instanceof TabVSAssembly tab) ||
             !((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).getBottomTabsValue())
          {
@@ -199,6 +214,43 @@ public final class VizModernizeUtil {
    public static void reseedAfterRestore(VSAssemblyInfo info) {
       if(info != null) {
          info.seedChromeDefaults(VizContext.of(info));
+      }
+   }
+
+   /**
+    * reseedAfterRestore for an assembly in its sheet. When the seed changes how tall a bottom-tabs
+    * child stands on its strip, the child shifts so its bottom edge stays put. A shift rather than
+    * a re-flush, so a child off the strip keeps its distance from it, and one a script placed is
+    * left alone.
+    */
+   public static void reseedRestored(VSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+      // measured only on a strip: a sheet's own size can lay it out
+      boolean onStrip = info != null && !info.isPositionByScript() &&
+         assembly.getViewsheet() != null && TabVSAssemblyInfo.isInBottomTabs(assembly);
+      int before = onStrip ?
+         TabVSAssemblyInfo.getBottomTabChildHeight(info, assembly.getPixelSize()) : 0;
+
+      reseedAfterRestore(info);
+
+      if(!onStrip) {
+         return;
+      }
+
+      int dy = before - TabVSAssemblyInfo.getBottomTabChildHeight(info, assembly.getPixelSize());
+
+      if(dy == 0) {
+         return;
+      }
+
+      Point pos = info.getPixelOffset();
+
+      if(pos != null) {
+         info.setPixelOffset(new Point(pos.x, pos.y + dy));
+      }
+
+      if(info.getLayoutPosition() != null) {
+         info.getLayoutPosition().translate(0, dy);
       }
    }
 
