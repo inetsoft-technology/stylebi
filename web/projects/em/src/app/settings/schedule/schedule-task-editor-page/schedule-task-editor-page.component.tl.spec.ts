@@ -688,12 +688,14 @@ describe("ScheduleTaskEditorPageComponent — Bug #78728: Run Once date and time
       };
 
       // The hour box of the real em-time-picker; emptying it makes the picker emit null.
-      const clearHour = async () => {
+      const setHour = async (value: string) => {
          const hour = root.querySelector("em-time-picker input") as HTMLInputElement;
-         hour.value = "";
+         hour.value = value;
          hour.dispatchEvent(new Event("change"));
          await settle(fixture, 1);
       };
+
+      const clearHour = () => setHour("");
 
       const saveButton = () => {
          fixture.detectChanges();
@@ -709,7 +711,7 @@ describe("ScheduleTaskEditorPageComponent — Bug #78728: Run Once date and time
       const storedDate = () =>
          new Date((page.condition as TimeConditionModel).date).toISOString();
 
-      return { page, editor, type, pick, clearHour, saveButton, conditionFlagged, storedDate };
+      return { page, editor, type, pick, setHour, clearHour, saveButton, conditionFlagged, storedDate };
    }
 
    type RunOnceFixture = Awaited<ReturnType<typeof renderRunOnce>>;
@@ -766,6 +768,20 @@ describe("ScheduleTaskEditorPageComponent — Bug #78728: Run Once date and time
       await s.pick("2026-10-25");
 
       expectSaveEnabled(s, "2026-10-25T09:30:00.000Z");
+   });
+
+   it("keeps the condition valid and Save enabled when only the start time hour changes", async () => {
+      const s = await renderRunOnce();
+
+      await s.setHour("11");
+
+      expectSaveEnabled(s, "2026-10-07T11:30:00.000Z");
+
+      await s.type("");
+      await s.type("2026-10-20");
+      await s.setHour("12");
+
+      expectSaveEnabled(s, "2026-10-20T12:30:00.000Z");
    });
 
    it("flags the condition and disables Save when the start time hour is cleared", async () => {
