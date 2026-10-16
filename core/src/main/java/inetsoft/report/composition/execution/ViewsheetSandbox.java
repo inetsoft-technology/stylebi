@@ -69,6 +69,7 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -2698,7 +2699,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    public int executeScriptForExport(VSAssembly assembly) throws Exception {
       // the viewer and the composer keep failing on a script error
-      if(exportFormat == null) {
+      if(exportDepth.get() == 0) {
          return executeScript(assembly);
       }
 
@@ -2735,15 +2736,29 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
-    * End an export: the assemblies whose script failed are not remembered past it, so the
-    * viewer and the next export run those scripts again.
+    * Start an export on this sandbox. A counter, not a flag, so an export that ends does not end
+    * the state of another one still running on the sandbox. Pair with {@link #endExport()}.
+    */
+   public void beginExport() {
+      exportDepth.incrementAndGet();
+   }
+
+   /**
+    * End an export: once the last export on this sandbox ends, the assemblies whose script
+    * failed are not remembered, so the viewer and the next export run those scripts again.
     */
    public void endExport() {
+      if(exportDepth.decrementAndGet() > 0) {
+         return;
+      }
+
+      exportDepth.set(0);
+
       synchronized(exportFailedAssemblies) {
          exportFailedAssemblies.clear();
       }
 
-      exportFormat = null;
+      setExportFormat(null);
    }
 
    private boolean isExportScriptFailed(String name) {
@@ -9418,6 +9433,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private boolean isSafariOniOS = false;
    private long cancelTs = -1;
    private String exportFormat = null;
+   private final AtomicInteger exportDepth = new AtomicInteger();
    private String oid; // original runtime viewsheet id
    private final Map<String, ReentrantLock> graphLocks = new ConcurrentHashMap<>();
    // A thread running a script holds that script engine's execution lock, and other threads

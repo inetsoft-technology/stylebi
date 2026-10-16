@@ -25,6 +25,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import inetsoft.util.Catalog;
 import inetsoft.util.script.ScriptException;
@@ -80,6 +81,81 @@ class ViewsheetSandboxAssemblyScriptExportTest {
 
    // the viewer shares the sandbox: after an export, a fixed script must run again
    @Test
+   void throwingTimeSliderScriptStillExportsEverythingElse() throws Exception {
+      ViewsheetSandbox box = box();
+      Viewsheet vs = box.getViewsheet();
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "BadSlider");
+      slider.setTableName("TableView1");
+      ColumnRef ref = new ColumnRef(new AttributeRef(null, "wind"));
+      ref.setDataType(XSchema.DOUBLE);
+      SingleTimeInfo tinfo = new SingleTimeInfo();
+      tinfo.setDataRef(ref);
+      tinfo.setRangeTypeValue(TimeInfo.NUMBER);
+      slider.setTimeInfo(tinfo);
+      vs.addAssembly(slider);
+      script(slider, THROWS);
+      script(text(vs, "OkText"), OK);
+
+      Recorder rec = export(box);
+
+      assertTrue(rec.texts.contains("hello-ok"), () -> "texts: " + rec.texts);
+      assertEquals(1, warnings(rec, "BadSlider"), () -> "texts: " + rec.texts);
+   }
+
+   // direct: the query's own script run is reached (it throws outside an export) and tolerated
+   // during one
+   @Test
+   void selectionAndTimeSliderQueryScriptsAreTolerantOnlyDuringExport() throws Exception {
+      ViewsheetSandbox box = box();
+      Viewsheet vs = box.getViewsheet();
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "QList");
+      SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) list.getInfo();
+      info.setTableName("TableView1");
+      info.setDataRef(new ColumnRef(new AttributeRef(null, "type")));
+      vs.addAssembly(list);
+      script(list, THROWS + " // query");
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "QSlider");
+      slider.setTableName("TableView1");
+      ColumnRef ref = new ColumnRef(new AttributeRef(null, "wind"));
+      ref.setDataType(XSchema.DOUBLE);
+      SingleTimeInfo tinfo = new SingleTimeInfo();
+      tinfo.setDataRef(ref);
+      tinfo.setRangeTypeValue(TimeInfo.NUMBER);
+      slider.setTimeInfo(tinfo);
+      vs.addAssembly(slider);
+      script(slider, THROWS);
+
+      assertThrows(ScriptException.class, () -> new SelectionListVSAQuery(box, "QList").getData());
+      assertThrows(ScriptException.class, () -> new TimeSliderVSAQuery(box, "QSlider").getData());
+
+      box.beginExport();
+
+      try {
+         tolerated(() -> new SelectionListVSAQuery(box, "QList").getData());
+         tolerated(() -> new TimeSliderVSAQuery(box, "QSlider").getData());
+      }
+      finally {
+         box.endExport();
+      }
+   }
+
+   private static void tolerated(ThrowingRunnable run) {
+      try {
+         run.run();
+      }
+      catch(ScriptException ex) {
+         fail("the script error was not tolerated", ex);
+      }
+      catch(Throwable ignored) {
+         // the query itself may fail on this minimal fixture, only the script matters here
+      }
+   }
+
+   private interface ThrowingRunnable {
+      void run() throws Exception;
+   }
+
+   @Test
    void failedScriptRunsAgainAfterTheExport() throws Exception {
       ViewsheetSandbox box = box();
       Viewsheet vs = box.getViewsheet();
@@ -90,7 +166,7 @@ class ViewsheetSandboxAssemblyScriptExportTest {
       box.resetDataMap("BadCross");
       assertNotNull(box.getVSTableLens("BadCross", false, 1));
       assertEquals("FIXED", ((inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo)
-                         ((VSAssembly) vs.getAssembly("BadCross")).getVSAssemblyInfo()).getTitleValue(), "the script ran");
+                         ((VSAssembly) vs.getAssembly("BadCross")).getVSAssemblyInfo()).getTitle(), "the script ran");
 
       // and a script that still fails still fails in the viewer, outside an export
       script((VSAssembly) vs.getAssembly("BadCross"), THROWS);
@@ -160,7 +236,7 @@ class ViewsheetSandboxAssemblyScriptExportTest {
       ViewsheetSandbox spy = Mockito.spy(box());
       Viewsheet vs = spy.getViewsheet();
       VSAssembly text = script(text(vs, "StoppedText"), OK);
-      spy.setExportFormat("csv");
+      spy.beginExport();
       ScriptException stop = new ScriptException("timeout");
       stop.setStopped(true);
       Mockito.doThrow(stop).when(spy).executeScript(text);
@@ -174,11 +250,14 @@ class ViewsheetSandboxAssemblyScriptExportTest {
       ViewsheetSandbox spy = Mockito.spy(box());
       Viewsheet vs = spy.getViewsheet();
       VSAssembly text = script(text(vs, "FailedText"), OK);
-      spy.setExportFormat("csv");
+      spy.beginExport();
       Mockito.doThrow(new ScriptException("boom")).when(spy).executeScript(text);
 
       assertEquals(VSAssembly.NONE_CHANGED, spy.executeScriptForExport(text));
       assertEquals(List.of("FailedText"), spy.getExportFailedAssemblies());
+      spy.beginExport(); // a second, still running export
+      spy.endExport();
+      assertEquals(List.of("FailedText"), spy.getExportFailedAssemblies(), "nested export ended");
       spy.endExport();
       assertTrue(spy.getExportFailedAssemblies().isEmpty());
    }

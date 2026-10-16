@@ -1263,6 +1263,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       cappedCharts.clear();
       Viewsheet origViewsheet = box.getViewsheet();
       Viewsheet rvsOrigViewsheet = rvs != null ? rvs.getViewsheet() : null;
+      box.beginExport();
 
       try {
          // vs may be modified (e.g. expand table) so we should make
