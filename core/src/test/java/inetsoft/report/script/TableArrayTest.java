@@ -307,4 +307,49 @@ class TableArrayTest {
       assertFalse(arr.hasMember("NOPE"));
       assertNull(arr.getMember("Ent:NOPE"));
    }
+
+   /**
+    * Bug #78599 scope guard: outside a strict (calc-table) array a missing column keeps
+    * reading as absent/null, in both calc and plain array modes.
+    */
+   @Test
+   void nonStrictMissingColumnStaysSilent() {
+      for(boolean calc : new boolean[] { false, true }) {
+         TableArray arr = new TableArray(table());
+         arr.setCalcArray(calc);
+
+         assertFalse(arr.hasMember("NOPE"));
+         assertNull(arr.getMember("NOPE"));
+         assertNull(arr.getMember("NOPE@col1:a"));
+         assertNull(arr.getMember("Ent:NOPE"));
+      }
+   }
+
+   /**
+    * Bug #78599 scope guard: strict mode leaves the condition form, index access and
+    * entity:attribute names working as before.
+    */
+   @Test
+   void strictKeepsConditionIndexAndEntityAttrForms() {
+      TableArray arr = strictArray();
+
+      TableArray plain = new TableArray(table());
+      plain.setCalcArray(true);
+      assertArrayEquals((Object[]) plain.getMember("col1?col2=1"),
+                        (Object[]) arr.getMember("col1?col2=1"));
+      assertTrue(arr.hasMember("col1?col2=1"));
+      assertTrue(arr.getArrayElement(1) instanceof TableRow);
+      assertEquals("a", ((TableRow) arr.getArrayElement(1)).getMember("col1"));
+
+      XTable ent = new DefaultTableLens(new Object[][] {
+         { "Ent:Attr", "col2" },
+         { "x", 1 },
+         { "y", 2 }
+      });
+      TableArray earr = new TableArray(ent);
+      earr.setCalcArray(true);
+      earr.setStrictMissing(true);
+      assertArrayEquals(new Object[] { "x", "y" }, (Object[]) earr.getMember("Ent:Attr"));
+      assertArrayEquals(new Object[] { "x", "y" }, (Object[]) earr.getMember("ent:attr"));
+   }
 }
