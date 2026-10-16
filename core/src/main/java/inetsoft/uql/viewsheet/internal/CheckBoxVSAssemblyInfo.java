@@ -132,7 +132,7 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
     */
    @Override
    public int getTitleHeight() {
-      return titleInfo.getTitleHeight();
+      return VSDensityDefaults.titleHeight(this, titleInfo.getTitleHeight());
    }
 
    /**
@@ -434,7 +434,7 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
    }
 
    /**
-    * Seed the modern-gated round corner, cell alignment, and control height, plus the shared input
+    * Seed the modern-gated round corner, cell alignment, and option box, plus the shared input
     * title lane and value ink (seedInputTitleLane/seedInputValueInk). This type bypasses the base
     * chrome hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input
     * modernization, tracked as its own follow-on project from the card-corner work.
@@ -470,39 +470,32 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
             ctx.modern ? (StyleConstants.H_LEFT | StyleConstants.V_CENTER) : StyleConstants.CENTER);
       }
 
-      // legacy default is 2 * defh (title lane + one data row); preserve that ratio rather than
-      // substituting a single control height, or a freshly-created checkbox would lose the room
-      // its second row needs. Title height is deliberately left alone - CheckBox is one of the
-      // types TitleLaneHeightRowTest.excludedTypesNeverTakeTheDensityRow pins to never follow the
-      // density row, so cellHeight alone absorbs the container's growth (container - the
-      // still-legacy title height), or updateDataRowCol()'s (containerHeight - titleHeight) /
-      // cellHeight would recompute a second row out of the container's new headroom instead of
-      // leaving it as clearance.
-      // also re-fires on a density change, or a seeded control is stranded at the old tier
-      if(ctx.modern && (getPixelSize().height == 2 * AssetUtil.defh ||
-         getPixelSize().height % 2 == 0 &&
-            VSDensityDefaults.isControlHeight(getPixelSize().height / 2)))
-      {
-         int oldHeight = getPixelSize().height;
-         int newHeight = 2 * VSDensityDefaults.controlHeight(ctx);
-         setPixelSize(new Dimension(getPixelSize().width, newHeight));
+      FormControlDensity.seedOptionBox(this, ctx);
+   }
 
-         // the ratio the last seed left, not the legacy default: on a density re-fire the cell is
-         // already off defh, and a stranded one overflows the container's new content height
-         if(getCellHeight() == oldHeight - getTitleHeight()) {
-            setCellHeight(newHeight - getTitleHeight());
-         }
-      }
-      else if(!ctx.modern && getPixelSize().height % 2 == 0 &&
-         VSDensityDefaults.isControlHeight(getPixelSize().height / 2))
-      {
-         int oldHeight = getPixelSize().height;
-         setPixelSize(new Dimension(getPixelSize().width, 2 * AssetUtil.defh));
+   @Override
+   public boolean takesDensitySize() {
+      return true;
+   }
 
-         if(getCellHeight() == oldHeight - getTitleHeight()) {
-            setCellHeight(AssetUtil.defh);
-         }
-      }
+   @Override
+   public boolean densitySizeIsHeightOnly() {
+      return true;
+   }
+
+   @Override
+   public boolean followsDensitySize() {
+      return !isUserSize() && VSDensityDefaults.isSeededOptionBoxHeight(getPixelSize().height);
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      return FormControlDensity.optionBoxSize(this, ctx);
+   }
+
+   @Override
+   protected boolean takesDensityRow() {
+      return true;
    }
 
    /**

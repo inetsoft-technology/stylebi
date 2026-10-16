@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.TextInputVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.composer.model.vs.SizePositionPaneModel;
@@ -192,5 +193,73 @@ class SizeFollowsDensityDialogTest {
 
       assertEquals(new Dimension(400, 300), chart.getPixelSize());
       assertFalse(chart.isUserSize());
+   }
+
+   private static TextInputVSAssemblyInfo textInput(Dimension size, boolean userSize) {
+      TextInputVSAssemblyInfo info = new TextInputVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setPixelSize(size);
+      info.setUserSize(userSize);
+      return info;
+   }
+
+   @Test
+   void readMarksAHeightOnlyType() {
+      SizePositionPaneModel model = new SizePositionPaneModel();
+      VSDialogService.readSizeFollowsDensity(textInput(new Dimension(100, 30), false), model, true);
+
+      assertEquals(Boolean.TRUE, model.getSizeFollowsDensity());
+      assertTrue(model.isDensityHeightOnly());
+
+      SizePositionPaneModel box = new SizePositionPaneModel();
+      VSDialogService.readSizeFollowsDensity(
+         container(VizMark.MODERN_LIGHT, new Dimension(300, 360), false), box, true);
+      assertFalse(box.isDensityHeightOnly());
+   }
+
+   @Test
+   void aTickedApplyKeepsATypedWidthOnAHeightOnlyType() {
+      TextInputVSAssemblyInfo info = textInput(new Dimension(100, 40), true);
+      SizePositionPaneModel model = model(true, 300, 40);
+
+      VSDialogService.applyDensitySize(info, model);
+
+      assertEquals(300, model.getWidth(), "the typed width survives");
+      assertEquals(30, model.getHeight());
+      assertFalse(info.isUserSize());
+   }
+
+   @Test
+   void aWidthOnlyEditIsNotTheAuthorsHeight() {
+      TextInputVSAssemblyInfo widened = textInput(new Dimension(100, 30), false);
+      VSDialogService.recordAuthorSize(widened, model(null, 300, 30), new Dimension(100, 30));
+      assertFalse(widened.isUserSize());
+
+      TextInputVSAssemblyInfo taller = textInput(new Dimension(100, 30), false);
+      VSDialogService.recordAuthorSize(taller, model(null, 100, 40), new Dimension(100, 30));
+      assertTrue(taller.isUserSize());
+   }
+
+   @Test
+   void theFollowingSetterRunsTheThreeStepsInOrder() {
+      Viewsheet vs = new Viewsheet();
+      TextInputVSAssembly assembly = new TextInputVSAssembly(vs, "TextInput1");
+      vs.addAssembly(assembly);
+      TextInputVSAssemblyInfo info = (TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setPixelSize(new Dimension(100, 30));
+      VSDialogService service = new VSDialogService(null, null);
+
+      service.setAssemblySizeFollowingDensity(info, model(null, 250, 30), vs);
+      assertEquals(new Dimension(250, 30), info.getPixelSize());
+      assertFalse(info.isUserSize(), "a widened control keeps following");
+
+      service.setAssemblySizeFollowingDensity(info, model(null, 250, 44), vs);
+      assertEquals(new Dimension(250, 44), info.getPixelSize());
+      assertTrue(info.isUserSize());
+
+      service.setAssemblySizeFollowingDensity(info, model(true, 250, 44), vs);
+      assertEquals(new Dimension(250, 30), info.getPixelSize());
+      assertFalse(info.isUserSize());
    }
 }

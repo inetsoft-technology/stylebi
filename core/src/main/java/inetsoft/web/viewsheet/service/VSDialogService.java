@@ -24,6 +24,7 @@ import inetsoft.report.internal.StyleTreeModel;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
@@ -168,6 +169,7 @@ public class VSDialogService {
       model.setSizeFollowsDensity(
          governed && info.takesDensitySize() && info.getVizMark() != null ?
             info.followsDensitySize() : null);
+      model.setDensityHeightOnly(info.densitySizeIsHeightOnly());
    }
 
    /**
@@ -181,7 +183,12 @@ public class VSDialogService {
 
       info.resetSize(VizContext.of(info));
       Dimension size = info.getPixelSize();
-      model.setWidth(size.width);
+
+      // a height-only type keeps the width typed in the same apply
+      if(!info.densitySizeIsHeightOnly()) {
+         model.setWidth(size.width);
+      }
+
       model.setHeight(size.height);
    }
 
@@ -200,10 +207,98 @@ public class VSDialogService {
       }
 
       if(Boolean.FALSE.equals(follows) ||
-         model.getWidth() != shown.width || model.getHeight() != shown.height)
+         info.isAuthorSizeChange(shown, new Dimension(model.getWidth(), model.getHeight())))
       {
          info.setUserSize(true);
       }
+   }
+
+   /**
+    * Write a dialog's size the way every density-sized box does: the follow checkbox first, then
+    * the typed size, then the author's claim.
+    */
+   public void setAssemblySizeFollowingDensity(VSAssemblyInfo info, SizePositionPaneModel model,
+                                               Viewsheet viewsheet)
+   {
+      Dimension shown = new Dimension(getAssemblySize(info, viewsheet));
+      applyDensitySize(info, model);
+      setAssemblySize(info, model);
+      recordAuthorSize(info, model, shown);
+   }
+
+   /**
+    * Fill a checkbox or radio dialog's lane and row: the heights drawn, and a follow checkbox for
+    * each when the assembly is marked.
+    */
+   public static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> void readOptionHeights(
+      T info, SizePositionPaneModel model)
+   {
+      boolean marked = info.getVizMark() != null;
+      model.setTitleHeight(VSDensityDefaults.titleHeight(info, info.getTitleHeightValue()));
+      model.setTitleHeightFollowsDensity(marked ? titleFollowsDensity(info) : null);
+      int cellHeight = info.getCellHeight();
+      model.setCellHeight(cellHeight <= 0 ? AssetUtil.defh : cellHeight);
+      model.setCellHeightFollowsDensity(marked ? rowFollowsDensity(info) : null);
+   }
+
+   // the density rule owns a lane that is unflagged and at the legacy height
+   private static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> boolean
+      titleFollowsDensity(T info)
+   {
+      return !info.isUserTitleHeight() &&
+         info.getTitleHeightValue() == info.getLegacyTitleHeight();
+   }
+
+   // and a row that is unflagged at the legacy height or one the former seed stored
+   private static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> boolean
+      rowFollowsDensity(T info)
+   {
+      int stored = info.getCellHeightValue();
+      return !info.isUserCellHeight() &&
+         (stored == AssetUtil.defh || VSDensityDefaults.isFormerOptionRow(stored));
+   }
+
+   /**
+    * Apply a checkbox or radio dialog's lane and row. No answer stores a value only when it
+    * differs from the height drawn, so an untouched field never claims it.
+    */
+   public static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> void applyOptionHeights(
+      T info, SizePositionPaneModel model)
+   {
+      Boolean titleFollows = model.getTitleHeightFollowsDensity();
+
+      if(Boolean.TRUE.equals(titleFollows)) {
+         info.setUserTitleHeight(false);
+         info.setTitleHeightValue(info.getLegacyTitleHeight());
+      }
+      else if(Boolean.FALSE.equals(titleFollows) || model.getTitleHeight() !=
+         VSDensityDefaults.titleHeight(info, info.getTitleHeightValue()))
+      {
+         info.setUserTitleHeight(true);
+         info.setTitleHeightValue(model.getTitleHeight());
+      }
+
+      Boolean rowFollows = model.getCellHeightFollowsDensity();
+
+      if(Boolean.TRUE.equals(rowFollows)) {
+         info.setUserCellHeight(false);
+         info.setCellHeight(AssetUtil.defh);
+      }
+      else if(Boolean.FALSE.equals(rowFollows) || model.getCellHeight() != info.getCellHeight()) {
+         info.setUserCellHeight(true);
+         info.setCellHeight(model.getCellHeight());
+      }
+   }
+
+   /**
+    * Apply a checkbox or radio dialog's lane, row and size, in that order: a box that follows
+    * density is sized from the lane and row just written.
+    */
+   public <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> void applyOptionListSize(
+      T info, SizePositionPaneModel model, Viewsheet viewsheet)
+   {
+      applyOptionHeights(info, model);
+      setAssemblySizeFollowingDensity(info, model, viewsheet);
    }
 
    /**

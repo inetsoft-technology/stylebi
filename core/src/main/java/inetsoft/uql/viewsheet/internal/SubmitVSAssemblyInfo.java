@@ -76,7 +76,7 @@ public class SubmitVSAssemblyInfo extends ClickableOutputVSAssemblyInfo {
     * card-corner work. Unlike CheckBox/RadioButton, Submit has no title lane or data rows - its
     * inherited default height (AssetUtil.defh, set by AssemblyInfo's constructor since this type
     * never calls setPixelSize itself) is a single value, so this follows Spinner's simpler
-    * one-value substitution instead of CheckBox's doubled one.
+    * one-value substitution.
     */
    @Override
    protected void seedChromeDefaults(VizContext ctx) {
@@ -89,15 +89,27 @@ public class SubmitVSAssemblyInfo extends ClickableOutputVSAssemblyInfo {
             ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 3);
       }
 
-      // also re-fires on a density change, or a seeded control is stranded at the old tier
-      if(ctx.modern && (getPixelSize().height == AssetUtil.defh ||
-         VSDensityDefaults.isControlHeight(getPixelSize().height)))
-      {
-         setPixelSize(new Dimension(getPixelSize().width, VSDensityDefaults.controlHeight(ctx)));
-      }
-      else if(!ctx.modern && VSDensityDefaults.isControlHeight(getPixelSize().height)) {
-         setPixelSize(new Dimension(getPixelSize().width, AssetUtil.defh));
-      }
+      FormControlDensity.seedControlHeight(this, ctx);
+   }
+
+   @Override
+   public boolean takesDensitySize() {
+      return true;
+   }
+
+   @Override
+   public boolean densitySizeIsHeightOnly() {
+      return true;
+   }
+
+   @Override
+   public boolean followsDensitySize() {
+      return !isUserSize() && VSDensityDefaults.isSeededControlHeight(getPixelSize().height);
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      return FormControlDensity.controlSize(this, ctx);
    }
 
    /**

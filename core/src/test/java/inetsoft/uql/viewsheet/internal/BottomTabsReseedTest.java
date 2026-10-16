@@ -22,6 +22,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.CheckBoxVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -268,5 +269,28 @@ class BottomTabsReseedTest {
 
       assertEquals(0, VizModernizeUtil.modernize(vs), "premise: nothing was unmarked");
       assertEquals(new Point(78, 300), list.getPixelOffset());
+   }
+
+   // the former seed left a 60px box; the open rewrites it to 58 and keeps its bottom on the strip
+   @Test
+   void aRestoreKeepsACheckboxWithAFormerBoxOnTheStrip() throws Exception {
+      gate(true);
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      Viewsheet vs = new Viewsheet();
+      CheckBoxVSAssembly checkBox = new CheckBoxVSAssembly(vs, "CheckBox1");
+      vs.addAssembly(checkBox);
+      CheckBoxVSAssemblyInfo info = (CheckBoxVSAssemblyInfo) checkBox.getVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setPixelSize(new Dimension(200, 60));
+      info.setCellHeight(40);
+      info.setPixelOffset(new Point(78, STRIP - 60));
+      tabs(vs, true, "CheckBox1");
+
+      StringWriter sw = new StringWriter();
+      checkBox.writeState(new PrintWriter(sw), true);
+      checkBox.parseState(Tool.parseXML(new StringReader(sw.toString())).getDocumentElement());
+
+      assertEquals(58, info.getPixelSize().height, "premise: the box rule ran");
+      assertEquals(new Point(78, STRIP - 58), info.getPixelOffset());
    }
 }
