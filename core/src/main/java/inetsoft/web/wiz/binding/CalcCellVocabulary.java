@@ -31,6 +31,7 @@ import inetsoft.web.binding.model.table.OrderModel;
 import inetsoft.web.binding.model.table.TopNModel;
 import inetsoft.web.wiz.viewsheet.ConditionVocabulary;
 
+import java.math.BigInteger;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -237,6 +238,23 @@ public final class CalcCellVocabulary {
             "formula '" + formula + "': the argument '" + arg + "' of " + display +
             " must be an integer (" + ("PthPercentile".equals(display) ? "P" : "N") +
             "), e.g. " + display + "(3). Nothing was changed.");
+      }
+
+      if(display != null && !arg.isEmpty()) {
+         BigInteger value = new BigInteger(arg);
+         boolean percentile = "PthPercentile".equals(display);
+         // The engine silently clamps P to [0, 100] and turns N <= 0 into 1; an N that does not
+         // fit an int is dropped back to the default by LayoutTool.parseFormula.
+         BigInteger min = percentile ? BigInteger.ZERO : BigInteger.ONE;
+         BigInteger max = BigInteger.valueOf(percentile ? 100 : Integer.MAX_VALUE);
+
+         if(value.compareTo(min) < 0 || value.compareTo(max) > 0) {
+            throw new IllegalArgumentException(
+               "formula '" + formula + "': the argument '" + arg + "' of " + display +
+               " must be an integer from " + min + " to " + max + " (" +
+               (percentile ? "P" : "N") + "); the engine would silently clamp it. " +
+               "Nothing was changed.");
+         }
       }
    }
 
