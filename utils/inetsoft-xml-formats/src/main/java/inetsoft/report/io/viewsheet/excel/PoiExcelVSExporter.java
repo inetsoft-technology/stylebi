@@ -498,26 +498,25 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
 
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) obj.getVSAssemblyInfo();
       int ypos = obj.getPixelOffset().y;
-      int titleRow = 0;
       int rowCount = Math.min(table.getRowCount(), getMaxRow(ypos));
+      int rows = info instanceof TitledVSAssemblyInfo ?
+         PoiExcelVSUtil.getExcelTitleHeight((TitledVSAssemblyInfo) info) / AssetUtil.defh : 0;
+      VSTableLens lens = (VSTableLens) table;
+      // reserve the rows ExcelTableHelper draws, or it stops writing rows that don't fit
+      int[] heights = ExcelVSUtil.calculateRowHeights(obj.getViewsheet(), info, lens, false, true);
 
-      if(info instanceof TitledVSAssemblyInfo) {
-         titleRow = ((TitledVSAssemblyInfo) info).isTitleVisible() ? 1 : 0;
-      }
-
-      int rows = titleRow;
-      int i = 0;
-      VSTableLens lens = (VSTableLens)table;
-
-      while(i < rowCount) {
-         int h = lens.getWrappedHeight(i, true);
-         int count = (int) Math.round(((double)h) / AssetUtil.defh);
-         count = Math.max(1, count);
-         rows += count;
-         i++;
+      for(int i = 0; i < rowCount; i++) {
+         rows += getExcelRowCount(heights[i]);
       }
 
       return rows * AssetUtil.defh;
+   }
+
+   /**
+    * Get the Excel rows a table row of the pixel height spans, as ExcelTableHelper draws it.
+    */
+   protected static int getExcelRowCount(int pixelHeight) {
+      return Math.max(1, (int) Math.ceil((double) pixelHeight / AssetUtil.defh));
    }
 
    protected double getSelectionHeight(SelectionBaseVSAssemblyInfo info, List<Double> rowHeights,

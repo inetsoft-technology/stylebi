@@ -108,22 +108,11 @@ public class OfflineExcelVSExporter extends PoiExcelVSExporter {
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) obj.getInfo();
       int oldHeight = super.getExpandTableHeight(obj, table);
       VSTableLens lens = (VSTableLens)table;
-      int[] hs = new int[lens.getRowCount()];
-      int[] heights = lens.getRowHeights();
+      int[] hs = ExcelVSUtil.calculateRowHeights(obj.getViewsheet(), info, lens, false, true);
       int totalHeight = 0;
 
-      for(int i = 0; i < hs.length; i++) {
-         int h = 0;
-
-         if(i >= heights.length) {
-            h = AssetUtil.defh;
-         }
-         else {
-            h = lens.getWrappedHeight(i, true);
-         }
-
-         h = (int)Math.round(((double)h) / AssetUtil.defh) * AssetUtil.defh;
-         totalHeight += h;
+      for(int h : hs) {
+         totalHeight += getExcelRowCount(h) * AssetUtil.defh;
       }
 
       totalHeight += PoiExcelVSUtil.getExcelTitleHeight(info);
