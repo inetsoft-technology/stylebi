@@ -112,7 +112,8 @@ export class GeoMappingDialog implements OnInit {
 
    getFeatureMapping(smapping: FeatureMappingInfo): any {
       let mapping = this.chartGeoModel.option.mapping;
-      let manualMappings = mapping ? mapping.mappings : {};
+      // Bug #78707, edit a copy so Add/Remove reach the field only on OK (update())
+      let manualMappings = { ...(mapping?.mappings || {}) };
       let smanuals = smapping ? smapping.mappings : {};
 
       for(let key in smanuals) {
