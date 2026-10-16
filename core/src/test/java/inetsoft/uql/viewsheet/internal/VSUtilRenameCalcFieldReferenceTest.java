@@ -365,6 +365,23 @@ class VSUtilRenameCalcFieldReferenceTest {
    }
 
    @Test
+   void lineCommentEndsAtEveryJavaScriptLineTerminator() {
+      for(String lt : new String[] { "\n", "\r", "\r\n", " ", " " }) {
+         assertRenamed("x = 1 // note" + lt + "field['VatR'] // don't",
+                       "x = 1 // note" + lt + "field['Vat'] // don't");
+         assertRenamed("x = 1 // it's" + lt + "field['VatR'] + \"a\"",
+                       "x = 1 // it's" + lt + "field['Vat'] + \"a\"");
+         assertIgnored("field['ORDER_ID'] // field['Vat']" + lt + "+ 1");
+      }
+   }
+
+   @Test
+   void leadingHashbangFallsBackToUnmaskedMatching() {
+      assertRenamed("#! it's\nfield['VatR'] + x['y'] // don't",
+                    "#! it's\nfield['Vat'] + x['y'] // don't");
+   }
+
+   @Test
    void divisionKeepsRealReferencesCounted() {
       assertRenamed("a / b + field['VatR'] / 2", "a / b + field['Vat'] / 2");
       assertRenamed("(x) / 2 + field['VatR']", "(x) / 2 + field['Vat']");

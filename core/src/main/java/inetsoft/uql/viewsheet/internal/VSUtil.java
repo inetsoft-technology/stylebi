@@ -4518,14 +4518,16 @@ public final class VSUtil {
     *         scan ends inside an unterminated string, template, interpolation or block comment,
     *         every character is reported as code (unmasked matching), so a real reference is
     *         never silently dropped. Whenever the mask is returned as such, every character marked
-    *         non-code is provably inside a string, template text or comment.
+    *         non-code is provably inside a string, template text or comment. A <code>//</code>
+    *         comment ends at any JavaScript line terminator (LF, CR, U+2028, U+2029), and a
+    *         leading hashbang line is treated as ambiguous.
     */
    private static boolean[] codeMask(String script) {
       int n = script.length();
       boolean[] code = new boolean[n];
       // open interpolations, each holding the count of unclosed '{' inside it
       Deque<int[]> braces = new ArrayDeque<>();
-      boolean ok = true;
+      boolean ok = !script.startsWith("#!");
       int i = 0;
       // 0 = code, 1 = template text
       int mode = 0;
@@ -4579,8 +4581,11 @@ public final class VSUtil {
             }
          }
          else if(c == '/' && i + 1 < n && script.charAt(i + 1) == '/') {
-            int end = script.indexOf('\n', i);
-            i = end < 0 ? n : end;
+            i += 2;
+
+            while(i < n && !isLineTerminator(script.charAt(i))) {
+               i++;
+            }
          }
          else if(c == '/' && i + 1 < n && script.charAt(i + 1) == '*') {
             int end = script.indexOf("*/", i + 2);
@@ -4625,6 +4630,10 @@ public final class VSUtil {
       }
 
       return code;
+   }
+
+   private static boolean isLineTerminator(char c) {
+      return c == '\n' || c == '\r' || c == (char) 0x2028 || c == (char) 0x2029;
    }
 
    private static boolean isPlainIdentifier(String name) {
