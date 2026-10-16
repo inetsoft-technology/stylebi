@@ -186,4 +186,42 @@ describe("SecurityListViewComponent — drag to reorder (Bug #78723)", () => {
       expect(emitted).toEqual([[0, 2]]);
       expect(labelsOf(root)).toEqual(["Primary", "Corp LDAP", "Accounts"]);
    });
+
+   it("should emit every start and drop position over consecutive drags, up and down", async () => {
+      let list = [cached("A"), makeProvider("B"), cached("C"), makeProvider("D", { label: "Dee" })];
+      const { root, emitted, errors, setProviders } = await renderList(list);
+      const move = (items: any[], from: number, to: number) => {
+         const next = items.slice();
+         next.splice(to, 0, next.splice(from, 1)[0]);
+         return next;
+      };
+      const over = (from: number, to: number) => from < to
+         ? Array.from({ length: to - from }, (_, k) => from + 1 + k)
+         : Array.from({ length: from - to }, (_, k) => from - 1 - k);
+
+      for(let from = 0; from < 4; from++) {
+         for(let to = 0; to < 4; to++) {
+            if(from === to) {
+               continue;
+            }
+
+            const expected = move(labelsOf(root), from, to);
+            drag(root, from, over(from, to));
+            expect(emitted[emitted.length - 1]).toEqual([from, to]);
+
+            // the page applies the move once the server accepts it
+            list = move(list, from, to);
+            setProviders(list);
+            expect(labelsOf(root)).toEqual(expected);
+            expect(rowsOf(root).length).toBe(4);
+         }
+      }
+
+      expect(emitted.length).toBe(12);
+      expect(errors).toEqual([]);
+      const disabled = (title: string) => rowsOf(root).map(row =>
+         (row.querySelector(`button[title='${title}']`) as HTMLButtonElement).disabled);
+      expect(disabled("_#(Move Up)")).toEqual([true, false, false, false]);
+      expect(disabled("_#(Move Down)")).toEqual([false, false, false, true]);
+   });
 });
