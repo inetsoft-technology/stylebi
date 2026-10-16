@@ -19,6 +19,8 @@ package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
@@ -202,11 +204,15 @@ public class ScriptImageService {
          result = assemblyImageService.processGetAssemblyImage(
             rvs, aid, w, h, w, h, null, 0, 0, 0, principal, false, true);
 
-         if(result == null || result.getRetryAfter() <= 0) {
+         if(result == null || result.getRetryAfter() <= 0 || result.isTerminal()) {
             break;
          }
 
          Thread.sleep(RENDER_RETRY_SLEEP_MS);
+      }
+
+      if(result != null && result.isTerminal()) {
+         throw terminalRenderFailure(vs, assembly, assemblyName, result.getTerminalReason());
       }
 
       if(result != null && result.getRetryAfter() > 0) {
@@ -258,6 +264,49 @@ public class ScriptImageService {
       }
 
       return new ChartImage(bytes, result.isPng(), result.getWidth(), result.getHeight(), note);
+   }
+
+   /**
+    * The graph finished but can never be plotted, so waiting would loop forever (Bug #78662).
+    * Names the missing table only when the base is a worksheet that lacks it; other sources
+    * (logical model, query, embedded) get the generic wording.
+    */
+   private static PairingException terminalRenderFailure(Viewsheet vs, Assembly assembly,
+                                                         String assemblyName, int reason)
+   {
+      String table = assembly instanceof ChartVSAssembly chart ? chart.getTableName() : null;
+      AssetEntry base = vs.getBaseEntry();
+      Worksheet ws = vs.getBaseWorksheet();
+
+      if(table != null && !table.isBlank() && base != null && base.isWorksheet() && ws != null &&
+         ws.getAssembly(table) == null)
+      {
+         return new PairingException(
+            "\"" + assemblyName + "\" is bound to table '" + table + "', which no longer exists " +
+            "in its base worksheet, so there is no graph to render and no wait will produce one. " +
+            "Rebind it to an existing table (list_bindable_fields shows what is available) or " +
+            "reload the viewsheet.");
+      }
+
+      boolean noFields = assembly instanceof ChartVSAssembly chart &&
+         chart.getVSChartInfo().getBindingRefs(false).length == 0;
+
+      if(noFields) {
+         return new PairingException(
+            "\"" + assemblyName + "\" has a source but no fields bound to it, so there is " +
+            "nothing to draw and no wait will produce a graph. Bind fields with " +
+            "set_chart_shelf, then render it again.");
+      }
+
+      if(reason == AssemblyImageService.ImageRenderResult.TERMINAL_NO_DATA) {
+         return new PairingException(
+            "\"" + assemblyName + "\" has no data to draw: its binding produced zero rows or " +
+            "marks (check filters and the bound fields). This is final, not a wait.");
+      }
+
+      return new PairingException(
+         "\"" + assemblyName + "\" is bound but finished without producing a graph, so " +
+         "waiting will not help. Check its source table and field bindings.");
    }
 
    /**
