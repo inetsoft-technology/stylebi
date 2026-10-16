@@ -99,7 +99,9 @@ export class TableView<T extends TableModel> implements OnChanges {
          this.sortingTimeCols, this.sortingDataAccessor);
 
       if(this.tableInfo?.selectionEnabled) {
-         const selectedIds = this.selection.selected.map((s) => s[this.trackByProp]);
+         // Bug #78721, rows without the key would all match an undefined id
+         const selectedIds = this.selection.selected.map((s) => s[this.trackByProp])
+            .filter((id) => id != null);
          const selected: TableModel[] = this.dataSource.filter(
             (row) => selectedIds.indexOf(row[this.trackByProp]) !== -1
          );
