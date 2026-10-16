@@ -309,6 +309,32 @@ class VSUtilRenameCalcFieldReferenceTest {
    }
 
    @Test
+   void keywordNamedPropertyIsAnOperand() {
+      assertRenamed("field.case / 2 + field['VatR'] / 3", "field.case / 2 + field['Vat'] / 3");
+      assertRenamed("x.in / 2 + field['VatR'] / 3", "x.in / 2 + field['Vat'] / 3");
+      assertRenamed("a.do / b + field['VatR'] / c", "a.do / b + field['Vat'] / c");
+      assertRenamed("field.of / 2 + field.VatR / 3", "field.of / 2 + field.Vat / 3");
+      assertRenamed("field . return / 2 + field['VatR'] / 3", "field . return / 2 + field['Vat'] / 3");
+   }
+
+   @Test
+   void regexAfterControlParenAndAmbiguousSlash() {
+      assertRenamed("if(a) /'/.test(s); field['VatR'] // don't",
+                    "if(a) /'/.test(s); field['Vat'] // don't");
+      assertRenamed("if(a) /[//]/.test(s); field['VatR']", "if(a) /[//]/.test(s); field['Vat']");
+      assertRenamed("if(a)\n  /'/.test(s) && log(s);\nreturn field['VatR'] // don't",
+                    "if(a)\n  /'/.test(s) && log(s);\nreturn field['Vat'] // don't");
+      assertRenamed("while(a) /\"/.test(s); field['VatR'] // \"",
+                    "while(a) /\"/.test(s); field['Vat'] // \"");
+      assertRenamed("(a+b) / 2 + field['VatR']", "(a+b) / 2 + field['Vat']");
+      assertRenamed("f(x) / y / z + field['VatR']", "f(x) / y / z + field['Vat']");
+      assertRenamed("(a) / 2 + \"x\" / 3 + field['VatR']", "(a) / 2 + \"x\" / 3 + field['Vat']");
+      assertRenamed("{ a } /'/.test(s); field['VatR'] // don't",
+                    "{ a } /'/.test(s); field['Vat'] // don't");
+      assertIgnored("(a) / 2 + \" field['Vat'] \"");
+   }
+
+   @Test
    void regexLiteralTextIsNotAReference() {
       assertIgnored("/field['Vat']/.test(s) ? 1 : 0");
    }

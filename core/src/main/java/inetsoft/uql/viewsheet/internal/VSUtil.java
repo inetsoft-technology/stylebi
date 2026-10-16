@@ -4504,6 +4504,39 @@ public final class VSUtil {
       return FIELD_NAME_MATCH;
    }
 
+   private static final Set<String> CONTROL_KEYWORDS = Set.of("if", "while", "for", "with");
+
+   /**
+    * @return the index of the '/' closing the regex candidate that starts at <code>start</code>
+    *         (outside a [...] class, honoring escapes), or -1 if the line ends first.
+    */
+   private static int regexEnd(String script, int start) {
+      int n = script.length();
+      int j = start + 1;
+      boolean inClass = false;
+
+      while(j < n && script.charAt(j) != '\n') {
+         char rc = script.charAt(j);
+
+         if(rc == '\\') {
+            j++;
+         }
+         else if(rc == '[') {
+            inClass = true;
+         }
+         else if(rc == ']') {
+            inClass = false;
+         }
+         else if(rc == '/' && !inClass) {
+            return j;
+         }
+
+         j++;
+      }
+
+      return -1;
+   }
+
    private static final Set<String> REGEX_PRECEDING_KEYWORDS = Set.of(
       "return", "typeof", "case", "in", "of", "new", "delete", "void", "throw", "else", "do",
       "instanceof", "yield", "await");
@@ -4515,8 +4548,10 @@ public final class VSUtil {
     *         (after an operator, punctuator, keyword or at the start; division after an operand).
     *         If the scan ends inside an unterminated literal, template, regex or block comment,
     *         every character is reported as code so a real reference is never silently dropped.
-    *         A regex that follows <code>)</code> (e.g. <code>if(x) /re/.test(y)</code>) is read as
-    *         division, the one case that can still desynchronize the scan.
+    *         A <code>/</code> after the <code>)</code> of if/while/for/with starts a regex; after
+    *         any other <code>)</code> or after <code>}</code> it is ambiguous, and if the regex
+    *         candidate on that line holds a quote, backtick or comment opener the scan gives up
+    *         (everything is code). A reserved word after '.' is a property name, not a keyword.
     */
    private static boolean[] codeMask(String script) {
       int n = script.length();
@@ -4532,6 +4567,11 @@ public final class VSUtil {
       int prev = 0;
       boolean inWord = false;
       String word = "";
+      // the last significant code character, and whether the current word follows a '.'
+      char last = 0;
+      boolean propWord = false;
+      // open '(' of the code, true if it followed if/while/for/with
+      Deque<Boolean> parens = new ArrayDeque<>();
 
       while(i < n && ok) {
          char c = script.charAt(i);
@@ -4543,6 +4583,7 @@ public final class VSUtil {
             else if(c == '`') {
                mode = 0;
                prev = 1;
+               last = 'x';
                inWord = false;
                i++;
             }
@@ -4575,6 +4616,7 @@ public final class VSUtil {
 
             i = j + 1;
             prev = 1;
+            last = 'x';
             inWord = false;
          }
          else if(c == '`') {
@@ -4598,37 +4640,50 @@ public final class VSUtil {
 
             i = end < 0 ? n : end + 2;
          }
-         else if(c == '/' && (prev == 0 || prev == 2 && REGEX_PRECEDING_KEYWORDS.contains(word))) {
-            int j = i + 1;
-            boolean inClass = false;
+         else if(c == '/' && (prev == 0 || prev == 3 || prev == 4 ||
+                              prev == 2 && !propWord && REGEX_PRECEDING_KEYWORDS.contains(word)))
+         {
+            int j = regexEnd(script, i);
 
-            while(j < n && script.charAt(j) != '\n' && (inClass || script.charAt(j) != '/')) {
-               char rc = script.charAt(j);
+            if((prev == 3 || prev == 4) && j >= 0) {
+               // ambiguous: a regex candidate holding a quote, backtick or comment opener could
+               // desynchronize the scan, so give up masking
+               String span = script.substring(i + 1, j);
 
-               if(rc == '\\') {
-                  j++;
+               if(span.indexOf('\'') >= 0 || span.indexOf('"') >= 0 || span.indexOf('`') >= 0 ||
+                  span.contains("//") || span.contains("/*"))
+               {
+                  ok = false;
                }
-               else if(rc == '[') {
-                  inClass = true;
-               }
-               else if(rc == ']') {
-                  inClass = false;
-               }
-
-               j++;
             }
 
-            if(j >= n || script.charAt(j) != '/') {
+            if(!ok) {
+               continue;
+            }
+
+            if(prev == 3) {
+               // after ')' (not of if/while/for/with): division
+               code[i++] = true;
+               prev = 0;
+               last = c;
+               inWord = false;
+               continue;
+            }
+
+            if(j < 0) {
                ok = false;
+               continue;
             }
 
             i = j + 1;
             prev = 1;
+            last = 'x';
             inWord = false;
          }
          else if(!braces.isEmpty() && c == '{') {
             braces.peek()[0]++;
             prev = 0;
+            last = c;
             inWord = false;
             code[i++] = true;
          }
@@ -4645,7 +4700,8 @@ public final class VSUtil {
             }
             else {
                braces.peek()[0]--;
-               prev = 0;
+               prev = 4;
+               last = c;
                inWord = false;
                code[i++] = true;
             }
@@ -4655,14 +4711,39 @@ public final class VSUtil {
                inWord = false;
             }
             else if(Character.isJavaIdentifierPart(c)) {
+               if(!inWord) {
+                  // a reserved word after '.' is a property name, i.e. an operand
+                  propWord = last == '.';
+               }
+
                word = inWord ? word + c : String.valueOf(c);
                inWord = true;
                prev = 2;
+               last = c;
             }
             else {
+               if(c == '(') {
+                  parens.push(prev == 2 && !propWord && CONTROL_KEYWORDS.contains(word));
+                  prev = 0;
+               }
+               else if(c == ')') {
+                  prev = !parens.isEmpty() && parens.pop() ? 0 : 3;
+               }
+               else if(c == ']') {
+                  prev = 1;
+               }
+               else if(c == '}') {
+                  prev = 4;
+               }
+               else if((c == '+' || c == '-') && i > 0 && script.charAt(i - 1) == c) {
+                  prev = 1;
+               }
+               else {
+                  prev = 0;
+               }
+
                inWord = false;
-               prev = c == ')' || c == ']' ||
-                  (c == '+' || c == '-') && i > 0 && script.charAt(i - 1) == c ? 1 : 0;
+               last = c;
             }
 
             code[i++] = true;
