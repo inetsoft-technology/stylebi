@@ -367,7 +367,8 @@ public class CalcTableService {
          CellBindingInfo cellBindingInfo = toCellBindingInfo(binding, rvs, assembly);
 
          if(cellBindingInfo.getType() == CellBinding.BIND_COLUMN) {
-            requireBindableColumn(runtimeId, user, assemblyName, cellBindingInfo.getValue());
+            cellBindingInfo.setValue(
+               requireBindableColumn(runtimeId, user, assemblyName, cellBindingInfo.getValue()));
 
             String secondary = CalcCellVocabulary.isSummary(cellBindingInfo.getBtype())
                ? CalcCellVocabulary.secondaryColumn(cellBindingInfo.getFormula()) : null;
@@ -436,19 +437,27 @@ public class CalcTableService {
     * {@code resolveSourceTable}'s own reasoning: not being able to read the tree is a different
     * fault than a bad column, and refusing the write on the strength of it would turn a read
     * problem into a write problem.
+    *
+    * @return the column in its real spelling (see {@link BindableColumns#canonicalize}), or
+    *         {@code column} itself when it could not be checked
     */
-   private void requireBindableColumn(String runtimeId, Principal user, String assemblyName,
-                                      String column)
+   private String requireBindableColumn(String runtimeId, Principal user, String assemblyName,
+                                        String column)
    {
       try {
          List<BindableTable> tables = fieldsService.list(runtimeId, assemblyName, user);
-         BindableColumns.require(tables, assemblyName, new FieldRef(column, null, null, null, null));
+         FieldRef ref = new FieldRef(column, null, null, null, null);
+         FieldRef canonical =
+            BindableColumns.canonicalize(tables, assemblyName, null, List.of(ref)).get(0);
+         BindableColumns.require(tables, assemblyName, canonical);
+         return canonical.column();
       }
       catch(IllegalArgumentException e) {
          throw e;
       }
       catch(Exception e) {
          LOG.debug("Could not list bindable columns for {}; skipping the check", assemblyName, e);
+         return column;
       }
    }
 
