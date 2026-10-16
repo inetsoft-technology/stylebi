@@ -875,6 +875,9 @@ public final class WorksheetMutationSupport {
       t.setAggregateInfo(ainfo);
       t.setAggregate(!ainfo.isEmpty());
 
+      // Bug #78719: re-point each ranking's 'of' at the aggregate it follows (see rankingRebinds).
+      prepared.rankingRebinds().forEach(RankingRebind::apply);
+
       // Push the (possibly just-set) aggregate alias from the private column selection into
       // the public one now. Redmine #76902 (WBS-076): for a plain single-aggregate call (no
       // secondary aggregates), nothing above re-derives the public selection from the mutated
@@ -903,7 +906,8 @@ public final class WorksheetMutationSupport {
     */
    private record PreparedAggregateInfo(AggregateInfo ainfo,
                                         ColumnSelection pendingSecondaryColumnSelection,
-                                        List<String> appliedAliases)
+                                        List<String> appliedAliases,
+                                        List<RankingRebind> rankingRebinds)
    {
    }
 
@@ -1464,7 +1468,179 @@ public final class WorksheetMutationSupport {
          }
       }
 
-      return new PreparedAggregateInfo(ainfo, pendingSecondaryColumnSelection, appliedAliases);
+      List<RankingRebind> rankingRebinds = rankingRebinds(t, ainfo, originalAliases);
+
+      return new PreparedAggregateInfo(ainfo, pendingSecondaryColumnSelection, appliedAliases,
+                                       rankingRebinds);
+   }
+
+   /** A ranking whose {@code of} is re-pointed at a new aggregate once the call commits. */
+   private record RankingRebind(inetsoft.uql.asset.RankingCondition ranking, AggregateRef of) {
+      void apply() {
+         ranking.setDataRef((AggregateRef) of.clone());
+      }
+   }
+
+   /**
+    * Bug #78719: a ranking's {@code of} binds to its aggregate by the aggregate's output NAME
+    * ({@code RankingCondition.isValid}), checked only at query time, where
+    * {@code PreAssetQuery.validateRanking} drops a ranking whose name no longer resolves with
+    * nothing but a log line. Re-aliasing the aggregate therefore silently stopped the ranking,
+    * and giving its old alias to another column silently re-targeted it. The Composer's own
+    * rename keeps the two in step ({@code RenameColumnController.renameConditionList}); this
+    * does the same for {@code set_group_aggregate}, matching each {@code of} against the new
+    * aggregates:
+    * <ol>
+    *   <li>the aggregate still output under the {@code of}'s name on the same source column
+    *   (a formula change that keeps the alias);</li>
+    *   <li>else the one aggregate with the same source column and formula (a re-alias; two
+    *   aggregates on one column are told apart by formula);</li>
+    *   <li>else the one aggregate left on the source column (a formula change with a new
+    *   alias).</li>
+    * </ol>
+    * A match is installed as a clone, so the ranking never relies on sharing the selection's
+    * live {@link ColumnRef}. Where no single aggregate matches but several could, or where the
+    * {@code of}'s name now belongs to an aggregate of another column, the call is refused
+    * before anything is committed, naming the ranking. An {@code of} whose source column is no
+    * longer aggregated at all is left as it is (it stops applying, which set_group_aggregate's
+    * own warning already reports).
+    *
+    * @param originalAliases the pre-call alias of every selection column: an {@code of} that
+    *                        still shares a selection ref has already been re-aliased by now.
+    */
+   private static List<RankingRebind> rankingRebinds(TableAssembly t, AggregateInfo ainfo,
+                                                     Map<ColumnRef, String> originalAliases)
+      throws inetsoft.web.wiz.pairing.PairingException
+   {
+      ConditionListWrapper rankings = t.getRankingConditionList();
+      List<RankingRebind> rebinds = new ArrayList<>();
+
+      if(rankings == null) {
+         return rebinds;
+      }
+
+      for(int i = 0; i < rankings.getConditionSize(); i++) {
+         ConditionItem item = rankings.isConditionItem(i) ? rankings.getConditionItem(i) : null;
+
+         if(item == null ||
+            !(item.getXCondition() instanceof inetsoft.uql.asset.RankingCondition ranking) ||
+            !(ranking.getDataRef() instanceof AggregateRef of) ||
+            !(of.getDataRef() instanceof ColumnRef ofColumn))
+         {
+            continue;
+         }
+
+         String ofName = ofColumn.getName();
+
+         if(originalAliases.containsKey(ofColumn)) {
+            ColumnRef preCall = (ColumnRef) ofColumn.clone();
+            preCall.setAlias(originalAliases.get(ofColumn));
+            ofName = preCall.getName();
+         }
+
+         String source = aggregateSource(ofColumn);
+         List<AggregateRef> sameName = new ArrayList<>();
+         List<AggregateRef> sameFormula = new ArrayList<>();
+         List<AggregateRef> sameSource = new ArrayList<>();
+         AggregateRef namedElsewhere = null;
+
+         for(int j = 0; j < ainfo.getAggregateCount(); j++) {
+            AggregateRef aggregate = ainfo.getAggregate(j);
+
+            if(!(aggregate.getDataRef() instanceof ColumnRef column)) {
+               continue;
+            }
+
+            boolean named = Objects.equals(ofName, column.getName());
+
+            if(!Objects.equals(source, aggregateSource(column))) {
+               namedElsewhere = named ? aggregate : namedElsewhere;
+               continue;
+            }
+
+            sameSource.add(aggregate);
+
+            if(named) {
+               sameName.add(aggregate);
+            }
+
+            if(Objects.equals(of.getFormula(), aggregate.getFormula())) {
+               sameFormula.add(aggregate);
+            }
+         }
+
+         List<AggregateRef> match = sameName.size() == 1 ? sameName
+            : sameFormula.size() == 1 ? sameFormula
+            : sameFormula.isEmpty() && sameSource.size() == 1 ? sameSource : null;
+
+         if(match != null) {
+            rebinds.add(new RankingRebind(ranking, match.get(0)));
+            continue;
+         }
+
+         String ranked = item.getAttribute() == null ? "?" : item.getAttribute().getAttribute();
+         String described = "The ranking on '" + ranked + "' ranks by '" + ofName + "' (" +
+            describeAggregate(of) + ")";
+
+         if(sameSource.isEmpty() && namedElsewhere != null) {
+            throw new inetsoft.web.wiz.pairing.PairingException(
+               described + ", and this change gives the name '" + ofName + "' to " +
+               describeAggregate(namedElsewhere) + " instead, so the ranking would silently " +
+               "rank by that column. Keep an aggregate on '" + displaySource(ofColumn) +
+               "', or change the ranking with set_ranking/set_rankings first.");
+         }
+
+         if(!sameSource.isEmpty()) {
+            List<String> names = new ArrayList<>();
+
+            for(AggregateRef candidate : sameFormula.isEmpty() ? sameSource : sameFormula) {
+               names.add("'" + candidate.getDataRef().getName() + "' (" +
+                         describeAggregate(candidate) + ")");
+            }
+
+            throw new inetsoft.web.wiz.pairing.PairingException(
+               described + ", and this change leaves " + names.size() + " aggregates on '" +
+               displaySource(ofColumn) + "' it could follow: " + String.join(", ", names) + ". Give the one " +
+               "it should rank by the alias '" + ofName + "', or change the ranking with " +
+               "set_ranking/set_rankings first.");
+         }
+      }
+
+      return rebinds;
+   }
+
+   /**
+    * The source column an aggregate's {@link ColumnRef} aggregates: its attribute, or for the
+    * expression column the secondary-aggregate conversion above creates ({@code field['X']}),
+    * the column X it reads.
+    */
+   private static String aggregateSource(ColumnRef column) {
+      if(column.getDataRef() instanceof ExpressionRef expression) {
+         java.util.regex.Matcher m = FIELD_ONLY.matcher(
+            expression.getExpression() == null ? "" : expression.getExpression().trim());
+
+         if(m.matches()) {
+            return m.group(1);
+         }
+      }
+
+      return column.isEntityBlank() ? column.getAttribute()
+         : column.getEntity() + "." + column.getAttribute();
+   }
+
+   private static final java.util.regex.Pattern FIELD_ONLY =
+      java.util.regex.Pattern.compile("field\\['([^']+)'\\]");
+
+   /** {@link #aggregateSource} as the caller names the column, without its table prefix. */
+   private static String displaySource(ColumnRef column) {
+      return column.getDataRef() instanceof ExpressionRef ? aggregateSource(column)
+         : column.getAttribute();
+   }
+
+   private static String describeAggregate(AggregateRef aggregate) {
+      String formula = aggregate.getFormula() == null ? "?" : aggregate.getFormula().getLabel();
+      return formula + " of " + (aggregate.getDataRef() instanceof ColumnRef column
+         ? displaySource(column) : String.valueOf(aggregate.getDataRef()));
    }
 
    /**

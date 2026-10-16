@@ -138,11 +138,20 @@ public class AssemblyHyperlinkService {
       Region target = region == null ? Region.whole() : region;
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       int col = resolveCol(rvs, assemblyName, target);
+      TableLensGuard.Cell cell = requireTableCell(rvs, assemblyName, target.row(), col);
       HyperlinkDialogModel model = hyperlinkService.getHyperlinkDialogModel(
-         rvs.getID(), assemblyName, target.row(), col, target.colName(), target.axis(),
+         rvs.getID(), assemblyName, cell.row(), cell.col(), target.colName(), target.axis(),
          target.text(), target.titleLink(), target.emptyPlotLink(), user);
+      Map<String, Object> out = describe(assemblyName, model, target);
 
-      return describe(assemblyName, model, target);
+      // A freehand table cell is addressed by layout row/col and read at its runtime instance;
+      // echo the cell the caller named, not the runtime one it rendered at.
+      if(model != null && (cell.row() != target.row() || cell.col() != col)) {
+         out.put("row", target.row());
+         out.put("col", col);
+      }
+
+      return out;
    }
 
    /** One {@code sessions.mutate}, so one undo checkpoint. */
@@ -171,8 +180,9 @@ public class AssemblyHyperlinkService {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          Region target = region == null ? Region.whole() : region;
          int col = resolveCol(rvs, assemblyName, target);
+         TableLensGuard.Cell cell = requireTableCell(rvs, assemblyName, target.row(), col);
          HyperlinkDialogModel model = hyperlinkService.getHyperlinkDialogModel(
-            runtimeId, assemblyName, target.row(), col, target.colName(),
+            runtimeId, assemblyName, cell.row(), cell.col(), target.colName(),
             target.axis(), target.text(), target.titleLink(), target.emptyPlotLink(), user);
 
          applyRowScope(assemblyName, model, link, rowLinkTarget(rvs, assemblyName, target.row()));
@@ -255,6 +265,26 @@ public class AssemblyHyperlinkService {
       }
 
       return resolved;
+   }
+
+   /**
+    * The rendered cell a table-type assembly's (row, col) addresses, refused by name when it is
+    * outside the table (bug #78719); see {@link TableLensGuard#requireRenderedCell}. Every other
+    * assembly type passes through unchanged: its link is not stored per cell.
+    */
+   private static TableLensGuard.Cell requireTableCell(RuntimeViewsheet rvs, String assemblyName,
+                                                       int row, int col) throws Exception
+   {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof TableDataVSAssembly table)) {
+         return new TableLensGuard.Cell(row, col);
+      }
+
+      return TableLensGuard.requireRenderedCell(
+         rvs, table, assemblyName, row, col,
+         "no hyperlink can be addressed there (a table's links are stored per rendered cell)");
    }
 
    /**

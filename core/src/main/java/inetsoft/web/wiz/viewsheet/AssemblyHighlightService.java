@@ -442,7 +442,7 @@ public class AssemblyHighlightService {
    {
       String runtimeId = rvs.getID();
       requireTableRendered(rvs, assemblyName);
-      Region target = region == null ? Region.whole() : region;
+      Region target = region == null ? Region.whole() : renderedCell(rvs, assemblyName, region);
       HighlightDialogModel model = readAt(runtimeId, assemblyName, target, user);
 
       // A crosstab's cell (0,0) is a HEADER, and a header has no highlightable fields — so
@@ -502,6 +502,29 @@ public class AssemblyHighlightService {
             rvs, assembly, assemblyName, "its highlights cannot be addressed (they are stored " +
             "per rendered cell)");
       }
+   }
+
+   /**
+    * The rendered cell an explicit region of a table-type assembly addresses, refused by name
+    * when it is outside the table (bug #78719); see {@link TableLensGuard#requireRenderedCell}.
+    * A freehand table's layout row/col become its first runtime instance. Any other assembly type
+    * keeps the region as given.
+    */
+   private static Region renderedCell(RuntimeViewsheet rvs, String assemblyName, Region region)
+      throws Exception
+   {
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof TableDataVSAssembly table)) {
+         return region;
+      }
+
+      TableLensGuard.Cell cell = TableLensGuard.requireRenderedCell(
+         rvs, table, assemblyName, region.row(), region.col(),
+         "no highlight can be addressed there (a table's highlights are stored per rendered cell)");
+
+      return new Region(cell.row(), cell.col(), region.colName(), region.axis(), region.text());
    }
 
    /**
