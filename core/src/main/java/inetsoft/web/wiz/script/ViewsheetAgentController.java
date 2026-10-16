@@ -239,10 +239,12 @@ public class ViewsheetAgentController {
    /**
     * Dry-runs the script currently saved at {@code target} (see {@link ScriptExecuteService}).
     *
-    * <p>Broadcasts a refresh if the run actually executed against the live runtime — dry-run
-    * has no isolated clone, so a script that isn't caught by the destructive-globals check can
-    * mutate live state. Without the broadcast, the owning browser session would never learn
-    * that happened.</p>
+    * <p>Broadcasts a refresh whenever script execution was attempted against the live runtime
+    * (i.e. unless the destructive-globals check refused it with {@code requiresConfirmation}).
+    * Dry-run has no isolated clone, so a script that isn't caught by that check can mutate live
+    * state, including partially: writes that precede an unrecognized write or a thrown error
+    * stay applied even though {@code changed} is empty/null. Without the broadcast, the owning
+    * browser session would never learn that happened.</p>
     */
    @PostMapping("/api/wiz/v1/agent/script/{sessionToken}/execute")
    public ScriptExecResult execute(@PathVariable String sessionToken,
@@ -257,7 +259,7 @@ public class ViewsheetAgentController {
             requirePaneScope(sessionToken, user, t);
             return executeService.dryRun(rvs, t);
          },
-         result -> result.changed() != null && !result.changed().isEmpty());
+         result -> !result.requiresConfirmation());
    }
 
    public record ExecuteLiveRequest(String target, String id, String kind, String assembly,

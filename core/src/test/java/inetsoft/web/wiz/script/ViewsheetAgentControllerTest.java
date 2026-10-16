@@ -21,11 +21,14 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.script.model.FunctionSignature;
+import inetsoft.web.wiz.script.model.ScriptError;
+import inetsoft.web.wiz.script.model.ScriptExecResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -276,6 +279,73 @@ class ViewsheetAgentControllerTest {
          null, null, "calcField", "Query1", "Margin");
 
       assertRefusesCalcFieldReason(() -> controller.execute(PANE_TOKEN, req, agent));
+   }
+
+   private static final ScriptExecResult UNRECOGNIZED_WRITE = new ScriptExecResult(
+      true, null, null, List.of(), false, null, null, List.of("bogusProp"));
+   private static final ScriptExecResult THROWN_ERROR = new ScriptExecResult(
+      false, null, new ScriptError("boom", null, 1), null, false, null, null, null);
+   private static final ScriptExecResult NEEDS_CONFIRMATION = new ScriptExecResult(
+      true, null, null, null, true, "destructive", null, null);
+   private static final ScriptExecResult CLEAN_RUN = new ScriptExecResult(
+      true, 1, null, List.of("vs-init"), false, null, null, null);
+
+   private static void executeAndVerifyBroadcast(ScriptExecResult result, boolean expectBroadcast)
+      throws Exception
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      when(sessionService.resolve(eq(PANE_TOKEN), eq("admin"))).thenReturn(wholeSheetSession());
+
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq(PANE_RUNTIME_ID), any()))
+         .thenReturn(rvs);
+
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      ScriptExecuteService executeService = mock(ScriptExecuteService.class);
+      when(executeService.dryRun(any(), any())).thenReturn(result);
+
+      ViewsheetAgentController controller = new ViewsheetAgentController(feature,
+         mock(SheetJoinService.class), sessionService,
+         new ScriptEditService(sessionService, runtimeAccess, broadcast),
+         mock(ScriptReadService.class), executeService, mock(ScriptContextService.class),
+         mock(ScriptApiService.class), mock(ScriptImageService.class),
+         mock(ViewsheetService.class), broadcast);
+
+      var req = new ViewsheetAgentController.ExecuteRequest(
+         null, null, "viewsheetOnInit", null, null);
+      assertSame(result, controller.execute(PANE_TOKEN, req, principal()));
+
+      if(expectBroadcast) {
+         verify(broadcast).broadcastRefresh(eq(rvs), eq(SheetType.VIEWSHEET),
+            eq(PANE_RUNTIME_ID), any());
+      }
+      else {
+         verify(broadcast, never()).broadcastRefresh(any(), any(), anyString(), any());
+      }
+   }
+
+   @Test
+   void executeBroadcastsWhenAnUnrecognizedWriteLeavesChangedEmpty() throws Exception {
+      executeAndVerifyBroadcast(UNRECOGNIZED_WRITE, true);
+   }
+
+   @Test
+   void executeBroadcastsWhenTheScriptThrewAndChangedIsNull() throws Exception {
+      executeAndVerifyBroadcast(THROWN_ERROR, true);
+   }
+
+   @Test
+   void executeBroadcastsOnACleanRun() throws Exception {
+      executeAndVerifyBroadcast(CLEAN_RUN, true);
+   }
+
+   @Test
+   void executeDoesNotBroadcastWhenTheDestructiveCheckRefusedTheRun() throws Exception {
+      executeAndVerifyBroadcast(NEEDS_CONFIRMATION, false);
    }
 
    @Test
