@@ -605,9 +605,27 @@ class CalcCellVocabularyTest {
    @ParameterizedTest
    @ValueSource(strings = {
       "NthLargest(3)", "NthSmallest( 2 )", "NthMostFrequent(1)", "PthPercentile(90)",
-      "PthPercentile(-5)", "NthLargest", "NthLargest()", "NthLargest(3)<-1>"})
+      "NthLargest(1)", "NthLargest(2147483647)", "PthPercentile(0)", "PthPercentile(100)",
+      "NthLargest", "NthLargest()", "NthLargest(3)<-1>"})
    void acceptsIntegerOrAbsentNthAndPercentileOperands(String formula) {
       assertDoesNotThrow(() -> CalcCellVocabulary.validate(summary(formula)));
+   }
+
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "NthLargest(0)|0|1 to 2147483647", "NthLargest(-2)|-2|1 to 2147483647",
+      "NthSmallest(0)|0|1 to 2147483647", "NthMostFrequent(-1)|-1|1 to 2147483647",
+      "nth_largest(0)|0|1 to 2147483647", "NthLargest(2147483648)|2147483648|1 to 2147483647",
+      "NthLargest(99999999999)|99999999999|1 to 2147483647",
+      "PthPercentile(150)|150|0 to 100", "PthPercentile(-5)|-5|0 to 100",
+      "PthPercentile(101)|101|0 to 100", "PthPercentileFormula(150)|150|0 to 100",
+      "PthPercentile<-1>(150)|150|0 to 100"})
+   void refusesAnOutOfRangeNthOrPercentileOperand(String formula, String arg, String range) {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> CalcCellVocabulary.validate(summary(formula)));
+      assertTrue(e.getMessage().contains("'" + arg + "'"), e.getMessage());
+      assertTrue(e.getMessage().contains(range), e.getMessage());
+      assertTrue(e.getMessage().contains("Nothing was changed."), e.getMessage());
    }
 
    @ParameterizedTest
