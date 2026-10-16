@@ -141,7 +141,7 @@ public class ChangeChartTypeService {
 
       int oldType = cinfo.getChartType();
       int newType = event.getType();
-      boolean omulti = cinfo.isMultiStyles();
+      boolean omulti = cinfo.isDesignMultiStyles();
       boolean nmulti = event.isMulti();
       boolean ostackMeasures = plotDesc.isStackMeasures();
       boolean nstackMeasures = event.isStackMeasures();

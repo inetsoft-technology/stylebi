@@ -638,7 +638,7 @@ public class ChartBindingService {
          // multi has the same hole and escapes it only by accident, since its coerced value travels
          // through the WebSocket path that drops it silently -- repairing that path would otherwise
          // turn every plain retype into a multi-style teardown.
-         event.setMulti(multi == null ? isMultiStyles(chart) : multi);
+         event.setMulti(multi == null ? isDesignMultiStyles(chart) : multi);
          event.setStackMeasures(
             stackMeasures == null ? isStackMeasures(chart) : stackMeasures);
          event.setSeparate(separate == null ? isSeparatedGraph(chart) : separate);

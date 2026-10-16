@@ -1131,6 +1131,38 @@ class ChartBindingServiceTest {
                   "an unmentioned separate must carry the chart's own state, not a forced true");
    }
 
+   /**
+    * Bug #78680. Under a date comparison the live multi flag is the DC override (on) while the
+    * design flag is off. An unmentioned multi must carry the design value, which is what
+    * ChangeChartTypeService now compares against; the runtime value would read as a multi-to-single
+    * flip there.
+    */
+   @Test
+   void anUnmentionedMultiCarriesTheDesignValueUnderADateComparison() throws Exception {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(false);
+      when(info.isSeparatedGraph()).thenReturn(false);
+      when(info.isDesignSeparated()).thenReturn(true);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      harnessWithAssembly(chart, new ChartBindingModel(), mock(ChangeChartRefService.class),
+                          types, mock(SwapXYBindingService.class),
+                          mock(ChangeSeparateStatusService.class))
+         .setChartType("tok", principal(), "Chart1", GraphTypes.CHART_LINE, null, null, null, null,
+                       "");
+
+      ArgumentCaptor<ChangeChartTypeEvent> event =
+         ArgumentCaptor.forClass(ChangeChartTypeEvent.class);
+      verify(types).changeChartType(eq("rt1"), event.capture(), any(Principal.class), any(),
+                                    anyString());
+      assertFalse(event.getValue().isMulti(), "multi must be the design value, not the DC override");
+   }
+
+
    /** What the caller does state still wins, so the preserving default cannot swallow a real ask. */
    @Test
    void stillSendsTheFlagsTheCallerDidState() throws Exception {
