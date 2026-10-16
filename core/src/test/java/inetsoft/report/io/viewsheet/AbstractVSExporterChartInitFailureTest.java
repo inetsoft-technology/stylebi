@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
 import inetsoft.test.*;
+import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.schema.XSchema;
@@ -33,6 +34,7 @@ import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -52,7 +54,8 @@ import static org.mockito.Mockito.*;
  * no catch, so a hidden chart bound to a column its table lacks failed the whole export. A
  * chart that is not exported must not fail the export; an exported chart whose graph fails to
  * initialize still does (#77227). A chart with a script gets the failure as a "Script failed"
- * MessageException, which must not fail the export either.
+ * MessageException, which must not fail the export either. A chart on a tab that is not selected
+ * is not exported either, and is prepared like a hidden one.
  *
  * <p>CSV is used because painting a chart needs batik, which core's test classpath lacks.</p>
  */
@@ -102,6 +105,39 @@ class AbstractVSExporterChartInitFailureTest {
          exporter.write();
       });
       assertMissingColumn(ex);
+   }
+
+   // a chart on a tab that is not selected is not visible at runtime, so it is not exported and
+   // must not fail the export; the chart on the selected tab is exported and does (#77227)
+   @ParameterizedTest(name = "match layout {0}, chart tab selected {1}")
+   @CsvSource({ "false,false", "true,false", "false,true", "true,true" })
+   void chartOnATabWhoseGraphFailsFailsTheExportOnlyIfSelected(boolean match, boolean selected)
+      throws Exception
+   {
+      ViewsheetSandbox box = getBox();
+      Viewsheet vs = box.getViewsheet();
+      ChartVSAssembly chart = bindMissingColumn(box, false);
+      setVisible(chart, true);
+      vs.addAssembly(new TextVSAssembly(vs, TEXT));
+      TabVSAssembly tab = new TabVSAssembly(vs, "Tab78727");
+      tab.setAssemblies(new String[] { TEXT, CHART });
+      tab.setLabelsValue(new String[] { "Other", "Chart" });
+      tab.setSelectedValue(selected ? CHART : TEXT);
+      vs.addAssembly(tab);
+      assertEquals(selected, vs.isVisible(chart, AbstractSheet.SHEET_RUNTIME_MODE));
+      CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      exporter.setMatchLayout(match);
+      Executable export = () -> {
+         exporter.export(box, "Current View", 0, null);
+         exporter.write();
+      };
+
+      if(selected) {
+         assertMissingColumn(assertThrows(Exception.class, export));
+      }
+      else {
+         assertDoesNotThrow(export);
+      }
    }
 
    // what is not a failure of the chart is rethrown, also inside the "Script failed" wrapper
@@ -198,4 +234,5 @@ class AbstractVSExporterChartInitFailureTest {
    private static final String ASSET_ID = "1^128^__NULL__^TEST_GraphRender";
    private static final String CHART = "Chart1";
    private static final String MISSING = "No Such Column";
+   private static final String TEXT = "Text78727";
 }
