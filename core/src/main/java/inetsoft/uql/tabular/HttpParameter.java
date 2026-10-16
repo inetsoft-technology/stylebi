@@ -126,6 +126,11 @@ public class HttpParameter implements Serializable, XMLSerializable, Cloneable {
       }
    }
 
+   @Override
+   public int hashCode() {
+      return Objects.hash(secret, name, value, type);
+   }
+
    public static Builder builder() {
       return new Builder();
    }
