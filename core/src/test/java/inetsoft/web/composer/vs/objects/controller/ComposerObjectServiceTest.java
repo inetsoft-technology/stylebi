@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -307,18 +308,46 @@ class ComposerObjectServiceTest {
    }
 
    @Test
-   void aDraggedTextIsNotFlagged() throws Exception {
+   void aTallerTextIsFlagged() throws Exception {
       Viewsheet vs = new Viewsheet();
       vs.getVSAssemblyInfo().setName("vs1");
-      TextVSAssembly text = new TextVSAssembly();
-      text.getVSAssemblyInfo().setName("Text1");
+      TextVSAssembly text = new TextVSAssembly(vs, "Text1");
+      text.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      text.getVSAssemblyInfo().setPixelSize(new Dimension(100, 28));
+      vs.addAssembly(text);
+
+      resize(vs, "Text1", 100, 44);
+
+      assertTrue(text.getVSAssemblyInfo().isUserSize());
+   }
+
+   @Test
+   void aWiderTextIsNotFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      TextVSAssembly text = new TextVSAssembly(vs, "Text1");
+      text.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      text.getVSAssemblyInfo().setPixelSize(new Dimension(100, 28));
+      vs.addAssembly(text);
+
+      resize(vs, "Text1", 300, 28);
+
+      assertFalse(text.getVSAssemblyInfo().isUserSize(), "density owns only the height");
+   }
+
+   @Test
+   void anAutoSizeTextIsNotFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      TextVSAssembly text = new TextVSAssembly(vs, "Text1");
+      ((TextVSAssemblyInfo) text.getVSAssemblyInfo()).setAutoSizeValue(true);
       text.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
       text.getVSAssemblyInfo().setPixelSize(new Dimension(100, 20));
       vs.addAssembly(text);
 
       resize(vs, "Text1", 200, 40);
 
-      assertFalse(text.getVSAssemblyInfo().isUserSize(), "a type without a density size stays clean");
+      assertFalse(text.getVSAssemblyInfo().isUserSize(), "an auto-size text takes no density size");
    }
 
    private void resize(Viewsheet vs, String name, int width, int height) throws Exception {
