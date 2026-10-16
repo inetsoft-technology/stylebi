@@ -9130,6 +9130,21 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * The sandbox that owns the assembly named {@code assemblyName}, relative to this sandbox: this
+    * sandbox for a plain name, else the embedded viewsheet's sandbox for a qualified name
+    * ({@code "EVS.Input"} -> {@code getSandbox("EVS")}). The one implementation;
+    * {@code CoreLifecycleService.getSandbox(box, name)} delegates here. A write-back input writes to
+    * the original worksheet of this sandbox, so the write and any check made before it both resolve
+    * here -- on the sandbox, not through a proxied service bean.
+    *
+    * @return the owning sandbox, or {@code null} if the embedded viewsheet is not found.
+    */
+   public ViewsheetSandbox getSandboxForAssembly(String assemblyName) {
+      int index = assemblyName.lastIndexOf('.');
+      return index < 0 ? this : getSandbox(assemblyName.substring(0, index));
+   }
+
+   /**
     * Write back data to ws embedded table directly for form elements.
     * @param engine  the asset repository.
     * @param wsTableName  the write back worksheet table name.

@@ -150,8 +150,11 @@ public class InputValueService {
          return;
       }
 
+      // resolved on the sandbox itself, as applySelection0's write does -- never through a new
+      // VSInputService method: the bean is proxied, and a method the (AOT pre-generated) proxy
+      // class does not override runs on the proxy instance with null fields
       ViewsheetSandbox root = rvs.getViewsheetSandbox().orElse(null);
-      ViewsheetSandbox box = root == null ? null : inputs.getWriteBackSandbox(root, assemblyName);
+      ViewsheetSandbox box = root == null ? null : root.getSandboxForAssembly(assemblyName);
 
       if(box == null) {
          return;

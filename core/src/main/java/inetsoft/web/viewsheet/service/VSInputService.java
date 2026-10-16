@@ -2914,16 +2914,6 @@ public class VSInputService {
       return hint;
    }
 
-   /**
-    * The sandbox whose original worksheet a write-back input named {@code assemblyName} writes
-    * to: the embedded viewsheet's sandbox for an input inside one ({@code "EVS.Input"}), else
-    * {@code box}. Callers that check a write-back target before applying a value must resolve it
-    * here, so they decide against the same worksheet the write uses.
-    */
-   public ViewsheetSandbox getWriteBackSandbox(ViewsheetSandbox box, String assemblyName) {
-      return coreLifecycleService.getSandbox(box, assemblyName);
-   }
-
    private int applySelection0(RuntimeViewsheet rvs, String assemblyName, Object selectedObject,
                                 CommandDispatcher dispatcher)
       throws Exception
@@ -3035,7 +3025,7 @@ public class VSInputService {
       }
 
       if(info.getWriteBackValue()) {
-         ViewsheetSandbox baseBox = getWriteBackSandbox(box.get(), assemblyName);
+         ViewsheetSandbox baseBox = box.get().getSandboxForAssembly(assemblyName);
          String tableName = VSUtil.stripOuter(info.getTableName());
 
          baseBox.writeBackFormDataDirectly(viewsheetService.getAssetRepository(),
