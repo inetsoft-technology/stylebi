@@ -262,4 +262,77 @@ class SizeFollowsDensityDialogTest {
       assertEquals(new Dimension(250, 30), info.getPixelSize());
       assertFalse(info.isUserSize());
    }
+
+   private static TextVSAssemblyInfo text(Dimension size, boolean userSize) {
+      TextVSAssemblyInfo info = new TextVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setPixelSize(size);
+      info.setUserSize(userSize);
+      return info;
+   }
+
+   @Test
+   void aTickedTextReturnsToTheTierHeightAndKeepsATypedWidth() {
+      TextVSAssemblyInfo info = text(new Dimension(240, 44), true);
+      SizePositionPaneModel model = model(true, 300, 44);
+
+      VSDialogService.applyDensitySize(info, model);
+      VSDialogService.recordAuthorSize(info, model, new Dimension(240, 44));
+
+      assertEquals(300, model.getWidth());
+      assertEquals(30, model.getHeight());
+      assertFalse(info.isUserSize());
+   }
+
+   @Test
+   void anUntickedTextClaimsItsHeight() {
+      TextVSAssemblyInfo info = text(new Dimension(100, 30), false);
+
+      VSDialogService.recordAuthorSize(info, model(false, 100, 30), new Dimension(100, 30));
+
+      assertTrue(info.isUserSize());
+   }
+
+   @Test
+   void aTypedWidthAloneLeavesATextFollowing() {
+      TextVSAssemblyInfo info = text(new Dimension(100, 30), false);
+
+      VSDialogService.recordAuthorSize(info, model(null, 300, 30), new Dimension(100, 30));
+
+      assertFalse(info.isUserSize());
+   }
+
+   @Test
+   void aTypedHeightIsATextAuthorsHeight() {
+      TextVSAssemblyInfo info = text(new Dimension(100, 30), false);
+
+      VSDialogService.recordAuthorSize(info, model(null, 100, 40), new Dimension(100, 30));
+
+      assertTrue(info.isUserSize());
+   }
+
+   @Test
+   void autoSizeInTheSameSaveWinsOverATickedFollow() {
+      TextVSAssemblyInfo info = text(new Dimension(100, 44), true);
+      info.setAutoSizeValue(true);
+      SizePositionPaneModel model = model(true, 100, 44);
+
+      VSDialogService.applyDensitySize(info, model);
+      VSDialogService.recordAuthorSize(info, model, new Dimension(100, 44));
+
+      assertEquals(new Dimension(100, 44), info.getPixelSize());
+      assertEquals(44, model.getHeight());
+      assertTrue(info.isUserSize(), "the earlier claim stays, since Auto Size writes nothing");
+   }
+
+   @Test
+   void readDoesNotOfferTheCheckboxForAnUnmarkedText() {
+      TextVSAssemblyInfo info = text(new Dimension(100, 20), false);
+      info.setVizMark(null);
+      SizePositionPaneModel model = new SizePositionPaneModel();
+
+      VSDialogService.readSizeFollowsDensity(info, model, true);
+
+      assertNull(model.getSizeFollowsDensity());
+   }
 }

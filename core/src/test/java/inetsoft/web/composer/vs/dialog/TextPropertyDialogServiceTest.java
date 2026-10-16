@@ -19,17 +19,21 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.composer.model.vs.SizePositionPaneModel;
 import inetsoft.web.composer.model.vs.TextPropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,11 +44,14 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Dimension;
+import java.awt.Point;
 import java.security.Principal;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
@@ -92,6 +99,51 @@ public class TextPropertyDialogServiceTest {
                                                          nullable(Principal.class),
                                                          any(CommandDispatcher.class));
       assertNotNull(infoCaptor.getValue(), "Assembly info must be passed to the property service");
+   }
+
+   @AfterEach
+   void clearDensity() {
+      SreeEnv.setProperty("viewsheet.density", null);
+   }
+
+   @Test
+   public void the_dialog_offers_follow_default_density_for_a_marked_text() throws Exception {
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      textVSAssemblyInfoSpy.setVizMark(VizMark.MODERN_LIGHT);
+      textVSAssemblyInfoSpy.setPixelSize(new Dimension(100, 28));
+      when(dialogService.getAssemblyPosition(any(), any())).thenReturn(new Point(0, 0));
+      when(dialogService.getAssemblySize(any(), any())).thenReturn(new Dimension(100, 28));
+
+      TextPropertyDialogModel model = service.getTextPropertyDialogModel("Viewsheet1", "Text1", null);
+
+      SizePositionPaneModel pane = model.getTextGeneralPaneModel().getSizePositionPaneModel();
+      assertEquals(Boolean.TRUE, pane.getSizeFollowsDensity());
+      assertTrue(pane.isDensityHeightOnly());
+   }
+
+   @Test
+   public void the_dialog_does_not_offer_it_for_an_auto_size_text() throws Exception {
+      textVSAssemblyInfoSpy.setVizMark(VizMark.MODERN_LIGHT);
+      textVSAssemblyInfoSpy.setAutoSizeValue(true);
+      when(dialogService.getAssemblyPosition(any(), any())).thenReturn(new Point(0, 0));
+      when(dialogService.getAssemblySize(any(), any())).thenReturn(new Dimension(100, 28));
+
+      TextPropertyDialogModel model = service.getTextPropertyDialogModel("Viewsheet1", "Text1", null);
+
+      assertNull(model.getTextGeneralPaneModel().getSizePositionPaneModel().getSizeFollowsDensity());
+   }
+
+   @Test
+   public void saving_writes_the_size_through_the_density_rule() throws Exception {
+      BDDMockito.given(textPropertyDialogModel.getTextGeneralPaneModel().getOutputGeneralPaneModel()
+                          .getGeneralPropPaneModel().getBasicGeneralPaneModel().getName())
+         .willReturn("Text1");
+
+      service.setTextPropertyDialogModel("Viewsheet1", "Text1", textPropertyDialogModel, "", null, commandDispatcher);
+
+      // the setter edits a clone of the stored info
+      verify(dialogService).setAssemblySizeFollowingDensity(any(TextVSAssemblyInfo.class), any(), eq(viewsheet));
+      verify(dialogService, never()).setAssemblySize(any(VSAssemblyInfo.class), any(SizePositionPaneModel.class));
    }
 
    @Spy TextVSAssemblyInfo textVSAssemblyInfoSpy = new TextVSAssemblyInfo();
