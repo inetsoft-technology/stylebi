@@ -885,8 +885,10 @@ public class AssemblyHighlightService {
     * cleared or changed. Chart; the crosstab is the overload below. Matched case-insensitively, the way {@link ConditionVocabulary} resolves field names.
     */
    static void requireNoDerivedConditionField(VSAssembly assembly, Highlight highlight) {
-      requireNoDerivedConditionField(highlight, new HighlightService.DateComparisonFields(
-         derivedDateComparisonFields(assembly), Set.of()));
+      Set<String> dimensions = new HashSet<>();
+      Set<String> derived = derivedDateComparisonFields(assembly, dimensions);
+      requireNoDerivedConditionField(highlight,
+         new HighlightService.DateComparisonFields(derived, Set.of()), dimensions);
    }
 
    /**
@@ -901,6 +903,17 @@ public class AssemblyHighlightService {
    static void requireNoDerivedConditionField(Highlight highlight,
                                               HighlightService.DateComparisonFields fields)
    {
+      requireNoDerivedConditionField(highlight, fields, Set.of());
+   }
+
+   /**
+    * @param dimensions the lower-cased derived names that are dimensions, so the refusal does not
+    *                   tell the caller to move a dimension condition onto a measure.
+    */
+   private static void requireNoDerivedConditionField(Highlight highlight,
+                                                      HighlightService.DateComparisonFields fields,
+                                                      Set<String> dimensions)
+   {
       if(highlight.conditions() == null || highlight.conditions().isEmpty() ||
          fields.isEmpty())
       {
@@ -914,11 +927,15 @@ public class AssemblyHighlightService {
          String field = clause == null || clause.field() == null ? "" : clause.field().trim();
 
          if(fields.isDerived(field)) {
+            String advice = dimensions.contains(field.toLowerCase())
+               ? "Put the condition on a field that is listed without the date comparison, " +
+                  "or clear the date comparison first."
+               : "Put the condition on the base measure instead.";
             throw new IllegalArgumentException(
                "Condition " + index + "'s field '" + field + "' is derived by the active date " +
                "comparison and has no design-time field behind it, so the highlight would be " +
                "lost or left dangling as soon as the comparison changes or is cleared. " +
-               "Put the condition on the base measure instead.");
+               advice);
          }
 
          if(fields.isAmbiguous(field)) {
@@ -932,7 +949,9 @@ public class AssemblyHighlightService {
       }
    }
 
-   private static Set<String> derivedDateComparisonFields(VSAssembly assembly) {
+   private static Set<String> derivedDateComparisonFields(VSAssembly assembly,
+                                                          Set<String> dimensions)
+   {
       Set<String> names = new HashSet<>();
 
       if(assembly != null && assembly.getInfo() instanceof ChartVSAssemblyInfo info) {
@@ -946,6 +965,10 @@ public class AssemblyHighlightService {
                ref instanceof XDimensionRef && chartInfo.getFieldByName(name, false) == null)
             {
                names.add(name);
+
+               if(ref instanceof XDimensionRef) {
+                  dimensions.add(name.toLowerCase());
+               }
             }
          }
 
@@ -956,6 +979,7 @@ public class AssemblyHighlightService {
 
             if(chartInfo.getFieldByName(name, false) == null) {
                names.add(name);
+               dimensions.add(name.toLowerCase());
             }
          }
       }

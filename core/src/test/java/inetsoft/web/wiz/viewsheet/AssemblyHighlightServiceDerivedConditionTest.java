@@ -57,6 +57,12 @@ class AssemblyHighlightServiceDerivedConditionTest {
    }
 
    private static Built chart(int dateLevel, int intervalLevel) {
+      return chart(dateLevel, intervalLevel, DateComparisonInfo.YEAR, XConstants.YEAR_DATE_GROUP);
+   }
+
+   private static Built chart(int dateLevel, int intervalLevel, int granularity,
+                              int contextLevel)
+   {
       DateComparisonInfo dcInfo = new DateComparisonInfo();
       StandardPeriods periods = new StandardPeriods();
       periods.setDateLevel(XConstants.YEAR_DATE_GROUP);
@@ -68,9 +74,10 @@ class AssemblyHighlightServiceDerivedConditionTest {
       dcInfo.setDateComparisonPeriods(periods);
 
       DateComparisonInterval interval = new DateComparisonInterval();
-      interval.setGranularity(DateComparisonInfo.YEAR);
+      interval.setGranularity(granularity);
       interval.setLevel(intervalLevel);
-      interval.setContextLevel(XConstants.YEAR_DATE_GROUP);
+      interval.setEndDayAsToDate(true);
+      interval.setContextLevel(contextLevel);
       dcInfo.setDateComparisonInterval(interval);
       dcInfo.setComparisonOption(DateComparisonInfo.CHANGE_VALUE);
 
@@ -210,6 +217,43 @@ class AssemblyHighlightServiceDerivedConditionTest {
          () -> AssemblyHighlightService.requireNoDerivedConditionField(
             built.assembly(), highlightOn(temp.getFullName().toUpperCase())));
       assertTrue(e.getMessage().contains("date comparison"), e.getMessage());
+   }
+
+   @Test
+   void chartConditionOnTheProcessorsOwnTempGroupIsRefused() {
+      Built built = chart(XConstants.MONTH_DATE_GROUP, DateComparisonInfo.MONTH_TO_DATE,
+                          DateComparisonInfo.YEAR, XConstants.YEAR_DATE_GROUP);
+      VSChartInfo info = chartInfo(built);
+      XDimensionRef[] temps = info.getDcTempGroups();
+      assertNotNull(temps, "the processor must produce temp groups");
+      assertTrue(temps.length > 0, "the processor must produce temp groups");
+
+      for(XDimensionRef temp : temps) {
+         String name = temp.getFullName();
+         assertNull(info.getFieldByName(name, false), name);
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> AssemblyHighlightService.requireNoDerivedConditionField(
+               built.assembly(), highlightOn(name.toUpperCase())));
+         assertTrue(e.getMessage().contains("date comparison"), e.getMessage());
+      }
+   }
+
+   @Test
+   void refusalAdviceDependsOnWhetherTheFieldIsAMeasureOrADimension() {
+      Built built = chart(XConstants.MONTH_DATE_GROUP, DateComparisonInfo.MONTH);
+      String dim = derivedDimensions(built).get(0);
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> AssemblyHighlightService.requireNoDerivedConditionField(
+            built.assembly(), highlightOn(dim)));
+      assertTrue(e.getMessage().contains("date comparison"), e.getMessage());
+      assertFalse(e.getMessage().contains("base measure"), e.getMessage());
+      assertTrue(e.getMessage().contains("listed without the date comparison"), e.getMessage());
+
+      Exception m = assertThrows(IllegalArgumentException.class,
+         () -> AssemblyHighlightService.requireNoDerivedConditionField(
+            built.assembly(), highlightOn(built.derivedName())));
+      assertTrue(m.getMessage().contains("Put the condition on the base measure instead."),
+                 m.getMessage());
    }
 
    @Test
