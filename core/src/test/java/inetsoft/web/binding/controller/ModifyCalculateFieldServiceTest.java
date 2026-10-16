@@ -34,11 +34,20 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.CalendarVSAssembly;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
+import inetsoft.uql.viewsheet.OutputVSAssembly;
+import inetsoft.uql.viewsheet.ScalarBindingInfo;
+import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.CalculateRefModel;
 import inetsoft.web.binding.event.ModifyCalculateFieldEvent;
@@ -571,5 +580,174 @@ class ModifyCalculateFieldServiceTest {
    @Test
    void renameRewritesCalcTableCellWhenTheCalcTableIsNamed() throws Exception {
       renameWithNamedAssembly("CalcTable1");
+   }
+
+   // ---- Bug #78682: removing or changing an unrelated calc field must not unbind a Calendar or
+   // an Output assembly (Text/Gauge/...) bound to a different column of the same table.
+
+   private static CalendarVSAssembly calendar(Viewsheet vs, String name, String table,
+                                              String column)
+   {
+      CalendarVSAssembly cal = new CalendarVSAssembly(vs, name);
+      cal.setTableName(table);
+      cal.setDataRef(new AttributeRef(null, column));
+      vs.addAssembly(cal);
+      return cal;
+   }
+
+   /** Binds an Output; {@code withRef=false} mimics a persisted binding (columnValue only). */
+   private static <T extends OutputVSAssembly> T output(Viewsheet vs, T out, String table,
+                                                         String column, boolean withRef)
+   {
+      ScalarBindingInfo sbinfo = new ScalarBindingInfo();
+      out.setScalarBindingInfo(sbinfo);
+      out.setTableName(table);
+      sbinfo.setColumnValue(column);
+
+      if(withRef) {
+         sbinfo.setColumn(new AttributeRef(null, column));
+      }
+
+      vs.addAssembly(out);
+      return out;
+   }
+
+   /** Runs the real modifyCalculateField for {@code refName}; {@code ncalc == null} removes it. */
+   private static void modify78682(Viewsheet vs, String table, String refName,
+                                   CalculateRef ncalc) throws Exception
+   {
+      String id = "rt-calcfield-78682";
+      Principal principal = mock(Principal.class);
+      CalculateRefModel calcModel = null;
+
+      if(ncalc != null) {
+         calcModel = mock(CalculateRefModel.class);
+         when(calcModel.createDataRef()).thenReturn(ncalc);
+      }
+
+      ModifyCalculateFieldEvent event = mock(ModifyCalculateFieldEvent.class);
+      when(event.calculateRef()).thenReturn(calcModel);
+      when(event.tableName()).thenReturn(table);
+      when(event.refName()).thenReturn(refName);
+      when(event.create()).thenReturn(false);
+      when(event.remove()).thenReturn(ncalc == null);
+      when(event.wizard()).thenReturn(false);
+      when(event.name()).thenReturn(null);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(mock(ViewsheetSandbox.class)));
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      when(viewsheetService.getViewsheet(eq(id), eq(principal))).thenReturn(rvs);
+
+      ModifyCalculateFieldService service = new ModifyCalculateFieldService(
+         mock(VSBindingService.class), mock(VSBindingTreeControllerServiceProxy.class),
+         mock(VSChartHandler.class), mock(XRepository.class), mock(VSWizardBindingHandler.class),
+         mock(VSRefreshController.class), viewsheetService, mock(VSAssemblyInfoHandler.class),
+         mock(DataSourceRegistry.class), mock(QueryManagerService.class));
+
+      service.modifyCalculateField(id, event, principal, mock(CommandDispatcher.class), "");
+   }
+
+   @Test
+   void removeUnrelatedCalcFieldKeepsCalendarAndOutputsBound() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("VCF20X", "field['Total'] * 2", true));
+      CalendarVSAssembly cal = calendar(vs, "Calendar1", "Orders", "Date");
+      TextVSAssembly text = output(vs, new TextVSAssembly(vs, "Text1"), "Orders", "Total", true);
+      GaugeVSAssembly gauge =
+         output(vs, new GaugeVSAssembly(vs, "Gauge1"), "Orders", "Total", true);
+      TextVSAssembly persisted =
+         output(vs, new TextVSAssembly(vs, "Text2"), "Orders", "Total", false);
+
+      modify78682(vs, "Orders", "VCF20X", null);
+
+      assertNull(vs.getCalcField("Orders", "VCF20X"));
+      assertEquals("Orders", cal.getTableName());
+      assertEquals("Orders", text.getTableName());
+      assertEquals("Orders", gauge.getTableName());
+      assertEquals("Orders", persisted.getTableName());
+   }
+
+   @Test
+   void removeBoundCalcFieldStillUnbindsCalendarAndOutputs() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("VCF20X", "field['Total'] * 2", true));
+      CalendarVSAssembly cal = calendar(vs, "Calendar1", "Orders", "VCF20X");
+      TextVSAssembly text = output(vs, new TextVSAssembly(vs, "Text1"), "Orders", "VCF20X", true);
+      GaugeVSAssembly gauge =
+         output(vs, new GaugeVSAssembly(vs, "Gauge1"), "Orders", "VCF20X", true);
+      // persisted Text/Gauge have only the column value; the column ref is resolved lazily
+      TextVSAssembly persisted =
+         output(vs, new TextVSAssembly(vs, "Text2"), "Orders", "VCF20X", false);
+      GaugeVSAssembly persistedGauge =
+         output(vs, new GaugeVSAssembly(vs, "Gauge2"), "Orders", "VCF20X", false);
+      assertNull(persisted.getScalarBindingInfo().getColumn());
+
+      modify78682(vs, "Orders", "VCF20X", null);
+
+      assertNull(cal.getTableName());
+      assertNull(text.getTableName());
+      assertNull(gauge.getTableName());
+      assertNull(persisted.getTableName());
+      assertNull(persistedGauge.getTableName());
+   }
+
+   @Test
+   void removeCalcFieldUsedOnlyAsSecondaryColumnUnbindsOutput() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("VCF20X", "field['Total'] * 2", true));
+      TextVSAssembly text = output(vs, new TextVSAssembly(vs, "Text1"), "Orders", "Total", true);
+      text.getScalarBindingInfo().setColumn2Value("VCF20X");
+
+      modify78682(vs, "Orders", "VCF20X", null);
+
+      assertNull(text.getTableName());
+   }
+
+   @Test
+   void removeUnrelatedCalcFieldDropsItsConditionAndKeepsOutputBound() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("VCF20X", "field['Total'] * 2", true));
+      TextVSAssembly text = output(vs, new TextVSAssembly(vs, "Text1"), "Orders", "Total", true);
+      ConditionList conds = new ConditionList();
+      conds.append(new ConditionItem(new AttributeRef(null, "VCF20X"), new Condition(), 0));
+      ((OutputVSAssemblyInfo) text.getVSAssemblyInfo()).setPreConditionList(conds);
+
+      modify78682(vs, "Orders", "VCF20X", null);
+
+      assertEquals("Orders", text.getTableName());
+      ConditionList left = text.getPreConditionList();
+      assertTrue(left == null || left.isEmpty(), "condition on the removed field: " + left);
+   }
+
+   @Test
+   void unrelatedDetailToAggregateKeepsCalendarBound() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("VCF20X", "field['Total'] * 2", true));
+      CalendarVSAssembly other = calendar(vs, "Calendar1", "Orders", "Date");
+      CalendarVSAssembly own = calendar(vs, "Calendar2", "Orders", "VCF20X");
+
+      modify78682(vs, "Orders", "VCF20X", calc("VCF20X", "sum(field['Total'])", false));
+
+      assertEquals("Orders", other.getTableName());
+      // a calendar bound to the field itself can't use an aggregate field and still unbinds
+      assertNull(own.getTableName());
+   }
+
+   @Test
+   void unrelatedRenameAndDetailToAggregateKeepsCalendarBound() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("VCF20X", "field['Total'] * 2", true));
+      CalendarVSAssembly other = calendar(vs, "Calendar1", "Orders", "Date");
+      CalendarVSAssembly own = calendar(vs, "Calendar2", "Orders", "VCF20X");
+      TextVSAssembly text = output(vs, new TextVSAssembly(vs, "Text1"), "Orders", "Total", true);
+
+      modify78682(vs, "Orders", "VCF20X", calc("VCF20Y", "sum(field['Total'])", false));
+
+      assertNotNull(vs.getCalcField("Orders", "VCF20Y"));
+      assertEquals("Orders", other.getTableName());
+      assertEquals("Orders", text.getTableName());
+      assertNull(own.getTableName());
    }
 }

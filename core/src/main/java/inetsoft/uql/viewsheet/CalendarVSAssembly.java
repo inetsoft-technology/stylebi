@@ -979,7 +979,12 @@ public class CalendarVSAssembly extends AbstractSelectionVSAssembly implements T
 
    @Override
    public void removeBindingCol(String ref) {
-      setTableName(null);
+      // only unbind when the removed ref is the column this calendar is bound to
+      DataRef dref = getCalendarInfo().getDataRef();
+
+      if(dref != null && Tool.equals(ref, dref.getName())) {
+         setTableName(null);
+      }
    }
 
    @Override
