@@ -118,23 +118,19 @@ public class ArrangeDashboardDialogController {
 
       for(String name : all) {
          String label = name;
-         boolean global = false;
+         // null for the user's own dashboards, which have a plain name and no suffix
+         String suffix = null;
 
          if(label.endsWith("__GLOBAL")) {
-            if(uregistry.getDashboard(label) == null) {
-               global = true;
-            }
-
+            suffix = uregistry.getDashboard(label) == null ?
+               "dashboard.globalLabel" : "dashboard.globalCopyLabel";
             label = label.substring(0, label.length() - 8);
          }
 
          label = catalog2.getString(label);
 
-         if(global) {
-            label += catalog.getString("dashboard.globalLabel");
-         }
-         else {
-            label += catalog.getString("dashboard.globalCopyLabel");
+         if(suffix != null) {
+            label += catalog.getString(suffix);
          }
 
          DashboardModel.Builder model = DashboardModel.builder();
