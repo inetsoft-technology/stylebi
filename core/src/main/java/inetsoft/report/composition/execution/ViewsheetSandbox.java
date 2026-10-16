@@ -52,6 +52,7 @@ import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.web.viewsheet.service.SharedFilterService;
 import inetsoft.web.vswizard.model.VSWizardConstants;
@@ -2591,6 +2592,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    public void prepareForExport() {
       exportScriptError = null;
+      exportFailedAssemblies.clear();
 
       try {
          // executeVSScript() (invoked by processOnLoad() to actually run the onLoad
@@ -2680,6 +2682,43 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    public Exception getExportScriptError() {
       return exportScriptError;
+   }
+
+   /**
+    * Run an assembly's script for an export. A script that throws must not fail the whole
+    * export: the failure is recorded, see {@link #getExportFailedAssemblies()}, the assembly
+    * is exported as its binding renders without the script's effect, and every other assembly
+    * is still exported. A script that was stopped (timeout or cancel) and the lock stall, lost
+    * swap file and load failures still propagate. (#76765)
+    * @param assembly the assembly whose script is run.
+    * @return changing hint of assembly info.
+    */
+   public int executeScriptForExport(VSAssembly assembly) throws Exception {
+      try {
+         return executeScript(assembly);
+      }
+      catch(ScriptException ex) {
+         if(ScriptTimeoutGuard.isStop(ex) || LockStallException.find(ex) != null ||
+            SwapFileReadException.find(ex) != null || DataUnavailable.find(ex) != null ||
+            TableLoadException.find(ex) != null)
+         {
+            throw ex;
+         }
+
+         String name = assembly.getAbsoluteName();
+         exportFailedAssemblies.add(name);
+         LOG.error("Failed to execute the script of assembly \"{}\" for export; it is " +
+                      "exported without the effect of its script", name, ex);
+         return VSAssembly.NONE_CHANGED;
+      }
+   }
+
+   /**
+    * The assemblies whose script failed in the current export, in the order they failed, or an
+    * empty list. Read by the exporters so the failure is visible on the exported document.
+    */
+   public List<String> getExportFailedAssemblies() {
+      return new ArrayList<>(exportFailedAssemblies);
    }
 
    /**
@@ -5892,7 +5931,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                      }
                   }
 
-                  int hint = executeScript(assembly);
+                  // the script already failed in this export, don't fail the export on it again
+                  int hint = exportFailedAssemblies.contains(name) ?
+                     VSAssembly.NONE_CHANGED : executeScript(assembly);
 
                   if(hint != VSAssembly.NONE_CHANGED) {
                      scriptable.setDisableForm(true);
@@ -9368,6 +9409,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private VSBookmarkInfo openedBookmark; // the current opened bookmark
    private boolean onLoadExeced = false;
    private Exception exportScriptError; // onLoad failure from prepareForExport()
+   private final Set<String> exportFailedAssemblies = new LinkedHashSet<>();
    private boolean parametersApplied = false;
    // Accessed only while the write lock is held (resetRuntime → reset → applyParameterToInput),
    // so a plain HashSet is safe here; no concurrent access occurs outside that path.
