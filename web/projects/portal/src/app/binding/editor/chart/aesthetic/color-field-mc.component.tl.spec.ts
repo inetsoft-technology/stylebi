@@ -25,8 +25,11 @@
  *   Group 3 [Risk 2] — getEditPaneId: CategoricalColor vs LinearColor vs StaticColor vs CombinedColor
  *   Group 4 [Risk 2] — isPrimaryField/isContour/getHint/isDropPaneAccept: chart-type guards
  *   Group 5 [Risk 2] — reset/setAestheticRef/syncAllChartAggregateInfo: aggregate sync contracts
+ *   Group 6 [Risk 3] — Assign Fixed Mapping dialog dismissed (Cancel / header X / Escape):
+ *                      frame unchanged and nothing submitted when the dropdown closes (Bug #78706)
  *
- * HTTP: no HTTP — chart binding editor local state only
+ * HTTP: no HTTP — chart binding editor local state only (Group 6 mocks ModelService.sendModel
+ *       with a server-shaped ColorMappingDialogModel)
  *
  * Out of scope:
  *   dragFieldMCComplete/drop/convert — DnD orchestration owned by AestheticFieldMc base
@@ -34,7 +37,8 @@
  */
 
 import { ComponentFixture } from "@angular/core/testing";
-import { render, screen } from "@testing-library/angular";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { render, screen, waitFor } from "@testing-library/angular";
 import userEvent from "@testing-library/user-event";
 import { of } from "rxjs";
 import { DndService } from "../../../../common/dnd/dnd.service";
@@ -229,5 +233,174 @@ describe("ColorFieldMc — aggregate sync [Group 5, Risk 2]", () => {
       fixture.componentInstance.reset();
 
       expect((fixture.componentInstance as any).oframes).toBe("");
+   });
+});
+
+type DismissMode = "cancel" | "x" | "esc";
+
+function categoricalFrame(colorMaps: any[], dateFormat: number | null,
+                          useGlobal = false): CategoricalColorModel
+{
+   const frame = new CategoricalColorModel();
+   frame.colors = ["#aa0000", "#00aa00"];
+   frame.cssColors = ["#aa0000", "#00aa00"];
+   frame.defaultColors = ["#aa0000", "#00aa00"];
+   frame.colorMaps = colorMaps;
+   frame.globalColorMaps = [];
+   frame.useGlobal = useGlobal;
+   frame.shareColors = useGlobal;
+   frame.dateFormat = dateFormat;
+   return frame;
+}
+
+/**
+ * Opens the real fixedDropdown, clicks "Assign Fixed Mapping" in the real CategoricalColorPane,
+ * dismisses the real ColorMappingDialog (opened through ComponentTool.showDialog and NgbModal),
+ * then closes the dropdown so AestheticFieldMc.submitIfChanged() runs.
+ */
+async function dismissColorMappingDialog(mode: DismissMode, frame: CategoricalColorModel,
+                                         serverMaps: any[], useGlobal = false)
+{
+   const bindingModel = TestUtils.createMockChartBindingModel();
+   const dim: any = TestUtils.createMockChartDimensionRef("state");
+   dim.classType = "dimension";
+   dim.dateLevel = "5";
+   bindingModel.colorField = { fullName: "state", dataInfo: dim, frame } as any;
+   const dimensionData = [{ label: "CA", value: "CA" }, { label: "NY", value: "NY" }];
+   // server shape: an unmapped field still gets one colourless row
+   const dialogModel: any = {
+      colorMaps: useGlobal ? [] : serverMaps,
+      dimensionData,
+      globalModel: {
+         colorMaps: useGlobal ? serverMaps : [{ option: "CA", color: null }],
+         dimensionData,
+         globalModel: null,
+         useGlobal: true,
+         shareColors: useGlobal
+      },
+      useGlobal,
+      shareColors: useGlobal
+   };
+   const editorService = {
+      changeChartAesthetic: vi.fn(),
+      isDropPaneAccept: vi.fn().mockReturnValue(true),
+      getDNDType: vi.fn().mockReturnValue(0),
+      getCustomChartFrames: vi.fn().mockReturnValue(of([]))
+   };
+   const { container, fixture } = await render(ColorFieldMc, {
+      providers: [
+         ...FIELD_MC_PROVIDERS,
+         { provide: NgbModal, useClass: NgbModal },
+         { provide: ChartEditorService, useValue: editorService },
+         { provide: DndService, useValue: {} },
+         { provide: UIContextService, useValue: { isVS: () => true, isAdhoc: () => false } },
+         {
+            provide: ModelService,
+            useValue: {
+               getModel: vi.fn().mockReturnValue(of([])),
+               sendModel: vi.fn().mockReturnValue(of({ body: dialogModel }))
+            }
+         }
+      ],
+      componentProperties: {
+         bindingModel,
+         assemblyName: "Chart1",
+         vsId: "vs1",
+         assetId: "1^128^__NULL__^TEST"
+      } as any
+   });
+   const snapshot = () => JSON.stringify({
+      colorMaps: frame.colorMaps,
+      globalColorMaps: frame.globalColorMaps,
+      dateFormat: frame.dateFormat,
+      useGlobal: frame.useGlobal
+   });
+   const before = snapshot();
+
+   const trigger = container.querySelector(".visual-cell-container") as HTMLElement;
+   await userEvent.click(trigger);
+   fixture.detectChanges();
+   await fixture.whenStable();
+   const icon = await waitFor(() => {
+      const found = document.querySelector(
+         "categorical-color-pane [title='_#(Assign Fixed Mapping)']") as HTMLElement;
+      expect(found).toBeTruthy();
+      return found;
+   });
+   await userEvent.click(icon);
+   const dialog = await waitFor(() => {
+      const found = document.querySelector(".modal-content") as HTMLElement;
+      expect(found?.querySelector(".modal-footer")).toBeTruthy();
+      return found;
+   });
+
+   if(mode === "cancel") {
+      const cancel = Array.from(dialog.querySelectorAll(".modal-footer button"))
+         .find(b => b.textContent.includes("Cancel")) as HTMLElement;
+      await userEvent.click(cancel);
+   }
+   else if(mode === "x") {
+      await userEvent.click(dialog.querySelector("modal-header .btn-close") as HTMLElement);
+   }
+   else {
+      // NgbModal listens for Escape on its window element
+      const win = document.querySelector("ngb-modal-window") as HTMLElement;
+      win.focus();
+      win.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+      win.dispatchEvent(new KeyboardEvent("keyup", { key: "Escape", code: "Escape", bubbles: true }));
+   }
+
+   await waitFor(() => expect(document.querySelector(".modal-content")).toBeFalsy(),
+                 { timeout: 3000 });
+   await new Promise(resolve => setTimeout(resolve, 50));
+   fixture.detectChanges();
+   const afterDialog = snapshot();
+
+   // close the dropdown, which runs openChanged(false) -> submitIfChanged()
+   await userEvent.click(trigger);
+   fixture.detectChanges();
+   await fixture.whenStable();
+
+   return { before, afterDialog, editorService };
+}
+
+describe("ColorFieldMc — fixed mapping dialog dismissed [Group 6, Risk 3]", () => {
+   afterEach(() => {
+      document.body.innerHTML = "";
+   });
+
+   // 🔁 Regression-sensitive: Bug #78706 — Cancel / header X used to run the OK callback with the
+   // initial rows, so an unmapped field got a colourless row and a dateFormat, and was submitted
+   for(const mode of ["cancel", "x", "esc"] as DismissMode[]) {
+      it(`should leave an unmapped field unchanged and submit nothing on ${mode}`, async () => {
+         const frame = categoricalFrame([], null);
+
+         const { before, afterDialog, editorService } =
+            await dismissColorMappingDialog(mode, frame, [{ option: "CA", color: null }]);
+
+         expect(afterDialog).toBe(before);
+         expect(editorService.changeChartAesthetic).not.toHaveBeenCalled();
+      });
+   }
+
+   it("should not set dateFormat on a mapped field when cancelled", async () => {
+      const frame = categoricalFrame([{ option: "CA", color: "#ff0000" }], null);
+
+      const { before, afterDialog, editorService } =
+         await dismissColorMappingDialog("cancel", frame, [{ option: "CA", color: "#ff0000" }]);
+
+      expect(afterDialog).toBe(before);
+      expect(frame.dateFormat).toBeNull();
+      expect(editorService.changeChartAesthetic).not.toHaveBeenCalled();
+   });
+
+   it("should leave shared colours unchanged when cancelled with Share Colors on", async () => {
+      const frame = categoricalFrame([], null, true);
+
+      const { before, afterDialog, editorService } =
+         await dismissColorMappingDialog("cancel", frame, [{ option: "CA", color: null }], true);
+
+      expect(afterDialog).toBe(before);
+      expect(editorService.changeChartAesthetic).not.toHaveBeenCalled();
    });
 });

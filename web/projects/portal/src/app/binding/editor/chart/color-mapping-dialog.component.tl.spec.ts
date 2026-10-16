@@ -125,7 +125,9 @@ describe("ColorMappingDialog — ok [Group 2, Risk 3]", () => {
 });
 
 describe("ColorMappingDialog — edit lifecycle [Group 3, Risk 2]", () => {
-   it("should emit initial maps on close and cancel", () => {
+   // 🔁 Regression-sensitive: Bug #78706 — ComponentTool.showDialog treats any onCommit as OK,
+   // so close() (Cancel / header X) must emit only onCancel
+   it("should emit only cancel on close", () => {
       const dialog = createDialog();
       dialog.ngOnInit();
       const committed = vi.fn();
@@ -135,7 +137,7 @@ describe("ColorMappingDialog — edit lifecycle [Group 3, Risk 2]", () => {
 
       dialog.close();
 
-      expect(committed).toHaveBeenCalled();
+      expect(committed).not.toHaveBeenCalled();
       expect(cancelled).toHaveBeenCalledWith("cancel");
    });
 
