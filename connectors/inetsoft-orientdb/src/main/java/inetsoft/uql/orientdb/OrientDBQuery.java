@@ -41,7 +41,8 @@ public class OrientDBQuery extends TabularQuery{
     */
    // OrientDB SQL literals use backslash escapes (Bug #78594)
    @Property(label="Enter SQL", required=true, sql=true,
-             literalEscapeStyle=VarSQL.LiteralEscapeStyle.BACKSLASH)
+             literalEscapeStyle=VarSQL.LiteralEscapeStyle.BACKSLASH,
+             backtickIdentifiers=true)
    @PropertyEditor(rows=10, columns=65)
    public String getQueryString() {
       return qstr;

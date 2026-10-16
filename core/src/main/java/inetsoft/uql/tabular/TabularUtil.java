@@ -256,6 +256,22 @@ public class TabularUtil {
                      // the SQL-like connectors (Bug #78594)
                      varsql.setLiteralEscapeStyle(style);
                      varsql.setBackslashIsEscapeChar(annotation.backslashIsEscapeChar());
+
+                     if(style != VarSQL.LiteralEscapeStyle.JSON) {
+                        // keep the designer's text as written: a template
+                        // backslash is copied, and it escapes the next
+                        // character inside a literal only where the dialect
+                        // says so; an unquoted plain number stays a number
+                        // (Bug #78594)
+                        varsql.setTemplateBackslash(
+                           style == VarSQL.LiteralEscapeStyle.BACKSLASH ||
+                           annotation.backslashIsEscapeChar() ?
+                           VarSQL.TemplateBackslash.LITERAL_ESCAPE :
+                           VarSQL.TemplateBackslash.PLAIN);
+                        varsql.setBacktickIdentifiers(annotation.backtickIdentifiers());
+                        varsql.setRawNumericStrings(true);
+                     }
+
                      VariableTable vars0 = style == VarSQL.LiteralEscapeStyle.JSON ?
                         vars : applyDateFormats((String) val, vars);
                      val = varsql.replaceVariables((String) val, vars0);

@@ -41,7 +41,8 @@ public class HiveQuery extends TabularQuery{
     */
    // HiveQL literals use backslash escapes, '' is not an escaped quote (Bug #78594)
    @Property(label="Enter SQL", required=true, sql=true,
-             literalEscapeStyle=VarSQL.LiteralEscapeStyle.BACKSLASH)
+             literalEscapeStyle=VarSQL.LiteralEscapeStyle.BACKSLASH,
+             backtickIdentifiers=true)
    @PropertyEditor(rows=10, columns=65)
    public String getQueryString() {
       return qstr;

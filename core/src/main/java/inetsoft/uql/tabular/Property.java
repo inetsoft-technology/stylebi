@@ -109,6 +109,16 @@ public @interface Property {
    boolean backslashIsEscapeChar() default false;
 
    /**
+    * True if backtick-quoted names are quoted identifiers in the dialect of a
+    * {@link #sql()} property with a non-JSON {@link #literalEscapeStyle()}
+    * (HiveQL, OrientDB SQL): quotes inside backticks then do not start a
+    * string literal, and a value spliced inside backticks has its backticks
+    * and trailing backslashes removed so it cannot end the identifier
+    * (Bug #78594).
+    */
+   boolean backtickIdentifiers() default false;
+
+   /**
     * True if replacing date variable using javascript date (timestamp) format.
     */
    boolean jsDateFormat() default false;

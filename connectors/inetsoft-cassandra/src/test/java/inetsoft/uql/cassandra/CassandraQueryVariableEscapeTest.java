@@ -67,6 +67,18 @@ class CassandraQueryVariableEscapeTest {
                    replace("SELECT * FROM t WHERE name IN ($(p))", new String[] { "a'b", "c d" }));
    }
 
+   @Test
+   void templateBackslashes_arePreservedByteForByte() {
+      String template = "SELECT * FROM t WHERE path = 'C:\\temp\\' AND b = '$(p)'";
+      assertEquals(template.replace("$(p)", "v"), replace(template, "v"));
+   }
+
+   @Test
+   void unquotedNumericString_staysRaw() {
+      assertEquals("SELECT * FROM t WHERE id =  5", replace("SELECT * FROM t WHERE id = $(p)", "5"));
+      assertEquals("SELECT * FROM t LIMIT  -2.5", replace("SELECT * FROM t LIMIT $(p)", "-2.5"));
+   }
+
    private static String replace(String template, Object value) {
       CassandraQuery query = new CassandraQuery();
       query.setQueryString(template);

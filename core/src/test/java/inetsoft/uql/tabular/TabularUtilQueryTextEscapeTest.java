@@ -134,6 +134,88 @@ class TabularUtilQueryTextEscapeTest {
    }
 
    @Test
+   void unquotedNumericString_staysRaw_otherStringsQuoted() {
+      // untyped prompt values are Strings; a plain decimal stays a number so
+      // id = $(p) and LIMIT $(p) keep working (Bug #78594 review I1)
+      for(QueryBean bean : new QueryBean[] { new CqlBean(), new BackslashBean(),
+                                             new UnknownDialectBean() })
+      {
+         assertEquals("SELECT * FROM t WHERE id =  5  LIMIT  -2.5",
+                      replace(bean, "SELECT * FROM t WHERE id = $(p) LIMIT $(q)", "5", "-2.5"),
+                      bean.getClass().getSimpleName());
+
+         for(String text : new String[] { "1 OR 1=1", "1/**/OR/**/1", "5;DROP", "1e5", "5 " }) {
+            String out = replace(bean, "SELECT * FROM t WHERE id = $(p)", text);
+            String prefix = "SELECT * FROM t WHERE id =  ";
+            assertTrue(out.startsWith(prefix), out);
+            assertEquals(List.of(text), lex(out.substring(prefix.length()), Lexer.MYSQL), out);
+         }
+      }
+   }
+
+   @Test
+   void mongoDefaultStyle_numericStringStillQuoted() {
+      // JSON style is not changed by the numeric rule
+      MongoBean bean = new MongoBean();
+      bean.setQuery("{n: $(p)}");
+      VariableTable vars = new VariableTable();
+      vars.put("p", "5");
+      TabularUtil.replaceVariables(bean, vars);
+      assertEquals("{n:  '\\u0035' }", bean.getQuery());
+   }
+
+   // ---- designer template text is passed through (review B1) ---------------
+
+   @Test
+   void templateBackslashes_preservedByteForByte() {
+      String hive = "SELECT regexp_extract(c, '(\\\\d+)', 1), split(x, '\\\\|') FROM t " +
+         "WHERE c RLIKE '\\.' AND d = '\\t' AND b = '$(p)'";
+      assertEquals(hive.replace("$(p)", "v"), replace(new BackslashBean(), hive, "v"));
+      assertEquals(hive.replace("$(p)", "v"), replace(new UnknownDialectBean(), hive, "v"));
+
+      String cql = "SELECT * FROM t WHERE path = 'C:\\temp\\' AND b = '$(p)'";
+      assertEquals(cql.replace("$(p)", "v"), replace(new CqlBean(), cql, "v"));
+
+      // a template without placeholders is untouched too
+      String noVar = "SELECT * FROM t WHERE c RLIKE '\\\\d+\\.' -- \\ comment";
+      assertEquals(noVar, replace(new BackslashBean(), noVar, "v"));
+      assertEquals(noVar, replace(new CqlBean(), noVar, "v"));
+   }
+
+   @Test
+   void escapedQuoteInTemplate_valueCannotEscapeLiteral() {
+      String value = "' OR 1=1 --";
+
+      for(String q : new String[] { "'", "\"" }) {
+         // HiveQL/OrientDB: 'x\'' is the one literal x' (review B1 repro)
+         String head = "SELECT * FROM t WHERE a = " + q + "x\\" + q + q + " AND b = ";
+         String out = replace(new BackslashBean(), head + q + "$(p)" + q, value);
+         assertTrue(out.startsWith(head), out);
+         assertEquals(List.of(value), lex(out.substring(head.length()), Lexer.BACKSLASH), out);
+      }
+
+      // CQL: 'C:\' is complete, the next literal holds the value
+      String head = "SELECT * FROM t WHERE a = 'C:\\' AND b = ";
+      String out = replace(new CqlBean(), head + "'$(p)'", value);
+      assertTrue(out.startsWith(head), out);
+      assertEquals(List.of(value), lex(out.substring(head.length()), Lexer.ANSI), out);
+   }
+
+   @Test
+   void backtickIdentifier_valueCannotEndIdentifier() {
+      assertEquals("SELECT `a OR 1=1 --` FROM t",
+                   replace(new BackslashBean(), "SELECT `$(p)` FROM t", "a` OR 1=1 --"));
+      // a quote inside backticks does not desync the literal tracking
+      assertEquals("SELECT `it's` FROM t WHERE b = 'v\\''",
+                   replace(new BackslashBean(), "SELECT `it's` FROM t WHERE b = '$(p)'", "v'"));
+   }
+
+   @Test
+   void backslashStyle_lineBreakInValue_isEscaped() {
+      assertEquals(PREFIX + "'a\\nb\\r\\nc'", replace(new BackslashBean(), QUOTED, "a\nb\r\nc"));
+   }
+
+   @Test
    void rawEmbedPlaceholder_isNotEscaped() {
       assertEquals("SELECT * FROM my_table",
                    replace(new CqlBean(), "SELECT * FROM $(@p)", "my_table"));
@@ -199,6 +281,15 @@ class TabularUtilQueryTextEscapeTest {
    }
 
    // ---- helpers --------------------------------------------------------------
+
+   private static String replace(QueryBean bean, String template, Object value, Object q) {
+      bean.setQuery(template);
+      VariableTable vars = new VariableTable();
+      vars.put("p", value);
+      vars.put("q", q);
+      TabularUtil.replaceVariables(bean, vars);
+      return bean.getQuery();
+   }
 
    private static String replace(QueryBean bean, String template, Object value) {
       bean.setQuery(template);
@@ -301,7 +392,8 @@ class TabularUtilQueryTextEscapeTest {
 
    public static class BackslashBean implements QueryBean {
       @Property(label = "Query", sql = true,
-                literalEscapeStyle = VarSQL.LiteralEscapeStyle.BACKSLASH)
+                literalEscapeStyle = VarSQL.LiteralEscapeStyle.BACKSLASH,
+                backtickIdentifiers = true)
       public String getQuery() {
          return query;
       }

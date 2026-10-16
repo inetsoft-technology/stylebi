@@ -27,6 +27,7 @@ import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * SQL variable processing.
@@ -66,6 +67,27 @@ public class VarSQL {
    public enum LiteralEscapeStyle { SQL, JSON, BACKSLASH }
 
    /**
+    * How a backslash in the template text (the query as written, not a
+    * spliced value) is handled.
+    * <ul>
+    *   <li>{@link #LEGACY} (default): the backslash escapes the next
+    *   character anywhere in the text and is itself dropped from the output.
+    *   This is the long-standing JDBC/Mongo behaviour and is kept for them.</li>
+    *   <li>{@link #LITERAL_ESCAPE}: the backslash is copied to the output.
+    *   Inside a {@code '...'} or {@code "..."} literal it escapes the next
+    *   character, so a backslash-quote does not end the literal, matching
+    *   dialects with backslash escapes (HiveQL, OrientDB SQL); the escaped
+    *   character is never the start of a placeholder. Elsewhere it is a plain
+    *   character.</li>
+    *   <li>{@link #PLAIN}: the backslash is copied and is never an escape,
+    *   for dialects where it is a plain character in literals (CQL).</li>
+    * </ul>
+    * With the last two the template is passed through byte for byte apart
+    * from the placeholders (Bug #78594).
+    */
+   public enum TemplateBackslash { LEGACY, LITERAL_ESCAPE, PLAIN }
+
+   /**
     * Set the SQL string type.
     */
    public void setSQLType(SQLType type) {
@@ -99,6 +121,39 @@ public class VarSQL {
    public void setLiteralEscapeStyle(LiteralEscapeStyle literalEscapeStyle) {
       this.literalEscapeStyle = literalEscapeStyle == null ?
          LiteralEscapeStyle.SQL : literalEscapeStyle;
+   }
+
+   /**
+    * Set how a backslash in the template text is handled, see
+    * {@link TemplateBackslash}. Defaults to {@link TemplateBackslash#LEGACY}.
+    */
+   public void setTemplateBackslash(TemplateBackslash templateBackslash) {
+      this.templateBackslash = templateBackslash == null ?
+         TemplateBackslash.LEGACY : templateBackslash;
+   }
+
+   /**
+    * Set whether a backtick-quoted name is a quoted identifier in the dialect
+    * (HiveQL, OrientDB SQL). When set, quotes inside backticks do not start a
+    * string literal, and a value spliced inside backticks has its backticks
+    * and trailing backslashes removed, so it cannot end the identifier under
+    * either the doubled-backtick (Hive) or backslash-backtick (OrientDB)
+    * convention (Bug #78594). Defaults to {@code false}.
+    */
+   public void setBacktickIdentifiers(boolean backtickIdentifiers) {
+      this.backtickIdentifiers = backtickIdentifiers;
+   }
+
+   /**
+    * Set whether an unquoted {@link SQLType#STRING} placeholder whose String
+    * value is a plain decimal number (optional sign, digits, optional
+    * fraction; see {@link #NUMERIC_STRING}) is emitted as is instead of as a
+    * quoted literal, so {@code id = $(p)} and {@code LIMIT $(p)} keep working
+    * with an untyped prompt value. Any other String is still an escaped
+    * literal. Defaults to {@code false} (Bug #78594).
+    */
+   public void setRawNumericStrings(boolean rawNumericStrings) {
+      this.rawNumericStrings = rawNumericStrings;
    }
 
    /**
@@ -161,19 +216,27 @@ public class VarSQL {
             }
 
             if(escaped) {
+               // the escaped character is copied as is (below) and is not
+               // the start of a placeholder
                escaped = false;
             }
             // @by stephenwebster, Refine bug1425596520995 and Bug #1582
             // Should not remove the comments as they could be hints into the
             // database.  Instead, ignore quotes that are in comments.
-            else if((inQuote == 0 && (ch == '\'' || ch == '"') || ch == inQuote)
+            else if((inQuote == 0 && (ch == '\'' || ch == '"' ||
+                                      backtickIdentifiers && ch == '`') || ch == inQuote)
                      && !(inMultiLineComment || inSingleLineComment))
             {
                inQuote = (inQuote == 0) ? ch : 0;
             }
-            else if(ch == '\\') {
+            else if(ch == '\\' && isTemplateEscape(inQuote)) {
                escaped = true;
-               continue;
+
+               // LEGACY drops the backslash, the other modes keep the
+               // template text as written (Bug #78594)
+               if(templateBackslash == TemplateBackslash.LEGACY) {
+                  continue;
+               }
             }
             // find variable
             else if(ch == '$' && nch == '(' &&
@@ -232,7 +295,10 @@ public class VarSQL {
                         val = joinArray(val);
                      }
 
-                     if(val != null) {
+                     if(val != null && inQuote == '`') {
+                        sql.append(escapeBacktickIdentifierValue(val.toString()));
+                     }
+                     else if(val != null) {
                         // JSON style: a Number/Boolean/Date is emitted as is,
                         // like toSQLConstant does, so it keeps its type even
                         // if bson is not really inside this quote; any other
@@ -365,6 +431,40 @@ public class VarSQL {
    }
 
    /**
+    * True if a template backslash at this point escapes the next character.
+    */
+   private boolean isTemplateEscape(int inQuote) {
+      switch(templateBackslash) {
+      case LITERAL_ESCAPE:
+         return inQuote == '\'' || inQuote == '"';
+      case PLAIN:
+         return false;
+      default:
+         return true;
+      }
+   }
+
+   /**
+    * Write a value spliced inside a backtick-quoted identifier: every
+    * backtick and any trailing backslash is removed. HiveQL ends the
+    * identifier at a single backtick (doubling escapes it, backslash is
+    * plain) and OrientDB SQL escapes a backtick with a backslash (doubling
+    * ends it), so no one escape is safe for both; without a backtick, and
+    * without a trailing backslash that would escape the closing backtick in
+    * OrientDB, the value cannot end the identifier in either (Bug #78594).
+    */
+   private static String escapeBacktickIdentifierValue(String value) {
+      String text = value.replace("`", "");
+      int end = text.length();
+
+      while(end > 0 && text.charAt(end - 1) == '\\') {
+         end--;
+      }
+
+      return text.substring(0, end);
+   }
+
+   /**
     * Escape a value that is being spliced into a SQL string literal so it
     * cannot terminate the literal early or inject additional SQL. Always
     * doubles the literal's own quote character (the standard,
@@ -410,13 +510,26 @@ public class VarSQL {
    /**
     * Escape a value for a backslash-escape dialect: a backslash is written
     * before every backslash, single quote and double quote, so the value can
-    * end neither a {@code '...'} nor a {@code "..."} literal (Bug #78594).
+    * end neither a {@code '...'} nor a {@code "..."} literal, and a line feed
+    * or carriage return is written as the escape sequence backslash-n /
+    * backslash-r, which OrientDB requires (it rejects a raw line break in a
+    * literal) and HiveQL decodes the same way (Bug #78594).
     */
    private static String escapeBackslashStringValue(String value) {
       StringBuilder escaped = new StringBuilder(value.length() + 8);
 
       for(int i = 0; i < value.length(); i++) {
          char c = value.charAt(i);
+
+         if(c == '\n') {
+            escaped.append("\\n");
+            continue;
+         }
+
+         if(c == '\r') {
+            escaped.append("\\r");
+            continue;
+         }
 
          if(c == '\\' || c == '\'' || c == '"') {
             escaped.append('\\');
@@ -547,6 +660,13 @@ public class VarSQL {
       if(val instanceof java.util.Date) {
          return AbstractCondition.getValueSQLString(val);
       }
+      else if(val instanceof String && rawNumericStrings &&
+         NUMERIC_STRING.matcher((String) val).matches())
+      {
+         // a plain decimal number has no quote, comment or operator text, so
+         // it is safe unquoted and keeps numeric positions working (Bug #78594)
+         return (String) val;
+      }
       else if(val instanceof String) {
          // the value supplies the whole literal here, so it must be escaped
          // or it could close the literal early (Bug #76864)
@@ -559,6 +679,16 @@ public class VarSQL {
    private SQLType sqlType = SQLType.STATEMENT;
    private boolean backslashIsEscapeChar = false;
    private LiteralEscapeStyle literalEscapeStyle = LiteralEscapeStyle.SQL;
+   private TemplateBackslash templateBackslash = TemplateBackslash.LEGACY;
+   private boolean backtickIdentifiers = false;
+   private boolean rawNumericStrings = false;
+
+   /**
+    * A String value emitted unquoted when {@link #setRawNumericStrings} is on:
+    * optional sign, digits, optional fraction. No exponent, whitespace, hex
+    * or other characters.
+    */
+   static final Pattern NUMERIC_STRING = Pattern.compile("[+-]?[0-9]+(\\.[0-9]+)?");
    private List<Object> params = new ArrayList();
    private List<String> names = new ArrayList();
    private static final Logger LOG = LoggerFactory.getLogger(VarSQL.class);
