@@ -48,6 +48,7 @@ import inetsoft.web.composer.model.vs.TableStylePaneModel;
 import inetsoft.web.composer.model.vs.TextInputColumnOptionPaneModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
+import inetsoft.web.wiz.binding.SelectionFormulaResolver;
 import inetsoft.web.wiz.binding.SelectionMeasureResolver;
 import inetsoft.web.viewsheet.service.VSInputService;
 import inetsoft.web.viewsheet.service.VSOutputService;
@@ -269,6 +270,7 @@ public class AssemblyPropertyService {
          String type = typeOf(rvs, assemblyName);
          Object model = readModel(rvs, type, assemblyName, user);
          String measureBefore = selectionMeasure(type, model);
+         String formulaBefore = selectionFormula(type, model);
          SelectionSourceGuard.Snapshot sourceBefore = SelectionSourceGuard.snapshot(type, model);
 
          // Resolved whole before anything is written: a typo in the fourth key must not
@@ -321,6 +323,7 @@ public class AssemblyPropertyService {
          SelectionSourceGuard.requireSourceUnchanged(type, sourceBefore, model);
          model = requireKnownSelectionMeasure(runtimeId, user, assemblyName, type, model,
                                               measureBefore);
+         model = requireKnownSelectionFormula(assemblyName, type, model, formulaBefore);
 
          if("selectiontree".equals(type) && resolved.values().stream().anyMatch(
             path -> path.equalsIgnoreCase(SINGLE_SELECTION_LEVELS_PATH)))
@@ -551,6 +554,37 @@ public class AssemblyPropertyService {
          case "selectiontree" -> "selectionTreePaneModel";
          default -> null;
       };
+   }
+
+   private static String selectionFormula(String type, Object model) {
+      String pane = selectionPane(type);
+      return pane == null ? null :
+         (String) PropertyPath.get(model, pane + ".selectionMeasurePaneModel.formula");
+   }
+
+   /**
+    * A selection list/tree measure {@code formula} was stored verbatim, so an unknown name left
+    * the list rendering no measure values (bug #78678). Same before/after shape as
+    * {@link #requireKnownSelectionMeasure}, so it covers the {@code formula} alias and the raw
+    * path of the list and the tree; resolved to the canonical name before anything is written.
+    * Blank is not checked, and an unchanged value (a legacy bad one) never blocks an unrelated
+    * patch. The dialog service itself drops the formula when there is no measure and forces
+    * {@code "none"} for a cube source.
+    */
+   private Object requireKnownSelectionFormula(String assemblyName, String type, Object model,
+                                               String before)
+   {
+      String pane = selectionPane(type);
+      String after = selectionFormula(type, model);
+
+      if(pane == null || after == null || after.isBlank() || after.equals(before)) {
+         return model;
+      }
+
+      String resolved = SelectionFormulaResolver.resolve(assemblyName, after);
+
+      return resolved.equals(after) ? model :
+         PropertyPath.set(model, pane + ".selectionMeasurePaneModel.formula", resolved);
    }
 
    private static String selectionMeasure(String type, Object model) {

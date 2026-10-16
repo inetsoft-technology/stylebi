@@ -2093,6 +2093,83 @@ class AssemblyPropertyServiceTest {
       assertEquals("AMOUNT", listMeasure(written.getValue()));
    }
 
+   // ── #78678: selection measure formula ──────────────────────────────────────
+
+   private static String listFormula(SelectionListPropertyDialogModel model) {
+      return model.getSelectionListPaneModel().getSelectionMeasurePaneModel().getFormula();
+   }
+
+   @Test
+   void refusesAnUnknownSelectionListFormulaOnTheAliasAndWritesNothing() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+      model.getSelectionListPaneModel().getSelectionMeasurePaneModel().setFormula("Sum");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> setList(model, Map.of("formula", "Foo")));
+
+      assertTrue(thrown.getMessage().contains("Foo"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Count, Sum, Max, Min"), thrown.getMessage());
+      verifyNothingWritten();
+   }
+
+   @Test
+   void refusesAnUnknownSelectionListFormulaOnTheRawPath() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+
+      assertThrows(IllegalArgumentException.class, () -> setList(model, Map.of(
+         "SelectionListPaneModel.SelectionMeasurePaneModel.Formula", "Foo")));
+      verifyNothingWritten();
+   }
+
+   @Test
+   void refusesAnUnknownSelectionTreeFormulaOnTheRawPath() throws Exception {
+      SelectionTreePropertyDialogModel model = boundTree();
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+      offerMeasures("STATE", "AMOUNT");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Tree1",
+            Map.of("selectionTreePaneModel.selectionMeasurePaneModel.formula", "Foo"), ""));
+
+      assertTrue(thrown.getMessage().contains("Foo"));
+      verifyNothingWritten();
+   }
+
+   @Test
+   void acceptsAndCanonicalisesAKnownSelectionFormulaWithTheMeasure() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+
+      setList(model, Map.of("measure", "AMOUNT", "formula", "sum"));
+
+      assertEquals("Sum", listFormula(model));
+      ArgumentCaptor<SelectionListPropertyDialogModel> written =
+         ArgumentCaptor.forClass(SelectionListPropertyDialogModel.class);
+      verify(lastSelectionList).setSelectionListPropertyModel(
+         any(), any(), written.capture(), any(), any(), any());
+      assertEquals("Sum", listFormula(written.getValue()));
+   }
+
+   @Test
+   void doesNotKeepRawTextTheFormulaLookupToleratedAndRefusesAverage() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+      setList(model, Map.of("formula", "Sum(Bar)"));
+      assertEquals("Sum", listFormula(model));
+
+      assertThrows(IllegalArgumentException.class,
+         () -> setList(boundList(), Map.of("formula", "Average")));
+   }
+
+   @Test
+   void anUnrelatedPatchOverALegacyBadSelectionFormulaIsNotBlocked() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+      model.getSelectionListPaneModel().getSelectionMeasurePaneModel().setFormula("Foo");
+
+      setList(model, Map.of("measure", "AMOUNT"));
+
+      assertEquals("Foo", listFormula(model));
+   }
+
    @Test
    void passesDynamicSelectionMeasuresThroughWithoutALookup() throws Exception {
       for(String ok : new String[] {"$(x)", "=1+1"}) {
