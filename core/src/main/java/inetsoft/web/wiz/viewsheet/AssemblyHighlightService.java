@@ -23,6 +23,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSDimensionRef;
+import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
@@ -941,7 +942,19 @@ public class AssemblyHighlightService {
          for(ChartRef ref : refs == null ? new ChartRef[0] : refs) {
             String name = ref.getFullName();
 
-            if(HighlightDialogService.isDerivedDateComparisonRef(chartInfo, name, ref)) {
+            if(HighlightDialogService.isDerivedDateComparisonRef(chartInfo, name, ref) ||
+               ref instanceof XDimensionRef && chartInfo.getFieldByName(name, false) == null)
+            {
+               names.add(name);
+            }
+         }
+
+         XDimensionRef[] tempGroups = chartInfo == null ? null : chartInfo.getDcTempGroups();
+
+         for(XDimensionRef ref : tempGroups == null ? new XDimensionRef[0] : tempGroups) {
+            String name = ref.getFullName();
+
+            if(chartInfo.getFieldByName(name, false) == null) {
                names.add(name);
             }
          }
