@@ -245,13 +245,36 @@ public class TabularUtil {
                         val = replaceJSDateVariables((String) val, vars);
                      }
 
+                     Property annotation = prop.getProperty();
+                     VarSQL.LiteralEscapeStyle style = annotation.literalEscapeStyle();
                      VarSQL varsql = new VarSQL();
                      varsql.setSQLType(VarSQL.SQLType.STRING);
-                     // sql=true tabular properties hold JSON query text (the
-                     // Mongo query), so spliced string values must use JSON
-                     // backslash escaping, not SQL quote doubling (Bug #76864)
-                     varsql.setLiteralEscapeStyle(VarSQL.LiteralEscapeStyle.JSON);
-                     val = varsql.replaceVariables((String) val, vars);
+                     // sql=true tabular properties hold engine query text, so
+                     // spliced string values are escaped for the literal
+                     // syntax the property declares: JSON for the Mongo query
+                     // (Bug #76864), SQL doubling or backslash escapes for
+                     // the SQL-like connectors (Bug #78594)
+                     varsql.setLiteralEscapeStyle(style);
+                     varsql.setBackslashIsEscapeChar(annotation.backslashIsEscapeChar());
+
+                     if(style != VarSQL.LiteralEscapeStyle.JSON) {
+                        // keep the designer's text as written: a template
+                        // backslash is copied, and it escapes the next
+                        // character inside a literal only where the dialect
+                        // says so; an unquoted plain number stays a number
+                        // (Bug #78594)
+                        varsql.setTemplateBackslash(
+                           style == VarSQL.LiteralEscapeStyle.BACKSLASH ||
+                           annotation.backslashIsEscapeChar() ?
+                           VarSQL.TemplateBackslash.LITERAL_ESCAPE :
+                           VarSQL.TemplateBackslash.PLAIN);
+                        varsql.setBacktickIdentifiers(annotation.backtickIdentifiers());
+                        varsql.setRawNumericStrings(true);
+                     }
+
+                     VariableTable vars0 = style == VarSQL.LiteralEscapeStyle.JSON ?
+                        vars : applyDateFormats((String) val, vars);
+                     val = varsql.replaceVariables((String) val, vars0);
                   }
                   else {
                      if(prop.getProperty().checkEnvVariables()) {
@@ -297,6 +320,46 @@ public class TabularUtil {
             }
          }
       }
+   }
+
+   /**
+    * Keep the date format a variable carries (e.g. a combo box with a query
+    * date format) when its value is spliced into SQL-like query text, as
+    * XUtil.replaceVariable does for the other properties: a date value with a
+    * format is replaced by its formatted text, in a table layered over the
+    * original so the caller's table is not changed (Bug #78594).
+    */
+   private static VariableTable applyDateFormats(String text, VariableTable vars) {
+      VariableTable formatted = null;
+
+      for(UserVariable var : XUtil.findVariables(text)) {
+         String name = var.getName();
+         String format = vars.getFormat(name);
+
+         if(format == null) {
+            continue;
+         }
+
+         try {
+            Object obj = vars.get(name);
+
+            if(obj instanceof Date) {
+               String str = XUtil.replaceVariable("$(" + name + ")", vars, false);
+
+               if(formatted == null) {
+                  formatted = new VariableTable();
+                  formatted.addBaseTable(vars);
+               }
+
+               formatted.put(name, str);
+            }
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to format variable {}", name, ex);
+         }
+      }
+
+      return formatted == null ? vars : formatted;
    }
 
    private static void replaceVariables(VariableTable vars,

@@ -313,6 +313,120 @@ public class VarSQLTest {
          "WHERE A = '$(p)' AND B = '$(q)'", vars("p", "O'Brien", "q", "C:\\x")));
    }
 
+   // ---- Bug #78594 ------------------------------------------------------------
+
+   /**
+    * A prompt value containing a comma arrives as an array; inside a quoted
+    * JDBC placeholder it is joined and escaped, instead of splicing the
+    * array's toString ([Ljava.lang.Object;@...) as before.
+    */
+   @Test
+   void statementQuotedPlaceholder_arrayValue_isJoinedAndEscaped() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STATEMENT);
+
+      assertEquals("SELECT * FROM T WHERE NAME = 'Smith, O''Brien'", varSql.replaceVariables(
+         "SELECT * FROM T WHERE NAME = '$(p)'",
+         vars("p", new Object[] { "Smith, O'Brien" })));
+      assertTrue(varSql.getParameterNames().isEmpty());
+   }
+
+   /** The default (JDBC) template handling is unchanged: a backslash is consumed. */
+   @Test
+   void legacyTemplateBackslash_isStillDropped() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STATEMENT);
+
+      assertEquals("WHERE A = 'x'' AND B = 'v'", varSql.replaceVariables(
+         "WHERE A = 'x\\'' AND B = '$(p)'", vars("p", "v")));
+      assertEquals("WHERE A = $(p)", varSql.replaceVariables("WHERE A = \\$(p)", vars("p", "v")));
+   }
+
+   /** The default keeps an unquoted numeric String a quoted literal (JDBC STRING callers). */
+   @Test
+   void defaultStringMode_numericString_isStillQuoted() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+
+      assertEquals("LIMIT  '5' ", varSql.replaceVariables("LIMIT $(p)", vars("p", "5")));
+   }
+
+   @Test
+   void literalEscapeTemplate_keepsBackslashesAndTracksEscapedQuote() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+      varSql.setLiteralEscapeStyle(VarSQL.LiteralEscapeStyle.BACKSLASH);
+      varSql.setTemplateBackslash(VarSQL.TemplateBackslash.LITERAL_ESCAPE);
+
+      assertEquals("WHERE r RLIKE '(\\\\d+)\\.' AND a = 'x\\'' AND b = '\\' OR 1=1 --'",
+                   varSql.replaceVariables(
+                      "WHERE r RLIKE '(\\\\d+)\\.' AND a = 'x\\'' AND b = '$(p)'",
+                      vars("p", "' OR 1=1 --")));
+      // an escaped character is never the start of a placeholder
+      assertEquals("WHERE a = '\\$(p)'", varSql.replaceVariables("WHERE a = '\\$(p)'",
+                                                                    vars("p", "'x")));
+   }
+
+   @Test
+   void plainTemplate_backslashIsNeverAnEscape() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+      varSql.setTemplateBackslash(VarSQL.TemplateBackslash.PLAIN);
+
+      // 'C:\' is a complete literal in CQL, so the placeholder is quoted
+      assertEquals("WHERE a = 'C:\\' AND b = ''' OR 1=1 --'", varSql.replaceVariables(
+         "WHERE a = 'C:\\' AND b = '$(p)'", vars("p", "' OR 1=1 --")));
+   }
+
+   @Test
+   void rawNumericStrings_onlyPlainDecimalsAreUnquoted() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+      varSql.setRawNumericStrings(true);
+
+      for(String num : new String[] { "5", "-5", "+5", "12.75", "-0.5", "007" }) {
+         assertEquals("LIMIT  " + num + " ", varSql.replaceVariables("LIMIT $(p)", vars("p", num)));
+      }
+
+      for(String text : new String[] { "1 OR 1=1", "1/**/OR/**/1", "5;DROP", "1e5", "1E+5",
+                                       " 5", "5 ", "0x1F", "5.", ".5", "--5", "5\n", "", "Infinity" })
+      {
+         assertEquals("LIMIT  '" + text + "' ",
+                      varSql.replaceVariables("LIMIT $(p)", vars("p", text)), text);
+      }
+
+      assertEquals("WHERE id IN ( 1 , 'x' )",
+                   varSql.replaceVariables("WHERE id IN ($(p))",
+                                           vars("p", new String[] { "1", "x" })));
+   }
+
+   @Test
+   void backtickIdentifiers_trackedAndValueCannotEndIdentifier() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+      varSql.setLiteralEscapeStyle(VarSQL.LiteralEscapeStyle.BACKSLASH);
+      varSql.setTemplateBackslash(VarSQL.TemplateBackslash.LITERAL_ESCAPE);
+      varSql.setBacktickIdentifiers(true);
+
+      assertEquals("SELECT `a OR 1=1 --` FROM t", varSql.replaceVariables(
+         "SELECT `$(p)` FROM t", vars("p", "a` OR 1=1 --")));
+      assertEquals("SELECT `a\\b` FROM t", varSql.replaceVariables(
+         "SELECT `$(p)` FROM t", vars("p", "a\\b\\\\")));
+      // a quote inside a backtick identifier does not open a literal
+      assertEquals("SELECT `it's` FROM t WHERE b = 'v\\''", varSql.replaceVariables(
+         "SELECT `it's` FROM t WHERE b = '$(p)'", vars("p", "v'")));
+   }
+
+   @Test
+   void backslashStyle_lineBreaksAreEscaped() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+      varSql.setLiteralEscapeStyle(VarSQL.LiteralEscapeStyle.BACKSLASH);
+
+      assertEquals("WHERE a = 'x\\ny\\rz'", varSql.replaceVariables(
+         "WHERE a = '$(p)'", vars("p", "x\ny\rz")));
+   }
+
    private static VariableTable vars(Object... kv) {
       VariableTable vars = new VariableTable();
 

@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.aerospike;
 
+import inetsoft.uql.jdbc.util.VarSQL;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
@@ -38,7 +39,12 @@ public class AerospikeQuery extends TabularQuery{
     *
     * @return sql string
     */
-   @Property(label="Enter SQL", required=true)
+   // the query runs through com.aerospike.jdbc.AerospikeDriver, whose parser
+   // (Presto, then Trino, now Calcite with the default char literal style)
+   // reads ANSI string literals: '' is the only escape and a backslash is an
+   // ordinary character, so values are quote-doubled only (Bug #78594)
+   @Property(label="Enter SQL", required=true, sql=true,
+             literalEscapeStyle=VarSQL.LiteralEscapeStyle.SQL)
    @PropertyEditor(rows=10, columns=65)
    public String getQueryString() {
       return qstr;

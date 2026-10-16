@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.cassandra;
 
+import inetsoft.uql.jdbc.util.VarSQL;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
@@ -32,7 +33,9 @@ public class CassandraQuery extends TabularQuery {
       super(CassandraDataSource.TYPE);
    }
 
-   @Property(label="Enter Query", required=true)
+   // CQL literals escape a quote only by doubling it (Bug #78594)
+   @Property(label="Enter Query", required=true, sql=true,
+             literalEscapeStyle=VarSQL.LiteralEscapeStyle.SQL)
    @PropertyEditor(rows=10, columns=65)
    public String getQueryString() {
       return qstr;
