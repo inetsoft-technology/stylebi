@@ -118,16 +118,24 @@ class AbstractLayoutTest {
    private static final int TALL_HEIGHT = 140;
    private static final int SHORT_HEIGHT = 40;
 
+   // nobody sized the box, so it is the tier box
    @Test
    void aMarkedContainedListTakesItsTierHeightInADeviceLayout() {
-      Viewsheet applied = containerLayout().apply(containerViewsheet(VizMark.MODERN_LIGHT));
+      Viewsheet applied = containerLayout().apply(containerViewsheet(VizMark.MODERN_LIGHT, false));
+      assertEquals(202, layoutHeight(applied, "SelectionList1"));
+   }
+
+   // lane 30 + 6 rows of 28 + inset 16 + 16
+   @Test
+   void anAuthorSizedMarkedContainedListFitsItsRowsInADeviceLayout() {
+      Viewsheet applied = containerLayout().apply(containerViewsheet(VizMark.MODERN_LIGHT, true));
       assertEquals(230, layoutHeight(applied, "SelectionList1"));
    }
 
    // 6 rows of defh with no title, as before
    @Test
    void anUnmarkedContainedListKeepsTheLegacyDeviceLayoutHeight() {
-      Viewsheet applied = containerLayout().apply(containerViewsheet(null));
+      Viewsheet applied = containerLayout().apply(containerViewsheet(null, false));
       assertEquals(6 * AssetUtil.defh, layoutHeight(applied, "SelectionList1"));
    }
 
@@ -166,7 +174,7 @@ class AbstractLayoutTest {
       return layout;
    }
 
-   private Viewsheet containerViewsheet(VizMark mark) {
+   private Viewsheet containerViewsheet(VizMark mark, boolean userSize) {
       Viewsheet vs = new Viewsheet();
       vs.getViewsheetInfo().setVizDensity("comfortable");
 
@@ -174,6 +182,7 @@ class AbstractLayoutTest {
       list.getSelectionListInfo().setVizMark(mark);
       list.getSelectionListInfo().initDefaultFormat();
       list.getSelectionListInfo().setListHeight(6);
+      list.getSelectionListInfo().setUserSize(userSize);
       list.setPixelOffset(new Point(160, 230));
       list.setPixelSize(new Dimension(300, 150));
 

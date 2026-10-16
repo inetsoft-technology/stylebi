@@ -36,6 +36,8 @@ import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.annotation.DirtiesContext;
@@ -47,6 +49,7 @@ import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
@@ -149,12 +152,41 @@ class SelectionPaddingDialogTest {
       assertFalse(saved.isUserCellPadding(), "all zeros with no checkbox means none, not a pinned 0");
    }
 
-   // comfortable: a 30px lane, six 28px rows and 16 + 16 of inset
-   @Test
-   void switchingAMarkedListToListMakesRoomForItsRowsAndInset() throws Exception {
-      SelectionListVSAssemblyInfo info = seededList("comfortable");
+   // never sized: the List box is the tier box, and the dropdown keeps its own six rows
+   @ParameterizedTest
+   @CsvSource({ "comfortable, 202, 28", "compact, 170, 24", "dense, 136, 20" })
+   void aFreshMarkedListSwitchedToListTakesItsTierBox(String density, int height, int row)
+      throws Exception
+   {
+      SelectionListVSAssemblyInfo saved = switchedToList(seededList(density));
 
-      assertEquals(30 + 6 * 28 + 32, switchedToList(info).getPixelSize().height);
+      assertEquals(height, saved.getPixelSize().height);
+      assertEquals(6, saved.getListHeight());
+      assertEquals(6 * row, saved.getListHeight() * saved.getEffectiveCellHeight(),
+                   "the dropdown popup");
+   }
+
+   // dragged to 230 at comfortable: the author's box, holding six rows, comes back as dragged
+   @Test
+   void anAuthorDraggedMarkedListSwitchedToListKeepsItsBox() throws Exception {
+      SelectionListVSAssemblyInfo info = seededList("comfortable");
+      info.setPixelSize(new Dimension(132, 230));
+      info.setUserSize(true);
+      info.setListHeight(6);
+
+      assertEquals(230, switchedToList(info).getPixelSize().height);
+   }
+
+   // a Height typed in Dropdown mode sizes the popup, not a box nobody sized
+   @Test
+   void aHeightTypedOnANeverSizedDropdownDoesNotSizeItsListBox() throws Exception {
+      SelectionListVSAssemblyInfo info = seededList("comfortable");
+      info.setListHeight(10);
+
+      SelectionListVSAssemblyInfo saved = switchedToList(info);
+
+      assertEquals(202, saved.getPixelSize().height);
+      assertEquals(10, saved.getListHeight());
    }
 
    // unmarked: a 20px title and six 20px rows, with no inset, exactly as before
@@ -163,6 +195,115 @@ class SelectionPaddingDialogTest {
       SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
 
       assertEquals(20 + 6 * 20, switchedToList(info).getPixelSize().height);
+   }
+
+   @Test
+   void switchingAnUnmarkedListWithTenRowsToListKeepsTheLegacyHeight() throws Exception {
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+      info.setListHeight(10);
+
+      assertEquals(20 + 10 * 20, switchedToList(info).getPixelSize().height);
+   }
+
+   // unticked and widened in Size & Position: the untick sticks through the width, and the box
+   // stays the tier box a switch from Dropdown rebuilds
+   @Test
+   void aWidthTypedInSizeAndPositionLeavesTheBoxNeverSized() throws Exception {
+      SelectionListVSAssemblyInfo info = seededList("comfortable");
+      SelectionListPropertyDialogModel model = loadWritingSizes(info);
+      SizePositionPaneModel size = model.getSelectionGeneralPaneModel().getSizePositionPaneModel();
+      assertEquals(Boolean.TRUE, size.getSizeFollowsDensity());
+      size.setSizeFollowsDensity(false);
+      size.setWidth(200);
+
+      SelectionListVSAssemblyInfo saved = submit(model);
+
+      assertFalse(saved.isUserSize());
+      assertEquals(new Dimension(200, 202), saved.getPixelSize());
+      assertEquals(6, saved.getListHeight(), "a new width refits no row");
+
+      Mockito.reset(dialogService, viewsheet);
+      clearInvocations(vsObjectPropertyService);
+      SelectionListVSAssemblyInfo listed = switchedToList(saved);
+
+      assertEquals(202, listed.getPixelSize().height);
+      assertEquals(6, listed.getListHeight());
+   }
+
+   // a typed height refits the rows as a drag does: 300 - 30 - 32 holds eight whole 28px rows, so
+   // the box comes back from Dropdown at 30 + 8 x 28 + 32 = 286, not the 300 typed
+   @Test
+   void aHeightTypedInSizeAndPositionRefitsTheRows() throws Exception {
+      SelectionListVSAssemblyInfo info = seededList("comfortable");
+      SelectionListPropertyDialogModel model = loadWritingSizes(info);
+      SizePositionPaneModel size = model.getSelectionGeneralPaneModel().getSizePositionPaneModel();
+      size.setSizeFollowsDensity(false);
+      size.setHeight(300);
+
+      SelectionListVSAssemblyInfo saved = submit(model);
+
+      assertTrue(saved.isUserSize());
+      assertEquals(new Dimension(132, 300), saved.getPixelSize());
+      assertEquals(8, saved.getListHeight());
+
+      Mockito.reset(dialogService, viewsheet);
+      clearInvocations(vsObjectPropertyService);
+      SelectionListVSAssemblyInfo listed = switchedToList(saved);
+
+      assertEquals(286, listed.getPixelSize().height);
+      assertEquals(8, listed.getListHeight());
+   }
+
+   // unmarked: the dialog never refit the rows, and still does not
+   @Test
+   void anUnmarkedListsTypedHeightLeavesItsRows() throws Exception {
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+      info.setPixelSize(new Dimension(100, 120));
+      SelectionListPropertyDialogModel model = loadWritingSizes(info);
+      SizePositionPaneModel size = model.getSelectionGeneralPaneModel().getSizePositionPaneModel();
+      assertNull(size.getSizeFollowsDensity());
+      size.setHeight(300);
+
+      SelectionListVSAssemblyInfo saved = submit(model);
+
+      assertEquals(new Dimension(100, 300), saved.getPixelSize());
+      assertEquals(6, saved.getListHeight());
+   }
+
+   // a dropdown offers no size box; a width typed as it becomes a list claims nothing
+   @Test
+   void aDropdownWidenedAsItSwitchesToListTakesItsTierBox() throws Exception {
+      SelectionListVSAssemblyInfo info = seededList("comfortable");
+      info.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      info.setPixelSize(new Dimension(132, info.getTitleHeight()));
+      SelectionListPropertyDialogModel model = loadWritingSizes(info);
+      SizePositionPaneModel size = model.getSelectionGeneralPaneModel().getSizePositionPaneModel();
+      assertNull(size.getSizeFollowsDensity());
+      size.setWidth(200);
+      model.getSelectionGeneralPaneModel().setShowType(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+
+      SelectionListVSAssemblyInfo saved = submit(model);
+
+      assertFalse(saved.isUserSize());
+      assertEquals(new Dimension(200, 202), saved.getPixelSize());
+   }
+
+   // the real size reads and writes, so the dialog records what the author typed
+   private SelectionListPropertyDialogModel loadWritingSizes(SelectionListVSAssemblyInfo info)
+      throws Exception
+   {
+      wire(info);
+      lenient().when(viewsheet.getPixelSize(any()))
+         .thenAnswer(inv -> ((AssemblyInfo) inv.getArgument(0)).getPixelSize());
+      lenient().when(dialogService.getAssemblySize(any(), any()))
+         .thenAnswer(inv -> ((AssemblyInfo) inv.getArgument(0)).getPixelSize());
+      lenient().doAnswer(inv -> {
+         SizePositionPaneModel typed = inv.getArgument(1);
+         ((VSAssemblyInfo) inv.getArgument(0))
+            .setPixelSize(new Dimension(typed.getWidth(), typed.getHeight()));
+         return null;
+      }).when(dialogService).setAssemblySize(any(VSAssemblyInfo.class), any(SizePositionPaneModel.class));
+      return service.getSelectionListPropertyModel("Viewsheet1", "SelectionList1", null);
    }
 
    private SelectionListVSAssemblyInfo seededList(String density) {
@@ -200,16 +341,16 @@ class SelectionPaddingDialogTest {
       return submit(model);
    }
 
-   // a dropdown with six list rows switched to a list. The real getPixelSize hands back the info's
-   // own size, which is what the show-type transition resizes in place
+   // a dropdown, its box its title lane, switched to a list with the rows it has. The real
+   // getPixelSize hands back the info's own size, which is what the show-type transition resizes
+   // in place
    private SelectionListVSAssemblyInfo switchedToList(SelectionListVSAssemblyInfo info)
       throws Exception
    {
       info.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
-      info.setListHeight(6);
+      info.setPixelSize(new Dimension(info.getPixelSize().width, info.getTitleHeight()));
       SelectionListPropertyDialogModel model = load(info);
       model.getSelectionGeneralPaneModel().setShowType(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
-      model.getSelectionGeneralPaneModel().setListHeight(6);
       wire(info);
       lenient().when(viewsheet.getPixelSize(any()))
          .thenAnswer(inv -> ((AssemblyInfo) inv.getArgument(0)).getPixelSize());
@@ -243,6 +384,40 @@ class SelectionPaddingDialogTest {
       pane.setRight(insets.right);
       pane.setFollowsDefault(followsDefault);
       return write(info, model);
+   }
+
+   // dragged to 230 (six rows), then Follow the default density ticked: the box goes back to 202
+   // and the rows stay the dropdown's; the box is no longer the author's, so it opens to 202
+   @Test
+   void followingTheDensitySizeLeavesTheRowsAlone() throws Exception {
+      SelectionListVSAssemblyInfo info = seededList("comfortable");
+      info.setPixelSize(new Dimension(132, 230));
+      info.setUserSize(true);
+      info.setListHeight(6);
+
+      SelectionListPropertyDialogModel model = load(info);
+      model.getSelectionGeneralPaneModel().getSizePositionPaneModel().setSizeFollowsDensity(true);
+      SelectionListVSAssemblyInfo saved = write(info, model);
+
+      assertEquals(new Dimension(132, 202), saved.getPixelSize());
+      assertEquals(6, saved.getListHeight());
+      assertEquals(202, saved.getContainedListHeight());
+   }
+
+   // an untouched list arrives with the size box ticked; made a dropdown with a Height of 10 in
+   // the same visit, the Height is the author's
+   @Test
+   void aListMadeADropdownKeepsItsHeightWhileTheSizeBoxIsTicked() throws Exception {
+      SelectionListVSAssemblyInfo info = seededList("comfortable");
+
+      SelectionListPropertyDialogModel model = load(info);
+      SelectionGeneralPaneModel pane = model.getSelectionGeneralPaneModel();
+      assertEquals(Boolean.TRUE, pane.getSizePositionPaneModel().getSizeFollowsDensity());
+      pane.setShowType(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      pane.setListHeight(10);
+      SelectionListVSAssemblyInfo saved = write(info, model);
+
+      assertEquals(10, saved.getListHeight());
    }
 
    @Mock VSOutputService vsOutputService;

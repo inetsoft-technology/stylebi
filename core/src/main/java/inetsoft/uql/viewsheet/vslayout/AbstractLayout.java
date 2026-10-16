@@ -474,7 +474,7 @@ public abstract class AbstractLayout implements AssetObject {
             int height = -1;
 
             if(aInfo instanceof SelectionBaseVSAssemblyInfo sinfo && sinfo.getVizMark() != null) {
-               // a marked list fits its rows at its own density, as it does when opened
+               // a marked list takes the box it opens to
                childSize.height = sinfo.getContainedListHeight();
             }
             else if(aInfo instanceof SelectionBaseVSAssemblyInfo) {

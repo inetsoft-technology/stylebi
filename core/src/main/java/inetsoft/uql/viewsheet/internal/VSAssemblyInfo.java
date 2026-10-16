@@ -1471,6 +1471,21 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
+    * Whether a size change is the author's claim on the box: any change, unless a type narrows it.
+    */
+   public boolean isAuthorSizeChange(Dimension before, Dimension after) {
+      return !before.equals(after);
+   }
+
+   /**
+    * Whether an unticked "follow the default density" answer claims the box only while it would
+    * still follow the density. False by default: any unticked answer is the author's claim.
+    */
+   public boolean isUntickClaimOnlyWhileFollowing() {
+      return false;
+   }
+
+   /**
     * Return the box to its density size and drop the author's claim on it.
     */
    public void resetSize(VizContext ctx) {

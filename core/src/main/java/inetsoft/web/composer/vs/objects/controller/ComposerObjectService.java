@@ -144,8 +144,8 @@ public class ComposerObjectService {
 
          info.setPixelSize(size);
 
-         // a changed size is the author's; Align and Distribute resend sizes unchanged
-         if(info.takesDensitySize() && !size.equals(originalSize)) {
+         // an author change; Align and Distribute resend sizes unchanged
+         if(info.takesDensitySize() && info.isAuthorSizeChange(originalSize, size)) {
             info.setUserSize(true);
          }
 
@@ -193,7 +193,13 @@ public class ComposerObjectService {
             SelectionListVSAssemblyInfo selectionListInfo =
                (SelectionListVSAssemblyInfo) selectionList.getInfo();
 
-            if(event.getHeight() > selectionListInfo.getTitleHeight()) {
+            if(selectionListInfo.getVizMark() != null) {
+               // only a new height changes the rows; Align and a width drag resend it unchanged
+               if(size.height != originalSize.height) {
+                  selectionListInfo.fitListHeightToBox();
+               }
+            }
+            else if(event.getHeight() > selectionListInfo.getTitleHeight()) {
                selectionListInfo.setListHeight((event.getHeight() -
                   selectionListInfo.getTitleHeight()) / defh);
             }

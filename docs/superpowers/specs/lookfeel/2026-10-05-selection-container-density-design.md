@@ -130,6 +130,9 @@ height = titleHeight + listHeight × effectiveCellHeight + inset.top + inset.bot
 | body | 168 | 144 | 120 | 120 |
 | rows visible | 6 | 6 | 6 | 6 |
 
+*(2026-10-13: the table holds for a marked list the author sized. A marked list the author never sized now opens to
+its tier box — 202 / 170 / 136 — whatever its rows; see `2026-10-12-density-deferred-fixes-design.md` D1.)*
+
 - **The child's own mark decides**, because the lane, the cell height and the inset being summed are
   the child's own. A modern list in a legacy container takes the rule; a legacy list in a modern
   container does not.
@@ -456,6 +459,7 @@ Device layout is covered by a unit test only; the fixture has no device layout.
   `prepareAssembly` and `needExport`.
 - **A container with a hidden title.** Export always counts the title (`getContainerChildTop`); the
   viewer omits it (`getBodyTop()`). D5 moves the rule without changing that.
+  Fixed 2026-10-12 for marked containers / lists: see `2026-10-12-density-deferred-fixes-design.md`.
 - **A contained range slider with a hidden title.** Export counts its lane only when its title is
   visible (`getAssemblySize:557`); the model adds the lane either way (`VSRangeSliderModel:127`). The
   title shows by default (`TimeSliderVSAssemblyInfo:1135`), and D5 moves export's rule unchanged.
@@ -487,6 +491,7 @@ Device layout is covered by a unit test only; the fixture has no device layout.
 - **The composer's resize of a selection list derives its list height from `defh`**
   (`ComposerObjectService:192-193`, `(height − title) / defh`). It is density-blind but sits outside the
   container slice; D7 only adds the flag beside it.
+  Fixed 2026-10-12 for marked containers / lists: see `2026-10-12-density-deferred-fixes-design.md`.
 
 ## 11. Open items
 

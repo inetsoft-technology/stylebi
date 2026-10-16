@@ -29,6 +29,8 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -81,16 +83,33 @@ class VSSelectionContainerServiceTest {
       });
    }
 
-   @Test
-   void expandingAMarkedListFitsItsRowsAtTheTier() throws Exception {
+   // a box nobody sized opens to the tier box, whatever the dropdown's rows
+   @ParameterizedTest
+   @CsvSource({ "comfortable, 202", "compact, 170", "dense, 136" })
+   void expandingANeverSizedMarkedListOpensToItsTierBox(String density, int height)
+      throws Exception
+   {
+      vs.getViewsheetInfo().setVizDensity(density);
       container(VizMark.MODERN_LIGHT, 800, "SelectionList1");
       SelectionListVSAssembly list = list("SelectionList1", VizMark.MODERN_LIGHT, false, 30);
 
       service.applySelection(rvs, "SelectionList1", false, dispatcher, "");
 
-      assertEquals(230, list.getPixelSize().height, "lane 30 + 6 rows of 28 + inset 16 + 16");
+      assertEquals(height, list.getPixelSize().height);
+      assertEquals(6, list.getSelectionListInfo().getListHeight());
       assertEquals(SelectionVSAssemblyInfo.LIST_SHOW_TYPE,
                    list.getSelectionListInfo().getShowTypeValue());
+   }
+
+   @Test
+   void expandingAnAuthorSizedMarkedListFitsItsRowsAtTheTier() throws Exception {
+      container(VizMark.MODERN_LIGHT, 800, "SelectionList1");
+      SelectionListVSAssembly list = list("SelectionList1", VizMark.MODERN_LIGHT, false, 30);
+      list.getSelectionListInfo().setUserSize(true);
+
+      service.applySelection(rvs, "SelectionList1", false, dispatcher, "");
+
+      assertEquals(230, list.getPixelSize().height, "lane 30 + 6 rows of 28 + inset 16 + 16");
    }
 
    @Test
@@ -105,13 +124,13 @@ class VSSelectionContainerServiceTest {
 
    // the list's own mark decides, not the container's
    @Test
-   void aMarkedListInAnUnmarkedContainerFitsItsRows() throws Exception {
+   void aMarkedListInAnUnmarkedContainerOpensToItsTierBox() throws Exception {
       container(null, 800, "SelectionList1");
       SelectionListVSAssembly list = list("SelectionList1", VizMark.MODERN_LIGHT, false, 30);
 
       service.applySelection(rvs, "SelectionList1", false, dispatcher, "");
 
-      assertEquals(230, list.getPixelSize().height);
+      assertEquals(202, list.getPixelSize().height);
    }
 
    @Test
@@ -132,31 +151,34 @@ class VSSelectionContainerServiceTest {
 
       service.applySelection(rvs, "SelectionList1", false, dispatcher, "");
 
-      assertEquals(230, list.getSelectionListInfo().getLayoutSize().height);
+      assertEquals(202, list.getSelectionListInfo().getLayoutSize().height);
       assertEquals(30, list.getPixelSize().height, "the pixel size is left to the design layout");
    }
 
-   // title 30 + two open lists of 230 is 490, past the 470 box. The old estimate counted the
-   // opening list's body as 6 rows of 20, so it collapsed nothing and the container overflowed
+   // the 470 box leaves 400 under its 40 and its 30 lane; the open 230, the lane 30 and the 172
+   // the opening list's tier box adds are 432. The old estimate counted that body as 6 rows of
+   // 20, so it collapsed nothing and the container overflowed
    @Test
-   void expandingCollapsesASiblingTheTierRowsWouldOverflow() throws Exception {
+   void expandingCollapsesASiblingTheTierBoxWouldOverflow() throws Exception {
       container(VizMark.MODERN_LIGHT, 470, "SelectionList1", "SelectionList2");
       SelectionListVSAssembly open = list("SelectionList1", VizMark.MODERN_LIGHT, true, 230);
       SelectionListVSAssembly closed = list("SelectionList2", VizMark.MODERN_LIGHT, false, 30);
 
       service.applySelection(rvs, "SelectionList2", false, dispatcher, "");
 
-      assertEquals(230, closed.getPixelSize().height);
+      assertEquals(202, closed.getPixelSize().height);
       assertEquals(30, open.getPixelSize().height, "the open sibling collapses to its lane");
       assertEquals(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE,
                    open.getSelectionListInfo().getShowTypeValue());
    }
 
-   // two collapsed rows are 60 at comfortable; the old estimate counted them as 40
+   // two collapsed rows are 60 at comfortable; the old estimate counted them as 40. The lists
+   // need 432 (open 230, lane 30, the tier box's 172 body): 560 - 40 - 30 - 60 leaves 430 and
+   // collapses, where 40 would leave 450 and not
    @Test
    void theOverflowEstimateCountsCollapsedRowsAtTheTierHeight() throws Exception {
       CurrentSelectionVSAssembly container =
-         container(VizMark.MODERN_LIGHT, 580, "SelectionList1", "SelectionList2");
+         container(VizMark.MODERN_LIGHT, 560, "SelectionList1", "SelectionList2");
       list("Outside1", null, false, 20);
       list("Outside2", null, false, 20);
       SelectionListVSAssembly open = list("SelectionList1", VizMark.MODERN_LIGHT, true, 230);

@@ -54,6 +54,53 @@ class TableCellPaddingSeedTest {
    }
 
    @Test
+   void followingTheDensityAgainReseedsFromTheTierInForce() {
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+      info.setCellPadding(new Insets(10, 6, 10, 6), CompositeValue.Type.USER);
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+      assertEquals(new Insets(4, 6, 4, 6), info.getDefaultCellPadding(),
+                   "precondition: the reseed skipped the author value");
+
+      info.resetCellPadding(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertFalse(info.isUserCellPadding());
+      assertEquals(new Insets(6, 8, 6, 8), info.getCellPadding());
+   }
+
+   @Test
+   void followingTheDensityAfterModernizeSeedsTheMissingDefault() {
+      // an author value set while unmarked keeps Modernize from writing any DEFAULT tier, so a
+      // bare clear would leave the cells with no inset at all
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setCellPadding(new Insets(4, 6, 4, 6), CompositeValue.Type.USER);
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+      assertNull(info.getDefaultCellPadding(), "precondition");
+
+      info.resetCellPadding(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(new Insets(4, 6, 4, 6), info.getCellPadding());
+   }
+
+   @Test
+   void crosstabAndCalcTableReseedOnFollowToo() {
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      TableDataVSAssemblyInfo[] infos = { new CrosstabVSAssemblyInfo(), new CalcTableVSAssemblyInfo() };
+
+      for(TableDataVSAssemblyInfo info : infos) {
+         info.setCellPadding(new Insets(6, 8, 6, 8), CompositeValue.Type.DEFAULT);
+         info.setCellPadding(new Insets(9, 9, 9, 9), CompositeValue.Type.USER);
+
+         info.resetCellPadding(VizContext.of(VizMark.MODERN_LIGHT));
+
+         assertEquals(new Insets(3, 4, 3, 4), info.getCellPadding(), info.getClass().getSimpleName());
+      }
+   }
+
+   @Test
    void markedTableSeedsTheDensityCellPadding() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       TableVSAssemblyInfo info = new TableVSAssemblyInfo();

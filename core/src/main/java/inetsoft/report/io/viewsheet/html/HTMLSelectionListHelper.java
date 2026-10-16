@@ -80,8 +80,10 @@ public class HTMLSelectionListHelper extends VSSelectionListHelper{
          containerTitle = assembly.getDisplayValue(true, true);
          titleRatio = cinfo.getTitleRatio();
 
+         // getBounds stacks under the container's lane, which HTML does not draw for a hidden
+         // title; a container that drops the lane has none to take back
          if(!cinfo.isTitleVisible()) {
-            int containerTitleH = cinfo.getTitleHeight();
+            int containerTitleH = cinfo.getTitleLaneHeight();
             bounds.setRect(bounds.getX(), bounds.getY() - containerTitleH,
                bounds.getWidth(), bounds.getHeight());
          }

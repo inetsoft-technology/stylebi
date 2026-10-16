@@ -215,7 +215,7 @@ public abstract class VSTableHelper extends VSTableDataHelper {
          // live model does before adding the padding - otherwise the estimate misses the real
          // rendered row and match-exact drops rows. First the density height, then a stylesheet
          // height replacing it outright, which is also what decides whether getRowPadding floors
-         // its result at the seed
+         // its result at what the stored height left out
          if(ctx.modern && !info.isUserDataRowHeight() && displayRowHeight == AssetUtil.defh) {
             displayRowHeight = VSDensityDefaults.rowHeight(ctx, info);
          }

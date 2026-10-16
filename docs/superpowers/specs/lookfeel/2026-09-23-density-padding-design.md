@@ -165,6 +165,7 @@ and installing a second CSS source would give two mechanisms a claim on the same
 `CompositeValue`'s `USER > CSS > DEFAULT` precedence (`CompositeValue:40-42`) supplies the
 follow-the-default behaviour with no boolean: the checkbox is `!hasUserValue()`, and checking it
 calls `resetUserValue()`.
+Amended 2026-10-12: checking it also re-seeds the DEFAULT tier (`resetCellPadding`).
 
 ### D6 — Two slices, one spec
 
@@ -255,6 +256,7 @@ height had taken out of it**. Three consequences, and each is the reason for one
   above it stays additive and arrives through the inset. An unmarked table has no DEFAULT tier, so
   nothing was subtracted and nothing is owed back — which is what keeps an unmarked table with an
   author cell padding on the pre-feature behaviour.
+  Amended 2026-10-12: the floor is what `rowHeight` leaves out — the DEFAULT tier, or the tier in force under an author padding (`VSDensityDefaults.excludedCellPaddingHeight`).
 - The floor is **skipped where a stylesheet sets the row height**. `getCSSDataRowHeight` and
   `getCSSHeaderRowHeight` replace the density height outright rather than shrinking it, so there
   is nothing to give back and the seed would be unrequested growth. This is the case the original
