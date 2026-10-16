@@ -33,6 +33,8 @@
  *   Group 9  [Risk 2]  — appendCondition: new condition always defaults to timeZoneOptions[0] (client local TZ)
  *   Group 10 [Risk 2]  — save(): orgId from PageHeaderService included in request payload
  *   Group 11 [Risk 2]  — save(): selectedConditionIndex not clamped after updateLists (it.failing — confirmed Bug D)
+ *   Group 12 [Risk 3]  — Bug #78728: Run Once date/time edits through the real editors set the condition
+ *     flag and the Save button from fresh form validity
  *
  * Confirmed bugs (it.failing — remove wrapper once fixed):
  *
@@ -63,12 +65,17 @@
  */
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ComponentFixture } from "@angular/core/testing";
 import { provideHttpClient } from "@angular/common/http";
 import { ReactiveFormsModule } from "@angular/forms";
+import { MatDatepicker } from "@angular/material/datepicker";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
+import { By } from "@angular/platform-browser";
+import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { ActivatedRoute, Router } from "@angular/router";
 import { render, waitFor } from "@testing-library/angular";
+import dayjs from "dayjs";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 
 import { EMPTY, NEVER, of, throwError } from "rxjs";
@@ -80,7 +87,8 @@ import { TimeZoneService } from "../../../../../../shared/schedule/time-zone.ser
 import { ScheduleTaskNamesService } from "../../../../../../shared/schedule/schedule-task-names.service";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { ScheduleTaskDialogModel } from "../../../../../../shared/schedule/model/schedule-task-dialog-model";
-import { TimeConditionModel } from "../../../../../../shared/schedule/model/time-condition-model";
+import { TimeConditionModel, TimeConditionType } from "../../../../../../shared/schedule/model/time-condition-model";
+import { RunOnceConditionEditorComponent } from "../task-condition-pane/run-once-condition-editor/run-once-condition-editor.component";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -565,6 +573,229 @@ describe("ScheduleTaskEditorPageComponent — save(): selectedConditionIndex aft
 
       // Bug: selectedConditionIndex stays at 2; conditionItems.length is now 1
       expect(comp.selectedConditionIndex).toBeLessThan(comp.conditionItems.length);
+   });
+
+});
+
+// ---------------------------------------------------------------------------
+// Group 12 [Risk 3] — Bug #78728: Run Once condition validity through the real editors
+// ---------------------------------------------------------------------------
+
+describe("ScheduleTaskEditorPageComponent — Bug #78728: Run Once date and time edits update the condition flag and Save", () => {
+
+   // The Run Once editor emits its validity from inside the edited control's valueChanges, before
+   // the parent groups recompute. Typing, pasting or picking a date into an empty or incomplete
+   // field used to flag the condition and keep Save disabled; clearing the hour of the start time
+   // used to report valid=true, leave Save enabled and save 00:00.
+   const RUN_AT = Date.UTC(2026, 9, 7, 9, 30);
+
+   function makeRunOnceModel(): ScheduleTaskDialogModel {
+      const condition = {
+         conditionType: "TimeCondition",
+         type: TimeConditionType.AT,
+         label: "Cond 1",
+         date: RUN_AT,
+         timeZoneOffset: 0,
+         timeZone: "UTC",
+         timeZoneLabel: "UTC",
+         hour: 9,
+         minute: 30,
+         second: 0,
+      } as TimeConditionModel;
+
+      return makeDialogModel({
+         timeZone: "UTC",
+         startTimeEnabled: true,
+         timeRangeEnabled: true,
+         timeZoneOptions: [{ timeZoneId: "UTC", label: "UTC" }],
+         taskConditionPaneModel: {
+            conditions: [condition],
+            timeZoneOffset: 0,
+            timeZoneOptions: [{ timeZoneId: "UTC", label: "UTC" }],
+         },
+         taskActionPaneModel: { actions: [] },
+      } as any);
+   }
+
+   async function settle(fixture: ComponentFixture<unknown>, rounds = 5) {
+      for(let i = 0; i < rounds; i++) {
+         fixture.detectChanges();
+         await new Promise(res => setTimeout(res, 10));
+      }
+   }
+
+   async function renderRunOnce() {
+      server.use(
+         http.get("*/api/em/schedule/edit", () => MswHttpResponse.json(makeRunOnceModel())),
+         http.get("*/api/em/navbar/organization", () => MswHttpResponse.json("host-org")),
+         http.get("*/api/first-day-of-week", () => MswHttpResponse.json({ javaFirstDay: 1, isoFirstDay: 1 })),
+      );
+
+      const result = await render(ScheduleTaskEditorPageComponent, {
+         imports: [ReactiveFormsModule, NoopAnimationsModule],
+         schemas: [NO_ERRORS_SCHEMA],
+         providers: [
+            provideHttpClient(),
+            { provide: MatDialog, useValue: { open: vi.fn().mockReturnValue({ afterClosed: () => of(false) }) } },
+            { provide: MatSnackBar, useValue: { open: vi.fn() } },
+            { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
+            { provide: ActivatedRoute, useValue: { params: of({ task: "TestTask" }), snapshot: { queryParams: {} } } },
+            { provide: PageHeaderService, useValue: { title: "", currentOrgId: "host-org" } },
+            TimeZoneService,
+            { provide: ScheduleTaskNamesService, useValue: { loadScheduleTaskNames: vi.fn() } },
+            {
+               provide: ScheduleUsersService,
+               useValue: {
+                  getOwners: () => of([]),
+                  getAdminName: () => EMPTY,
+                  getSSOEnable: () => EMPTY,
+                  getEmailUsers: () => EMPTY,
+                  getEmailGroups: () => EMPTY,
+               }
+            },
+            ScheduleTaskEditorDataService,
+         ],
+      });
+
+      const fixture = result.fixture;
+      let editor: RunOnceConditionEditorComponent = null;
+
+      // Poll instead of waitFor: the editor appears after the HTTP load and change detection.
+      for(let i = 0; i < 100 && !editor; i++) {
+         fixture.detectChanges();
+         await new Promise(res => setTimeout(res, 20));
+         editor = fixture.debugElement.query(By.directive(RunOnceConditionEditorComponent))?.componentInstance;
+      }
+
+      expect(editor).toBeTruthy();
+      await settle(fixture);
+
+      const page = fixture.componentInstance;
+      const root = fixture.nativeElement as HTMLElement;
+
+      const type = async (text: string) => {
+         const input = root.querySelector("input.date-picker-input") as HTMLInputElement;
+         input.value = text;
+         input.dispatchEvent(new Event("input"));
+         await settle(fixture, 1);
+      };
+
+      const pick = async (date: string) => {
+         const picker = fixture.debugElement.query(By.directive(MatDatepicker))
+            .injector.get(MatDatepicker) as MatDatepicker<dayjs.Dayjs>;
+         picker.select(dayjs(date, "YYYY-MM-DD"));
+         await settle(fixture, 1);
+      };
+
+      // The hour box of the real em-time-picker; emptying it makes the picker emit null.
+      const setHour = async (value: string) => {
+         const hour = root.querySelector("em-time-picker input") as HTMLInputElement;
+         hour.value = value;
+         hour.dispatchEvent(new Event("change"));
+         await settle(fixture, 1);
+      };
+
+      const clearHour = () => setHour("");
+
+      const saveButton = () => {
+         fixture.detectChanges();
+         return Array.from(root.querySelectorAll("em-editor-panel button"))
+            .find(b => /Save/.test(b.textContent)) as HTMLButtonElement;
+      };
+
+      const conditionFlagged = () => {
+         fixture.detectChanges();
+         return !!root.querySelector("a.list-label.mat-error");
+      };
+
+      const storedDate = () =>
+         new Date((page.condition as TimeConditionModel).date).toISOString();
+
+      return { page, editor, type, pick, setHour, clearHour, saveButton, conditionFlagged, storedDate };
+   }
+
+   type RunOnceFixture = Awaited<ReturnType<typeof renderRunOnce>>;
+
+   function expectSaveEnabled(s: RunOnceFixture, date: string) {
+      expect(s.storedDate()).toBe(date);
+      expect(s.page.conditionItems[0].valid).toBe(true);
+      expect(s.conditionFlagged()).toBe(false);
+      expect(s.saveButton()).toBeTruthy();
+      expect(s.saveButton().disabled).toBe(false);
+   }
+
+   it("enables Save after typing a full date character by character", async () => {
+      const s = await renderRunOnce();
+      const text = "2026-10-20";
+
+      for(let i = 1; i <= text.length; i++) {
+         await s.type(text.substring(0, i));
+      }
+
+      expectSaveEnabled(s, "2026-10-20T09:30:00.000Z");
+   });
+
+   it("enables Save after clearing the date and pasting a new one", async () => {
+      const s = await renderRunOnce();
+
+      await s.type("");
+      await s.type("2026-10-22");
+
+      expectSaveEnabled(s, "2026-10-22T09:30:00.000Z");
+   });
+
+   it("enables Save after clearing the date and picking one from the calendar", async () => {
+      const s = await renderRunOnce();
+
+      await s.type("");
+      await s.pick("2026-10-25");
+
+      expectSaveEnabled(s, "2026-10-25T09:30:00.000Z");
+   });
+
+   it("enables Save after deleting the last digit and typing a new one", async () => {
+      const s = await renderRunOnce();
+
+      await s.type("2026-10-0");
+      await s.type("2026-10-09");
+
+      expectSaveEnabled(s, "2026-10-09T09:30:00.000Z");
+   });
+
+   it("still enables Save when a date is picked into a filled field", async () => {
+      const s = await renderRunOnce();
+
+      await s.pick("2026-10-25");
+
+      expectSaveEnabled(s, "2026-10-25T09:30:00.000Z");
+   });
+
+   it("keeps the condition valid and Save enabled when only the start time hour changes", async () => {
+      const s = await renderRunOnce();
+
+      await s.setHour("11");
+
+      expectSaveEnabled(s, "2026-10-07T11:30:00.000Z");
+
+      await s.type("");
+      await s.type("2026-10-20");
+      await s.setHour("12");
+
+      expectSaveEnabled(s, "2026-10-20T12:30:00.000Z");
+   });
+
+   it("flags the condition and disables Save when the start time hour is cleared", async () => {
+      const s = await renderRunOnce();
+
+      await s.type("2026-10-08");
+      expectSaveEnabled(s, "2026-10-08T09:30:00.000Z");
+
+      await s.clearHour();
+
+      expect(s.editor.form.get("startTime").value).toBeNull();
+      expect(s.page.conditionItems[0].valid).toBe(false);
+      expect(s.conditionFlagged()).toBe(true);
+      expect(s.saveButton().disabled).toBe(true);
    });
 
 });
