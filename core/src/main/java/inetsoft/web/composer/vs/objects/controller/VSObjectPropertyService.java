@@ -58,6 +58,7 @@ import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.wiz.viewsheet.AssemblyNameRules;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
@@ -159,6 +160,17 @@ public class VSObjectPropertyService {
          this.coreLifecycleService.sendMessage(
             Catalog.getCatalog().getString("common.renameViewsheetFailed", oldName) +
             " An assembly named '" + newName + "' already exists.",
+            MessageCommand.Type.ERROR, commandDispatcher);
+         return false;
+      }
+
+      if(!Tool.equals(oldName, newName) && AssemblyNameRules.violation(newName) != null) {
+         // Same rule as the Composer name field; refused before any mutation, as ERROR so wiz
+         // callers do not report the refused rename as a success.
+         this.coreLifecycleService.sendMessage(
+            Catalog.getCatalog().getString("common.renameViewsheetFailed", oldName) +
+            " \"" + newName + "\" is not a valid assembly name (" +
+            AssemblyNameRules.violation(newName) + "). " + AssemblyNameRules.RULE_TEXT,
             MessageCommand.Type.ERROR, commandDispatcher);
          return false;
       }

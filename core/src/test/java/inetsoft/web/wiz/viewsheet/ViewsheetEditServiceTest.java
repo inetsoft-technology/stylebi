@@ -726,6 +726,68 @@ class ViewsheetEditServiceTest {
       verifyNoInteractions(propertyService);
    }
 
+   /** Bug #78655: rename enforces the Composer assembly-name rule before touching anything. */
+   @Test
+   void renameToAnInvalidAssemblyNameFailsLoudWithoutEditing() throws Exception {
+      for(String bad : new String[] { "1Chart", "a/b" }) {
+         RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+         VSObjectPropertyService propertyService = mock(VSObjectPropertyService.class);
+         ViewsheetEditService service = serviceWithRuntime(rvs,
+            readerReturning(new AssemblyNode("Chart1", "Chart", 0, 0, 10, 10, 0, null, true)),
+            mock(ComposerObjectService.class), propertyService);
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> service.apply("tok", principal(), new EditRequest("rename", "Chart1", null,
+               null, null, null, null, null, null, null, null, bad, null, null, null, null), ""));
+
+         assertTrue(thrown.getMessage().contains("\"" + bad + "\"")
+                    && thrown.getMessage().contains("not a valid assembly name"),
+                    thrown.getMessage());
+         verifyNoInteractions(propertyService);
+      }
+   }
+
+   /** Bug #78655: a name such as {@code Sales Chart!} is valid in the Composer and must pass. */
+   @Test
+   void renameToAValidAssemblyNameWithPunctuationIsAccepted() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly assembly = mock(VSAssembly.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("Chart1")).thenReturn(assembly);
+
+      VSObjectPropertyService propertyService = mock(VSObjectPropertyService.class);
+      ViewsheetEditService service = serviceWithRuntime(rvs,
+         readerReturning(new AssemblyNode("Chart1", "Chart", 0, 0, 10, 10, 0, null, true)),
+         mock(ComposerObjectService.class), propertyService);
+
+      service.apply("tok", principal(), new EditRequest("rename", "Chart1", null, null, null,
+         null, null, null, null, null, null, "Sales Chart!", null, null, null, null), "");
+
+      verify(propertyService).editObjectProperty(any(), any(), eq("Chart1"),
+         eq("Sales Chart!"), anyString(), any(Principal.class), any());
+   }
+
+   /** Bug #78655: add with an invalid {@code assembly} name fails before creating anything. */
+   @Test
+   void addWithAnInvalidAssemblyNameFailsBeforeCreatingAnything() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      VSObjectPropertyService propertyService = mock(VSObjectPropertyService.class);
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, propertyService);
+
+      EditRequest request = new EditRequest("add", "2bad", 40, 60, 222, 77, null, null,
+                                            null, null, null, null, 111, null);
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request, ""));
+
+      assertTrue(thrown.getMessage().contains("2bad"), thrown.getMessage());
+      verify(objects, never()).addNewObject(anyString(), any(), any(Principal.class), any(),
+                                            anyString());
+      verifyNoInteractions(propertyService);
+   }
+
    @Test
    void renameRequiresANewNameAndFailsLoudWithoutOne() {
       ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
