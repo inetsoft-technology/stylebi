@@ -225,12 +225,11 @@ class TableLensFailureRealStackTest {
    }
 
    @Test
-   void setAndDeleteHighlightOnAFailedTableAreNamedRefusals() throws Exception {
+   void setHighlightOnAFailedTableIsANamedRefusalForBothOutcomes() throws Exception {
       RuntimeViewsheet rvs = open();
       addFailingExpressionCondition(rvs);
       HighlightDialogService dialogs = mock(HighlightDialogService.class);
       AssemblyHighlightService service = new AssemblyHighlightService(seam(rvs), dialogs);
-
       AssemblyHighlightService.Highlight highlight = new AssemblyHighlightService.Highlight(
          "H", "#FF0000", null, null, List.of(), false);
 
@@ -238,6 +237,20 @@ class TableLensFailureRealStackTest {
          assertTrue(assertThrows(IllegalArgumentException.class,
             () -> service.set("tok", principal(), TABLE, null, highlight, false, ""))
                        .getMessage().contains("did not render"));
+      }
+
+      verifyNoInteractions(dialogs);
+   }
+
+   /** A fresh runtime, so the first delete is the one that meets the first-read throw. */
+   @Test
+   void deleteHighlightOnAFailedTableIsANamedRefusalForBothOutcomes() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addFailingExpressionCondition(rvs);
+      HighlightDialogService dialogs = mock(HighlightDialogService.class);
+      AssemblyHighlightService service = new AssemblyHighlightService(seam(rvs), dialogs);
+
+      for(int attempt = 0; attempt < 2; attempt++) {
          assertTrue(assertThrows(IllegalArgumentException.class,
             () -> service.delete("tok", principal(), TABLE, null, "H", ""))
                        .getMessage().contains("did not render"));
