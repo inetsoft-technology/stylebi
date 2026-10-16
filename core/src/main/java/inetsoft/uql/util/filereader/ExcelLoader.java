@@ -209,18 +209,12 @@ public abstract class ExcelLoader {
    }
 
    private static Object[] getHeader(Object[] arr) {
-      Set<Object> existing = new HashSet<>();
+      Set<String> existing = new HashSet<>();
       Object[] headers = new Object[arr.length];
 
       for(int i = 0; i < headers.length; i++) {
          String header = (arr[i] != null) ? arr[i].toString().trim() : "col" + i;
-         headers[i] = header;
-
-         for(int k = 1; existing.contains(headers[i]); k++) {
-            headers[i] = header + " " + k;
-         }
-
-         existing.add(headers[i]);
+         headers[i] = CSVLoader.uniqueHeader(header, existing);
       }
 
       return headers;
