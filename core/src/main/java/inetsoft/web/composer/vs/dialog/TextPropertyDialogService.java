@@ -121,6 +121,7 @@ public class TextPropertyDialogService {
       Dimension size = dialogService.getAssemblySize(textAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
+      VSDialogService.readSizeFollowsDensity(textAssemblyInfo, sizePositionPaneModel, true);
       sizePositionPaneModel.setContainer(textAssembly.getContainer() != null);
       sizePositionPaneModel.setScaleVertical(textAssemblyInfo.getScaleVerticalValue());
 
@@ -256,7 +257,7 @@ public class TextPropertyDialogService {
       textAssemblyInfo.getPadding().bottom = padding.getBottom();
       textAssemblyInfo.getPadding().right = padding.getRight();
 
-      dialogService.setAssemblySize(textAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblySizeFollowingDensity(textAssemblyInfo, sizePositionPaneModel, vs);
       dialogService.setAssemblyPosition(textAssemblyInfo, sizePositionPaneModel);
       textAssemblyInfo.setScaleVerticalValue(sizePositionPaneModel.isScaleVertical());
 
