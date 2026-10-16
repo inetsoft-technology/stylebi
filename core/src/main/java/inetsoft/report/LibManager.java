@@ -340,7 +340,6 @@ public class LibManager implements AutoCloseable {
          RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
          fireActionEvent(newName, SCRIPT_MODIFIED);
          fireActionEvent(oldName, SCRIPT_REMOVED);
-         sendClusterMessage(newName);
       }
    }
 
@@ -351,7 +350,6 @@ public class LibManager implements AutoCloseable {
    public void removeScript(String name) {
       scripts.remove(name);
       fireActionEvent(name, SCRIPT_REMOVED);
-      sendClusterMessage(name);
    }
 
    /**

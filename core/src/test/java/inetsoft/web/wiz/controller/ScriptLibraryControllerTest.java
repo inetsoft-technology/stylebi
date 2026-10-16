@@ -32,7 +32,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.security.Principal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -87,7 +90,7 @@ class ScriptLibraryControllerTest {
    @Test
    void delete_returnsAResyncWarning() throws Exception {
       Fixture fixture = new Fixture();
-      when(fixture.lib.getScript("helper")).thenReturn("return 1;");
+      fixture.stubRemovableScript("helper", "return 1;");
 
       try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
          transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
@@ -132,7 +135,7 @@ class ScriptLibraryControllerTest {
    @Test
    void delete_looksUpDependentsUnderComponentScopeNotGlobalScope() throws Exception {
       Fixture fixture = new Fixture();
-      when(fixture.lib.getScript("helper")).thenReturn("return 1;");
+      fixture.stubRemovableScript("helper", "return 1;");
 
       // GLOBAL_SCOPE is the scope RemoveAssetController.checkScriptRemoveable's own (buggy) lookup
       // used, and the bug this test guards against: a lookup keyed there never matches a real
@@ -154,7 +157,7 @@ class ScriptLibraryControllerTest {
    @Test
    void delete_allowsRemovalWhenNoDependentsExist() throws Exception {
       Fixture fixture = new Fixture();
-      when(fixture.lib.getScript("helper")).thenReturn("return 1;");
+      fixture.stubRemovableScript("helper", "return 1;");
 
       try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
          transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
@@ -283,7 +286,7 @@ class ScriptLibraryControllerTest {
    @Test
    void rename_rewritesTheFunctionsOwnDeclarationText() throws Exception {
       Fixture fixture = new Fixture();
-      when(fixture.lib.getScript("oldFn")).thenReturn("function oldFn(x) { return x * 2; }");
+      fixture.stubRenamableScript("oldFn", "function oldFn(x) { return x * 2; }");
 
       fixture.controller.rename(
          "oldFn",
@@ -398,6 +401,31 @@ class ScriptLibraryControllerTest {
                                              any(ResourceAction.class))).thenReturn(true);
          when(libManagerProvider.getManager(any(Principal.class))).thenReturn(lib);
          controller = new ScriptLibraryController(libManagerProvider, securityEngine);
+      }
+
+      // lib is a mock: make removeScript take effect, as the controller now verifies it did
+      void stubRemovableScript(String name, String text) {
+         AtomicReference<String> current = new AtomicReference<>(text);
+         when(lib.getScript(name)).thenAnswer(i -> current.get());
+         doAnswer(i -> {
+            current.set(null);
+            return null;
+         }).when(lib).removeScript(name);
+      }
+
+      // lib is a mock: make renameScript/setScript take effect, as the controller verifies it
+      void stubRenamableScript(String name, String text) {
+         Map<String, String> scripts = new HashMap<>();
+         scripts.put(name, text);
+         when(lib.getScript(anyString())).thenAnswer(i -> scripts.get(i.<String>getArgument(0)));
+         doAnswer(i -> {
+            scripts.put(i.getArgument(1), scripts.remove(i.<String>getArgument(0)));
+            return null;
+         }).when(lib).renameScript(anyString(), anyString());
+         doAnswer(i -> {
+            scripts.put(i.getArgument(0), i.getArgument(1));
+            return null;
+         }).when(lib).setScript(anyString(), anyString());
       }
 
       void deny(String name, ResourceAction action) throws Exception {
