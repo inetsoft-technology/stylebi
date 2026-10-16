@@ -234,4 +234,166 @@ class VSUtilRenameCalcFieldReferenceTest {
       assertFalse(VSUtil.referencesCalcField("field.Taxes", "Tax", List.of()));
       assertFalse(VSUtil.referencesCalcField("field['tax']", "Tax", List.of("tax")));
    }
+
+   // Bug #78649: references inside literals and comments are not references.
+   private static String renameVat(String expression) {
+      return VSUtil.renameCalcFieldReference(expression, "Vat", "VatR", List.of());
+   }
+
+   private static boolean refsVat(String expression) {
+      return VSUtil.referencesCalcField(expression, "Vat", List.of());
+   }
+
+   private static void assertIgnored(String expression) {
+      assertFalse(refsVat(expression), expression);
+      assertSame(expression, renameVat(expression), expression);
+   }
+
+   private static void assertRenamed(String expected, String expression) {
+      assertTrue(refsVat(expression), expression);
+      assertEquals(expected, renameVat(expression));
+   }
+
+   @Test
+   void ignoresAccessorsInStringLiteralsAndComments() {
+      assertIgnored("field['ORDER_ID'] + \" field['Vat'] \"");
+      assertIgnored("field['ORDER_ID'] + ' field[\"Vat\"] '");
+      assertIgnored("field['ORDER_ID'] + \" field['Sum(Vat)'] \"");
+      assertIgnored("/* field['Vat'] */ field['ORDER_ID']");
+      assertIgnored("// field['Vat']\nfield['ORDER_ID']");
+      assertIgnored("field['ORDER_ID'] + \"a\\\" field['Vat']\"");
+      assertIgnored("field['ORDER_ID'] + `field['Vat']`");
+      assertIgnored("field['ORDER_ID'] + `field.Vat`");
+   }
+
+   @Test
+   void onlyRewritesTheRealReferenceNextToALiteral() {
+      assertRenamed("field['VatR'] + \" field['Vat'] \"", "field['Vat'] + \" field['Vat'] \"");
+      assertRenamed("\" field['Vat'] \" + field['VatR']", "\" field['Vat'] \" + field['Vat']");
+   }
+
+   @Test
+   void stillSeesReferencesAroundTemplateLiterals() {
+      assertRenamed("`don't` + field['VatR']", "`don't` + field['Vat']");
+      assertRenamed("`it's ${field['VatR']}`", "`it's ${field['Vat']}`");
+      assertRenamed("`a\"b` + field['VatR'] + \"c\"", "`a\"b` + field['Vat'] + \"c\"");
+      assertRenamed("`${`don't`}` + field['VatR']", "`${`don't`}` + field['Vat']");
+      assertRenamed("`${'}'}` + field['VatR']", "`${'}'}` + field['Vat']");
+      assertRenamed("`x ${field['VatR']}`", "`x ${field['Vat']}`");
+      assertRenamed("`a\\`b' ${field['VatR']}`", "`a\\`b' ${field['Vat']}`");
+      assertRenamed("`${ {a: 1}.a }don't` + field['VatR']", "`${ {a: 1}.a }don't` + field['Vat']");
+      assertRenamed("`don't ${field['VatR']} it's` + field['VatR']",
+                    "`don't ${field['Vat']} it's` + field['Vat']");
+   }
+
+   @Test
+   void seesTheDotFormAfterATemplateLiteral() {
+      assertTrue(refsVat("`don't` + field.Vat"));
+      assertTrue(refsVat("`it's ${field.Vat}`"));
+   }
+
+   @Test
+   void seesReferencesAfterRegexLiterals() {
+      assertRenamed("s.replace(/\\//g, '-') + field['VatR']",
+                    "s.replace(/\\//g, '-') + field['Vat']");
+      assertRenamed("/^https?:\\/\\//.test(field['URL']) ? field['VatR'] : 0",
+                    "/^https?:\\/\\//.test(field['URL']) ? field['Vat'] : 0");
+      assertRenamed("/'/.test(s) ? field['VatR'] : 0 // don't",
+                    "/'/.test(s) ? field['Vat'] : 0 // don't");
+      assertRenamed("/\"/.test(s) ? field['VatR'] : 0 // \"",
+                    "/\"/.test(s) ? field['Vat'] : 0 // \"");
+      assertRenamed("/[/]'/.test(s) ? field['VatR'] : 0", "/[/]'/.test(s) ? field['Vat'] : 0");
+      assertRenamed("return /a\\/b/.test(s) ? field['VatR'] : 0",
+                    "return /a\\/b/.test(s) ? field['Vat'] : 0");
+      assertTrue(refsVat("s.replace(/\\//g, '-') + field.Vat"));
+   }
+
+   @Test
+   void keywordNamedPropertyIsAnOperand() {
+      assertRenamed("field.case / 2 + field['VatR'] / 3", "field.case / 2 + field['Vat'] / 3");
+      assertRenamed("x.in / 2 + field['VatR'] / 3", "x.in / 2 + field['Vat'] / 3");
+      assertRenamed("a.do / b + field['VatR'] / c", "a.do / b + field['Vat'] / c");
+      assertRenamed("field.of / 2 + field.VatR / 3", "field.of / 2 + field.Vat / 3");
+      assertRenamed("field . return / 2 + field['VatR'] / 3", "field . return / 2 + field['Vat'] / 3");
+   }
+
+   @Test
+   void regexAfterControlParenAndAmbiguousSlash() {
+      assertRenamed("if(a) /'/.test(s); field['VatR'] // don't",
+                    "if(a) /'/.test(s); field['Vat'] // don't");
+      assertRenamed("if(a) /[//]/.test(s); field['VatR']", "if(a) /[//]/.test(s); field['Vat']");
+      assertRenamed("if(a)\n  /'/.test(s) && log(s);\nreturn field['VatR'] // don't",
+                    "if(a)\n  /'/.test(s) && log(s);\nreturn field['Vat'] // don't");
+      assertRenamed("while(a) /\"/.test(s); field['VatR'] // \"",
+                    "while(a) /\"/.test(s); field['Vat'] // \"");
+      assertRenamed("(a+b) / 2 + field['VatR']", "(a+b) / 2 + field['Vat']");
+      assertRenamed("f(x) / y / z + field['VatR']", "f(x) / y / z + field['Vat']");
+      assertRenamed("(a) / 2 + \"x\" / 3 + field['VatR']", "(a) / 2 + \"x\" / 3 + field['Vat']");
+      assertRenamed("{ a } /'/.test(s); field['VatR'] // don't",
+                    "{ a } /'/.test(s); field['Vat'] // don't");
+      // a lone '/' makes the mask ambiguous: unmasked matching, so the literal is rewritten too
+      assertRenamed("(a) / 2 + \" field['VatR'] \"", "(a) / 2 + \" field['Vat'] \"");
+   }
+
+   @Test
+   void regexLiteralTextFallsBackToUnmaskedMatching() {
+      assertRenamed("/field['VatR']/.test(s) ? 1 : 0", "/field['Vat']/.test(s) ? 1 : 0");
+   }
+
+   @Test
+   void neverDropsAReferenceNearADivisionOrRegexLikeSlash() {
+      assertRenamed("x * 1. / field['VatR'] / 2", "x * 1. / field['Vat'] / 2");
+      assertRenamed("100. / field['VatR'] / 2", "100. / field['Vat'] / 2");
+      assertRenamed("1. / field.VatR / 2", "1. / field.Vat / 2");
+      assertRenamed("var of=4; of / 2 + field['VatR'] / 3", "var of=4; of / 2 + field['Vat'] / 3");
+      assertRenamed("x = {a:1} / field.VatR / 2", "x = {a:1} / field.Vat / 2");
+      assertTrue(refsVat("var of = 4; of / 2 + field.Vat / 3"));
+   }
+
+   @Test
+   void htmlLikeCommentsFallBackToUnmaskedMatching() {
+      assertRenamed("x = a <!-- it's\nfield['VatR'] <!-- don't",
+                    "x = a <!-- it's\nfield['Vat'] <!-- don't");
+      assertRenamed("x = a --> it's\nfield['VatR'] // don't",
+                    "x = a --> it's\nfield['Vat'] // don't");
+   }
+
+   @Test
+   void commentsStringsAndTemplatesStillMaskedWithoutASlashAmbiguity() {
+      assertIgnored("field['ORDER_ID'] + \"a\" // field['Vat']");
+      assertIgnored("field['ORDER_ID'] + `field['Vat'] ${field['ORDER_ID']}`");
+   }
+
+   @Test
+   void lineCommentEndsAtEveryJavaScriptLineTerminator() {
+      for(String lt : new String[] { "\n", "\r", "\r\n", " ", " " }) {
+         assertRenamed("x = 1 // note" + lt + "field['VatR'] // don't",
+                       "x = 1 // note" + lt + "field['Vat'] // don't");
+         assertRenamed("x = 1 // it's" + lt + "field['VatR'] + \"a\"",
+                       "x = 1 // it's" + lt + "field['Vat'] + \"a\"");
+         assertIgnored("field['ORDER_ID'] // field['Vat']" + lt + "+ 1");
+      }
+   }
+
+   @Test
+   void leadingHashbangFallsBackToUnmaskedMatching() {
+      assertRenamed("#! it's\nfield['VatR'] + x['y'] // don't",
+                    "#! it's\nfield['Vat'] + x['y'] // don't");
+   }
+
+   @Test
+   void divisionKeepsRealReferencesCounted() {
+      assertRenamed("a / b + field['VatR'] / 2", "a / b + field['Vat'] / 2");
+      assertRenamed("(x) / 2 + field['VatR']", "(x) / 2 + field['Vat']");
+      assertRenamed("a[0] / b + field['VatR']", "a[0] / b + field['Vat']");
+      assertRenamed("x/2/3 + field['VatR']", "x/2/3 + field['Vat']");
+      assertRenamed("i++ / 2 + field['VatR'] / 3", "i++ / 2 + field['Vat'] / 3");
+   }
+
+   @Test
+   void unterminatedLiteralFallsBackToUnmaskedMatching() {
+      // the regex literal's quote desynchronizes the scan; a real reference must not be dropped
+      assertTrue(refsVat("/'/.test(field['ORDER_ID']) ? field['Vat'] : 0"));
+      assertTrue(refsVat("`unclosed ${field['Vat']}"));
+   }
 }
