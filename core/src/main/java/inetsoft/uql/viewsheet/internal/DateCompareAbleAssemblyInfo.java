@@ -45,6 +45,18 @@ public interface DateCompareAbleAssemblyInfo {
    void setComparisonShareFrom(String assemblyFullName);
 
    /**
+    * Drop the runtime state of the date comparison, the comparison ref, the runtime refs, the
+    * authored comparison and the share link.
+    */
+   void resetRuntimeDateComparisonInfo();
+
+   /**
+    * Drop only the runtime state of the date comparison (the comparison ref and the runtime
+    * refs), keeping the authored comparison and the share link.
+    */
+   void clearRuntimeDateComparisonRefs();
+
+   /**
     * Set the ref to compare.
     * @param ref
     */

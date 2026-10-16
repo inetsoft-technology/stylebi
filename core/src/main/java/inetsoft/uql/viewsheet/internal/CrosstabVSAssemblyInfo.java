@@ -411,7 +411,9 @@ public class CrosstabVSAssemblyInfo extends CrossBaseVSAssemblyInfo
    @Override
    public List<DynamicValue> getDynamicValues() {
       List<DynamicValue> list = super.getDynamicValues();
-      DateComparisonInfo rtDateComparison = DateComparisonUtil.getDateComparison(this, vs);
+      // the stored comparison, valid or not: an invalid dynamic comparison must keep its
+      // dependencies so it is re-evaluated when the bound value changes
+      DateComparisonInfo rtDateComparison = DateComparisonUtil.getDesignDateComparison(this, vs);
 
       if(rtDateComparison != null) {
          list.addAll(rtDateComparison.getDynamicValues());
@@ -436,6 +438,16 @@ public class CrosstabVSAssemblyInfo extends CrossBaseVSAssemblyInfo
       dateComparison = info;
    }
 
+   @Override
+   public void clearRuntimeDateComparisonRefs() {
+      setDateComparisonRef(null);
+
+      if(getVSCrosstabInfo() != null) {
+         getVSCrosstabInfo().setRuntimeDateComparisonRefs(null);
+      }
+   }
+
+   @Override
    public void resetRuntimeDateComparisonInfo() {
       comparisonShareFrom = null;
       setDateComparisonRef(null);

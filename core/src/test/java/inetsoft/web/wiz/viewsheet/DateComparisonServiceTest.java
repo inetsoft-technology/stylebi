@@ -2886,6 +2886,110 @@ class DateComparisonServiceTest {
       assertEquals("$(c)", comparison.intervalContextLevel());
    }
 
+   // ── interval fields normalised on write (#78677) ──────────────────────────
+
+   @SuppressWarnings("unchecked")
+   private static Map<String, Object> readInterval(Harness h) throws Exception {
+      return (Map<String, Object>) h.service.read("tok", principal(), "Chart1").get("interval");
+   }
+
+   /**
+    * The stored default granularity is year, which the dialog never offers at a month period. It
+    * was reported back by read and then refused when echoed. A set that names no granularity now
+    * replaces it with the first one the dialog offers, and says so.
+    */
+   @Test
+   void aMonthPeriodReplacesTheDefaultYearGranularityAndTheReadBackEchoes() throws Exception {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", dyn("1", "month", "all", null, null), "");
+
+      assertDynamic(model.getIntervalPaneModel().getGranularity(), "4", DynamicValueModel.VALUE);
+      assertEquals(Boolean.TRUE, result.get("intervalGranularityAdjusted"));
+      assertEquals("year", result.get("intervalGranularityBefore"));
+      assertEquals("month", result.get("intervalGranularityAfter"));
+      assertEquals("month", readInterval(h).get("granularity"));
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", dyn("1", "month", "all", "month", null), ""));
+   }
+
+   @Test
+   void aLevelChangeDoesNotLeaveAStaleContextLevelBehind() throws Exception {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1",
+                    dyn("1", "year", "monthToDate", "month", "quarter"), "");
+      assertDynamic(model.getIntervalPaneModel().getContextLevel(), "4", DynamicValueModel.VALUE);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", dyn("1", "month", null, null, null), "");
+
+      assertDynamic(model.getIntervalPaneModel().getContextLevel(), "3", DynamicValueModel.VALUE);
+      assertEquals(Boolean.TRUE, result.get("intervalContextLevelAdjusted"));
+      assertEquals("quarter", result.get("intervalContextLevelBefore"));
+      assertEquals("month", result.get("intervalContextLevelAfter"));
+      assertEquals("month", readInterval(h).get("contextLevel"));
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", dyn("1", "month", "monthToDate", "month", "month"), ""));
+   }
+
+   @Test
+   void aStoredValueTheDialogOffersIsLeftAloneAndNothingIsReported() throws Exception {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", dyn("1", "year", "all", "quarter", null), "");
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", dyn("1", "year", "all", null, null), "");
+
+      assertDynamic(model.getIntervalPaneModel().getGranularity(), "8", DynamicValueModel.VALUE);
+      assertFalse(result.containsKey("intervalGranularityAdjusted"));
+      assertFalse(result.containsKey("intervalContextLevelAdjusted"));
+   }
+
+   @Test
+   void aRefusedEchoOfAnEarlierStoredValueSaysHowToGetAValidOne() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(model()).service.set("tok", principal(), "Chart1",
+                                            dyn("1", "month", "all", "year", null), ""));
+
+      assertTrue(thrown.getMessage().contains("re-send the period without this field"),
+                 thrown.getMessage());
+   }
+
+   @Test
+   void aNamedGranularityIsNeverReplaced() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(model()).service.set("tok", principal(), "Chart1",
+                                            dyn("1", "month", "all", "year", null), ""));
+
+      assertTrue(thrown.getMessage().contains("intervalGranularity"), thrown.getMessage());
+   }
+
+   @Test
+   void aDynamicGranularityOrALevelThatIsNotYetKnownIsNotTouched() throws Exception {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", dyn("1", "month", "all", "$(G)", null), "");
+      h.service.set("tok", principal(), "Chart1", dyn("1", "month", "all", null, null), "");
+      assertDynamic(model.getIntervalPaneModel().getGranularity(), "$(G)",
+                    DynamicValueModel.VARIABLE);
+
+      DateComparisonPaneModel other = model();
+      harness(other).service.set("tok", principal(), "Chart1",
+                                 dyn("1", "$(L)", "monthToDate", null, null), "");
+      assertEquals(16, Integer.parseInt(
+         String.valueOf(other.getIntervalPaneModel().getGranularity().getValue())));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(DateComparisonService service, ViewsheetSessionService sessions,

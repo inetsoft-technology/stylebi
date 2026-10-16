@@ -187,7 +187,7 @@ public class GraphBuilder {
          vmodel.setPlotFilterEnabled(isPlotFilterEnabled());
          vmodel.setDateComparisonEnabled(assembly.getChartInfo().isDateComparisonEnabled());
          vmodel.setDateComparisonDefined(
-            DateComparisonUtil.isDateComparisonDefined(assembly.getChartInfo()));
+            DateComparisonUtil.isDateComparisonApplicable(assembly.getChartInfo()));
          vmodel.setDateComparisonDescription(
             DateComparisonUtil.getDateComparisonDescription(assembly.getChartInfo()));
          vmodel.setAppliedDateComparison(((VSChartInfo) cinfo).isAppliedDateComparison());

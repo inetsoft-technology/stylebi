@@ -1954,14 +1954,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             cubeType = VSUtil.getCubeType(source.getPrefix(), table);
          }
 
-         DateComparisonInfo dcInfo = null;
-         dcInfo = DateComparisonUtil.getDateComparison(this, vs);
+         DateComparisonInfo dcInfo = DateComparisonUtil.resolveDateComparisonForUpdate(this, vs);
          cinfo.setChartDescriptor(getChartDescriptor());
-
-         if(dcInfo == null || dcInfo.invalid()) {
-            dcInfo = null;
-            resetRuntimeDateComparisonInfo();
-         }
 
          VSChartInfo clone = dcInfo == null ? cinfo : cinfo.clone();
          clone.update(vs, columns, !cinfo.isMultiStyles(), dim, source.getSource(), dcInfo);
@@ -2709,6 +2703,16 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       dateComparison = info;
    }
 
+   @Override
+   public void clearRuntimeDateComparisonRefs() {
+      setDateComparisonRef(null);
+
+      if(cinfo != null) {
+         cinfo.setRuntimeDateComparisonRefs(null);
+      }
+   }
+
+   @Override
    public void resetRuntimeDateComparisonInfo() {
       comparisonShareFrom = null;
       setDateComparisonRef(null);

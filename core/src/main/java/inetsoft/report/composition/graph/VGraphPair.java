@@ -2726,7 +2726,7 @@ public class VGraphPair {
                VSChartInfo cinfo = ainfo.getVSChartInfo();
 
                if(cinfo != null) {
-                  if(cinfo.canProjectForward(DateComparisonUtil.isDateComparisonDefined(ainfo))) {
+                  if(cinfo.canProjectForward(DateComparisonUtil.isDateComparisonApplicable(ainfo))) {
                      ChartDescriptor desc = ainfo.getRTChartDescriptor() == null ?
                         ainfo.getChartDescriptor() : ainfo.getRTChartDescriptor();
 

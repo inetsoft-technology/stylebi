@@ -1351,6 +1351,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          if(dcEnabled && !shared) {
             dateComparisonInfo = info.getDateComparisonInfo();
+
+            // an invalid comparison is kept on the assembly but must not produce conditions
+            if(dateComparisonInfo != null && dateComparisonInfo.invalid()) {
+               dateComparisonInfo = null;
+            }
          }
       }
 

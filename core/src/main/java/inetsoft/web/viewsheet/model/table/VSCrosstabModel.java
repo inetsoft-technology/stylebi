@@ -178,7 +178,7 @@ public class VSCrosstabModel extends BaseTableModel<CrosstabVSAssembly> {
          }
       }
 
-      setDateComparisonDefined(DateComparisonUtil.isDateComparisonDefined(cinfo));
+      setDateComparisonDefined(DateComparisonUtil.isDateComparisonApplicable(cinfo));
       setDateComparisonEnabled(cinfo.isDateComparisonEnabled());
       DateComparisonInfo dcInfo =
          DateComparisonUtil.getDateComparison(cinfo, assembly.getViewsheet());

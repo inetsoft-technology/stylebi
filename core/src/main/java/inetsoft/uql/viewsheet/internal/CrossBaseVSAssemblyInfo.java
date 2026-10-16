@@ -418,12 +418,7 @@ public class CrossBaseVSAssemblyInfo extends TableDataVSAssemblyInfo implements
 
          if(this instanceof CrosstabVSAssemblyInfo) {
             CrosstabVSAssemblyInfo cinfo = (CrosstabVSAssemblyInfo) this;
-            dcInfo = DateComparisonUtil.getDateComparison(cinfo, vs);
-
-            if(dcInfo == null || dcInfo.invalid()) {
-               dcInfo = null;
-               cinfo.resetRuntimeDateComparisonInfo();
-            }
+            dcInfo = DateComparisonUtil.resolveDateComparisonForUpdate(cinfo, vs);
          }
 
          cinfo.update(vs, columns, cube, aalias, source.getSource(), dcInfo);

@@ -28,8 +28,11 @@ import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CustomPeriods;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonInterval;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
+import inetsoft.uql.viewsheet.internal.DatePeriod;
 import inetsoft.uql.viewsheet.internal.StandardPeriods;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.*;
@@ -199,8 +202,9 @@ public class DateComparisonService {
       // getDateComparison() always returns a default-populated model for a DateCompareAble
       // assembly, even when no comparison is actually set (e.g. after clear()), so "enabled"
       // cannot be read from model == null.
-      boolean enabled = model != null &&
+      boolean defined = model != null &&
          comparisonService.isDateComparisonEnabled(runtimeId, assemblyName, user);
+      boolean enabled = defined;
 
       // A config being *defined* (own or shared) is necessary but not sufficient — it must
       // also have actually applied. A date-typed field bound to the wrong shelf (e.g. group
@@ -220,7 +224,17 @@ public class DateComparisonService {
          comparisonService.getShare(runtimeId, assemblyName, user).getShareFromAssembly();
       boolean hasShareFrom = shareFrom != null && !shareFrom.isBlank();
 
-      if(!enabled) {
+      // A comparison that is defined but whose (dynamic) values currently resolve to an invalid
+      // combination is kept, not applied. Report its stored settings with the cause, so the caller
+      // can see what to fix instead of an empty {enabled:false}.
+      String invalidCause = null;
+
+      if(!enabled && defined && info instanceof DateCompareAbleAssemblyInfo) {
+         invalidCause = describeInvalidComparison(
+            DateComparisonUtil.getDesignDateComparison((DateCompareAbleAssemblyInfo) info, vs));
+      }
+
+      if(!enabled && invalidCause == null) {
          out.put("enabled", false);
 
          if(hasShareFrom) {
@@ -241,7 +255,7 @@ public class DateComparisonService {
       if(hasShareFrom) {
          if(info instanceof DateCompareAbleAssemblyInfo) {
             DateComparisonInfo resolved =
-               DateComparisonUtil.getDateComparison((DateCompareAbleAssemblyInfo) info, vs);
+               DateComparisonUtil.getDesignDateComparison((DateCompareAbleAssemblyInfo) info, vs);
 
             if(resolved != null) {
                model = new DateComparisonPaneModel(resolved);
@@ -249,7 +263,12 @@ public class DateComparisonService {
          }
       }
 
-      out.put("enabled", true);
+      out.put("enabled", enabled);
+
+      if(invalidCause != null) {
+         out.put("reason", inactiveInvalidReason(invalidCause));
+      }
+
       out.put("comparisonOption", describeComparisonOption(model.getComparisonOption()));
       out.put("useFacet", model.isUseFacet());
       out.put("onlyShowMostRecentDate", model.isOnlyShowMostRecentDate());
@@ -321,6 +340,8 @@ public class DateComparisonService {
          int beforeChartType = chartRTChartType(rvs, assemblyName);
 
          apply(model, comparison);
+         Map<String, Object> adjusted = normalizeUnnamedIntervalFields(model, comparison);
+
          if(setsPeriod(comparison)) {
             requireValidComparison(model, comparison);
          }
@@ -329,6 +350,7 @@ public class DateComparisonService {
          comparisonService.setDateComparison(runtimeId, assemblyName, info,
                                             shareAssembly(comparison), linkUri, user,
                                             dispatcher);
+         result.putAll(adjusted);
          result.putAll(describeRetargetedDimension(rvs, assemblyName));
          result.putAll(describeChartTypeOverride(rvs, assemblyName, beforeChartType));
          result.putAll(describeDateComparisonInactive(rvs, assemblyName));
@@ -824,8 +846,8 @@ public class DateComparisonService {
     *
     * <p>Not a chart or crosstab, or the comparison actually took effect: returns an empty map.
     */
-   private static Map<String, Object> describeDateComparisonInactive(RuntimeViewsheet rvs,
-                                                                     String assemblyName)
+   static Map<String, Object> describeDateComparisonInactive(RuntimeViewsheet rvs,
+                                                             String assemblyName)
    {
       Map<String, Object> out = new LinkedHashMap<>();
       Viewsheet vs = rvs.getViewsheet();
@@ -839,6 +861,14 @@ public class DateComparisonService {
          }
 
          out.put("dateComparisonInactive", true);
+
+         String invalidCause = invalidCause(assembly, vs);
+
+         if(invalidCause != null) {
+            out.put("reason", inactiveInvalidReason(invalidCause));
+            return out;
+         }
+
          out.put("reason", "no date-typed field is bound to this crosstab's rows or columns, or " +
             "no real aggregate is bound alongside it — date comparison only applies when a date " +
             "dimension is on rows/cols together with at least one aggregate.");
@@ -860,8 +890,12 @@ public class DateComparisonService {
          !GraphTypes.isArea(type) && !GraphTypes.isInterval(type) && !GraphTypes.isPoint(type));
 
       out.put("dateComparisonInactive", true);
+      String invalidCause = invalidCause(assembly, vs);
 
-      if(invalidChartType) {
+      if(invalidCause != null) {
+         out.put("reason", inactiveInvalidReason(invalidCause));
+      }
+      else if(invalidChartType) {
          out.put("reason", GraphTypes.getDisplayName(effectiveRTChartType(cinfo)) +
             " charts don't support date comparison — only Bar, Line, Area, Interval, and Point " +
             "(or Auto resolving to one of those) do. Convert the chart type first if a " +
@@ -874,6 +908,98 @@ public class DateComparisonService {
       }
 
       return out;
+   }
+
+   /**
+    * Why the comparison stored on {@code assembly} is not applied because of its own values, or
+    * {@code null} when it is not defined or is valid. Reads the stored comparison, which the engine
+    * keeps while it is invalid (see {@link DateComparisonUtil#resolveDateComparisonForUpdate}).
+    */
+   private static String invalidCause(VSAssembly assembly, Viewsheet vs) {
+      if(!(assembly.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo)) {
+         return null;
+      }
+
+      return describeInvalidComparison(DateComparisonUtil.getDesignDateComparison(
+         (DateCompareAbleAssemblyInfo) assembly.getVSAssemblyInfo(), vs));
+   }
+
+   private static String inactiveInvalidReason(String cause) {
+      return "the date comparison is saved but not applied right now: " + cause + " The saved " +
+         "settings are kept, and the comparison applies again as soon as the values are valid.";
+   }
+
+   /**
+    * Names the field that makes {@code info} {@link DateComparisonInfo#invalid()} once its dynamic
+    * values are resolved, or {@code null} when it is valid. The three causes are the ones
+    * {@code invalid()} tests: an interval coarser than the period level, a custom period with a
+    * missing/unparseable date or its start after its end, and an interval with no end anchor.
+    */
+   static String describeInvalidComparison(DateComparisonInfo info) {
+      if(info == null || !info.invalid()) {
+         return null;
+      }
+
+      if(info.getPeriods() == null) {
+         return "no period is set ('level'/'periods' or 'customPeriods').";
+      }
+
+      DateComparisonInterval interval = info.getInterval();
+
+      if(interval == null) {
+         return "no interval is set ('interval').";
+      }
+
+      if(info.isStdPeriod()) {
+         StandardPeriods standard = (StandardPeriods) info.getPeriods();
+         int periodLevel = standard.getDateLevel();
+         int intervalLevel = interval.getLevel();
+
+         if(isCoarser(intervalLevel, periodLevel)) {
+            return "'interval' (" + intervalWord(intervalLevel) + dynamicSource(
+               interval.getLevelValue()) + ") is coarser than 'level' (" + levelWord(periodLevel) +
+               dynamicSource(standard.getDateLevelValue()) + "). An interval can only break a " +
+               "period down into a granularity the period itself spans at least that finely.";
+         }
+      }
+      else if(info.getPeriods() instanceof CustomPeriods) {
+         List<DatePeriod> periods = ((CustomPeriods) info.getPeriods()).getDatePeriods();
+
+         for(int i = 0; periods != null && i < periods.size(); i++) {
+            DatePeriod period = periods.get(i);
+
+            if(period.getStart() == null) {
+               return "'customPeriods[" + i + "].start' is empty or not a valid date" +
+                  rawValue(period.getStartValue()) + ".";
+            }
+
+            if(period.getEnd() == null) {
+               return "'customPeriods[" + i + "].end' is empty or not a valid date" +
+                  rawValue(period.getEndValue()) + ".";
+            }
+
+            if(period.getStart().after(period.getEnd())) {
+               return "'customPeriods[" + i + "]' has its start after its end.";
+            }
+         }
+      }
+
+      if(!info.isCompareAll() && !interval.isEndDayAsToDate() &&
+         interval.getIntervalEndDate() == null)
+      {
+         return "'interval' needs an end anchor, but 'intervalEndDate' is empty or not a valid " +
+            "date (or use 'intervalEndToday').";
+      }
+
+      return "its period/interval combination is not valid.";
+   }
+
+   private static String dynamicSource(String raw) {
+      return raw != null && isDynamic(raw.trim()) ? " from " + raw.trim() : "";
+   }
+
+   private static String rawValue(String raw) {
+      return raw == null || raw.isBlank() ? " (no value)" : " (value: '" + raw.trim() + "')";
    }
 
    /**
@@ -1422,7 +1548,7 @@ public class DateComparisonService {
                   "'intervalGranularity' (" + granularityWord(granularity) + ") is not one the " +
                   "Date Comparison dialog offers for interval '" + intervalWord(intervalLevel) +
                   "'" + (periodLevel == null ? "" : " at period level '" + levelWord(periodLevel) +
-                  "'") + ". Use one of: " + String.join(", ", words) + ".");
+                  "'") + ". Use one of: " + String.join(", ", words) + ". " + STORED_VALUE_HINT);
             }
          }
       }
@@ -1431,24 +1557,123 @@ public class DateComparisonService {
          Integer context = parseLevel(interval.getContextLevel());
 
          if(context != null) {
-            boolean allowed = periodLevel == null || context <= periodLevel;
-
-            if(allowed && intervalLevel != null) {
-               int group = intervalGroupLevel(intervalLevel);
-               boolean same = (intervalLevel & DateComparisonInfo.SAME_DATE) ==
-                  DateComparisonInfo.SAME_DATE;
-               allowed = group < 0 || same ? context > group : context >= group;
-            }
-
-            if(!allowed) {
+            if(!contextLevelAllowed(context, periodLevel, intervalLevel)) {
                throw new IllegalArgumentException(
                   "'intervalContextLevel' (" + contextLevelWord(context) + ") is not one the " +
                   "Date Comparison dialog offers for this period level / interval. It must not " +
                   "be coarser than 'level', and must be finer than (same*) or at least as fine " +
-                  "as (*ToDate) the 'interval' level.");
+                  "as (*ToDate) the 'interval' level. " + STORED_VALUE_HINT);
             }
          }
       }
+   }
+
+   /**
+    * A value stored by an earlier call can already be one the dialog would not offer (the stored
+    * default granularity is year). Echoing it back is refused like any other value, so say how to
+    * get a valid one: a call that sets the period without naming the field replaces it.
+    */
+   private static final String STORED_VALUE_HINT =
+      "If this value was read back from get_date_comparison, it was stored by an earlier call; " +
+      "re-send the period without this field and it is replaced with a valid one.";
+
+   /** Whether {@code getContextLevels()} offers {@code context} for this period level / interval. */
+   private static boolean contextLevelAllowed(int context, Integer periodLevel,
+                                              Integer intervalLevel)
+   {
+      boolean allowed = periodLevel == null || context <= periodLevel;
+
+      if(allowed && intervalLevel != null) {
+         int group = intervalGroupLevel(intervalLevel);
+         boolean same = (intervalLevel & DateComparisonInfo.SAME_DATE) ==
+            DateComparisonInfo.SAME_DATE;
+         allowed = group < 0 || same ? context > group : context >= group;
+      }
+
+      return allowed;
+   }
+
+   /**
+    * The dialog never keeps an interval granularity / context level its own lists do not offer:
+    * {@code updateVisibleLevel} resets the granularity to the first one offered when the level
+    * changes, and {@code contextLevelValue} falls back to the first offered context. A write that
+    * names neither has no such step, so a granularity stored earlier (the stored default is
+    * {@code year}, which is not offered at e.g. a month period) or a context left over from a
+    * previous level would survive the change, be reported back by {@link #read}, and then be
+    * refused when that read-back is echoed (the strict check in
+    * {@link #requireValidIntervalFields}). Only a field the call did not name is touched, only for
+    * literal values (a dynamic one is unknowable until render, as in the dialog), and the
+    * replacement is reported as {@code intervalGranularityAdjusted} /
+    * {@code intervalContextLevelAdjusted} with the before/after, so the change is never silent.
+    * Read stays raw, so what is reported is what is stored and what renders.
+    */
+   private static Map<String, Object> normalizeUnnamedIntervalFields(
+      DateComparisonPaneModel model, Comparison comparison)
+   {
+      Map<String, Object> out = new LinkedHashMap<>();
+      PeriodPaneModel periods = model.getPeriodPaneModel();
+      IntervalPaneModel interval = model.getIntervalPaneModel();
+
+      if(!setsPeriod(comparison) || hasCustomPeriods(comparison) || periods == null ||
+         periods.isCustom() || interval == null)
+      {
+         return out;
+      }
+
+      StandardPeriodPaneModel standard = periods.getStandardPeriodPaneModel();
+      Integer periodLevel = standard == null ? null : parseLevel(standard.getDateLevel());
+      Integer intervalLevel = parseLevel(interval.getLevel());
+
+      if(periodLevel == null || intervalLevel == null) {
+         return out;
+      }
+
+      Integer granularity = parseLevel(interval.getGranularity());
+
+      if(comparison.intervalGranularity() == null && granularity != null) {
+         int allowed = allowedGranularities(intervalLevel, periodLevel);
+
+         if((allowed & granularity) != granularity) {
+            for(int code : new int[] {DateComparisonInfo.YEAR, DateComparisonInfo.QUARTER,
+                                      DateComparisonInfo.MONTH, DateComparisonInfo.WEEK,
+                                      DateComparisonInfo.DAY})
+            {
+               if((allowed & code) == code) {
+                  setDynamic(interval.getGranularity(), String.valueOf(code));
+                  out.put("intervalGranularityAdjusted", true);
+                  out.put("intervalGranularityBefore", granularityWord(granularity));
+                  out.put("intervalGranularityAfter", granularityWord(code));
+                  break;
+               }
+            }
+         }
+      }
+
+      Integer context = parseLevel(interval.getContextLevel());
+
+      if(comparison.intervalContextLevel() == null && context != null &&
+         context != DateComparisonInfo.ALL &&
+         !contextLevelAllowed(context, periodLevel, intervalLevel))
+      {
+         int replacement = DateComparisonInfo.ALL;
+
+         for(int code : new int[] {XConstants.YEAR_DATE_GROUP, XConstants.QUARTER_DATE_GROUP,
+                                   XConstants.MONTH_DATE_GROUP, XConstants.WEEK_DATE_GROUP})
+         {
+            if(contextLevelAllowed(code, periodLevel, intervalLevel)) {
+               replacement = code;
+               break;
+            }
+         }
+
+         setDynamic(interval.getContextLevel(), String.valueOf(replacement));
+         out.put("intervalContextLevelAdjusted", true);
+         out.put("intervalContextLevelBefore", contextLevelWord(context));
+         out.put("intervalContextLevelAfter",
+                 replacement == DateComparisonInfo.ALL ? null : contextLevelWord(replacement));
+      }
+
+      return out;
    }
 
    /** The granularity bits {@code getGranularities()} offers for a standard period. */
