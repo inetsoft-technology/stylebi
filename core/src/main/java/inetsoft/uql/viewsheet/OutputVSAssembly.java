@@ -495,8 +495,26 @@ public abstract class OutputVSAssembly extends AbstractVSAssembly
 
    @Override
    public void removeBindingCol(String ref) {
-      // it only show to one col data, clear the col means clear table?
-      setTableName(null);
+      // the assembly may stay bound, so drop conditions on the removed ref
+      VSUtil.removeConditionListRef(getPreConditionList(), ref);
+      ScalarBindingInfo sbinfo = getScalarBindingInfo();
+
+      if(sbinfo == null) {
+         return;
+      }
+
+      // only unbind when the removed ref is one of the columns this assembly shows.
+      // a persisted binding may only have the column value (column is resolved lazily)
+      DataRef dref = sbinfo.getColumn();
+      DataRef sref = sbinfo.getSecondaryColumn();
+
+      if(dref != null && Tool.equals(ref, dref.getName()) ||
+         Tool.equals(ref, sbinfo.getColumnValue()) ||
+         sref != null && Tool.equals(ref, sref.getName()) ||
+         Tool.equals(ref, sbinfo.getColumn2Value()))
+      {
+         setTableName(null);
+      }
    }
 
    @Override
