@@ -329,7 +329,7 @@ public final class CSVLoader {
    public static Object[] getHeaders(String[] line, boolean firstRow, int colLimit, boolean removeQuote) {
       int headerCount = colLimit == -1 ? line.length : Math.min(line.length, colLimit);
       String[] headers = new String[headerCount];
-      Set<Object> existing = new HashSet<>();
+      Set<String> existing = new HashSet<>();
 
       for(int i = 0; i < headers.length; i++) {
          String header = (firstRow && line[i] != null &&
@@ -340,14 +340,31 @@ public final class CSVLoader {
             headers[i] = TextUtil.stripOffQuote(headers[i]);
          }
 
-         for(int k = 1; existing.contains(headers[i]); k++) {
-            headers[i] = header + " " + k;
-         }
-
-         existing.add(headers[i]);
+         headers[i] = uniqueHeader(headers[i], existing);
       }
 
       return headers;
+   }
+
+   /**
+    * Make a header unique among the headers already taken. Column names are resolved
+    * case-insensitively at query time, so names that differ only by case are treated as
+    * duplicates; otherwise one of the columns silently loses its data.
+    *
+    * @param header   the cleaned header.
+    * @param existing the lower-cased headers already taken; the result is added to it.
+    *
+    * @return the header itself, or the header with the first " k" suffix that is unused.
+    */
+   public static String uniqueHeader(String header, Set<String> existing) {
+      String result = header;
+
+      for(int k = 1; existing.contains(result.toLowerCase(Locale.ROOT)); k++) {
+         result = header + " " + k;
+      }
+
+      existing.add(result.toLowerCase(Locale.ROOT));
+      return result;
    }
 
    public static String toValidHeader(String str) {
