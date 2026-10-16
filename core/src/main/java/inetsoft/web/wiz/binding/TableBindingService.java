@@ -50,6 +50,8 @@ import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CalcTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
+import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.model.vs.HideColumnsDialogModel;
@@ -116,8 +118,10 @@ public class TableBindingService {
          requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
                                     fields == null ? 0 : fields.size());
          String livePercentageBy = livePercentageByValue(assembly);
+         TableBindingMutator.drainNotes();
          TableBindingMutator.setShelf(model, shelf, fields, rvs, source, refModelService);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
+         relayNotes(assemblyName, dispatcher);
 
          ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
          event.setName(assemblyName);
@@ -1732,6 +1736,19 @@ public class TableBindingService {
                   inetsoft.uql.asset.SourceInfo source) throws Exception;
    }
 
+   /**
+    * Reports what the mutator reset on its own as WARNING messages, so the caller is told rather
+    * than finding a sort or ranking gone (bug #77025 review F1).
+    */
+   private static void relayNotes(String assemblyName, CommandDispatcher dispatcher) {
+      for(String note : TableBindingMutator.drainNotes()) {
+         MessageCommand command = new MessageCommand();
+         command.setType(MessageCommand.Type.WARNING);
+         command.setMessage(note);
+         dispatcher.sendCommand(assemblyName, command);
+      }
+   }
+
    private List<String> applyWithContext(String sessionToken, Principal user, String assemblyName,
                                  String shelf, ContextualShelfMutation mutation) throws Exception
    {
@@ -1741,8 +1758,10 @@ public class TableBindingService {
          inetsoft.uql.asset.SourceInfo source = assembly instanceof DataVSAssembly data
             ? data.getSourceInfo() : null;
          String livePercentageBy = livePercentageByValue(assembly);
+         TableBindingMutator.drainNotes();
          mutation.accept(model, rvs, source);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
+         relayNotes(assemblyName, dispatcher);
 
          ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
          event.setName(assemblyName);
@@ -1778,7 +1797,9 @@ public class TableBindingService {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName, allowCalcTable);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
          String livePercentageBy = preservePercentageBy ? livePercentageByValue(assembly) : null;
+         TableBindingMutator.drainNotes();
          mutation.accept(model);
+         relayNotes(assemblyName, dispatcher);
 
          if(preservePercentageBy) {
             TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);

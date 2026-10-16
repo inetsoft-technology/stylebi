@@ -200,9 +200,7 @@ public final class TableBindingMutator {
             model.setAggregates(next);
             syncAggregateReferences(model, before, next);
 
-            if(carriedAggregates != null) {
-               clearDanglingAggregateReferences(model, before);
-            }
+            clearDanglingAggregateReferences(model, before);
          }
       }
 
@@ -1432,7 +1430,7 @@ public final class TableBindingMutator {
             continue;
          }
 
-         Integer at = first.putIfAbsent(column.toLowerCase(), i);
+         Integer at = first.putIfAbsent(column.toLowerCase(java.util.Locale.ROOT), i);
 
          if(at != null) {
             throw new IllegalArgumentException(
@@ -1455,6 +1453,8 @@ public final class TableBindingMutator {
    public static void clearDanglingAggregateReferences(BaseTableBindingModel model,
                                                        List<BAggregateRefModel> before)
    {
+      // Every aggregates write that drops a measure -- replace, remove, move off, repoint --
+      // ends here, so the paths agree; each reset is reported through drainNotes() (F1).
       if(before == null || before.isEmpty()) {
          return;
       }
@@ -1478,18 +1478,45 @@ public final class TableBindingMutator {
          }
 
          for(BDimensionRefModel dim : dimensionsOf(model, shelf)) {
+            String column = dim.getColumnValue() == null ? dim.getName() : dim.getColumnValue();
+            String where = "'" + column + "' on " + shelf;
+
             if(vanished(dim.getSortByCol(), was, now)) {
+               notes().add(NOTE_PREFIX + "the sort of " + where + " by '" + dim.getSortByCol() +
+                  "' was reset to ascending, because that aggregate is no longer bound.");
                DimensionSortRanking.applySort(dim, new DimensionSortRanking.Sort("asc", null, null));
                dim.setSortByColAgg(null);
             }
 
             if(vanished(dim.getRankingCol(), was, now)) {
+               notes().add(NOTE_PREFIX + "the ranking of " + where + " by '" + dim.getRankingCol() +
+                  "' was removed, because that aggregate is no longer bound.");
                DimensionSortRanking.applyRanking(
                   dim, new DimensionSortRanking.Ranking("none", null, null, null));
                dim.setRankingAgg(null);
             }
          }
       }
+   }
+
+   /** Prefix of every message {@link #drainNotes} returns; the plugin splits on it. */
+   public static final String NOTE_PREFIX = "Binding reset: ";
+
+   private static final ThreadLocal<List<String>> NOTES = ThreadLocal.withInitial(ArrayList::new);
+
+   private static List<String> notes() {
+      return NOTES.get();
+   }
+
+   /**
+    * The messages about state this thread's last mutations reset on their own (a sort or ranking
+    * that named a discarded aggregate), cleared as they are read. The service relays them to the
+    * caller; call it once before a mutation to drop any left over.
+    */
+   public static List<String> drainNotes() {
+      List<String> out = new ArrayList<>(NOTES.get());
+      NOTES.get().clear();
+      return out;
    }
 
    private static boolean vanished(String measure, List<FieldRef> was, List<FieldRef> now) {

@@ -2974,4 +2974,46 @@ class TableBindingMutatorTest {
          () -> TableBindingMutator.addField(model, "details", dim("State"), null));
       assertEquals(2, model.getDetails().size());
    }
+
+   @Test
+   void aWholesaleAggregatesReplaceThatDropsTheReferencedMeasureResetsLikeARemove() {
+      CrosstabBindingModel model = rankedStateCity("rows");
+      TableBindingMutator.drainNotes();
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Profit", "Sum")));
+
+      BDimensionRefModel state = model.getRows().get(0);
+      assertEquals(XConstants.SORT_ASC, state.getOrder());
+      assertNull(state.getSortByCol());
+      assertNull(state.getRankingCol());
+   }
+
+   @Test
+   void aResetIsReportedNamingTheDimensionAndTheMeasure() throws Exception {
+      CrosstabBindingModel model = rankedStateCity("rows");
+      TableBindingMutator.drainNotes();
+
+      TableBindingMutator.removeField(model, "aggregates", "Total", null, null, null, null);
+
+      List<String> notes = TableBindingMutator.drainNotes();
+      assertEquals(2, notes.size(), notes.toString());
+      assertTrue(notes.stream().allMatch(n -> n.startsWith(TableBindingMutator.NOTE_PREFIX)));
+      assertTrue(notes.get(0).contains("'State' on rows") && notes.get(0).contains("sort"),
+                 notes.get(0));
+      assertTrue(notes.get(1).contains("'State' on rows") && notes.get(1).contains("ranking"),
+                 notes.get(1));
+      assertTrue(TableBindingMutator.drainNotes().isEmpty(), "drain clears");
+   }
+
+   @Test
+   void aWriteThatKeepsTheReferencedMeasureReportsNothing() {
+      CrosstabBindingModel model = rankedStateCity("rows");
+      TableBindingMutator.drainNotes();
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Total", "Sum"), measure("Profit", "Sum")));
+
+      assertTrue(TableBindingMutator.drainNotes().isEmpty());
+      assertStateKept(model.getRows().get(0));
+   }
 }
