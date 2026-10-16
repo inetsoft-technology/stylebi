@@ -4504,12 +4504,19 @@ public final class VSUtil {
       return FIELD_NAME_MATCH;
    }
 
+   private static final Set<String> REGEX_PRECEDING_KEYWORDS = Set.of(
+      "return", "typeof", "case", "in", "of", "new", "delete", "void", "throw", "else", "do",
+      "instanceof", "yield", "await");
+
    /**
     * @return for each character of the script, whether it is code, i.e. outside string literals,
     *         template literal text and comments. A <code>${...}</code> interpolation inside a
-    *         template literal is code. If the scan ends inside an unterminated literal, template
-    *         or block comment (e.g. a regex literal containing a quote desynchronizes it), every
-    *         character is reported as code so a real reference is never silently dropped.
+    *         template literal is code. Regex literals are recognized by the preceding token
+    *         (after an operator, punctuator, keyword or at the start; division after an operand).
+    *         If the scan ends inside an unterminated literal, template, regex or block comment,
+    *         every character is reported as code so a real reference is never silently dropped.
+    *         A regex that follows <code>)</code> (e.g. <code>if(x) /re/.test(y)</code>) is read as
+    *         division, the one case that can still desynchronize the scan.
     */
    private static boolean[] codeMask(String script) {
       int n = script.length();
@@ -4520,6 +4527,11 @@ public final class VSUtil {
       int i = 0;
       // 0 = code, 1 = template text
       int mode = 0;
+      // what the last significant code token was: 0 = operator/start (a '/' starts a regex),
+      // 1 = operand (a '/' divides), 2 = identifier or number in 'word' (keyword -> regex)
+      int prev = 0;
+      boolean inWord = false;
+      String word = "";
 
       while(i < n && ok) {
          char c = script.charAt(i);
@@ -4530,6 +4542,8 @@ public final class VSUtil {
             }
             else if(c == '`') {
                mode = 0;
+               prev = 1;
+               inWord = false;
                i++;
             }
             else if(c == '$' && i + 1 < n && script.charAt(i + 1) == '{') {
@@ -4560,6 +4574,8 @@ public final class VSUtil {
             }
 
             i = j + 1;
+            prev = 1;
+            inWord = false;
          }
          else if(c == '`') {
             mode = 1;
@@ -4582,8 +4598,38 @@ public final class VSUtil {
 
             i = end < 0 ? n : end + 2;
          }
+         else if(c == '/' && (prev == 0 || prev == 2 && REGEX_PRECEDING_KEYWORDS.contains(word))) {
+            int j = i + 1;
+            boolean inClass = false;
+
+            while(j < n && script.charAt(j) != '\n' && (inClass || script.charAt(j) != '/')) {
+               char rc = script.charAt(j);
+
+               if(rc == '\\') {
+                  j++;
+               }
+               else if(rc == '[') {
+                  inClass = true;
+               }
+               else if(rc == ']') {
+                  inClass = false;
+               }
+
+               j++;
+            }
+
+            if(j >= n || script.charAt(j) != '/') {
+               ok = false;
+            }
+
+            i = j + 1;
+            prev = 1;
+            inWord = false;
+         }
          else if(!braces.isEmpty() && c == '{') {
             braces.peek()[0]++;
+            prev = 0;
+            inWord = false;
             code[i++] = true;
          }
          else if(!braces.isEmpty() && c == '}') {
@@ -4599,10 +4645,26 @@ public final class VSUtil {
             }
             else {
                braces.peek()[0]--;
+               prev = 0;
+               inWord = false;
                code[i++] = true;
             }
          }
          else {
+            if(Character.isWhitespace(c)) {
+               inWord = false;
+            }
+            else if(Character.isJavaIdentifierPart(c)) {
+               word = inWord ? word + c : String.valueOf(c);
+               inWord = true;
+               prev = 2;
+            }
+            else {
+               inWord = false;
+               prev = c == ')' || c == ']' ||
+                  (c == '+' || c == '-') && i > 0 && script.charAt(i - 1) == c ? 1 : 0;
+            }
+
             code[i++] = true;
          }
       }

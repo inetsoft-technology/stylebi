@@ -293,6 +293,37 @@ class VSUtilRenameCalcFieldReferenceTest {
    }
 
    @Test
+   void seesReferencesAfterRegexLiterals() {
+      assertRenamed("s.replace(/\\//g, '-') + field['VatR']",
+                    "s.replace(/\\//g, '-') + field['Vat']");
+      assertRenamed("/^https?:\\/\\//.test(field['URL']) ? field['VatR'] : 0",
+                    "/^https?:\\/\\//.test(field['URL']) ? field['Vat'] : 0");
+      assertRenamed("/'/.test(s) ? field['VatR'] : 0 // don't",
+                    "/'/.test(s) ? field['Vat'] : 0 // don't");
+      assertRenamed("/\"/.test(s) ? field['VatR'] : 0 // \"",
+                    "/\"/.test(s) ? field['Vat'] : 0 // \"");
+      assertRenamed("/[/]'/.test(s) ? field['VatR'] : 0", "/[/]'/.test(s) ? field['Vat'] : 0");
+      assertRenamed("return /a\\/b/.test(s) ? field['VatR'] : 0",
+                    "return /a\\/b/.test(s) ? field['Vat'] : 0");
+      assertTrue(refsVat("s.replace(/\\//g, '-') + field.Vat"));
+   }
+
+   @Test
+   void regexLiteralTextIsNotAReference() {
+      assertIgnored("/field['Vat']/.test(s) ? 1 : 0");
+   }
+
+   @Test
+   void divisionIsNotARegex() {
+      assertRenamed("a / b + field['VatR'] / 2", "a / b + field['Vat'] / 2");
+      assertRenamed("(x) / 2 + field['VatR']", "(x) / 2 + field['Vat']");
+      assertRenamed("a[0] / b + field['VatR']", "a[0] / b + field['Vat']");
+      assertRenamed("x/2/3 + field['VatR']", "x/2/3 + field['Vat']");
+      assertRenamed("i++ / 2 + field['VatR'] / 3", "i++ / 2 + field['Vat'] / 3");
+      assertIgnored("a / b + \" field['Vat'] \" / 2");
+   }
+
+   @Test
    void unterminatedLiteralFallsBackToUnmaskedMatching() {
       // the regex literal's quote desynchronizes the scan; a real reference must not be dropped
       assertTrue(refsVat("/'/.test(field['ORDER_ID']) ? field['Vat'] : 0"));
