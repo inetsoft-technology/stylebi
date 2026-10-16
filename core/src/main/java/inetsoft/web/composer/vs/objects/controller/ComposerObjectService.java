@@ -144,6 +144,11 @@ public class ComposerObjectService {
 
          info.setPixelSize(size);
 
+         // a changed size is the author's; Align and Distribute resend sizes unchanged
+         if(info.takesDensitySize() && !size.equals(originalSize)) {
+            info.setUserSize(true);
+         }
+
          if(assembly instanceof LineVSAssembly) {
             LineVSAssembly line = (LineVSAssembly) assembly;
 

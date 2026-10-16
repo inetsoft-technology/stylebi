@@ -107,9 +107,28 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
          def.setForeground(null);
       }
 
-      // no card inset and no size rule: the container is a frame around child assemblies that
-      // inset themselves, so a second inset here would only indent them twice. Its box therefore
-      // keeps the legacy basis at every tier
+      // no card inset: its children inset themselves, so one here would indent them twice
+
+      // twelve lanes at the tier; only a size the rule wrote moves, and unmarked only under Revert.
+      // An author's size carries userSize and this rule leaves it alone
+      if((ctx.modern || ctx.transition) && followsDensitySize()) {
+         setPixelSize(VSDensityDefaults.containerSize(ctx));
+      }
+   }
+
+   @Override
+   public boolean takesDensitySize() {
+      return true;
+   }
+
+   @Override
+   public boolean followsDensitySize() {
+      return !isUserSize() && VSDensityDefaults.isSeededContainerSize(getPixelSize());
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      return VSDensityDefaults.containerSize(ctx);
    }
 
    /**

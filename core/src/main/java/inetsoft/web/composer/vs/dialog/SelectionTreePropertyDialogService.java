@@ -131,6 +131,9 @@ public class SelectionTreePropertyDialogService {
       sizePositionPaneModel.setCellHeightFollowsDensity(
          selectionTreeAssemblyInfo.getVizMark() == null ? null :
             !selectionTreeAssemblyInfo.isUserCellHeight());
+      VSDialogService.readSizeFollowsDensity(selectionTreeAssemblyInfo, sizePositionPaneModel,
+         !(selectionTreeAssembly.getContainer() instanceof CurrentSelectionVSAssembly) &&
+            selectionTreeAssemblyInfo.getShowTypeValue() == SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
 
       basicGeneralPaneModel.setName(selectionTreeAssemblyInfo.getAbsoluteName());
       basicGeneralPaneModel.setPrimary(selectionTreeAssemblyInfo.isPrimary());
@@ -269,7 +272,11 @@ public class SelectionTreePropertyDialogService {
       streeInfo.setTitleVisibleValue(titlePropPaneModel.isVisible());
       streeInfo.setTitleValue(titlePropPaneModel.getTitle());
 
+      Dimension shownSize =
+         new Dimension(dialogService.getAssemblySize(streeInfo, viewsheet.getViewsheet()));
+      VSDialogService.applyDensitySize(streeInfo, sizePositionPaneModel);
       dialogService.setAssemblySize(streeInfo, sizePositionPaneModel);
+      VSDialogService.recordAuthorSize(streeInfo, sizePositionPaneModel, shownSize);
       dialogService.setAssemblyPosition(streeInfo, sizePositionPaneModel);
       Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
 
@@ -328,10 +335,8 @@ public class SelectionTreePropertyDialogService {
          if(streeInfo.getVizMark() != null) {
             // a marked tree's rows and title lane follow the density, and its rows sit inside the
             // card inset
-            Insets inset = streeInfo.getPadding();
-            minListHeight = streeInfo.getListHeight() * streeInfo.getEffectiveCellHeight() +
-               (streeInfo.isTitleVisible() ? streeInfo.getTitleHeight() : 0) +
-               (inset == null ? 0 : inset.top + inset.bottom);
+            minListHeight = streeInfo.getListBodyHeight() +
+               (streeInfo.isTitleVisible() ? streeInfo.getTitleHeight() : 0);
          }
          else {
             minListHeight = streeInfo.getListHeight() * AssetUtil.defh;

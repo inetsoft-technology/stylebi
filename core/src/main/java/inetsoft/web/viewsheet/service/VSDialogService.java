@@ -159,6 +159,54 @@ public class VSDialogService {
    }
 
    /**
+    * Offer the size checkbox only for a box a density size rule governs.
+    * @param governed not a selection container's child, and a list or tree shown as a list
+    */
+   public static void readSizeFollowsDensity(VSAssemblyInfo info, SizePositionPaneModel model,
+                                             boolean governed)
+   {
+      model.setSizeFollowsDensity(
+         governed && info.takesDensitySize() && info.getVizMark() != null ?
+            info.followsDensitySize() : null);
+   }
+
+   /**
+    * Put a ticked box back on its density size, and that size in the model so a container's
+    * children follow.
+    */
+   public static void applyDensitySize(VSAssemblyInfo info, SizePositionPaneModel model) {
+      if(!Boolean.TRUE.equals(model.getSizeFollowsDensity()) || !info.takesDensitySize()) {
+         return;
+      }
+
+      info.resetSize(VizContext.of(info));
+      Dimension size = info.getPixelSize();
+      model.setWidth(size.width);
+      model.setHeight(size.height);
+   }
+
+   /**
+    * Record the size as the author's when they unticked, or changed it from a client with no
+    * answer.
+    * @param shown the stored size before this write.
+    */
+   public static void recordAuthorSize(VSAssemblyInfo info, SizePositionPaneModel model,
+                                       Dimension shown)
+   {
+      Boolean follows = model.getSizeFollowsDensity();
+
+      if(!info.takesDensitySize() || Boolean.TRUE.equals(follows)) {
+         return;
+      }
+
+      if(Boolean.FALSE.equals(follows) ||
+         model.getWidth() != shown.width || model.getHeight() != shown.height)
+      {
+         info.setUserSize(true);
+      }
+   }
+
+   /**
     * Get Tree model for images, mimic of GetTableStyleEvent
     *
     * @param rvs The runtime viewsheet

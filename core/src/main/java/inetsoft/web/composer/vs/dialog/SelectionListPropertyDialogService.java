@@ -130,6 +130,9 @@ public class SelectionListPropertyDialogService {
       sizePositionPaneModel.setCellHeightFollowsDensity(
          selectionListAssemblyInfo.getVizMark() == null ? null :
             !selectionListAssemblyInfo.isUserCellHeight());
+      VSDialogService.readSizeFollowsDensity(selectionListAssemblyInfo, sizePositionPaneModel,
+         !inSelectionContainer &&
+            selectionListAssemblyInfo.getShowTypeValue() == SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
 
       basicGeneralPaneModel.setName(selectionListAssemblyInfo.getAbsoluteName());
       basicGeneralPaneModel.setPrimary(selectionListAssemblyInfo.isPrimary());
@@ -242,7 +245,11 @@ public class SelectionListPropertyDialogService {
 
       selectionListAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
 
+      Dimension shownSize =
+         new Dimension(dialogService.getAssemblySize(selectionListAssemblyInfo, rvs.getViewsheet()));
+      VSDialogService.applyDensitySize(selectionListAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblySize(selectionListAssemblyInfo, sizePositionPaneModel);
+      VSDialogService.recordAuthorSize(selectionListAssemblyInfo, sizePositionPaneModel, shownSize);
       dialogService.setAssemblyPosition(selectionListAssemblyInfo, sizePositionPaneModel);
 
       Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
@@ -296,11 +303,8 @@ public class SelectionListPropertyDialogService {
       else if(showType != oldShowType) {
          // the rows a marked list draws follow the density and sit inside its card inset; both
          // reduce to the stored cell height and zero for an unmarked list
-         Insets inset = selectionListAssemblyInfo.getPadding();
-         int insetY = inset == null ? 0 : inset.top + inset.bottom;
          size.height = selectionListAssemblyInfo.getTitleHeight() +
-            selectionListAssemblyInfo.getListHeight() *
-               selectionListAssemblyInfo.getEffectiveCellHeight() + insetY;
+            selectionListAssemblyInfo.getListBodyHeight();
       }
 
       VSAssembly container = selectionListAssembly.getContainer();

@@ -45,7 +45,7 @@
             <label class="form-label">_#(Width)</label>
             <number-stepper formControlName="width"
                             (valueChange)="model.width = $event"
-                            [disabled]="!layoutEnabled || model.locked"
+                            [disabled]="!layoutEnabled || model.locked || model.sizeFollowsDensity === true"
                             [invalid]="layoutEnabled && !!form.controls['width'].errors">
             </number-stepper>
           </div>
@@ -57,13 +57,28 @@
             <label class="form-label">_#(Height)</label>
             <number-stepper formControlName="height"
                             (valueChange)="model.height = $event"
-                            [disabled]="!layoutEnabled || model.locked"
+                            [disabled]="!layoutEnabled || model.locked || model.sizeFollowsDensity === true"
                             [invalid]="layoutEnabled && !!form.controls['height'].errors">
             </number-stepper>
           </div>
         </div>
       }
     </div>
+    @if (showSizeFollow && !isGroup && !isViewsheet) {
+      <div class="row shell-form-row--field">
+        <div class="col-6 offset-6">
+          <div class="form-check mt-1">
+            <input type="checkbox" class="form-check-input" id="sizeFollowsDensity"
+                   [ngModel]="model.sizeFollowsDensity"
+                   (ngModelChange)="sizeFollowChanged($event)"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="sizeFollowsDensity">
+              _#(composer.vs.followDefaultDensity)
+            </label>
+          </div>
+        </div>
+      </div>
+    }
     @if (showTitleHeight || showCellHeight) {
       <div class="row shell-form-row--field">
         @if (showTitleHeight) {

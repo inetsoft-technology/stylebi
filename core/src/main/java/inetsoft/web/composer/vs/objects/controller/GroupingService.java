@@ -141,7 +141,7 @@ public class GroupingService {
                SelectionBaseVSAssemblyInfo sinfo = ((SelectionBaseVSAssemblyInfo) objectInfo);
                sinfo.setShowTypeValue(container instanceof CurrentSelectionVSAssembly
                   ? SelectionBaseVSAssemblyInfo.DROPDOWN_SHOW_TYPE : sinfo.getShowTypeValue());
-               objSize.height = sinfo.getListHeight() * defh + sinfo.getTitleHeight();
+               objSize.height = sinfo.getContainedListHeight();
             }
 
             Point objectPos = new Point(pos.x, pos.y + size.height);
