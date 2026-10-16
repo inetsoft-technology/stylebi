@@ -515,7 +515,7 @@ class BindableFieldsServiceTest {
       CalendarVSAssembly calendar = mock(CalendarVSAssembly.class);
       when(calendar.getTableName()).thenReturn("ORDERS1");
       ComboBoxVSAssembly combo = mock(ComboBoxVSAssembly.class);
-      when(combo.getTableName()).thenReturn("ORDERS1");
+      when(combo.getBoundTableName()).thenReturn("ORDERS1");
 
       for(VSAssembly target : List.of(gauge, text, list, slider, calendar, combo)) {
          VSBindingTreeService tree = mock(VSBindingTreeService.class);
@@ -528,6 +528,34 @@ class BindableFieldsServiceTest {
          assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current(), type);
          verify(tree, never()).getBinding(eq("rt1"), eq("A1"), anyBoolean(), any(Principal.class));
       }
+   }
+
+   @Test
+   void aListInputMarksItsListBindingTableOverItsWriteBackTable() throws Exception {
+      ComboBoxVSAssembly combo = mock(ComboBoxVSAssembly.class);
+      when(combo.getBoundTableName()).thenReturn("ORDERS1");
+      when(combo.getTableName()).thenReturn("ORDER_DETAILS1");
+
+      List<BindableTable> tables = realisticServiceFor(
+         twoTableTree(), "A1", combo, mock(VSBindingTreeService.class))
+         .list("rt1", "A1", principal());
+
+      assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current());
+      assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current());
+   }
+
+   @Test
+   void aListInputWithoutAListBindingKeepsItsWriteBackTable() throws Exception {
+      ComboBoxVSAssembly combo = mock(ComboBoxVSAssembly.class);
+      when(combo.getBoundTableName()).thenReturn(null);
+      when(combo.getTableName()).thenReturn("ORDERS1");
+
+      List<BindableTable> tables = realisticServiceFor(
+         twoTableTree(), "A1", combo, mock(VSBindingTreeService.class))
+         .list("rt1", "A1", principal());
+
+      assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current());
+      assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current());
    }
 
    @Test
