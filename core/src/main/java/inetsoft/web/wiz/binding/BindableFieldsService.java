@@ -24,6 +24,7 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.BindableVSAssembly;
 import inetsoft.uql.viewsheet.DataVSAssembly;
+import inetsoft.uql.viewsheet.ListInputVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
@@ -130,6 +131,16 @@ public class BindableFieldsService {
          SourceInfo source = data.getSourceInfo();
 
          return source == null || source.isEmpty() ? null : source.getSource();
+      }
+
+      // Bug #78599: a ComboBox/RadioButton/CheckBox's table is its list-values binding;
+      // getTableName() is only the data-input write-back target, so it is the fallback.
+      if(assembly instanceof ListInputVSAssembly list) {
+         String bound = list.getBoundTableName();
+
+         if(!Tool.isEmptyString(bound)) {
+            return bound;
+         }
       }
 
       // Bug #76592: Gauge/Text (OutputVSAssembly) keep their table in BindingInfo, not a SourceInfo
