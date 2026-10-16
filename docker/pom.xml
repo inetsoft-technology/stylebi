@@ -395,8 +395,8 @@
           <to>
             <image>${inetsoft.docker.repository}/stylebi-community</image>
             <tags>
-              <tag>1.2</tag>
-              <tag>1.2.${docker.build.version}</tag>
+              <tag>2.0</tag>
+              <tag>2.0.${docker.build.version}</tag>
             </tags>
           </to>
           <container>

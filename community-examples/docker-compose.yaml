@@ -43,7 +43,7 @@ services:
     command: [ "/bin/sh", "-c", "chown -R 1000:1000 /tmp/inetsoft_kv /tmp/inetsoft_blob /tmp/inetsoft_files"]
   storage:
     # this container initializes the storage before the first start
-    image: "${STYLEBI_DOCKER_IMAGE:-ghcr.io/inetsoft-technology/stylebi-community:latest}"
+    image: "${STYLEBI_DOCKER_IMAGE:-ghcr.io/inetsoft-technology/stylebi-community:2.0.0}"
     restart: no
     volumes:
       - "inetsoft_kv:/var/lib/inetsoft/kv"
@@ -65,7 +65,7 @@ services:
       storage_perms:
         condition: service_completed_successfully
   server:
-    image: "${STYLEBI_DOCKER_IMAGE:-ghcr.io/inetsoft-technology/stylebi-community:latest}"
+    image: "${STYLEBI_DOCKER_IMAGE:-ghcr.io/inetsoft-technology/stylebi-community:2.0.0}"
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -91,7 +91,7 @@ services:
       start_period: 20s
       timeout: 10s
   scheduler:
-    image: "${STYLEBI_DOCKER_IMAGE:-ghcr.io/inetsoft-technology/stylebi-community:latest}"
+    image: "${STYLEBI_DOCKER_IMAGE:-ghcr.io/inetsoft-technology/stylebi-community:2.0.0}"
     restart: unless-stopped
     depends_on:
       server:
