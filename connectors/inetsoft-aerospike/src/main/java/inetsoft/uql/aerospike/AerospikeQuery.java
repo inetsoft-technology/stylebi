@@ -39,11 +39,12 @@ public class AerospikeQuery extends TabularQuery{
     *
     * @return sql string
     */
-   // the Aerospike JDBC driver is supplied by the customer and its literal
-   // syntax is not known here: double both quotes and backslashes, which
-   // cannot end the literal under either convention (Bug #78594)
+   // the query runs through com.aerospike.jdbc.AerospikeDriver, whose parser
+   // (Presto, then Trino, now Calcite with the default char literal style)
+   // reads ANSI string literals: '' is the only escape and a backslash is an
+   // ordinary character, so values are quote-doubled only (Bug #78594)
    @Property(label="Enter SQL", required=true, sql=true,
-             literalEscapeStyle=VarSQL.LiteralEscapeStyle.SQL, backslashIsEscapeChar=true)
+             literalEscapeStyle=VarSQL.LiteralEscapeStyle.SQL)
    @PropertyEditor(rows=10, columns=65)
    public String getQueryString() {
       return qstr;

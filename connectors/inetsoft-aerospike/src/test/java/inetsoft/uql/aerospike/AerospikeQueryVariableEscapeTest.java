@@ -26,7 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Bug #78594: a variable spliced into the AerospikeQuery query text is escaped for the
- * dialect's string literal (unknown dialect: quote and backslash doubling) instead of being URL-encoded.
+ * dialect's string literal instead of being URL-encoded. The Aerospike JDBC driver parses with
+ * Calcite (formerly Presto/Trino) default char literals, i.e. ANSI: {@code ''} is the only
+ * escape and a backslash is an ordinary character, in values and in the template.
  * Runs the same substitution TabularHandler.execute and TabularTableAssembly
  * apply, on the real query bean.
  */
@@ -47,7 +49,29 @@ class AerospikeQueryVariableEscapeTest {
 
    @Test
    void backslashQuoteBreakOut_staysInsideLiteral() {
-      assertEquals(PREFIX + "'x\\\\''/**/OR/**/1=1--'", replace(QUOTED, "x\\'/**/OR/**/1=1--"));
+      // ANSI: the backslash is a plain character, only the quote is doubled
+      assertEquals(PREFIX + "'x\\''/**/OR/**/1=1--'", replace(QUOTED, "x\\'/**/OR/**/1=1--"));
+   }
+
+   @Test
+   void valueBackslash_isNotDoubled() {
+      assertEquals(PREFIX + "'C:\\temp\\'", replace(QUOTED, "C:\\temp\\"));
+   }
+
+   @Test
+   void templateLiteralEndingInBackslash_valueCannotBreakOut() {
+      // 'C:\' is a complete ANSI literal, so the placeholder after it opens the
+      // second literal and the value is quote-doubled inside it
+      String template = "SELECT * FROM t WHERE c = 'C:\\' AND b = '$(p)'";
+      String prefix = "SELECT * FROM t WHERE c = 'C:\\' AND b = ";
+
+      assertEquals(prefix + "'x'' OR 1=1 --'", replace(template, "x' OR 1=1 --"));
+
+      for(String value : new String[] { "a\"b\" OR 1=1 --", "x'OR(1)IN(1)OR'", "x\\'OR 1=1 --",
+                                        "x\\", "''", "\\''\\", "' ; DROP TABLE t; --" })
+      {
+         assertEquals(prefix + "'" + value.replace("'", "''") + "'", replace(template, value), value);
+      }
    }
 
    @Test
@@ -69,7 +93,7 @@ class AerospikeQueryVariableEscapeTest {
 
    @Test
    void templateBackslashes_arePreservedByteForByte() {
-      String template = "SELECT * FROM t WHERE c RLIKE '(\\\\d+)\\.' AND a = 'x\\'' AND b = '$(p)'";
+      String template = "SELECT * FROM t WHERE c LIKE 'C:\\temp\\%' AND d = 'a\\\\b' AND a = 'it''s' AND b = '$(p)'";
       assertEquals(template.replace("$(p)", "v"), replace(template, "v"));
    }
 

@@ -92,7 +92,7 @@ class TabularUtilQueryTextEscapeTest {
       }
    }
 
-   // ---- unknown dialect (Aerospike): quote + backslash doubling ------------
+   // ---- SQL style with backslashIsEscapeChar: quote + backslash doubling ---
 
    @Test
    void unknownDialect_neverBreaksOutUnderAnyLexer() {
