@@ -24,6 +24,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XQuery;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.internal.FieldReferenceMatcher;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
@@ -342,9 +343,9 @@ public class AssetQueryCacheNormalizer {
 
          ExpressionRef ref = (ExpressionRef) col.getDataRef();
 
-         if(ref.getExpression().contains("field['" + alias + "']") ||
-            ref.getExpression().contains("field[\"" + alias + "\"]"))
-         {
+         // dot, bracket (either quote), whitespace and case-different reads all resolve at
+         // runtime (Bug #78679)
+         if(FieldReferenceMatcher.references(ref.getExpression(), Set.of(alias))) {
             return false;
          }
       }
