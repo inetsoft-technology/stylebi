@@ -63,6 +63,8 @@ class LibManagerRenameRemoveClusterOrderTest {
 
    @Autowired private BlobStorageManager blobStorageManager;
 
+   private static final long DEBOUNCE_SETTLE_MS = 1500L;
+
    private LibManager lib;
 
    @BeforeEach
@@ -90,6 +92,13 @@ class LibManagerRenameRemoveClusterOrderTest {
       lib.removeScript("fn76765A");
       lib.removeScript("fn76765B");
       lib.save();
+
+      // Every LibManager's storage listener reacts to a change of ANY org's library by reloading
+      // after a 1 s debounce. Let that reload land here, while this test's own LibManager is still
+      // listening, instead of in a later test class (e.g. ScriptLibraryRenameDeclarationTest),
+      // where it reloads the library from storage mid-test and adds a trailing newline to scripts.
+      Thread.sleep(DEBOUNCE_SETTLE_MS);
+      lib.close();
    }
 
    @Test

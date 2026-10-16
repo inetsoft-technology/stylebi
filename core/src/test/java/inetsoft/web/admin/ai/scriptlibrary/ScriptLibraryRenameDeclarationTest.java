@@ -126,7 +126,10 @@ class ScriptLibraryRenameDeclarationTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertNull(lib.getScript("oldFn78583"));
-      assertEquals("function newFn78583(v) { return v * 2; }", lib.getScript("newFn78583"));
+      // strip(): any LibManager storage listener (debounced 1 s, fired by ANY org's library write,
+      // including other test classes') may reload this instance from storage, which appends a trailing newline
+      assertEquals("function newFn78583(v) { return v * 2; }",
+                   lib.getScript("newFn78583").strip());
       assertEquals("function newFn78583(v) { return v * 2; }",
                    newLibManager().getScript("newFn78583").strip(), "reloaded from storage");
       // callers are rewritten by the rename transform task renameScript enqueues
