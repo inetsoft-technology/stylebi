@@ -40,6 +40,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -225,6 +226,30 @@ class TableCellRangeGuardTest {
       verify(highlights, never()).getHighlightDialogModel(anyString(), anyString(), any(),
                                                           any(), any(), anyBoolean(),
                                                           anyBoolean(), any());
+   }
+
+   /** set_highlight and delete_highlight reach the same guard before anything is written. */
+   @Test
+   void setAndDeleteHighlightOutsideAPlainTableAreRefusedBeforeAnyWrite() throws Exception {
+      Fixture f = plain(mock(TableVSAssembly.class));
+      HighlightDialogService highlights = highlightDialog();
+      AssemblyHighlightService.Highlight highlight = new AssemblyHighlightService.Highlight(
+         "h", "#FF0000", null, null, List.of(), false);
+
+      IllegalArgumentException set = assertThrows(IllegalArgumentException.class,
+         () -> highlights(f, highlights).set("tok", principal(), NAME, highlightRegion(99, 1),
+                                             highlight, false, ""));
+      assertTrue(set.getMessage().contains("Cell [99,1]"), set.getMessage());
+      IllegalArgumentException delete = assertThrows(IllegalArgumentException.class,
+         () -> highlights(f, highlights).delete("tok", principal(), NAME,
+                                                highlightRegion(1, 99), "h", ""));
+      assertTrue(delete.getMessage().contains("Cell [1,99]"), delete.getMessage());
+
+      verify(highlights, never()).getHighlightDialogModel(anyString(), anyString(), any(),
+                                                          any(), any(), anyBoolean(),
+                                                          anyBoolean(), any());
+      verify(highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
+                                                          anyString(), any(), any());
    }
 
    @Test
