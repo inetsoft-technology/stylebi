@@ -20,6 +20,7 @@ package inetsoft.web.composer.ws;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.internal.FieldReferenceMatcher;
 import inetsoft.uql.erm.AttributeRef;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

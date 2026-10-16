@@ -30,6 +30,7 @@ import inetsoft.uql.ConditionListWrapper;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.internal.FieldReferenceMatcher;
 import inetsoft.uql.asset.internal.ScriptIterator;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.service.DataSourceRegistry;
