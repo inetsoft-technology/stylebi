@@ -70,6 +70,8 @@ import inetsoft.util.css.CSSConstants;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.log.LogUtil;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -203,6 +205,41 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Get the graph pair of a chart while preparing the sheet, which does this for every chart,
+    * hidden or not. A chart whose graph fails to initialize (e.g. bound to a column its table
+    * lacks) fails on every request for its pair (78220), so the failure is logged here and the
+    * chart treated as having no pair: a chart that is not exported must not fail the export.
+    * An exported chart still fails it when its graph is created for writing (77227). A lost
+    * sandbox lock, a lock stall or a lost swap file, a stopped script or a cancel is not a chart
+    * failure and is rethrown. (78727)
+    *
+    * @return the graph pair, or {@code null} if it could not be created.
+    */
+   private static VGraphPair getPreparedGraphPair(ViewsheetSandbox box, Assembly chart)
+      throws Exception
+   {
+      try {
+         return box.getVGraphPair(chart.getAbsoluteName());
+      }
+      catch(LockRestoreException | MessageException | ConfirmException ex) {
+         throw ex;
+      }
+      catch(Exception ex) {
+         DataUnavailable.rethrow(ex);
+         ScriptTimeoutGuard.rethrowStop(ex);
+         CancelledException cancel = CancelledException.find(ex);
+
+         if(cancel != null) {
+            throw cancel;
+         }
+
+         LOG.error("Failed to create the graph of chart {} for export", chart.getAbsoluteName(),
+                   ex);
+         return null;
+      }
+   }
+
+   /**
     * Specify the size and cell size of sheet.
     * @param vsheet the Viewsheet to be exported.
     * @param sheet the specified sheet name.
@@ -222,7 +259,7 @@ public abstract class AbstractVSExporter implements VSExporter {
             ViewsheetScope scope = box.getScope();
             ChartVSAScriptable chartScope = (ChartVSAScriptable)
                scope.getVSAScriptable(assembly.getName());
-            VGraphPair graphPair = box.getVGraphPair(assembly.getAbsoluteName());
+            VGraphPair graphPair = getPreparedGraphPair(box, assembly);
 
             if(chartScope != null && graphPair != null && graphPair.isChangedByScript0()) {
                chartScope.setGraphCreator(graphPair.getGraphCreator());
@@ -276,7 +313,7 @@ public abstract class AbstractVSExporter implements VSExporter {
                continue;
             }
 
-            VGraphPair pair = box.getVGraphPair(assembly.getAbsoluteName());
+            VGraphPair pair = getPreparedGraphPair(box, assembly);
 
             if(ExportUtil.needExpandChart(pair)) {
                expandChart((ChartVSAssembly) assembly, box, true);
