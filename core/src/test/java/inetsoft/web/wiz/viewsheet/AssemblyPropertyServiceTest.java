@@ -3813,6 +3813,168 @@ class AssemblyPropertyServiceTest {
                            .getComboBoxEditorModel().getVariableListDialogModel().getValues());
    }
 
+   // ── checkbox dead Data Input keys (bug #78579) ───────────────────────────
+
+   private static Exception refuseCheckbox(CheckboxPropertyDialogModel model, Worksheet ws,
+                                           Map<String, Object> patch)
+   {
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, ws);
+
+      return assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Check1", patch, ""));
+   }
+
+   private static CheckboxPropertyDialogModel embBoundCheckbox() {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      return model;
+   }
+
+   private static void assertRefusedKeys(Exception thrown, String... keys) {
+      String msg = thrown.getMessage();
+      assertTrue(msg.startsWith("A checkbox cannot store a column, row or write-back target: " +
+                                "refused " + String.join(", ", keys) + "."), msg);
+   }
+
+   @Test
+   void checkboxColumnValueOnlyIsRefused() {
+      assertRefusedKeys(refuseCheckbox(embBoundCheckbox(), embeddedTableWorksheet(),
+         Map.of("dataInputPaneModel.columnValue", "state")),
+         "dataInputPaneModel.columnValue");
+   }
+
+   @Test
+   void checkboxRowValueOnlyIsRefused() {
+      assertRefusedKeys(refuseCheckbox(embBoundCheckbox(), embeddedTableWorksheet(),
+         Map.of("dataInputPaneModel.rowValue", "1")),
+         "dataInputPaneModel.rowValue");
+   }
+
+   @Test
+   void checkboxWriteBackDirectlyTrueIsRefused() {
+      assertRefusedKeys(refuseCheckbox(embBoundCheckbox(), embeddedTableWorksheet(),
+         Map.of("dataInputPaneModel.writeBackDirectly", true)),
+         "dataInputPaneModel.writeBackDirectly");
+   }
+
+   @Test
+   void checkboxThreeKeyPatchIsRefusedInOneMessageNamingExactlyTheRefusedKeys() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "1");
+      patch.put("dataInputPaneModel.writeBackDirectly", true);
+
+      assertRefusedKeys(refuseCheckbox(embBoundCheckbox(), embeddedTableWorksheet(), patch),
+         "dataInputPaneModel.columnValue", "dataInputPaneModel.rowValue",
+         "dataInputPaneModel.writeBackDirectly");
+   }
+
+   @Test
+   void checkboxTwoKeyPatchDoesNotNameTheAcceptedKey() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.writeBackDirectly", false);
+
+      assertRefusedKeys(refuseCheckbox(embBoundCheckbox(), embeddedTableWorksheet(), patch),
+         "dataInputPaneModel.columnValue");
+   }
+
+   @Test
+   void checkboxColumnValueIsNotACarrierWhenTheTableIsAVariableReference() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "v"));
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.table", "$(v)");
+      patch.put("dataInputPaneModel.columnValue", "x");
+
+      assertRefusedKeys(refuseCheckbox(new CheckboxPropertyDialogModel(), ws, patch),
+         "dataInputPaneModel.columnValue");
+   }
+
+   @Test
+   void checkboxEmptyAndFalseValuesAreAcceptedNoOps() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "");
+      patch.put("dataInputPaneModel.rowValue", "");
+      patch.put("dataInputPaneModel.writeBackDirectly", false);
+      AssemblyPropertyService service = serviceWithCheckbox(
+         mock(CheckBoxVSAssembly.class), embBoundCheckbox(), embeddedTableWorksheet());
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Check1", patch, ""));
+   }
+
+   @Test
+   void checkboxVariablesFolderLabelCarrierStillBindsTheVariable() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, ws);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.table", "Variables");
+      patch.put("dataInputPaneModel.columnValue", "StartDate");
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Check1", patch, ""));
+   }
+
+   @Test
+   void checkboxVariablesLabelIsNotACarrierWhenAWorksheetVariableIsNamedVariables() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "Variables"));
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.table", "Variables");
+      patch.put("dataInputPaneModel.columnValue", "StartDate");
+
+      assertRefusedKeys(refuseCheckbox(new CheckboxPropertyDialogModel(), ws, patch),
+         "dataInputPaneModel.columnValue");
+   }
+
+   @Test
+   void checkboxDollarVariableColumnValueWithEmptyTableStillBinds() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+      AssemblyPropertyService service = serviceWithCheckbox(
+         mock(CheckBoxVSAssembly.class), new CheckboxPropertyDialogModel(), ws);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Check1",
+         Map.of("dataInputPaneModel.columnValue", "$(StartDate)"), ""));
+   }
+
+   @Test
+   void checkboxUnknownDollarVariableKeepsTheUnknownVariableMessage() {
+      Exception thrown = refuseCheckbox(new CheckboxPropertyDialogModel(), new Worksheet(),
+         Map.of("dataInputPaneModel.columnValue", "$(nope)"));
+
+      assertTrue(thrown.getMessage().contains("Unknown variable 'nope'"), thrown.getMessage());
+   }
+
+   @Test
+   void otherInputTypesStillAcceptAllThreeKeys() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "1");
+      patch.put("dataInputPaneModel.writeBackDirectly", true);
+
+      TextInputPropertyDialogModel text = new TextInputPropertyDialogModel();
+      text.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      RadioButtonPropertyDialogModel radio = new RadioButtonPropertyDialogModel();
+      radio.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      ComboboxPropertyDialogModel combo = new ComboboxPropertyDialogModel();
+      combo.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+
+      assertDoesNotThrow(() -> serviceWithTextInput(
+         mock(TextInputVSAssembly.class), text, embeddedTableWorksheet())
+         .set("tok", principal(), "A", patch, ""));
+      assertDoesNotThrow(() -> serviceWithRadioButton(
+         mock(RadioButtonVSAssembly.class), radio, embeddedTableWorksheet())
+         .set("tok", principal(), "A", patch, ""));
+      assertDoesNotThrow(() -> serviceWithCombobox(
+         mock(ComboBoxVSAssembly.class), combo, embeddedTableWorksheet())
+         .set("tok", principal(), "A", patch, ""));
+   }
+
    private static AssemblyPropertyService serviceWithTextInput(
       VSAssembly assembly, TextInputPropertyDialogModel model, Worksheet baseWorksheet)
    {
