@@ -90,10 +90,11 @@ final class ColumnLossReport {
       static final Scope IMPORT = new Scope(true, true, true, true);
 
       /**
-       * edit_sql_query / edit_table: downstream references only. Join keys and key types are
+       * edit_sql_query / edit_table: downstream references and the table's own expression and
+       * range columns, which both edits keep (Bug #78681). Join keys and key types are
        * refused by the caller's own checks; an aggregate stays accept-and-warn (WSQ-009).
        */
-      static final Scope QUERY_EDIT = new Scope(false, false, false, false);
+      static final Scope QUERY_EDIT = new Scope(false, false, false, true);
    }
 
    /**
