@@ -209,7 +209,7 @@ public class CalcFieldAgentService {
          // them. A remove has no correct rewrite (unlike rename), so refuse before anything mutates.
          if(req.remove()) {
             List<String> dependents = findDependents(
-               rvs.getViewsheet(), tableName, req.name(), req.name() + "\u0000");
+               rvs.getViewsheet(), tableName, req.name(), req.name() + "\u0000", bindable);
 
             if(!dependents.isEmpty()) {
                throw new IllegalArgumentException(
@@ -257,7 +257,7 @@ public class CalcFieldAgentService {
 
             if(existing != null && !newName.equals(req.name())) {
                rewrittenDependents.addAll(
-                  findDependents(rvs.getViewsheet(), tableName, req.name(), newName));
+                  findDependents(rvs.getViewsheet(), tableName, req.name(), newName, bindable));
             }
          }
 
@@ -501,7 +501,7 @@ public class CalcFieldAgentService {
     * the same {@link VSUtil#renameCalcFieldReference} matcher so the two can't disagree.
     */
    private static List<String> findDependents(Viewsheet vs, String table, String oname,
-                                              String nname)
+                                              String nname, BindableTable bindable)
    {
       CalculateRef[] calcs = vs.getCalcFields(table);
       List<String> dependents = new ArrayList<>();
@@ -510,8 +510,17 @@ public class CalcFieldAgentService {
          return dependents;
       }
 
-      // base columns are not consulted; a case-different reference is judged against calc fields
+      // a case-different reference is judged against calc fields; a dotted base column is also
+      // an exact name, so field['X.Vat'] reading it is not a table-prefixed read of calc 'Vat'
       Set<String> otherNames = new HashSet<>();
+
+      if(bindable.fields() != null) {
+         for(BindableField field : bindable.fields()) {
+            if(field.column() != null && field.column().indexOf('.') >= 0) {
+               otherNames.add(field.column());
+            }
+         }
+      }
 
       for(CalculateRef calc : calcs) {
          if(!oname.equals(calc.getName()) && !nname.equals(calc.getName())) {

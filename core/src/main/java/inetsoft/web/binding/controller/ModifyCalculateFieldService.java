@@ -185,7 +185,8 @@ public class ModifyCalculateFieldService {
                oldCalc = vs.getCalcField(tname, refname);
                vs.removeCalcField(tname, refname);
                vs.addCalcField(tname, cref);
-               renameCalcFieldDependents(vs, tname, refname, cref.getName());
+               renameCalcFieldDependents(vs, tname, refname, cref.getName(),
+                                         dottedBaseColumns(vs, tname));
                syncAssemblies(tname, refname, vs, rename, changeCalcType, cref, dispatcher, rvs, linkUri);
                Assembly assembly = vs.getAssembly(event.name());
 
@@ -744,11 +745,21 @@ public class ModifyCalculateFieldService {
    static void renameCalcFieldDependents(Viewsheet vs, String tname, String oname,
                                          String nname)
    {
+      renameCalcFieldDependents(vs, tname, oname, nname, Collections.emptySet());
+   }
+
+   /**
+    * @param dottedBaseColumns the base columns of the table whose names contain a '.'.
+    */
+   static void renameCalcFieldDependents(Viewsheet vs, String tname, String oname,
+                                         String nname, Collection<String> dottedBaseColumns)
+   {
       CalculateRef[] calcs = vs.getCalcFields(tname);
 
       if(calcs != null) {
-         // base columns are not consulted; a case-different reference is judged against calc fields
-         Set<String> otherNames = new HashSet<>();
+         // a case-different reference is judged against calc fields; a dotted base column is also
+         // an exact name, so field['X.Vat'] reading it is not a table-prefixed read of calc 'Vat'
+         Set<String> otherNames = new HashSet<>(dottedBaseColumns);
 
          for(CalculateRef calc : calcs) {
             if(!Tool.equals(calc.getName(), oname) && !Tool.equals(calc.getName(), nname)) {
@@ -774,6 +785,41 @@ public class ModifyCalculateFieldService {
       }
 
       renameAggregateRefs(vs.getAggrFields(tname), oname, nname);
+   }
+
+   /**
+    * The names of the base worksheet table's columns that contain a '.', best effort: an
+    * unresolvable table just yields none.
+    */
+   private static Set<String> dottedBaseColumns(Viewsheet vs, String tname) {
+      Set<String> names = new HashSet<>();
+
+      try {
+         Worksheet ws = vs.getBaseWorksheet();
+
+         if(ws == null) {
+            return names;
+         }
+
+         for(Assembly wass : ws.getAssemblies()) {
+            if(wass instanceof TableAssembly && Tool.equals(wass.getName(), tname)) {
+               ColumnSelection cols = ((TableAssembly) wass).getColumnSelection(true);
+
+               for(int i = 0; i < cols.getAttributeCount(); i++) {
+                  String name = cols.getAttribute(i).getName();
+
+                  if(name != null && name.indexOf('.') >= 0) {
+                     names.add(name);
+                  }
+               }
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to read the base columns of \"{}\"", tname, e);
+      }
+
+      return names;
    }
 
    private static void renameAggregateRefs(AggregateRef[] arefs, String oname, String nname) {
