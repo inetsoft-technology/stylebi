@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { NgIf } from "@angular/common";
 import { Component, EventEmitter, Input, Output, OnInit } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
@@ -26,6 +27,7 @@ import { NumberStepperComponent } from "../../../widget/number-stepper/number-st
     selector: "script-property-dialog",
     templateUrl: "script-property-dialog.component.html",
     imports: [
+        NgIf,
         ModalHeaderComponent,
         EnterSubmitDirective,
         FormsModule,
