@@ -313,7 +313,11 @@ public class ViewsheetEditService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          // Checked before addNewObject: a colliding name would otherwise leave an orphan
-         // auto-named assembly and resize the pre-existing one.
+         // auto-named assembly and resize the pre-existing one; an invalid name likewise.
+         if(request.assembly() != null && !request.assembly().isBlank()) {
+            AssemblyNameRules.requireValid("Edit op 'add': 'assembly'", request.assembly());
+         }
+
          if(request.assembly() != null && !request.assembly().isBlank() &&
             rvs.getViewsheet() != null && rvs.getViewsheet().containsAssembly(request.assembly()))
          {
@@ -500,6 +504,10 @@ public class ViewsheetEditService {
       if(request.newName() == null || request.newName().isBlank()) {
          throw new IllegalArgumentException(
             "Edit op 'rename' requires 'newName' — the new assembly name.");
+      }
+
+      if(!request.assembly().equals(request.newName())) {
+         AssemblyNameRules.requireValid("Edit op 'rename': 'newName'", request.newName());
       }
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {

@@ -135,6 +135,25 @@ class VSObjectPropertyServiceTest {
       verify(viewsheet, never()).getAssemblies();
    }
 
+   /**
+    * Bug #78655: a rename to a name the Composer's name field would reject is refused with an
+    * ERROR message before any mutation, the same shape as the collision refusal.
+    */
+   @Test
+   void renameToAnInvalidAssemblyNameIsRefusedBeforeAnyMutation() throws Exception {
+      when(rvs.isDisposed()).thenReturn(false);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+
+      boolean applied = controller.editObjectProperty(rvs, new GaugeVSAssemblyInfo(), "Text1",
+                                                      "a/b", "", null, commandDispatcher, true, null);
+
+      assertFalse(applied);
+      verify(coreLifecycleService).sendMessage(
+         argThat(m -> m.contains("Text1") && m.contains("\"a/b\" is not a valid assembly name")),
+         eq(MessageCommand.Type.ERROR), eq(commandDispatcher));
+      verify(viewsheet, never()).getViewsheetInfo();
+   }
+
    @Test
    void proceedsWhenTheRevisionMatches() {
       when(rvs.isDisposed()).thenReturn(false);

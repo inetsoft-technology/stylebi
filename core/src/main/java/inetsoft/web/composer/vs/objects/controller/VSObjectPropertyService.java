@@ -58,6 +58,7 @@ import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.wiz.viewsheet.AssemblyNameRules;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
@@ -169,7 +170,21 @@ public class VSObjectPropertyService {
          // before anything is changed, so a refused rename leaves the viewsheet as it was
          // (Bug #77462)
          queryManagerService.checkCubeTableReadPermission(newName, user);
-         String id = vs.getViewsheetInfo().getFilterID(oldName);
+         String nameViolation = AssemblyNameRules.violation(newName);
+
+         if(nameViolation != null) {
+            // Same rule as the Composer name field. After the permission check so a denied cube
+            // name is still refused as a SecurityException; before any mutation. ERROR so wiz
+            // callers do not report the refused rename as a success.
+            this.coreLifecycleService.sendMessage(
+               Catalog.getCatalog().getString("common.renameViewsheetFailed", oldName) +
+               " \"" + newName + "\" is not a valid assembly name (" + nameViolation + "). " +
+               AssemblyNameRules.RULE_TEXT,
+               MessageCommand.Type.ERROR, commandDispatcher);
+            return false;
+         }
+
+         String id =vs.getViewsheetInfo().getFilterID(oldName);
          vs.getViewsheetInfo().setFilterID(oldName, null);
          vs.getViewsheetInfo().setFilterID(newName, id);
       }
