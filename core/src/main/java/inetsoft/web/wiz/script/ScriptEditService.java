@@ -102,7 +102,8 @@ public class ScriptEditService {
 
    /**
     * Like {@link #applyOnRuntime} but only broadcasts when {@code shouldBroadcast} says the
-    * mutation actually changed something.
+    * mutation was actually attempted against the live runtime (the predicate must not be derived
+    * from a "changed" list: a partially-applied mutation can leave that list empty).
     *
     * <p>Exists because {@code execute} (dry-run) has no isolated clone to run against (see
     * {@link ScriptExecuteService}'s class javadoc) — a script that isn't caught by the
