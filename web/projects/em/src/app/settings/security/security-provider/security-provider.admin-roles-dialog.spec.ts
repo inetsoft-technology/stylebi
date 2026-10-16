@@ -28,6 +28,8 @@
  *   - Escape, a backdrop click and the dialog's Cancel button leave the roles field unchanged
  *     and keep Apply disabled (Escape/backdrop close with undefined, Cancel with null).
  *   - OK after removing every role still clears the field, enables Apply and saves no roles.
+ *   - A role added in the dialog is discarded when the dialog is then closed by Escape.
+ *   - After Escape, editing another field and clicking Apply saves the original roles.
  */
 
 import { provideHttpClient } from "@angular/common/http";
@@ -109,6 +111,8 @@ interface RolesFieldCase {
    before: string;
    posted: (body: any) => any;
    postedWhenCleared: any;
+   postedOriginal: any;
+   otherField: string;
 }
 
 const FIELDS: RolesFieldCase[] = [
@@ -116,19 +120,19 @@ const FIELDS: RolesFieldCase[] = [
       label: "LDAP system admin roles", view: "em-ldap-provider-view", model: ldapProvider,
       placeholder: SYS_ROLES_LABEL, buttonIndex: 0, multiTenant: false,
       before: "Administrator, Auditor", posted: b => b.ldapProviderModel.sysAdminRoles,
-      postedWhenCleared: []
+      postedWhenCleared: [], postedOriginal: ["Administrator", "Auditor"], otherField: "_#(Host Name)"
    },
    {
       label: "Database system admin roles", view: "em-database-provider-view", model: databaseProvider,
       placeholder: SYS_ROLES_LABEL, buttonIndex: 0, multiTenant: false,
       before: "Administrator, Auditor", posted: b => b.dbProviderModel.sysAdminRoles,
-      postedWhenCleared: ""
+      postedWhenCleared: "", postedOriginal: "Administrator, Auditor", otherField: "_#(URL)"
    },
    {
       label: "Database org admin roles (multi-tenant)", view: "em-database-provider-view",
       model: databaseProvider, placeholder: ORG_ROLES_LABEL, buttonIndex: 1, multiTenant: true,
       before: "OrgBoss", posted: b => b.dbProviderModel.orgAdminRoles,
-      postedWhenCleared: ""
+      postedWhenCleared: "", postedOriginal: "OrgBoss", otherField: "_#(URL)"
    }
 ];
 
@@ -257,6 +261,25 @@ describe("Administrator Roles dialog dismissal (Bug #78720)", () => {
       await settle();
    }
 
+   async function addRoleInDialog(role: string): Promise<void> {
+      const input = dialogElement().querySelector("input") as HTMLInputElement;
+      input.value = role;
+      input.dispatchEvent(new Event("input"));
+      fixture.detectChanges(false);
+      await tick();
+      (dialogElement().querySelector(
+         "button[aria-label=\"_#(Add System Administrator Role)\"]") as HTMLElement).click();
+      fixture.detectChanges(false);
+      await tick();
+   }
+
+   async function typeInto(placeholder: string, value: string): Promise<void> {
+      const input: HTMLInputElement = fixture.nativeElement.querySelector(`input[placeholder="${placeholder}"]`);
+      input.value = value;
+      input.dispatchEvent(new Event("input"));
+      await settle(3);
+   }
+
    const DISMISSALS: [string, () => Promise<void>][] = [
       ["Escape", pressEscape],
       ["a backdrop click", clickBackdrop],
@@ -310,6 +333,33 @@ describe("Administrator Roles dialog dismissal (Bug #78720)", () => {
                expect(rolesInput(field).value).toBe("");
                expect(applyButton().disabled).toBe(false);
             });
+
+         it("discards a role added in the dialog when the dialog is then closed by Escape", async () => {
+            await load(field.model(), field.multiTenant);
+            await openRolesDialog(field);
+            await addRoleInDialog("NewRole");
+            expect(dialogElement().textContent).toContain("NewRole");
+            await pressEscape();
+            expect(dialogElement()).toBeNull();
+            expect(rolesInput(field).value).toBe(field.before);
+            expect(applyButton().disabled).toBe(true);
+            await openRolesDialog(field);
+            expect(dialogElement().textContent).not.toContain("NewRole");
+         });
+
+         it("saves the original roles when another field is edited and applied after Escape", async () => {
+            await load(field.model(), field.multiTenant);
+            await openRolesDialog(field);
+            await pressEscape();
+            // the bug saved the blanked roles along with any other edit
+            await typeInto(field.otherField, "changed.example.com");
+            expect(rolesInput(field).value).toBe(field.before);
+            expect(applyButton().disabled).toBe(false);
+            applyButton().click();
+            await settle(2);
+            expect(submitted.length).toBe(1);
+            expect(field.posted(submitted[0])).toEqual(field.postedOriginal);
+         });
       });
    }
 });
