@@ -1410,15 +1410,7 @@ public class CoreLifecycleService {
    }
 
    public ViewsheetSandbox getSandbox(ViewsheetSandbox box, String name) {
-      int index = name.lastIndexOf('.');
-
-      if(index >= 0) {
-         ViewsheetSandbox box0 = box.getSandbox(name.substring(0, index));
-         name = name.substring(index + 1);
-         return getSandbox(box0, name);
-      }
-
-      return box;
+      return box == null ? null : box.getSandboxForAssembly(name);
    }
 
    public void addDeleteVSObject(RuntimeViewsheet rvs, VSAssembly assembly,

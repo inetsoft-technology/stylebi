@@ -48,6 +48,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogContext;
+import inetsoft.util.log.LogLevel;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
@@ -9216,6 +9217,21 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * The sandbox that owns the assembly named {@code assemblyName}, relative to this sandbox: this
+    * sandbox for a plain name, else the embedded viewsheet's sandbox for a qualified name
+    * ({@code "EVS.Input"} -> {@code getSandbox("EVS")}). The one implementation;
+    * {@code CoreLifecycleService.getSandbox(box, name)} delegates here. A write-back input writes to
+    * the original worksheet of this sandbox, so the write and any check made before it both resolve
+    * here -- on the sandbox, not through a proxied service bean.
+    *
+    * @return the owning sandbox, or {@code null} if the embedded viewsheet is not found.
+    */
+   public ViewsheetSandbox getSandboxForAssembly(String assemblyName) {
+      int index = assemblyName.lastIndexOf('.');
+      return index < 0 ? this : getSandbox(assemblyName.substring(0, index));
+   }
+
+   /**
     * Write back data to ws embedded table directly for form elements.
     * @param engine  the asset repository.
     * @param wsTableName  the write back worksheet table name.
@@ -9227,6 +9243,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                                          String column, int row, Object value)
       throws Exception
    {
+      WriteBackRefusal refusal = getWriteBackRefusal(wsTableName, column, row);
+
+      // a target the caller bound wrongly is a user-facing refusal, not an internal error: a plain
+      // MessageException (never a subclass) is what the wiz dispatcher names instead of a 500
+      if(refusal != null) {
+         throw new MessageException(refusal.message(), LogLevel.WARN, false,
+                                    ConfirmException.ERROR);
+      }
+
       if(wsTableName == null || column == null) {
          return;
       }
@@ -9237,33 +9262,67 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          return;
       }
 
+      EmbeddedTableAssembly wstable = (EmbeddedTableAssembly) ws.getAssembly(wsTableName);
+      ColumnSelection cols = wstable.getColumnSelection();
+      int col = cols.indexOfAttribute(cols.getAttribute(column));
+      wstable.getEmbeddedData().setObject(row, col, value);
+      saveWsData(engine, vs);
+   }
+
+   /**
+    * Why {@link #writeBackFormDataDirectly} would refuse to write {@code column}/{@code row} of
+    * {@code wsTableName}, decided against this sandbox's original worksheet. One predicate shared
+    * by the write and by callers that must refuse before changing anything.
+    *
+    * @return the refusal, or {@code null} when the write would go ahead or is a silent no-op
+    *         (no table or column given, or no original worksheet).
+    */
+   public WriteBackRefusal getWriteBackRefusal(String wsTableName, String column, int row) {
+      if(wsTableName == null || column == null) {
+         return null;
+      }
+
+      Worksheet ws = vs.getOriginalWorksheet();
+
+      if(ws == null) {
+         return null;
+      }
+
       Catalog catalog = Catalog.getCatalog();
       Assembly wsAssembly = ws.getAssembly(wsTableName);
 
-      if(!(wsAssembly instanceof EmbeddedTableAssembly)) {
-         throw new RuntimeException(
-            catalog.getString("write.back.failed.wrongSource", wsTableName));
+      if(!(wsAssembly instanceof EmbeddedTableAssembly wstable)) {
+         return new WriteBackRefusal(
+            catalog.getString("write.back.failed.wrongSource", wsTableName), -1, -1);
       }
 
-      EmbeddedTableAssembly wstable = (EmbeddedTableAssembly) wsAssembly;
       ColumnSelection cols = wstable.getColumnSelection();
-      DataRef ref = cols.getAttribute(column);
-      int col = cols.indexOfAttribute(ref);
 
-      if(col == -1) {
-         throw new RuntimeException(
-            catalog.getString("write.back.failed.notFindColumn", column, wsTableName));
+      if(cols.indexOfAttribute(cols.getAttribute(column)) == -1) {
+         return new WriteBackRefusal(
+            catalog.getString("write.back.failed.notFindColumn", column, wsTableName), -1, -1);
       }
 
       XEmbeddedTable embedded = wstable.getEmbeddedData();
 
       if(row < embedded.getHeaderRowCount() || row >= embedded.getRowCount()) {
-         throw new RuntimeException(
-            catalog.getString("write.back.failed.rowInvalid", row, wsTableName));
+         return new WriteBackRefusal(
+            catalog.getString("write.back.failed.rowInvalid", row, wsTableName),
+            embedded.getHeaderRowCount(), embedded.getRowCount() - 1);
       }
 
-      embedded.setObject(row, col, value);
-      saveWsData(engine, vs);
+      return null;
+   }
+
+   /**
+    * A refused direct write-back target.
+    *
+    * @param message      the localized reason.
+    * @param firstDataRow the first writable row when the row is what was refused, else -1.
+    * @param lastDataRow  the last writable row when the row is what was refused, else -1 (less
+    *                     than {@code firstDataRow} when the table has no data rows).
+    */
+   public record WriteBackRefusal(String message, int firstDataRow, int lastDataRow) {
    }
 
    public void setLimitMessage(String assembly, String message) {

@@ -3025,7 +3025,7 @@ public class VSInputService {
       }
 
       if(info.getWriteBackValue()) {
-         ViewsheetSandbox baseBox = coreLifecycleService.getSandbox(box.get(), assemblyName);
+         ViewsheetSandbox baseBox = box.get().getSandboxForAssembly(assemblyName);
          String tableName = VSUtil.stripOuter(info.getTableName());
 
          baseBox.writeBackFormDataDirectly(viewsheetService.getAssetRepository(),
