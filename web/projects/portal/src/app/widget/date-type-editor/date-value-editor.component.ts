@@ -53,18 +53,29 @@ export class DateValueEditorComponent implements ControlValueAccessor {
    private closeDatepickerListener: () => any;
 
    @Input() set model(dateString: string) {
-      let dateObject = new Date(dateString);
-
-      if(!!dateString && !isNaN(dateObject.getTime())) {
-         let date1: NgbDateStruct = {
-            year: dateObject.getFullYear(),
-            month: dateObject.getMonth() + 1,
-            day: dateObject.getDate()
-         };
-
-         this.changeDate(date1);
-         this.initDate = this.date;
+      // Bug #78730, parse as a local date like writeValue. new Date("yyyy-MM-dd") is UTC midnight,
+      // the previous day west of UTC, and the shifted value came back here on every pass.
+      // Skip a falsy or invalid value first (dayjs(undefined) is today); the Date here is only a
+      // validity check, its year/month/day are never read.
+      if(!dateString || isNaN(new Date(dateString).getTime())) {
+         return;
       }
+
+      const formattedDate = DateTypeFormatter
+         .transformValue(dateString, this.format, DateTypeFormatter.ISO_8601_DATE_FORMAT);
+
+      if(formattedDate == null) {
+         return;
+      }
+
+      const date1: NgbDateStruct = this.ngbDateParserFormatter.parse(formattedDate);
+
+      if(date1 == null) {
+         return;
+      }
+
+      this.changeDate(date1);
+      this.initDate = this.date;
    }
 
    constructor(private ngbDateParserFormatter: NgbDateParserFormatter,
