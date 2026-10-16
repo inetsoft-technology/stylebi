@@ -178,6 +178,39 @@ class DateConditionLiteralTest {
       assertEquals("00:00:00", AbstractCondition.getObject(XSchema.TIME, "24:00:00").toString());
    }
 
+   // Bug #78529: the plain forms and the time instant {d fallthrough rolled February 29 of a
+   // century year that is not a leap year (1900, 2100) over to March 1
+   @Test
+   void canonicalizeRefusesFebruary29OfACenturyCommonYear() {
+      String[][] bad = {
+         { XSchema.DATE, "2100-02-29" }, { XSchema.DATE, "1900-02-29" },
+         { XSchema.DATE, "02/29/2100" }, { XSchema.DATE, "2023-02-29" },
+         { XSchema.TIME_INSTANT, "2100-02-29 10:00:00" },
+         { XSchema.TIME_INSTANT, "2100-02-29" },
+         { XSchema.TIME_INSTANT, "02/29/2100 10:00:00" },
+         { XSchema.TIME_INSTANT, "{d '2100-02-29'}" },
+         { XSchema.TIME_INSTANT, "{ts '2100-02-29 10:00:00'}" },
+      };
+
+      for(String[] c : bad) {
+         assertNull(AbstractCondition.parseDateConditionValue(c[0], c[1], true), c[1]);
+         assertNull(DateConditionLiteral.canonicalize(c[0], c[1]), c[1]);
+      }
+
+      String[][] ok = {
+         { XSchema.DATE, "2000-02-29" }, { XSchema.DATE, "2024-02-29" },
+         { XSchema.DATE, "2400-02-29" }, { XSchema.TIME_INSTANT, "2000-02-29 10:00:00" },
+         { XSchema.TIME_INSTANT, "{d '2000-02-29'}" },
+      };
+
+      for(String[] c : ok) {
+         assertEquals(c[1], DateConditionLiteral.canonicalize(c[0], c[1]), c[1]);
+      }
+
+      assertEquals("2000-02-29", AbstractCondition.parseDateConditionValue(
+         XSchema.DATE, "2000-02-29", true).toString());
+   }
+
    @Test
    void nonDateTypesPassThrough() {
       assertEquals("abc", DateConditionLiteral.canonicalize(XSchema.STRING, "abc"));

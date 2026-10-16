@@ -23,10 +23,12 @@ import inetsoft.report.internal.Util;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XQuery;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.jdbc.*;
+import inetsoft.uql.util.XUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -163,7 +165,7 @@ public class AssetQueryCacheNormalizer {
                      headers.add(header);
                   }
                   else {
-                     int idx = Util.findColumn(tableLens, ref);
+                     int idx = findColumn(tableLens, ref);
 
                      if(idx >= 0) {
                         visibleColumnIndexes.add(idx);
@@ -197,6 +199,35 @@ public class AssetQueryCacheNormalizer {
       table.setColumnSelection(privColumns, false);
       table.setColumnSelection(pubColumns, true);
       return tableLens;
+   }
+
+   /**
+    * Find the column of the ref by its own identifier (entity.attribute) when the table lens is
+    * identified that way, else by the header lookup, which keys an aliased column on
+    * entity.alias. A lens post-processed by the asset query (e.g. a mirror, a logical model
+    * table) identifies its columns by entity.attribute and names them by the alias, so the
+    * entity.alias key of a column is the identifier of another column whose name is that alias,
+    * and the column showed the other column's values, or was dropped (78529). A physical table
+    * merged into one sql identifies its columns by their output names, as its headers, where the
+    * own name of a column is the alias of another one instead, so the header lookup is kept.
+    */
+   private static int findColumn(TableLens tableLens, DataRef ref) {
+      String id = AssetUtil.getAttributeString(ref);
+      int idx = -1;
+
+      for(int i = 0; i < tableLens.getColCount(); i++) {
+         if(id.equals(tableLens.getColumnIdentifier(i))) {
+            // ambiguous, or identified by the output name, leave it to the header lookup
+            if(idx >= 0 || id.equals(AssetUtil.format(XUtil.getHeader(tableLens, i)))) {
+               idx = -1;
+               break;
+            }
+
+            idx = i;
+         }
+      }
+
+      return idx >= 0 ? idx : Util.findColumn(tableLens, ref);
    }
 
    private ColumnSelection getVisibleColumns() {
