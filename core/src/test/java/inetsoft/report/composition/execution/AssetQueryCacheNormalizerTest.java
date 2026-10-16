@@ -67,6 +67,10 @@ public class AssetQueryCacheNormalizerTest {
    // Bug #78679 (problem 2): an expression that reads an aliased column must keep the alias,
    // whichever syntax it reads it with, or the formula table lens no longer finds the column.
    private static String aliasAfterNormalize(String expression) {
+      return aliasAfterNormalize(expression, true);
+   }
+
+   private static String aliasAfterNormalize(String expression, boolean visible) {
       ColumnRef id = new ColumnRef(new AttributeRef(null, "CATEGORY_ID"));
       id.setAlias("CID");
       ColumnRef other = new ColumnRef(new AttributeRef(null, "OTHER"));
@@ -122,11 +126,21 @@ public class AssetQueryCacheNormalizerTest {
       "field.OTHER * 2",
       "field.CID2 * 2",
       "Other.CID * 2",
-      "'field.CID'.length",
       "1 + 1"
    })
    public void testAliasRemovedWhenExpressionDoesNotReadIt(String expression) {
       assertNull(aliasAfterNormalize(expression));
+   }
+
+   @Test
+   public void testAliasKeptForHiddenColumnReadWithDot() {
+      assertEquals("CID", aliasAfterNormalize("field.CID * 2", false));
+   }
+
+   // the text fallback is permissive: a read inside a string literal also keeps the alias
+   @Test
+   public void testStringLiteralMentionKeepsAliasConservatively() {
+      assertEquals("CID", aliasAfterNormalize("'field.CID'.length"));
    }
 
    // the script tokenizer does not skip comments, so a comment-only mention conservatively keeps the

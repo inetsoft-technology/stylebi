@@ -327,6 +327,12 @@ public class AssetQueryCacheNormalizer {
       return false;
    }
 
+   private static boolean readsAliasByText(String exp, String alias) {
+      return Pattern.compile(
+         "field\\s*(?:\\.\\s*" + Pattern.quote(alias) + "(?![\\w$])|\\[\\s*([\"'])" +
+         Pattern.quote(alias) + "\\1)", Pattern.CASE_INSENSITIVE).matcher(exp).find();
+   }
+
    private boolean canRemoveAlias(String alias) {
       // don't remove alias if aggregated
       if(alias == null || !ainfo.isEmpty()) {
@@ -344,8 +350,12 @@ public class AssetQueryCacheNormalizer {
          ExpressionRef ref = (ExpressionRef) col.getDataRef();
 
          // dot, bracket (either quote), whitespace and case-different reads all resolve at
-         // runtime (Bug #78679)
-         if(FieldReferenceMatcher.references(ref.getExpression(), Set.of(alias))) {
+         // runtime (Bug #78679). The tokenizer mis-tracks quotes after an apostrophe in a comment
+         // or an escaped quote, so also accept a permissive text match: keeping an alias only
+         // skips an optional cache normalization, while losing it makes the read evaluate null.
+         if(FieldReferenceMatcher.references(ref.getExpression(), Set.of(alias)) ||
+            readsAliasByText(ref.getExpression(), alias))
+         {
             return false;
          }
       }
