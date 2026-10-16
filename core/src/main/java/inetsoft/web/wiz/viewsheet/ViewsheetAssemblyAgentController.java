@@ -2255,15 +2255,16 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/highlights/delete")
-   public void deleteHighlight(@PathVariable String sessionToken,
+   public Map<String, Object> deleteHighlight(@PathVariable String sessionToken,
                                @RequestBody HighlightRequest request,
                                @RequestParam(required = false, defaultValue = "") String linkUri,
                                Principal user)
       throws Exception
    {
       requireEnabled();
-      highlightService.delete(sessionToken, user, request.assembly(), request.region(),
-                              request.name(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         highlightService.delete(sessionToken, user, request.assembly(), request.region(),
+                                 request.name(), linkUri));
    }
 
    public record DateComparisonRequest(String assembly, String periods, String level,
