@@ -592,4 +592,49 @@ class BindableColumnsTest {
 
       assertTrue(thrown.getMessage().contains("'Ab'"));
    }
+
+   /** Bug #78640: a warned table has unknown columns, not none, so it must not refuse every field. */
+   private static final List<BindableTable> WARNED_CURRENT = List.of(
+      new BindableTable("Bad", true, List.of(), List.of("script failure")),
+      new BindableTable("Products", false,
+                        List.of(new BindableField("PRODUCT_NAME", null, null))));
+
+   @Test
+   void aCurrentWarnedZeroFieldTableFailsOpenInRequire() {
+      assertDoesNotThrow(() -> BindableColumns.require(WARNED_CURRENT, "Crosstab1", dim("ANYTHING")));
+   }
+
+   @Test
+   void aNamedWarnedTableFailsOpenInRequireSource() {
+      List<BindableTable> unbound = List.of(
+         new BindableTable("Bad", false, List.of(), List.of("script failure")));
+
+      assertEquals("Bad", BindableColumns.requireSource(unbound, "Crosstab1", "Bad",
+                                                        List.of(dim("ANYTHING"))));
+   }
+
+   @Test
+   void anUnwarnedEmptyTableStillRefuses() {
+      List<BindableTable> unbound = List.of(new BindableTable("Empty", false, List.of()));
+
+      assertThrows(IllegalArgumentException.class, () -> BindableColumns.requireSource(
+         unbound, "Crosstab1", "Empty", List.of(dim("ANYTHING"))));
+   }
+
+   @Test
+   void inferenceDoesNotRefuseWhenAWarnedTableMayHoldTheColumn() {
+      assertNull(BindableColumns.requireSource(
+         List.of(new BindableTable("Bad", false, List.of(), List.of("script failure")),
+                 new BindableTable("Products", false,
+                                   List.of(new BindableField("PRODUCT_NAME", null, null)))),
+         "Crosstab1", null, List.of(dim("OTHER"))));
+   }
+
+   @Test
+   void canonicalizeLeavesNamesAloneForAWarnedTable() {
+      List<FieldRef> out = BindableColumns.canonicalize(
+         WARNED_CURRENT, "Crosstab1", null, List.of(dim("anything")));
+
+      assertEquals("anything", out.get(0).column());
+   }
 }

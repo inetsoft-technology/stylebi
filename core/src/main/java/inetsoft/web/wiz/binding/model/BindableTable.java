@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.binding.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.List;
 
 /**
@@ -30,5 +32,24 @@ import java.util.List;
  *                makes the constraint followable without a second call to read the binding.
  *                {@code null} rather than {@code false} for an unscoped call: there is no assembly
  *                to be current for, and {@code false} would assert the opposite of the truth.
+ * @param warnings why this table's {@code fields} cannot be trusted to be complete (bug #78640), for
+ *                 instance a viewsheet component whose script failed so it has no runtime columns.
+ *                 Omitted from the JSON when empty. A warned table means "columns unknown", not
+ *                 "has no columns".
  */
-public record BindableTable(String name, Boolean current, List<BindableField> fields) {}
+public record BindableTable(String name, Boolean current, List<BindableField> fields,
+                            @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> warnings)
+{
+   public BindableTable {
+      warnings = warnings == null ? List.of() : List.copyOf(warnings);
+   }
+
+   public BindableTable(String name, Boolean current, List<BindableField> fields) {
+      this(name, current, fields, List.of());
+   }
+
+   /** Whether this table's column list is known to be incomplete. */
+   public boolean hasWarnings() {
+      return !warnings.isEmpty();
+   }
+}
