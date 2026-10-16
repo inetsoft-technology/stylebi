@@ -331,22 +331,46 @@ class VSUtilRenameCalcFieldReferenceTest {
       assertRenamed("(a) / 2 + \"x\" / 3 + field['VatR']", "(a) / 2 + \"x\" / 3 + field['Vat']");
       assertRenamed("{ a } /'/.test(s); field['VatR'] // don't",
                     "{ a } /'/.test(s); field['Vat'] // don't");
-      assertIgnored("(a) / 2 + \" field['Vat'] \"");
+      // a lone '/' makes the mask ambiguous: unmasked matching, so the literal is rewritten too
+      assertRenamed("(a) / 2 + \" field['VatR'] \"", "(a) / 2 + \" field['Vat'] \"");
    }
 
    @Test
-   void regexLiteralTextIsNotAReference() {
-      assertIgnored("/field['Vat']/.test(s) ? 1 : 0");
+   void regexLiteralTextFallsBackToUnmaskedMatching() {
+      assertRenamed("/field['VatR']/.test(s) ? 1 : 0", "/field['Vat']/.test(s) ? 1 : 0");
    }
 
    @Test
-   void divisionIsNotARegex() {
+   void neverDropsAReferenceNearADivisionOrRegexLikeSlash() {
+      assertRenamed("x * 1. / field['VatR'] / 2", "x * 1. / field['Vat'] / 2");
+      assertRenamed("100. / field['VatR'] / 2", "100. / field['Vat'] / 2");
+      assertRenamed("1. / field.VatR / 2", "1. / field.Vat / 2");
+      assertRenamed("var of=4; of / 2 + field['VatR'] / 3", "var of=4; of / 2 + field['Vat'] / 3");
+      assertRenamed("x = {a:1} / field.VatR / 2", "x = {a:1} / field.Vat / 2");
+      assertTrue(refsVat("var of = 4; of / 2 + field.Vat / 3"));
+   }
+
+   @Test
+   void htmlLikeCommentsFallBackToUnmaskedMatching() {
+      assertRenamed("x = a <!-- it's\nfield['VatR'] <!-- don't",
+                    "x = a <!-- it's\nfield['Vat'] <!-- don't");
+      assertRenamed("x = a --> it's\nfield['VatR'] // don't",
+                    "x = a --> it's\nfield['Vat'] // don't");
+   }
+
+   @Test
+   void commentsStringsAndTemplatesStillMaskedWithoutASlashAmbiguity() {
+      assertIgnored("field['ORDER_ID'] + \"a\" // field['Vat']");
+      assertIgnored("field['ORDER_ID'] + `field['Vat'] ${field['ORDER_ID']}`");
+   }
+
+   @Test
+   void divisionKeepsRealReferencesCounted() {
       assertRenamed("a / b + field['VatR'] / 2", "a / b + field['Vat'] / 2");
       assertRenamed("(x) / 2 + field['VatR']", "(x) / 2 + field['Vat']");
       assertRenamed("a[0] / b + field['VatR']", "a[0] / b + field['Vat']");
       assertRenamed("x/2/3 + field['VatR']", "x/2/3 + field['Vat']");
       assertRenamed("i++ / 2 + field['VatR'] / 3", "i++ / 2 + field['Vat'] / 3");
-      assertIgnored("a / b + \" field['Vat'] \" / 2");
    }
 
    @Test
