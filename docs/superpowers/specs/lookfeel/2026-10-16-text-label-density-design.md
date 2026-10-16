@@ -48,7 +48,7 @@ What follows from the existing generic code, with no change:
 | Composer drop (`VSEventUtil.createVSAssembly` → `initDefaultFormat`) | Takes the tier height. |
 | Visualization wizard description text (`VSWizardObjectHandler`) | Sets its own height after `initDefaultFormat`, unchanged. |
 | Dashboard warning text (`Viewsheet.getWarningTextAssembly`) | Auto Size at runtime, so it is not sized. |
-| **Print and device layout text** (`VSLayoutService.createVSAssembly`) | **Keeps the legacy 20.** It is a layout-only object stored in a `VSAssemblyLayout` (`VSLayoutControllerService` ~324), so no dashboard density change ever reaches it. A tier height there would be frozen at creation. `createVSAssembly` puts its height back to `AssetUtil.defh` after `initDefaultFormat`. *(Claude's call, not a user ruling.)* |
+| **Print and device layout text** (`VSLayoutService.createVSAssembly`) | **Keeps the legacy 20 (user ruling, 2026-10-16).** Objects in a layout are sized by hand, and density never reaches them: a layout stores each object's size when it is placed (`VSLayoutService.createAssemblyLayout`), only the layout editor changes it (`VSLayoutControllerService` ~250), and an applied layout draws every object at its stored size (`AbstractLayout.applyAssembly`, `PrintLayout.apply`). `createVSAssembly` puts a new layout text's height back to `AssetUtil.defh` after `initDefaultFormat`. |
 | Exports, presenters, format painter, report conversion | Transient objects that never call `initDefaultFormat` on a dashboard text. Unaffected. |
 
 ## 4. Accepted costs
@@ -57,6 +57,7 @@ What follows from the existing generic code, with no change:
 - **Revert leaves a seeded 24 / 28 / 30 text at that height,** and **Modernize leaves a legacy text at 20,** until the author ticks Follow default density. This is the calendar's accepted cost.
 - **Ticking Auto Size in the same save as a ticked Follow:** Auto Size wins, and nothing is resized. The checkbox is not hidden live while the dialog is open.
 - **An org-level density change resizes no existing text.** Only the dashboard's own density change does, as for the calendar.
+- **In a print or device layout, a new text is 20 beside a density-sized object placed there,** which keeps the size it had when placed (a compact text input stays 28). The author sizes it in the layout editor.
 
 ## 5. Out of scope
 
