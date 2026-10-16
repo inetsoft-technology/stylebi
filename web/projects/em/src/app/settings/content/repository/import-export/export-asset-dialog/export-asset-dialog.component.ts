@@ -16,13 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpErrorResponse } from "@angular/common/http";
-import {Component, HostBinding, HostListener, Inject, OnInit, ViewEncapsulation} from "@angular/core";
+import {Component, HostBinding, Inject, OnDestroy, OnInit, ViewEncapsulation} from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent } from "@angular/material/dialog";
-import {Observable, throwError} from "rxjs";
+import {Observable, Subscription, throwError} from "rxjs";
 import {catchError} from "rxjs/operators";
 import {DownloadService} from "../../../../../../../../shared/download/download.service";
 import {FormValidators} from "../../../../../../../../shared/util/form-validators";
+import {onDialogEscape} from "../../../../../common/util/dialog-escape";
 import {MessageDialog, MessageDialogType} from "../../../../../common/util/message-dialog";
 import {FlatTreeNode} from "../../../../../common/util/tree/flat-tree-model";
 import {RepositoryTreeNode} from "../../repository-tree-node";
@@ -54,7 +55,7 @@ export interface ExportAssetDialogData {
     providers: [ExportAssetsService],
     imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, SelectedAssetListComponent, MatButton, RequiredAssetListComponent, MatProgressBar]
 })
-export class ExportAssetDialogComponent implements OnInit {
+export class ExportAssetDialogComponent implements OnInit, OnDestroy {
    @HostBinding("class") hostClass = "export-asset-dialog";
    entities: SelectedAssetModel[] = [];
    selectedEntities: SelectedAssetModel[] = [];
@@ -64,11 +65,14 @@ export class ExportAssetDialogComponent implements OnInit {
    form: UntypedFormGroup;
    loading = false;
 
+   private escapeSubscription: Subscription;
+
    constructor(private http: HttpClient, private downloadService: DownloadService,
                private dialog: MatDialog, private dialogRef: MatDialogRef<ExportAssetDialogComponent>,
                @Inject(MAT_DIALOG_DATA) data: ExportAssetDialogData, fb: UntypedFormBuilder,
                private exportAssetsService: ExportAssetsService)
    {
+      this.escapeSubscription = onDialogEscape(dialogRef, () => this.cancel());
       if(!!data.selectedNodes && data.selectedNodes.length > 0) {
          this.loading = true;
          this.initEntities(data.selectedNodes);
@@ -124,9 +128,8 @@ export class ExportAssetDialogComponent implements OnInit {
          .subscribe((exportID: string) => this.downloadExport(exportID));
    }
 
-   @HostListener("window:keyup.esc", [])
-   onKeyUp() {
-      this.cancel();
+   ngOnDestroy(): void {
+      this.escapeSubscription.unsubscribe();
    }
 
    cancel(): void {

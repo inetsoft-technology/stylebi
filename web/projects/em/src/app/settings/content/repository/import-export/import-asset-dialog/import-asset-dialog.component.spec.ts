@@ -16,10 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
+import { TestBed } from "@angular/core/testing";
 import { UntypedFormBuilder } from "@angular/forms";
-import { of } from "rxjs";
+import { MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { NEVER, of } from "rxjs";
 import { MessageDialogType } from "../../../../../common/util/message-dialog";
+import { RepositoryEntryType } from "../../../../../../../../shared/data/repository-entry-type.enum";
+import { StompClientService } from "../../../../../../../../shared/stomp/stomp-client.service";
+import { pressEscape, settle, trackDialog } from "../../../../../testing/escape-press";
 import { ImportAssetResponse } from "../../model/import-asset-response";
+import { RepositoryTreeNode } from "../../repository-tree-node";
+import { InputNameDialogComponent } from "../input-name-dialog/input-name-dialog.component";
+import { SelectAssetFolderDialogComponent } from "../select-asset-folder-dialog/select-asset-folder-dialog.component";
 import { ImportAssetDialogComponent } from "./import-asset-dialog.component";
 
 /**
@@ -33,7 +43,7 @@ describe("ImportAssetDialogComponent import result", () => {
    beforeEach(() => {
       dialog = { open: vi.fn(() => ({ afterClosed: () => of(null) })) };
       const http: any = { get: vi.fn(() => of([])) };
-      const dialogRef: any = { close: vi.fn() };
+      const dialogRef: any = { close: vi.fn(), keydownEvents: () => NEVER };
       component = new ImportAssetDialogComponent(
          http, dialog as any, dialogRef, {}, new UntypedFormBuilder());
    });
@@ -65,5 +75,133 @@ describe("ImportAssetDialogComponent import result", () => {
       expect(data.type).toBe(MessageDialogType.WARNING);
       expect(data.content).toContain("vs1");
       expect(data.content).toContain("w1");
+   });
+});
+
+/**
+ * Bug #78722: Escape that closes Select Target Location, or the node menu in its tree, must not
+ * also cancel Import Assets behind it.
+ */
+describe("ImportAssetDialogComponent Escape", () => {
+   // the repository tree loads once its socket is connected
+   const connection = { subscribe: () => NEVER.subscribe(), disconnect: () => {} };
+   let dialog: MatDialog;
+   let httpMock: HttpTestingController;
+
+   beforeEach(() => {
+      dialog = null;
+      TestBed.configureTestingModule({
+         imports: [NoopAnimationsModule, HttpClientTestingModule],
+         providers: [{ provide: StompClientService, useValue: { connect: () => of(connection) } }]
+      });
+   });
+
+   afterEach(async () => {
+      dialog?.closeAll();
+      await settle();
+   });
+
+   // opened as ContentRepositoryPageComponent opens it
+   const openImport = async (): Promise<MatDialogRef<ImportAssetDialogComponent>> => {
+      dialog = TestBed.inject(MatDialog);
+      httpMock = TestBed.inject(HttpTestingController);
+      const ref = dialog.open(ImportAssetDialogComponent, { disableClose: true, data: {} });
+      await settle();
+      return ref;
+   };
+
+   const openTargetLocation = async (importRef: MatDialogRef<ImportAssetDialogComponent>) => {
+      importRef.componentInstance.openSelectLocation();
+      await settle();
+      const ref = dialog.openDialogs[1];
+      expect(ref.componentInstance).toBeInstanceOf(SelectAssetFolderDialogComponent);
+      return ref;
+   };
+
+   it("closes only Select Target Location when Escape is pressed in it", async () => {
+      const importRef = await openImport();
+      const importState = trackDialog(importRef);
+      const locationState = trackDialog(await openTargetLocation(importRef));
+
+      await pressEscape();
+
+      expect(locationState.closed).toBe(true);
+      expect(importState.closed).toBe(false);
+      expect(dialog.openDialogs).toEqual([importRef]);
+
+      await pressEscape();
+      expect(importState).toEqual({ closed: true, result: null });
+   });
+
+   it("closes only the tree's node menu when Escape is pressed in it", async () => {
+      const importRef = await openImport();
+      const importState = trackDialog(importRef);
+      // an uploaded file with one viewsheet, so the tree shows the repository folder
+      importRef.componentInstance.model = <any> {
+         importId: "1", selectedEntities: [{ type: RepositoryEntryType.VIEWSHEET, path: "vs1" }],
+         dependentAssets: []
+      };
+      importRef.componentInstance.openSelectLocation();
+      const locationRef = dialog.openDialogs[1];
+      const locationState = trackDialog(locationRef);
+      // the tree is answered before the folder dialog is first checked
+      httpMock.expectOne(req => req.url.endsWith("/content/repository/tree")).flush({
+         nodes: [<RepositoryTreeNode> {
+            label: "Repository", path: "/", type: RepositoryEntryType.REPOSITORY_FOLDER,
+            owner: null, readOnly: false, builtIn: false, description: "", icon: null,
+            visible: true, children: []
+         }]
+      });
+      // the virtual scroll viewport renders its rows on the next animation frame
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await settle();
+      const menuButton = document.querySelector(
+         "em-select-asset-folder-dialog [aria-label=\"_#(Menu)\"]") as HTMLElement;
+      menuButton.focus();
+      menuButton.click();
+      await settle();
+      expect(document.querySelector(".mat-mdc-menu-panel")).not.toBeNull();
+
+      await pressEscape();
+
+      expect(document.querySelector(".mat-mdc-menu-panel")).toBeNull();
+      expect(locationState.closed).toBe(false);
+      expect(importState.closed).toBe(false);
+      expect(dialog.openDialogs).toEqual([importRef, locationRef]);
+   });
+
+   // Input Name keeps its own window keyup listener; only it may close on that press
+   it("closes only Input Name when Escape is pressed in it over Select Target Location", async () => {
+      const importRef = await openImport();
+      const importState = trackDialog(importRef);
+      const locationRef = await openTargetLocation(importRef);
+      const locationState = trackDialog(locationRef);
+      (locationRef.componentInstance as SelectAssetFolderDialogComponent).doContextMenu(<any> {
+         menu: { name: "new-folder" }, node: { data: {} }
+      });
+      await settle();
+      const nameRef = dialog.openDialogs[2];
+      expect(nameRef.componentInstance).toBeInstanceOf(InputNameDialogComponent);
+      const nameState = trackDialog(nameRef);
+      (document.querySelector("em-input-name-dialog input") as HTMLElement).focus();
+
+      await pressEscape();
+
+      expect(nameState).toEqual({ closed: true, result: null });
+      expect(locationState.closed).toBe(false);
+      expect(importState.closed).toBe(false);
+      expect(dialog.openDialogs).toEqual([importRef, locationRef]);
+
+      await pressEscape();
+      expect(locationState.closed).toBe(true);
+      expect(importState.closed).toBe(false);
+   });
+
+   it("cancels on Escape when it is the only dialog", async () => {
+      const state = trackDialog(await openImport());
+
+      await pressEscape();
+
+      expect(state).toEqual({ closed: true, result: null });
    });
 });
