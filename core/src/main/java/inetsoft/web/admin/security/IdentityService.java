@@ -201,6 +201,19 @@ public class IdentityService {
                   continue;
                }
                resourceType = ResourceType.SECURITY_ORGANIZATION;
+
+               // the host and self organizations are identified by id, whatever the request
+               // names them
+               String orgId = identityId == null ? null : identityId.orgID;
+
+               if(isDefaultOrganizationID(orgId)) {
+                  warnings.add(catalog.getString("em.security.delDefOrg"));
+                  continue;
+               }
+               else if(isSelfOrganizationID(orgId)) {
+                  warnings.add(catalog.getString("em.security.delSelfOrg"));
+                  continue;
+               }
             }
 
             if(identityModel.type() == Identity.Type.ROLE.code()) {
@@ -3756,6 +3769,14 @@ public class IdentityService {
 
       // only a site admin may delete an identity that grants system administrator
       return isSystemAdminTargetDenied(identityId, type, principal);
+   }
+
+   public static boolean isDefaultOrganizationID(String orgId) {
+      return orgId != null && orgId.equalsIgnoreCase(Organization.getDefaultOrganizationID());
+   }
+
+   public static boolean isSelfOrganizationID(String orgId) {
+      return orgId != null && orgId.equalsIgnoreCase(Organization.getSelfOrganizationID());
    }
 
    /**

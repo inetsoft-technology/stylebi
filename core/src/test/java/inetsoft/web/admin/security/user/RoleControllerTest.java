@@ -56,6 +56,8 @@ import inetsoft.web.admin.security.IdentityModel;
 import inetsoft.web.admin.security.IdentityService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -112,6 +114,7 @@ class RoleControllerTest {
       organizationStatic.when(Organization::getDefaultOrganizationID).thenReturn("host-org");
       organizationStatic.when(Organization::getDefaultOrganizationName).thenReturn("host-org");
       organizationStatic.when(Organization::getSelfOrganizationName).thenReturn("self-org");
+      organizationStatic.when(Organization::getSelfOrganizationID).thenReturn("SELF");
       lenient().when(securityProvider.getOrganization("host-org")).thenReturn(mock(Organization.class));
    }
 
@@ -180,6 +183,55 @@ class RoleControllerTest {
 
       assertFalse(result.warnings().isEmpty());
       verify(identityService, never()).deleteIdentities(any(), anyString(), any(Principal.class));
+   }
+
+   // Bug #78675: the protected organizations are identified by id, whatever the request names them
+   @ParameterizedTest
+   @CsvSource({ "x,host-org", "HOST ORGANIZATION,host-org", "x,HOST-ORG", "x,SELF", "x,self" })
+   void deleteIdentities_protectedOrgIdUnderOtherName_returnsWarning(String name, String orgId) {
+      IdentityModel model = IdentityModel.builder()
+         .identityID(new IdentityID(name, orgId))
+         .type(Identity.ORGANIZATION)
+         .build();
+      // the later guards are only reached when the protected organization is not refused
+      lenient().when(systemAdminService.createIdentity(any(IdentityID.class), anyInt()))
+         .thenReturn(mock(inetsoft.uql.util.Identity.class));
+      lenient().when(systemAdminService.hasSystemAdminAfterDelete(any(Set.class))).thenReturn(true);
+      lenient().when(systemAdminService.hasOrgAdminAfterDelete(any(Set.class))).thenReturn(true);
+      lenient().when(catalog.getString("em.security.delDefOrg")).thenReturn("default-org-warning");
+      lenient().when(catalog.getString("em.security.delSelfOrg")).thenReturn("self-org-warning");
+
+      DeleteIdentitiesResponse result =
+         controller.deleteIdentities(new IdentityModel[]{ model }, "myProvider", principal);
+
+      assertEquals(List.of(orgId.equalsIgnoreCase("SELF") ? "self-org-warning" :
+                              "default-org-warning"),
+                   result.warnings());
+      verify(identityService, never()).deleteIdentities(any(), anyString(), any(Principal.class));
+   }
+
+   // Bug #78675: an organization merely named like the host organization, or sent without an id,
+   // is not the protected one
+   @ParameterizedTest
+   @CsvSource(value = { "host-org,org-a", "self-org,org-a", "x,NULL" }, nullValues = "NULL")
+   void deleteIdentities_organizationNotProtectedById_delegatesToService(String name, String orgId) {
+      IdentityModel model = IdentityModel.builder()
+         .identityID(new IdentityID(name, orgId))
+         .type(Identity.ORGANIZATION)
+         .build();
+      IdentityModel[] models = { model };
+      when(systemAdminService.createIdentity(any(IdentityID.class), anyInt()))
+         .thenReturn(mock(inetsoft.uql.util.Identity.class));
+      when(systemAdminService.hasSystemAdminAfterDelete(any(Set.class))).thenReturn(true);
+      when(systemAdminService.hasOrgAdminAfterDelete(any(Set.class))).thenReturn(true);
+      when(identityService.deleteIdentities(models, "myProvider", principal))
+         .thenReturn(List.of());
+
+      DeleteIdentitiesResponse result =
+         controller.deleteIdentities(models, "myProvider", principal);
+
+      assertTrue(result.warnings().isEmpty());
+      verify(identityService).deleteIdentities(models, "myProvider", principal);
    }
 
    // [no system admin after delete] hasSystemAdminAfterDelete returns false → warning; service not called

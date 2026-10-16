@@ -789,7 +789,12 @@ public class RepositoryObjectService {
                for(String name : dataModel.getLogicalModelNames()) {
                   XLogicalModel lmodel = dataModel.getLogicalModel(name);
                   String lpath = lmodel.getDataSource() + "/" + lmodel.getName();
-                  return checkAssetEntryDependencies(lpath, AssetEntry.Type.LOGIC_MODEL, force);
+                  ConnectionStatus status =
+                     checkAssetEntryDependencies(lpath, AssetEntry.Type.LOGIC_MODEL, force);
+
+                  if(status != null) {
+                     return status;
+                  }
                }
             }
          }
