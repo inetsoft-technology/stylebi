@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.orientdb;
 
+import inetsoft.uql.jdbc.util.VarSQL;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
@@ -38,7 +39,9 @@ public class OrientDBQuery extends TabularQuery{
     *
     * @return sql string
     */
-   @Property(label="Enter SQL", required=true)
+   // OrientDB SQL literals use backslash escapes (Bug #78594)
+   @Property(label="Enter SQL", required=true, sql=true,
+             literalEscapeStyle=VarSQL.LiteralEscapeStyle.BACKSLASH)
    @PropertyEditor(rows=10, columns=65)
    public String getQueryString() {
       return qstr;

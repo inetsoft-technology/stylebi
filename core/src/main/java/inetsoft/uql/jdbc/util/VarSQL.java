@@ -54,9 +54,16 @@ public class VarSQL {
     *   placeholder or an unpaired quote inside a {@code /regex/} literal), a
     *   value in bson structural context fails to parse instead of adding keys
     *   or becoming a different bson type (Bug #77105).</li>
+    *   <li>{@link #BACKSLASH}: a backslash is written before every
+    *   {@code \}, {@code '} and {@code "} in the value, for dialects whose
+    *   string literals use backslash escapes and do not treat {@code ''} as an
+    *   escaped quote (HiveQL, OrientDB SQL). SQL quote doubling is not safe
+    *   there: a value ending in a backslash escapes the doubled quote, and in
+    *   HiveQL {@code 'a''b'} is two adjacent literals, so the quote is lost
+    *   (Bug #78594). Not safe for dialects without backslash escapes.</li>
     * </ul>
     */
-   public enum LiteralEscapeStyle { SQL, JSON }
+   public enum LiteralEscapeStyle { SQL, JSON, BACKSLASH }
 
    /**
     * Set the SQL string type.
@@ -85,8 +92,9 @@ public class VarSQL {
     * placeholder and the {@code '...'} literal produced for an unquoted
     * placeholder in {@link SQLType#STRING} mode. Defaults to
     * {@link LiteralEscapeStyle#SQL}. Callers that splice into JSON query text
-    * (e.g. tabular connector properties with {@code @Property(sql=true)})
-    * must use {@link LiteralEscapeStyle#JSON}.
+    * (e.g. the MongoDB tabular query) must use {@link LiteralEscapeStyle#JSON};
+    * tabular {@code @Property(sql=true)} properties declare their style with
+    * {@code Property.literalEscapeStyle()}.
     */
    public void setLiteralEscapeStyle(LiteralEscapeStyle literalEscapeStyle) {
       this.literalEscapeStyle = literalEscapeStyle == null ?
@@ -216,6 +224,14 @@ public class VarSQL {
                      // literal text (e.g. '$(name)%' for STARTING_WITH),
                      // since only the value itself is escaped, not the
                      // surrounding literal text
+                     if(val != null && val.getClass().isArray()) {
+                        // a multi-value variable inside a literal is joined
+                        // with commas (as XUtil.replaceVariable does) and then
+                        // escaped like any other value, instead of splicing the
+                        // array's toString (Bug #78594)
+                        val = joinArray(val);
+                     }
+
                      if(val != null) {
                         // JSON style: a Number/Boolean/Date is emitted as is,
                         // like toSQLConstant does, so it keeps its type even
@@ -372,6 +388,10 @@ public class VarSQL {
          return escapeJsonStringValue(value, stringValue);
       }
 
+      if(literalEscapeStyle == LiteralEscapeStyle.BACKSLASH) {
+         return escapeBackslashStringValue(value);
+      }
+
       StringBuilder escaped = new StringBuilder(value.length());
 
       for(int i = 0; i < value.length(); i++) {
@@ -385,6 +405,46 @@ public class VarSQL {
       }
 
       return escaped.toString();
+   }
+
+   /**
+    * Escape a value for a backslash-escape dialect: a backslash is written
+    * before every backslash, single quote and double quote, so the value can
+    * end neither a {@code '...'} nor a {@code "..."} literal (Bug #78594).
+    */
+   private static String escapeBackslashStringValue(String value) {
+      StringBuilder escaped = new StringBuilder(value.length() + 8);
+
+      for(int i = 0; i < value.length(); i++) {
+         char c = value.charAt(i);
+
+         if(c == '\\' || c == '\'' || c == '"') {
+            escaped.append('\\');
+         }
+
+         escaped.append(c);
+      }
+
+      return escaped.toString();
+   }
+
+   /**
+    * Join the elements of an array value with commas.
+    */
+   private static String joinArray(Object val) {
+      StringBuilder str = new StringBuilder();
+      int len = Array.getLength(val);
+
+      for(int k = 0; k < len; k++) {
+         if(k > 0) {
+            str.append(",");
+         }
+
+         Object item = Array.get(val, k);
+         str.append(item == null ? "" : item.toString());
+      }
+
+      return str.toString();
    }
 
    /**

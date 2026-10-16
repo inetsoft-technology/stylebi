@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.tabular;
 
+import inetsoft.uql.jdbc.util.VarSQL;
+
 import java.lang.annotation.*;
 
 /**
@@ -56,8 +58,16 @@ public @interface Property {
    String[] pattern() default {};
 
    /**
-    * True if this is a SQL string. This affects how variables are replaced.
-    * Note that string values substituted into such a property are encoded
+    * True if this is query text (SQL, CQL, JSON, ...) rather than a URL or
+    * other plain text. This affects how variables are replaced: the property
+    * goes through {@code VarSQL} (quote-aware, a value inside a quoted
+    * literal is escaped, an unquoted string value becomes an escaped
+    * literal, {@code $(@name)} embeds raw text) using the escaping chosen by
+    * {@link #literalEscapeStyle()}; a String property without this flag has
+    * its values URL-encoded instead (Bug #78594).
+    * <p>
+    * With the default {@link #literalEscapeStyle()} (JSON), string values
+    * substituted into such a property are encoded
     * for JSON query text (as used by the MongoDB query property), not with
     * SQL quote doubling: punctuation, and the first character of a string
     * value, are written as <code>&#92;uXXXX</code>, which bson decodes back to
@@ -77,6 +87,26 @@ public @interface Property {
     * ({@code security.javascriptEnabled: false}).
     */
    boolean sql() default false;
+
+   /**
+    * How a variable value is escaped when it is spliced into a {@link #sql()}
+    * property as a string literal. Must match the target engine's literal
+    * syntax: {@code JSON} for MongoDB query text (the default),
+    * {@code SQL} (quote doubling) for ANSI-style dialects such as CQL, and
+    * {@code BACKSLASH} for dialects that escape with a backslash and do not
+    * accept {@code ''} (HiveQL, OrientDB SQL). Ignored unless {@link #sql()}
+    * is true (Bug #78594).
+    */
+   VarSQL.LiteralEscapeStyle literalEscapeStyle() default VarSQL.LiteralEscapeStyle.JSON;
+
+   /**
+    * With {@code literalEscapeStyle = SQL}, also double backslashes in a
+    * spliced value. Use it when backslash is an escape character in the
+    * dialect, or when the dialect is not known: quote and backslash doubling
+    * together cannot end the literal whichever way the engine reads them, at
+    * worst a backslash in the value is doubled (Bug #78594).
+    */
+   boolean backslashIsEscapeChar() default false;
 
    /**
     * True if replacing date variable using javascript date (timestamp) format.

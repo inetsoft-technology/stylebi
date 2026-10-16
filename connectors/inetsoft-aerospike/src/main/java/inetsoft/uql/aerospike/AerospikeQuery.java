@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.aerospike;
 
+import inetsoft.uql.jdbc.util.VarSQL;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
@@ -38,7 +39,11 @@ public class AerospikeQuery extends TabularQuery{
     *
     * @return sql string
     */
-   @Property(label="Enter SQL", required=true)
+   // the Aerospike JDBC driver is supplied by the customer and its literal
+   // syntax is not known here: double both quotes and backslashes, which
+   // cannot end the literal under either convention (Bug #78594)
+   @Property(label="Enter SQL", required=true, sql=true,
+             literalEscapeStyle=VarSQL.LiteralEscapeStyle.SQL, backslashIsEscapeChar=true)
    @PropertyEditor(rows=10, columns=65)
    public String getQueryString() {
       return qstr;
