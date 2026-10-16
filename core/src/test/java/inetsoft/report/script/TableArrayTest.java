@@ -28,6 +28,7 @@ import inetsoft.util.swap.SwapFileReadException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
+import inetsoft.util.script.ScriptException;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -245,5 +246,65 @@ class TableArrayTest {
          assertEquals(lost.getFile(),
             assertThrows(SwapFileReadException.class, () -> arr.getMember("*")).getFile());
       }
+   }
+
+   private static TableArray strictArray() {
+      TableArray arr = new TableArray(table());
+      arr.setCalcArray(true);
+      arr.setStrictMissing(true);
+      return arr;
+   }
+
+   /**
+    * Bug #78599: a calc-table formula reading data['NOPE'] (bare, '@' and ':' forms)
+    * must fail with a named error instead of reading as undefined/null.
+    */
+   @Test
+   void strictMissingColumnThrowsNamedError() {
+      TableArray arr = strictArray();
+
+      for(String id : new String[] { "NOPE", "NOPE@col1:a", "NOPE?col2=1", "Ent:NOPE" }) {
+         assertTrue(arr.hasMember(id), id);
+         ScriptException ex = assertThrows(ScriptException.class, () -> arr.getMember(id), id);
+         assertTrue(ex.getMessage().contains(id.replaceAll("[@?].*", "")), ex.getMessage());
+         assertTrue(ex.getMessage().contains("not found"), ex.getMessage());
+      }
+   }
+
+   @Test
+   void strictKeepsLegitimateForms() {
+      TableArray arr = strictArray();
+
+      assertArrayEquals(new Object[] { "a", "b", "c" }, (Object[]) arr.getMember("col1"));
+      assertArrayEquals(new Object[] { "a", "b", "c" }, (Object[]) arr.getMember("COL1"));
+      assertNotNull(arr.getMember("col1@col2:1"));
+      assertTrue(arr.getMember("*") instanceof TableArray);
+      assertEquals(4, arr.getMember("length"));
+      assertEquals(3, arr.getMember("size"));
+      assertFalse(arr.hasMember("toString"));
+      assertFalse(arr.hasMember("0"));
+   }
+
+   @Test
+   void strictSkipsEmptyAndHeaderlessTables() {
+      TableArray empty = new TableArray(new DefaultTableLens(0, 0));
+      empty.setStrictMissing(true);
+      assertNull(empty.getMember("NOPE"));
+
+      TableArray headerless = new TableArray(new DefaultTableLens(new Object[][] {{ "a" }}) {
+         @Override
+         public int getHeaderRowCount() {
+            return 0;
+         }
+      });
+      headerless.setStrictMissing(true);
+      assertNull(headerless.getMember("NOPE"));
+   }
+
+   @Test
+   void defaultModeStaysSilentOnMissingColumn() {
+      TableArray arr = new TableArray(table());
+      assertFalse(arr.hasMember("NOPE"));
+      assertNull(arr.getMember("Ent:NOPE"));
    }
 }

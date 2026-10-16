@@ -19,11 +19,13 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.*;
 import inetsoft.report.filter.*;
+import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.CalcCellContext;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.uql.XTable;
 import inetsoft.util.Tool;
 import inetsoft.util.script.FormulaContext;
+import inetsoft.util.script.ScriptException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -507,6 +509,17 @@ public class NamedCellRange extends CellRange {
                                     "non-grouped table: " + table.getClass());
       }
 
+      // checked before the range processor, which treats a missing column as an empty
+      // range and stops silently once script.max.errors is exceeded
+      if(strictMissing && table != null && !expression && !"*".equals(colexpr) &&
+         table.getHeaderRowCount() > 0 && table.moreRows(0) &&
+         Util.findColumn(table, colexpr) < 0)
+      {
+         throw new MissingColumnException("Column \"" + colexpr + "\" not found in the " +
+            "data table (" + table.getClass().getName() + "). Check the column name " +
+            "in data['" + colexpr + "'].");
+      }
+
       Vector cells = new Vector();
 
       if(table != null) {
@@ -539,6 +552,24 @@ public class NamedCellRange extends CellRange {
       }
 
       return cells;
+   }
+
+   /**
+    * Set whether a reference to a column that is not in a plain (non-grouped) table
+    * should throw instead of returning an empty range. Default is off.
+    */
+   public void setStrictMissing(boolean strictMissing) {
+      this.strictMissing = strictMissing;
+   }
+
+   /**
+    * Thrown for a strict reference to a column that is not in the table. A distinct
+    * type so callers that swallow script errors can rethrow just this one.
+    */
+   public static class MissingColumnException extends ScriptException {
+      public MissingColumnException(String msg) {
+         super(msg);
+      }
    }
 
    /**
@@ -670,6 +701,7 @@ public class NamedCellRange extends CellRange {
    private String colexpr, condition;
    private boolean summary; // true if selecting summary cell only
    private boolean expression; // true if colexpr is an express
+   private boolean strictMissing = false;
    private Map<String, GroupSpec> groupspecs = new HashMap<>(); // group -> GroupSpec
 
    private static final Logger LOG =

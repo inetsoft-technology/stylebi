@@ -25,6 +25,7 @@ import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.SubTableLens;
 import inetsoft.report.internal.Util;
 import inetsoft.report.script.formula.CellRange;
+import inetsoft.report.script.formula.NamedCellRange;
 import inetsoft.uql.XTable;
 import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.Tool;
@@ -109,6 +110,13 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
       // getMember via NamedCellRange -- Util.findColumn can never match them as
       // literal columns, so they must be reported present here too, otherwise the
       // reference resolves to undefined and indexing it (e.g. [row]) throws. (#75662)
+      //
+      // In strict mode a bare column that does not exist is reported present too, so
+      // getMember is reached and names the missing column instead of reading undefined.
+      if(strictMissing && !TableRow.isIntrinsic(id)) {
+         return true;
+      }
+
       if(id.indexOf('@') >= 0 || id.indexOf('?') >= 0 || id.indexOf(':') >= 0 ||
          id.indexOf("^_^") >= 0 || id.startsWith("*") ||
          id.startsWith("=") || id.startsWith("{"))
@@ -196,6 +204,11 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
          id = Tool.replaceAll(id, "^_^", ":");
          range.setProcessCalc(calcArray);
          range.setBaseTableReference(isBaseTableReference());
+
+         if(strictMissing && range instanceof NamedCellRange) {
+            ((NamedCellRange) range).setStrictMissing(true);
+         }
+
          boolean subtable = id.startsWith("*");
          Collection cells = range.getCells(getTable(), subtable);
 
@@ -254,6 +267,11 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
          }
       }
       catch(Exception ex) {
+         // a strict reference to a missing column is the error to report, not a value
+         if(ex instanceof NamedCellRange.MissingColumnException) {
+            throw (NamedCellRange.MissingColumnException) ex;
+         }
+
          // a stalled table or one whose swap file is lost has no value to return, the failure
          // is not a script value (#77123, #77910)
          DataUnavailable.rethrow(ex);
@@ -468,6 +486,14 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
    }
 
    /**
+    * Set whether a reference to a column that is not in a plain table should throw a
+    * named error instead of reading as empty. Default is off.
+    */
+   public void setStrictMissing(boolean strictMissing) {
+      this.strictMissing = strictMissing;
+   }
+
+   /**
     * Clear the cached data.
     */
    protected void clearCache() {
@@ -521,6 +547,7 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
    private Class pType = Object.class; // property type
    private int min = 0;
    private boolean calcArray = false;
+   private boolean strictMissing = false;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(TableArray.class);
