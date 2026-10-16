@@ -818,6 +818,55 @@ class ScriptImageServiceTest {
       assertTrue(img.note().contains("Submit1"));
    }
 
+   /**
+    * Bug #78568: the Submit note must use the exporter's visibility rule
+    * ({@code AbstractVSExporter.needExport}), like the dropdown note — a Submit in a non-selected
+    * tab is not in the image, so it must not be named.
+    */
+   @Test
+   void doesNotNoteASubmitInANonSelectedTab() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new SubmitVSAssembly(vs, "SubA"));
+      vs.addAssembly(new SubmitVSAssembly(vs, "SubB"));
+      TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
+      tab.setAssemblies(new String[] {"SubA", "SubB"});
+      ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).setSelected("SubA");
+      vs.addAssembly(tab);
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("\"SubA\" is a Submit assembly"), note);
+      assertFalse(note.contains("SubB"), note);
+   }
+
+   @Test
+   void doesNotNoteASubmitHiddenByScript() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new SubmitVSAssembly(vs, "Shown1"));
+      SubmitVSAssembly hidden = new SubmitVSAssembly(vs, "Hidden1");
+      hidden.getVSAssemblyInfo().setVisible("false");
+      vs.addAssembly(hidden);
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("\"Shown1\" is a Submit assembly"), note);
+      assertFalse(note.contains("Hidden1"), note);
+   }
+
+   @Test
+   void doesNotNoteASubmitInAHiddenContainer() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new SubmitVSAssembly(vs, "Inner1"));
+      GroupContainerVSAssembly group = new GroupContainerVSAssembly(vs, "Group1");
+      group.setAssemblies(new String[] {"Inner1"});
+      group.getVSAssemblyInfo().setVisibleValue("false");
+      vs.addAssembly(group);
+
+      assertNull(wholeSheetNote(vs));
+   }
+
    @Test
    void getViewsheetImageExportsTheWholeSheetAndScalesToFit() throws Exception {
       RuntimeViewsheet rvs = viewsheetWithChart("Chart1");

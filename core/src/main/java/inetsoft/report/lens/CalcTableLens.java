@@ -1161,6 +1161,8 @@ public class CalcTableLens extends DefaultTableLens {
                   setDataTable(table);
                   TableArray arr = new TableArray(table);
                   arr.setCalcArray(true);
+                  // a column that is not in the data table is a formula error, not a null
+                  arr.setStrictMissing(true);
                   scope.putMember("data", arr);
 
                   if(elem instanceof TableElementDef) {
@@ -1170,6 +1172,7 @@ public class CalcTableLens extends DefaultTableLens {
                         for(int i = 0; i < tables.length; i++) {
                            arr = new TableArray(tables[i]);
                            arr.setCalcArray(true);
+                           arr.setStrictMissing(true);
                            scope.putMember(String.format("data%d", i + 1), arr);
                         }
                      }

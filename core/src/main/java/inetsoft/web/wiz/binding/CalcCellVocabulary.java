@@ -23,9 +23,13 @@ import inetsoft.report.TableCellBinding;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.AggregateRef;
+import inetsoft.uql.util.XNamedGroupInfo;
+import inetsoft.web.binding.model.GroupCondition;
+import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.binding.model.table.OrderModel;
 import inetsoft.web.binding.model.table.TopNModel;
+import inetsoft.web.wiz.viewsheet.ConditionVocabulary;
 
 import java.util.*;
 import java.util.regex.Pattern;
@@ -644,11 +648,10 @@ public final class CalcCellVocabulary {
          }
 
          out.put("sort", sort);
-         // DateLevels.name() takes the STORED numeric-string form; a group cell whose field
-         // isn't a date/time column simply carries the unused OrderModel default (YEAR_DATE_GROUP)
-         // here, same as the write side leaves it unless the caller sets 'field.dateLevel' -- so a
-         // caller should read this as meaningful only when the bound field is itself a date/time
-         // column.
+         // DateLevels.name() takes the STORED numeric-string form; the write side stores "none"
+         // unless the caller sets 'field.dateLevel', so a group cell whose field isn't a
+         // date/time column reads "none" here -- the level is meaningful only when the bound
+         // field is itself a date/time column.
          out.put("dateLevel", DateLevels.name(String.valueOf(order.getOption())));
          out.put("dateInterval", order.getInterval());
 
@@ -662,6 +665,95 @@ public final class CalcCellVocabulary {
          }
 
          out.put("topn", topnOut);
+
+         Object namedGroup = namedGroupOf(order);
+
+         if(namedGroup != null) {
+            out.put("namedGroup", namedGroup);
+         }
+      }
+
+      return out;
+   }
+
+   /**
+    * The cell's named group in the same vocabulary {@code set_cell_binding}'s
+    * {@code field.namedGroup} accepts, so a read-back can be written back: the group's name for
+    * a repository-registered group, otherwise {@code {groups: [{name, conditions}], others}}.
+    * A worksheet-local group is stored as an inline one (its own name is not kept), and a group
+    * built in the Composer UI's simple dialog holds plain values, reported as one 'one_of'
+    * condition per group. Null when the cell has no named group.
+    */
+   private static Object namedGroupOf(OrderModel order) {
+      NamedGroupInfoModel info = order.getInfo();
+
+      if(info == null) {
+         return null;
+      }
+
+      int type = info.getType();
+
+      if(type == XNamedGroupInfo.ASSET_NAMEDGROUP_INFO ||
+         type == XNamedGroupInfo.ASSET_NAMEDGROUP_INFO_REF)
+      {
+         return info.getName() == null || info.getName().isEmpty() ? null : info.getName();
+      }
+
+      List<Map<String, Object>> groups = new ArrayList<>();
+
+      if(type == XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO && info.getConditions() != null) {
+         for(var expr : info.getConditions()) {
+            Map<String, Object> group = new LinkedHashMap<>();
+            group.put("name", expr.getName());
+            group.put("conditions", conditionsOf(expr.getList()));
+            groups.add(group);
+         }
+      }
+      else if(type == XNamedGroupInfo.SIMPLE_NAMEDGROUP_INFO && info.getGroups() != null) {
+         for(GroupCondition simple : info.getGroups()) {
+            Map<String, Object> clause = new LinkedHashMap<>();
+            clause.put("operator", "one_of");
+            clause.put("values", simple.getValue() == null ? List.of() : simple.getValue());
+            Map<String, Object> group = new LinkedHashMap<>();
+            group.put("name", simple.getName());
+            group.put("conditions", List.of(clause));
+            groups.add(group);
+         }
+      }
+
+      if(groups.isEmpty()) {
+         return null;
+      }
+
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("groups", groups);
+      out.put("others", order.isOthers() ? "group" : "leave");
+      return out;
+   }
+
+   /**
+    * One group's conditions as {@code set_cell_binding} takes them: the field is dropped (it is
+    * always the cell's own column) along with the editor-only levels, and a junction or
+    * {@code equal} flag appears only when it carries a value.
+    */
+   private static List<Map<String, Object>> conditionsOf(Object[] conditionList) {
+      List<Map<String, Object>> out = new ArrayList<>();
+
+      for(Map<String, Object> described : ConditionVocabulary.describe(conditionList)) {
+         Map<String, Object> clause = new LinkedHashMap<>();
+         clause.put("operator", described.get("operator"));
+         clause.put("values", described.get("values"));
+         clause.put("negated", described.get("negated"));
+
+         if(Boolean.TRUE.equals(described.get("equal"))) {
+            clause.put("equal", true);
+         }
+
+         if(described.get("junction") != null) {
+            clause.put("junction", described.get("junction"));
+         }
+
+         out.add(clause);
       }
 
       return out;

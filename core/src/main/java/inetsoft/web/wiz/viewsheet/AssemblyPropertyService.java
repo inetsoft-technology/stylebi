@@ -21,8 +21,10 @@ import inetsoft.graph.GraphConstants;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.ColumnOption;
@@ -39,6 +41,7 @@ import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
+import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RangePaneModel;
 import inetsoft.web.composer.model.vs.TableStylePaneModel;
@@ -266,6 +269,7 @@ public class AssemblyPropertyService {
          String type = typeOf(rvs, assemblyName);
          Object model = readModel(rvs, type, assemblyName, user);
          String measureBefore = selectionMeasure(type, model);
+         SelectionSourceGuard.Snapshot sourceBefore = SelectionSourceGuard.snapshot(type, model);
 
          // Resolved whole before anything is written: a typo in the fourth key must not
          // leave the first three applied, which would be a partial edit the caller has no
@@ -284,6 +288,9 @@ public class AssemblyPropertyService {
          // rebuild of an Image's immutable pane) cannot widen what the check accepts.
          Map<String, AssemblyReference> references = assemblyReferences(model, resolved.values());
          Set<String> unchangedReferences = new HashSet<>();
+         // Copied, not referenced: PropertyPath.set mutates the list-input editor in place.
+         ListInputEditorGuard.Snapshot listEditorBefore =
+            ListInputEditorGuard.snapshot(type, model);
 
          // PropertyPath.set returns the root the caller must keep using: if a future alias
          // ever targets a direct top-level field of an Immutables dialog model (no nested pane
@@ -309,8 +316,25 @@ public class AssemblyPropertyService {
             model = PropertyPath.set(model, entry.getValue(), value);
          }
 
+         // Before the measure check, so a measure is never looked up against a table set the
+         // patch is about to be refused for.
+         SelectionSourceGuard.requireSourceUnchanged(type, sourceBefore, model);
          model = requireKnownSelectionMeasure(runtimeId, user, assemblyName, type, model,
                                               measureBefore);
+
+         if("selectiontree".equals(type) && resolved.values().stream().anyMatch(
+            path -> path.equalsIgnoreCase(SINGLE_SELECTION_LEVELS_PATH)))
+         {
+            model = requireKnownSingleSelectionLevels(model);
+         }
+
+         if("timeslider".equals(type)) {
+            requireApplicableRangeSize(model, resolved.values());
+         }
+
+         if("checkbox".equals(type)) {
+            requireNoDeadCheckboxDataInputWrites(model, resolved, patch, rvs.getViewsheet());
+         }
 
          if(PropertyAliases.derivesVariableFlagFromTable(type)) {
             model = normalizeVariableTableBinding(model);
@@ -328,7 +352,7 @@ public class AssemblyPropertyService {
             requireVariableFlagAchievable(type, model, rvs.getViewsheet());
          }
 
-         if(PropertyAliases.derivesVariableFlagFromTable(type) &&
+         if(PropertyAliases.derivesVariableFlagFromTable(type) && !"checkbox".equals(type) &&
             (resolved.containsValue("dataInputPaneModel.columnValue") ||
              resolved.containsValue("dataInputPaneModel.rowValue")))
          {
@@ -351,7 +375,11 @@ public class AssemblyPropertyService {
                                  TipCustomizeDialogModel.TipFormat.CUSTOM);
 
          if(PropertyAliases.isListInputType(type)) {
-            requireValidListInput(type, model, resolved.values(), rvs, user);
+            // Before requireValidListInput, so a dataType change strict-checks the embedded
+            // values against the list type they will be stored with.
+            ListInputEditorGuard.apply(type, listEditorBefore, model, resolved.values());
+            requireValidListInput(type, model, resolved.values(), rvs, user,
+                                  listEditorBefore != null && listEditorBefore.query());
             model = deriveEmbeddedFromStaticList(model, resolved.values());
          }
 
@@ -363,8 +391,158 @@ public class AssemblyPropertyService {
             markTargetsUnchanged(model);
          }
 
-         writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
+         final Object written = model;
+
+         if("chart".equals(type)) {
+            ChartRenderCheck.swallowScriptError(rvs, assemblyName, () ->
+               writeModel(runtimeId, type, assemblyName, written, linkUri, user, dispatcher));
+            ChartRenderCheck.warnIfScriptFails(rvs, assemblyName, dispatcher);
+         }
+         else {
+            writeModel(runtimeId, type, assemblyName, written, linkUri, user, dispatcher);
+         }
       });
+   }
+
+   private static final String RANGE_SIZE_PANE =
+      "rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.";
+
+   /**
+    * {@code RangeSliderPropertyDialogService.setTimeInfo} rebuilds the TimeInfo on every write and
+    * persists rangeSize only for a single NUMBER slider without log scale, maxRangeSize for a
+    * single slider unless it is NUMBER with log scale, and none of the three range fields for a
+    * composite slider -- every other write reports success and reads back 0 (bug-78566). Judged
+    * on the post-patch model so {@code {rangeType:"number", rangeSize:7}} and {@code
+    * {logScale:false, rangeSize:7}} stay legal, and only for the fields the patch wrote, so a
+    * value already in the model never blocks an unrelated write.
+    */
+   static void requireApplicableRangeSize(Object model, Collection<String> resolvedPaths) {
+      boolean rangeType = writes(resolvedPaths, "rangeType");
+      boolean rangeSize = writes(resolvedPaths, "rangeSize");
+      boolean maxRangeSize = writes(resolvedPaths, "maxRangeSize");
+
+      if(!rangeType && !rangeSize && !maxRangeSize) {
+         return;
+      }
+
+      boolean composite = (Boolean) PropertyPath.get(model, "rangeSliderDataPaneModel.composite");
+      boolean logScale = (Boolean) PropertyPath.get(model, RANGE_SIZE_PANE + "logScale");
+      boolean number =
+         (Integer) PropertyPath.get(model, RANGE_SIZE_PANE + "rangeType") == TimeInfo.NUMBER;
+
+      if(composite) {
+         String field = rangeType ? "rangeType" : rangeSize ? "rangeSize" : "maxRangeSize";
+
+         throw new IllegalArgumentException(
+            field + ": a composite range slider has no range type or range size -- StyleBI " +
+            "never stores them for one, so the write would report success and read back 0. " +
+            "To use a single range, rebind the slider to one column with set_selection_source.");
+      }
+
+      if(rangeSize && !number) {
+         throw new IllegalArgumentException(
+            "rangeSize: only a NUMBER range slider stores a range size, and this one is not " +
+            "(rangeType is not NUMBER), so the write would report success and read back 0. " +
+            "Set rangeType:\"number\" in the same call, or use maxRangeSize.");
+      }
+
+      if((rangeSize || maxRangeSize) && number && logScale) {
+         throw new IllegalArgumentException(
+            (rangeSize ? "rangeSize" : "maxRangeSize") + ": a log-scale NUMBER range slider " +
+            "stores neither rangeSize nor maxRangeSize, so the write would report success and " +
+            "read back 0. Set logScale:false in the same call.");
+      }
+   }
+
+   private static boolean writes(Collection<String> resolvedPaths, String leaf) {
+      return resolvedPaths.stream().anyMatch(path -> path.equalsIgnoreCase(RANGE_SIZE_PANE + leaf));
+   }
+
+   private static final String SINGLE_SELECTION_LEVELS_PATH =
+      "selectionGeneralPaneModel.singleSelectionLevels";
+
+   /**
+    * {@code setSingleSelectionLevelNames} silently drops every name that is not a level (an
+    * unknown name, a different case) and a non-string element surfaces as a bare
+    * ClassCastException; an empty list means "every level", and levels written while the tree is
+    * not single-select stay dormant (bug-78566). Checks the post-patch model, so a patch that also
+    * rebinds the columns or toggles single-select is judged as a whole, and returns it with
+    * duplicates removed.
+    */
+   static Object requireKnownSingleSelectionLevels(Object model) {
+      String field = "singleSelectionLevels: ";
+      Object levels = PropertyPath.get(model, SINGLE_SELECTION_LEVELS_PATH);
+
+      if((Integer) PropertyPath.get(model, "selectionTreePaneModel.mode") ==
+         SelectionTreeVSAssemblyInfo.ID)
+      {
+         throw new IllegalArgumentException(
+            field + "an ID-mode tree has no fixed levels, so single-select levels do not " +
+            "apply. Use singleSelection instead.");
+      }
+
+      boolean single = (Boolean) PropertyPath.get(model, "selectionGeneralPaneModel.singleSelection");
+
+      // Turning single-select off clears its levels, which is what the Composer does too.
+      if(!single && (levels == null || levels instanceof List<?> cleared && cleared.isEmpty())) {
+         return model;
+      }
+
+      if(!(levels instanceof List<?> list) || list.isEmpty()) {
+         throw new IllegalArgumentException(
+            field + "the list is empty, which StyleBI reads as \"every level\". Name the " +
+            "levels to make single-select, or set singleSelection:true for all of them.");
+      }
+
+      List<String> valid = singleSelectionLevelNames(model);
+      Set<String> distinct = new LinkedHashSet<>();
+
+      for(Object element : list) {
+         if(!(element instanceof String name)) {
+            throw new IllegalArgumentException(
+               field + "each level must be a level name string, got " + element + ". Valid " +
+               "levels: " + String.join(", ", valid));
+         }
+
+         if(!valid.contains(name)) {
+            throw new IllegalArgumentException(
+               field + "unknown level '" + name + "' (level names are case-sensitive). Valid " +
+               "levels: " + String.join(", ", valid));
+         }
+
+         distinct.add(name);
+      }
+
+      if(!single) {
+         throw new IllegalArgumentException(
+            field + "the tree is not single-select, so the levels would be stored but never " +
+            "applied. Set singleSelection:true in the same call.");
+      }
+
+      return distinct.size() == list.size() ? model :
+         PropertyPath.set(model, SINGLE_SELECTION_LEVELS_PATH, new ArrayList<>(distinct));
+   }
+
+   /**
+    * The level names {@code SelectionVSAssemblyInfo.getLevelName} yields for the tree's columns.
+    */
+   static List<String> singleSelectionLevelNames(Object model) {
+      OutputColumnRefModel[] columns =
+         (OutputColumnRefModel[]) PropertyPath.get(model, "selectionTreePaneModel.selectedColumns");
+      List<String> names = new ArrayList<>();
+
+      for(OutputColumnRefModel column : columns == null ? new OutputColumnRefModel[0] : columns) {
+         AttributeRef attribute = new AttributeRef(column.getEntity(), column.getAttribute());
+         attribute.setRefType(column.getRefType());
+         ColumnRef ref = new ColumnRef(attribute);
+         ref.setAlias(column.getAlias());
+         String name = (column.getRefType() & DataRef.CUBE_DIMENSION) == DataRef.CUBE_DIMENSION ?
+            ref.getAttribute() : ref.getName();
+         int idx = name.indexOf(':');
+         names.add(idx == -1 ? name : name.substring(idx + 1));
+      }
+
+      return names;
    }
 
    private static String selectionPane(String type) {
@@ -386,7 +564,8 @@ public class AssemblyPropertyService {
     * (or a bare {@code "="}) left the bars/aggregate silently broken. Compares the pane's measure
     * before and after the patch loop -- so it catches the {@code measure} alias, a raw path in any
     * case and the tree, which has no alias -- and runs the same resolution
-    * {@code set_selection_source} does against the post-patch table, before anything is written.
+    * {@code set_selection_source} does against the stored table set (a source change in the same
+    * patch is refused first, by {@link SelectionSourceGuard}), before anything is written.
     * Blank clears the measure and is not checked.
     */
    private Object requireKnownSelectionMeasure(String runtimeId, Principal user,
@@ -419,13 +598,16 @@ public class AssemblyPropertyService {
     * editor, each only when the patch touched what it checks, so a legacy bad list or source
     * doesn't block an unrelated write: the embedded list for a write to the list, the editor's
     * {@code dataType} or {@code embedded}; the source, validated against the effective model,
-    * for a write to its table/column/value while query is on. Query alone is a complete
-    * {@code BOUND_SOURCE} configuration and stays legal. The editor-vs-list dataType mismatch
+    * for a write to its table/column/value while query is on, or for turning query on (a table
+    * written while query was off is otherwise never judged once query follows, bug #78590). Query
+    * alone, with no table, is a complete {@code BOUND_SOURCE} configuration and stays legal.
+    * The editor-vs-list dataType mismatch
     * that {@code set_column_options} refuses is not refused here: an assembly's dialog model
     * fills the two from different fields, so a valid assembly can read back with both.
     */
    private void requireValidListInput(String type, Object model, Collection<String> resolvedPaths,
-                                      RuntimeViewsheet rvs, Principal user) throws Exception
+                                      RuntimeViewsheet rvs, Principal user,
+                                      boolean queryBefore) throws Exception
    {
       String embeddedPath = PropertyAliases.resolve(type, "embedded");
       String editorPath = embeddedPath.substring(0, embeddedPath.lastIndexOf('.'));
@@ -439,6 +621,8 @@ public class AssemblyPropertyService {
       String sourcePath = sourceDialogPath + ".selectionListEditorModel";
       boolean listTouched = false;
       boolean sourceTouched = false;
+      boolean queryTurnedOn = !queryBefore && editor.isQuery() &&
+         resolvedPaths.contains(editorPath + ".query");
 
       for(String path : resolvedPaths) {
          listTouched |= path.equals(listPath) || path.startsWith(listPath + ".") ||
@@ -453,14 +637,21 @@ public class AssemblyPropertyService {
             editor.getVariableListDialogModel(), "set_assembly_properties: '" + listPath + ".");
       }
 
-      if(sourceTouched && editor.isQuery() && editor.getSelectionListDialogModel() != null &&
-         editor.getSelectionListDialogModel().getSelectionListEditorModel() != null)
+      if((sourceTouched || queryTurnedOn) && editor.isQuery() &&
+         editor.getSelectionListDialogModel() != null &&
+         editor.getSelectionListDialogModel().getSelectionListEditorModel() != null &&
+         (sourceTouched || !blank(
+            editor.getSelectionListDialogModel().getSelectionListEditorModel().getTable())))
       {
          WizColumnOptionValidator.requireResolvableListSource(
             columnHandler, rvs, user,
             editor.getSelectionListDialogModel().getSelectionListEditorModel(),
             "set_assembly_properties", "a " + LIST_INPUT_NAMES.get(type), sourcePath + ".");
       }
+   }
+
+   private static boolean blank(String s) {
+      return s == null || s.isBlank();
    }
 
    private static final Map<String, String> LIST_INPUT_NAMES =
@@ -853,6 +1044,102 @@ public class AssemblyPropertyService {
    }
 
    /**
+    * Refuses a checkbox {@code dataInputPaneModel.columnValue}/{@code rowValue}/{@code
+    * writeBackDirectly} write that {@code VSInputService.setCheckboxPropertyModel} would
+    * silently drop (bug #78579): a checkbox is multi-select, so the Composer's Data Input pane
+    * hides Column, Row and Write Back and the assembly has nowhere to store them. All offending
+    * keys are collected and refused in ONE message, before anything is written.
+    *
+    * <p>Not refused, because nothing is lost: an empty/null {@code columnValue}/{@code rowValue}
+    * and {@code writeBackDirectly} false (what the native pane itself submits), and a {@code
+    * columnValue} that is consumed as the variable binding -- the "Variables" folder label
+    * paired with a known variable (bug #76478), or {@code "$(variable)"} with no table set
+    * ({@link #normalizeVariableTableBinding}). Must run on the post-patch model but before that
+    * normalization rewrites {@code table}.
+    */
+   private static void requireNoDeadCheckboxDataInputWrites(
+      Object model, Map<String, String> resolved, Map<String, Object> patch, Viewsheet vs)
+   {
+      String table = (String) PropertyPath.get(model, "dataInputPaneModel.table");
+      Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
+      List<String> refused = new ArrayList<>();
+
+      for(Map.Entry<String, String> entry : resolved.entrySet()) {
+         String path = entry.getValue();
+         Object value = patch.get(entry.getKey());
+         String leaf;
+
+         if(path.equalsIgnoreCase("dataInputPaneModel.columnValue")) {
+            leaf = "columnValue";
+            String text = value == null ? "" : value.toString();
+
+            if(text.isEmpty() || isCheckboxVariableCarrier(ws, vs, table, text)) {
+               continue;
+            }
+         }
+         else if(path.equalsIgnoreCase("dataInputPaneModel.rowValue")) {
+            leaf = "rowValue";
+
+            if(value == null || value.toString().isEmpty()) {
+               continue;
+            }
+         }
+         else if(path.equalsIgnoreCase("dataInputPaneModel.writeBackDirectly")) {
+            leaf = "writeBackDirectly";
+
+            if(value == null || "false".equalsIgnoreCase(value.toString().trim())) {
+               continue;
+            }
+         }
+         else {
+            continue;
+         }
+
+         if(!refused.contains(leaf)) {
+            refused.add(leaf);
+         }
+      }
+
+      if(!refused.isEmpty()) {
+         throw new IllegalArgumentException(
+            "A checkbox cannot store a column, row or write-back target: refused " +
+            String.join(", ", refused.stream().map(k -> "dataInputPaneModel." + k).toList()) +
+            ". The Composer's checkbox Data Input pane hides Column, Row and Write Back (a " +
+            "checkbox is multi-select), and a checkbox binds only a variable, through " +
+            "dataInputPaneModel.table = \"$(varName)\". Remove these keys (an empty " +
+            "columnValue/rowValue or writeBackDirectly:false is accepted).");
+      }
+   }
+
+   /**
+    * Whether a non-empty checkbox {@code columnValue} is consumed to build the variable binding
+    * rather than dropped, mirroring {@code VSInputService.resolveInputTableBinding}'s order. An
+    * unknown variable is refused here with that resolver's own named message.
+    */
+   private static boolean isCheckboxVariableCarrier(Worksheet ws, Viewsheet vs, String table,
+                                                    String columnValue)
+   {
+      if(table == null || table.isEmpty()) {
+         return columnValue.startsWith("$(") && columnValue.endsWith(")") &&
+            resolvesToVariableBindingOrRefuse(ws, vs, columnValue, null);
+      }
+
+      if(ws == null || !"Variables".equals(table)) {
+         return false;
+      }
+
+      try {
+         // Resolves without throwing only when "Variables" is itself a variable or worksheet
+         // assembly, in which case columnValue is ignored.
+         VSInputService.resolvesToVariableBinding(ws, vs, table, "");
+         return false;
+      }
+      catch(MessageException e) {
+         return resolvesToVariableBindingOrRefuse(ws, vs, table, columnValue);
+      }
+   }
+
+   /**
     * Normalizes an unset {@code table} to {@code columnValue} when the latter is already a
     * {@code "$(varName)"} reference (bug #76530/#76555) -- kept AI-only here since
     * {@code VSInputService} is shared with the interactive UI's save path. Must run before
@@ -875,7 +1162,9 @@ public class AssemblyPropertyService {
     * {@link VSInputService#resolvesToVariableBinding} throws a {@link MessageException} for an
     * unresolvable binding (bug #78263). Called directly from the guards it would bypass the
     * reflective IllegalArgumentException translation in {@code writeModel} and surface as an
-    * opaque 500, so refuse it here as a named 400, message unchanged.
+    * opaque 500, so refuse it here as a named 400. The message is prefixed with the data input
+    * field ({@code table}, which {@code columnValue} aliases into) so the caller can tell which
+    * write was refused; the original text follows unchanged.
     */
    private static boolean resolvesToVariableBindingOrRefuse(
       Worksheet ws, Viewsheet vs, String table, String columnValue)
@@ -884,7 +1173,8 @@ public class AssemblyPropertyService {
          return VSInputService.resolvesToVariableBinding(ws, vs, table, columnValue);
       }
       catch(MessageException e) {
-         throw new IllegalArgumentException(e.getMessage(), e);
+         throw new IllegalArgumentException(
+            "'dataInputPaneModel.table' (or 'columnValue'): " + e.getMessage(), e);
       }
    }
 
@@ -1002,11 +1292,14 @@ public class AssemblyPropertyService {
 
          XEmbeddedTable data = assembly.getEmbeddedData();
 
-         if(row < 0 || row > data.getRowCount()) {
+         int header = data.getHeaderRowCount();
+
+         if(row < header || row >= data.getRowCount()) {
             throw new IllegalArgumentException(
                "'dataInputPaneModel.rowValue' (" + row + ") is out of range for '" + tname +
                "', which has " + data.getRowCount() + " row(s) (0-indexed, header row " +
-               "included). StyleBI accepts an out-of-range rowValue with no error and the " +
+               "included): valid data rows are " + header + ".." + (data.getRowCount() - 1) +
+               "; rows below " + header + " are the header. StyleBI accepts an out-of-range rowValue with no error and the " +
                "input's value silently never reaches any cell, so this write would report " +
                "success and be a permanent no-op.");
          }

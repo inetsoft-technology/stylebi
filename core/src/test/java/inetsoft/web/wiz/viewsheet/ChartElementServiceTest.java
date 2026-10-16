@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -64,6 +65,41 @@ class ChartElementServiceTest {
       assertFalse(empty.isHide(),
                   "hide defaults to false, which this event reads as show-all-titles — which " +
                   "is why the construction guard above matters");
+   }
+
+   /**
+    * Bug #78439: a chart script error thrown by the inner visibility service is tolerated (the
+    * end-of-write check reports it as the named warning), while any other error still escapes.
+    */
+   @Test
+   void aScriptErrorFromTheInnerServiceDoesNotEscapeButOtherErrorsDo() throws Exception {
+      Harness h = harness(mock(ChartVSAssembly.class));
+      doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(h.axes).eventHandler(
+         anyString(), any(), anyString(), any(Principal.class), any());
+
+      assertEquals(null, h.service.setVisibility(
+         "tok", principal(), "Chart1", "axis", "Region", false, false, ""));
+      verify(h.axes).eventHandler(anyString(), any(), anyString(), any(Principal.class), any());
+
+      Harness other = harness(mock(ChartVSAssembly.class));
+      doThrow(new IllegalStateException("boom")).when(other.axes).eventHandler(
+         anyString(), any(), anyString(), any(Principal.class), any());
+
+      assertThrows(IllegalStateException.class, () -> other.service.setVisibility(
+         "tok", principal(), "Chart1", "axis", "Region", false, false, ""));
+   }
+
+   /** Bug #78439: both write methods return the warnings the write captured. */
+   @Test
+   void returnsTheWarningsTheWriteCaptured() throws Exception {
+      Harness h = harness(mock(ChartVSAssembly.class));
+      doReturn(List.of("chart warning")).when(h.sessions)
+         .mutate(anyString(), any(Principal.class), any());
+
+      assertEquals(List.of("chart warning"), h.service.setVisibility(
+         "tok", principal(), "Chart1", "axis", "Region", false, false, ""));
+      assertEquals(List.of("chart warning"), h.service.resizePlot(
+         "tok", principal(), "Chart1", null, true, true, ""));
    }
 
    @Test

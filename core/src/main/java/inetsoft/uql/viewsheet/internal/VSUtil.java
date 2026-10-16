@@ -3606,7 +3606,9 @@ public final class VSUtil {
          }
 
          if(matches) {
-            if(mbr instanceof VSDimensionMember) {
+            // the date option of a non-date member is meaningless: it can differ from the
+            // runtime ref level (5 by default) without the two being different levels
+            if(mbr instanceof VSDimensionMember && isDateMember((VSDimensionMember) mbr)) {
                int level2 = ((VSDimensionMember) mbr).getDateOption();
 
                if(dlevel != level2) {
@@ -3619,6 +3621,11 @@ public final class VSUtil {
       }
 
       return -1;
+   }
+
+   private static boolean isDateMember(VSDimensionMember member) {
+      DataRef ref = member.getDataRef();
+      return ref != null && AssetUtil.isDateType(ref.getDataType());
    }
 
    /**
@@ -4358,11 +4365,17 @@ public final class VSUtil {
          if(match == FIELD_NAME_MATCH) {
             ncontent = nname;
          }
+         else if(match == FIELD_NAME_PREFIXED_MATCH) {
+            // keep the written table prefix, so the accessor still resolves the same way
+            ncontent = content.substring(0, content.lastIndexOf('.') + 1) + nname;
+         }
          else if(match == FIELD_NAME_AMBIGUOUS) {
             ambiguous = true;
          }
          else {
-            ncontent = renameFieldAccessorContent(content, oname, nname);
+            boolean[] aggAmbiguous = { false };
+            ncontent = renameFieldAccessorContent(content, oname, nname, otherNames, aggAmbiguous);
+            ambiguous |= aggAmbiguous[0];
          }
 
          if(!ncontent.equals(content)) {
@@ -4428,13 +4441,40 @@ public final class VSUtil {
    private static final int FIELD_NAME_NONE = 0;
    private static final int FIELD_NAME_MATCH = 1;
    private static final int FIELD_NAME_AMBIGUOUS = 2;
+   // the written name is {@code <prefix>.<oname>}, the prefix being ignored by the row scope
+   private static final int FIELD_NAME_PREFIXED_MATCH = 3;
 
    /**
-    * Classify a per-row field name as the row scope resolves it: an exact name wins, otherwise
-    * the first case-insensitive match does.
+    * Classify a per-row field name as the row scope resolves it (TableRow#getColFromColMap): an
+    * exact name wins, then the name without a table prefix (the text up to the last '.', e.g.
+    * {@code Order Model.Vat}, matched case-sensitively), then the first case-insensitive match
+    * of the whole name. A name written exactly as another field (including a dotted base column)
+    * never refers to {@code oname}.
     */
    private static int classifyFieldName(String written, String oname,
                                         Collection<String> otherNames)
+   {
+      int match = classifyBareFieldName(written, oname, otherNames);
+
+      if(match != FIELD_NAME_NONE) {
+         return match;
+      }
+
+      int dot = written.lastIndexOf('.');
+
+      if(dot > 0 && written.substring(dot + 1).equals(oname) && !otherNames.contains(written)) {
+         return FIELD_NAME_PREFIXED_MATCH;
+      }
+
+      return FIELD_NAME_NONE;
+   }
+
+   /**
+    * Classify a field name without considering a table prefix: an exact name wins, otherwise
+    * the first case-insensitive match does.
+    */
+   private static int classifyBareFieldName(String written, String oname,
+                                            Collection<String> otherNames)
    {
       if(written.equals(oname)) {
          return FIELD_NAME_MATCH;
@@ -4516,11 +4556,31 @@ public final class VSUtil {
    private record CalcFieldScan(String text, boolean ambiguous) {
    }
 
-   private static String renameFieldAccessorContent(String content, String oname, String nname) {
+   /**
+    * @param ambiguous set to true when an argument matches {@code oname} only case-insensitively
+    *                  and several other fields tie for it.
+    */
+   private static String renameFieldAccessorContent(String content, String oname, String nname,
+                                                    Collection<String> otherNames,
+                                                    boolean[] ambiguous)
+   {
       int open = content.indexOf('(');
 
       if(open <= 0 || !content.endsWith(")")) {
          return content;
+      }
+
+      // a table prefix before the formula, e.g. field['Order Model.Sum(Vat)'], is ignored by the
+      // row scope unless the whole name is another field's exact name
+      int dot = content.lastIndexOf('.', open);
+
+      if(dot >= 0) {
+         if(otherNames.contains(content)) {
+            return content;
+         }
+
+         return content.substring(0, dot + 1) + renameFieldAccessorContent(
+            content.substring(dot + 1), oname, nname, otherNames, ambiguous);
       }
 
       AggregateFormula formula = AggregateFormula.getFormula(content.substring(0, open).trim());
@@ -4531,7 +4591,7 @@ public final class VSUtil {
 
       String prefix = content.substring(0, open + 1);
       String args = content.substring(open + 1, content.length() - 1);
-      String nargs = renameFormulaArg(args, oname, nname);
+      String nargs = renameFormulaArg(args, oname, nname, otherNames, ambiguous);
 
       // a whole-argument match first, so an old name that itself contains a comma still works
       if(nargs == null) {
@@ -4539,7 +4599,7 @@ public final class VSUtil {
          boolean changed = false;
 
          for(int i = 0; i < parts.length; i++) {
-            String npart = renameFormulaArg(parts[i], oname, nname);
+            String npart = renameFormulaArg(parts[i], oname, nname, otherNames, ambiguous);
 
             if(npart != null) {
                parts[i] = npart;
@@ -4554,15 +4614,26 @@ public final class VSUtil {
    }
 
    /**
+    * An aggregate tag is resolved case-insensitively (see {@link #addUsedAggregateRef}), so the
+    * column name matches the way a per-row name does: an exact name wins over a case-different one.
+    *
     * @return the argument with {@code oname} replaced, keeping its brackets and surrounding
     *         whitespace, or {@code null} when the argument isn't {@code oname}.
     */
-   private static String renameFormulaArg(String arg, String oname, String nname) {
+   private static String renameFormulaArg(String arg, String oname, String nname,
+                                          Collection<String> otherNames, boolean[] ambiguous)
+   {
       String trimmed = arg.trim();
       boolean bracket = trimmed.length() >= 2 && trimmed.startsWith("[") && trimmed.endsWith("]");
       String name = bracket ? trimmed.substring(1, trimmed.length() - 1) : trimmed;
+      int match = classifyBareFieldName(name, oname, otherNames);
 
-      if(!name.equals(oname)) {
+      if(match == FIELD_NAME_AMBIGUOUS) {
+         ambiguous[0] = true;
+         return null;
+      }
+
+      if(match != FIELD_NAME_MATCH) {
          return null;
       }
 

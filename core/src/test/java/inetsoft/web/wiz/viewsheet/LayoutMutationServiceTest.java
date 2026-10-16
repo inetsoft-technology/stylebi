@@ -27,16 +27,16 @@ import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TipVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.LayoutInfo;
 import inetsoft.uql.viewsheet.vslayout.PrintInfo;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.VSEditableAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
-import inetsoft.web.composer.vs.controller.VSLayoutControllerServiceProxy;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
-import inetsoft.web.viewsheet.DataTipInLayoutCheckResult;
 import inetsoft.web.wiz.pairing.TestPrincipals;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Test;
@@ -212,60 +212,128 @@ class LayoutMutationServiceTest {
                    "the master's own top-level RScaleFont must be untouched");
    }
 
-   @Test
-   void removeWithADataTipDependencyRequiresConfirmationAndDoesNotRemove() throws Exception {
-      Fixture fx = new Fixture();
-      fx.installPrintLayout();
-      when(fx.vsLayoutControllerService.checkAssemblyInLayout(eq("master-1"), eq(PRINT_LAYOUT),
-                                                              eq("Table1"), eq(AGENT)))
-         .thenReturn(DataTipInLayoutCheckResult.builder().isAssemblyInLayout(true).build());
+   private static void setTipView(Fixture fx, String viewName) {
+      TipVSAssemblyInfo tip = (TipVSAssemblyInfo) fx.masterTable.getInfo();
+      tip.setTipOptionValue(TipVSAssemblyInfo.VIEWTIP_OPTION);
+      tip.setTipViewValue(viewName);
+   }
 
-      Map<String, Object> result = fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "remove",
-         VSLayoutService.CONTENT, List.of(Map.of("name", "Table1")), false);
+   private static Map<String, Object> remove(Fixture fx, String layoutName, String name,
+                                             boolean confirmed) throws Exception
+   {
+      return fx.service.editObjects("tok1", AGENT, layoutName, "remove",
+         VSLayoutService.CONTENT, List.of(Map.of("name", name)), confirmed);
+   }
 
+   private static void assertRequiresConfirmation(Map<String, Object> result, String name) {
       assertEquals(true, result.get("requiresConfirmation"));
       assertNotNull(result.get("reason"));
-      assertEquals(List.of("Table1"), result.get("objectNames"));
+      assertEquals(List.of(name), result.get("objectNames"));
+   }
+
+   @Test
+   void removeAPlacedObjectWithNoDependentOnAPrintLayoutNeedsNoConfirmation() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      assertEquals(false, remove(fx, PRINT_LAYOUT, "Text1", false).get("requiresConfirmation"));
+      assertFalse(fx.printLayoutObjectNames().contains("Text1"));
+   }
+
+   @Test
+   void removeAPlacedObjectWithNoDependentOnADeviceLayoutNeedsNoConfirmation() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installDeviceLayout();
+      fx.deviceLayoutObjects().add(
+         new VSAssemblyLayout("Text1", new Point(1, 2), new Dimension(3, 4)));
+
+      assertEquals(false, remove(fx, DEVICE_LAYOUT, "Text1", false).get("requiresConfirmation"));
+      assertTrue(fx.deviceLayoutObjects().isEmpty());
+   }
+
+   @Test
+   void removeADataTipTargetRequiresConfirmationAndDoesNotRemove() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      setTipView(fx, "Text1");
+
+      assertRequiresConfirmation(remove(fx, PRINT_LAYOUT, "Text1", false), "Text1");
 
       // The underlying remove was never reached: no clone was even minted for the attempt.
       verify(fx.viewsheetService, never())
          .openTemporaryViewsheet(anyString(), any(AssetEntry.class), eq(AGENT));
-      assertTrue(fx.printLayoutObjectNames().contains("Table1"),
+      assertTrue(fx.printLayoutObjectNames().contains("Text1"),
                  "a blocked remove must leave the layout's object list untouched");
    }
 
    @Test
-   void removeWithConfirmedTrueProceedsPastTheDataTipGuard() throws Exception {
+   void removeADataTipTargetOnADeviceLayoutRequiresConfirmation() throws Exception {
       Fixture fx = new Fixture();
-      fx.installPrintLayout();
-      when(fx.vsLayoutControllerService.checkAssemblyInLayout(anyString(), anyString(), anyString(),
-                                                              eq(AGENT)))
-         .thenReturn(DataTipInLayoutCheckResult.builder().isAssemblyInLayout(true).build());
+      fx.installDeviceLayout();
+      fx.deviceLayoutObjects().add(
+         new VSAssemblyLayout("Text1", new Point(1, 2), new Dimension(3, 4)));
+      setTipView(fx, "Text1");
 
-      Map<String, Object> result = fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "remove",
-         VSLayoutService.CONTENT, List.of(Map.of("name", "Table1")), true);
-
-      assertEquals(false, result.get("requiresConfirmation"));
-      assertFalse(fx.printLayoutObjectNames().contains("Table1"),
-                  "confirmed: true must proceed with the removal");
-      // The guard itself must not even be consulted once already confirmed.
-      verify(fx.vsLayoutControllerService, never())
-         .checkAssemblyInLayout(anyString(), anyString(), anyString(), any());
+      assertRequiresConfirmation(remove(fx, DEVICE_LAYOUT, "Text1", false), "Text1");
+      assertEquals(1, fx.deviceLayoutObjects().size());
    }
 
    @Test
-   void removeWithNoDependencySucceedsCleanlyWithoutConfirmation() throws Exception {
+   void removeAPopComponentTargetRequiresConfirmation() throws Exception {
       Fixture fx = new Fixture();
       fx.installPrintLayout();
-      when(fx.vsLayoutControllerService.checkAssemblyInLayout(anyString(), anyString(), anyString(),
-                                                              eq(AGENT)))
-         .thenReturn(DataTipInLayoutCheckResult.builder().isAssemblyInLayout(false).build());
+      PopVSAssemblyInfo pop = (PopVSAssemblyInfo) fx.masterText.getInfo();
+      pop.setPopOptionValue(PopVSAssemblyInfo.POP_OPTION);
+      pop.setPopComponentValue("Table1");
+
+      assertRequiresConfirmation(remove(fx, PRINT_LAYOUT, "Table1", false), "Table1");
+      assertTrue(fx.printLayoutObjectNames().contains("Table1"));
+   }
+
+   @Test
+   void removeAHeaderPlacedTargetStillRequiresConfirmation() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      place(fx, VSLayoutService.HEADER, "Text1");
+      setTipView(fx, "Text1");
 
       Map<String, Object> result = fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "remove",
-         VSLayoutService.CONTENT, List.of(Map.of("name", "Table1")), false);
+         VSLayoutService.HEADER, List.of(Map.of("name", "Text1")), false);
 
-      assertEquals(false, result.get("requiresConfirmation"));
+      assertRequiresConfirmation(result, "Text1");
+      assertEquals(List.of("Text1"), namesIn(fx, VSLayoutService.HEADER));
+   }
+
+   @Test
+   void aSelfTipTargetIsIgnored() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      setTipView(fx, "Table1");
+
+      assertEquals(false, remove(fx, PRINT_LAYOUT, "Table1", false).get("requiresConfirmation"));
       assertFalse(fx.printLayoutObjectNames().contains("Table1"));
+   }
+
+   @Test
+   void aFlyoverViewIsNotADependency() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      ((TipVSAssemblyInfo) fx.masterTable.getInfo())
+         .setFlyoverViewsValue(new String[] { "Text1" });
+
+      assertEquals(false, remove(fx, PRINT_LAYOUT, "Text1", false).get("requiresConfirmation"));
+      assertFalse(fx.printLayoutObjectNames().contains("Text1"));
+   }
+
+   @Test
+   void removeWithConfirmedTrueProceedsPastTheDependencyGuard() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      setTipView(fx, "Text1");
+
+      assertEquals(false, remove(fx, PRINT_LAYOUT, "Text1", true).get("requiresConfirmation"));
+      assertFalse(fx.printLayoutObjectNames().contains("Text1"),
+                  "confirmed: true must proceed with the removal");
    }
 
    @Test
@@ -634,23 +702,159 @@ class LayoutMutationServiceTest {
 
    // ── fixture ───────────────────────────────────────────────────────────────
 
+// ── Bug 78588: remove refuses unplaced names; remove/move_resize resolve header/footer ──
+
+   private static void place(Fixture fx, int region, String... names) {
+      PrintLayout print = fx.masterVs.getLayoutInfo().getPrintLayout();
+      List<VSAssemblyLayout> list = new ArrayList<>();
+
+      for(String name : names) {
+         list.add(new VSAssemblyLayout(name, new Point(1, 2), new Dimension(3, 4)));
+      }
+
+      fx.vsLayoutService.setVSAssemblyLayouts(print, list, region);
+   }
+
+   private static List<String> namesIn(Fixture fx, int region) {
+      return fx.vsLayoutService
+         .getVSAssemblyLayouts(fx.masterVs.getLayoutInfo().getPrintLayout(), region).stream()
+         .map(VSAssemblyLayout::getName).toList();
+   }
+
+   private static IllegalArgumentException assertRemoveRefused(Fixture fx, String layoutName,
+                                                               String... names)
+   {
+      List<Map<String, Object>> objects = new ArrayList<>();
+
+      for(String name : names) {
+         objects.add(Map.of("name", name));
+      }
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, layoutName, "remove",
+                                       VSLayoutService.CONTENT, objects, false));
+      assertTrue(thrown.getMessage().contains("is not placed in layout \"" + layoutName + "\""),
+                 thrown.getMessage());
+      return thrown;
+   }
+
+   @Test
+   void removeOfAnUnknownNameIsRefusedAndLeavesTheLayoutUnchanged() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      IllegalArgumentException thrown = assertRemoveRefused(fx, PRINT_LAYOUT, "NoSuchObject");
+
+      assertTrue(thrown.getMessage().contains("NoSuchObject"), thrown.getMessage());
+      assertEquals(List.of("Text1", "Table1"), fx.printLayoutObjectNames());
+   }
+
+   @Test
+   void removeWithOneUnknownNameInABatchRemovesNothing() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      assertRemoveRefused(fx, PRINT_LAYOUT, "Table1", "Ghost");
+
+      assertEquals(List.of("Text1", "Table1"), fx.printLayoutObjectNames());
+   }
+
+   @Test
+   void removeOfAnExistingButNeverPlacedAssemblyIsRefused() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addAssembly(new TableVSAssembly(fx.masterVs, "Table2"));
+
+      assertRemoveRefused(fx, PRINT_LAYOUT, "Table2");
+
+      assertEquals(List.of("Text1", "Table1"), fx.printLayoutObjectNames());
+   }
+
+   @Test
+   void removeOfAnUnplacedNameOnADeviceLayoutIsRefused() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installDeviceLayout();
+
+      assertRemoveRefused(fx, DEVICE_LAYOUT, "Table1");
+
+      assertTrue(fx.deviceLayoutObjects().isEmpty());
+   }
+
+   @Test
+   void removeAndMoveResizeReachAHeaderOnlyObjectFromContent() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      place(fx, VSLayoutService.HEADER, "HeaderTable");
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "HeaderTable", "x", 9, "y", 8)), false);
+
+      VSAssemblyLayout moved = fx.vsLayoutService.getVSAssemblyLayouts(
+         fx.masterVs.getLayoutInfo().getPrintLayout(), VSLayoutService.HEADER).get(0);
+      assertEquals(new Point(9, 8), moved.getPosition());
+      assertEquals(new Dimension(3, 4), moved.getSize());
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "remove", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "HeaderTable")), true);
+
+      assertTrue(namesIn(fx, VSLayoutService.HEADER).isEmpty());
+      assertEquals(List.of("Text1", "Table1"), fx.printLayoutObjectNames());
+   }
+
+   @Test
+   void aNameInContentAndHeaderActsOnContentAndLeavesTheHeaderAlone() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      place(fx, VSLayoutService.HEADER, "Table1");
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 7, "y", 7)), false);
+
+      assertEquals(new Point(7, 7), fx.printLayoutObject("Table1").getPosition());
+      assertEquals(new Point(1, 2), fx.vsLayoutService.getVSAssemblyLayouts(
+         fx.masterVs.getLayoutInfo().getPrintLayout(), VSLayoutService.HEADER).get(0)
+         .getPosition());
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "remove", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1")), true);
+
+      assertEquals(List.of("Text1"), fx.printLayoutObjectNames());
+      assertEquals(List.of("Table1"), namesIn(fx, VSLayoutService.HEADER));
+   }
+
+   @Test
+   void aNameInHeaderAndFooterButNotContentIsRefusedNamingBothRegions() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      place(fx, VSLayoutService.HEADER, "Dup");
+      place(fx, VSLayoutService.FOOTER, "Dup");
+
+      for(String op : List.of("remove", "move_resize")) {
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, op,
+               VSLayoutService.CONTENT, List.of(Map.of("name", "Dup", "x", 1, "y", 1)), true));
+         assertTrue(thrown.getMessage().contains("HEADER") &&
+                    thrown.getMessage().contains("FOOTER"), thrown.getMessage());
+      }
+
+      assertEquals(List.of("Dup"), namesIn(fx, VSLayoutService.HEADER));
+      assertEquals(List.of("Dup"), namesIn(fx, VSLayoutService.FOOTER));
+   }
+
    /**
     * Wires one {@code LayoutMutationService} against a REAL {@code LayoutSessionService}/
     * {@code VSLayoutService} (mocked only at the {@code ViewsheetSessionService}/
     * {@code ViewsheetService} boundary -- the same fixture shape {@code LayoutSessionServiceTest}
-    * uses) and a mocked {@code VSLayoutControllerServiceProxy} (the data-tip guard's only
-    * dependency, a pure read this class calls directly against the master).
+    * uses).
     */
    private static final class Fixture {
       final ViewsheetSessionService viewsheetSessions = mock(ViewsheetSessionService.class);
       final ViewsheetService viewsheetService = mock(ViewsheetService.class);
       final VSLayoutService vsLayoutService = new VSLayoutService();
-      final VSLayoutControllerServiceProxy vsLayoutControllerService =
-         mock(VSLayoutControllerServiceProxy.class);
       final LayoutSessionService layoutSessions =
          new LayoutSessionService(viewsheetSessions, viewsheetService, vsLayoutService);
       final LayoutMutationService service = new LayoutMutationService(
-         layoutSessions, viewsheetSessions, vsLayoutService, vsLayoutControllerService);
+         layoutSessions, viewsheetSessions, vsLayoutService);
 
       final Viewsheet masterVs = new Viewsheet();
       final TextVSAssembly masterText = new TextVSAssembly(masterVs, "Text1");

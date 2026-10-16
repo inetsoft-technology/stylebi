@@ -1517,6 +1517,90 @@ public abstract class VSAQuery {
    }
 
    /**
+    * Check a highlight condition expression before it is committed (bug #78567). Highlights are
+    * evaluated by {@code ConditionGroup.getExpressionVal}, which swallows a script failure and
+    * leaves the rule unresolved, so the highlight silently never applies. This evaluates the
+    * expression in that same context -- the condition sandbox, a fresh asset-query scope, restricted
+    * mode, and the sql {@code $(var)} to {@code parameter.var} rewrite -- not the one
+    * {@link #checkConditionExpression} uses.
+    *
+    * @return {@code null} when the expression evaluates (or, like the renderer, is skipped
+    *         because the variable it reads has no value), otherwise the script's error message.
+    * @throws ScriptException if the expression has a syntax error, which is never transient.
+    */
+   public static String checkHighlightExpression(String exp, boolean sql, ViewsheetSandbox vbox)
+      throws ScriptException
+   {
+      AssetQuerySandbox box = vbox.getConditionAssetQuerySandbox(vbox.getViewsheet());
+      ScriptEnv senv = box.getScriptEnv();
+      String varName = null;
+
+      if(sql) {
+         int idx1 = exp.indexOf("$(");
+         int idx2 = exp.indexOf(")");
+
+         if(idx1 >= 0 && idx2 > idx1 + 2) {
+            varName = exp.substring(idx1 + 2, idx2);
+            exp = exp.substring(0, idx1) + "parameter." + varName + exp.substring(idx2 + 1);
+         }
+      }
+      else {
+         int idx1 = exp.indexOf("parameter.");
+
+         if(idx1 >= 0) {
+            String rest = exp.substring(idx1 + 10);
+            int j = 0;
+
+            while(j < rest.length() &&
+               (Character.isLetterOrDigit(rest.charAt(j)) || rest.charAt(j) == '_'))
+            {
+               j++;
+            }
+
+            varName = rest.substring(0, j);
+         }
+      }
+
+      checkSyntax(senv, exp);
+      Object compiled;
+
+      try {
+         compiled = senv.compile(exp);
+      }
+      catch(Exception ex) {
+         throw new ScriptException("Script error: " + ex.getMessage());
+      }
+
+      Object vval;
+
+      try {
+         vval = box.getVariableTable().get(varName);
+      }
+      catch(Exception ex) {
+         vval = null;
+      }
+
+      if(varName != null && vval == null) {
+         // the renderer does not run the script until the variable has a value
+         return null;
+      }
+
+      boolean restricted = FormulaContext.isRestricted();
+
+      try {
+         FormulaContext.setRestricted(true);
+         senv.exec(compiled, box.createAssetQueryScope(), null, vbox.getViewsheet());
+         return null;
+      }
+      catch(Exception ex) {
+         return ex.getMessage() == null ? ex.toString() : ex.getMessage();
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
+      }
+   }
+
+   /**
     * Parse the script without running it. Compilation is lazy, so a syntax error otherwise only
     * shows when the script runs, where it cannot be told from a runtime error that merely
     * happens to be a SyntaxError (JSON.parse of a not-yet-set parameter, a bad RegExp).

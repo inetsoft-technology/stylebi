@@ -966,6 +966,46 @@ class PrintDeviceLayoutPropertyServiceTest {
       assertNull(screensPane.getPrintLayout());
    }
 
+   @Test
+   void clearEvictsTheClonedPrintLayoutButARefusedOrNoOpClearDoesNot() throws Exception {
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.setPrintLayout(existingPrintLayout());
+      Harness h = new Harness(screensPane);
+      h.livePrintLayout(1, 0, 0);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.clearPrintLayout("tok", h.principal, false, ""));
+      verify(h.layoutSessions, never()).evictLayout(any(), any(), any());
+
+      h.service.clearPrintLayout("tok", h.principal, true, "");
+      verify(h.layoutSessions).evictLayout("tok", "Print Layout", h.rvs);
+
+      Harness none = new Harness(screensPaneWithNoPrintLayout());
+      none.service.clearPrintLayout("tok", none.principal, false, "");
+      verify(none.layoutSessions, never()).evictLayout(any(), any(), any());
+   }
+
+   @Test
+   void deviceDeleteAndCreateEvictTheNamedLayoutButUpdateDoesNot() throws Exception {
+      VSDeviceLayoutDialogModel existing = new VSDeviceLayoutDialogModel();
+      existing.setName("Phone");
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.getDeviceLayouts().add(existing);
+      Harness h = new Harness(screensPane);
+      h.registerDevices("wiz-mobile");
+
+      h.service.manageDeviceLayout("tok", h.principal, "update",
+                                   Map.of("name", "Phone", "mobileOnly", true), "");
+      verify(h.layoutSessions, never()).evictLayout(any(), any(), any());
+
+      h.service.manageDeviceLayout("tok", h.principal, "delete", Map.of("name", "Phone"), "");
+      verify(h.layoutSessions).evictLayout("tok", "Phone", h.rvs);
+
+      h.service.manageDeviceLayout("tok", h.principal, "create",
+         Map.of("name", "Phone", "selectedDevices", List.of("wiz-mobile")), "");
+      verify(h.layoutSessions, times(2)).evictLayout("tok", "Phone", h.rvs);
+   }
+
    private static VSPrintLayoutDialogModel existingPrintLayout() {
       VSPrintLayoutDialogModel existing = new VSPrintLayoutDialogModel();
       existing.setScaleFont(1.0f);
@@ -993,8 +1033,9 @@ class PrintDeviceLayoutPropertyServiceTest {
       final ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
       final DeviceRegistry deviceRegistry = mock(DeviceRegistry.class);
       final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      final LayoutSessionService layoutSessions = mock(LayoutSessionService.class);
       final PrintDeviceLayoutPropertyService service =
-         new PrintDeviceLayoutPropertyService(sessions, dialog, deviceRegistry);
+         new PrintDeviceLayoutPropertyService(sessions, dialog, deviceRegistry, layoutSessions);
 
       Harness(ScreensPaneModel screensPane) {
          try {

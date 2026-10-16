@@ -42,6 +42,7 @@ import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
 import inetsoft.web.binding.handler.ClearTableHeaderAliasHandler;
 import inetsoft.web.binding.handler.SetTableHeaderAliasHandler;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.SourceInfo;
@@ -50,6 +51,8 @@ import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CalcTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
+import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.model.vs.HideColumnsDialogModel;
@@ -58,6 +61,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.ColumnVisibilityEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
+import inetsoft.web.wiz.viewsheet.TableLensGuard;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -117,8 +121,10 @@ public class TableBindingService {
          requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
                                     fields == null ? 0 : fields.size());
          String livePercentageBy = livePercentageByValue(assembly);
+         TableBindingMutator.drainNotes();
          TableBindingMutator.setShelf(model, shelf, fields, rvs, source, refModelService);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
+         relayNotes(assemblyName, dispatcher);
 
          applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
          restoreFormRefInvariant(assembly, shelf);
@@ -330,6 +336,8 @@ public class TableBindingService {
       }
 
       List<String> availableColumns = columnsOf(model, table);
+      List<BAggregateRefModel> aggregatesBefore = model.getAggregates() == null
+         ? List.of() : new ArrayList<>(model.getAggregates());
 
       for(String shelf : TableBindingMutator.shelvesOf(model)) {
          List<FieldRef> bound = TableBindingMutator.read(model, shelf);
@@ -349,6 +357,10 @@ public class TableBindingService {
             TableBindingMutator.setShelf(model, shelf, stillResolves);
          }
       }
+
+      // A kept dimension's by-value sort/ranking now survives the discard (bug #77025 R1), so one
+      // that named an aggregate this repoint discarded must not be left pointing at it.
+      TableBindingMutator.clearDanglingAggregateReferences(model, aggregatesBefore);
    }
 
    /**
@@ -445,19 +457,37 @@ public class TableBindingService {
    public List<String> removeField(String sessionToken, Principal user, String assemblyName,
                            String shelf, String column) throws Exception
    {
+      return removeField(sessionToken, user, assemblyName, shelf, column, null);
+   }
+
+   /** @param index which occurrence of {@code column} on the shelf, when it is bound more than once. */
+   public List<String> removeField(String sessionToken, Principal user, String assemblyName,
+                           String shelf, String column, Integer index) throws Exception
+   {
       return applyWithContext(sessionToken, user, assemblyName, shelf,
          (model, rvs, source) ->
-            TableBindingMutator.removeField(model, shelf, column, rvs, source, refModelService));
+            TableBindingMutator.removeField(model, shelf, column, index, rvs, source,
+                                            refModelService));
    }
 
    public List<String> moveField(String sessionToken, Principal user, String assemblyName,
                          String fromShelf, String toShelf, String column, Integer position)
       throws Exception
    {
+      return moveField(sessionToken, user, assemblyName, fromShelf, toShelf, column, null,
+                       position);
+   }
+
+   /** @param fromIndex which occurrence of {@code column} on the source shelf, when it is bound more than once. */
+   public List<String> moveField(String sessionToken, Principal user, String assemblyName,
+                         String fromShelf, String toShelf, String column, Integer fromIndex,
+                         Integer position)
+      throws Exception
+   {
       return applyWithContext(sessionToken, user, assemblyName, toShelf,
          (model, rvs, source) ->
-            TableBindingMutator.moveField(model, fromShelf, toShelf, column, position, rvs,
-                                          source, refModelService));
+            TableBindingMutator.moveField(model, fromShelf, toShelf, column, fromIndex, position,
+                                          rvs, source, refModelService));
    }
 
    /**
@@ -555,10 +585,10 @@ public class TableBindingService {
     * @return one line per column actually hidden, e.g. {@code "Customer:State -> hidden"}, or a
     *         single {@code "shown every hidden column"} line for the show direction.
     */
-   public List<String> setCrosstabColumnVisibility(String sessionToken, Principal user,
-                                                    String assemblyName, List<String> columns,
-                                                    List<ColumnVisibilityEntry> entries,
-                                                    boolean visible)
+   public TableWrite setCrosstabColumnVisibility(String sessionToken, Principal user,
+                                                  String assemblyName, List<String> columns,
+                                                  List<ColumnVisibilityEntry> entries,
+                                                  boolean visible)
       throws Exception
    {
       boolean hasColumns = columns != null && !columns.isEmpty();
@@ -579,7 +609,7 @@ public class TableBindingService {
 
       List<String> applied = new ArrayList<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
          VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
 
@@ -598,22 +628,8 @@ public class TableBindingService {
             applied.add("shown every hidden column");
          }
          else {
-            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
-
-            if(box.isEmpty()) {
-               throw new IllegalStateException(
-                  "'" + assemblyName + "' has no active render sandbox right now, so its " +
-                  "columns cannot be resolved.");
-            }
-
-            String oname = crosstab.getAbsoluteName();
-            boolean detail = oname.startsWith(Assembly.DETAIL);
-
-            if(detail) {
-               oname = oname.substring(Assembly.DETAIL.length());
-            }
-
-            VSTableLens lens = box.get().getVSTableLens(oname, detail);
+            VSTableLens lens = TableLensGuard.requireRenderedLens(
+               rvs, crosstab, assemblyName, "its columns cannot be resolved");
             VSCrosstabInfo crossInfo = crosstab.getVSCrosstabInfo();
             List<String> requestedNames = new ArrayList<>();
             List<TableBindingMutator.ShelfIndex> targets = new ArrayList<>();
@@ -680,7 +696,7 @@ public class TableBindingService {
          applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
       });
 
-      return applied;
+      return new TableWrite(applied, warnings);
    }
 
    /**
@@ -868,6 +884,17 @@ public class TableBindingService {
    }
 
    /**
+    * What a table write that bypasses {@link #apply} hands back: one line per change written, and
+    * the warnings {@code sessions.mutate} captured while the table re-ran (a script failure, for
+    * one).
+    */
+   public record TableWrite(List<String> applied, List<String> warnings) {
+      public TableWrite {
+         warnings = warnings == null ? List.of() : warnings;
+      }
+   }
+
+   /**
     * Unlike every other mutator above, this does not go through {@link #apply}/{@link
     * #applyWithContext}: a Crosstab label needs a rendered {@code VSTableLens} to resolve a
     * column to its header cell, which neither of those helpers exposes (see {@code
@@ -881,13 +908,13 @@ public class TableBindingService {
     *         build an accurate summary instead of trusting the request's own label count, since a
     *         request can name more columns than a single assembly type actually has shelves for.
     */
-   public List<String> setColumnLabels(String sessionToken, Principal user, String assemblyName,
-                                       Map<String, String> labels,
-                                       List<ColumnLabelEntry> entries) throws Exception
+   public TableWrite setColumnLabels(String sessionToken, Principal user, String assemblyName,
+                                     Map<String, String> labels,
+                                     List<ColumnLabelEntry> entries) throws Exception
    {
       List<String> applied = new ArrayList<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
          TableBindingMutator.ColumnLabelWrite write =
@@ -912,7 +939,7 @@ public class TableBindingService {
          applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
       });
 
-      return applied;
+      return new TableWrite(applied, warnings);
    }
 
    /**
@@ -1007,22 +1034,7 @@ public class TableBindingService {
                                     List<TableBindingMutator.CrosstabTarget> targets)
       throws Exception
    {
-      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
-
-      if(box.isEmpty()) {
-         throw new IllegalStateException(
-            "'" + crosstab.getAbsoluteName() + "' has no active render sandbox right now, so " +
-            "its header cannot be resolved to a cell.");
-      }
-
-      String oname = crosstab.getAbsoluteName();
-      boolean detail = oname.startsWith(Assembly.DETAIL);
-
-      if(detail) {
-         oname = oname.substring(Assembly.DETAIL.length());
-      }
-
-      VSTableLens lens = box.get().getVSTableLens(oname, detail);
+      VSTableLens lens = null;
       VSCrosstabInfo crossInfo = crosstab.getVSCrosstabInfo();
       FormatInfo formatInfo = crosstab.getFormatInfo();
 
@@ -1051,6 +1063,12 @@ public class TableBindingService {
          if(target.label().isEmpty()) {
             ClearTableHeaderAliasHandler.clearAlias(ref, formatInfo, target.index());
             continue;
+         }
+
+         if(lens == null) {
+            lens = TableLensGuard.requireRenderedLens(
+               rvs, crosstab, crosstab.getAbsoluteName(),
+               "its header cannot be resolved to a cell");
          }
 
          TableDataPath path = SetTableHeaderAliasHandler.findHeaderPath(lens, ref, target.index());
@@ -1134,8 +1152,8 @@ public class TableBindingService {
     * @return one line per width actually written, e.g. {@code "Region -> 120px"} or
     *         {@code "Region -> auto"} for a reset.
     */
-   public List<String> setColumnWidths(String sessionToken, Principal user, String assemblyName,
-                                       Map<String, Double> widths) throws Exception
+   public TableWrite setColumnWidths(String sessionToken, Principal user, String assemblyName,
+                                     Map<String, Double> widths) throws Exception
    {
       if(widths == null || widths.isEmpty()) {
          throw new IllegalArgumentException(
@@ -1144,31 +1162,11 @@ public class TableBindingService {
 
       List<String> applied = new ArrayList<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
-         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
-
-         if(box.isEmpty()) {
-            throw new IllegalStateException(
-               "'" + assemblyName + "' has no active render sandbox right now, so its columns " +
-               "cannot be resolved.");
-         }
-
-         String oname = assembly.getAbsoluteName();
-         boolean detail = oname.startsWith(Assembly.DETAIL);
-
-         if(detail) {
-            oname = oname.substring(Assembly.DETAIL.length());
-         }
-
-         VSTableLens lens = box.get().getVSTableLens(oname, detail);
-
-         if(lens == null) {
-            throw new IllegalStateException(
-               "'" + assemblyName + "' did not render -- its columns cannot be resolved right " +
-               "now.");
-         }
+         VSTableLens lens = TableLensGuard.requireRenderedLens(
+            rvs, assembly, assemblyName, "its columns cannot be resolved");
 
          TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
 
@@ -1222,7 +1220,7 @@ public class TableBindingService {
          applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
       });
 
-      return applied;
+      return new TableWrite(applied, warnings);
    }
 
    /** Strips a trailing {@code .0} so a whole-pixel width reads as {@code "120px"}, not {@code "120.0px"}. */
@@ -1698,6 +1696,19 @@ public class TableBindingService {
                   inetsoft.uql.asset.SourceInfo source) throws Exception;
    }
 
+   /**
+    * Reports what the mutator reset on its own as WARNING messages, so the caller is told rather
+    * than finding a sort or ranking gone (bug #77025 review F1).
+    */
+   private static void relayNotes(String assemblyName, CommandDispatcher dispatcher) {
+      for(String note : TableBindingMutator.drainNotes()) {
+         MessageCommand command = new MessageCommand();
+         command.setType(MessageCommand.Type.WARNING);
+         command.setMessage(note);
+         dispatcher.sendCommand(assemblyName, command);
+      }
+   }
+
    private List<String> applyWithContext(String sessionToken, Principal user, String assemblyName,
                                  String shelf, ContextualShelfMutation mutation) throws Exception
    {
@@ -1707,8 +1718,10 @@ public class TableBindingService {
          inetsoft.uql.asset.SourceInfo source = assembly instanceof DataVSAssembly data
             ? data.getSourceInfo() : null;
          String livePercentageBy = livePercentageByValue(assembly);
+         TableBindingMutator.drainNotes();
          mutation.accept(model, rvs, source);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
+         relayNotes(assemblyName, dispatcher);
 
          applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
          // See restoreFormRefInvariant's own doc -- addField is the other wiz entry point
@@ -1741,7 +1754,9 @@ public class TableBindingService {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName, allowCalcTable);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
          String livePercentageBy = preservePercentageBy ? livePercentageByValue(assembly) : null;
+         TableBindingMutator.drainNotes();
          mutation.accept(model);
+         relayNotes(assemblyName, dispatcher);
 
          if(preservePercentageBy) {
             TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
@@ -1935,12 +1950,8 @@ public class TableBindingService {
             "'" + assemblyName + "' is a calc table whose binding model cannot carry a source.");
       }
 
-      if(assembly instanceof CalcTableVSAssembly) {
-         throw new IllegalArgumentException(
-            "'" + assemblyName + "' is a calc table. Its binding lives in its cell layout, " +
-            "not its shelves — use the calc-table tools instead.");
-      }
-
+      refuseCalcTable(assembly, assemblyName);
+      refuseNonTableAssembly(assembly, assemblyName);
       BindingModel model = binding.createModel(assembly);
 
       if(!(model instanceof BaseTableBindingModel table)) {
@@ -1951,6 +1962,70 @@ public class TableBindingService {
 
       completeExpertNamedGroups(table, assembly);
       return table;
+   }
+
+   /**
+    * The type refusal of {@link #requireTableBinding} without building a binding model, for the
+    * endpoints that resolve their fields against the source before reaching this service. Run
+    * first, it makes those tools refuse a non-table by its type rather than with a source error.
+    */
+   public void requireTableAssembly(String sessionToken, Principal user, String assemblyName)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(assembly == null) {
+         throw new IllegalArgumentException("Unknown assembly '" + assemblyName + "'.");
+      }
+
+      refuseCalcTable(assembly, assemblyName);
+      refuseNonTableAssembly(assembly, assemblyName);
+   }
+
+   private static void refuseCalcTable(VSAssembly assembly, String assemblyName) {
+      if(assembly instanceof CalcTableVSAssembly) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a calc table. Its binding lives in its cell layout, " +
+            "not its shelves — use the calc-table tools instead.");
+      }
+   }
+
+   /**
+    * Refuses every assembly the table tools cannot bind. It must run before
+    * {@code VSBindingService.createModel}, which has factories for only a few types and throws a
+    * raw "No model factory registered" error for every other one (bug #78533).
+    */
+   private static void refuseNonTableAssembly(VSAssembly assembly, String assemblyName) {
+      if(assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly) {
+         return;
+      }
+
+      if(assembly instanceof ChartVSAssembly) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a chart, not a table or crosstab. " +
+            "Use the chart binding tools for charts.");
+      }
+
+      String type;
+
+      if(assembly instanceof Viewsheet) {
+         type = "an embedded viewsheet";
+      }
+      else {
+         type = assembly.getClass().getSimpleName();
+
+         if(type.endsWith("VSAssembly") && type.length() > "VSAssembly".length()) {
+            type = type.substring(0, type.length() - "VSAssembly".length());
+         }
+
+         type = ("AEIOU".indexOf(type.charAt(0)) >= 0 ? "an " : "a ") + type;
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' is " + type + ", not a table or crosstab. " +
+         "The table tools only work on Table and Crosstab assemblies.");
    }
 
    /**

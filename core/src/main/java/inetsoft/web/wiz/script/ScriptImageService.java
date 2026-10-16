@@ -398,7 +398,7 @@ public class ScriptImageService {
       StringBuilder names = new StringBuilder();
 
       for(Assembly assembly : vs.getAssemblies()) {
-         if(assembly instanceof SubmitVSAssembly submit && submit.isVisible()) {
+         if(assembly instanceof SubmitVSAssembly submit && isExported(vs, submit)) {
             if(names.length() > 0) {
                names.append(", ");
             }

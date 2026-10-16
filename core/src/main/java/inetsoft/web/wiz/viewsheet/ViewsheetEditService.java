@@ -229,6 +229,12 @@ public class ViewsheetEditService {
     * landed underneath a response that reported failure, the caller now sees a live "not ready,
     * retry" signal and the resize is guaranteed not to have happened until a retry actually
     * succeeds.
+    *
+    * <p>A resize needs no lens, so a table whose script throws while it loads does not stop it:
+    * the warm read reports that failure as {@code null} instead of rethrowing the
+    * {@code ScriptException} (which was a masked 500 on the first call and a success on the
+    * second), and {@code resizeObject}'s own load surfaces it as the script-failure warning
+    * {@code mutate} already returns.
     */
    private void ensureTableDataReady(RuntimeViewsheet rvs, String name) throws Exception {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
@@ -244,7 +250,7 @@ public class ViewsheetEditService {
          return;
       }
 
-      RenderWaitSupport.awaitOrRetry(() -> box.get().getVSTableLens(name, false),
+      RenderWaitSupport.awaitOrRetry(() -> TableLensGuard.lensOrNull(box.get(), name, false),
          TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
          (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
    }

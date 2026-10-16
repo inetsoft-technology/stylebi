@@ -111,10 +111,65 @@ class VSUtilRenameCalcFieldReferenceTest {
       assertSame(expression, rename(expression));
    }
 
+   // Bug #78597: an aggregate tag is resolved case-insensitively at runtime, so a case-different
+   // column name is a reference too, unless it is another field's exact name.
    @Test
-   void matchesTheOldNameCaseSensitively() {
-      String expression = "field['Sum(net sales)']";
-      assertSame(expression, rename(expression));
+   void matchesACaseDifferentAggregateName() {
+      assertEquals("field['Sum(Net Revenue)']", rename("field['Sum(net sales)']"));
+      assertTrue(VSUtil.referencesCalcField("field['Sum(gst)']", "Gst", List.of()));
+   }
+
+   @Test
+   void leavesACaseDifferentAggregateNameThatIsAnotherExistingField() {
+      String expression = "field['Sum(gst)']";
+      assertSame(expression,
+         VSUtil.renameCalcFieldReference(expression, "Gst", "Tax", List.of("gst")));
+      assertFalse(VSUtil.referencesCalcField(expression, "Gst", List.of("gst")));
+   }
+
+   @Test
+   void treatsAnAmbiguousCaseDifferentAggregateNameAsAReference() {
+      String expression = "field['Sum(GST)']";
+      assertSame(expression,
+         VSUtil.renameCalcFieldReference(expression, "Gst", "Tax", List.of("gst")));
+      assertTrue(VSUtil.referencesCalcField(expression, "Gst", List.of("gst")));
+   }
+
+   // Bug #78597: the row scope ignores a table prefix (text up to the last '.') in field['...'].
+   @Test
+   void rewritesATablePrefixedReferenceKeepingThePrefix() {
+      assertEquals("field['Order Model.VatR'] * 2",
+         VSUtil.renameCalcFieldReference("field['Order Model.Vat'] * 2", "Vat", "VatR"));
+      assertEquals("field[\"Order Model.VatR\"]",
+         VSUtil.renameCalcFieldReference("field[\"Order Model.Vat\"]", "Vat", "VatR"));
+      assertTrue(VSUtil.referencesCalcField("field['Order Model.Vat']", "Vat", List.of()));
+   }
+
+   @Test
+   void rewritesATablePrefixedAggregateKeepingThePrefix() {
+      assertEquals("field['Order Model.Sum(VatR)']",
+         VSUtil.renameCalcFieldReference("field['Order Model.Sum(Vat)']", "Vat", "VatR"));
+   }
+
+   @Test
+   void doesNotHijackADottedBaseColumn() {
+      String expression = "field['X.Vat']";
+      assertSame(expression,
+         VSUtil.renameCalcFieldReference(expression, "Vat", "VatR", List.of("X.Vat")));
+      assertFalse(VSUtil.referencesCalcField(expression, "Vat", List.of("X.Vat")));
+   }
+
+   @Test
+   void doesNotMatchATablePrefixedCaseDifferentName() {
+      String expression = "field['Order Model.vat']";
+      assertSame(expression, VSUtil.renameCalcFieldReference(expression, "Vat", "VatR"));
+      assertFalse(VSUtil.referencesCalcField(expression, "Vat", List.of()));
+   }
+
+   @Test
+   void doesNotMatchAPrefixedLongerName() {
+      assertFalse(VSUtil.referencesCalcField("field['Order Model.Vat2']", "Vat", List.of()));
+      assertFalse(VSUtil.referencesCalcField("field['Order Model.xVat']", "Vat", List.of()));
    }
 
    // Bug #78441: the dot form and a case-different name are references too.

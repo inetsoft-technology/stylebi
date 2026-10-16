@@ -49,6 +49,7 @@ import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.uql.asset.sync.RenameDependencyInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.XAttribute;
 import inetsoft.uql.erm.XDataModel;
@@ -111,6 +112,7 @@ import java.lang.reflect.Parameter;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -10961,9 +10963,173 @@ class WorksheetAgentControllerTest {
       assertEquals(Boolean.TRUE, result.get("ok"));
       Object warning = result.get("warning");
       assertNotNull(warning, "a genuine Save-As must keep the PVA-003 warning");
-      assertTrue(warning.toString().contains("new copy") &&
+      assertTrue(warning.toString().contains("overwritten") &&
                  warning.toString().contains("rt-vs-other"), warning.toString());
       verify(connectedRvs, never()).resetRuntime();
+   }
+
+
+   /**
+    * Bug #78593: a confirmed Save-As onto a different EXISTING worksheet overwrites that target's
+    * content, so the target's connected viewsheets are reset (and reported); a viewsheet on the
+    * OLD entry is not reset and is warned, with wording that does not claim a new copy.
+    */
+   @Test
+   void confirmedSaveAsOverwriteResetsTargetViewsheetsAndWarnsOldEntryOnes() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry oldEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null, "host-org");
+      AssetEntry targetEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Target WS", null, "host-org");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(oldEntry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+      when(rws.getCurrent()).thenReturn(5);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE-OVR"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-ovr"));
+
+      RuntimeViewsheet onTarget = connectedVs(targetEntry, "rt-vs-target", agent);
+      RuntimeViewsheet onOld = connectedVs(oldEntry, "rt-vs-old", agent);
+
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(any())).thenReturn(new RuntimeSheet[]{ onTarget, onOld });
+      when(ws.isDuplicatedEntry(any(), any())).thenReturn(true);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      Map<String, Object> result = ctrl.save("TOK-SAVE-OVR",
+         new WorksheetAgentController.SaveRequest("Target WS", null, true), agent);
+
+      assertEquals(Boolean.TRUE, result.get("ok"));
+      verify(onTarget).resetRuntime();
+      verify(onOld, never()).resetRuntime();
+      assertEquals(List.of("rt-vs-target"), result.get("resetViewsheets"));
+      String warnings = String.valueOf(result.get("warnings"));
+      assertTrue(warnings.contains("rt-vs-target") && warnings.contains("not rewritten"),
+                 warnings);
+      assertFalse(warnings.contains("rt-vs-old"), warnings);
+      String warning = String.valueOf(result.get("warning"));
+      assertTrue(warning.contains("rt-vs-old") && warning.contains("overwritten"), warning);
+      assertFalse(warning.contains("new copy") || warning.contains("rt-vs-target"), warning);
+      assertNull(result.get("dependenciesUpdated"), "the rename cascade stays skipped");
+   }
+
+   /** Bug #78593: no connected viewsheet on the overwritten target -> no reset report at all. */
+   @Test
+   void confirmedSaveAsOverwriteWithNoTargetViewsheetsReportsNothingReset() throws Exception {
+      AssetEntry oldEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null, "host-org");
+      SelfSaveFixture f = selfSaveFixture(oldEntry);
+
+      Map<String, Object> result = f.save(new WorksheetAgentController.SaveRequest(
+         "Other WS", null, true));
+
+      assertEquals(Boolean.TRUE, result.get("ok"));
+      assertNull(result.get("resetViewsheets"));
+      assertNull(result.get("warnings"));
+      verify(f.connectedRvs, never()).resetRuntime();
+   }
+
+   /** Bug #78593: "/", leading/trailing "/" and "//" are refused by field name; "A/B" is legal. */
+   @Test
+   void saveRefusesEmptyPathSegmentsInNameButAllowsNestedFolder() throws Exception {
+      AssetEntry oldEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null, "host-org");
+      SelfSaveFixture f = selfSaveFixture(oldEntry);
+
+      for(String bad : new String[]{ "/W", "W/", "A//B", "/" }) {
+         PairingException e = assertThrows(PairingException.class,
+            () -> f.save(new WorksheetAgentController.SaveRequest(bad, null, true)), bad);
+         assertTrue(e.getMessage().contains("'name'") && e.getMessage().contains("'/'"),
+                    bad + " -> " + e.getMessage());
+      }
+
+      verify(f.ws, never()).setWorksheet(any(), any(), any(), anyBoolean(), anyBoolean());
+      assertEquals(Boolean.TRUE,
+         f.save(new WorksheetAgentController.SaveRequest("A/B", null, true)).get("ok"));
+   }
+
+   /**
+    * Bug #78593 (refuter r1): a Save-As must clear the session's oldName markers, otherwise the next
+    * in-place save cascades pre-Save-As renames onto the new entry's dependents -- while an
+    * ordinary rename made after the Save-As still cascades exactly once.
+    */
+   @Test
+   void saveAsThenRenameThenInPlaceSaveCascadesOnlyPostSaveAsRenames() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry oldEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null, "host-org");
+
+      Worksheet worksheet = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(worksheet, "T", "DISCOUNT");
+      worksheet.addAssembly(t);
+
+      // a rename made BEFORE the Save-As: display name != oldName
+      ColumnRef discount = (ColumnRef) t.getColumnSelection(false).getAttribute("DISCOUNT");
+      discount.setOldName("DISCOUNT");
+      discount.setAlias("DISCOUNT_PCT");
+
+      AssetEntry[] current = { oldEntry };
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenAnswer(inv -> current[0]);
+      doAnswer(inv -> { current[0] = inv.getArgument(0); return null; })
+         .when(rws).setEntry(any(AssetEntry.class));
+      when(rws.getWorksheet()).thenReturn(worksheet);
+      when(rws.getCurrent()).thenReturn(3);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE-SEQ"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-seq"));
+
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(any())).thenReturn(new RuntimeSheet[0]);
+
+      RenameTransformHandler renameTransformHandler = mock(RenameTransformHandler.class);
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws,
+         renameTransformHandler);
+
+      AssetEntry dependent = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Orders VS", null);
+
+      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class)) {
+         dependencyTool.when(() -> DependencyTool.getDependencies(anyString()))
+            .thenReturn(List.of(dependent));
+
+         ctrl.save("TOK-SAVE-SEQ",
+            new WorksheetAgentController.SaveRequest("Orders WS Copy", null), agent);
+         assertEquals("DISCOUNT_PCT", discount.getOldName(),
+            "the Save-As must reset the oldName marker to the current name");
+
+         // in-place save with no new rename: the pre-Save-As rename must not cascade
+         ctrl.save("TOK-SAVE-SEQ", new WorksheetAgentController.SaveRequest(null, null), agent);
+         verifyNoInteractions(renameTransformHandler);
+
+         // a genuine post-Save-As rename still cascades, once
+         discount.setAlias("DISCOUNT_2");
+         Map<String, Object> result = ctrl.save("TOK-SAVE-SEQ",
+            new WorksheetAgentController.SaveRequest(null, null), agent);
+         assertEquals(Boolean.TRUE, result.get("dependenciesUpdated"));
+         verify(renameTransformHandler, times(1))
+            .addTransformTask(any(RenameDependencyInfo.class), eq(true));
+         assertEquals("DISCOUNT_2", discount.getOldName());
+      }
+   }
+
+   private static RuntimeViewsheet connectedVs(AssetEntry base, String id, Principal user) {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(base);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getID()).thenReturn(id);
+      when(rvs.getUser()).thenReturn(user);
+      return rvs;
    }
 
    /**
@@ -11383,6 +11549,147 @@ class WorksheetAgentControllerTest {
          "a pane-scoped session: " + notRefused + ". Add requireWholeSheetSession(sessionToken," +
          " user) as their first call (right after requireEnabled()), or add them to " +
          "WHOLE_SHEET_GUARD_EXEMPT above with a reason like detach's.");
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #78590 P1: insert_column index range
+   // ---------------------------------------------------------------------------
+
+   private static EditRequest insertColumnAt(Integer index, Boolean insert) throws Exception {
+      String json = "{\"op\":\"insert_column\",\"table\":\"T\"" +
+         (index == null ? "" : ",\"index\":" + index) +
+         (insert == null ? "" : ",\"insert\":" + insert) + "}";
+      return new WebConfig().objectMapper().readValue(json, EditRequest.class);
+   }
+
+   /** header [a, b] + 1 data row; the column selection is a, b. */
+   private static EmbeddedTableAssembly insertColumnTable(Worksheet ws, boolean expressionFirst) {
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
+      t.setEmbeddedData(new XEmbeddedTable(
+         new String[] { XSchema.STRING, XSchema.STRING },
+         new Object[][] { { "a", "b" }, { "x1", "y1" } }));
+      ColumnSelection cs = new ColumnSelection();
+
+      if(expressionFirst) {
+         inetsoft.uql.erm.ExpressionRef expr = new inetsoft.uql.erm.ExpressionRef(null, "ex");
+         expr.setExpression("1");
+         cs.addAttribute(new ColumnRef(expr));
+      }
+
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "a")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "b")));
+      t.setColumnSelection(cs, false);
+      ws.addAssembly(t);
+      return t;
+   }
+
+   private static void runInsertColumn(Worksheet ws, EditRequest req) throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-IC2"), any())).thenReturn(session("TOK-IC2"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+      ctrl.edit("TOK-IC2", req, agent);
+   }
+
+   private static String csNames(EmbeddedTableAssembly t) {
+      ColumnSelection cs = t.getColumnSelection(false);
+      StringBuilder sb = new StringBuilder();
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         sb.append(i == 0 ? "" : ",").append(cs.getAttribute(i).getName());
+      }
+
+      return sb.toString();
+   }
+
+   private static String dataHeader(EmbeddedTableAssembly t) {
+      XEmbeddedTable data = t.getEmbeddedData();
+      StringBuilder sb = new StringBuilder();
+
+      for(int c = 0; c < data.getColCount(); c++) {
+         sb.append(c == 0 ? "" : ",").append(data.getObject(0, c));
+      }
+
+      return sb.toString();
+   }
+
+   @Test
+   void insertColumnRefusesAnOutOfRangeIndexAndLeavesTheTableUnchanged() throws Exception {
+      Object[][] cases = {
+         { 99, true, "0..2" }, { 3, true, "0..2" }, { -1, true, "0..2" },
+         { 99, false, "0..1" }, { 2, false, "0..1" }, { -1, false, "0..1" } };
+
+      for(Object[] c : cases) {
+         Worksheet ws = new Worksheet();
+         EmbeddedTableAssembly t = insertColumnTable(ws, false);
+
+         PairingException ex = assertThrows(PairingException.class,
+            () -> runInsertColumn(ws, insertColumnAt((Integer) c[0], (Boolean) c[1])),
+            Arrays.toString(c));
+
+         assertTrue(ex.getMessage().contains("Column index out of range: " + c[0]),
+                    ex.getMessage());
+         assertTrue(ex.getMessage().contains((String) c[2]), ex.getMessage());
+         assertEquals("a,b", dataHeader(t));
+         assertEquals("a,b", csNames(t));
+      }
+   }
+
+   @Test
+   void insertColumnAcceptsTheBoundaryIndexes() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = insertColumnTable(ws, false);
+      runInsertColumn(ws, insertColumnAt(2, true));
+      assertEquals("a,b,col1", dataHeader(t));
+      assertEquals("a,b,col1", csNames(t));
+
+      Worksheet ws2 = new Worksheet();
+      EmbeddedTableAssembly t2 = insertColumnTable(ws2, false);
+      runInsertColumn(ws2, insertColumnAt(0, true));
+      assertEquals("col1,a,b", dataHeader(t2));
+      assertEquals("col1,a,b", csNames(t2));
+
+      Worksheet ws3 = new Worksheet();
+      EmbeddedTableAssembly t3 = insertColumnTable(ws3, false);
+      runInsertColumn(ws3, insertColumnAt(1, false));
+      assertEquals("a,b,col1", dataHeader(t3));
+      assertEquals("a,b,col1", csNames(t3));
+   }
+
+   @Test
+   void insertColumnAfterAnOmittedIndexAppendsAfterTheLastColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = insertColumnTable(ws, false);
+      runInsertColumn(ws, insertColumnAt(null, false));
+      assertEquals("a,b,col1", dataHeader(t));
+      assertEquals("a,b,col1", csNames(t));
+   }
+
+   @Test
+   void insertColumnAfterPlainColumnZeroKeepsDataAndColumnSelectionConsistent() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = insertColumnTable(ws, false);
+      runInsertColumn(ws, insertColumnAt(0, false));
+      assertEquals("a,col1,b", dataHeader(t));
+      assertEquals("a,col1,b", csNames(t));
+   }
+
+   @Test
+   void insertColumnAfterAnExpressionColumnZeroStillWorks() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = insertColumnTable(ws, true);
+      runInsertColumn(ws, insertColumnAt(0, false));
+      assertEquals("col1,a,b", dataHeader(t));
+      assertEquals("ex,col1,a,b", csNames(t));
    }
 
 }

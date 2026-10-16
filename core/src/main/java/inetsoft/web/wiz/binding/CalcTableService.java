@@ -20,9 +20,12 @@ package inetsoft.web.wiz.binding;
 import inetsoft.report.CellBinding;
 import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableDataPath;
+import inetsoft.report.LayoutTool;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.internal.binding.ExpertNamedGroupInfo;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionList;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.AggregateRef;
@@ -364,7 +367,8 @@ public class CalcTableService {
          CellBindingInfo cellBindingInfo = toCellBindingInfo(binding, rvs, assembly);
 
          if(cellBindingInfo.getType() == CellBinding.BIND_COLUMN) {
-            requireBindableColumn(runtimeId, user, assemblyName, cellBindingInfo.getValue());
+            cellBindingInfo.setValue(
+               requireBindableColumn(runtimeId, user, assemblyName, cellBindingInfo.getValue()));
 
             String secondary = CalcCellVocabulary.isSummary(cellBindingInfo.getBtype())
                ? CalcCellVocabulary.secondaryColumn(cellBindingInfo.getFormula()) : null;
@@ -409,6 +413,10 @@ public class CalcTableService {
             cellBindingInfo.getOrder().setInfo(null);
          }
 
+         // Every namedGroup write path (worksheet-local by-name, inline) has set order.info by
+         // now; one check here covers them all.
+         requireSimpleNamedGroup(cellBindingInfo.getOrder().getInfo(), namedGroup);
+
          SetCellBindingEvent event = new SetCellBindingEvent();
          event.setName(assemblyName);
          event.setSelectCells(new TableCell[]{ cellAt(row, col) });
@@ -429,19 +437,27 @@ public class CalcTableService {
     * {@code resolveSourceTable}'s own reasoning: not being able to read the tree is a different
     * fault than a bad column, and refusing the write on the strength of it would turn a read
     * problem into a write problem.
+    *
+    * @return the column in its real spelling (see {@link BindableColumns#canonicalize}), or
+    *         {@code column} itself when it could not be checked
     */
-   private void requireBindableColumn(String runtimeId, Principal user, String assemblyName,
-                                      String column)
+   private String requireBindableColumn(String runtimeId, Principal user, String assemblyName,
+                                        String column)
    {
       try {
          List<BindableTable> tables = fieldsService.list(runtimeId, assemblyName, user);
-         BindableColumns.require(tables, assemblyName, new FieldRef(column, null, null, null, null));
+         FieldRef ref = new FieldRef(column, null, null, null, null);
+         FieldRef canonical =
+            BindableColumns.canonicalize(tables, assemblyName, null, List.of(ref)).get(0);
+         BindableColumns.require(tables, assemblyName, canonical);
+         return canonical.column();
       }
       catch(IllegalArgumentException e) {
          throw e;
       }
       catch(Exception e) {
          LOG.debug("Could not list bindable columns for {}; skipping the check", assemblyName, e);
+         return column;
       }
    }
 
@@ -455,14 +471,31 @@ public class CalcTableService {
                                                    String assemblyName, String column)
       throws Exception
    {
+      return predefinedNamedGroupNames(
+         runtimeId, user, dispatcher, assemblyName, column, false);
+   }
+
+   /**
+    * @param includeNonSimple also list the groups a calc table cannot bucket, which the plain
+    *                         list leaves out.
+    */
+   private List<String> predefinedNamedGroupNames(String runtimeId, Principal user,
+                                                   CapturingCommandDispatcher dispatcher,
+                                                   String assemblyName, String column,
+                                                   boolean includeNonSimple)
+      throws Exception
+   {
       GetPredefinedNamedGroupEvent event = new GetPredefinedNamedGroupEvent();
       event.setName(assemblyName);
       event.setColumn(column);
+      event.setIncludeNonSimple(includeNonSimple);
+      int before = dispatcher.getCapturedCommands().size();
       layoutService.getNamedGroup(runtimeId, event, user, dispatcher);
 
       List<String> groups = new ArrayList<>();
+      List<CapturingCommandDispatcher.Command> captured = dispatcher.getCapturedCommands();
 
-      for(CapturingCommandDispatcher.Command command : dispatcher.getCapturedCommands()) {
+      for(CapturingCommandDispatcher.Command command : captured.subList(before, captured.size())) {
          if(command.getCommand() instanceof GetPredefinedNamedGroupCommand named &&
             named.getNamedGroups() != null)
          {
@@ -527,10 +560,106 @@ public class CalcTableService {
          return;
       }
 
+      if(predefinedNamedGroupNames(runtimeId, user, dispatcher, assembly.getAbsoluteName(),
+                                   column, true).contains(namedGroup))
+      {
+         throw new IllegalArgumentException(
+            "Named group '" + namedGroup + "' exists on column '" + column + "' but cannot be " +
+            "used in a calc table. " + NAMED_GROUP_RESTRICTION);
+      }
+
       throw new IllegalArgumentException(
          "'" + namedGroup + "' is not a named group on column '" + column + "' -- it matches " +
          "neither a worksheet-local group created by add_named_group nor a repository-" +
          "registered predefined named group. list_named_groups reports what is available.");
+   }
+
+   /**
+    * Refuses a named group the calc-table render cannot bucket. {@code LayoutTool} turns a
+    * group's conditions into a {@code mapList()} only when {@link LayoutTool#isSimpleNamedGroup}
+    * accepts every group; otherwise it silently falls back to the raw values, so persisting such
+    * a group would report success and then not group anything. A repository-registered
+    * (ASSET) group is not checked here -- it only reaches {@code order.info} after
+    * {@code VSTableLayoutService.getPredefinedNamedGroup} has already filtered it through the
+    * same rule.
+    *
+    * @param namedGroup the by-name worksheet-local group the info came from, or null for an
+    *                   inline {@code field.namedGroup} object.
+    */
+   private static void requireSimpleNamedGroup(NamedGroupInfoModel info, String namedGroup)
+      throws Exception
+   {
+      if(info == null || info.getType() != XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO ||
+         info.getConditions() == null)
+      {
+         return;
+      }
+
+      List<ConditionExpression> groups = info.getConditions();
+
+      for(int i = 0; i < groups.size(); i++) {
+         ConditionExpression group = groups.get(i);
+
+         if(group.getList() == null) {
+            continue;
+         }
+
+         ConditionList list = ConditionUtil.fromModelToConditionList(
+            group.getList(), null, null, null);
+
+         if(isSimpleGroup(group.getName(), list)) {
+            continue;
+         }
+
+         String where = namedGroup != null
+            ? "Group '" + group.getName() + "' of worksheet named group '" + namedGroup + "'"
+            : "'field.namedGroup.groups[" + i + "]' ('" + group.getName() + "')";
+         String path = namedGroup != null ? "conditions[" : "'field.namedGroup.groups[" + i +
+            "].conditions[";
+         List<Map<String, Object>> described = ConditionVocabulary.describe(group.getList());
+         String culprit = null;
+
+         int clauseIndex = 0;
+
+         // Each condition on its own, so the first one the rule refuses can be named; the
+         // rule itself stays LayoutTool's.
+         for(int k = 0; k < list.getSize() && culprit == null; k++) {
+            if(list.getConditionItem(k) == null) {
+               continue;
+            }
+
+            ConditionList single = new ConditionList();
+            single.append(list.getConditionItem(k));
+
+            if(!isSimpleGroup(group.getName(), single)) {
+               Map<String, Object> clause = described.get(clauseIndex);
+               culprit = path + clauseIndex + "]" + (namedGroup != null ? "" : "'") + " uses " +
+                  (Boolean.TRUE.equals(clause.get("negated")) ? "a negated " : "operator ") +
+                  "'" + clause.get("operator") + "'";
+            }
+
+            clauseIndex++;
+         }
+
+         if(culprit == null) {
+            culprit = "its conditions are joined with 'and'";
+         }
+
+         throw new IllegalArgumentException(
+            where + " cannot be rendered by a calc table: " + culprit + ". " +
+            NAMED_GROUP_RESTRICTION);
+      }
+   }
+
+   private static final String NAMED_GROUP_RESTRICTION =
+      "A calc-table named group only buckets when every condition is 'equals' or 'one_of', " +
+      "not negated, and the conditions of a group are joined with 'or' -- otherwise the cell " +
+      "shows the raw values ungrouped.";
+
+   private static boolean isSimpleGroup(String name, ConditionList list) {
+      ExpertNamedGroupInfo single = new ExpertNamedGroupInfo();
+      single.setGroupCondition(name, list);
+      return LayoutTool.isSimpleNamedGroup(single);
    }
 
    /**
@@ -916,6 +1045,10 @@ public class CalcTableService {
             requireInGrid(layout, target.y, target.x);
          }
 
+         if(!"remove".equals(resolved)) {
+            requirePasteKeepsContent(assembly, layout, resolved, source, target);
+         }
+
          CopyCutCalcCellEvent event = new CopyCutCalcCellEvent();
          event.setName(assemblyName);
          event.setOp(resolved);
@@ -929,6 +1062,100 @@ public class CalcTableService {
       updated.put("note", "Coordinates read before this operation are stale — use this layout.");
       ViewsheetSessionService.relayWarnings(updated, warnings);
       return updated;
+   }
+
+   /**
+    * Refuses a copy or cut that would leave a source cell's content where it can't be seen.
+    * {@code TableLayoutHandler.paste} stores a cell under a surviving merge (it never reaches
+    * the anchor and is overwritten from it on split) and silently drops one that falls past the
+    * grid edge; a cut has already cleared the source by then. Whether a merge survives depends
+    * on the paste itself ({@code BaseLayout.setSpan} dissolves spans a pasted span partially
+    * overlaps, and a cut clears the source's own spans first), so this dry-runs the same
+    * {@code copyOperation} {@code VSTableLayoutService.copyCut} runs, on a clone, and checks
+    * where each visible, non-blank source cell landed. Hidden and blank source cells carry
+    * nothing anyone can see, so they may land anywhere.
+    */
+   private void requirePasteKeepsContent(CalcTableVSAssembly assembly, TableLayout layout,
+                                         String op, Rectangle source, Rectangle target)
+   {
+      // The clip is the source widened to whole merges, as TableLayoutHandler.copy reads it.
+      Rectangle clip = spanFootprint(layout, source);
+      Map<String, MergeAnchor> hiddenBefore = mergedIntoMap(layout);
+      List<Point> visible = new ArrayList<>();
+
+      for(int i = 0; i < clip.height; i++) {
+         for(int j = 0; j < clip.width; j++) {
+            int row = clip.y + i;
+            int col = clip.x + j;
+
+            if(row < layout.getRowCount() && col < layout.getColCount() &&
+               !hiddenBefore.containsKey(row + "," + col) &&
+               !isBlankCell(layout.getCellBinding(row, col)))
+            {
+               visible.add(new Point(j, i));
+            }
+         }
+      }
+
+      if(visible.isEmpty()) {
+         return;
+      }
+
+      CalcTableVSAssemblyInfo dry = (CalcTableVSAssemblyInfo) assembly.getInfo().clone();
+      layoutHandler.copyOperation(dry, op, source, target);
+      Map<String, MergeAnchor> hiddenAfter = mergedIntoMap(dry.getTableLayout());
+
+      for(Point offset : visible) {
+         int srow = clip.y + offset.y;
+         int scol = clip.x + offset.x;
+         int row = target.y + offset.y;
+         int col = target.x + offset.x;
+
+         if(row >= layout.getRowCount() || col >= layout.getColCount()) {
+            throw new IllegalArgumentException(
+               "Pasting cell [" + srow + "," + scol + "] would land on [" + row + "," + col +
+               "], outside the grid, which is " + layout.getRowCount() + " row(s) by " +
+               layout.getColCount() + " column(s), so its content would be dropped. Nothing " +
+               "was changed. Choose a target where the whole range fits, or add rows/columns " +
+               "first.");
+         }
+
+         MergeAnchor anchor = hiddenAfter.get(row + "," + col);
+
+         if(anchor != null) {
+            throw new IllegalArgumentException(
+               "Pasting cell [" + srow + "," + scol + "] would land on [" + row + "," + col +
+               "], which is merged into [" + anchor.row() + "," + anchor.col() + "], so its " +
+               "content would be hidden and lost when the merge is split. Nothing was " +
+               "changed. Choose a target that does not land inside that merge, or splitCells [" +
+               anchor.row() + "," + anchor.col() + "] first.");
+         }
+      }
+   }
+
+   /** The rect widened to cover every merge any of its cells belongs to. */
+   private static Rectangle spanFootprint(TableLayout layout, Rectangle rect) {
+      Rectangle footprint = new Rectangle(rect.x, rect.y, 1, 1);
+      Map<String, MergeAnchor> mergedInto = mergedIntoMap(layout);
+
+      for(int r = rect.y; r < rect.y + rect.height; r++) {
+         for(int c = rect.x; c < rect.x + rect.width; c++) {
+            MergeAnchor anchor = mergedInto.get(r + "," + c);
+            int ar = anchor == null ? r : anchor.row();
+            int ac = anchor == null ? c : anchor.col();
+            Dimension span = ar < layout.getRowCount() && ac < layout.getColCount()
+               ? layout.getSpan(ar, ac) : null;
+            footprint = footprint.union(span == null
+               ? new Rectangle(c, r, 1, 1) : new Rectangle(ac, ar, span.width, span.height));
+         }
+      }
+
+      return footprint;
+   }
+
+   private static boolean isBlankCell(CellBinding binding) {
+      return binding == null || binding.getType() == CellBinding.BIND_TEXT &&
+         (binding.getValue() == null || binding.getValue().isEmpty());
    }
 
    private static String requireOp(String op) {

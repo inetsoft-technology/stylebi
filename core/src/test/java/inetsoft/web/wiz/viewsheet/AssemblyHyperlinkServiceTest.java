@@ -78,6 +78,17 @@ class AssemblyHyperlinkServiceTest {
       assertEquals("https://example.com", posted.getWebLink());
    }
 
+   /** Bug #78540 P2: the wiz path asks the dialog service to refuse date-comparison-derived measures. */
+   @Test
+   void asksTheDialogToRefuseDerivedMeasures() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "web", "webLink", "https://example.com"), "");
+
+      assertTrue(capture(h.links).isRejectDerivedMeasure());
+   }
+
    @Test
    void setsAViewsheetLink() throws Exception {
       Harness h = harness(new HyperlinkDialogModel());

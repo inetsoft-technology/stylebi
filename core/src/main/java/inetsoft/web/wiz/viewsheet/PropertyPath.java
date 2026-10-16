@@ -617,12 +617,26 @@ public final class PropertyPath {
 
    // ── reflection helpers ────────────────────────────────────────────────────
 
-   private static String[] segments(String path) {
+   /**
+    * The one parse of a dotted path, shared with {@link PropertyAliases} so the string the
+    * write guards compare is exactly what the setter resolves (bug #78440). An empty segment
+    * (trailing, leading or doubled dot) is refused rather than silently dropped.
+    */
+   static String[] segments(String path) {
       if(path == null || path.isBlank()) {
          throw new IllegalArgumentException("A property path cannot be empty.");
       }
 
-      return path.split("\\.");
+      String[] segments = path.split("\\.", -1);
+
+      for(String segment : segments) {
+         if(segment.isEmpty()) {
+            throw new IllegalArgumentException("'" + path + "' has an empty segment " +
+               "(trailing, leading or doubled '.').");
+         }
+      }
+
+      return segments;
    }
 
    private static Object readOne(Object target, String segment, String path, int index) {

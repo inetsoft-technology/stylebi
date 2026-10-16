@@ -23,6 +23,12 @@ import inetsoft.web.composer.model.vs.TextPropertyDialogModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -1414,5 +1420,312 @@ class PropertyAliasesTest {
             () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, pane + ".x"));
          assertTrue(e.getMessage().contains("'" + canonical + "'"), e.getMessage());
       }
+   }
+
+   // ── empty segments and capitalised spellings (bug #78440) ─────────────────
+
+   @Test
+   void refusesAnEmptySegmentNamingTheWholePath() {
+      for(String bad : new String[] { "chartLinePaneModel.trendLineStyle.",
+                                      "ChartLinePaneModel.TrendLineStyle..",
+                                      ".chartLinePaneModel.trendLineStyle",
+                                      "chartLinePaneModel..trendLineStyle", "." })
+      {
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite("chart", bad), bad);
+         assertTrue(e.getMessage().contains("'" + bad + "'") &&
+                    e.getMessage().contains("empty segment"), e.getMessage());
+         assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolve("chart", bad));
+         assertThrows(IllegalArgumentException.class,
+                      () -> PropertyAliases.lowerSegmentInitials(bad));
+      }
+   }
+
+   @Test
+   void refusesAnEmptySegmentOnTheSheetBeforeAnyGuard() {
+      for(String bad : new String[] { ".vsScriptPane.onInit", "." }) {
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, bad), bad);
+         assertTrue(e.getMessage().contains("empty segment"), e.getMessage());
+      }
+
+      assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolveForWrite(
+         PropertyAliases.SHEET, "vsScriptPane..onInit"));
+   }
+
+   @Test
+   void canonicalizesCapitalisedFirstLettersOfIntEnumAndShapeStylePaths() {
+      assertEquals("chartLinePaneModel.trendLineStyle",
+                   PropertyAliases.resolveForWrite("chart", "ChartLinePaneModel.TrendLineStyle"));
+      assertEquals("selectionTreePaneModel.mode",
+                   PropertyAliases.resolveForWrite("selectiontree", "SelectionTreePaneModel.Mode"));
+      assertEquals("calendarAdvancedPaneModel.viewMode",
+                   PropertyAliases.resolveForWrite("calendar",
+                                                   "CalendarAdvancedPaneModel.ViewMode"));
+      assertEquals("selectionGeneralPaneModel.sortType",
+                   PropertyAliases.resolveForWrite("selectionlist",
+                                                   "SelectionGeneralPaneModel.SortType"));
+      assertEquals("rectanglePropertyPaneModel.linePropPaneModel.style",
+                   PropertyAliases.resolveForWrite(
+                      "rectangle", "RectanglePropertyPaneModel.LinePropPaneModel.Style"));
+   }
+
+   @Test
+   void refusesCapitalisedChartTargetsAndHierarchyDimensions() {
+      assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolveForWrite(
+         "chart", "ChartAdvancedPaneModel.ChartTargetLinesPaneModel.chartTargets"));
+      assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolveForWrite(
+         "chart", "HierarchyPropertyPaneModel.dimensions"));
+      assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolveForWrite(
+         "crosstab", "hierarchyPropertyPaneModel.Dimensions"));
+   }
+
+   // ── bug-78566: dead fields on selection list/tree, range slider and slider ────
+
+   /** Reviewed reads of the apply methods, per type: raw paths that are live without an alias. */
+   private static final Map<String, List<String>> LIVE_WITHOUT_ALIAS = Map.of(
+      "selectionlist", List.of(
+         "revision", "sizePositionPaneModel.titleHeight", "sizePositionPaneModel.cellHeight",
+         "selectionListPaneModel.additionalTables", "selectionListPaneModel.selectedTable",
+         "selectionListPaneModel.selectedColumn"),
+      "selectiontree", List.of(
+         "revision", "sizePositionPaneModel.titleHeight", "sizePositionPaneModel.cellHeight",
+         "selectionTreePaneModel.additionalTables", "selectionTreePaneModel.selectedTable",
+         "selectionTreePaneModel.selectedColumns", "selectionTreePaneModel.id",
+         "selectionTreePaneModel.parentId", "selectionTreePaneModel.label",
+         "selectionTreePaneModel.idRef", "selectionTreePaneModel.parentIdRef",
+         "selectionTreePaneModel.labelRef", "selectionTreePaneModel.selectionMeasurePaneModel"),
+      "timeslider", List.of(
+         "revision", "sizePositionPaneModel.titleHeight",
+         "rangeSliderDataPaneModel.additionalTables", "rangeSliderDataPaneModel.selectedTable",
+         "rangeSliderDataPaneModel.selectedColumns", "rangeSliderDataPaneModel.composite"),
+      "slider", List.of(
+         // variable is derived from the table binding on write (VSInputService), and checked by
+         // AssemblyPropertyService.requireVariableFlagAchievable -- see PropertyAliases'
+         // dataInputPaneModel.variable note
+         "dataInputPaneModel.variable",
+         "dataInputPaneModel.writeBackDirectly", "inputLabelPaneModel.labelGap",
+         "inputLabelPaneModel.labelPosition"));
+
+   private static boolean isOrUnder(String path, String entry) {
+      return path.equals(entry) || path.endsWith("." + entry) || path.contains("." + entry + ".") ||
+         path.startsWith(entry + ".");
+   }
+
+   private static void collectWritableLeaves(Class<?> type, String prefix, List<String> out,
+                                             Deque<Class<?>> stack)
+   {
+      if(stack.contains(type)) {
+         return;
+      }
+
+      stack.push(type);
+
+      for(String property : PropertyPath.propertiesOf(type)) {
+         String capitalized = Character.toUpperCase(property.charAt(0)) + property.substring(1);
+         Method getter = null;
+         boolean hasSetter = false;
+
+         for(Method method : type.getMethods()) {
+            if(method.getParameterCount() == 0 && (method.getName().equals("get" + capitalized) ||
+                                                   method.getName().equals("is" + capitalized)))
+            {
+               getter = method;
+            }
+
+            hasSetter |= method.getParameterCount() == 1 &&
+               method.getName().equals("set" + capitalized);
+         }
+
+         if(getter == null) {
+            continue;
+         }
+
+         Class<?> returned = getter.getReturnType();
+
+         if(returned.getName().startsWith("inetsoft.") && !returned.isEnum()) {
+            collectWritableLeaves(returned, prefix + property + ".", out, stack);
+         }
+         else if(hasSetter) {
+            out.add(prefix + property);
+         }
+      }
+
+      stack.pop();
+   }
+
+   private static boolean refused(String type, String path) {
+      try {
+         PropertyAliases.resolveForWrite(type, path);
+         return false;
+      }
+      catch(IllegalArgumentException e) {
+         // a dotless key that is not an alias is "not a property", which is not a dead field
+         return e.getMessage().contains("is read-only");
+      }
+   }
+
+   /**
+    * The axis is per type x writable pane-model leaf. "Not aliased" never meant "refused": any
+    * dotted key resolves, so a leaf the apply method ignores must be registered dead, and one it
+    * reads must be named live here. A new pane field or a changed apply method fails this test
+    * until a human classifies it, instead of being implicitly accepted by omission.
+    */
+   @Test
+   void everyWritableLeafOfSelectionAndSliderTypesIsClassifiedLiveOrDead() {
+      for(String type : List.of("selectionlist", "selectiontree", "timeslider", "slider")) {
+         List<String> leaves = new ArrayList<>();
+         collectWritableLeaves(PropertyAliases.forType(type).modelClass(), "", leaves,
+                               new ArrayDeque<>());
+         assertFalse(leaves.isEmpty(), type);
+         Collection<String> aliasPaths = PropertyAliases.forType(type).aliases().values();
+         List<String> live = LIVE_WITHOUT_ALIAS.get(type);
+         List<String> unclassified = new ArrayList<>();
+
+         for(String leaf : leaves) {
+            boolean liveRaw = live.stream().anyMatch(entry -> isOrUnder(leaf, entry));
+
+            if(!aliasPaths.contains(leaf) && !refused(type, leaf) && !liveRaw) {
+               unclassified.add(leaf);
+            }
+         }
+
+         assertTrue(unclassified.isEmpty(),
+                    type + " has writable leaves that are neither aliased, refused as dead, nor " +
+                    "reviewed live: " + unclassified);
+
+         for(String entry : live) {
+            assertTrue(leaves.stream().anyMatch(leaf -> isOrUnder(leaf, entry)),
+                       type + ": live entry '" + entry + "' matches no leaf");
+            assertTrue(leaves.stream().filter(leaf -> isOrUnder(leaf, entry))
+                          .noneMatch(leaf -> refused(type, leaf)),
+                       type + ": live entry '" + entry + "' is also refused as dead");
+         }
+      }
+   }
+
+   @Test
+   void deadSelectionFieldsAreRefusedByFullPathAndLiveSiblingsAreNot() {
+      IllegalArgumentException list = assertThrows(IllegalArgumentException.class, () ->
+         PropertyAliases.resolveForWrite(
+            "selectionlist", "selectionGeneralPaneModel.singleSelectionLevels"));
+      assertTrue(list.getMessage().contains("selectionGeneralPaneModel.singleSelectionLevels"),
+                 list.getMessage());
+
+      IllegalArgumentException label = assertThrows(IllegalArgumentException.class, () ->
+         PropertyAliases.resolveForWrite(
+            "timeslider", "rangeSliderAdvancedPaneModel.sliderLabelPaneModel.showLabel"));
+      assertTrue(label.getMessage().contains(
+         "rangeSliderAdvancedPaneModel.sliderLabelPaneModel.showLabel"), label.getMessage());
+      assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolveForWrite(
+         "slider", "sliderAdvancedPaneModel.sliderLabelPaneModel.showLabel"));
+
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(
+         "timeslider", "rangeSliderAdvancedPaneModel.sliderLabelPaneModel.tick"));
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(
+         "selectiontree", "selectionGeneralPaneModel.singleSelectionLevels"));
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("selectionlist",
+         "selectionGeneralPaneModel.submitOnChange"));
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("slider", "showLabel"));
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(
+         "slider", "sliderGeneralPaneModel.generalPropPaneModel.submitOnChange"));
+   }
+
+   // ── bug-78573: dead SizePositionPaneModel fields on every sizePosition-registered type ────
+
+   private static final List<String> SIZE_POSITION_TYPES = List.of(
+      "gauge", "text", "image", "chart", "table", "crosstab", "calctable", "selectionlist",
+      "selectiontree", "checkbox", "radiobutton", "slider", "combobox", "spinner", "textinput",
+      "timeslider", "calendar", "tab", "groupcontainer", "line", "oval", "rectangle",
+      "selectioncontainer", "submit");
+
+   private static final Map<String, List<String>> SIZE_POSITION_LIVE = Map.of(
+      "scaleVertical", List.of("text"),
+      "cellHeight", List.of("selectionlist", "selectiontree", "checkbox", "radiobutton"),
+      "container", List.of());
+
+   private static String sizePositionPath(String type, String field) {
+      String top = PropertyAliases.forType(type).aliases().get("top");
+      return top == null ? null : top.substring(0, top.length() - "top".length()) + field;
+   }
+
+   @Test
+   void sizePositionFieldsAreRefusedExactlyWhereTheyAreDead() {
+      int checked = 0;
+
+      for(String type : SIZE_POSITION_TYPES) {
+         for(Map.Entry<String, List<String>> field : SIZE_POSITION_LIVE.entrySet()) {
+            String path = sizePositionPath(type, field.getKey());
+
+            if(path == null) {
+               continue;
+            }
+
+            boolean live = field.getValue().contains(type);
+            assertEquals(!live, refused(type, path), type + " " + path);
+            checked++;
+         }
+      }
+
+      assertTrue(checked >= 60, "checked " + checked);
+   }
+
+   @Test
+   void reportedDeadSizePositionFieldsAreRefusedWithReadOnlyMessage() {
+      for(String type : List.of("gauge", "chart", "image", "combobox", "spinner", "calendar")) {
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+            PropertyAliases.resolveForWrite(type, sizePositionPath(type, "scaleVertical")));
+         assertTrue(e.getMessage().contains("is read-only on " + type) &&
+                    e.getMessage().contains("sizePositionPaneModel.scaleVertical"),
+                    e.getMessage());
+      }
+
+      for(String type : List.of("gauge", "chart", "combobox", "text")) {
+         assertTrue(refused(type, sizePositionPath(type, "cellHeight")), type);
+      }
+
+      for(String type : List.of("gauge", "calctable")) {
+         assertTrue(refused(type, sizePositionPath(type, "container")), type);
+      }
+   }
+
+   @Test
+   void liveSizePositionFieldsStayWritable() {
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("text", "scaleVertical"));
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(
+         "text", sizePositionPath("text", "scaleVertical")));
+
+      for(String type : List.of("selectionlist", "selectiontree", "checkbox", "radiobutton")) {
+         assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(
+            type, sizePositionPath(type, "cellHeight")), type);
+      }
+   }
+
+   // ── #78480: a source word on a selection type names set_selection_source ──
+
+   @Test
+   void aSelectionSourceWordNamesSetSelectionSourceInsteadOfARawPath() {
+      for(String[] typeAndKey : new String[][] {
+         {"selectionlist", "additionalTables"}, {"selectiontree", "table"},
+         {"timeslider", "composite"}, {"calendar", "selectedColumn"}})
+      {
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite(typeAndKey[0], typeAndKey[1]));
+
+         assertTrue(thrown.getMessage().contains("set_selection_source"), thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("raw model path"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void otherUnknownKeysStillAdvertiseTheRawPath() {
+      IllegalArgumentException list = assertThrows(IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite("selectionlist", "noSuchThing"));
+      assertTrue(list.getMessage().contains("raw model path"), list.getMessage());
+
+      // "table" is only a source word on the four selection types
+      IllegalArgumentException text = assertThrows(IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite("text", "additionalTables"));
+      assertFalse(text.getMessage().contains("set_selection_source"), text.getMessage());
    }
 }

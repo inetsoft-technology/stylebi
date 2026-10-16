@@ -177,6 +177,7 @@ public class AssemblyHyperlinkService {
 
          applyRowScope(assemblyName, model, link, rowLinkTarget(rvs, assemblyName, target.row()));
          apply(rvs, assemblyName, model, type, link, assetId);
+         model.setRejectDerivedMeasure(true);
          hyperlinkService.setHyperlinkDialogModel(runtimeId, assemblyName, model, linkUri, user,
                                                  dispatcher);
       });
@@ -215,7 +216,7 @@ public class AssemblyHyperlinkService {
 
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       VSTableLens lens = box == null || box.isEmpty()
-         ? null : box.get().getVSTableLens(assemblyName, false);
+         ? null : TableLensGuard.lensOrNull(box.get(), assemblyName, false);
 
       if(lens == null) {
          throw new IllegalArgumentException(
@@ -360,7 +361,7 @@ public class AssemblyHyperlinkService {
       if(tableCell) {
          Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
          VSTableLens lens = box == null || box.isEmpty()
-            ? null : box.get().getVSTableLens(assemblyName, false);
+            ? null : TableLensGuard.lensOrNull(box.get(), assemblyName, false);
          headerRows = lens == null ? -1 : lens.getHeaderRowCount();
       }
 
@@ -793,7 +794,7 @@ public class AssemblyHyperlinkService {
       Set<String> columns = new HashSet<>();
 
       if(assembly instanceof TableDataVSAssembly) {
-         collectTableColumns(box.get().getVSTableLens(assemblyName, false), columns);
+         collectTableColumns(TableLensGuard.lensOrNull(box.get(), assemblyName, false), columns);
       }
       else if(assembly instanceof ChartVSAssembly) {
          Object data = box.get().getData(assemblyName);

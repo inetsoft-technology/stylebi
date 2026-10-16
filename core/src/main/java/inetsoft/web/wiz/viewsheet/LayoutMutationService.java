@@ -19,20 +19,22 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AbstractSheet;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TipVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.VSEditableAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
-import inetsoft.web.composer.vs.controller.VSLayoutControllerServiceProxy;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.event.AddVSLayoutObjectEvent;
-import inetsoft.web.viewsheet.DataTipInLayoutCheckResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -54,7 +56,7 @@ import java.util.Map;
  * <p>The plan's own Interfaces note for this task says to "call the underlying logic, not the
  * STOMP controller ... widen visibility or extract the shared body ... check at implementation
  * time rather than assuming." Having checked: those three methods are already {@code public} and
- * already reachable off a generated {@code @ClusterProxy} bean ({@link
+ * already reachable off a generated {@code @ClusterProxy} bean ({@code
  * VSLayoutControllerServiceProxy}) exactly the way {@code WizComposerController}/
  * {@code WizDashboardService} already call sibling {@code @ClusterProxy} services in this
  * codebase -- no visibility widening turned out to be necessary. But calling them as-is with our
@@ -97,30 +99,26 @@ import java.util.Map;
  * objects not to overlap in a print layout is responsible for spacing them; this is a known,
  * deliberate scope cut from the interactive Composer's behavior, not an oversight.
  *
- * <h2>The {@code check_assembly_in_layout} guard on remove</h2>
+ * <h2>The confirmation guard on remove</h2>
  *
- * <p>{@link VSLayoutControllerServiceProxy#checkAssemblyInLayout} is a pure read (no {@code
- * apply()}, no checkpoint) -- safe to call with the master's own runtime id. Its real-world
- * semantics for "does removing this object break a data-tip relationship" could not be fully
- * pinned down from source alone (it reports whether an assembly is present in a given/{@code
- * "null"}-sentinel runtime layout, which is a narrower question than "is this assembly some other
- * object's data-tip target"); this class treats {@code isAssemblyInLayout() == true} on the
- * layout being edited as "yes, something depends on this," which is the interpretation the unit
- * tests below fix in place via mocking. <b>Flagged for the Phase 5 live-verification pass</b> to
- * confirm this polarity against a real data-tip setup before relying on it in production.
+ * <p>An unconfirmed remove asks for confirmation only when another assembly on the master uses
+ * the object as its data-tip view or pop component. The scan covers every master assembly
+ * (embedded viewsheets and the object itself excluded), whether or not the dependent is placed
+ * in the layout being edited, and does not depend on the region the object sits in. Flyover
+ * views are not treated as a dependency. (Bug 78614: the guard used to call {@code
+ * checkAssemblyInLayout}, which only reports whether the object is placed, so every placed
+ * object was blocked.)
  */
 @Service
 public class LayoutMutationService {
    @Autowired
    public LayoutMutationService(LayoutSessionService layoutSessions,
                                  ViewsheetSessionService viewsheetSessions,
-                                 VSLayoutService vsLayoutService,
-                                 VSLayoutControllerServiceProxy vsLayoutControllerService)
+                                 VSLayoutService vsLayoutService)
    {
       this.layoutSessions = layoutSessions;
       this.viewsheetSessions = viewsheetSessions;
       this.vsLayoutService = vsLayoutService;
-      this.vsLayoutControllerService = vsLayoutControllerService;
    }
 
    public static final String OP_ADD = "add";
@@ -229,8 +227,10 @@ public class LayoutMutationService {
 
             for(Map<String, Object> object : objects) {
                String name = requireName(object);
+               int resolved = resolveRegion(layout, name, region, layoutName,
+                                            "add it first with edit_layout_objects (op: \"add\").");
                VSAssemblyLayout assemblyLayout =
-                  requireAssemblyLayout(layout, name, region, layoutName);
+                  requireAssemblyLayout(layout, name, resolved, layoutName);
 
                // A move-only or resize-only call must leave the other dimension unchanged --
                // merge onto the assembly's current position/size rather than defaulting an
@@ -454,6 +454,37 @@ public class LayoutMutationService {
 
    // ── op: remove ────────────────────────────────────────────────────────────
 
+   /**
+    * True when some other assembly on the master has {@code name} as its data-tip view or pop
+    * component. Reads the design-time values, like {@code VSDataTipService}. Flyover views are
+    * deliberately not a dependency: removing one from a layout does not break a popup.
+    */
+   private static boolean isDataTipOrPopTarget(Viewsheet master, String name) {
+      for(Assembly assembly : master.getAssemblies()) {
+         if(assembly instanceof Viewsheet || name.equals(assembly.getName())) {
+            continue;
+         }
+
+         AssemblyInfo info = assembly.getInfo();
+
+         if(info instanceof TipVSAssemblyInfo tip &&
+            tip.getTipOptionValue() == TipVSAssemblyInfo.VIEWTIP_OPTION &&
+            name.equals(tip.getTipViewValue()))
+         {
+            return true;
+         }
+
+         if(info instanceof PopVSAssemblyInfo pop &&
+            pop.getPopOptionValue() == PopVSAssemblyInfo.POP_OPTION &&
+            name.equals(pop.getPopComponentValue()))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    private Map<String, Object> removeObjects(String sessionToken, Principal agent,
                                               String layoutName, int region,
                                               List<Map<String, Object>> objects, boolean confirmed)
@@ -465,15 +496,23 @@ public class LayoutMutationService {
          names.add(requireName(object));
       }
 
+      // Bug 78588: a name that is not placed used to be silently ignored (removeIf + ok), unlike
+      // move_resize. Checked against the master before anything is removed, so one unknown name
+      // fails the whole call. Reads the master directly -- resolveForRead/mutateLayout would mint
+      // a preview clone, which the data-tip pre-check below deliberately avoids.
+      RuntimeViewsheet placementMaster = viewsheetSessions.resolve(sessionToken, agent);
+      AbstractLayout placementLayout = requireLayout(placementMaster, layoutName);
+
+      for(String name : names) {
+         resolveRegion(placementLayout, name, region, layoutName,
+                       "nothing to remove; call get_layout to see what is placed.");
+      }
+
       if(!confirmed) {
-         RuntimeViewsheet master = viewsheetSessions.resolve(sessionToken, agent);
          List<String> dependent = new ArrayList<>();
 
          for(String name : names) {
-            DataTipInLayoutCheckResult check = vsLayoutControllerService
-               .checkAssemblyInLayout(master.getID(), layoutName, name, agent);
-
-            if(check.isAssemblyInLayout()) {
+            if(isDataTipOrPopTarget(placementMaster.getViewsheet(), name)) {
                dependent.add(name);
             }
          }
@@ -493,10 +532,21 @@ public class LayoutMutationService {
       layoutSessions.mutateLayout(sessionToken, agent, layoutName,
          (clone, master, cloneRuntimeId, dispatcher) -> {
             AbstractLayout layout = requireLayout(master, layoutName);
-            List<VSAssemblyLayout> layouts =
-               new ArrayList<>(vsLayoutService.getVSAssemblyLayouts(layout, region));
-            layouts.removeIf(l -> names.contains(l.getName()));
-            vsLayoutService.setVSAssemblyLayouts(layout, layouts, region);
+            Map<Integer, List<String>> byRegion = new LinkedHashMap<>();
+
+            for(String name : names) {
+               byRegion.computeIfAbsent(
+                  resolveRegion(layout, name, region, layoutName,
+                                "nothing to remove; call get_layout to see what is placed."),
+                  r -> new ArrayList<>()).add(name);
+            }
+
+            for(Map.Entry<Integer, List<String>> entry : byRegion.entrySet()) {
+               List<VSAssemblyLayout> layouts = new ArrayList<>(
+                  vsLayoutService.getVSAssemblyLayouts(layout, entry.getKey()));
+               layouts.removeIf(l -> entry.getValue().contains(l.getName()));
+               vsLayoutService.setVSAssemblyLayouts(layout, layouts, entry.getKey());
+            }
          });
 
       return okResult();
@@ -509,6 +559,47 @@ public class LayoutMutationService {
          .orElseThrow(() -> new IllegalArgumentException(
             "Unknown layout \"" + layoutName + "\" -- call list_layouts to see the print and " +
             "device layouts defined on this viewsheet."));
+   }
+
+   /**
+    * Bug 78588: the plugin always passes CONTENT, but a print layout's object may sit in its
+    * HEADER or FOOTER (placed by a person; the add refusal of bug 78210 tells the caller to
+    * move_resize/remove it). The requested region wins, so a name duplicated across regions
+    * still acts on the requested one; only when it is absent there do HEADER/FOOTER get
+    * searched. A name in both HEADER and FOOTER is ambiguous and fails loud. A device layout has
+    * one object list and keeps the passed region.
+    */
+   private int resolveRegion(AbstractLayout layout, String name, int region, String layoutName,
+                             String notPlacedTail)
+   {
+      if(vsLayoutService.findAssemblyLayout(layout, name, region).isPresent()) {
+         return region;
+      }
+
+      if(layout instanceof PrintLayout) {
+         boolean inHeader = region != VSLayoutService.HEADER &&
+            vsLayoutService.findAssemblyLayout(layout, name, VSLayoutService.HEADER).isPresent();
+         boolean inFooter = region != VSLayoutService.FOOTER &&
+            vsLayoutService.findAssemblyLayout(layout, name, VSLayoutService.FOOTER).isPresent();
+
+         if(inHeader && inFooter) {
+            throw new IllegalArgumentException(
+               "\"" + name + "\" is placed in both the HEADER and the FOOTER of layout \"" +
+               layoutName + "\" (and not in " + regionName(region) + ") -- it is ambiguous " +
+               "which one is meant; remove or rename one of them in the Composer first.");
+         }
+
+         if(inHeader) {
+            return VSLayoutService.HEADER;
+         }
+
+         if(inFooter) {
+            return VSLayoutService.FOOTER;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "\"" + name + "\" is not placed in layout \"" + layoutName + "\" -- " + notPlacedTail);
    }
 
    private VSAssemblyLayout requireAssemblyLayout(AbstractLayout layout, String objectName,
@@ -565,5 +656,4 @@ public class LayoutMutationService {
    private final LayoutSessionService layoutSessions;
    private final ViewsheetSessionService viewsheetSessions;
    private final VSLayoutService vsLayoutService;
-   private final VSLayoutControllerServiceProxy vsLayoutControllerService;
 }

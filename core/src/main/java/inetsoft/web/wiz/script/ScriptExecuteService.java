@@ -409,6 +409,10 @@ public class ScriptExecuteService {
    }
 
    private static String wsRunQueryNote(AssetEntry requested, XPrincipal user) {
+      if(requested != null && requested.getScope() == AssetRepository.REPORT_SCOPE) {
+         return wsNoScopeNote(requested, user);
+      }
+
       if(requested == null ||
          (requested.getScope() != AssetRepository.GLOBAL_SCOPE &&
           requested.getScope() != AssetRepository.USER_SCOPE))
@@ -472,6 +476,62 @@ public class ScriptExecuteService {
          requestedScope + " scope, but nothing exists there -- a worksheet with the same " +
          "name exists at " + siblingScope + " scope instead, so this call returns an empty " +
          "result with no error. " + fix;
+   }
+
+   /**
+    * Note for a {@code ws:<path>} (or bare {@code ws:}) address with no scope token. The shared
+    * address grammar parses it to REPORT_SCOPE, a legacy report-embedded worksheet address that
+    * no StyleBI runtime can resolve, so the call always returns null. The grammar is left alone
+    * (export/dependency extraction parse it the same way); only the agent gets told. Only the
+    * global and the caller's own user scope are probed, never the REPORT_SCOPE entry itself.
+    */
+   private static String wsNoScopeNote(AssetEntry requested, XPrincipal user) {
+      String path = requested.getPath();
+
+      if(path == null || path.isEmpty()) {
+         return "runQuery('ws:') returned no data: the address names no worksheet. Use " +
+            "\"ws:global:<path>\" for a global worksheet or \"ws:<your username>:<path>\" for " +
+            "one in your own user scope.";
+      }
+
+      IdentityID callerId = user.getIdentityID();
+      String userLiteral = "ws:" + (callerId != null ? callerId.getName() : "<your username>") +
+         ":" + path;
+      String prefix = "runQuery('ws:" + path + "') returned no data: the address has no scope " +
+         "token, so it does not name a global or user worksheet and can never resolve.";
+      String generic = prefix + " Use \"ws:global:" + path + "\" for a global worksheet or \"" +
+         userLiteral + "\" for one in your own user scope.";
+
+      try {
+         AssetRepository repo = AssetUtil.getAssetRepository(false);
+
+         if(repo == null) {
+            return generic;
+         }
+
+         AssetEntry global = new AssetEntry(AssetRepository.GLOBAL_SCOPE, requested.getType(),
+                                            path, null, requested.getOrgID());
+
+         if(repo.containsEntry(global)) {
+            return prefix + " A worksheet \"" + path + "\" exists at global scope. Use \"ws:global:" +
+               path + "\" to reach it.";
+         }
+
+         if(callerId != null) {
+            AssetEntry own = new AssetEntry(AssetRepository.USER_SCOPE, requested.getType(), path,
+                                            callerId, requested.getOrgID());
+
+            if(repo.containsEntry(own)) {
+               return prefix + " A worksheet \"" + path + "\" exists in your user scope. Use \"" +
+                  userLiteral + "\" to reach it.";
+            }
+         }
+      }
+      catch(Exception ex) {
+         return generic;
+      }
+
+      return generic;
    }
 
    /**

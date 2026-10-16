@@ -1360,4 +1360,31 @@ class PropertyPathTest {
          }
       }
    }
+
+   // ── empty segments (bug #78440) ───────────────────────────────────────────
+
+   @Test
+   void refusesAnEmptySegmentOnEveryEntryPoint() {
+      for(String bad : new String[] { "middle.leaf.title.", "middle..leaf", ".middle.leaf", "." }) {
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> PropertyPath.get(new Root(), bad), bad);
+         assertTrue(thrown.getMessage().contains("'" + bad + "'") &&
+                    thrown.getMessage().contains("empty segment"), thrown.getMessage());
+         assertThrows(IllegalArgumentException.class,
+                      () -> PropertyPath.set(new Root(), bad, "x"), bad);
+         assertThrows(IllegalArgumentException.class,
+                      () -> PropertyPath.typeOf(Root.class, bad), bad);
+      }
+   }
+
+   @Test
+   void refusesATrailingDotOnAShapeStyleWithoutWritingIt() {
+      ShapeRoot target = new ShapeRoot();
+      String before = target.getRectanglePropertyPaneModel().getLinePropPaneModel().getStyle();
+
+      assertThrows(IllegalArgumentException.class, () -> PropertyPath.set(
+         target, "rectanglePropertyPaneModel.linePropPaneModel.style.", "bogus"));
+
+      assertEquals(before, target.getRectanglePropertyPaneModel().getLinePropPaneModel().getStyle());
+   }
 }

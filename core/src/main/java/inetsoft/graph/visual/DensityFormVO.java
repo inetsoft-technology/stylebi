@@ -82,7 +82,7 @@ public class DensityFormVO extends FormVO {
          VGraph graph = getCoordinate().getVGraph();
          GeneralPath[] paths = getContourPaths();
          ColorFrame colors = ((DensityForm) getForm()).getColorFrame();
-         int alpha = getForm().getAlpha();
+         int alpha = Math.max(0, Math.min(100, getForm().getAlpha()));
          Color color = getForm().getColor();
 
          if(colors != null) {

@@ -127,7 +127,7 @@ public class OvalPropertyDialogService {
       GradientColor gradientColor = format.getGradientColorValue();
 
       if(gradientColor != null) {
-         fillPropPaneModel.setGradientColor(gradientColor);
+         fillPropPaneModel.setGradientColor((GradientColor) gradientColor.clone());
       }
 
       ShadowPropPaneModel shadowPropPaneModel = ovalPropertyPaneModel.getShadowPropPaneModel();

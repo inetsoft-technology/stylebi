@@ -135,6 +135,21 @@ public class WizTableStyleController {
       return new TableStyleDetail(null, "", "", new TableStyleFormatModel(style));
    }
 
+   /**
+    * {@code read_table_style}. The styleId is a query parameter, so a style whose styleId is
+    * "defaults" is not shadowed by {@link #defaults()}.
+    */
+   @GetMapping(params = "styleId")
+   public TableStyleDetail readById(@RequestParam("styleId") String styleId,
+                                    Principal principal)
+   {
+      return read(styleId, principal);
+   }
+
+   /**
+    * {@code read_table_style} of older plugins. A style whose styleId is "defaults" can't be
+    * read here, because {@link #defaults()} takes that path.
+    */
    @GetMapping("/{styleId}")
    public TableStyleDetail read(@PathVariable String styleId, Principal principal) {
       LibManager lib = libManagerProvider.getManager(principal);

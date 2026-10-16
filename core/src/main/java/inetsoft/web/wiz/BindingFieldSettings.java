@@ -47,7 +47,8 @@ public final class BindingFieldSettings {
    /**
     * Every ref carrying binding-field settings on this assembly, flattened: a chart's x/y plus the
     * dimensions/measures on its aesthetic slots (a dimension moved onto colour or size for a pie or
-    * treemap keeps its ranking), or a crosstab's design row/col headers plus aggregates.
+    * treemap keeps its ranking), including a multi-style chart's per-measure ones, or a crosstab's
+    * design row/col headers plus aggregates.
     */
    public static DataRef[] refsOf(VSAssembly assembly) {
       List<DataRef> refs = new ArrayList<>();
@@ -60,6 +61,13 @@ public final class BindingFieldSettings {
          for(AestheticRef aref : new AestheticRef[] {
             info.getColorField(), info.getShapeField(), info.getSizeField(), info.getTextField() })
          {
+            if(aref != null && aref.getDataRef() != null) {
+               refs.add(aref.getDataRef());
+            }
+         }
+
+         // A multi-style chart (a donut) carries its aesthetics per measure instead (#78535).
+         for(AestheticRef aref : info.getAggregateAestheticRefs(false)) {
             if(aref != null && aref.getDataRef() != null) {
                refs.add(aref.getDataRef());
             }

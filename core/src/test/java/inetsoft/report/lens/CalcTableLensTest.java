@@ -237,4 +237,24 @@ public class CalcTableLensTest {
       Object value = calc.getObject(1, 1);
       Assertions.assertEquals(10.0, ((Number) value).doubleValue(), "got: " + value);
    }
+
+   /**
+    * Bug #78599: sum(data["NOPE"]) in a calc-table cell must be a named error on every
+    * instance, while a real column still computes.
+    */
+   @Test
+   public void testDataMissColumnFailsLoud() {
+      RuntimeCalcTableLens calc = boundGroupLens("sum(data[\"NOPE\"])");
+
+      for(int r = 1; r <= 3; r++) {
+         Object value = calc.getObject(r, 1);
+         Assertions.assertTrue(value instanceof String && ((String) value).startsWith("ERROR"),
+            "row " + r + " should be an error, got: " + value);
+         Assertions.assertTrue(((String) value).contains("\"NOPE\" not found"),
+            "error should name the column: " + value);
+      }
+
+      calc = boundGroupLens("sum(data[\"amt\"])");
+      Assertions.assertEquals(60.0, ((Number) calc.getObject(1, 1)).doubleValue());
+   }
 }

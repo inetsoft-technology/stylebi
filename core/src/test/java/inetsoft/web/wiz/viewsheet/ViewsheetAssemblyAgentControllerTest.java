@@ -949,6 +949,8 @@ class ViewsheetAssemblyAgentControllerTest {
    @Test
    void setHighlightPassesANullRegionWhenNoLocationWasNamed() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
          "Table1", null, null, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(),
@@ -960,9 +962,37 @@ class ViewsheetAssemblyAgentControllerTest {
                                    any(), eq(false), eq(""));
    }
 
+   /** Bug #78406: delete relays the warnings mutate captured, like set; clean stays an empty 200. */
+   @Test
+   void deleteHighlightRelaysTheCapturedWarnings() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.delete(any(), any(), any(), any(), any(), any()))
+         .thenReturn(List.of("script failed"));
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Table1", null, null, null, null, null, "Old", null, null, null, List.of(), false, false);
+
+      assertEquals(java.util.Map.of("warnings", List.of("script failed")),
+                   controller.deleteHighlight("tok", request, "", principal()));
+   }
+
+   @Test
+   void deleteHighlightIsAnEmptyBodyWhenNothingWarned() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.delete(any(), any(), any(), any(), any(), any()))
+         .thenReturn(List.of());
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Table1", null, null, null, null, null, "Old", null, null, null, List.of(), false, false);
+
+      assertNull(controller.deleteHighlight("tok", request, "", principal()));
+   }
+
    @Test
    void setHighlightPassesARealRegionWhenALocationWasNamed() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
          "Table1", 0, 0, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(), false,
@@ -980,6 +1010,8 @@ class ViewsheetAssemblyAgentControllerTest {
    @Test
    void setHighlightPassesAxisAndTextRegionFlagsThrough() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
          "Chart1", null, null, "Sum(Sales)", false, true, "HighRevenue", null, "#FFDDDD", null,
@@ -997,6 +1029,8 @@ class ViewsheetAssemblyAgentControllerTest {
    @Test
    void setHighlightBuildsTheHighlightsFontFromTheRequest() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var font = new ViewsheetAssemblyAgentController.FontRequest(
          "Arial", 12, true, false, true, false);
@@ -1019,6 +1053,40 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals("underline", built.getFontUnderline());
       assertEquals("normal", built.getFontStrikethrough());
    }
+
+   @Test
+   void setHighlightReturnsOkWithoutAWarningKeyWhenThereAreNone() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Table1", null, null, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(),
+         false, false);
+
+      Map<String, Object> out = controller.setHighlight("tok", request, "", principal());
+
+      assertEquals(Boolean.TRUE, out.get("ok"));
+      assertFalse(out.containsKey("warning"));
+   }
+
+   /** Bug #78567: the plugin relays this field, so its name and joining are the contract. */
+   @Test
+   void setHighlightReturnsTheJoinedWarningsUnderWarning() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of("a", "b")));
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Table1", null, null, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(),
+         false, false);
+
+      Map<String, Object> out = controller.setHighlight("tok", request, "", principal());
+
+      assertEquals(Boolean.TRUE, out.get("ok"));
+      assertEquals("a b", out.get("warning"));
+   }
+
 
    /**
     * The hierarchy-dimension routes. Worth pinning at this layer for the same reason as the
@@ -5454,6 +5522,184 @@ class ViewsheetAssemblyAgentControllerTest {
       assertTrue(disposition.getValue().contains("export.zip"));
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug #78577 (export-bookmarks): VSExportService#filterBookmarks silently drops a bookmark name
+   // it does not recognize, so an unknown name used to produce an empty/partial export. The
+   // controller now validates every requested name against the caller's visible bookmarks.
+   // ---------------------------------------------------------------------------
+
+   private static ViewsheetAssemblyAgentController exportControllerWithBookmarks(
+      RuntimeViewsheet rvs, VSExportService exportService, List<VSBookmarkInfo> visible)
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+      when(rvs.getEntry()).thenReturn(new inetsoft.uql.asset.AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE, inetsoft.uql.asset.AssetEntry.Type.VIEWSHEET,
+         "vs", null));
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.getVisibleBookmarks(any(), any())).thenReturn(visible);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(Principal.class),
+         eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION), eq("Export"), eq(ResourceAction.READ)))
+         .thenReturn(true);
+      return controllerForExport(sessions, exportService, securityEngine,
+         mock(inetsoft.web.wiz.script.ScriptImageService.class), vsBookmarkService);
+   }
+
+   private static VSBookmarkInfo bookmarkOf(String name, String owner) {
+      return new VSBookmarkInfo(name, VSBookmarkInfo.ALLSHARE,
+         IdentityID.getIdentityIDFromKey(owner), true, System.currentTimeMillis());
+   }
+
+   private static void exportWith(ViewsheetAssemblyAgentController controller, String format,
+                                  Boolean current, String bookmarks) throws Exception
+   {
+      controller.export("tok", format, null, null, null, current, null, null, bookmarks,
+         principal(), mockServletResponse(new ByteArrayOutputStream()));
+   }
+
+   private static String[] exportedBookmarks(VSExportService exportService) throws Exception {
+      ArgumentCaptor<String[]> names = ArgumentCaptor.forClass(String[].class);
+      verify(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
+         anyBoolean(), anyBoolean(), anyBoolean(), names.capture(), anyBoolean(), anyBoolean(),
+         any(), anyBoolean(), any(ExportResponse.class), any(Principal.class));
+      return names.getValue();
+   }
+
+   @Test
+   void export_refusesAnUnknownBookmarkNamingItAndListingTheValidOnes() throws Exception {
+      VSExportService exportService = mock(VSExportService.class);
+      ViewsheetAssemblyAgentController controller = exportControllerWithBookmarks(
+         mock(RuntimeViewsheet.class), exportService,
+         List.of(bookmarkOf("Narrow", "admin"), bookmarkOf("(Home)", "admin")));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> exportWith(controller, "Excel", false, "NoSuch"));
+
+      assertTrue(thrown.getMessage().contains("'NoSuch'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Narrow"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("(Home)"), thrown.getMessage());
+      verifyNoInteractions(exportService);
+   }
+
+   @Test
+   void export_refusesAPartiallyUnknownBookmarkList() throws Exception {
+      VSExportService exportService = mock(VSExportService.class);
+      ViewsheetAssemblyAgentController controller = exportControllerWithBookmarks(
+         mock(RuntimeViewsheet.class), exportService, List.of(bookmarkOf("Narrow", "admin")));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> exportWith(controller, "Excel", null, "Narrow,Typo"));
+
+      assertTrue(thrown.getMessage().contains("unknown bookmark 'Typo'"), thrown.getMessage());
+      verifyNoInteractions(exportService);
+   }
+
+   @Test
+   void export_acceptsOwnPlainNameAndHomeAndPassesThemThrough() throws Exception {
+      VSExportService exportService = mock(VSExportService.class);
+      stubExportBytes(exportService, new byte[] { 1 });
+      ViewsheetAssemblyAgentController controller = exportControllerWithBookmarks(
+         mock(RuntimeViewsheet.class), exportService,
+         List.of(bookmarkOf("Narrow", "admin"), bookmarkOf("(Home)", "admin")));
+
+      exportWith(controller, "Excel", false, "Narrow, (Home)");
+
+      assertArrayEquals(new String[] { "Narrow", "(Home)" }, exportedBookmarks(exportService));
+   }
+
+   @Test
+   void export_acceptsAnotherOwnersBookmarkAsNameAliasAndAsUnambiguousPlainName() throws Exception {
+      for(String requested : List.of("Shared(Bob)", "Shared")) {
+         VSExportService exportService = mock(VSExportService.class);
+         stubExportBytes(exportService, new byte[] { 1 });
+         ViewsheetAssemblyAgentController controller = spy(exportControllerWithBookmarks(
+            mock(RuntimeViewsheet.class), exportService, List.of(bookmarkOf("Shared", "bob"))));
+         doReturn("Bob").when(controller)
+            .bookmarkOwnerAlias(IdentityID.getIdentityIDFromKey("bob"));
+
+         exportWith(controller, "Excel", false, requested);
+
+         assertArrayEquals(new String[] { "Shared(Bob)" }, exportedBookmarks(exportService),
+            requested);
+      }
+   }
+
+   @Test
+   void export_refusesAnAmbiguousPlainNameSharedByTwoOtherOwners() throws Exception {
+      VSExportService exportService = mock(VSExportService.class);
+      ViewsheetAssemblyAgentController controller = spy(exportControllerWithBookmarks(
+         mock(RuntimeViewsheet.class), exportService,
+         List.of(bookmarkOf("Shared", "bob"), bookmarkOf("Shared", "carol"))));
+      doReturn("Bob").when(controller).bookmarkOwnerAlias(IdentityID.getIdentityIDFromKey("bob"));
+      doReturn("Carol").when(controller)
+         .bookmarkOwnerAlias(IdentityID.getIdentityIDFromKey("carol"));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> exportWith(controller, "Excel", false, "Shared"));
+
+      assertTrue(thrown.getMessage().contains("ambiguous"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Shared(Bob)"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Shared(Carol)"), thrown.getMessage());
+      verifyNoInteractions(exportService);
+   }
+
+   @Test
+   void export_refusesCurrentFalseWithNoBookmarksExceptForSnapshot() throws Exception {
+      VSExportService exportService = mock(VSExportService.class);
+      stubExportBytes(exportService, new byte[] { 1 });
+      ViewsheetAssemblyAgentController controller = exportControllerWithBookmarks(
+         mock(RuntimeViewsheet.class), exportService, List.of());
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> exportWith(controller, "Excel", false, null));
+      assertTrue(thrown.getMessage().contains("nothing to export"), thrown.getMessage());
+      verifyNoInteractions(exportService);
+
+      exportWith(controller, "Snapshot", false, null);
+      verify(exportService).exportViewsheet(any(), eq(FileFormatInfo.EXPORT_TYPE_SNAPSHOT),
+         anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class),
+         anyBoolean(), anyBoolean(), any(), anyBoolean(), any(ExportResponse.class),
+         any(Principal.class));
+   }
+
+   @Test
+   void export_withAKnownBookmarkAndCurrentOmittedStillIncludesTheCurrentView() throws Exception {
+      VSExportService exportService = mock(VSExportService.class);
+      stubExportBytes(exportService, new byte[] { 1 });
+      ViewsheetAssemblyAgentController controller = exportControllerWithBookmarks(
+         mock(RuntimeViewsheet.class), exportService, List.of(bookmarkOf("Narrow", "admin")));
+
+      exportWith(controller, "Excel", null, "Narrow");
+
+      ArgumentCaptor<Boolean> current = ArgumentCaptor.forClass(Boolean.class);
+      verify(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
+         current.capture(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
+         anyBoolean(), any(), anyBoolean(), any(ExportResponse.class), any(Principal.class));
+      assertTrue(current.getValue());
+   }
+
+   @Test
+   void export_refusesAnyBookmarkOnAnUnsavedViewsheet() throws Exception {
+      VSExportService exportService = mock(VSExportService.class);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(Principal.class),
+         eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION), eq("Export"), eq(ResourceAction.READ)))
+         .thenReturn(true);
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> exportWith(controller, "Excel", false, "Anything"));
+
+      assertTrue(thrown.getMessage().contains("'Anything'"), thrown.getMessage());
+      verifyNoInteractions(exportService);
+   }
+
    @Test
    void export_refusesWhenPermissionDenied() throws Exception {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
@@ -5808,6 +6054,15 @@ class ViewsheetAssemblyAgentControllerTest {
       ViewsheetSessionService sessions, VSExportService exportService,
       SecurityEngine securityEngine, inetsoft.web.wiz.script.ScriptImageService imageService)
    {
+      return controllerForExport(sessions, exportService, securityEngine, imageService,
+                                 mock(VSBookmarkService.class));
+   }
+
+   private static ViewsheetAssemblyAgentController controllerForExport(
+      ViewsheetSessionService sessions, VSExportService exportService,
+      SecurityEngine securityEngine, inetsoft.web.wiz.script.ScriptImageService imageService,
+      VSBookmarkService vsBookmarkService)
+   {
       return new ViewsheetAssemblyAgentController(featureOn(), mock(SheetJoinService.class),
                                           mock(SheetSessionService.class),
                                           sessions,
@@ -5841,7 +6096,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class),
+                                          mock(LayoutUndoService.class), vsBookmarkService,
                                           exportService, securityEngine,
                                           mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }

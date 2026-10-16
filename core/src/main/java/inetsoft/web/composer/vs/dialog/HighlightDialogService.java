@@ -511,6 +511,29 @@ public class HighlightDialogService {
       return new int[] { 1, 1 };
    }
 
+   /**
+    * The fields {@link #getHighlightDialogModel} lists for the crosstab cell {@code row}/{@code col}
+    * only because of the active date comparison. Pass the model's own (resolved) row/col so the
+    * data path is the one its fields were listed for.
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public HighlightService.DateComparisonFields getDateComparisonFields(
+      @ClusterProxyKey String runtimeId, String objectId, Integer row, Integer col,
+      Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(objectId);
+
+      if(box.isEmpty() || !(assembly instanceof CrosstabVSAssembly) || row == null || col == null) {
+         return HighlightService.DateComparisonFields.NONE;
+      }
+
+      VSTableLens lens = box.get().getVSTableLens(objectId, false);
+      TableDataPath dataPath = lens == null ? null : lens.getTableDataPath(row, col);
+      return highlightService.getDateComparisonFields(rvs, assembly, dataPath);
+   }
+
    private boolean listContainsCol(List<DataRefModel> list, DataRef ref) {
       for(int i = 0; i < list.size(); i++) {
          DataRefModel refModel = list.get(i);
@@ -650,6 +673,18 @@ public class HighlightDialogService {
    }
 
    /**
+    * True when {@code ref}, resolved from {@code name}, is a chart measure the active date
+    * comparison derives: a runtime aggregate carrying a calculator with no design-time field of
+    * that name behind it. Runtime-only period dimensions are not derived measures.
+    */
+   public static boolean isDerivedDateComparisonRef(VSChartInfo chartInfo, String name,
+                                                    DataRef ref)
+   {
+      return name != null && chartInfo.getFieldByName(name, false) == null &&
+         ref instanceof VSChartAggregateRef && ((VSChartAggregateRef) ref).getCalculator() != null;
+   }
+
+   /**
     * Writes the dialog's highlights onto the chart. While a date comparison is active the measure
     * resolves to a runtime clone, which is dropped whenever the runtime refs are replaced
     * (clear / option switch), so the design-time ref is written too (set and delete both flow
@@ -680,10 +715,7 @@ public class HighlightDialogService {
       // highlight set on it does not survive the comparison changing.
       // getMeasure() can fall back to the runtime fields, so only a design-only lookup says
       // whether a design field exists.
-      boolean derived = model.getMeasure() != null &&
-         chartInfo.getFieldByName(model.getMeasure(), false) == null &&
-         highlightRef instanceof VSChartAggregateRef &&
-         ((VSChartAggregateRef) highlightRef).getCalculator() != null;
+      boolean derived = isDerivedDateComparisonRef(chartInfo, model.getMeasure(), highlightRef);
 
       if(model.isRejectDerivedMeasure() && derived) {
          throw new IllegalArgumentException(

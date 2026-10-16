@@ -95,6 +95,34 @@ public final class PropertyAliases {
       "wordCloud", "barCornerRadiusVisible", "barRoundAllCornersVisible");
 
    /**
+    * Fields no selection/slider apply method reads back, shared by all four types: the capability
+    * flags the dialog uses to decide which controls to show, the Editable/Shadow leftovers on
+    * {@code basicGeneralPaneModel}, and {@code sizePositionPaneModel}'s container/scaleVertical.
+    */
+   private static final List<String> COMMON_SELECTION_DEAD = List.of(
+      "basicGeneralPaneModel.editable", "basicGeneralPaneModel.nameEditable",
+      "basicGeneralPaneModel.objectNames", "basicGeneralPaneModel.shadow",
+      "basicGeneralPaneModel.showEditableCheckbox", "basicGeneralPaneModel.showEnabledCheckbox",
+      "basicGeneralPaneModel.showRefreshCheckbox", "basicGeneralPaneModel.showShadowCheckbox",
+      "generalPropPaneModel.popLocation", "generalPropPaneModel.showEnabledGroup",
+      "generalPropPaneModel.showSubmitCheckbox");
+
+   private static Set<String> deadSet(String... specific) {
+      Set<String> set = new LinkedHashSet<>(COMMON_SELECTION_DEAD);
+      set.addAll(List.of(specific));
+      return Collections.unmodifiableSet(set);
+   }
+
+   /** List/tree: the shared selection dead set plus the type's own. */
+   private static Set<String> selectionDead(String... specific) {
+      Set<String> set = new LinkedHashSet<>(deadSet(specific));
+      set.add("generalPropPaneModel.submitOnChange");
+      set.add("selectionGeneralPaneModel.inSelectionContainer");
+      set.add("selectionGeneralPaneModel.showNonContainerProps");
+      return Collections.unmodifiableSet(set);
+   }
+
+   /**
     * Table and crosstab fields with a getter/setter pair, populated on every GET, that the
     * matching set*PropertyModel apply method never reads back. Confirmed by reading
     * {@code TableViewPropertyDialogService}/{@code CrosstabPropertyDialogService}'s apply
@@ -116,12 +144,9 @@ public final class PropertyAliases {
     * and {@code CalcTablePropertyDialogService}'s apply method never reads either field back.
     */
    private static final Map<String, Set<String>> DEAD_FIELDS = Map.of(
-      "table", Set.of("shadow", "editable", "container", "shrinkEnabled", "formVisible",
-                      "cellHeight", "scaleVertical"),
-      "crosstab", Set.of("shadow", "editable", "container", "crosstabInfoNull",
-                         "sortOthersLastEnabled", "dateComparisonSupport", "cellHeight",
-                         "scaleVertical"),
-      "calctable", Set.of("cellHeight", "scaleVertical"),
+      "table", Set.of("shadow", "editable", "shrinkEnabled", "formVisible"),
+      "crosstab", Set.of("shadow", "editable", "crosstabInfoNull",
+                         "sortOthersLastEnabled", "dateComparisonSupport"),
       // groupcontainer (bug #77028): `enabled` here resolves to
       // groupContainerGeneralPane.generalPropPane.enabled (GeneralPropPaneModel.enabled) -- live
       // for most dataGeneral()/outputGeneral() types, but GroupContainerPropertyDialogService's
@@ -129,7 +154,48 @@ public final class PropertyAliases {
       // getGroupContainerPropertyDialogModel() explicitly sets showEnabledGroup(false), so the
       // native Composer UI never even renders the Enabled checkbox for this type
       // (general-prop-pane.component.html gates the whole control on *ngIf="showEnabledGroup").
-      "groupcontainer", Set.of("enabled"));
+      "groupcontainer", Set.of("enabled"),
+      // Selection list/tree, range slider and plain slider (bug #78566). An entry here is a
+      // path suffix (see deadFieldWriteRefusal), because the short alias vocabulary expresses
+      // "dead" only by omission and a raw dotted path reaches the same field regardless. Each
+      // set was read off the type's apply method (SelectionListPropertyDialogService,
+      // SelectionTreePropertyDialogService, RangeSliderPropertyDialogService,
+      // VSInputService.setSliderPropertyDialogModel); a field only enters it when that method
+      // never reads it back. The pane-model exhaustiveness test in PropertyAliasesTest forces
+      // every other leaf to be classified live there.
+      "selectionlist", selectionDead(
+         "selectionGeneralPaneModel.singleSelectionLevels",
+         "selectionListPaneModel.grayedOutFields"),
+      "selectiontree", selectionDead(
+         "selectionTreePaneModel.grayedOutFields",
+         "selectionTreePaneModel.modelSource"),
+      "timeslider", deadSet(
+         "rangeSliderGeneralPaneModel.generalPropPaneModel.submitOnChange",
+         "rangeSliderGeneralPaneModel.inSelectionContainer",
+         "rangeSliderAdvancedPaneModel.sliderLabelPaneModel.label",
+         "rangeSliderAdvancedPaneModel.sliderLabelPaneModel.showLabel",
+         "rangeSliderDataPaneModel.grayedOutFields",
+         "rangeSliderDataPaneModel.assemblySource"),
+      "slider", deadSet(
+         "sliderAdvancedPaneModel.sliderLabelPaneModel.showLabel",
+         "sliderGeneralPaneModel.sizePositionPaneModel.titleHeight",
+         "dataInputPaneModel.dateFormatPattern",
+         "dataInputPaneModel.defaultValue",
+         "dataInputPaneModel.queryDateFormat",
+         "dataInputPaneModel.tableLabel"));
+
+   /**
+    * Per-field liveness of the shared {@code SizePositionPaneModel} (bugs #76871, #76883, #76895,
+    * #78573). Every type that registers {@link #sizePosition} gets these getter/setter pairs, but
+    * only the types listed here have an apply method that reads the field back: scaleVertical
+    * only in {@code TextPropertyDialogService}; cellHeight only in the selection list/tree
+    * services and {@code VSInputService} (checkbox, radiobutton); container has no consumer.
+    * Keyed by field, not by type, so a newly registered type is refused by default.
+    */
+   private static final Map<String, Set<String>> SIZE_POSITION_LIVE_TYPES = Map.of(
+      "scaleVertical", Set.of("text"),
+      "cellHeight", Set.of("selectionlist", "selectiontree", "checkbox", "radiobutton"),
+      "container", Set.of());
 
    /**
     * textinput/combobox/slider/spinner/checkbox/radiobutton's {@code dataInputPaneModel.variable}
@@ -330,6 +396,12 @@ public final class PropertyAliases {
     * Refuses a write to one of the {@link #DEAD_FIELDS}/{@link #REFRESH_DEAD_TYPES} entries --
     * fields with a getter/setter pair that this assembly type's apply method never reads back.
     */
+   private static boolean registersSizePosition(String normalizedType) {
+      TypeAliases aliases = REGISTRY.get(normalizedType);
+      return aliases != null &&
+         aliases.aliases().values().stream().anyMatch(p -> p.endsWith(".sizePositionPaneModel.top"));
+   }
+
    private static String deadFieldWriteRefusal(String normalizedType, String pathOrKey) {
       if(pathOrKey == null) {
          return null;
@@ -337,11 +409,28 @@ public final class PropertyAliases {
 
       String leaf = pathOrKey.substring(pathOrKey.lastIndexOf('.') + 1);
       Set<String> dead = DEAD_FIELDS.get(normalizedType);
+      String deadEntry = dead == null ? null : dead.stream()
+         .filter(entry -> pathOrKey.equals(entry) || pathOrKey.endsWith("." + entry))
+         .findFirst().orElse(null);
 
-      if(dead != null && dead.contains(leaf)) {
-         return "'" + leaf + "' is read-only on " + normalizedType + ". It has a getter/setter " +
+      if(deadEntry != null) {
+         String named = deadEntry.contains(".") ? pathOrKey : leaf;
+
+         return "'" + named + "' is read-only on " + normalizedType + ". It has a getter/setter " +
             "pair on the dialog model, populated on every read, but this type's apply method " +
             "never reads it back -- a write would report success and change nothing.";
+      }
+
+      String sizeField = SIZE_POSITION_LIVE_TYPES.keySet().stream()
+         .filter(f -> pathOrKey.endsWith(".sizePositionPaneModel." + f))
+         .findFirst().orElse(null);
+
+      if(sizeField != null && registersSizePosition(normalizedType) &&
+         !SIZE_POSITION_LIVE_TYPES.get(sizeField).contains(normalizedType))
+      {
+         return "'" + pathOrKey + "' is read-only on " + normalizedType + ". It has a getter/" +
+            "setter pair on the dialog model, populated on every read, but this type's apply " +
+            "method never reads it back -- a write would report success and change nothing.";
       }
 
       if("refresh".equals(leaf) && REFRESH_DEAD_TYPES.contains(normalizedType)) {
@@ -487,12 +576,32 @@ public final class PropertyAliases {
          return lowerSegmentInitials(key);
       }
 
+      // A selection's source is refused on every raw path too (SelectionSourceGuard), so
+      // advertising the raw escape hatch for it would only lead to a second refusal (#78480).
+      if(SELECTION_SOURCE_TYPES.contains(entry.assemblyType()) && key != null &&
+         SELECTION_SOURCE_WORDS.contains(key.toLowerCase(Locale.ROOT)))
+      {
+         throw new IllegalArgumentException(
+            "'" + key + "' is not a property of " + entry.assemblyType() + ": a " +
+            entry.assemblyType() + "'s data source (table, additional tables, bound " +
+            "column(s)) is set with set_selection_source, not set_assembly_properties.");
+      }
+
       throw new IllegalArgumentException(
          "'" + key + "' is not a property of " + entry.assemblyType() + "." +
          nearest(key, entry.aliases().keySet()) +
          " Known names: " + String.join(", ", new TreeSet<>(entry.aliases().keySet())) +
          ". A raw model path (containing a '.') is also accepted.");
    }
+
+   private static final Set<String> SELECTION_SOURCE_TYPES =
+      Set.of("selectionlist", "selectiontree", "timeslider", "calendar");
+
+   /** Lower-cased short names an agent tries for a selection's source. */
+   private static final Set<String> SELECTION_SOURCE_WORDS = Set.of(
+      "table", "tables", "selectedtable", "additionaltables", "additionaltable", "column",
+      "columns", "selectedcolumn", "selectedcolumns", "composite", "parentid", "parentidcolumn",
+      "idcolumn", "labelcolumn", "parentidref", "idref", "labelref", "source", "datasource");
 
    /**
     * PropertyPath resolves each segment through {@code get/set + capitalize(segment)}, so the
@@ -505,14 +614,11 @@ public final class PropertyAliases {
          return key;
       }
 
-      String[] segments = key.split("\\.", -1);
+      String[] segments = PropertyPath.segments(key);
 
       for(int i = 0; i < segments.length; i++) {
          String segment = segments[i];
-
-         if(!segment.isEmpty()) {
-            segments[i] = Character.toLowerCase(segment.charAt(0)) + segment.substring(1);
-         }
+         segments[i] = Character.toLowerCase(segment.charAt(0)) + segment.substring(1);
       }
 
       return String.join(".", segments);
@@ -1263,11 +1369,9 @@ public final class PropertyAliases {
       aliases.put("min", "calendarAdvancedPaneModel.min");
       aliases.put("max", "calendarAdvancedPaneModel.max");
       //
-      // calendarDataPaneModel.selectedTable/selectedColumn are also deliberately absent: the
-      // parity audit flagged a possible overlap with the set_calendar_display/
-      // set_calendar_dates tool's own write path, and this pass could not confirm from this
-      // repo alone whether the two would end up writing the same underlying setter. Left out
-      // rather than guessed at -- see the handoff report for this specific gap.
+      // calendarDataPaneModel (table, additional tables, column) is the calendar's data source:
+      // set_selection_source owns it, and AssemblyPropertyService refuses a raw write to it
+      // (SelectionSourceGuard, bug #78480), so it has no alias here.
       return aliases;
    }
 

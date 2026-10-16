@@ -765,4 +765,39 @@ class RangeOutputVSAssemblyInfoTest {
       Element design = Tool.getChildNodeByTagName(Tool.getFirstElement(doc), "rangeColorsValue");
       return Tool.getValue(Tool.getChildNodeByTagName(design, "rangeColor"));
    }
+
+   // Bug #78585: a script write (setRanges/setRangeColors) grows the runtime arrays but must
+   // never change what the design-time getters report.
+   @ParameterizedTest
+   @MethodSource("designRangeInfos")
+   void scriptRangeGrowthDoesNotChangeDesignRangeValues(Supplier<RangeOutputVSAssemblyInfo> factory) {
+      RangeOutputVSAssemblyInfo info = factory.get();
+      info.setRangeValues(new Object[] { "35", "70", "100" });
+      info.setRanges(new Object[] { "30", "60", "90", "", "" });
+
+      assertArrayEquals(new String[] { "35", "70", "100" }, info.getRangeValues());
+      assertEquals(5, info.getRanges().length);
+
+      info.setRangeValues(new Object[] { "10", "20", "30", "40", "50" });
+      assertArrayEquals(new String[] { "10", "20", "30", "40", "50" }, info.getRangeValues());
+   }
+
+   @ParameterizedTest
+   @MethodSource("designRangeInfos")
+   void scriptRangeColorGrowthDoesNotChangeDesignRangeColors(
+      Supplier<RangeOutputVSAssemblyInfo> factory)
+   {
+      RangeOutputVSAssemblyInfo info = factory.get();
+      Color[] design = { Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW };
+      info.setRangeColorsValue(design);
+      info.setRangeColors(new Color[] {
+         Color.BLACK, Color.WHITE, Color.GRAY, Color.CYAN, Color.PINK, Color.ORANGE });
+
+      assertArrayEquals(design, info.getRangeColorsValue());
+      assertEquals(6, info.getRangeColors().length);
+   }
+
+   private static Stream<Supplier<RangeOutputVSAssemblyInfo>> designRangeInfos() {
+      return Stream.of(GaugeVSAssemblyInfo::new, ThermometerVSAssemblyInfo::new);
+   }
 }

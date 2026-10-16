@@ -154,7 +154,7 @@ public class BindingAgentController {
    public record SeparateStatusRequest(String assembly, Boolean separate) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/shelf")
-   public void setChartShelf(@PathVariable String sessionToken,
+   public Map<String, Object> setChartShelf(@PathVariable String sessionToken,
                              @RequestBody ShelfRequest request,
                              @RequestParam(required = false, defaultValue = "") String linkUri,
                              Principal user)
@@ -163,20 +163,22 @@ public class BindingAgentController {
       requireEnabled();
       Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
                                              request.table(), request.fields());
-      chartService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
-                            resolved.fields(), resolved.source(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         chartService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
+                            resolved.fields(), resolved.source(), linkUri));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/source")
-   public void setChartSource(@PathVariable String sessionToken,
+   public Map<String, Object> setChartSource(@PathVariable String sessionToken,
                               @RequestBody ChartSourceRequest request,
                               @RequestParam(required = false, defaultValue = "") String linkUri,
                               Principal user)
       throws Exception
    {
       requireEnabled();
-      chartService.setSource(sessionToken, user, request.assembly(), request.table(),
-                             Boolean.TRUE.equals(request.force()), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         chartService.setSource(sessionToken, user, request.assembly(), request.table(),
+                             Boolean.TRUE.equals(request.force()), linkUri));
    }
 
    /** {@code field} may be null, which clears the shelf. */
@@ -184,7 +186,7 @@ public class BindingAgentController {
    public record SingleShelfRequest(String assembly, String shelf, FieldRef field, String table) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/single-shelf")
-   public void setChartSingleShelf(@PathVariable String sessionToken,
+   public Map<String, Object> setChartSingleShelf(@PathVariable String sessionToken,
                                    @RequestBody SingleShelfRequest request,
                                    @RequestParam(required = false, defaultValue = "")
                                    String linkUri,
@@ -198,9 +200,10 @@ public class BindingAgentController {
          : resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
                               List.of(request.field()));
 
-      chartService.setSingleShelf(sessionToken, user, request.assembly(), request.shelf(),
+      return ViewsheetSessionService.warningsBody(
+         chartService.setSingleShelf(sessionToken, user, request.assembly(), request.shelf(),
                                   resolved == null ? null : resolved.fields().get(0),
-                                  resolved == null ? null : resolved.source(), linkUri);
+                                  resolved == null ? null : resolved.source(), linkUri));
    }
 
    /** @see TableSortRequest — same shape, applied to a chart's x/y/group dimension shelves. */
@@ -212,35 +215,37 @@ public class BindingAgentController {
                                      String mode, Integer n, String measure, Boolean others) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/sort")
-   public void setChartSort(@PathVariable String sessionToken,
+   public Map<String, Object> setChartSort(@PathVariable String sessionToken,
                             @RequestBody ChartSortRequest request,
                             @RequestParam(required = false, defaultValue = "") String linkUri,
                             Principal user)
       throws Exception
    {
       requireEnabled();
-      chartService.setSort(sessionToken, user, request.assembly(), request.shelf(),
+      return ViewsheetSessionService.warningsBody(
+         chartService.setSort(sessionToken, user, request.assembly(), request.shelf(),
                            request.column(), request.index(),
                            new DimensionSortRanking.Sort(request.direction(),
                                                          request.sortByField(),
                                                          request.manualOrder()),
-                           linkUri);
+                           linkUri));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/ranking")
-   public void setChartRanking(@PathVariable String sessionToken,
+   public Map<String, Object> setChartRanking(@PathVariable String sessionToken,
                                @RequestBody ChartRankingRequest request,
                                @RequestParam(required = false, defaultValue = "") String linkUri,
                                Principal user)
       throws Exception
    {
       requireEnabled();
-      chartService.setRanking(sessionToken, user, request.assembly(), request.shelf(),
+      return ViewsheetSessionService.warningsBody(
+         chartService.setRanking(sessionToken, user, request.assembly(), request.shelf(),
                               request.column(), request.index(),
                               new DimensionSortRanking.Ranking(request.mode(), request.n(),
                                                                request.measure(),
                                                                request.others()),
-                              linkUri);
+                              linkUri));
    }
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/type")
@@ -254,7 +259,7 @@ public class BindingAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/type")
-   public void setChartType(@PathVariable String sessionToken,
+   public Map<String, Object> setChartType(@PathVariable String sessionToken,
                             @RequestBody ChartTypeRequest request,
                             @RequestParam(required = false, defaultValue = "") String linkUri,
                             Principal user)
@@ -267,20 +272,22 @@ public class BindingAgentController {
             "set_chart_type requires 'type' — the GraphTypes chart-type code.");
       }
 
-      chartService.setChartType(sessionToken, user, request.assembly(), request.type(),
+      return ViewsheetSessionService.warningsBody(
+         chartService.setChartType(sessionToken, user, request.assembly(), request.type(),
                                 request.multi(), request.stackMeasures(), request.separate(),
-                                request.field(), linkUri);
+                                request.field(), linkUri));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/swap-axes")
-   public void swapChartAxes(@PathVariable String sessionToken,
+   public Map<String, Object> swapChartAxes(@PathVariable String sessionToken,
                              @RequestBody SwapRequest request,
                              @RequestParam(required = false, defaultValue = "") String linkUri,
                              Principal user)
       throws Exception
    {
       requireEnabled();
-      chartService.swapAxes(sessionToken, user, request.assembly(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         chartService.swapAxes(sessionToken, user, request.assembly(), linkUri));
    }
 
    /**
@@ -289,7 +296,7 @@ public class BindingAgentController {
     * call — see {@code ChartBindingService.setSeparateStatus}.
     */
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/separate-status")
-   public void setChartSeparateStatus(@PathVariable String sessionToken,
+   public Map<String, Object> setChartSeparateStatus(@PathVariable String sessionToken,
                                       @RequestBody SeparateStatusRequest request,
                                       @RequestParam(required = false, defaultValue = "") String linkUri,
                                       Principal user)
@@ -301,8 +308,9 @@ public class BindingAgentController {
          throw new IllegalArgumentException("set_chart_separate_status requires 'separate'.");
       }
 
-      chartService.setSeparateStatus(sessionToken, user, request.assembly(), request.separate(),
-                                     linkUri);
+      return ViewsheetSessionService.warningsBody(
+         chartService.setSeparateStatus(sessionToken, user, request.assembly(), request.separate(),
+                                     linkUri));
    }
 
    /** @param table see {@link ShelfRequest#table()}. */
@@ -343,7 +351,7 @@ public class BindingAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/aesthetic-field")
-   public void setAestheticField(@PathVariable String sessionToken,
+   public Map<String, Object> setAestheticField(@PathVariable String sessionToken,
                                  @RequestBody AestheticFieldRequest request,
                                  @RequestParam(required = false, defaultValue = "") String linkUri,
                                  Principal user)
@@ -352,44 +360,48 @@ public class BindingAgentController {
       requireEnabled();
       Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
                                              request.table(), List.of(request.field()));
-      aestheticService.setField(sessionToken, user, request.assembly(), request.channel(),
-                                resolved.fields().get(0), resolved.source(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         aestheticService.setField(sessionToken, user, request.assembly(), request.channel(),
+                                resolved.fields().get(0), resolved.source(), linkUri));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/aesthetic-field/clear")
-   public void clearAestheticField(@PathVariable String sessionToken,
+   public Map<String, Object> clearAestheticField(@PathVariable String sessionToken,
                                    @RequestBody AestheticFieldRequest request,
                                    @RequestParam(required = false, defaultValue = "") String linkUri,
                                    Principal user)
       throws Exception
    {
       requireEnabled();
-      aestheticService.clearField(sessionToken, user, request.assembly(), request.channel(),
-                                  linkUri);
+      return ViewsheetSessionService.warningsBody(
+         aestheticService.clearField(sessionToken, user, request.assembly(), request.channel(),
+                                  linkUri));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/frame")
-   public void setVisualFrame(@PathVariable String sessionToken,
+   public Map<String, Object> setVisualFrame(@PathVariable String sessionToken,
                               @RequestBody AestheticFrameRequest request,
                               @RequestParam(required = false, defaultValue = "") String linkUri,
                               Principal user)
       throws Exception
    {
       requireEnabled();
-      aestheticService.setFrame(sessionToken, user, request.assembly(), request.channel(),
-                                request.frame(), request.measure(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         aestheticService.setFrame(sessionToken, user, request.assembly(), request.channel(),
+                                request.frame(), request.measure(), linkUri));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/frame/reset")
-   public void resetVisualFrame(@PathVariable String sessionToken,
+   public Map<String, Object> resetVisualFrame(@PathVariable String sessionToken,
                                 @RequestBody AestheticResetRequest request,
                                 @RequestParam(required = false, defaultValue = "") String linkUri,
                                 Principal user)
       throws Exception
    {
       requireEnabled();
-      aestheticService.resetFrame(sessionToken, user, request.assembly(), request.channel(),
-                                  request.measure(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         aestheticService.resetFrame(sessionToken, user, request.assembly(), request.channel(),
+                                  request.measure(), linkUri));
    }
 
    /** @param table see {@link ShelfRequest#table()}. */
@@ -402,9 +414,11 @@ public class BindingAgentController {
    /** @param table see {@link ShelfRequest#table()}. */
    public record TableFieldRequest(String assembly, String shelf, FieldRef field,
                                    Integer position, String table) {}
-   public record TableRemoveRequest(String assembly, String shelf, String column) {}
+   /** @param index which occurrence of {@code column}, when it is bound more than once on the shelf. */
+   public record TableRemoveRequest(String assembly, String shelf, String column, Integer index) {}
+   /** @param fromIndex which occurrence of {@code column} on the source shelf, when bound more than once. */
    public record TableMoveRequest(String assembly, String fromShelf, String toShelf,
-                                  String column, Integer position) {}
+                                  String column, Integer position, Integer fromIndex) {}
    public record TableFieldVisibilityRequest(String assembly, String column, boolean visible) {}
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/binding")
@@ -424,6 +438,8 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
+      // Refuse a non-table by its type before the source lookup can fail first (bug #78533).
+      tableService.requireTableAssembly(sessionToken, user, request.assembly());
       Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
                                              request.table(), request.fields());
       return ViewsheetSessionService.warningsBody(
@@ -494,6 +510,8 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
+      // Refuse a non-table by its type before the source lookup can fail first (bug #78533).
+      tableService.requireTableAssembly(sessionToken, user, request.assembly());
       Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
                                              request.table(), List.of(request.field()));
       return ViewsheetSessionService.warningsBody(
@@ -510,7 +528,7 @@ public class BindingAgentController {
       requireEnabled();
       return ViewsheetSessionService.warningsBody(
          tableService.removeField(sessionToken, user, request.assembly(), request.shelf(),
-                               request.column()));
+                               request.column(), request.index()));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/move")
@@ -522,7 +540,8 @@ public class BindingAgentController {
       requireEnabled();
       return ViewsheetSessionService.warningsBody(
          tableService.moveField(sessionToken, user, request.assembly(), request.fromShelf(),
-                             request.toShelf(), request.column(), request.position()));
+                             request.toShelf(), request.column(), request.fromIndex(),
+                             request.position()));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/visibility")
@@ -550,11 +569,12 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      List<String> applied = tableService.setCrosstabColumnVisibility(
+      TableBindingService.TableWrite write = tableService.setCrosstabColumnVisibility(
          sessionToken, user, request.assembly(), request.columns(), request.entries(),
          request.visible());
       Map<String, Object> out = new LinkedHashMap<>();
-      out.put("applied", applied);
+      out.put("applied", write.applied());
+      ViewsheetSessionService.relayWarnings(out, write.warnings());
 
       return out;
    }
@@ -709,10 +729,11 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      List<String> applied = tableService.setColumnLabels(
+      TableBindingService.TableWrite write = tableService.setColumnLabels(
          sessionToken, user, request.assembly(), request.labels(), request.entries());
       Map<String, Object> out = new LinkedHashMap<>();
-      out.put("applied", applied);
+      out.put("applied", write.applied());
+      ViewsheetSessionService.relayWarnings(out, write.warnings());
 
       return out;
    }
@@ -737,10 +758,11 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      List<String> applied = tableService.setColumnWidths(
+      TableBindingService.TableWrite write = tableService.setColumnWidths(
          sessionToken, user, request.assembly(), request.widths());
       Map<String, Object> out = new LinkedHashMap<>();
-      out.put("applied", applied);
+      out.put("applied", write.applied());
+      ViewsheetSessionService.relayWarnings(out, write.warnings());
 
       return out;
    }

@@ -33,6 +33,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 
 @Service
 public class VSBindingTreeService {
@@ -50,6 +51,17 @@ public class VSBindingTreeService {
     */
    public TreeNodeModel getBinding(String runtimeId, String name, boolean layoutMode,
                                    Principal principal)
+      throws Exception
+   {
+      return getBinding(runtimeId, name, layoutMode, principal, null);
+   }
+
+   /**
+    * @param skipped receives {@code (assemblyName, reason)} for each viewsheet component left out
+    *                of the tree because its runtime columns are unavailable, or {@code null}.
+    */
+   public TreeNodeModel getBinding(String runtimeId, String name, boolean layoutMode,
+                                   Principal principal, BiConsumer<String, String> skipped)
       throws Exception
    {
       if(runtimeId == null) {
@@ -93,7 +105,8 @@ public class VSBindingTreeService {
                   engine.getAssetRepository(), rvs, (ChartVSAssemblyInfo) info, false, principal);
 
                if(assetTreeModel != null && appendComponentTree) {
-                  treeHandler.appendVSAssemblyTree(rvs, assetTreeModel, principal, assembly);
+                  treeHandler.appendVSAssemblyTree(
+                     rvs, assetTreeModel, principal, assembly, skipped);
                }
             }
             else if(info instanceof TableDataVSAssemblyInfo) {
@@ -101,7 +114,8 @@ public class VSBindingTreeService {
                   engine.getAssetRepository(), rvs, (TableDataVSAssemblyInfo) info, principal);
 
                if(assetTreeModel != null && appendComponentTree) {
-                  treeHandler.appendVSAssemblyTree(rvs, assetTreeModel, principal, assembly);
+                  treeHandler.appendVSAssemblyTree(
+                     rvs, assetTreeModel, principal, assembly, skipped);
                }
             }
          }

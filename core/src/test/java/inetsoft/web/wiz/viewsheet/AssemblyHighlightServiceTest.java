@@ -39,6 +39,7 @@ import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HighlightDialogModel;
 import inetsoft.web.composer.model.vs.HighlightModel;
 import inetsoft.web.composer.vs.dialog.HighlightDialogService;
+import inetsoft.web.service.HighlightService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,6 +51,7 @@ import java.security.Principal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -1065,7 +1067,126 @@ class AssemblyHighlightServiceTest {
       verify(h.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
    }
 
+   /**
+    * Bug #78540: {@code set} asks for the crosstab's date-comparison-only fields at the cell the
+    * dialog model resolved, and refuses a condition on one without storing anything.
+    */
+   @Test
+   void conditionOnADateComparisonOnlyFieldIsRefusedAtTheModelsCell() throws Exception {
+      HighlightDialogModel model = model();
+      model.setRow(3);
+      model.setCol(2);
+      Harness h = harness(model);
+      when(h.highlights.getDateComparisonFields(anyString(), anyString(), any(), any(),
+                                                any(Principal.class)))
+         .thenReturn(new HighlightService.DateComparisonFields(Set.of("Revenue"), Set.of()));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Crosstab1", null, highlight("X"), false, ""));
+
+      assertTrue(e.getMessage().contains("'Revenue'"), e.getMessage());
+      assertTrue(e.getMessage().contains("date comparison"), e.getMessage());
+      verify(h.highlights).getDateComparisonFields(eq("rt1"), eq("Crosstab1"), eq(3), eq(2),
+                                                   any(Principal.class));
+      verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
+                                                            anyString(), any(Principal.class),
+                                                            any());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
+
+   // ── expression operands (bug #78567) ──────────────────────────────────────
+
+   private static AssemblyHighlightService.Highlight expressionHighlight(String language,
+                                                                         String expression)
+   {
+      return new AssemblyHighlightService.Highlight(
+         "Expr", null, "#ff0000", null,
+         List.of(new ConditionVocabulary.Clause(
+            "Revenue", ">",
+            List.of(Map.of("type", "expression", "expression", expression,
+                           "language", language)),
+            null, false, false, 0)),
+         false);
+   }
+
+   private static AssemblyHighlightService withChecker(Harness h,
+                                                       AssemblyHighlightService.ExpressionChecker c)
+   {
+      when(h.rvs().getViewsheetSandbox())
+         .thenReturn(java.util.Optional.of(mock(inetsoft.report.composition.execution.ViewsheetSandbox.class)));
+      return new AssemblyHighlightService(h.sessions(), h.highlights(), c);
+   }
+
+   @Test
+   void aThrowingExpressionIsCommittedWithAWarning() throws Exception {
+      Harness h = harness(model());
+      AssemblyHighlightService service = withChecker(h, (exp, sql, box) -> "boom is not defined");
+
+      AssemblyHighlightService.SetResult result =
+         service.set("tok", principal(), "Table1", null, expressionHighlight("js", "boom()"),
+                     false, "");
+
+      assertEquals(1, result.warnings().size());
+      assertTrue(result.warnings().get(0).contains("boom()"));
+      assertTrue(result.warnings().get(0).contains("boom is not defined"));
+      assertEquals(1, capture(h.highlights).getHighlights().length, "still committed");
+   }
+
+   @Test
+   void anExpressionThatDoesNotCompileIsRefusedAndNothingIsWritten() throws Exception {
+      Harness h = harness(model());
+      AssemblyHighlightService service = withChecker(h, (exp, sql, box) -> {
+         throw new IllegalStateException("Unexpected end of script");
+      });
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         service.set("tok", principal(), "Table1", null, expressionHighlight("js", "1 +"),
+                     false, ""));
+
+      assertTrue(e.getMessage().contains("does not compile"));
+      assertTrue(e.getMessage().contains("Nothing was changed"));
+      verify(h.highlights(), never()).setHighlightDialogModel(any(), any(), any(), any(), any(),
+                                                              any());
+   }
+
+   @Test
+   void aSqlExpressionIsNeverRefusedForFailingToEvaluate() throws Exception {
+      Harness h = harness(model());
+      AssemblyHighlightService service = withChecker(h, (exp, sql, box) -> {
+         assertTrue(sql, "the language is passed through so the check can rewrite $(var)");
+         return null;
+      });
+
+      AssemblyHighlightService.SetResult result =
+         service.set("tok", principal(), "Table1", null,
+                     expressionHighlight("sql", "$(limit)"), false, "");
+
+      assertTrue(result.warnings().isEmpty());
+      assertEquals(1, capture(h.highlights).getHighlights().length);
+   }
+
+   @Test
+   void aPlainValueHighlightIsNotCheckedAndCarriesNoWarning() throws Exception {
+      Harness h = harness(model());
+      AssemblyHighlightService service = withChecker(h, (exp, sql, box) -> {
+         throw new AssertionError("no expression operand to check");
+      });
+
+      assertTrue(service.set("tok", principal(), "Table1", null, highlight("Plain"), false, "")
+                    .warnings().isEmpty());
+   }
+
+   @Test
+   void relaysTheSessionsOwnWarnings() throws Exception {
+      Harness h = harness(model());
+      doReturn(List.of("script failed")).when(h.sessions())
+         .mutate(anyString(), any(Principal.class), any());
+
+      assertEquals(List.of("script failed"),
+                   h.service().set("tok", principal(), "Table1", null, highlight("Plain"),
+                                   false, "").warnings());
+   }
 
    private record Harness(AssemblyHighlightService service, ViewsheetSessionService sessions,
                           HighlightDialogService highlights, RuntimeViewsheet rvs) {}
@@ -1101,6 +1222,9 @@ class AssemblyHighlightServiceTest {
             .thenReturn(model);
          when(highlights.getFirstDataCell(anyString(), anyString(), any(Principal.class)))
             .thenReturn(new int[]{ 1, 1 });
+         when(highlights.getDateComparisonFields(anyString(), anyString(), any(), any(),
+                                                 any(Principal.class)))
+            .thenReturn(HighlightService.DateComparisonFields.NONE);
       }
       catch(Exception e) {
          throw new IllegalStateException(e);

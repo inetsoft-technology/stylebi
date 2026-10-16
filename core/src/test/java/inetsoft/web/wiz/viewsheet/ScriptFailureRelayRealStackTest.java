@@ -263,6 +263,25 @@ class ScriptFailureRelayRealStackTest {
       assertFailureRelayed(warnings);
    }
 
+   /**
+    * Bug #78406 review F1: resize warms the table with a bare lens read, which rethrew the
+    * ScriptException of a failing table (a masked 500) on the first call and succeeded on the
+    * second off the cached null. Neither outcome may fail the resize.
+    */
+   @Test
+   void editResizeOnAFailingTableSucceedsOnTheFirstReadThrowAndTheCachedNull() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addFailingExpressionCondition(rvs);
+      ViewsheetEditService service = editService(rvs);
+
+      for(int attempt = 0; attempt < 2; attempt++) {
+         assertDoesNotThrow(() -> service.apply(
+            "tok", principal(),
+            new EditRequest("resize", TABLE, null, null, 320, 210, null, null, null, null, null,
+                            null, null, null), ""));
+      }
+   }
+
    @SuppressWarnings("unchecked")
    private static List<String> warningsOf(Map<String, Object> result) {
       Object warnings = result.get("warnings");
@@ -359,7 +378,8 @@ class ScriptFailureRelayRealStackTest {
    private ViewsheetEditService editService(RuntimeViewsheet rvs) throws Exception {
       ViewsheetReadService reader = mock(ViewsheetReadService.class);
       when(reader.read(any())).thenReturn(new ViewsheetModel("vs", List.of(
-         new AssemblyNode(SELECTION, "SelectionList", 0, 0, 100, 100, 0, null, true))));
+         new AssemblyNode(SELECTION, "SelectionList", 0, 0, 100, 100, 0, null, true),
+         new AssemblyNode(TABLE, "Table", 0, 0, 300, 200, 0, null, true))));
       VSObjectPropertyService properties = objectPropertyService();
       ComposerObjectService objects = new ComposerObjectService(
          treeService, coreLifecycleService, viewsheetService, mock(VSAssemblyInfoHandler.class),

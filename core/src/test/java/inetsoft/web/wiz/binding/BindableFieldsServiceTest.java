@@ -23,7 +23,10 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.CheckBoxVSAssembly;
 import inetsoft.uql.viewsheet.ComboBoxVSAssembly;
+import inetsoft.uql.viewsheet.ListInputVSAssembly;
+import inetsoft.uql.viewsheet.RadioButtonVSAssembly;
 import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
@@ -494,9 +497,9 @@ class BindableFieldsServiceTest {
       when(rvs.getViewsheet()).thenReturn(vs);
       ViewsheetService engine = mock(ViewsheetService.class);
       when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
-      when(tree.getBinding(eq("rt1"), eq(name), anyBoolean(), any(Principal.class)))
+      when(tree.getBinding(eq("rt1"), eq(name), anyBoolean(), any(Principal.class), any()))
          .thenReturn(null);
-      when(tree.getBinding(eq("rt1"), isNull(), anyBoolean(), any(Principal.class)))
+      when(tree.getBinding(eq("rt1"), isNull(), anyBoolean(), any(Principal.class), any()))
          .thenReturn(unscopedRoot);
 
       return new BindableFieldsService(tree, engine);
@@ -515,9 +518,13 @@ class BindableFieldsServiceTest {
       CalendarVSAssembly calendar = mock(CalendarVSAssembly.class);
       when(calendar.getTableName()).thenReturn("ORDERS1");
       ComboBoxVSAssembly combo = mock(ComboBoxVSAssembly.class);
-      when(combo.getTableName()).thenReturn("ORDERS1");
+      when(combo.getBoundTableName()).thenReturn("ORDERS1");
+      RadioButtonVSAssembly radio = mock(RadioButtonVSAssembly.class);
+      when(radio.getBoundTableName()).thenReturn("ORDERS1");
+      CheckBoxVSAssembly check = mock(CheckBoxVSAssembly.class);
+      when(check.getBoundTableName()).thenReturn("ORDERS1");
 
-      for(VSAssembly target : List.of(gauge, text, list, slider, calendar, combo)) {
+      for(VSAssembly target : List.of(gauge, text, list, slider, calendar, combo, radio, check)) {
          VSBindingTreeService tree = mock(VSBindingTreeService.class);
          List<BindableTable> tables = realisticServiceFor(twoTableTree(), "A1", target, tree)
             .list("rt1", "A1", principal());
@@ -526,7 +533,44 @@ class BindableFieldsServiceTest {
          assertEquals(2, tables.size(), type);
          assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current(), type);
          assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current(), type);
-         verify(tree, never()).getBinding(eq("rt1"), eq("A1"), anyBoolean(), any(Principal.class));
+         verify(tree, never()).getBinding(eq("rt1"), eq("A1"), anyBoolean(), any(Principal.class), any());
+      }
+   }
+
+   private static List<ListInputVSAssembly> listInputs() {
+      return List.of(mock(ComboBoxVSAssembly.class), mock(RadioButtonVSAssembly.class),
+                     mock(CheckBoxVSAssembly.class));
+   }
+
+   @Test
+   void aListInputMarksItsListBindingTableOverItsWriteBackTable() throws Exception {
+      for(ListInputVSAssembly input : listInputs()) {
+         when(input.getBoundTableName()).thenReturn("ORDERS1");
+         when(input.getTableName()).thenReturn("ORDER_DETAILS1");
+
+         List<BindableTable> tables = realisticServiceFor(
+            twoTableTree(), "A1", input, mock(VSBindingTreeService.class))
+            .list("rt1", "A1", principal());
+
+         String type = input.getClass().getName();
+         assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current(), type);
+         assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current(), type);
+      }
+   }
+
+   @Test
+   void aListInputWithoutAListBindingKeepsItsWriteBackTable() throws Exception {
+      for(ListInputVSAssembly input : listInputs()) {
+         when(input.getBoundTableName()).thenReturn(null);
+         when(input.getTableName()).thenReturn("ORDERS1");
+
+         List<BindableTable> tables = realisticServiceFor(
+            twoTableTree(), "A1", input, mock(VSBindingTreeService.class))
+            .list("rt1", "A1", principal());
+
+         String type = input.getClass().getName();
+         assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current(), type);
+         assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current(), type);
       }
    }
 
@@ -571,13 +615,13 @@ class BindableFieldsServiceTest {
       when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
       TreeNodeModel root = twoTableTree();
-      when(tree.getBinding(eq("rt1"), eq("Chart1"), anyBoolean(), any(Principal.class)))
+      when(tree.getBinding(eq("rt1"), eq("Chart1"), anyBoolean(), any(Principal.class), any()))
          .thenReturn(root);
 
       List<BindableTable> tables = new BindableFieldsService(tree, engine)
          .list("rt1", "Chart1", principal());
 
-      verify(tree).getBinding(eq("rt1"), eq("Chart1"), eq(false), any(Principal.class));
+      verify(tree).getBinding(eq("rt1"), eq("Chart1"), eq(false), any(Principal.class), any());
       assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current());
    }
 
@@ -639,7 +683,7 @@ class BindableFieldsServiceTest {
       ViewsheetService engine = mock(ViewsheetService.class);
       when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
-      when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class))).thenReturn(root);
+      when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class), any())).thenReturn(root);
 
       return new BindableFieldsService(tree, engine);
    }
@@ -662,14 +706,14 @@ class BindableFieldsServiceTest {
       ViewsheetService engine = mock(ViewsheetService.class);
       when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
-      when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class))).thenReturn(root);
+      when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class), any())).thenReturn(root);
       BindableFieldsService service = new BindableFieldsService(tree, engine);
 
       Exception thrown = assertThrows(IllegalArgumentException.class,
                                       () -> service.list("rt1", "Nope", principal()));
 
       assertTrue(thrown.getMessage().contains("Nope"));
-      verify(tree, never()).getBinding(anyString(), any(), anyBoolean(), any(Principal.class));
+      verify(tree, never()).getBinding(anyString(), any(), anyBoolean(), any(Principal.class), any());
    }
 
    /** A real assembly name still resolves normally, without touching the existence check's error. */
@@ -683,7 +727,7 @@ class BindableFieldsServiceTest {
       ViewsheetService engine = mock(ViewsheetService.class);
       when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
-      when(tree.getBinding(eq("rt1"), eq("Table1"), anyBoolean(), any(Principal.class)))
+      when(tree.getBinding(eq("rt1"), eq("Table1"), anyBoolean(), any(Principal.class), any()))
          .thenReturn(null);
       BindableFieldsService service = new BindableFieldsService(tree, engine);
 
@@ -708,7 +752,7 @@ class BindableFieldsServiceTest {
       throws Exception
    {
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
-      when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class)))
+      when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class), any()))
          .thenReturn(root);
       return new BindableFieldsService(tree, engine);
    }
@@ -833,7 +877,7 @@ class BindableFieldsServiceTest {
       ViewsheetService engine = mock(ViewsheetService.class);
       when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
-      when(tree.getBinding(eq("rt1"), eq("Chart1"), anyBoolean(), any(Principal.class)))
+      when(tree.getBinding(eq("rt1"), eq("Chart1"), anyBoolean(), any(Principal.class), any()))
          .thenReturn(root);
       BindableFieldsService service = new BindableFieldsService(tree, engine);
 
@@ -885,7 +929,7 @@ class BindableFieldsServiceTest {
       ViewsheetService engine = mock(ViewsheetService.class);
       when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
-      when(tree.getBinding(eq("rt1"), eq("Chart1"), anyBoolean(), any(Principal.class)))
+      when(tree.getBinding(eq("rt1"), eq("Chart1"), anyBoolean(), any(Principal.class), any()))
          .thenReturn(root);
       BindableFieldsService service = new BindableFieldsService(tree, engine);
 
@@ -950,5 +994,54 @@ class BindableFieldsServiceTest {
 
    private static Principal principal() {
       return () -> "admin";
+   }
+
+   /**
+    * Bug #78640: a component the tree left out (its script failed) is listed as a zero-field table
+    * carrying the reason, and is still marked current when the scoped assembly is bound to it.
+    */
+   @Test
+   void listsASkippedComponentAsAWarnedZeroFieldTable() throws Exception {
+      for(String source : new String[] {"ORDERS1", "Bad"}) {
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getSourceInfo()).thenReturn(new SourceInfo(SourceInfo.ASSET, null, source));
+         Viewsheet vs = mock(Viewsheet.class);
+         when(vs.getAssembly("Chart1")).thenReturn(chart);
+         RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+         when(rvs.getViewsheet()).thenReturn(vs);
+         ViewsheetService engine = mock(ViewsheetService.class);
+         when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
+         VSBindingTreeService tree = mock(VSBindingTreeService.class);
+         TreeNodeModel root = twoTableTree();
+         when(tree.getBinding(eq("rt1"), eq("Chart1"), anyBoolean(), any(Principal.class), any()))
+            .thenAnswer(inv -> {
+               java.util.function.BiConsumer<String, String> skipped = inv.getArgument(4);
+               skipped.accept("Bad", "script failure: boom; its runtime columns are unavailable");
+               return root;
+            });
+
+         List<BindableTable> tables = new BindableFieldsService(tree, engine)
+            .list("rt1", "Chart1", principal());
+
+         BindableTable bad = byName(tables, "Bad");
+         assertTrue(bad.fields().isEmpty());
+         assertEquals(1, bad.warnings().size());
+         assertTrue(bad.warnings().get(0).contains("script failure: boom"));
+         assertEquals("Bad".equals(source), bad.current());
+         assertTrue(byName(tables, "ORDERS1").warnings().isEmpty());
+         assertFalse(byName(tables, "ORDERS1").fields().isEmpty());
+      }
+   }
+
+   /** The serialized shape: an ordinary table has no "warnings" key at all. */
+   @Test
+   void warningsAreOmittedFromTheJsonWhenEmpty() throws Exception {
+      var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+      String plain = mapper.writeValueAsString(new BindableTable("T", null, List.of()));
+      String warned = mapper.writeValueAsString(
+         new BindableTable("T", null, List.of(), List.of("why")));
+
+      assertFalse(plain.contains("warnings"), plain);
+      assertTrue(warned.contains("\"warnings\":[\"why\"]"), warned);
    }
 }

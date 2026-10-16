@@ -100,7 +100,7 @@ public class ChartElementService {
     *                ({@code x}, {@code x2}, {@code y}, {@code y2}) or {@code chart} for the
     *                chart title. Null, or blank, means all of that element.
     */
-   public void setVisibility(String sessionToken, Principal user, String assemblyName,
+   public List<String> setVisibility(String sessionToken, Principal user, String assemblyName,
                              String element, String target, boolean visible, boolean secondary,
                              String linkUri)
       throws Exception
@@ -156,24 +156,28 @@ public class ChartElementService {
       VSChartLegendsVisibilityEvent legendEvent = "legend".equals(kind)
          ? legendEvent(sessionToken, user, assemblyName, target0, visible) : null;
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
 
-         switch(kind) {
-            case "axis" -> axesService.eventHandler(
-               runtimeId,
-               event(Map.of("chartName", assemblyName, "hide", !visible, "secondary", secondary),
-                     "columnName", target0, VSChartAxesVisibilityEvent.class),
-               linkUri, user, dispatcher);
-            case "legend" -> legendsService.eventHandler(
-               runtimeId, legendEvent, linkUri, user, dispatcher);
-            default -> titlesService.eventHandler(
-               runtimeId,
-               convert(titleFields(assemblyName, target0, visible),
-                       VSChartTitlesVisibilityEvent.class),
-               linkUri, user, dispatcher);
-         }
-      });
+         ChartRenderCheck.swallowScriptError(rvs, assemblyName, () -> {
+            switch(kind) {
+               case "axis" -> axesService.eventHandler(
+                  runtimeId,
+                  event(Map.of("chartName", assemblyName, "hide", !visible,
+                               "secondary", secondary),
+                        "columnName", target0, VSChartAxesVisibilityEvent.class),
+                  linkUri, user, dispatcher);
+               case "legend" -> legendsService.eventHandler(
+                  runtimeId, legendEvent, linkUri, user, dispatcher);
+               default -> titlesService.eventHandler(
+                  runtimeId,
+                  convert(titleFields(assemblyName, target0, visible),
+                          VSChartTitlesVisibilityEvent.class),
+                  linkUri, user, dispatcher);
+            }
+         });
+      }));
    }
 
    /**
@@ -197,7 +201,7 @@ public class ChartElementService {
     *                 {@code initialRatio}..{@code max*Ratio} range
     * @param vertical true to resize the height, false the width
     */
-   public void resizePlot(String sessionToken, Principal user, String assemblyName, Double ratio,
+   public List<String> resizePlot(String sessionToken, Principal user, String assemblyName, Double ratio,
                           boolean vertical, boolean reset, String linkUri) throws Exception
    {
       if(!reset && (ratio == null || ratio <= 0 || ratio > MAX_PLOT_RATIO)) {
@@ -215,7 +219,8 @@ public class ChartElementService {
          requireRatioInRange(sessionToken, user, assemblyName, ratio, vertical);
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
 
          Map<String, Object> fields = new LinkedHashMap<>();
@@ -225,7 +230,7 @@ public class ChartElementService {
          fields.put("sizeRatio", reset || ratio == null ? 0d : ratio);
          plotResizeService.eventHandler(runtimeId, convert(fields, VSChartPlotResizeEvent.class),
                                         linkUri, user, dispatcher);
-      });
+      }));
    }
 
    /**

@@ -1582,8 +1582,10 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          XDimensionRef[] flds = getInfo().getAllDimensions(ref, false);
          return isBindingTopNReverse(flds);
       }
-
-      return false;
+      else {
+         XDimensionRef[] flds = getInfo().getAllDimensions(ref, true);
+         return isBindingTopNReverse(flds);
+      }
    }
 
    /**
@@ -1879,8 +1881,12 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          return flds == null || flds.length == 0
             ? DateRangeRef.YEAR_INTERVAL : getDateLevelValue(flds[0]);
       }
+      else {
+         XDimensionRef[] flds = getInfo().getAllDimensions(ref, true);
 
-      return DateRangeRef.YEAR_INTERVAL;
+         return flds == null || flds.length == 0
+            ? DateRangeRef.YEAR_INTERVAL : getDateLevelValue(flds[0]);
+      }
    }
 
    /**

@@ -281,6 +281,16 @@ public final class ConditionVocabulary {
 
       String fieldType = targetField.getDataType();
 
+      // date_in takes a built-in date range name (or a worksheet date-range assembly name), never
+      // a number/boolean/list/untyped object; ConditionUtil casts the value to String.
+      if(operation == XCondition.DATE_IN && raw != null && !(raw instanceof String)) {
+         throw new IllegalArgumentException(
+            "Condition " + index + "'s date_in value " + raw + " is not a string for field '" +
+            targetField.getName() + "'. date_in takes a built-in date range name such as " +
+            "\"Last month\" (call list_condition_date_ranges) or a worksheet date-range " +
+            "assembly name.");
+      }
+
       // date_in takes a built-in range name ("Last month"), not a date literal.
       if(DateConditionLiteral.isDateType(fieldType) && operation != XCondition.DATE_IN) {
          if(raw instanceof Number || raw instanceof Boolean) {
