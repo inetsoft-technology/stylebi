@@ -275,10 +275,15 @@ public class ScriptImageService {
                                                          String assemblyName, int reason)
    {
       String table = assembly instanceof ChartVSAssembly chart ? chart.getTableName() : null;
-      AssetEntry base = vs.getBaseEntry();
-      Worksheet ws = vs.getBaseWorksheet();
+      // the chart's own viewsheet, not the top-level one: an embedded chart (dotted name) is
+      // bound to its embedded viewsheet's base worksheet.
+      Viewsheet owner = assembly instanceof VSAssembly va && va.getViewsheet() != null ?
+         va.getViewsheet() : vs;
+      AssetEntry base = owner.getBaseEntry();
+      Worksheet ws = owner.getBaseWorksheet();
 
-      if(table != null && !table.isBlank() && base != null && base.isWorksheet() && ws != null &&
+      if(reason == AssemblyImageService.ImageRenderResult.TERMINAL_NO_GRAPH &&
+         table != null && !table.isBlank() && base != null && base.isWorksheet() && ws != null &&
          ws.getAssembly(table) == null)
       {
          return new PairingException(
@@ -293,7 +298,7 @@ public class ScriptImageService {
 
       if(noFields) {
          return new PairingException(
-            "\"" + assemblyName + "\" has a source but no fields bound to it, so there is " +
+            "\"" + assemblyName + "\" has a source but no x/y/group fields bound to it, so there is " +
             "nothing to draw and no wait will produce a graph. Bind fields with " +
             "set_chart_shelf, then render it again.");
       }

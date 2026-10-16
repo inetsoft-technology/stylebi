@@ -728,14 +728,7 @@ public class AssemblyImageService {
                      // retrying via retryAfter regardless; the flag is for the wiz caller,
                      // which would otherwise be told to wait forever. A pending MV is the one
                      // completed-but-unplotted state that does resolve itself.
-                     int terminal = ImageRenderResult.NOT_TERMINAL;
-
-                     if(pair != null && pair.isCompleted() && !pair.isCancelled() &&
-                        !pair.isFailed() && !pair.isPlotted() && !isMVPending(box.get(), principal))
-                     {
-                        terminal = pair.getData() == null ? ImageRenderResult.TERMINAL_NO_GRAPH :
-                           ImageRenderResult.TERMINAL_NO_DATA;
-                     }
+                     int terminal = terminalReason(pair, isMVPending(box.get(), principal));
 
                      return new ImageRenderResult(1, terminal);
                   }
@@ -1338,6 +1331,21 @@ public class AssemblyImageService {
    private final ViewsheetService viewsheetService;
    private final BinaryTransferService binaryTransferService;
    private static final Logger LOG = LoggerFactory.getLogger(AssemblyImageService.class);
+
+   /**
+    * Classifies a graph pair that did not plot: terminal (waiting cannot help) or not. Only a
+    * completed, uncancelled, unfailed pair that is not waiting on a materialized view is terminal.
+    */
+   static int terminalReason(VGraphPair pair, boolean mvPending) {
+      if(pair == null || !pair.isCompleted() || pair.isCancelled() || pair.isFailed() ||
+         pair.isPlotted() || mvPending)
+      {
+         return ImageRenderResult.NOT_TERMINAL;
+      }
+
+      return pair.getData() == null ? ImageRenderResult.TERMINAL_NO_GRAPH :
+         ImageRenderResult.TERMINAL_NO_DATA;
+   }
 
    private static boolean isMVPending(ViewsheetSandbox box, Principal principal) {
       return principal instanceof XPrincipal xp &&
