@@ -415,6 +415,39 @@ class CalcTableServiceTest {
       assertEquals("Order:Discount", event.getBinding().getValue());
    }
 
+   /** The default cell name StyleBI derives for the binding the layout service received. */
+   private static String runtimeCellName(CellBindingInfo info) {
+      TableCellBinding cell = info.getBtype() == CellBinding.SUMMARY
+         ? TableCellBinding.getSummaryBinding(info.getValue())
+         : TableCellBinding.getGroupBinding(info.getValue());
+      cell.setFormula(info.getFormula());
+      return cell.getRuntimeCellName();
+   }
+
+   @Test
+   void derivedSummaryCellNameFollowsTheCanonicalSpelling() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h,
+         spec("content", "column", "grouping", "summary", "expand", "none", "formula", "Sum",
+              "field", Map.of("column", "order:discount", "type", "measure")));
+
+      assertEquals("Sum_Order_Discount_", runtimeCellName(event.getBinding()));
+   }
+
+   @Test
+   void derivedGroupCellNameFollowsTheCanonicalSpelling() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h, columnCell("customer:state"));
+
+      assertEquals("Customer_State", runtimeCellName(event.getBinding()));
+   }
+
    @Test
    void leavesAnExactCaseColumnUnchanged() throws Exception {
       Harness h = harness(3, 3);
