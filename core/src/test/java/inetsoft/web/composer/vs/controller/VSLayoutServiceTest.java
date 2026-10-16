@@ -19,10 +19,13 @@ package inetsoft.web.composer.vs.controller;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
+import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.web.composer.model.vs.VSLayoutObjectModel;
+import inetsoft.web.composer.vs.event.AddVSLayoutObjectEvent;
 import inetsoft.web.viewsheet.model.VSFormatModel;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
@@ -332,6 +335,20 @@ class VSLayoutServiceTest {
 
    @Mock RuntimeViewsheet rvs;
    @Mock VSObjectModelFactoryService objectModelService;
+
+   // a layout-only text is never reached by a dashboard density change, so it keeps the legacy height
+   @Test
+   void aLayoutTextKeepsTheLegacyHeightOnAMarkedDashboard() {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+      vs.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      AddVSLayoutObjectEvent event = new AddVSLayoutObjectEvent();
+      event.setType(AbstractSheet.TEXT_ASSET);
+
+      VSAssembly text = service.createVSAssembly(event, null, vs, "Text1");
+
+      assertEquals(20, text.getVSAssemblyInfo().getPixelSize().height);
+   }
 
    private VSLayoutService service;
 }
