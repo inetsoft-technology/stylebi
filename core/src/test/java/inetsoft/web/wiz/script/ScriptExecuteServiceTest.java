@@ -463,6 +463,34 @@ class ScriptExecuteServiceTest {
       verify(scope).execute(eq("setCellValue('T', 0, 0, 1)"), nullable(String.class));
    }
 
+   /** Bug #78662: a script run changes the live runtime, so it must read as changed since the last save. */
+   @Test
+   void runLiveAddsAnUndoCheckpointAndBumpsTheWriteRevision() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq("1 + 1"), nullable(String.class))).thenReturn(2.0);
+      RuntimeViewsheet rvs = viewsheetWithScript("1 + 1", scope);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+
+      verify(rvs).addCheckpoint(any());
+      verify(rvs).bumpWriteRevision();
+   }
+
+   /** The target could not even be read, so no script ran and no checkpoint is added. */
+   @Test
+   void aRunThatCannotReadItsTargetAddsNoCheckpoint() throws Exception {
+      ScriptReadService readService = mock(ScriptReadService.class);
+      when(readService.read(any(), any())).thenThrow(new PairingException("no such target"));
+      RuntimeViewsheet rvs = viewsheetWithScript("1 + 1", mock(ViewsheetScope.class));
+      ScriptExecuteService svc = new ScriptExecuteService(readService);
+
+      assertThrows(PairingException.class,
+         () -> svc.runLive(rvs, ScriptTarget.parse("vs-init"), true));
+
+      verify(rvs, never()).addCheckpoint(any());
+   }
+
    @Test
    void dryRunExecutesNonDestructiveScriptsAgainstTheLiveScope() throws Exception {
       // Documents the known, accepted limitation: "dry run" has no isolated clone to run

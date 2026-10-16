@@ -42,15 +42,27 @@ public final class StaleViewsheetReloader {
    }
 
    /**
-    * Whether the runtime may be overwritten from storage without losing work: it is a saved
-    * asset (an unsaved sheet has nothing in storage) and its undo history sits at the save
-    * point (no edits since the last save/open).
+    * Whether this is an agent design session (not a portal viewer, a Composer preview or a
+    * binding-editor clone). Only design sessions may be replaced from storage: the others carry
+    * runtime state (selections, bookmarks) or an open editor over their sheet that a reload
+    * would drop.
+    */
+   public static boolean isDesignSession(RuntimeViewsheet rvs) {
+      return !rvs.isRuntime() && !rvs.isPreview() && !rvs.isViewer() && !rvs.isBinding();
+   }
+
+   /**
+    * Whether the runtime may be overwritten from storage without losing work: it is a design
+    * session, a saved asset (an unsaved sheet has nothing in storage), its undo history sits at
+    * the save point, and it has no layout edits (those checkpoint on a separate layout stack, so
+    * the main save point cannot see them; any layout checkpoint counts as unsaved work).
     */
    public static boolean isReloadable(RuntimeViewsheet rvs) {
       AssetEntry entry = rvs.getEntry();
 
-      return entry != null && entry.getScope() != AssetRepository.TEMPORARY_SCOPE &&
-         rvs.getSavePoint() == rvs.getCurrent();
+      return isDesignSession(rvs) && entry != null &&
+         entry.getScope() != AssetRepository.TEMPORARY_SCOPE &&
+         rvs.getSavePoint() == rvs.getCurrent() && rvs.getLayoutPointsSize() == 0;
    }
 
    /**
@@ -69,15 +81,24 @@ public final class StaleViewsheetReloader {
       Viewsheet vs = (Viewsheet) stored.clone();
       VSEventUtil.syncEmbeddedTableVSAssembly(vs);
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
-      box.ifPresent(ViewsheetSandbox::lockWrite);
 
-      try {
-         rvs.setViewsheet(vs);
-         rvs.resetRuntime();
-         rvs.resetCheckpoints(vs.prepareCheckpoint());
-      }
-      finally {
-         box.ifPresent(ViewsheetSandbox::unlockWrite);
+      // Monitor first, then the box lock: undo/redo are synchronized on the runtime and take the
+      // box write lock inside, so the opposite order could deadlock against a concurrent undo.
+      synchronized(rvs) {
+         box.ifPresent(ViewsheetSandbox::lockWrite);
+
+         try {
+            rvs.setViewsheet(vs);
+            rvs.resetRuntime();
+            rvs.resetCheckpoints(vs.prepareCheckpoint());
+            rvs.resetLayoutUndoRedo();
+            // a live write: a Composer dialog / binding editor opened before the reload must be
+            // refused on commit instead of restoring the pre-reload sheet
+            rvs.bumpWriteRevision();
+         }
+         finally {
+            box.ifPresent(ViewsheetSandbox::unlockWrite);
+         }
       }
    }
 }

@@ -2065,6 +2065,39 @@ class ViewsheetAssemblyAgentControllerTest {
       assertTrue(result.get("message").toString().contains("reloaded"));
    }
 
+   /** Bug #78662: a failed reload after save must not fail the save; it is reported as a warning. */
+   @Test
+   void saveReportsWarningWhenTheReloadFailsAfterAPendingRename78662() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetEntry savedEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Existing VS", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(savedEntry);
+      when(rvs.getCurrent()).thenReturn(2);
+      when(rvs.getID()).thenReturn("rt-vs-78662c");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(viewsheetService.needRenameDep("rt-vs-78662c")).thenReturn(true);
+      AssetRepository repo = mock(AssetRepository.class);
+      when(viewsheetService.getAssetRepository()).thenReturn(repo);
+      when(repo.getSheet(any(), any(), anyBoolean(), any()))
+         .thenThrow(new RuntimeException("storage unavailable"));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, viewsheetService,
+         mock(SheetAgentBroadcastService.class));
+
+      Map<String, Object> result = controller.save("tok",
+         new ViewsheetAssemblyAgentController.SaveRequest(null, null), agent);
+
+      assertNull(result.get("reloaded"));
+      assertTrue(result.get("warning").toString().contains("storage unavailable"));
+      verify(rvs, never()).setViewsheet(any());
+   }
+
    /** Bug #78662: a save with nothing pending leaves the runtime alone, as before. */
    @Test
    void saveDoesNotReloadRuntimeWhenNoRenameWasPending78662() throws Exception {

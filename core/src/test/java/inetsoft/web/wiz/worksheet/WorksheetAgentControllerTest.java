@@ -11634,6 +11634,14 @@ class WorksheetAgentControllerTest {
     */
    private CascadeCase cascadeSave(AssetEntry vsEntry, int savePoint, int current,
                                    boolean storedVsMissing) throws Exception {
+      return cascadeSave(vsEntry, savePoint, current, storedVsMissing, rvs -> { });
+   }
+
+   private CascadeCase cascadeSave(AssetEntry vsEntry, int savePoint, int current,
+                                   boolean storedVsMissing,
+                                   java.util.function.Consumer<RuntimeViewsheet> tweak)
+      throws Exception
+   {
       Principal agent = TestPrincipals.user("alice", "host-org");
       AssetEntry wsEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
          AssetEntry.Type.WORKSHEET, "Orders WS", null);
@@ -11670,6 +11678,7 @@ class WorksheetAgentControllerTest {
       when(c.rvs.getEntry()).thenReturn(vsEntry);
       when(c.rvs.getSavePoint()).thenReturn(savePoint);
       when(c.rvs.getCurrent()).thenReturn(current);
+      tweak.accept(c.rvs);
 
       c.ws = mock(WorksheetService.class);
       when(c.ws.getRuntimeSheets(any())).thenReturn(new RuntimeSheet[]{ c.rvs });
@@ -11711,6 +11720,9 @@ class WorksheetAgentControllerTest {
       verify(c.rvs).resetRuntime();
       // undo/redo history restarts from the reloaded sheet, so undo cannot restore the stale one
       verify(c.rvs).resetCheckpoints(any());
+      // layout undo stack restarts too, and the write revision moves so a stale dialog is refused
+      verify(c.rvs).resetLayoutUndoRedo();
+      verify(c.rvs).bumpWriteRevision();
       verify(c.ws).clearRenameDep("rt-vs-78662");
    }
 
@@ -11732,6 +11744,39 @@ class WorksheetAgentControllerTest {
       assertTrue(item.get("reason").toString().contains("changes since its last save"));
       String warning = (String) c.result.get("warning");
       assertTrue(warning.contains("rt-vs-78662") && warning.contains("save_viewsheet"), warning);
+   }
+
+   /** Layout edits checkpoint a separate stack, so any layout checkpoint means unsaved work (B-1). */
+   @Test
+   void renameCascadeKeepsViewsheetRuntimeWithLayoutEditsAndReportsItStale78662() throws Exception {
+      CascadeCase c = cascadeSave(savedVsEntry(), 2, 2, false,
+         rvs -> when(rvs.getLayoutPointsSize()).thenReturn(1));
+
+      verify(c.rvs, never()).setViewsheet(any());
+      verify(c.rvs, never()).resetLayoutUndoRedo();
+      List<?> stale = (List<?>) c.result.get("staleViewsheets");
+      assertEquals(1, stale.size());
+      assertTrue(((Map<?, ?>) stale.get(0)).get("reason").toString().contains("layout edit"));
+   }
+
+   /** Binding-editor / viewer / preview runtimes only get the plain reset: never reloaded, not reported (I-2). */
+   @Test
+   void renameCascadeNeverReloadsBindingViewerOrPreviewRuntimes78662() throws Exception {
+      List<java.util.function.Consumer<RuntimeViewsheet>> kinds = List.of(
+         rvs -> when(rvs.isBinding()).thenReturn(true),
+         rvs -> when(rvs.isViewer()).thenReturn(true),
+         rvs -> when(rvs.isPreview()).thenReturn(true),
+         rvs -> when(rvs.isRuntime()).thenReturn(true));
+
+      for(java.util.function.Consumer<RuntimeViewsheet> kind : kinds) {
+         CascadeCase c = cascadeSave(savedVsEntry(), 2, 2, false, kind);
+
+         verify(c.rvs, never()).setViewsheet(any());
+         verify(c.rvs, never()).resetCheckpoints(any());
+         verify(c.rvs).resetRuntime();
+         assertNull(c.result.get("staleViewsheets"));
+         assertNull(c.result.get("reloadedViewsheets"));
+      }
    }
 
    /** A never-saved (temporary) viewsheet looks clean by save point but has no stored copy. */

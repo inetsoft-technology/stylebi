@@ -2382,7 +2382,9 @@ public class WorksheetAgentController {
       List<String> reloaded = new ArrayList<>();
 
       for(RuntimeViewsheet rvs : connected) {
-         if(!reload) {
+         // viewer / preview / binding-editor runtimes are not the agent's design session; they
+         // keep the plain reset and are never reloaded or reported
+         if(!reload || !StaleViewsheetReloader.isDesignSession(rvs)) {
             rvs.resetRuntime();
             continue;
          }
@@ -2393,8 +2395,8 @@ public class WorksheetAgentController {
             AssetEntry vsEntry = rvs.getEntry();
             reason = vsEntry == null || vsEntry.getScope() == AssetRepository.TEMPORARY_SCOPE ?
                "the viewsheet has never been saved" :
-               "the viewsheet has changes since its last save (a refresh or a failed edit " +
-               "also counts as a change)";
+               "the viewsheet has changes since its last save (a refresh, a failed edit, a " +
+               "script run or a layout edit also counts as a change)";
          }
          else {
             try {
@@ -2436,8 +2438,9 @@ public class WorksheetAgentController {
          result.put("warning", "Open viewsheet session(s) " + connectedViewsheetIds(stale) +
             " still hold the previous in-memory sheet and were not reloaded, so their " +
             "bindings may still use the old table/column names. Calling save_viewsheet on a " +
-            "saved one applies the pending rename and reloads it (an unsaved one has nothing " +
-            "in storage to reload).");
+            "saved one applies the pending rename and reloads it. An unsaved one has nothing in " +
+            "storage to reload and no pending rename: rebind it (set_chart_source / " +
+            "set_table_source) to the new name before saving.");
       }
    }
 
