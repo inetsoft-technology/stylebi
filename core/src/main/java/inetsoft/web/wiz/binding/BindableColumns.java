@@ -44,6 +44,11 @@ import java.util.*;
  * than lax: without a known source there is nothing to narrow to, and refusing on a guess would
  * block legitimate columns.
  *
+ * <p>A table that carries {@linkplain BindableTable#warnings warnings} has unknown columns, not no
+ * columns (bug #78640: a component whose script failed lists none). Where the check would have to
+ * trust such a table's field list it lets the write through, the way a listing failure already
+ * does, rather than refuse every field with "Available: ."
+ *
  * <p>A {@code "$(ComponentName)"} shelf field is the one exception: it is a dynamic reference, not
  * a column name at all, and is resolved against a real value only at render time
  * ({@code VSUtil.isVariableValue}/{@code DynamicValue}) — checking it against the source's schema
@@ -80,6 +85,11 @@ public final class BindableColumns {
       for(BindableTable table : listed) {
          if(source != null && !Boolean.TRUE.equals(table.current())) {
             continue;
+         }
+
+         if(table.hasWarnings()) {
+            // Columns unknown, so a missing column proves nothing: fail open.
+            return;
          }
 
          for(var field : table.fields()) {
@@ -273,7 +283,10 @@ public final class BindableColumns {
 
       if(requested != null) {
          String resolved = matchListed(listed, requested, assembly);
-         requireHasAll(resolved, columnsOf(listed, resolved), named, assembly);
+
+         if(!hasWarnings(listed, resolved)) {
+            requireHasAll(resolved, columnsOf(listed, resolved), named, assembly);
+         }
 
          return resolved;
       }
@@ -291,6 +304,11 @@ public final class BindableColumns {
       }
 
       if(candidates.isEmpty()) {
+         if(listed.stream().anyMatch(BindableTable::hasWarnings)) {
+            // The column may live in a table whose columns are unknown; do not guess.
+            return null;
+         }
+
          throw new IllegalArgumentException(
             "No single table has " + describe(named) + ", and an assembly binds every field from " +
             "one source. Pick fields that live together in one table — list_bindable_fields groups " +
@@ -333,6 +351,16 @@ public final class BindableColumns {
          "'" + assembly + "' cannot bind to '" + requested + "'. Available: " +
          String.join(", ", names) +
          ". A source the assembly cannot see binds nothing and renders an empty assembly.");
+   }
+
+   private static boolean hasWarnings(List<BindableTable> listed, String name) {
+      for(BindableTable table : listed) {
+         if(name.equalsIgnoreCase(table.name()) && table.hasWarnings()) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static Set<String> columnsOf(List<BindableTable> listed, String name) {

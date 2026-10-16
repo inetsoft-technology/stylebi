@@ -40,6 +40,8 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
+import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.web.composer.model.TreeNodeModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +50,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 @Component
@@ -555,6 +558,24 @@ public class VSTreeHandler {
    public void appendVSAssemblyTree(RuntimeViewsheet rvs, AssetTreeModel model, Principal user,
                                     VSAssembly assembly) throws Exception
    {
+      appendVSAssemblyTree(rvs, model, user, assembly, null);
+   }
+
+   /**
+    * Append viewsheet assembly columns to the model tree.
+    *
+    * <p>An assembly whose runtime data cannot be read because its own script fails is left out of
+    * the tree instead of failing the whole listing (bug #78640), the same state later reads were
+    * already in once the failure was cached. Script stops (timeout, cancel) still propagate.
+    *
+    * @param skipped receives {@code (assemblyName, reason)} for each assembly that is bindable but
+    *                has no runtime columns to list, or {@code null} if the caller does not care.
+    *                Reported out of band so the shared tree carries no marker node.
+    */
+   public void appendVSAssemblyTree(RuntimeViewsheet rvs, AssetTreeModel model, Principal user,
+                                    VSAssembly assembly, BiConsumer<String, String> skipped)
+      throws Exception
+   {
       Viewsheet vs = rvs.getViewsheet();
       IdentityID pId = user == null ? null : IdentityID.getIdentityIDFromKey(user.getName());
 
@@ -606,7 +627,28 @@ public class VSTreeHandler {
                continue;
             }
 
-            appendVSAssemblyTree(root, assembly, assembly0, vs, box.get(), sinfo, ainfo, metadata, user);
+            try {
+               appendVSAssemblyTree(root, assembly, assembly0, vs, box.get(), sinfo, ainfo,
+                                    metadata, user, skipped);
+            }
+            catch(Exception ex) {
+               ScriptTimeoutGuard.rethrowStop(ex);
+               ScriptException se = scriptFailureOf(ex);
+
+               if(se == null) {
+                  throw ex;
+               }
+
+               String reason = "script failure: " + firstLine(se.getMessage()) +
+                  "; its runtime columns are unavailable";
+               LOG.warn("Skipping assembly {} in the binding tree, {}", assembly0.getAbsoluteName(),
+                        reason);
+               LOG.debug("Binding tree script failure of {}", assembly0.getAbsoluteName(), ex);
+
+               if(skipped != null) {
+                  skipped.accept(assembly0.getAbsoluteName(), reason);
+               }
+            }
          }
       }
 
@@ -618,7 +660,8 @@ public class VSTreeHandler {
    private void appendVSAssemblyTree(AssetTreeModel.Node root, VSAssembly assembly,
                                      Assembly assembly0, Viewsheet vs, ViewsheetSandbox box,
                                      SourceInfo sinfo, AggregateInfo ainfo, boolean metadata,
-                                     Principal user) throws Exception
+                                     Principal user, BiConsumer<String, String> skipped)
+      throws Exception
    {
       final String name = assembly0.getAbsoluteName();
       List<DataRef> aggRefs = new ArrayList<>();
@@ -648,6 +691,14 @@ public class VSTreeHandler {
          }
 
          if(lens == null) {
+            // The sandbox caches a failed read as null, so after the first read a script failure
+            // looks like this. Say so for a bound assembly (an unbound one has nothing to list).
+            if(skipped != null && assembly0 instanceof DataVSAssembly data &&
+               data.getSourceInfo() != null && !data.getSourceInfo().isEmpty())
+            {
+               skipped.accept(name, "runtime columns are unavailable; it may have failed to render");
+            }
+
             return;
          }
 
@@ -769,6 +820,30 @@ public class VSTreeHandler {
          dimensionRootNode.addNode(new AssetTreeModel.Node(
             createAssemblyColumnEntry(ref, false, Assembly.TABLE_VS_BOUND + name, path, user)));
       }
+   }
+
+   /** The script failure {@code ex} is or wraps (MVExecutionException wraps), or null. */
+   private static ScriptException scriptFailureOf(Throwable ex) {
+      for(int depth = 0; ex != null && depth < 16; ex = ex.getCause(), depth++) {
+         if(ex instanceof ConfirmException || ex instanceof CancelledException) {
+            return null;
+         }
+
+         if(ex instanceof ScriptException se) {
+            return se;
+         }
+      }
+
+      return null;
+   }
+
+   private static String firstLine(String message) {
+      if(message == null) {
+         return "";
+      }
+
+      int idx = message.indexOf('\n');
+      return (idx < 0 ? message : message.substring(0, idx)).trim();
    }
 
    private AssetEntry createAssemblyColumnEntry(DataRef ref, boolean measure, String assemblyName,
