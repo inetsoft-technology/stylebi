@@ -49,6 +49,7 @@ import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
@@ -7738,6 +7739,64 @@ class WorksheetEditServiceMutatorsTest {
 
       assertNotNull(t.getColumnSelection(false).getAttribute("newcol"),
          "the snapshot guard must not widen into the plain embedded path");
+   }
+
+   /**
+    * Bug #78679 / WAT-010: insertCol makes the data column string and the ColumnRef's type is
+    * re-derived from the data on the next refresh, so a requested type used to read back as string.
+    * It must now be set on the data itself, and survive a later unrelated edit.
+    */
+   @Test
+   void addColumnHonoursTheRequestedTypeOnAnEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedWithData(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addColumn("T", "C3", XSchema.DOUBLE));
+
+      assertEquals(XSchema.DOUBLE, t.getEmbeddedData().getDataType(2));
+      assertEquals(XSchema.DOUBLE,
+         ((ColumnRef) t.getColumnSelection(false).getAttribute("C3")).getDataType());
+
+      svc.apply("TOK", agent, ed -> ed.editCell("T", 0, 0, "changed"));
+
+      assertEquals(XSchema.DOUBLE, t.getEmbeddedData().getDataType(2),
+         "the type must live in the data, not only on the first read-back");
+      assertEquals(XSchema.DOUBLE,
+         ((ColumnRef) t.getColumnSelection(false).getAttribute("C3")).getDataType());
+      assertEquals(XSchema.STRING, t.getEmbeddedData().getDataType(0), "other columns untouched");
+   }
+
+   @Test
+   void addColumnTreatsABlankTypeAsOmitted() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedWithData(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addColumn("T", "C3", " "));
+
+      assertEquals(XSchema.STRING, t.getEmbeddedData().getDataType(2));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "number", "DOUBLE", "banana" })
+   void addColumnRefusesAnUnknownTypeBeforeWritingAnything(String type) throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedWithData(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addColumn("T", "C3", type)));
+
+      assertTrue(ex.getMessage().contains("\"" + type + "\""), ex.getMessage());
+      assertEquals(2, t.getEmbeddedData().getColCount(), "no data column may be left behind");
+      assertNull(t.getColumnSelection(false).getAttribute("C3"));
    }
 
    @Test

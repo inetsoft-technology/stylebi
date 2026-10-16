@@ -140,4 +140,49 @@ class FieldReferenceMatcherTest {
       assertEquals(Set.of("Revenue", "T.Amount", "Amount"),
          WorksheetControllerService.fieldNames(table, col));
    }
+
+   /** Bug #78679 / WBS-131: the runtime column lookup ignores case, so the guard must too. */
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "field.amount * 2",
+      "field['AMOUNT'] * 2",
+      "field[\"amount\"] * 2",
+      "field . amount * 2",
+      "field['t.amount'] > 1",
+   })
+   void recognisesACaseDifferentRead(String expr) {
+      assertTrue(FieldReferenceMatcher.references(expr, AMOUNT), expr);
+   }
+
+   @Test
+   void caseDifferentLookalikesStillDoNotMatch() {
+      assertFalse(FieldReferenceMatcher.references("field.amount2 * 2", AMOUNT));
+      assertFalse(FieldReferenceMatcher.references("Other.amount * 2", AMOUNT));
+      assertFalse(FieldReferenceMatcher.references("'field.amount'", AMOUNT));
+   }
+
+   @Test
+   void renameRewritesACaseDifferentReadAndOnlyTheNameToken() {
+      Map<String, String> renames = Map.of("Amount", "Amt", "T.Amount", "T.Amt");
+
+      assertEquals("field.Amt * 2", FieldReferenceMatcher.rename("field.amount * 2", renames));
+      assertEquals("field['Amt'] * 2",
+         FieldReferenceMatcher.rename("field['AMOUNT'] * 2", renames));
+      assertEquals("field['T.Amt']", FieldReferenceMatcher.rename("field['t.amount']", renames));
+   }
+
+   /** An exact match on another column wins: with columns x and X, field.x is not a read of X. */
+   @Test
+   void anExactMatchOnAnotherColumnWinsOverACaseDifferentRead() {
+      Set<String> names = Set.of("X");
+      Set<String> others = Set.of("x");
+
+      assertFalse(FieldReferenceMatcher.references("field.x * 2", names, others));
+      assertTrue(FieldReferenceMatcher.references("field.X * 2", names, others));
+      assertTrue(FieldReferenceMatcher.references("field.x * 2", Set.of("x"), Set.of("X")));
+      assertEquals("field.x * 2",
+         FieldReferenceMatcher.rename("field.x * 2", Map.of("X", "Y"), others));
+      assertEquals("field.Y * 2",
+         FieldReferenceMatcher.rename("field.X * 2", Map.of("X", "Y"), others));
+   }
 }

@@ -607,6 +607,20 @@ public class WorksheetEditService {
        *                          column named {@code name} already exists on the table
        */
       public void addColumn(String table, String name, String type) throws PairingException {
+         // Bug #78679: validated before anything is written. The type was never checked, so an
+         // unknown one ("number") was stored on the ColumnRef as-is, and a valid one was dropped
+         // when the embedded data (which hard-codes string in insertCol) was re-read.
+         if(type != null && type.isBlank()) {
+            type = null;
+         }
+
+         if(type != null && !XSchema.isPrimitiveType(type)) {
+            throw new PairingException(
+               "Invalid column type: \"" + type + "\". Valid types: " +
+               "string, boolean, float, double, integer, long, short, byte, " +
+               "character, date, time, timeInstant.");
+         }
+
          TableAssembly t = requireTable(table);
          WorksheetMutationSupport.assertSnapshotAllowsColumnAdd(t, table, "add_column");
          ColumnSelection cs = t.getColumnSelection();
@@ -636,6 +650,19 @@ public class WorksheetEditService {
             data.insertCol(newColIdx);
             data.setObject(0, newColIdx, name);
             data.setColumnIdentifier(newColIdx, name);
+
+            // insertCol makes the column string, and the next refresh from the data resets the
+            // ColumnRef to that. The new column is all null, so there is nothing to fail parsing.
+            if(type != null && !XSchema.STRING.equals(type)) {
+               try {
+                  data.setDataType(newColIdx, type, null, null, true);
+               }
+               catch(Exception ex) {
+                  data.deleteCol(newColIdx);
+                  throw new PairingException(
+                     "Could not set the new column's type to \"" + type + "\": " + ex.getMessage());
+               }
+            }
          }
 
          AttributeRef attr = new AttributeRef(null, name);

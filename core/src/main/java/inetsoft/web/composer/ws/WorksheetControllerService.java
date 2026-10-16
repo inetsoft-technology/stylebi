@@ -1250,6 +1250,7 @@ public class WorksheetControllerService {
       }
 
       ColumnSelection columns = dependent.getColumnSelection();
+      Set<String> otherOutputs = otherOutputNames(dependent, ref);
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
          DataRef column = columns.getAttribute(i);
@@ -1266,7 +1267,7 @@ public class WorksheetControllerService {
 
          String expr = ((ExpressionRef) inner).getExpression();
 
-         if(FieldReferenceMatcher.references(expr, names)) {
+         if(FieldReferenceMatcher.references(expr, names, otherOutputs)) {
             references.add("expression column '" + ((ColumnRef) column).getName() + "'");
          }
       }
@@ -1303,6 +1304,26 @@ public class WorksheetControllerService {
       }
 
       return names;
+   }
+
+   /** Output names (alias if set, else attribute) of every column of {@code table} but {@code ref}. */
+   static Set<String> otherOutputNames(TableAssembly table, ColumnRef ref) {
+      Set<String> outputs = new HashSet<>();
+      ColumnSelection columns = table.getColumnSelection();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef column = columns.getAttribute(i);
+
+         if(!(column instanceof ColumnRef other) || other == ref || other.equals(ref)) {
+            continue;
+         }
+
+         String otherAlias = other.getAlias();
+         outputs.add(otherAlias != null && !otherAlias.isEmpty() ?
+            otherAlias : other.getAttribute());
+      }
+
+      return outputs;
    }
 
    private static boolean isOutputNameOfAnotherColumn(TableAssembly table, ColumnRef ref,
