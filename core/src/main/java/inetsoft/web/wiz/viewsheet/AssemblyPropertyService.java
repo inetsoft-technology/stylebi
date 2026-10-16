@@ -1189,11 +1189,14 @@ public class AssemblyPropertyService {
 
          XEmbeddedTable data = assembly.getEmbeddedData();
 
-         if(row < 0 || row > data.getRowCount()) {
+         int header = data.getHeaderRowCount();
+
+         if(row < header || row >= data.getRowCount()) {
             throw new IllegalArgumentException(
                "'dataInputPaneModel.rowValue' (" + row + ") is out of range for '" + tname +
                "', which has " + data.getRowCount() + " row(s) (0-indexed, header row " +
-               "included). StyleBI accepts an out-of-range rowValue with no error and the " +
+               "included): valid data rows are " + header + ".." + (data.getRowCount() - 1) +
+               "; rows below " + header + " are the header. StyleBI accepts an out-of-range rowValue with no error and the " +
                "input's value silently never reaches any cell, so this write would report " +
                "success and be a permanent no-op.");
          }
