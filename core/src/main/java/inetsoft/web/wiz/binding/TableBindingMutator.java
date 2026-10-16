@@ -132,7 +132,7 @@ public final class TableBindingMutator {
                                DataRefModelFactoryService refModelService)
       throws Exception
    {
-      setShelf(model, shelf, fields, null, rvs, source, refModelService);
+      setShelf(model, shelf, fields, null, null, rvs, source, refModelService);
    }
 
    /**
@@ -142,9 +142,16 @@ public final class TableBindingMutator {
     *                an untouched entry keeps its group as stored instead of being re-resolved
     *                from the placeholder name the read reported for it (bug #78362). {@code null}
     *                for an explicit replace, where an echo is inferred in {@link #dimensions}.
+    * @param carriedAggregates the same for the aggregates shelf, parallel to {@code fields}:
+    *                the shelf's own existing model for an entry this write leaves untouched,
+    *                {@code null} for the entry it adds, so a calculator, caption, N/P, percentage
+    *                or combo type stays with the occurrence the caller meant instead of with the
+    *                k-th identical measure of the edited list (bug #77025 R2). {@code null} for
+    *                an explicit replace, which keeps the occurrence rule in {@link #aggregates}.
     */
    private static void setShelf(BaseTableBindingModel model, String shelf, List<FieldRef> fields,
-                                List<BDimensionRefModel> carried, RuntimeViewsheet rvs,
+                                List<BDimensionRefModel> carried,
+                                List<BAggregateRefModel> carriedAggregates, RuntimeViewsheet rvs,
                                 SourceInfo source, DataRefModelFactoryService refModelService)
       throws Exception
    {
@@ -172,6 +179,8 @@ public final class TableBindingMutator {
             }
          }
          case "details" -> {
+            requireDistinctColumns(refs);
+
             // Captured before the overwrite, for the same reason as the arms around it: a header
             // alias (set_column_labels) and the other ColumnRefModel scalars live only on the
             // model, FieldRef carries none of them. Bug #77025 P4.
@@ -186,9 +195,14 @@ public final class TableBindingMutator {
             // this shelf (left unfixed by that fix -- see aggregates()'s own note).
             List<BAggregateRefModel> previous = model.getAggregates();
             List<BAggregateRefModel> before = previous == null ? List.of() : previous;
-            List<BAggregateRefModel> next = aggregates(refs, before, model, rvs, source);
+            List<BAggregateRefModel> next =
+               aggregates(refs, before, carriedAggregates, model, rvs, source);
             model.setAggregates(next);
             syncAggregateReferences(model, before, next);
+
+            if(carriedAggregates != null) {
+               clearDanglingAggregateReferences(model, before);
+            }
          }
       }
 
@@ -234,12 +248,18 @@ public final class TableBindingMutator {
 
       current.add(index, field);
       List<BDimensionRefModel> carried = carriedModels(model, name);
+      List<BAggregateRefModel> carriedAggregates = carriedAggregateModels(model, name);
 
       if(carried != null) {
          carried.add(index, null);
       }
 
-      setShelf(model, name, current, carried, rvs, sourceInfo, refModelService);
+      if(carriedAggregates != null) {
+         carriedAggregates.add(index, null);
+      }
+
+      setShelf(model, name, current, carried, carriedAggregates, rvs, sourceInfo,
+               refModelService);
    }
 
    public static void removeField(BaseTableBindingModel model, String shelf, String column) {
@@ -277,6 +297,7 @@ public final class TableBindingMutator {
       String name = requireShelf(model, shelf);
       List<FieldRef> current = new ArrayList<>(read(model, name));
       List<BDimensionRefModel> carried = carriedModels(model, name);
+      List<BAggregateRefModel> carriedAggregates = carriedAggregateModels(model, name);
       int at = locateOccurrence(current, name, column, index, "index");
 
       current.remove(at);
@@ -285,7 +306,12 @@ public final class TableBindingMutator {
          carried.remove(at);
       }
 
-      setShelf(model, name, current, carried, rvs, sourceInfo, refModelService);
+      if(carriedAggregates != null) {
+         carriedAggregates.remove(at);
+      }
+
+      setShelf(model, name, current, carried, carriedAggregates, rvs, sourceInfo,
+               refModelService);
    }
 
    /**
@@ -416,6 +442,7 @@ public final class TableBindingMutator {
       requireCompatible(to, field);
 
       List<BDimensionRefModel> sourceCarried = carriedModels(model, from);
+      List<BAggregateRefModel> sourceCarriedAggregates = carriedAggregateModels(model, from);
       BDimensionRefModel moved = null;
       Boolean movedSuppression = suppressionOf(model, from, original, at);
 
@@ -425,8 +452,13 @@ public final class TableBindingMutator {
          moved = sourceCarried.remove(at);
       }
 
+      if(sourceCarriedAggregates != null) {
+         sourceCarriedAggregates.remove(at);
+      }
+
       List<FieldRef> target = new ArrayList<>(read(model, to));
       List<BDimensionRefModel> targetCarried = carriedModels(model, to);
+      List<BAggregateRefModel> targetCarriedAggregates = carriedAggregateModels(model, to);
       int index = position == null ? target.size() : position;
 
       if(index < 0 || index > target.size()) {
@@ -443,6 +475,10 @@ public final class TableBindingMutator {
 
       target.add(index, field);
 
+      if(targetCarriedAggregates != null) {
+         targetCarriedAggregates.add(index, null);
+      }
+
       if(targetCarried != null) {
          // A dimension that stays a dimension carries its own model to the target shelf, with its
          // completed conditions, order and sort/ranking. Converting it to a measure, or a measure
@@ -450,8 +486,10 @@ public final class TableBindingMutator {
          targetCarried.add(index, field == original ? moved : null);
       }
 
-      setShelf(model, from, source, sourceCarried, rvs, sourceInfo, refModelService);
-      setShelf(model, to, target, targetCarried, rvs, sourceInfo, refModelService);
+      setShelf(model, from, source, sourceCarried, sourceCarriedAggregates, rvs, sourceInfo,
+               refModelService);
+      setShelf(model, to, target, targetCarried, targetCarriedAggregates, rvs, sourceInfo,
+               refModelService);
 
       // suppressGroupTotal is keyed "<column>:<shelf><index>", so it does not travel with the
       // field: setShelf(from) prunes the old key and setShelf(to) has no previous entry to rekey
@@ -507,6 +545,18 @@ public final class TableBindingMutator {
          case "rows", "cols", "groups" -> new ArrayList<>(dimensionsOf(model, shelf));
          default -> null;
       };
+   }
+
+   /** The aggregates shelf's own models, for {@link #setShelf}'s {@code carriedAggregates}. */
+   private static List<BAggregateRefModel> carriedAggregateModels(BaseTableBindingModel model,
+                                                                  String shelf)
+   {
+      if(!"aggregates".equals(shelf)) {
+         return null;
+      }
+
+      List<BAggregateRefModel> current = model.getAggregates();
+      return current == null ? new ArrayList<>() : new ArrayList<>(current);
    }
 
    /** What a shelf currently holds, in the shared vocabulary. */
@@ -612,14 +662,14 @@ public final class TableBindingMutator {
     * @param previous the shelf's own {@code BDimensionRefModel} list before this write, so a
     *                 field that is unchanged keeps its sort/ranking instead of resetting to
     *                 {@code BDimensionRefModel}'s class defaults on every write (VTB-004).
-    *                 Matched by <b>same absolute index + same column (case-insensitive) + same
-    *                 date level</b> -- the same position-keyed identity {@link #requireDimension}
-    *                 and {@code pruneOrphanedSuppression} already use to disambiguate a column
-    *                 bound twice on one shelf, not a content-only key. This deliberately does
-    *                 NOT survive an insert/remove of a different field earlier on the shelf
-    *                 shifting a later, untouched field's index -- that field's sort/ranking is
-    *                 not preserved in that case when the caller replaces the shelf wholesale
-    *                 ({@code set_table_fields}); add/remove/move pass {@code carried} instead.
+    *                 Matched by <b>same column (case-insensitive) + same date level + k-th
+    *                 occurrence of that pair</b> -- the identity {@link #details} and {@link
+    *                 #rekeySuppression} already use -- not by absolute index, so a wholesale
+    *                 reorder, or an insert ahead of an untouched field, keeps that field's
+    *                 sort/ranking/Top-N/others, as the UI's drag (which moves the ref object)
+    *                 does. A different column, or the same column at a different date level,
+    *                 at a position still gets a fresh ref: nothing bleeds onto an unrelated
+    *                 field (bug #77025 R1). add/remove/move pass {@code carried} instead.
     *
     *                 <p>The one exception to "a write that names no group clears it" is an
     *                 <b>echo</b>: an {@code ExpertNamedGroupInfo} is read as the placeholder
@@ -683,9 +733,8 @@ public final class TableBindingMutator {
             ref = copyOf(echoed, false);
          }
          else {
-            BDimensionRefModel match =
-               i < previous.size() && !consumed[i] ? previous.get(i) : null;
-            ref = matches(match, field) ? copyOf(match, false) : new BDimensionRefModel();
+            int at = previousOccurrence(previous, consumed, fields, i);
+            ref = at >= 0 ? copyOf(previous.get(at), false) : new BDimensionRefModel();
          }
 
          ref.setName(field.column());
@@ -748,6 +797,37 @@ public final class TableBindingMutator {
       }
 
       return out;
+   }
+
+   /**
+    * The position in {@code previous} of the dimension that is the same occurrence as {@code
+    * fields.get(index)}: same column and date level, and the same k-th duplicate of that pair
+    * among the entries not already consumed; -1 when the field is new (bug #77025 R1).
+    */
+   private static int previousOccurrence(List<BDimensionRefModel> previous, boolean[] consumed,
+                                         List<FieldRef> fields, int index)
+   {
+      FieldRef field = fields.get(index);
+      int occurrence = 0;
+
+      for(int i = 0; i < index; i++) {
+         FieldRef earlier = fields.get(i);
+
+         if(earlier.column() != null && earlier.column().equalsIgnoreCase(field.column()) &&
+            Objects.equals(DateLevels.normalize(earlier.dateLevel()),
+                           DateLevels.normalize(field.dateLevel())))
+         {
+            occurrence++;
+         }
+      }
+
+      for(int j = 0; j < previous.size(); j++) {
+         if(!consumed[j] && matches(previous.get(j), field) && occurrence-- == 0) {
+            return j;
+         }
+      }
+
+      return -1;
    }
 
    /** Whether {@code previous} holds an expert group that the read reports as {@code name}. */
@@ -838,9 +918,17 @@ public final class TableBindingMutator {
     *                 incoming field's own is {@code null}; an incoming field that supplies its
     *                 own always overrides it, exactly as the pre-existing {@code if(field
     *                 .calculateInfo() != null)} branch already did before this fix.
+    * @param carried  parallel to {@code fields} for an add/remove/move: the shelf's own model for
+    *                 an entry the write leaves untouched, {@code null} for the entry it adds, so
+    *                 the state stays with the occurrence the caller meant (bug #77025 R2). {@code
+    *                 null} for a wholesale replace, which keeps the (column, formula, k-th
+    *                 occurrence) rule above: FieldRef cannot tell two identical measures apart,
+    *                 and its {@code calculateInfo == null} means "unchanged", so a replace of
+    *                 {@code [calc, plain]} by {@code [plain]} keeps the calculator.
     */
    private static List<BAggregateRefModel> aggregates(List<FieldRef> fields,
                                                        List<BAggregateRefModel> previous,
+                                                       List<BAggregateRefModel> carried,
                                                        BaseTableBindingModel model,
                                                        RuntimeViewsheet rvs, SourceInfo source)
    {
@@ -867,7 +955,12 @@ public final class TableBindingMutator {
 
          // Matched by (column, formula, k-th occurrence), not by absolute index, so an add/remove
          // that shifts the aggregate still finds its own previous state (bug #77025 P3).
-         BAggregateRefModel match = previousOccurrence(previous, fields, i);
+         // An add/remove/move names exactly which entry is new, so the carried list decides and
+         // no occurrence is guessed on the already-edited list (bug #77025 R2); only a wholesale
+         // replace has no identity to go by.
+         BAggregateRefModel match = carried != null
+            ? (i < carried.size() ? carried.get(i) : null)
+            : previousOccurrence(previous, fields, i);
 
          if(match != null) {
             // FieldRef has no slot for any of these, so an untouched aggregate must keep them
@@ -1319,6 +1412,121 @@ public final class TableBindingMutator {
 
    private static boolean blank(String value) {
       return value == null || value.isBlank();
+   }
+
+   /**
+    * A Table's details shelf binds each column once: the table's column selection is keyed by
+    * name and drops a second copy (bug #77025 R3), which used to read back as a success with one
+    * copy missing. Refused here, for every write path, rather than silently de-duplicated. The
+    * native UI moves an already-present column on drop; this plugin refuses instead because a
+    * position on an add has no unambiguous move reading, and a refusal is loud. Case-insensitive,
+    * since a differently-cased copy was dropped too.
+    */
+   private static void requireDistinctColumns(List<FieldRef> fields) {
+      Map<String, Integer> first = new HashMap<>();
+
+      for(int i = 0; i < fields.size(); i++) {
+         String column = fields.get(i).column();
+
+         if(column == null) {
+            continue;
+         }
+
+         Integer at = first.putIfAbsent(column.toLowerCase(), i);
+
+         if(at != null) {
+            throw new IllegalArgumentException(
+               "'" + column + "' is already on the details shelf at position " + at + ", and a " +
+               "Table binds each column once, so it cannot be bound a second time (position " +
+               i + "). To reorder the details shelf, use set_table_fields with the columns in " +
+               "the order you want.");
+         }
+      }
+   }
+
+   /**
+    * After an aggregate is removed or converted away, a dimension whose by-value sort or ranking
+    * named it would keep a reference no aggregate answers to, and the sort silently falls back to
+    * label order (bug #77025 R2). Cleared back to ascending / no ranking instead -- the same
+    * values {@code DimensionSortRanking} writes for those requests -- but only a reference that
+    * was valid against {@code before} and is not any more, so a reference that was already
+    * unresolvable, or one still answered by a remaining aggregate, is left alone.
+    */
+   public static void clearDanglingAggregateReferences(BaseTableBindingModel model,
+                                                       List<BAggregateRefModel> before)
+   {
+      if(before == null || before.isEmpty()) {
+         return;
+      }
+
+      List<FieldRef> was = new ArrayList<>();
+      List<FieldRef> now = new ArrayList<>();
+
+      for(BAggregateRefModel agg : before) {
+         was.add(FieldRefFactory.from(agg));
+      }
+
+      if(model.getAggregates() != null) {
+         for(BAggregateRefModel agg : model.getAggregates()) {
+            now.add(FieldRefFactory.from(agg));
+         }
+      }
+
+      for(String shelf : shelvesOf(model)) {
+         if("aggregates".equals(shelf) || "details".equals(shelf)) {
+            continue;
+         }
+
+         for(BDimensionRefModel dim : dimensionsOf(model, shelf)) {
+            if(vanished(dim.getSortByCol(), was, now)) {
+               DimensionSortRanking.applySort(dim, new DimensionSortRanking.Sort("asc", null, null));
+               dim.setSortByColAgg(null);
+            }
+
+            if(vanished(dim.getRankingCol(), was, now)) {
+               DimensionSortRanking.applyRanking(
+                  dim, new DimensionSortRanking.Ranking("none", null, null, null));
+               dim.setRankingAgg(null);
+            }
+         }
+      }
+   }
+
+   private static boolean vanished(String measure, List<FieldRef> was, List<FieldRef> now) {
+      return !blank(measure) && !isVariableValue(measure) && isBoundMeasure(measure, was) &&
+         !isBoundMeasure(measure, now);
+   }
+
+   /** Whether {@code measure} names one of {@code aggregates}, in any shape requireKnownMeasure accepts. */
+   private static boolean isBoundMeasure(String measure, List<FieldRef> aggregates) {
+      for(FieldRef field : aggregates) {
+         if(field.column() == null) {
+            continue;
+         }
+
+         if(field.column().equalsIgnoreCase(measure)) {
+            return true;
+         }
+
+         if(field.aggregate() != null) {
+            String full = field.aggregate() + "(" + field.column() + ")";
+
+            if(full.equalsIgnoreCase(measure)) {
+               return true;
+            }
+
+            String prefix = field.aggregate() + "(" + field.column() + ",";
+
+            if(MULTI_ARG_FORMULA_NAMES.contains(field.aggregate().toLowerCase()) &&
+               measure.regionMatches(true, 0, prefix, 0, prefix.length()) &&
+               measure.trim().endsWith(")"))
+            {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**

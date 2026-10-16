@@ -42,6 +42,7 @@ import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
 import inetsoft.web.binding.handler.ClearTableHeaderAliasHandler;
 import inetsoft.web.binding.handler.SetTableHeaderAliasHandler;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.SourceInfo;
 import inetsoft.web.binding.model.BindingModel;
@@ -331,6 +332,8 @@ public class TableBindingService {
       }
 
       List<String> availableColumns = columnsOf(model, table);
+      List<BAggregateRefModel> aggregatesBefore = model.getAggregates() == null
+         ? List.of() : new ArrayList<>(model.getAggregates());
 
       for(String shelf : TableBindingMutator.shelvesOf(model)) {
          List<FieldRef> bound = TableBindingMutator.read(model, shelf);
@@ -350,6 +353,10 @@ public class TableBindingService {
             TableBindingMutator.setShelf(model, shelf, stillResolves);
          }
       }
+
+      // A kept dimension's by-value sort/ranking now survives the discard (bug #77025 R1), so one
+      // that named an aggregate this repoint discarded must not be left pointing at it.
+      TableBindingMutator.clearDanglingAggregateReferences(model, aggregatesBefore);
    }
 
    /**
