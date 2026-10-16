@@ -569,11 +569,12 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      List<String> applied = tableService.setCrosstabColumnVisibility(
+      TableBindingService.TableWrite write = tableService.setCrosstabColumnVisibility(
          sessionToken, user, request.assembly(), request.columns(), request.entries(),
          request.visible());
       Map<String, Object> out = new LinkedHashMap<>();
-      out.put("applied", applied);
+      out.put("applied", write.applied());
+      ViewsheetSessionService.relayWarnings(out, write.warnings());
 
       return out;
    }
@@ -728,10 +729,11 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      List<String> applied = tableService.setColumnLabels(
+      TableBindingService.TableWrite write = tableService.setColumnLabels(
          sessionToken, user, request.assembly(), request.labels(), request.entries());
       Map<String, Object> out = new LinkedHashMap<>();
-      out.put("applied", applied);
+      out.put("applied", write.applied());
+      ViewsheetSessionService.relayWarnings(out, write.warnings());
 
       return out;
    }
@@ -756,10 +758,11 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      List<String> applied = tableService.setColumnWidths(
+      TableBindingService.TableWrite write = tableService.setColumnWidths(
          sessionToken, user, request.assembly(), request.widths());
       Map<String, Object> out = new LinkedHashMap<>();
-      out.put("applied", applied);
+      out.put("applied", write.applied());
+      ViewsheetSessionService.relayWarnings(out, write.warnings());
 
       return out;
    }

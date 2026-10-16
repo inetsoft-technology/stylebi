@@ -23,6 +23,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSDimensionRef;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -120,8 +121,8 @@ public class AssemblyHighlightService {
    public Map<String, Object> list(String sessionToken, Principal user, String assemblyName,
                                    Region region) throws Exception
    {
-      HighlightDialogModel model = read(sessions.resolve(sessionToken, user).getID(),
-                                       assemblyName, region, user);
+      HighlightDialogModel model = read(sessions.resolve(sessionToken, user), assemblyName,
+                                       region, user);
 
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
@@ -161,7 +162,7 @@ public class AssemblyHighlightService {
       List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireHighlightRenderable(rvs, assemblyName);
          requireChartRegionDrawn(rvs, assemblyName, region);
-         HighlightDialogModel model = read(runtimeId, assemblyName, region, user);
+         HighlightDialogModel model = read(rvs, assemblyName, region, user);
 
          if(model == null) {
             throw new IllegalArgumentException(
@@ -288,16 +289,21 @@ public class AssemblyHighlightService {
       }
    }
 
-   /** Removes one highlight by name. Removing one that is not there is an error, not a no-op. */
-   public void delete(String sessionToken, Principal user, String assemblyName, Region region,
+   /**
+    * Removes one highlight by name. Removing one that is not there is an error, not a no-op.
+    *
+    * @return the warnings {@code sessions.mutate} captured while the table re-ran, empty when
+    *         clean.
+    */
+   public List<String> delete(String sessionToken, Principal user, String assemblyName, Region region,
                       String name, String linkUri) throws Exception
    {
       if(name == null || name.isBlank()) {
          throw new IllegalArgumentException("delete_highlight needs the highlight's 'name'.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         HighlightDialogModel model = read(runtimeId, assemblyName, region, user);
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         HighlightDialogModel model = read(rvs, assemblyName, region, user);
          HighlightModel[] existing = model == null || model.getHighlights() == null
             ? new HighlightModel[0] : model.getHighlights();
          List<HighlightModel> kept = new ArrayList<>();
@@ -325,6 +331,8 @@ public class AssemblyHighlightService {
          highlightService.setHighlightDialogModel(runtimeId, assemblyName, model, linkUri, user,
                                                  dispatcher);
       });
+
+      return warnings == null ? List.of() : warnings;
    }
 
    // ── conversions ───────────────────────────────────────────────────────────
@@ -429,9 +437,11 @@ public class AssemblyHighlightService {
       }
    }
 
-   private HighlightDialogModel read(String runtimeId, String assemblyName, Region region,
+   private HighlightDialogModel read(RuntimeViewsheet rvs, String assemblyName, Region region,
                                      Principal user) throws Exception
    {
+      String runtimeId = rvs.getID();
+      requireTableRendered(rvs, assemblyName);
       Region target = region == null ? Region.whole() : region;
       HighlightDialogModel model = readAt(runtimeId, assemblyName, target, user);
 
@@ -473,6 +483,25 @@ public class AssemblyHighlightService {
    /** Whether {@code cell} falls inside the assembly's own reported header extent. */
    private static boolean isHeaderCell(Region cell, Region firstDataCell) {
       return cell.row() < firstDataCell.row() || cell.col() < firstDataCell.col();
+   }
+
+   /**
+    * A highlight on a table is stored per rendered cell, and {@code HighlightDialogService}
+    * dereferences the table's lens unguarded, so a table that did not render surfaced as an NPE
+    * (a masked 500). Refuse it by name instead, for a script failure on the first read and for
+    * the cached failed load alike.
+    */
+   private static void requireTableRendered(RuntimeViewsheet rvs, String assemblyName)
+      throws Exception
+   {
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(assembly instanceof TableDataVSAssembly && rvs.getViewsheetSandbox().isPresent()) {
+         TableLensGuard.requireRenderedLens(
+            rvs, assembly, assemblyName, "its highlights cannot be addressed (they are stored " +
+            "per rendered cell)");
+      }
    }
 
    /**

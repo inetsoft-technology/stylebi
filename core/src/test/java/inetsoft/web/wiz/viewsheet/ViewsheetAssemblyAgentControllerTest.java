@@ -962,6 +962,32 @@ class ViewsheetAssemblyAgentControllerTest {
                                    any(), eq(false), eq(""));
    }
 
+   /** Bug #78406: delete relays the warnings mutate captured, like set; clean stays an empty 200. */
+   @Test
+   void deleteHighlightRelaysTheCapturedWarnings() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.delete(any(), any(), any(), any(), any(), any()))
+         .thenReturn(List.of("script failed"));
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Table1", null, null, null, null, null, "Old", null, null, null, List.of(), false, false);
+
+      assertEquals(java.util.Map.of("warnings", List.of("script failed")),
+                   controller.deleteHighlight("tok", request, "", principal()));
+   }
+
+   @Test
+   void deleteHighlightIsAnEmptyBodyWhenNothingWarned() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.delete(any(), any(), any(), any(), any(), any()))
+         .thenReturn(List.of());
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Table1", null, null, null, null, null, "Old", null, null, null, List.of(), false, false);
+
+      assertNull(controller.deleteHighlight("tok", request, "", principal()));
+   }
+
    @Test
    void setHighlightPassesARealRegionWhenALocationWasNamed() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);

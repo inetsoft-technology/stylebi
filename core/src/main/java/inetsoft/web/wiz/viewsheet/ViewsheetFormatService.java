@@ -1917,7 +1917,7 @@ public class ViewsheetFormatService {
          return new TableDataPath[0];
       }
 
-      VSTableLens lens = box.get().getVSTableLens(name, false);
+      VSTableLens lens = TableLensGuard.lensOrNull(box.get(), name, false);
 
       if(lens == null) {
          return new TableDataPath[0];
@@ -2020,7 +2020,7 @@ public class ViewsheetFormatService {
          return new TableDataPath[0];
       }
 
-      VSTableLens lens = box.get().getVSTableLens(name, false);
+      VSTableLens lens = TableLensGuard.lensOrNull(box.get(), name, false);
 
       if(lens == null) {
          return new TableDataPath[0];

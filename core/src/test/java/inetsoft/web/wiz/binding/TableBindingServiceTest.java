@@ -276,7 +276,7 @@ class TableBindingServiceTest {
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       List<String> applied = serviceWith(sessionsFor(assembly), existing, bindings)
          .setColumnLabels("tok", principal(), "Table1",
-                          Map.of("REGION", "Sales Region"), null);
+                          Map.of("REGION", "Sales Region"), null).applied();
 
       verify(assembly).setFormatInfo(rekeyed.capture());
       inetsoft.report.TableDataPath newPath = new inetsoft.report.TableDataPath(
@@ -403,7 +403,7 @@ class TableBindingServiceTest {
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       List<String> applied = serviceWith(sessions, existing, bindings)
          .setColumnLabels("tok", principal(), "Crosstab1",
-                          Map.of("Region", "Sales Region"), null);
+                          Map.of("Region", "Sales Region"), null).applied();
 
       inetsoft.uql.viewsheet.VSCompositeFormat written = formatInfo.getFormat(headerPath);
       assertNotNull(written, "a format must land at the resolved header TableDataPath");
@@ -496,7 +496,7 @@ class TableBindingServiceTest {
 
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       List<String> applied = serviceWith(sessions, existing, bindings)
-         .setColumnLabels("tok", principal(), "CT1", Map.of("Paid", "Revenue"), null);
+         .setColumnLabels("tok", principal(), "CT1", Map.of("Paid", "Revenue"), null).applied();
 
       inetsoft.uql.viewsheet.VSCompositeFormat written = formatInfo.getFormat(aggPath);
       assertNotNull(written,
@@ -529,7 +529,7 @@ class TableBindingServiceTest {
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       List<String> applied = serviceWith(sessionsWithLens(assembly, "Table1", lens),
                                          existing, bindings)
-         .setColumnWidths("tok", principal(), "Table1", Map.of("Region", 120.0));
+         .setColumnWidths("tok", principal(), "Table1", Map.of("Region", 120.0)).applied();
 
       verify(info).setColumnWidthValue2(0, 120.0, lens);
       verify(info).setExplicitTableWidthValue(true);
@@ -556,7 +556,7 @@ class TableBindingServiceTest {
       List<String> applied = serviceWith(sessionsWithLens(assembly, "Table1", lens),
                                          existing, bindings)
          .setColumnWidths("tok", principal(), "Table1",
-                          java.util.Collections.singletonMap("Region", null));
+                          java.util.Collections.singletonMap("Region", null)).applied();
 
       verify(info).setColumnWidthValue(0, Double.NaN);
       assertEquals(List.of("Region -> auto"), applied);
@@ -677,7 +677,7 @@ class TableBindingServiceTest {
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       List<String> applied = serviceWith(sessionsWithLens(assembly, "CT1", lens),
                                          existing, bindings)
-         .setColumnWidths("tok", principal(), "CT1", Map.of("SALES_REP_NAME", 150.0));
+         .setColumnWidths("tok", principal(), "CT1", Map.of("SALES_REP_NAME", 150.0)).applied();
 
       verify(info).setColumnWidthValue2(0, 150.0, lens);
       assertEquals(List.of("SALES_REP_NAME -> 150px"), applied);
@@ -723,7 +723,7 @@ class TableBindingServiceTest {
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       List<String> applied = serviceWith(sessionsWithLens(assembly, "CT1", lens),
                                          existing, bindings)
-         .setColumnWidths("tok", principal(), "CT1", Map.of("Sum(Paid)", 90.0));
+         .setColumnWidths("tok", principal(), "CT1", Map.of("Sum(Paid)", 90.0)).applied();
 
       verify(info).setColumnWidthValue2(0, 90.0, lens);
       assertEquals(List.of("Sum(Paid) -> 90px"), applied);
@@ -800,7 +800,7 @@ class TableBindingServiceTest {
 
       List<String> applied = serviceWith(sessionsWithLens(assembly, "CT1", lens),
                                          existing, mock(VSBindingModelService.class))
-         .setColumnWidths("tok", principal(), "CT1", Map.of("Sum(Sales)", 90.0));
+         .setColumnWidths("tok", principal(), "CT1", Map.of("Sum(Sales)", 90.0)).applied();
 
       verify(info).setColumnWidthValue2(0, 90.0, lens);
       assertEquals(List.of("Sum(Sales) -> 90px"), applied);
@@ -1451,7 +1451,7 @@ class TableBindingServiceTest {
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       List<String> applied = serviceWith(sessions, existing, bindings)
          .setCrosstabColumnVisibility(
-            "tok", principal(), "Crosstab1", List.of("State"), null, false);
+            "tok", principal(), "Crosstab1", List.of("State"), null, false).applied();
 
       assertTrue(tableInfo.isColumnHidden(1, lens), "the resolved column (lens index 1) must be hidden");
       assertFalse(tableInfo.isColumnHidden(0, lens), "an untouched sibling column must stay visible");
@@ -1483,7 +1483,7 @@ class TableBindingServiceTest {
 
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       List<String> applied = harness(assembly, new CrosstabBindingModel(), bindings)
-         .setCrosstabColumnVisibility("tok", principal(), "Crosstab1", null, null, true);
+         .setCrosstabColumnVisibility("tok", principal(), "Crosstab1", null, null, true).applied();
 
       assertFalse(tableInfo.hasHiddenColumn());
       assertEquals(List.of("shown every hidden column"), applied);
