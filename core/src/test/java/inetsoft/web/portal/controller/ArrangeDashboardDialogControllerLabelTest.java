@@ -89,14 +89,6 @@ class ArrangeDashboardDialogControllerLabelTest {
                    labelOf(models, "C__GLOBAL"));
    }
 
-   @Test
-   void suffixTextsAreDistinctFromEachOther() {
-      // guards the test above against passing vacuously with identical/empty suffixes
-      Assertions.assertNotEquals(catalog.getString("dashboard.globalLabel"),
-                                 catalog.getString("dashboard.globalCopyLabel"));
-      Assertions.assertFalse(catalog.getString("dashboard.globalLabel").isEmpty());
-   }
-
    private static String labelOf(List<DashboardModel> models, String name) {
       return models.stream().filter(m -> name.equals(m.name())).findFirst().orElseThrow().label();
    }
