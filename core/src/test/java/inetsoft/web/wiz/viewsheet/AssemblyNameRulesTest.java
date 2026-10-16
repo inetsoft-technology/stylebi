@@ -41,7 +41,7 @@ class AssemblyNameRulesTest {
    @Test
    void rejectsNamesTheComposerRejects() {
       String[] invalid = {
-         "a/b", "a.b", "a\b", "a\"b", "a(b)", "a:b", "a;b", "a<b", "a|b", "a[b", "a\tb",
+         "a/b", "a.b", "a\\b", "a\bb","a\"b", "a(b)", "a:b", "a;b", "a<b", "a|b", "a[b", "a\tb",
          "1Chart", "9", "'q'", "''", "'", "   ", " ", "", "abc\n", "abc\n\n", "name：",
          "name？"
       };

@@ -164,24 +164,27 @@ public class VSObjectPropertyService {
          return false;
       }
 
-      if(!Tool.equals(oldName, newName) && AssemblyNameRules.violation(newName) != null) {
-         // Same rule as the Composer name field; refused before any mutation, as ERROR so wiz
-         // callers do not report the refused rename as a success.
-         this.coreLifecycleService.sendMessage(
-            Catalog.getCatalog().getString("common.renameViewsheetFailed", oldName) +
-            " \"" + newName + "\" is not a valid assembly name (" +
-            AssemblyNameRules.violation(newName) + "). " + AssemblyNameRules.RULE_TEXT,
-            MessageCommand.Type.ERROR, commandDispatcher);
-         return false;
-      }
-
       if(!Tool.equals(oldName, newName)) {
          // the new name replaces the source of the assemblies bound to this one, and a cube
          // table name would be resolved from its data source (Bug #77427). It is checked
          // before anything is changed, so a refused rename leaves the viewsheet as it was
          // (Bug #77462)
          queryManagerService.checkCubeTableReadPermission(newName, user);
-         String id = vs.getViewsheetInfo().getFilterID(oldName);
+         String nameViolation = AssemblyNameRules.violation(newName);
+
+         if(nameViolation != null) {
+            // Same rule as the Composer name field. After the permission check so a denied cube
+            // name is still refused as a SecurityException; before any mutation. ERROR so wiz
+            // callers do not report the refused rename as a success.
+            this.coreLifecycleService.sendMessage(
+               Catalog.getCatalog().getString("common.renameViewsheetFailed", oldName) +
+               " \"" + newName + "\" is not a valid assembly name (" + nameViolation + "). " +
+               AssemblyNameRules.RULE_TEXT,
+               MessageCommand.Type.ERROR, commandDispatcher);
+            return false;
+         }
+
+         String id =vs.getViewsheetInfo().getFilterID(oldName);
          vs.getViewsheetInfo().setFilterID(oldName, null);
          vs.getViewsheetInfo().setFilterID(newName, id);
       }
