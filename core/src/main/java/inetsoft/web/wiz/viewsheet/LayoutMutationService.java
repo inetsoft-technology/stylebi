@@ -207,10 +207,17 @@ public class LayoutMutationService {
             "layout's name.");
       }
 
+      // Bug 78704: the plugin always passes CONTENT, but a table placed in the print layout's
+      // HEADER/FOOTER by a person is only reachable through resolveRegion (as move_resize/remove).
+      resolveRegion(requireLayout(master, layoutName), objectName, region, layoutName,
+                    NOT_PLACED_ADD_FIRST);
+
       layoutSessions.mutateLayout(sessionToken, agent, layoutName,
          (clone, mutMaster, cloneRuntimeId, dispatcher) -> {
             AbstractLayout layout = requireLayout(mutMaster, layoutName);
-            VSAssemblyLayout assemblyLayout = requireAssemblyLayout(layout, objectName, region,
+            int resolved = resolveRegion(layout, objectName, region, layoutName,
+                                         NOT_PLACED_ADD_FIRST);
+            VSAssemblyLayout assemblyLayout = requireAssemblyLayout(layout, objectName, resolved,
                                                                      layoutName);
             assemblyLayout.setTableLayout(tableLayout);
          });
@@ -601,6 +608,9 @@ public class LayoutMutationService {
       throw new IllegalArgumentException(
          "\"" + name + "\" is not placed in layout \"" + layoutName + "\" -- " + notPlacedTail);
    }
+
+   private static final String NOT_PLACED_ADD_FIRST =
+      "add it first with edit_layout_objects (op: \"add\").";
 
    private VSAssemblyLayout requireAssemblyLayout(AbstractLayout layout, String objectName,
                                                    int region, String layoutName)
