@@ -155,9 +155,9 @@ public class ClusterChangePlanService {
       if(!clusterService.getClusterEnabled().pauseEnabled()) {
          throw new IllegalArgumentException(
             "cluster.pause.enabled is not \"true\" for this deployment -- pause/resume is refused for " +
-            "both verbs, mirroring the EM UI, which hides both the Pause and Resume buttons when this " +
-            "property is off (01-spec.md item 10). stylebi#76342 remains open at the product/raw-" +
-            "endpoint layer; this area closes the gap only for its own admin-chat path.");
+            "both verbs. The server itself refuses pause and resume while this property is off, and " +
+            "the EM Monitoring > Cluster page hides both the Pause and Resume buttons. Set " +
+            "cluster.pause.enabled to true to allow them.");
       }
    }
 

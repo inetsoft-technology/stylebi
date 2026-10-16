@@ -26,7 +26,8 @@ package inetsoft.web.admin.ai.cluster;
  * @param property the server name (matches {@code PlanChange.property()}).
  * @param before   the status label read at plan-resolve time.
  * @param after    the status label read back fresh, immediately after the pause/resume call -- the
- *                 direct fix for {@code stylebi#76343} (the raw endpoint discards this signal today).
+ *                 direct check of the node's resulting status, which the per-server boolean of
+ *                 {@code ClusterService.pauseServers}/{@code resumeServers} does not report.
  *                 {@code null} when the attempt threw before a read-back could be taken.
  * @param status   {@code "verified"} when {@code after} matches the plan's proposed state,
  *                 {@code "failed"} otherwise (including the pre-existing silent-failure case: the

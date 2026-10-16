@@ -148,6 +148,11 @@ class ClusterChangePlanServiceTest {
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("task", List.of(pause("s1")))));
       assertTrue(ex.getMessage().contains("cluster.pause.enabled"));
+      // Bug #78676: #76342 is fixed, so the message must say the server refuses too, and must not
+      // claim the raw endpoint is still ungated or leak internal spec references
+      assertTrue(ex.getMessage().contains("server itself refuses"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("76342"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("01-spec.md"), ex.getMessage());
    }
 
    @Test void resolveThrowsWhenPauseDisabledForResumeVerbToo() {

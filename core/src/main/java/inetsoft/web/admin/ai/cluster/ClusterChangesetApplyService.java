@@ -172,7 +172,8 @@ public class ClusterChangesetApplyService {
       }
 
       // Read back, with a short bounded retry/poll -- the direct fix for stylebi#76343, since
-      // pauseServers/resumeServers themselves are void and discard the per-server signal entirely.
+      // pauseServers/resumeServers report only whether each node answered the request, not its
+      // resulting status.
       // A SINGLE immediate read is not safe here (07-review-r1.md section 3): the target node sends
       // its completion reply, which is what pauseServers/resumeServers' own message round-trip
       // blocks on, BEFORE its own status-map write lands -- ServerClusterClient.setClusterNodeStatus
@@ -187,9 +188,7 @@ public class ClusterChangesetApplyService {
       String error = verified ? null :
          "read-back status \"" + afterLabel + "\" does not match the proposed state \"" +
          change.proposedValue() + "\" after retrying past the status-map write debounce window -- " +
-         "the server may be unreachable, or the pause/resume message did not complete " +
-         "(stylebi#76343: the raw endpoint discards this signal, this area's own read-back is the " +
-         "fix)";
+         "the server may be unreachable, or the pause/resume message did not complete";
       results.add(new ClusterApplyOutcome(server, before, afterLabel, status, error));
       writeAudit(txId, task, server, before, afterLabel, status, reviewOutcome, user);
    }
