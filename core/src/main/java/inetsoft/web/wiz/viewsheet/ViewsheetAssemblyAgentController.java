@@ -2608,7 +2608,7 @@ public class ViewsheetAssemblyAgentController {
          // bound to the old table/column and look clean. Reload it from the healed storage.
          if(renamesApplied) {
             try {
-               if(StaleViewsheetReloader.reload(rvs, viewsheetService.getAssetRepository())) {
+               if(StaleViewsheetReloader.reload(rvs, viewsheetService.getAssetRepository(), false)) {
                   result.put("reloaded", true);
                   result.put("message", "Viewsheet saved; renamed table/column bindings were " +
                      "applied and the open viewsheet was reloaded from the saved copy (undo " +

@@ -77,6 +77,16 @@ public final class StaleViewsheetReloader {
     *         once reloaded.
     */
    public static boolean reload(RuntimeViewsheet rvs, AssetRepository repository) throws Exception {
+      return reload(rvs, repository, true);
+   }
+
+   /**
+    * @param checkLayouts {@code false} skips the layout comparison, for a runtime that was just
+    *                     saved (its storage is by definition its own content)
+    */
+   public static boolean reload(RuntimeViewsheet rvs, AssetRepository repository,
+                                boolean checkLayouts) throws Exception
+   {
       AssetEntry entry = rvs.getEntry();
       Principal user = rvs.getUser();
       AbstractSheet stored = repository.getSheet(entry, user, false, AssetContent.ALL);
@@ -87,7 +97,7 @@ public final class StaleViewsheetReloader {
 
       Viewsheet vs = (Viewsheet) stored.clone();
 
-      if(!layoutXml(rvs.getViewsheet()).equals(layoutXml(vs))) {
+      if(checkLayouts && !layoutXml(rvs.getViewsheet()).equals(layoutXml(vs))) {
          return false;
       }
 
@@ -114,6 +124,9 @@ public final class StaleViewsheetReloader {
          box.ifPresent(ViewsheetSandbox::unlockWrite);
       }
 
+      // resetRuntime can add a checkpoint of its own while the sandbox is re-initialized; restart
+      // the history once more (monitor only, not nested) so only the loaded sheet remains
+      rvs.resetCheckpoints(vs.prepareCheckpoint());
       return true;
    }
 

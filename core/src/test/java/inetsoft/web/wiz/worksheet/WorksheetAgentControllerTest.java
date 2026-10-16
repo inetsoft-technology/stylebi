@@ -11733,7 +11733,7 @@ class WorksheetAgentControllerTest {
       verify(c.rvs).setViewsheet(any(Viewsheet.class));
       verify(c.rvs).resetRuntime();
       // undo/redo history restarts from the reloaded sheet, so undo cannot restore the stale one
-      verify(c.rvs).resetCheckpoints(any());
+      verify(c.rvs, times(2)).resetCheckpoints(any());
       // layout undo stack restarts too, and the write revision moves so a stale dialog is refused
       verify(c.rvs).resetLayoutUndoRedo();
       verify(c.rvs).bumpWriteRevision();

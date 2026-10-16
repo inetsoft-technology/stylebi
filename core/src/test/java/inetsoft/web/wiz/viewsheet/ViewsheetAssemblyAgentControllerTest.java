@@ -2065,6 +2065,51 @@ class ViewsheetAssemblyAgentControllerTest {
       assertTrue(result.get("message").toString().contains("reloaded"));
    }
 
+   /** R3-1: a just-saved runtime reloads even if its layouts compare unequal to the stored copy. */
+   @Test
+   void saveReloadsEvenWhenLayoutsCompareUnequal78662() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetEntry savedEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Existing VS", null);
+      inetsoft.uql.viewsheet.Viewsheet runtimeVs = mock(inetsoft.uql.viewsheet.Viewsheet.class);
+      inetsoft.uql.viewsheet.vslayout.LayoutInfo layouts =
+         new inetsoft.uql.viewsheet.vslayout.LayoutInfo();
+      layouts.setPrintLayout(new inetsoft.uql.viewsheet.vslayout.PrintLayout());
+      when(runtimeVs.getLayoutInfo()).thenReturn(layouts);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(runtimeVs);
+      when(rvs.getEntry()).thenReturn(savedEntry);
+      when(rvs.getCurrent()).thenReturn(2);
+      when(rvs.getID()).thenReturn("rt-vs-78662d");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      inetsoft.analytic.composition.ViewsheetService viewsheetService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(viewsheetService.needRenameDep("rt-vs-78662d")).thenReturn(true);
+      AssetRepository repo = mock(AssetRepository.class);
+      when(viewsheetService.getAssetRepository()).thenReturn(repo);
+      inetsoft.uql.viewsheet.Viewsheet storedVs = mock(inetsoft.uql.viewsheet.Viewsheet.class);
+      when(storedVs.clone()).thenReturn(storedVs);
+      when(repo.getSheet(any(), any(), anyBoolean(), any())).thenReturn(storedVs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, viewsheetService,
+         mock(SheetAgentBroadcastService.class));
+
+      Map<String, Object> result;
+
+      try(MockedStatic<inetsoft.analytic.composition.event.VSEventUtil> util =
+             mockStatic(inetsoft.analytic.composition.event.VSEventUtil.class))
+      {
+         result = controller.save("tok",
+            new ViewsheetAssemblyAgentController.SaveRequest(null, null), agent);
+      }
+
+      assertEquals(Boolean.TRUE, result.get("reloaded"));
+      verify(rvs).setViewsheet(any(inetsoft.uql.viewsheet.Viewsheet.class));
+   }
+
    /** Bug #78662: a failed reload after save must not fail the save; it is reported as a warning. */
    @Test
    void saveReportsWarningWhenTheReloadFailsAfterAPendingRename78662() throws Exception {
