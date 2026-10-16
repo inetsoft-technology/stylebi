@@ -24,6 +24,7 @@
  *                        auto-gotos matching bookmark from queryParameters
  *   Group 2  [Risk 3] — deleteBookmark: confirm dialog → STOMP delete; goto home
  *                        if deleted bookmark was currentBookmark
+ *   Group 2b [Risk 2] — editBookmark / delete Yes: close the bookmark dropdown (Bug #78628)
  *   Group 3  [Risk 2] — addBookmark: isAddBookmarkDisabled guard; dialog → STOMP add
  *   Group 4  [Risk 3] — gotoBookmark: direct path (no check) vs. check-deleted path;
  *                        warning when deleted
@@ -232,6 +233,43 @@ describe("ViewerAppComponent — deleteBookmark()", () => {
          expect(uris).toContain("/events/vs/bookmark/delete-bookmark");
          expect(uris).toContain("/events/vs/bookmark/goto-bookmark");
       });
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 2b — editBookmark / delete closing the bookmark dropdown [Risk 2]
+// ---------------------------------------------------------------------------
+
+// Bug #78628: the pane's Edit and Remove buttons stop the click from bubbling, so the
+// document click that auto-closes the bookmark dropdown never fires. The viewer closes it.
+describe("ViewerAppComponent — bookmark dropdown close on edit/delete", () => {
+   it("editBookmark should close the bookmark dropdown and open the edit dialog", async () => {
+      const { comp } = await renderComponent();
+      const close = vi.fn();
+      comp.bookmarkDropdownBtn = <any> { close };
+
+      comp.editBookmark(<any> { name: "TestBK" });
+
+      expect(close).toHaveBeenCalledOnce();
+      expect(DIALOG_SERVICE_MOCK.open).toHaveBeenCalledOnce();
+   });
+
+   it("deleteBookmark should close the bookmark dropdown only after Yes", async () => {
+      MODAL_MOCK.open.mockImplementation(() => ({
+         result: Promise.resolve("yes"),
+         componentInstance: { onCommit: new Subject<string>() },
+         close: vi.fn(),
+         dismiss: vi.fn(),
+      }));
+      const { comp } = await renderComponent();
+      comp.runtimeId = "rt-test";
+      const close = vi.fn();
+      comp.bookmarkDropdownBtn = <any> { close };
+
+      comp.deleteBookmark(<any> { name: "TestBK", currentBookmark: false });
+
+      expect(close).not.toHaveBeenCalled();
+      await waitFor(() => expect(close).toHaveBeenCalledOnce());
    });
 });
 
