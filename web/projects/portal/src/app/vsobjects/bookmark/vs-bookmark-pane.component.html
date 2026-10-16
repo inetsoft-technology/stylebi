@@ -81,7 +81,8 @@
               class="btn btn-link btn-xs force-focus-highlight"
               [disabled]="setDefaultBookmarkDisabled"
               title="_#(viewer.viewsheet.bookmark.setDefault)"
-              (click)="setDefaultBookmark(bookmark); $event.stopPropagation();">
+              (click)="setDefaultBookmark(bookmark); $event.stopPropagation();"
+              (keydown.enter)="$event.stopPropagation()">
               <i [class.bookmark-set-default-icon]="!bookmark.defaultBookmark"
                 class="icon-size-small align-middle"
               (click)="preview ? $event.stopPropagation() : null"></i>
@@ -90,7 +91,8 @@
           @if (isEditBookmarkVisible(bookmark)) {
             <button class="btn btn-link btn-xs force-focus-highlight" title="_#(Edit)"
               [disabled]="isEditBookmarkDisabled(bookmark)"
-              (click)="editBookmark(bookmark)">
+              (click)="editBookmark(bookmark); $event.stopPropagation();"
+              (keydown.enter)="$event.stopPropagation()">
               <i class="edit-icon icon-size-small align-middle"
               (click)="isEditBookmarkDisabled(bookmark) ? $event.stopPropagation() : null"></i>
             </button>
@@ -98,7 +100,8 @@
           @if (isEditBookmarkVisible(bookmark)) {
             <button class="btn btn-link btn-xs force-focus-highlight" title="_#(Remove)"
               [disabled]="isEditBookmarkDisabled(bookmark)"
-              (click)="deleteBookmark(bookmark); $event.stopPropagation();">
+              (click)="deleteBookmark(bookmark); $event.stopPropagation();"
+              (keydown.enter)="$event.stopPropagation()">
               <i class="trash-icon icon-size-small align-middle"
               (click)="isEditBookmarkDisabled(bookmark) ? $event.stopPropagation() : null"></i>
             </button>
