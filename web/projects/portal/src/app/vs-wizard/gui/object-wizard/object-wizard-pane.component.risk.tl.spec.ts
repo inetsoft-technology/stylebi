@@ -26,7 +26,8 @@
  *                        (newer current, older command → no-op; same time → clears)
  *   Group 3  [Risk 3] — onEditSecondColumn: when checkAggTrap returns false (no trap) →
  *                        sendRefreshWizardBindingEvent called; when trap confirmed → sends;
- *                        when trap cancelled → does NOT send + nulls out secondaryColumn
+ *                        when trap undone or dismissed → does NOT send + restores the
+ *                        previous secondaryColumn (Bug #78716)
  *   Group 4  [Risk 2] — processClearRecommendLoadingCommand / processShowRecommendLoadingCommand:
  *                        eventLoading reflects loadingEventCount; double increment / decrement
  *   Group 5  [Risk 2] — processSetVSBindingModelCommand: only updates tableBindingModel when
@@ -137,7 +138,7 @@ describe("ObjectWizardPane — onEditSecondColumn", () => {
       BINDING_TREE_MOCK.checkAggTrap.mockReturnValue(of(false));
       CLIENT_SERVICE_MOCK.sendEvent.mockClear();
 
-      comp.onEditSecondColumn(0);
+      comp.onEditSecondColumn({ index: 0, oldColumn: null, oldValue: null });
 
       await waitFor(() => {
          expect(CLIENT_SERVICE_MOCK.sendEvent).toHaveBeenCalledWith(
@@ -158,7 +159,7 @@ describe("ObjectWizardPane — onEditSecondColumn", () => {
          .mockResolvedValue("continue");
 
       try {
-         comp.onEditSecondColumn(0);
+         comp.onEditSecondColumn({ index: 0, oldColumn: null, oldValue: null });
 
          await waitFor(() => {
             expect(CLIENT_SERVICE_MOCK.sendEvent).toHaveBeenCalledWith(
@@ -171,9 +172,12 @@ describe("ObjectWizardPane — onEditSecondColumn", () => {
       }
    });
 
-   it("should NOT send event and should null out secondaryColumn when trap is cancelled", async () => {
+   // Bug #78716: the item has already written the new column into the measure; Undo must put
+   // the previous column back (it used to null it out), and send nothing.
+   it("should NOT send event and should restore the previous secondaryColumn when trap is undone", async () => {
       const { comp } = await renderComponent();
-      const measures = [{ secondaryColumn: "test", secondaryColumnValue: "testVal" }];
+      const oldColumn: any = { name: "Qty" };
+      const measures = [{ secondaryColumn: { name: "Price" }, secondaryColumnValue: "Price" }];
       (comp as any)._bindingModel = {
          chartBindingModel: { xfields: [], yfields: measures },
       } as any;
@@ -181,15 +185,42 @@ describe("ObjectWizardPane — onEditSecondColumn", () => {
       CLIENT_SERVICE_MOCK.sendEvent.mockClear();
 
       const spy = vi.spyOn(ComponentTool, "showTrapAlert")
-         .mockResolvedValue("cancel");
+         .mockResolvedValue("undo");
 
       try {
-         comp.onEditSecondColumn(0);
+         comp.onEditSecondColumn({ index: 0, oldColumn, oldValue: "Qty" });
 
          await waitFor(() => {
-            // secondaryColumn should be nulled out
-            expect(measures[0].secondaryColumn).toBeNull();
-            expect(measures[0].secondaryColumnValue).toBeNull();
+            expect(measures[0].secondaryColumn).toBe(oldColumn);
+            expect(measures[0].secondaryColumnValue).toBe("Qty");
+         });
+         expect(CLIENT_SERVICE_MOCK.sendEvent).not.toHaveBeenCalled();
+      } finally {
+         spy.mockRestore();
+      }
+   });
+
+   // Bug #78716: Escape (or the duplicate-message guard) rejects the trap promise; the previous
+   // column must be restored and nothing sent, instead of leaving the unapplied column behind.
+   it("should NOT send event and should restore the previous secondaryColumn when trap is dismissed", async () => {
+      const { comp } = await renderComponent();
+      const oldColumn: any = { name: "Qty" };
+      const measures = [{ secondaryColumn: { name: "Price" }, secondaryColumnValue: "Price" }];
+      (comp as any)._bindingModel = {
+         chartBindingModel: { xfields: [], yfields: measures },
+      } as any;
+      BINDING_TREE_MOCK.checkAggTrap.mockReturnValue(of(true));
+      CLIENT_SERVICE_MOCK.sendEvent.mockClear();
+
+      const spy = vi.spyOn(ComponentTool, "showTrapAlert")
+         .mockRejectedValue(1);
+
+      try {
+         comp.onEditSecondColumn({ index: 0, oldColumn, oldValue: "Qty" });
+
+         await waitFor(() => {
+            expect(measures[0].secondaryColumn).toBe(oldColumn);
+            expect(measures[0].secondaryColumnValue).toBe("Qty");
          });
          expect(CLIENT_SERVICE_MOCK.sendEvent).not.toHaveBeenCalled();
       } finally {

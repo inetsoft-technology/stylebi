@@ -32,7 +32,7 @@ import { SetWizardBindingFormatEvent } from "../../model/event/set-wizard-bindin
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
 import { VSObjectType } from "../../../common/data/vs-object-type";
 import { VSWizardDetailItem } from "./wizard-detail-item.component";
-import { VSWizardAggregateItem } from "./wizard-aggregate-item.component";
+import { SecondColumnEdit, VSWizardAggregateItem } from "./wizard-aggregate-item.component";
 import { VSWizardGroupItem } from "./wizard-group-item.component";
 
 
@@ -61,7 +61,8 @@ export class VSWizardAggregatePane implements OnInit {
    @Input() objectType: VSObjectType;
    @Input() fixedFormulaMap: CommonKVModel<string, string>[];
    @Output() onEditAggregate: EventEmitter<null> = new EventEmitter<null>();
-   @Output() onEditSecondColumn: EventEmitter<number> = new EventEmitter<number>();
+   @Output() onEditSecondColumn: EventEmitter<SecondColumnEdit> =
+      new EventEmitter<SecondColumnEdit>();
    @Output() onAddAggregate: EventEmitter<null> = new EventEmitter<null>();
    @Output() onDeleteAggregate: EventEmitter<ChartAggregateRef> = new EventEmitter<ChartAggregateRef>();
    @Output() onEditDimension: EventEmitter<null> = new EventEmitter<null>();
