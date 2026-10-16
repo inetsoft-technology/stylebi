@@ -301,7 +301,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       buf.append("px;padding-right:");
       buf.append(padding.right);
       buf.append("px;padding-top:");
-      buf.append(padding.right);
+      buf.append(padding.top);
       buf.append("px;padding-bottom:");
       buf.append(padding.bottom);
       buf.append("px;");
