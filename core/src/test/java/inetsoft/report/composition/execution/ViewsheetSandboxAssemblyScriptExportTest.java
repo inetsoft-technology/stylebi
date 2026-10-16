@@ -25,6 +25,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import inetsoft.util.Catalog;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
@@ -74,7 +75,45 @@ class ViewsheetSandboxAssemblyScriptExportTest {
       assertTrue(rec.texts.contains("hello-ok"), () -> "texts: " + rec.texts);
       assertEquals(1, warnings(rec, "BadCross"), () -> "texts: " + rec.texts);
       assertEquals(0, warnings(rec, "GoodCross"));
-      assertEquals(List.of("BadCross"), box.getExportFailedAssemblies());
+      assertTrue(box.getExportFailedAssemblies().isEmpty(), "nothing is remembered past the export");
+   }
+
+   // the viewer shares the sandbox: after an export, a fixed script must run again
+   @Test
+   void failedScriptRunsAgainAfterTheExport() throws Exception {
+      ViewsheetSandbox box = box();
+      Viewsheet vs = box.getViewsheet();
+      script(crosstab(vs, "BadCross"), THROWS);
+      export(box);
+
+      script((VSAssembly) vs.getAssembly("BadCross"), "BadCross.title = 'FIXED';");
+      box.resetDataMap("BadCross");
+      assertNotNull(box.getVSTableLens("BadCross", false, 1));
+      assertEquals("FIXED", ((inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo)
+                         ((VSAssembly) vs.getAssembly("BadCross")).getVSAssemblyInfo()).getTitleValue(), "the script ran");
+
+      // and a script that still fails still fails in the viewer, outside an export
+      script((VSAssembly) vs.getAssembly("BadCross"), THROWS);
+      box.resetDataMap("BadCross");
+      assertThrows(ScriptException.class, () -> box.getVSTableLens("BadCross", false, 1));
+   }
+
+   @Test
+   void throwingSelectionListScriptStillExportsEverythingElse() throws Exception {
+      ViewsheetSandbox box = box();
+      Viewsheet vs = box.getViewsheet();
+      SelectionListVSAssembly selection = new SelectionListVSAssembly(vs, "BadList");
+      SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) selection.getInfo();
+      info.setTableName("TableView1");
+      info.setDataRef(new ColumnRef(new AttributeRef(null, "type")));
+      vs.addAssembly(selection);
+      script(selection, THROWS + " // query");
+      script(text(vs, "OkText"), OK);
+
+      Recorder rec = export(box);
+
+      assertTrue(rec.texts.contains("hello-ok"), () -> "texts: " + rec.texts);
+      assertEquals(1, warnings(rec, "BadList"), () -> "texts: " + rec.texts);
    }
 
    @Test
@@ -121,6 +160,7 @@ class ViewsheetSandboxAssemblyScriptExportTest {
       ViewsheetSandbox spy = Mockito.spy(box());
       Viewsheet vs = spy.getViewsheet();
       VSAssembly text = script(text(vs, "StoppedText"), OK);
+      spy.setExportFormat("csv");
       ScriptException stop = new ScriptException("timeout");
       stop.setStopped(true);
       Mockito.doThrow(stop).when(spy).executeScript(text);
@@ -134,10 +174,24 @@ class ViewsheetSandboxAssemblyScriptExportTest {
       ViewsheetSandbox spy = Mockito.spy(box());
       Viewsheet vs = spy.getViewsheet();
       VSAssembly text = script(text(vs, "FailedText"), OK);
+      spy.setExportFormat("csv");
       Mockito.doThrow(new ScriptException("boom")).when(spy).executeScript(text);
 
       assertEquals(VSAssembly.NONE_CHANGED, spy.executeScriptForExport(text));
       assertEquals(List.of("FailedText"), spy.getExportFailedAssemblies());
+      spy.endExport();
+      assertTrue(spy.getExportFailedAssemblies().isEmpty());
+   }
+
+   // outside an export (viewer, composer) a script error still propagates
+   @Test
+   void scriptErrorOutsideExportStillThrows() throws Exception {
+      ViewsheetSandbox spy = Mockito.spy(box());
+      VSAssembly text = script(text(spy.getViewsheet(), "ViewerText"), OK);
+      Mockito.doThrow(new ScriptException("boom")).when(spy).executeScript(text);
+
+      assertThrows(ScriptException.class, () -> spy.executeScriptForExport(text));
+      assertTrue(spy.getExportFailedAssemblies().isEmpty());
    }
 
    private ViewsheetSandbox box() {
@@ -157,7 +211,7 @@ class ViewsheetSandboxAssemblyScriptExportTest {
 
    private static long anyWarning(Recorder rec) {
       String message = Catalog.getCatalog().getString("vs.export.assemblyScriptFailed", "");
-      String prefix = message.substring(0, message.indexOf("failed"));
+      String prefix = message.substring(0, message.indexOf("  "));
       return rec.texts.stream().filter(t -> t != null && t.contains(prefix)).count();
    }
 

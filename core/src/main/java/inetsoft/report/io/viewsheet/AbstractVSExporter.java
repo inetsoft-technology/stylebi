@@ -1669,6 +1669,8 @@ public abstract class AbstractVSExporter implements VSExporter {
          box.setExportFormat(null);
       }
       finally {
+         box.endExport();
+
          if(rvs != null) {
             rvs.setViewsheet(rvsOrigViewsheet);
          }

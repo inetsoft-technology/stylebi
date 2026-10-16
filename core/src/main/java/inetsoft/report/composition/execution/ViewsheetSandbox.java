@@ -2592,7 +2592,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    public void prepareForExport() {
       exportScriptError = null;
-      exportFailedAssemblies.clear();
+      synchronized(exportFailedAssemblies) {
+         exportFailedAssemblies.clear();
+      }
+
 
       try {
          // executeVSScript() (invoked by processOnLoad() to actually run the onLoad
@@ -2694,6 +2697,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @return changing hint of assembly info.
     */
    public int executeScriptForExport(VSAssembly assembly) throws Exception {
+      // the viewer and the composer keep failing on a script error
+      if(exportFormat == null) {
+         return executeScript(assembly);
+      }
+
       try {
          return executeScript(assembly);
       }
@@ -2706,7 +2714,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
 
          String name = assembly.getAbsoluteName();
-         exportFailedAssemblies.add(name);
+         synchronized(exportFailedAssemblies) {
+            exportFailedAssemblies.add(name);
+         }
+
          LOG.error("Failed to execute the script of assembly \"{}\" for export; it is " +
                       "exported without the effect of its script", name, ex);
          return VSAssembly.NONE_CHANGED;
@@ -2718,7 +2729,27 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * empty list. Read by the exporters so the failure is visible on the exported document.
     */
    public List<String> getExportFailedAssemblies() {
-      return new ArrayList<>(exportFailedAssemblies);
+      synchronized(exportFailedAssemblies) {
+         return new ArrayList<>(exportFailedAssemblies);
+      }
+   }
+
+   /**
+    * End an export: the assemblies whose script failed are not remembered past it, so the
+    * viewer and the next export run those scripts again.
+    */
+   public void endExport() {
+      synchronized(exportFailedAssemblies) {
+         exportFailedAssemblies.clear();
+      }
+
+      exportFormat = null;
+   }
+
+   private boolean isExportScriptFailed(String name) {
+      synchronized(exportFailedAssemblies) {
+         return exportFailedAssemblies.contains(name);
+      }
    }
 
    /**
@@ -5932,7 +5963,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   }
 
                   // the script already failed in this export, don't fail the export on it again
-                  int hint = exportFailedAssemblies.contains(name) ?
+                  int hint = isExportScriptFailed(name) ?
                      VSAssembly.NONE_CHANGED : executeScript(assembly);
 
                   if(hint != VSAssembly.NONE_CHANGED) {
