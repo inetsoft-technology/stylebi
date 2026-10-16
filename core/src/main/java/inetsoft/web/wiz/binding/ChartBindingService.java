@@ -641,7 +641,7 @@ public class ChartBindingService {
          event.setMulti(multi == null ? isDesignMultiStyles(chart) : multi);
          event.setStackMeasures(
             stackMeasures == null ? isStackMeasures(chart) : stackMeasures);
-         event.setSeparate(separate == null ? isSeparatedGraph(chart) : separate);
+         event.setSeparate(separate == null ? isDesignSeparated(chart) : separate);
          typeService.changeChartType(runtimeId, event, user, dispatcher, linkUri);
 
          applyMultiStyle(rvs, runtimeId, assemblyName, multi, separate, user, dispatcher, linkUri);
@@ -971,12 +971,15 @@ public class ChartBindingService {
     * back unchanged. When there is no info to ask, the honest fallback is the product default, and
     * StyleBI's is separated — a fresh chart reads {@code separated: true}. Answering false to match
     * the other two would flip a default rather than preserve one, which is the opposite of what
-    * these helpers are for. (The null branch is close to unreachable: {@code requireChart} has
+    * these helpers are for. Reads the design flag, not the date-comparison override: multi is now
+    * compared on the design flag, so a {@code multi:true} request reaches the shared service's
+    * separate-status step, which persists whatever is sent here. (The null branch is close to
+    * unreachable: {@code requireChart} has
     * already established the assembly is a chart.)
     */
-   private static boolean isSeparatedGraph(ChartVSAssembly chart) {
+   private static boolean isDesignSeparated(ChartVSAssembly chart) {
       VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
-      return info == null || info.isSeparatedGraph();
+      return info == null || info.isDesignSeparated();
    }
 
    /** Lives on the plot descriptor rather than the chart info, unlike the other two flags. */
