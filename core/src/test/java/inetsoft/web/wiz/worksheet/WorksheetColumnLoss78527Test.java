@@ -177,8 +177,8 @@ class WorksheetColumnLoss78527Test {
    }
 
    /**
-    * Lead scope decision: the table's own condition, sort and expression columns are not part of
-    * this check (Known limits).
+    * The table's own condition and sort are not part of this check (Known limits); its own
+    * expression and range columns are (Bug #78681, see below).
     */
    @Test
    void sqlEditDroppingAColumnOnlyTheTableItselfReadsIsNotRefusedByTheNewCheck()
@@ -187,10 +187,7 @@ class WorksheetColumnLoss78527Test {
       Worksheet ws = new Worksheet();
       WorksheetEditService svc = service(ws);
       TableAssembly q = queryWithMirror(ws, svc);
-      svc.apply("TOK", agent, ed -> {
-         ed.addFilter("Q", "CUSTOMER_ID", "=", "1");
-         ed.addExpressionColumn("Q", "own", "field['CUSTOMER_ID'] + 1", "integer", false);
-      });
+      svc.apply("TOK", agent, ed -> ed.addFilter("Q", "CUSTOMER_ID", "=", "1"));
 
       assertSqlEdit(ws, q, newColumns("ORDER_ID", "ORDER_TOTAL"));
    }
@@ -211,6 +208,128 @@ class WorksheetColumnLoss78527Test {
 
       assertEquals(Catalog.getCatalog().getString("common.columnDependency", "CUSTOMER_ID"),
                    ex.getMessage());
+   }
+
+   // ------------------------------------------------------------------- Bug #78681: own derived columns
+
+   /** Q(ORDER_ID, CUSTOMER_ID, ORDER_DATE) with own bracket, dot and Year(ORDER_DATE) columns. */
+   private TableAssembly queryWithOwnDerived(Worksheet ws, WorksheetEditService svc)
+      throws Exception
+   {
+      TableAssembly q = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Q", "ORDER_ID", "CUSTOMER_ID", "ORDER_DATE");
+      setType(q, "ORDER_ID", XSchema.INTEGER);
+      setType(q, "CUSTOMER_ID", XSchema.INTEGER);
+      setType(q, "ORDER_DATE", XSchema.DATE);
+      ws.addAssembly(q);
+      svc.apply("TOK", agent, ed -> {
+         ed.addExpressionColumn("Q", "Dbl", "field['CUSTOMER_ID'] * 2", "integer", false);
+         ed.addExpressionColumn("Q", "Dbl2", "field.CUSTOMER_ID * 2", "integer", false);
+         ed.addDateRangeColumn("Q", "ORDER_DATE", "YEAR");
+      });
+      return q;
+   }
+
+   /** What editSqlQuery does with the fresh projection before it commits it. */
+   private static List<String> editQuery(Worksheet ws, TableAssembly q, String... projected)
+      throws PairingException
+   {
+      ColumnSelection next = newColumns(projected);
+      WorksheetAgentController.carryOwnDerivedColumns("Q", q.getColumnSelection(false), next);
+      assertSqlEdit(ws, q, next);
+      List<String> names = new ArrayList<>();
+
+      for(int i = 0; i < next.getAttributeCount(); i++) {
+         names.add(next.getAttribute(i).getName());
+      }
+
+      return names;
+   }
+
+   @Test
+   void sqlEditWithTheSameOrAKeepInputQueryKeepsTheOwnExpressionAndRangeColumns()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      WorksheetEditService svc = service(ws);
+      TableAssembly q = queryWithOwnDerived(ws, svc);
+      String year = DateRangeRef.getName("ORDER_DATE", DateRangeRef.YEAR_INTERVAL);
+
+      assertEquals(List.of("ORDER_ID", "CUSTOMER_ID", "ORDER_DATE", "Dbl", "Dbl2", year),
+                   editQuery(ws, q, "ORDER_ID", "CUSTOMER_ID", "ORDER_DATE"));
+      assertEquals(List.of("CUSTOMER_ID", "ORDER_DATE", "Dbl", "Dbl2", year),
+                   editQuery(ws, q, "CUSTOMER_ID", "ORDER_DATE"));
+   }
+
+   @Test
+   void sqlEditDroppingAnInputAnOwnExpressionReadsIsRefusedNamingTheColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetEditService svc = service(ws);
+      TableAssembly q = queryWithOwnDerived(ws, svc);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> editQuery(ws, q, "ORDER_ID", "ORDER_DATE"));
+
+      assertTrue(ex.getMessage().contains("\"CUSTOMER_ID\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("table 'Q' itself"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Dbl"), ex.getMessage());
+   }
+
+   @Test
+   void sqlEditDroppingTheDateAnOwnRangeColumnReadsIsRefused() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetEditService svc = service(ws);
+      TableAssembly q = queryWithOwnDerived(ws, svc);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> editQuery(ws, q, "ORDER_ID", "CUSTOMER_ID"));
+
+      assertTrue(ex.getMessage().contains("\"ORDER_DATE\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("table 'Q' itself"), ex.getMessage());
+   }
+
+   @Test
+   void sqlEditProjectingAColumnNamedLikeAnOwnDerivedColumnIsRefused() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetEditService svc = service(ws);
+      TableAssembly q = queryWithOwnDerived(ws, svc);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> editQuery(ws, q, "ORDER_ID", "CUSTOMER_ID", "ORDER_DATE", "Dbl"));
+
+      assertTrue(ex.getMessage().contains("\"Dbl\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Nothing was changed"), ex.getMessage());
+   }
+
+   /** edit_table (tabular) already keeps derived columns in the rebuilt selection. */
+   @Test
+   void tabularEditKeepingDerivedColumnsButDroppingTheirInputIsRefused() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetEditService svc = service(ws);
+      TableAssembly q = queryWithOwnDerived(ws, svc);
+      ColumnSelection kept = newColumns("ORDER_ID", "ORDER_DATE");
+
+      for(ColumnRef column : new ColumnRef[] {
+         (ColumnRef) q.getColumnSelection(false).getAttribute("Dbl"),
+         (ColumnRef) q.getColumnSelection(false).getAttribute("Dbl2") })
+      {
+         kept.addAttribute(column);
+      }
+
+      PairingException ex = assertThrows(PairingException.class, () -> assertSqlEdit(ws, q, kept));
+
+      assertTrue(ex.getMessage().contains("\"CUSTOMER_ID\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("table 'Q' itself"), ex.getMessage());
+   }
+
+   @Test
+   void tabularEditKeepingTheInputAndDerivedColumnsIsAccepted() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetEditService svc = service(ws);
+      TableAssembly q = queryWithOwnDerived(ws, svc);
+      ColumnSelection kept = q.getColumnSelection(false).clone();
+
+      assertSqlEdit(ws, q, kept);
    }
 
    // ------------------------------------------------------------------- edit_date_range_column

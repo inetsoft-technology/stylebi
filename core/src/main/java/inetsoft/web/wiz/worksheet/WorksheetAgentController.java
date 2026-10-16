@@ -3490,6 +3490,33 @@ public class WorksheetAgentController {
    }
 
    /**
+    * Bug #78681: appends the table's own expression and range columns to {@code columns}, the
+    * selection a rewritten SQL query produced, so the edit does not drop them. Refuses, naming
+    * the column and leaving everything unchanged, when the new query projects a column named
+    * like one of them.
+    */
+   static void carryOwnDerivedColumns(String tableName, ColumnSelection oldColumns,
+                                      ColumnSelection columns)
+      throws PairingException
+   {
+      List<ColumnRef> derived = derivedColumns(oldColumns);
+
+      for(ColumnRef column : derived) {
+         if(columns.getAttribute(column.getName()) != null) {
+            throw new PairingException(
+               "Cannot edit the query of '" + tableName + "': it projects a column named \"" +
+               column.getName() + "\", which is also the name of this table's " +
+               (column.getDataRef() instanceof RangeRef ? "range" : "expression") +
+               " column. Rename one of them first. Nothing was changed.");
+         }
+      }
+
+      for(ColumnRef column : derived) {
+         columns.addAttribute(column);
+      }
+   }
+
+   /**
     * The table's own expression and range columns (a range ref is an expression ref), in
     * selection order.
     */
@@ -4206,6 +4233,11 @@ public class WorksheetAgentController {
          WorksheetMutationSupport.sanitizeSqlColumnNames(columns);
          WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
 
+         // Bug #78681: the table's own expression and range columns are not in the new SQL's
+         // projection and setColumnSelection replaces the selection wholesale, so carry them
+         // over first; the checks below then see them as kept columns.
+         carryOwnDerivedColumns(table, sqlTable.getColumnSelection(false), columns);
+
          // Refuse an edit that drops or renames a column a dependent join/composite table
          // still keys on -- mirrors SQLQueryDialogService's guard for the human-driven SQL
          // Query dialog, which reverts rather than applying such an edit. Everything above
@@ -4245,8 +4277,9 @@ public class WorksheetAgentController {
     * ranking, expression or range column still reads (e.g. a mirror's {@code field['X']}),
     * naming each dependent. A column counts as dropped when no new column has its output name,
     * since that is what a downstream reference resolves by. Aggregates are left to the plugin's
-    * accept-and-warn diff (WSQ-009), and the table's own conditions, sort and expression
-    * columns are not checked here.</p>
+    * accept-and-warn diff (WSQ-009), and the table's own conditions and sort are not checked
+    * here. Its own expression and range columns are kept by both edits (Bug #78681), so the
+    * columns they read are checked as the table's own dependents.</p>
     *
     * @param ws         the worksheet, for walking dependents
     * @param assembly   the SQL-bound table whose column selection is about to change
