@@ -21,17 +21,21 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
 import inetsoft.test.*;
+import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.util.LockRestoreException;
+import inetsoft.util.MessageException;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -39,6 +43,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.io.ByteArrayOutputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Bug #78727: since #78220 a chart whose graph fails to initialize fails every request for its
@@ -46,7 +51,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * not, in {@code prepareSheet} (the EGraph-populate loop, and the match-layout loop), which had
  * no catch, so a hidden chart bound to a column its table lacks failed the whole export. A
  * chart that is not exported must not fail the export; an exported chart whose graph fails to
- * initialize still does (#77227).
+ * initialize still does (#77227). A chart with a script gets the failure as a "Script failed"
+ * MessageException, which must not fail the export either.
  *
  * <p>CSV is used because painting a chart needs batik, which core's test classpath lacks.</p>
  */
@@ -60,11 +66,13 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 @Tag("integration")
 class AbstractVSExporterChartInitFailureTest {
-   @ParameterizedTest(name = "match layout {0}")
-   @ValueSource(booleans = { false, true })
-   void hiddenChartWhoseGraphFailsDoesNotFailTheExport(boolean match) throws Exception {
+   @ParameterizedTest(name = "match layout {0}, script {1}")
+   @CsvSource({ "false,false", "true,false", "false,true", "true,true" })
+   void hiddenChartWhoseGraphFailsDoesNotFailTheExport(boolean match, boolean script)
+      throws Exception
+   {
       ViewsheetSandbox box = getBox();
-      ChartVSAssembly chart = bindMissingColumn(box);
+      ChartVSAssembly chart = bindMissingColumn(box, script);
       setVisible(chart, false);
       ByteArrayOutputStream out = new ByteArrayOutputStream();
       CSVVSExporter exporter = new CSVVSExporter(out, null);
@@ -78,11 +86,13 @@ class AbstractVSExporterChartInitFailureTest {
    }
 
    // #77227: a chart that is exported and whose graph fails to initialize fails the export
-   @ParameterizedTest(name = "match layout {0}")
-   @ValueSource(booleans = { false, true })
-   void exportedChartWhoseGraphFailsStillFailsTheExport(boolean match) throws Exception {
+   @ParameterizedTest(name = "match layout {0}, script {1}")
+   @CsvSource({ "false,false", "true,false", "false,true", "true,true" })
+   void exportedChartWhoseGraphFailsStillFailsTheExport(boolean match, boolean script)
+      throws Exception
+   {
       ViewsheetSandbox box = getBox();
-      ChartVSAssembly chart = bindMissingColumn(box);
+      ChartVSAssembly chart = bindMissingColumn(box, script);
       setVisible(chart, true);
       CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null);
       exporter.setMatchLayout(match);
@@ -94,14 +104,45 @@ class AbstractVSExporterChartInitFailureTest {
       assertMissingColumn(ex);
    }
 
+   // what is not a failure of the chart is rethrown, also inside the "Script failed" wrapper
+   @Test
+   void lockLossConfirmAndCancelAreNotChartFailures() throws Exception {
+      ChartVSAssembly chart = (ChartVSAssembly) getBox().getViewsheet().getAssembly(CHART);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      ConfirmException confirm = new ConfirmException("vs.mv.prepare", ConfirmException.PROGRESS);
+      LockRestoreException lost = new LockRestoreException("lost");
+
+      for(Exception ex : new Exception[] { confirm, lost }) {
+         doThrow(new MessageException("Script failed", ex)).when(box).getVGraphPair(CHART);
+         assertSame(ex, assertThrows(Exception.class,
+                                     () -> AbstractVSExporter.getPreparedGraphPair(box, chart)));
+
+         doThrow(ex).when(box).getVGraphPair(CHART);
+         assertSame(ex, assertThrows(Exception.class,
+                                     () -> AbstractVSExporter.getPreparedGraphPair(box, chart)));
+      }
+
+      // an invalid binding the graph generator reports with a message is a chart failure
+      doThrow(new MessageException("em.common.graph.XmeaNotAllowed"))
+         .when(box).getVGraphPair(CHART);
+      assertNull(AbstractVSExporter.getPreparedGraphPair(box, chart));
+   }
+
    /**
     * Bind the x axis of the chart to only a date column its table does not have, as the
     * reported chart's, so every init of the chart's graph fails: the chart query drops the
     * unknown ref, which leaves no runtime x field, and the graph generator then falls back to
-    * the design x field and asks the data set for the column.
+    * the design x field and asks the data set for the column. With {@code script}, the chart
+    * has a script, so the failure comes as a "Script failed" MessageException.
     */
-   private static ChartVSAssembly bindMissingColumn(ViewsheetSandbox box) {
+   private static ChartVSAssembly bindMissingColumn(ViewsheetSandbox box, boolean script) {
       ChartVSAssembly chart = (ChartVSAssembly) box.getViewsheet().getAssembly(CHART);
+
+      if(script) {
+         chart.getVSAssemblyInfo().setScript("var b78727 = 1;");
+         chart.getVSAssemblyInfo().setScriptEnabled(true);
+      }
+
       VSChartInfo info = chart.getVSChartInfo();
       VSChartDimensionRef dim = new VSChartDimensionRef();
       dim.setGroupColumnValue(MISSING);
@@ -113,7 +154,9 @@ class AbstractVSExporterChartInitFailureTest {
 
       // precondition: the graph of the chart cannot be built, on every request
       for(int i = 0; i < 2; i++) {
-         assertMissingColumn(assertThrows(Exception.class, () -> box.getVGraphPair(CHART)));
+         Exception ex = assertThrows(Exception.class, () -> box.getVGraphPair(CHART));
+         assertMissingColumn(ex);
+         assertEquals(script, ex instanceof MessageException, String.valueOf(ex));
       }
 
       return chart;
