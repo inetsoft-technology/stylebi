@@ -2407,7 +2407,41 @@ public class WorksheetAgentController {
               removeQuotes, unpivot, headerCols, replaceTable, null, null);
       }
    }
-   public record ImportCsvResponse(String tableName, int rows, int columns) {}
+   /**
+    * @param columnLimit bug #78526: present only when the import dropped columns past the
+    *                    organization's column limit ({@code max.col.count}) -- {@code total} is
+    *                    the file's column count and {@code columns} what was kept. Omitted
+    *                    otherwise, the same shape preview_worksheet_data reports (#78350).
+    */
+   @com.fasterxml.jackson.annotation.JsonInclude(
+      com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+   public record ImportCsvResponse(String tableName, int rows, int columns,
+                                   WorksheetPreviewService.ColumnLimit columnLimit)
+   {
+      public ImportCsvResponse(String tableName, int rows, int columns) {
+         this(tableName, rows, columns, null);
+      }
+
+      ImportCsvResponse withColumnLimit(WorksheetPreviewService.ColumnLimit columnLimit) {
+         return columnLimit == null
+            ? this : new ImportCsvResponse(tableName, rows, columns, columnLimit);
+      }
+   }
+
+   /**
+    * Bug #78526: the import loaders cap a file at the organization's column limit and drop the
+    * rest without a word, so the agent saw a 210-column file come back as 200 columns and no
+    * reason why. Reports the cap only when it actually dropped something: {@code .xls} files are
+    * never capped by their reader, so a file merely wider than the limit is not enough.
+    *
+    * @param total    the file's column count, read without the cap
+    * @param imported the number of columns the loader kept
+    */
+   private static WorksheetPreviewService.ColumnLimit importColumnLimit(int total, int imported) {
+      return total > imported
+         ? new WorksheetPreviewService.ColumnLimit(true, Util.getOrganizationMaxColumn(), total)
+         : null;
+   }
 
    /**
     * The import settings the Composer's own Import Data File dialog exposes.
@@ -2694,6 +2728,17 @@ public class WorksheetAgentController {
                   ? "" : " (firstRowAsHeader is false, so line 1 counts as data)"));
          }
 
+         // Bug #78526: taken before unpivot, which reshapes the columns. Only a file the loader
+         // capped at the limit can have lost columns, so the uncapped header peek runs only then.
+         int importedColumns = loaded.getColCount();
+         int colLimit = Util.getOrganizationMaxColumn();
+         WorksheetPreviewService.ColumnLimit columnLimit = null;
+
+         if(colLimit > 0 && importedColumns >= colLimit) {
+            String[] fields = readCsvHeaderFields(temp, settings.encoding(), settings.delimiter());
+            columnLimit = importColumnLimit(fields == null ? 0 : fields.length, importedColumns);
+         }
+
          XEmbeddedTable table;
 
          if(settings.unpivot()) {
@@ -2711,11 +2756,12 @@ public class WorksheetAgentController {
             table = new XEmbeddedTable(types.toArray(new String[0]), loaded);
          }
 
-         return replaceTable != null && !replaceTable.isBlank()
+         ImportCsvResponse response = replaceTable != null && !replaceTable.isBlank()
             ? replaceEmbeddedTable(sessionToken, user, replaceTable, table,
                                    table.getRowCount(), table.getColCount())
             : createEmbeddedTable(sessionToken, user, name, table,
                                   table.getRowCount(), table.getColCount());
+         return response.withColumnLimit(columnLimit);
       }
       finally {
          if(!temp.delete()) {
@@ -2743,30 +2789,54 @@ public class WorksheetAgentController {
       List<Integer> stringColumnIndexes)
       throws Exception
    {
-      String[] headers;
+      String[] fields = readCsvHeaderFields(temp, encoding, delimiter);
 
-      try(BufferedReader reader = new BufferedReader(
-         new InputStreamReader(new FileInputStream(temp), encoding)))
-      {
-         String line = TextUtil.readCSVLine(reader);
+      if(fields == null) {
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Cannot resolve stringColumns/stringColumnIndexes: the file has no header row.");
+      }
 
-         if(line == null) {
-            throw new ResponseStatusException(
-               HttpStatus.BAD_REQUEST,
-               "Cannot resolve stringColumns/stringColumnIndexes: the file has no header row.");
-         }
+      Object[] headerObjs = CSVLoader.getHeaders(fields, firstRowAsHeader, colLimit, removeQuotes);
+      String[] headers = new String[headerObjs.length];
 
-         // Mirrors CSVLoader's own private splitLine(String, String), which is exactly this call.
-         String[] fields = TextUtil.split(line, delimiter, false, false, true);
-         Object[] headerObjs = CSVLoader.getHeaders(fields, firstRowAsHeader, colLimit, removeQuotes);
-         headers = new String[headerObjs.length];
-
-         for(int i = 0; i < headerObjs.length; i++) {
-            headers[i] = String.valueOf(headerObjs[i]);
-         }
+      for(int i = 0; i < headerObjs.length; i++) {
+         headers[i] = String.valueOf(headerObjs[i]);
       }
 
       return matchStringColumns(headers, stringColumns, stringColumnIndexes);
+   }
+
+   /**
+    * The fields of the line {@link CSVLoader#readCSV} takes as its first row, uncapped, or
+    * {@code null} when the file has none. Like the loader, this skips leading blank lines and a
+    * UTF-8 byte-order mark (bug #78526: reading only line 1 counted a blank first line as one
+    * field).
+    */
+   private static String[] readCsvHeaderFields(File temp, String encoding, String delimiter)
+      throws Exception
+   {
+      try(BufferedReader reader = new BufferedReader(
+         new InputStreamReader(new FileInputStream(temp), encoding)))
+      {
+         String line;
+         boolean first = true;
+
+         while((line = TextUtil.readCSVLine(reader)) != null) {
+            if(first && "UTF-8".equals(encoding) && !line.isEmpty() && line.charAt(0) == 0xFEFF) {
+               line = line.substring(1);
+            }
+
+            first = false;
+
+            if(!line.isEmpty()) {
+               // Mirrors CSVLoader's own private splitLine(String, String), which is exactly this call.
+               return TextUtil.split(line, delimiter, false, false, true);
+            }
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -2908,22 +2978,9 @@ public class WorksheetAgentController {
          ? ExcelFileSupport.getInstance().createXLSReader()
          : ExcelFileSupport.getInstance().createXLSXReader();
 
-      TextOutput output = new TextOutput();
-      ExcelFileInfo headerInfo = new ExcelFileInfo();
-      headerInfo.setSheet(sheet);
-      headerInfo.setStartRow(0);
-      headerInfo.setEndRow(0);
-      headerInfo.setStartColumn(0);
-      headerInfo.setEndColumn(-1);
-      output.setHeaderInfo(headerInfo);
-
-      ExcelFileInfo bodyInfo = new ExcelFileInfo();
-      bodyInfo.setSheet(sheet);
-      bodyInfo.setStartRow(1);
-      bodyInfo.setEndRow(-1);
-      bodyInfo.setStartColumn(0);
-      bodyInfo.setEndColumn(-1);
-      output.setBodyInfo(bodyInfo);
+      TextOutput output = excelImportOutput(sheet);
+      ExcelFileInfo headerInfo = (ExcelFileInfo) output.getHeaderInfo();
+      ExcelFileInfo bodyInfo = (ExcelFileInfo) output.getBodyInfo();
 
       XTypeNode meta;
 
@@ -2942,6 +2999,21 @@ public class WorksheetAgentController {
       if(ncols == 0) {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                            "Excel sheet must have a header row and at least one data row");
+      }
+
+      // Bug #78526: the capped header can only have lost columns when it reached the limit. The
+      // uncapped re-read uses a fresh output, because the reader clamps to the body's end column,
+      // which is set to ncols - 1 just below.
+      int totalColumns = ncols;
+
+      if(colLimit > 0 && ncols >= colLimit) {
+         try {
+            totalColumns = reader.importHeader(new ByteArrayInputStream(bytes), "UTF-8",
+                                               excelImportOutput(sheet), 0, -1).getChildCount();
+         }
+         catch(Exception e) {
+            LOG.debug("importExcel: could not count the sheet's columns without the limit", e);
+         }
       }
 
       headerInfo.setEndColumn(ncols - 1);
@@ -3033,10 +3105,35 @@ public class WorksheetAgentController {
       int nrows = dataRows.size();
       Object[][] data = dataRows.toArray(new Object[0][]);
 
-      return replaceTable != null && !replaceTable.isBlank()
+      ImportCsvResponse response = replaceTable != null && !replaceTable.isBlank()
          ? replaceEmbeddedTable(sessionToken, user, replaceTable,
                                 new XEmbeddedTable(types, data), nrows, ncols)
          : createEmbeddedTable(sessionToken, user, name, types, data, nrows, ncols);
+      return response.withColumnLimit(importColumnLimit(totalColumns, ncols));
+   }
+
+   /**
+    * The header (row 0) and body (row 1 on) layout {@link #importExcel} reads a sheet with, every
+    * column included.
+    */
+   private static TextOutput excelImportOutput(String sheet) {
+      TextOutput output = new TextOutput();
+      ExcelFileInfo headerInfo = new ExcelFileInfo();
+      headerInfo.setSheet(sheet);
+      headerInfo.setStartRow(0);
+      headerInfo.setEndRow(0);
+      headerInfo.setStartColumn(0);
+      headerInfo.setEndColumn(-1);
+      output.setHeaderInfo(headerInfo);
+
+      ExcelFileInfo bodyInfo = new ExcelFileInfo();
+      bodyInfo.setSheet(sheet);
+      bodyInfo.setStartRow(1);
+      bodyInfo.setEndRow(-1);
+      bodyInfo.setStartColumn(0);
+      bodyInfo.setEndColumn(-1);
+      output.setBodyInfo(bodyInfo);
+      return output;
    }
 
    private void checkImportFileSize(long size, String what, boolean csv) {
