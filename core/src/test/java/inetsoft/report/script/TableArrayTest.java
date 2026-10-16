@@ -352,4 +352,36 @@ class TableArrayTest {
       assertArrayEquals(new Object[] { "x", "y" }, (Object[]) earr.getMember("Ent:Attr"));
       assertArrayEquals(new Object[] { "x", "y" }, (Object[]) earr.getMember("ent:attr"));
    }
+
+   /**
+    * Bug #78599 scope guard: '=expr' keys bypass the missing-column check and evaluate
+    * exactly as in non-strict mode.
+    */
+   @Test
+   void strictExpressionKeyEvaluatesAsBefore() {
+      TableArray plain = new TableArray(table());
+      plain.setCalcArray(true);
+      TableArray arr = strictArray();
+      String id = "=col2 * 2";
+
+      assertTrue(arr.hasMember(id));
+      Object expected = plain.getMember(id);
+      assertNotNull(expected);
+      assertArrayEquals((Object[]) expected, (Object[]) arr.getMember(id));
+   }
+
+   /**
+    * Bug #78599 scope guard: '{summary}' keys bypass the missing-column check; on a
+    * plain table they behave as in non-strict mode (no named missing-column error).
+    */
+   @Test
+   void strictSummaryKeyBehavesAsBefore() {
+      TableArray plain = new TableArray(table());
+      plain.setCalcArray(true);
+      TableArray arr = strictArray();
+      String id = "{Sum(col2)}";
+
+      assertTrue(arr.hasMember(id));
+      assertEquals(plain.getMember(id), arr.getMember(id));
+   }
 }
