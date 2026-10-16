@@ -18,14 +18,20 @@
 package inetsoft.web.portal.controller.database;
 
 import com.google.common.collect.Sets;
-import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.uql.erm.AutoAlias;
 import inetsoft.uql.erm.XDataModel;
+import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
+import inetsoft.util.log.LogLevel;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.web.portal.model.database.graph.PhysicalGraphLayout;
 import org.apache.commons.collections4.EnumerationUtils;
+import org.apache.ignite.transactions.TransactionHeuristicException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -37,6 +43,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 @Service
 public class RuntimePartitionService {
@@ -55,11 +62,26 @@ public class RuntimePartitionService {
     * create a new model.
     */
    public RuntimeXPartition createModel(XPartition partition, String database) {
+      return createModel(partition, database, null);
+   }
+
+   /**
+    * Creates a new runtime.
+    *
+    * @param init prepares the new runtime before it is stored, or {@code null}.
+    */
+   public RuntimeXPartition createModel(XPartition partition, String database,
+                                        Consumer<RuntimeXPartition> init)
+   {
       RuntimeXPartition runtimeXPartition =
          new RuntimeXPartition(partition, generateRuntimeId(partition.getName()),
             database);
 
-      saveRuntimePartition(runtimeXPartition);
+      if(init != null) {
+         init.accept(runtimeXPartition);
+      }
+
+      putNew(runtimeXPartition);
 
       return runtimeXPartition;
    }
@@ -68,6 +90,17 @@ public class RuntimePartitionService {
     * Open the physical model create a runtime.
     */
    public RuntimeXPartition openModel(XDataModel dataModel, String name, String parent) {
+      return openModel(dataModel, name, parent, null);
+   }
+
+   /**
+    * Opens a physical model in a new runtime.
+    *
+    * @param init prepares the new runtime before it is stored, or {@code null}.
+    */
+   public RuntimeXPartition openModel(XDataModel dataModel, String name, String parent,
+                                      Consumer<RuntimeXPartition> init)
+   {
       boolean isExtended = StringUtils.hasText(parent);
       XPartition partition = !isExtended ? dataModel.getPartition(name) :
          dataModel.getPartition(parent);
@@ -88,7 +121,11 @@ public class RuntimePartitionService {
          new RuntimeXPartition((XPartition) partition.deepClone(true), generateRuntimeId(name),
             dataModel.getDataSource());
 
-      saveRuntimePartition(runtimeXPartition);
+      if(init != null) {
+         init.accept(runtimeXPartition);
+      }
+
+      putNew(runtimeXPartition);
 
       return runtimeXPartition;
    }
@@ -98,48 +135,170 @@ public class RuntimePartitionService {
       String newId = generateRuntimeId(partition.partition.getName());
       partition.setId(newId);
 
-      saveRuntimePartition(partition);
+      putNew(partition);
 
       return newId;
    }
 
    public void closeRuntimePartition(String originRuntimeId, String newRuntimeId, boolean save) {
-      RuntimePartitionService.RuntimeXPartition newPartition
-         = this.getRuntimePartition(newRuntimeId);
-      RuntimePartitionService.RuntimeXPartition oldPartition
-         = this.getRuntimePartition(originRuntimeId);
-
-      if(oldPartition == null || newPartition == null) {
-         return;
-      }
-
-      if(save) {
-         newPartition.setId(originRuntimeId);
-         saveRuntimePartition(newPartition);
-      }
-
-      touch(originRuntimeId);
-      destroy(newRuntimeId);
+      closeRuntimePartition(originRuntimeId, newRuntimeId, save, null);
    }
 
-   public void saveRuntimePartition(RuntimeXPartition runtimeXPartition) {
+   /**
+    * Closes the runtime of a join edit pane and, when saving, replaces the runtime the pane was
+    * opened from with it. Both runtimes are locked in a fixed order, the origin first, and the
+    * pane runtime is destroyed in the same transaction.
+    *
+    * @param beforeSave prepares the pane runtime before it replaces the origin, or
+    *                   {@code null}. It must only change the runtime in memory, see
+    *                   {@link #update}.
+    */
+   public void closeRuntimePartition(String originRuntimeId, String newRuntimeId, boolean save,
+                                     Consumer<RuntimeXPartition> beforeSave)
+   {
+      runLocked(originRuntimeId, () -> {
+         // Bug #78428, lock the origin before the pane, the only order a transaction that
+         // locks two runtimes may use
+         RuntimeXPartition oldPartition = cache.get(originRuntimeId);
+         RuntimeXPartition newPartition = cache.get(newRuntimeId);
+
+         if(oldPartition == null || newPartition == null) {
+            return null;
+         }
+
+         if(save) {
+            if(beforeSave != null) {
+               beforeSave.accept(newPartition);
+            }
+
+            newPartition.setId(originRuntimeId);
+            newPartition.version = oldPartition.version + 1;
+            cache.put(originRuntimeId, newPartition);
+         }
+
+         cache.remove(newRuntimeId);
+         return null;
+      });
+   }
+
+   /**
+    * Changes a runtime atomically. The mutation is applied to a fresh copy of the runtime that
+    * is read in a cluster transaction, which locks the runtime, and the copy is written back in
+    * the same transaction. Concurrent changes of a runtime, on any node or thread, are applied
+    * one after the other and none of them is lost.
+    * <p>
+    * Bug #78428, an open transaction delays partition map exchange and blocks the other
+    * writers of the runtime, so the mutation must only change the runtime in memory: it must
+    * not read data source meta-data, query a database, read or write storage, or call another
+    * update. Such work is done before the update, on a copy from {@link #getRuntimePartition},
+    * and the mutation applies only its result, after checking that what the result depends on
+    * is still in the fresh copy. The mutation runs again on a new copy if the transaction
+    * fails, so it must not depend on anything it changes outside the runtime.
+    *
+    * @param id       the runtime identifier.
+    * @param mutation changes the runtime in memory and returns a result.
+    *
+    * @return the result of the mutation, or {@code null} if the runtime does not exist.
+    *
+    * @throws E                if the mutation throws it, nothing is written.
+    * @throws MessageException if the runtime could not be locked or written after a few
+    *                          attempts, nothing is written.
+    */
+   public <T, E extends Exception> T update(String id, Mutation<T, E> mutation) throws E {
+      if(!StringUtils.hasText(id)) {
+         return null;
+      }
+
+      return runLocked(id, () -> {
+         RuntimeXPartition runtime = cache.get(id);
+
+         if(runtime == null) {
+            return null;
+         }
+
+         T result = mutation.apply(runtime);
+         runtime.version++;
+         cache.put(id, runtime);
+         return result;
+      });
+   }
+
+   /**
+    * Runs an action in a short cluster transaction, and runs it again a few times if the
+    * transaction fails, e.g. because another request held the lock of the runtime too long.
+    */
+   private <T, E extends Exception> T runLocked(String id, TransactionalAction<T, E> action)
+      throws E
+   {
+      if(UPDATING.get() != null) {
+         // a nested update would join the outer transaction, and could neither retry nor
+         // fail on its own
+         throw new IllegalStateException(
+            "A physical view runtime update can't run inside another one: " + id);
+      }
+
+      UPDATING.set(Boolean.TRUE);
+
+      try {
+         for(int attempt = 1; ; attempt++) {
+            try {
+               return cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, action);
+            }
+            catch(DistributedTransactionException ex) {
+               if(attempt >= MAX_ATTEMPTS || isHeuristic(ex)) {
+                  LOG.warn("Failed to update the physical view runtime {} after {} attempt(s)",
+                           id, attempt, ex);
+                  throw updateFailed(ex);
+               }
+
+               LOG.debug("Failed to update the physical view runtime {}, retrying", id, ex);
+
+               try {
+                  Thread.sleep(RETRY_DELAY * attempt);
+               }
+               catch(InterruptedException ie) {
+                  Thread.currentThread().interrupt();
+                  throw updateFailed(ex);
+               }
+            }
+         }
+      }
+      finally {
+         UPDATING.remove();
+      }
+   }
+
+   private static MessageException updateFailed(Exception cause) {
+      MessageException ex = new MessageException(
+         Catalog.getCatalog().getString("data.physicalmodel.runtimeBusy"), LogLevel.WARN, false);
+      ex.initCause(cause);
+      return ex;
+   }
+
+   /**
+    * Checks if a transaction failed with a heuristic outcome while committing, which may have
+    * written some of its changes, so that it must not run again.
+    */
+   private static boolean isHeuristic(Throwable ex) {
+      for(Throwable cause = ex; cause != null; cause = cause.getCause()) {
+         if(cause instanceof TransactionHeuristicException) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Stores a runtime under a new identifier that no client knows yet. Every change of an
+    * existing runtime goes through {@link #update}.
+    */
+   private void putNew(RuntimeXPartition runtimeXPartition) {
       cache.put(runtimeXPartition.getId(), runtimeXPartition);
    }
 
    public static String generateRuntimeId(String name) {
       return name + UUID.randomUUID().toString().replace("-", "");
-   }
-
-   /**
-    * Update the physical model of runtime.
-    */
-   public void updatePartition(String id, XPartition newPartition) {
-      RuntimeXPartition runtimeXPartition = cache.get(id);
-
-      if(runtimeXPartition != null) {
-         runtimeXPartition.setPartition(newPartition);
-         cache.put(id, runtimeXPartition);
-      }
    }
 
    /**
@@ -220,6 +379,27 @@ public class RuntimePartitionService {
    private Cache<String, RuntimeXPartition> cache;
    public static final String CACHE_NAME =
       "inetsoft.web.portal.controller.database.RuntimePartitionService.cache";
+   // the timeout of the transaction of an update, which also bounds waiting for the lock
+   static final long TX_TIMEOUT = TimeUnit.SECONDS.toMillis(5);
+   static final int MAX_ATTEMPTS = 3;
+   private static final long RETRY_DELAY = 200L;
+   private static final ThreadLocal<Boolean> UPDATING = new ThreadLocal<>();
+   private static final Logger LOG = LoggerFactory.getLogger(RuntimePartitionService.class);
+
+   /**
+    * A change of a runtime, see {@link #update}.
+    */
+   @FunctionalInterface
+   public interface Mutation<T, E extends Exception> {
+      /**
+       * Changes the runtime in memory.
+       *
+       * @param runtime a fresh copy of the runtime, which is locked until it is written back.
+       *
+       * @return the result of the update.
+       */
+      T apply(RuntimeXPartition runtime) throws E;
+   }
 
    public static final class RuntimeXPartition implements Cloneable, Serializable {
       public RuntimeXPartition() {
@@ -249,6 +429,13 @@ public class RuntimePartitionService {
 
       public String getDataSource() {
          return dataSource;
+      }
+
+      /**
+       * Gets the number of changes of the runtime, which every update increases.
+       */
+      public long getVersion() {
+         return version;
       }
 
       @Override
@@ -390,6 +577,7 @@ public class RuntimePartitionService {
       private XPartition partition;
       private String id;
       private String dataSource;
+      private long version;
       private int graphWidth = PhysicalGraphLayout.DEFAULT_VIEWPORT_WIDTH;
       private int graphHeight = PhysicalGraphLayout.DEFAULT_VIEWPORT_HEIGHT;
       private final Set<String> movedTables = Sets.newConcurrentHashSet();

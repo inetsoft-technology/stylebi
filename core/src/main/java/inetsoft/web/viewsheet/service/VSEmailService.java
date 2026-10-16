@@ -513,7 +513,12 @@ public class VSEmailService {
          ((ExcelVSExporter) exporter).setExportAllTabbedTables(exportAllTabbedTables);
       }
 
-      if(includeCurrent) {
+      // Bug #78131: a PDF decides whether to use an inherited print layout over all states,
+      // so it needs every bookmark's sandbox before the current view is exported. Other
+      // formats keep creating each bookmark's sandbox after the current view is exported.
+      boolean prepareStates = exporter.isPrepareStatesRequired();
+
+      if(!prepareStates && includeCurrent) {
          exporter.export(box.get(), catalog.getString("Current View"), helper);
       }
 
@@ -524,11 +529,40 @@ public class VSEmailService {
       List<ViewsheetSandbox> createdBoxes = new ArrayList<>();
 
       try {
+         if(prepareStates) {
+            for(int i = 0; bookmarks != null && i < bookmarks.length; i++) {
+               createdBoxes.add(createSandbox(
+                  rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
+                  rvs.getEntry(), box.get().getVariableTable()));
+            }
+
+            List<ViewsheetSandbox> states = new ArrayList<>();
+
+            if(includeCurrent) {
+               states.add(box.get());
+            }
+
+            states.addAll(createdBoxes);
+            exporter.prepareStates(states);
+
+            if(includeCurrent) {
+               exporter.export(box.get(), catalog.getString("Current View"), helper);
+            }
+         }
+
          for(int i = 0; bookmarks != null && i < bookmarks.length; i++) {
-            ViewsheetSandbox sandbox = createSandbox(
-                    rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
-                    rvs.getEntry(), box.get().getVariableTable());
-            createdBoxes.add(sandbox);
+            ViewsheetSandbox sandbox;
+
+            if(prepareStates) {
+               sandbox = createdBoxes.get(i);
+            }
+            else {
+               sandbox = createSandbox(
+                  rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
+                  rvs.getEntry(), box.get().getVariableTable());
+               createdBoxes.add(sandbox);
+            }
+
             exporter.export(sandbox, bookmarks[i], (i + 1), helper); //!!! maybe the pictures aren't being written out become of overwriting?
          }
 

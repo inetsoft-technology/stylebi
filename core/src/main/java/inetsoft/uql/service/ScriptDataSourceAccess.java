@@ -113,7 +113,8 @@ final class ScriptDataSourceAccess {
     * itself: the first frame that is neither data source plumbing ({@code inetsoft.uql}) nor
     * JDK code is the GraalJS host interop that a script calls Java through. Any other class
     * before it is product code the script called, which makes the access that code's, not
-    * the script's.
+    * the script's. Spring AOP proxy plumbing is skipped: the frames of the proxy's target,
+    * inside it, decide.
     */
    static boolean isScriptAccess(Iterator<String> classes) {
       while(classes.hasNext()) {
@@ -121,6 +122,14 @@ final class ScriptDataSourceAccess {
 
          if(name.startsWith("com.oracle.truffle.") || name.startsWith("org.graalvm.")) {
             return true;
+         }
+
+         // Bug #78237: the plumbing of a Spring proxy, such as the @Lazy registry XEngine
+         // holds. The proxy's target runs inside these frames, so its own frame decides
+         if(name.startsWith("org.springframework.aop.") ||
+            name.startsWith("org.springframework.cglib."))
+         {
+            continue;
          }
 
          if(!name.startsWith("inetsoft.uql.") && !name.startsWith("java.") &&

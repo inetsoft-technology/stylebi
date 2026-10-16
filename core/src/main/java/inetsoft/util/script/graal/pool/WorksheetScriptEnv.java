@@ -105,6 +105,13 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    }
 
    @Override
+   public Object compileDeclaredVars(String cmd) throws Exception {
+      try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
+         return claim.scriptSlot(state, sql).engine().compileDeclaredVars(cmd);
+      }
+   }
+
+   @Override
    public Object exec(Object script, Object scope, Object rscope, Object target)
       throws Exception
    {

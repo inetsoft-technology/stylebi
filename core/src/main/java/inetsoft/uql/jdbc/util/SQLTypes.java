@@ -768,6 +768,95 @@ public class SQLTypes {
    }
 
    /**
+    * Generate a table node from a table name written in a parsed sql, when the name has more
+    * qualifiers than the table name option of the data source expects, e.g. "public"."T" with
+    * the Table option, or "db"."public"."T" on a database without catalogs. The node of
+    * getQualifiedTableNode() keeps the extra qualifiers in the table name, so no table is found
+    * (Bug #78466). The segments of a parsed name are split at the unquoted dots, a dot in a
+    * table name is always quoted by the parser.
+    * @param tablename the table name stored by the parser.
+    * @param properties the DBPROPERTIES meta data of the data source.
+    * @return the node, or <tt>null</tt> if the name has no more qualifiers than expected (use
+    * getQualifiedTableNode()) or it can't be resolved, e.g. its catalog is not the current one.
+    */
+   public XNode getWrittenTableNode(String tablename, XNode properties, JDBCDataSource xds) {
+      boolean hasCatalog = "true".equals(properties.getAttribute("hasCatalog"));
+      boolean hasSchema = "true".equals(properties.getAttribute("hasSchema"));
+      int toption = xds == null ? JDBCDataSource.DEFAULT_OPTION : xds.getTableNameOption();
+      // the qualifiers getXNodeForTable() strips off the name
+      int depth = 1;
+
+      if(hasCatalog && (toption == JDBCDataSource.CATALOG_SCHEMA_OPTION ||
+         toption == JDBCDataSource.DEFAULT_OPTION))
+      {
+         depth++;
+      }
+
+      if(hasSchema && (toption == JDBCDataSource.CATALOG_SCHEMA_OPTION ||
+         toption == JDBCDataSource.SCHEMA_OPTION || toption == JDBCDataSource.DEFAULT_OPTION))
+      {
+         depth++;
+      }
+
+      String quote = XUtil.getQuote(xds);
+      char qchar = quote == null || quote.isEmpty() ? '"' : quote.charAt(0);
+      List<String> segments = new ArrayList<>();
+      List<Boolean> quoted = new ArrayList<>();
+      String rest = tablename;
+      int dot;
+
+      do {
+         dot = Tool.indexOfWithQuote(rest, ".", (char) 0, 0, qchar, '"');
+         String segment = dot < 0 ? rest : rest.substring(0, dot);
+         rest = dot < 0 ? "" : rest.substring(dot + 1);
+         char first = segment.isEmpty() ? 0 : segment.charAt(0);
+         boolean isQuoted = segment.length() > 1 && (first == qchar || first == '"') &&
+            segment.charAt(segment.length() - 1) == first;
+
+         if(isQuoted) {
+            String q = String.valueOf(first);
+            segment = segment.substring(1, segment.length() - 1).replace(q + q, q);
+         }
+
+         segments.add(segment);
+         quoted.add(isQuoted);
+      }
+      while(dot >= 0);
+
+      if(segments.size() <= depth || segments.size() > 3 || segments.contains("")) {
+         return null;
+      }
+
+      int n = segments.size();
+      XNode node = new XMetaDataNode(segments.get(n - 1));
+      // the schema written in the sql, not the default schema or a table of another schema
+      node.setAttribute("schema", segments.get(n - 2));
+
+      if(n == 3) {
+         String catalog = segments.get(0);
+
+         if("true".equals(properties.getAttribute("supportCatalog"))) {
+            String separator = (String) properties.getAttribute("catalogSep");
+            node.setAttribute("catalogSep", separator == null ? "." : separator);
+            node.setAttribute("catalog", catalog);
+         }
+         else {
+            // without catalogs in the table name, the table is only found in the database of
+            // the connection
+            String current = (String) properties.getAttribute("currentCatalog");
+            boolean same = current != null && (quoted.get(0) ? current.equals(catalog) :
+               current.equalsIgnoreCase(catalog));
+
+            if(!same) {
+               return null;
+            }
+         }
+      }
+
+      return node;
+   }
+
+   /**
     * Strategy pattern method that allows subclasses to change the name used for
     * the XNode that represents the specified table.
     * @param table the qualified name of the table.

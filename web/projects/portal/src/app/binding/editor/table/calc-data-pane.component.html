@@ -17,7 +17,7 @@
 -->
 @if (cellBinding) {
   <div class="container top-pane" outOfZone (onKeydown)="checkDeleteKey($event)">
-    <fieldset [disabled]="!cellSelected">
+    <fieldset [disabled]="!cellSelected || !cellBindingReady">
       <div class="row shell-form-row--field">
         <div class="col form-floating">
           <custom-select [options]="valueOptions"

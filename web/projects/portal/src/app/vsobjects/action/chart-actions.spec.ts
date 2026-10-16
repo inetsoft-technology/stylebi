@@ -228,6 +228,30 @@ describe("ChartActions", () => {
       expect(menuActions[3].actions[0].visible()).toBeTruthy();
    });
 
+   // Bug #78481, group items isn't supported on a relation chart node color/size legend
+   it("should hide group items on a node legend", () => {
+      const model: VSChartModel = createModel();
+      const legend = <Legend> {
+         areaName: "legend_content",
+         titleLabel: "State",
+         aestheticType: "Color",
+         nodeAesthetic: false
+      };
+      model.chartSelection = {
+         chartObject: legend,
+         regions: [ createRegion(), createRegion() ]
+      };
+      model.stringDictionary = ["State"];
+      model.regionMetaDictionary = [{dimIdx: 0, meaIdx: -1, colIdx: 0}];
+      const actions = new ChartActions(model, popService, viewerContext);
+      const group = actions.menuActions[3].actions[0];
+      expect(group.id()).toBe("chart group");
+      expect(group.visible()).toBe(true);
+
+      legend.nodeAesthetic = true;
+      expect(group.visible()).toBe(false);
+   });
+
    //Bug #16468 do not show hyperlink/highlight option if there is no measure field
    //Bug #20927
    it("should not show hyperlink/highlight on plot region not containing measure", () => {

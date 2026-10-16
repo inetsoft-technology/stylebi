@@ -532,6 +532,66 @@ public final class XIntFragment extends XSwappable {
       return -1;
    }
 
+   /**
+    * Write the values of a swapped fragment, not only the name of its swap file. The copy may be
+    * read by another JVM (e.g. from the distributed table cache), which can't read the swap file
+    * of this JVM (bug #78042).
+    */
+   private void writeObject(ObjectOutputStream out) throws IOException {
+      holding.incrementAndGet();
+
+      try {
+         // read the values back outside of the lock, access() waits for memory
+         access();
+
+         // swap() is synchronized, so it can't drop the array while the fields are written
+         synchronized(this) {
+            if(!valid && !disposed) {
+               validate0(false);
+            }
+
+            out.defaultWriteObject();
+         }
+      }
+      finally {
+         holding.decrementAndGet();
+      }
+   }
+
+   /**
+    * Read a copy, which gets its own swap file and is swapped by the swapper of this JVM.
+    */
+   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+      in.defaultReadObject();
+
+      // written by an older version, which only wrote the swap file name of a swapped fragment
+      if(arr == null && !disposed) {
+         throw new InvalidObjectException("Swapped fragment written without its values: " + prefix);
+      }
+
+      // the writer's prefix names the writer's swap file, which the copy must not read, reuse
+      // for its own swap or delete on dispose()
+      XSwapper s = getSwapper();
+      prefix = s.getPrefix();
+      holding = new AtomicInteger(0);
+      valid = true;
+      lastValid = false;
+      rewriteRequired = false;
+      iaccessed = s.cur;
+      monitor = s.getMonitor();
+
+      if(monitor != null) {
+         isCountHM = monitor.isLevelQualified(XSwappableMonitor.HITS);
+         isCountRW = monitor.isLevelQualified(XSwappableMonitor.READ);
+      }
+
+      if(completed && !disposed) {
+         completed = false;
+         complete();
+      }
+   }
+
+   private static final long serialVersionUID = -8313520395725218754L;
    private static final Logger LOG =
       LoggerFactory.getLogger(XIntFragment.class);
    private static final Logger DEBUG_LOG =

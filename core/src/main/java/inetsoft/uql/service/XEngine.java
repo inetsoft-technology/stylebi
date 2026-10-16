@@ -54,6 +54,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * This class implements the XRepository (and XDataService) API. It is the
@@ -1842,6 +1843,8 @@ public class XEngine implements XRepository, XQueryRepository {
       key = OrganizationManager.getInstance().getCurrentOrgID() + "__" + key;
 
       boolean cache = true;
+      boolean refresh = mtype != null &&
+         "true".equals(mtype.getAttribute(XUtil.REFRESH_META_DATA));
       XNode node;
 
       // @by Charvi
@@ -1919,6 +1922,13 @@ public class XEngine implements XRepository, XQueryRepository {
                {
                   node = null;
                }
+            }
+
+            // the caller can't trust the cached result (e.g. the columns of a table that
+            // didn't exist when it was cached), it is fetched again, and the fresh result
+            // replaces it in memory and on disk (Bug #78384)
+            if(refresh && node != pendingFlag) {
+               node = null;
             }
 
             while(node == pendingFlag) {
@@ -2325,13 +2335,20 @@ public class XEngine implements XRepository, XQueryRepository {
       // longer applies (Bug #77542)
       metaDataFailureTimes.remove(key);
 
-      (new GroupedThread(ThreadContext.getContextPrincipal()) {
-         {
-            setPriority(Thread.MIN_PRIORITY);
-         }
+      // the writes run on their own threads, in any order. Two writes of a key can overlap,
+      // e.g. the empty columns of a table that didn't exist yet and their refetch right
+      // after it (Bug #78384). Only the latest node of a key is written, one write at a
+      // time, so an older node written last can't replace the newer one on disk, where it
+      // would be used again after a restart (Bug #78427).
+      final long generation = metaDataWriteGeneration.incrementAndGet();
+      metaDataWriteGenerations.put(key, generation);
 
-         @Override
-         protected void doRun() {
+      startMetaDataCacheWrite(() -> {
+         synchronized(metaDataWriteLock) {
+            if(!Long.valueOf(generation).equals(metaDataWriteGenerations.get(key))) {
+               return;
+            }
+
             try {
                ObjectOutputStream out = new ObjectOutputStream(
                   new BufferedOutputStream(new FileOutputStream(getMetaDataFile(key))));
@@ -2343,6 +2360,27 @@ public class XEngine implements XRepository, XQueryRepository {
             catch(Exception e) {
                LOG.warn("Failed to write meta-data cache: {}", key, e);
             }
+            finally {
+               metaDataWriteGenerations.remove(key, generation);
+            }
+         }
+      });
+   }
+
+   /**
+    * Start a write of the meta data cache to disk in the background.
+    *
+    * @param write the write.
+    */
+   protected void startMetaDataCacheWrite(Runnable write) {
+      (new GroupedThread(ThreadContext.getContextPrincipal()) {
+         {
+            setPriority(Thread.MIN_PRIORITY);
+         }
+
+         @Override
+         protected void doRun() {
+            write.run();
          }
       }).start();
    }
@@ -2515,6 +2553,12 @@ public class XEngine implements XRepository, XQueryRepository {
    // action or a server restart, but long enough that a data source that's genuinely
    // still down isn't re-queried on every single asset-tree/composer request.
    private static final long META_DATA_FAILURE_RETRY_INTERVAL = 60000L; // 1 minute
+   // [dxname, mtype] -> generation of the latest pending write of the key to the meta data
+   // cache on disk, an older pending write of the key is skipped (Bug #78427)
+   private final Map<String, Long> metaDataWriteGenerations = new ConcurrentHashMap<>();
+   private final AtomicLong metaDataWriteGeneration = new AtomicLong();
+   // one write to the meta data cache on disk at a time
+   private final Object metaDataWriteLock = new Object();
    private final Object lock = new Object();
    // special value used to mark a meta data as pending
    private final XNode pendingFlag = new XNode();

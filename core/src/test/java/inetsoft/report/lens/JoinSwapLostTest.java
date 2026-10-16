@@ -51,7 +51,7 @@ public class JoinSwapLostTest {
       SwapFileReadException lost = swapLost();
       TableLens join = merge(new LostTable(values(40), 21, lost), new DefaultTableLens(values(40)));
 
-      assertSame(lost, swapIn(failureOf(15, () -> drain(join))));
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(join))));
    }
 
    @Test
@@ -59,7 +59,7 @@ public class JoinSwapLostTest {
       SwapFileReadException lost = swapLost();
       TableLens join = merge(new DefaultTableLens(values(40)), new LostTable(values(40), 21, lost));
 
-      assertSame(lost, swapIn(failureOf(15, () -> drain(join))));
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(join))));
    }
 
    @Test
@@ -70,7 +70,7 @@ public class JoinSwapLostTest {
          TableLens join =
             hash(new LostTable(values(40), 21, lost), new DefaultTableLens(values(40)));
 
-         assertSame(lost, swapIn(failureOf(15, () -> drain(join))), "round " + round);
+         assertSwapOf(lost, swapIn(failureOf(15, () -> drain(join))), "round " + round);
       }
    }
 
@@ -81,7 +81,7 @@ public class JoinSwapLostTest {
          TableLens join =
             hash(new DefaultTableLens(values(40)), new LostTable(values(40), 21, lost));
 
-         assertSame(lost, swapIn(failureOf(15, () -> drain(join))), "round " + round);
+         assertSwapOf(lost, swapIn(failureOf(15, () -> drain(join))), "round " + round);
       }
    }
 
@@ -91,7 +91,7 @@ public class JoinSwapLostTest {
       Supplier<TableLens> join =
          () -> merge(new LostTable(values(40), 21, lost), new DefaultTableLens(values(40)));
 
-      assertSame(lost, swapIn(failureOf(15, () -> drain(inline(join)))));
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(inline(join)))));
    }
 
    @Test
@@ -100,7 +100,7 @@ public class JoinSwapLostTest {
       Supplier<TableLens> join =
          () -> hash(new LostTable(values(40), 21, lost), new DefaultTableLens(values(40)));
 
-      assertSame(lost, swapIn(failureOf(15, () -> drain(inline(join)))));
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(inline(join)))));
    }
 
    @Test
@@ -109,7 +109,7 @@ public class JoinSwapLostTest {
       Supplier<TableLens> join =
          () -> hash(new DefaultTableLens(values(40)), new LostTable(values(40), 21, lost));
 
-      assertSame(lost, swapIn(failureOf(15, () -> drain(inline(join)))));
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(inline(join)))));
    }
 
    private static TableLens hash(TableLens left, TableLens right) {

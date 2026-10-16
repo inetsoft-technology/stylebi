@@ -91,7 +91,7 @@ public class JoinStallTest {
       Future<List<List<Object>>> reader =
          pool.submit(() -> drain(hash(left, new DefaultTableLens(data(30)))));
 
-      assertSame(original, stallIn(failureOf(reader, 15)).getCause());
+      assertStallOf(original, stallIn(failureOf(reader, 15)).getCause());
    }
 
    @Test
@@ -101,7 +101,7 @@ public class JoinStallTest {
       Future<List<List<Object>>> reader =
          pool.submit(() -> drain(hash(left, new DefaultTableLens(data(30)))));
 
-      assertSame(original, stallIn(failureOf(reader, 15)).getCause());
+      assertStallOf(original, stallIn(failureOf(reader, 15)).getCause());
    }
 
    @Test
@@ -112,7 +112,7 @@ public class JoinStallTest {
       Future<List<List<Object>>> reader =
          pool.submit(() -> drain(merge(left, new DefaultTableLens(data(30)))));
 
-      assertSame(original, stallIn(failureOf(reader, 15)).getCause());
+      assertStallOf(original, stallIn(failureOf(reader, 15)).getCause());
    }
 
    @Test
@@ -122,7 +122,7 @@ public class JoinStallTest {
       Future<List<List<Object>>> reader =
          pool.submit(() -> drain(merge(left, new DefaultTableLens(data(30)))));
 
-      assertSame(original, stallIn(failureOf(reader, 15)).getCause());
+      assertStallOf(original, stallIn(failureOf(reader, 15)).getCause());
    }
 
    @Test
@@ -135,7 +135,7 @@ public class JoinStallTest {
       failureOf(pool.submit(() -> drain(join)), 15);
 
       LockStallException ex = assertThrows(LockStallException.class, join::getRowCount);
-      assertSame(original, ex.getCause());
+      assertStallOf(original, ex.getCause());
    }
 
    @Test
@@ -148,7 +148,7 @@ public class JoinStallTest {
       failureOf(pool.submit(() -> drain(join)), 15);
 
       LockStallException ex = assertThrows(LockStallException.class, () -> join.getObject(30, 0));
-      assertSame(original, ex.getCause());
+      assertStallOf(original, ex.getCause());
       // the rows added before the stall stay readable
       assertEquals(0, join.getObject(0, 0));
    }

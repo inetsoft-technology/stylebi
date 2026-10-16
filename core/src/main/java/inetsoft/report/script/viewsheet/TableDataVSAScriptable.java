@@ -32,12 +32,14 @@ import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.script.XTableRow;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,16 +108,23 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          lens = ((TableFilter2) lens).getTable();
       }
 
-      if(lens != null && table != null && table.getTable() == lens) {
+      boolean sameLens = lens != null && table != null && table.getTable() == lens;
+
+      // the table array of a table that is set again is rebuilt if it was cleared, e.g. by
+      // setAssembly() from syncFormData, or the script would get the data table (78458)
+      if(sameLens && tarr != null) {
          return;
       }
 
-      if(table != null) {
-         table = (TableFilter2) table.clone();
-         table.setTable(lens);
-      }
-      else {
-         table = new TableFilter2(lens);
+      // the same lens keeps its table, which the cached view table holds
+      if(!sameLens) {
+         if(table != null) {
+            table = (TableFilter2) table.clone();
+            table.setTable(lens);
+         }
+         else {
+            table = new TableFilter2(lens);
+         }
       }
 
       FormTableLens ftable = initFormTableLens();
@@ -337,8 +346,17 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
 
             // set highlighted to empty array to prevent infinite recursion
             highlighted = new TableHighlightedArray((XTable) null);
-            // get the highted table (this could trigger another script)
-            highlighted = new TableHighlightedArray(getTable0(true));
+
+            try {
+               // get the highted table (this could trigger another script)
+               highlighted = new TableHighlightedArray(getTable0(true));
+            }
+            catch(RuntimeException ex) {
+               // a table that getTable0() could not get now, e.g. one whose script was
+               // stopped, is not one without highlights: the next read gets it (#78134)
+               highlighted = null;
+               throw ex;
+            }
          }
 
          return highlighted;
@@ -362,7 +380,9 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          boolean dirty = table != null && table.isDirty();
 
          try {
-            if(table == null || table.isDirty() || getTableArray().getTable() == null) {
+            // a cleared table array is bound to the view table again. getTableArray() would
+            // bind it to the data table, and the script writes would go into the data (78458)
+            if(table == null || table.isDirty() || tarr == null || tarr.getTable() == null) {
                if(table != null) {
                   table.setIsDirty(false);
                }
@@ -377,15 +397,24 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          catch(Exception ex) {
             // a lock stall or a lost swap file is not a missing table: rethrow it, and keep a
             // cleared table dirty so the next read fetches it again instead of reading the old
-            // one (#77123, #77910)
+            // one (#77123, #77910). Nor is a table that failed to load for a reader that has to
+            // fail, e.g. a scheduled run (#78083), nor a stopped script (#78134)
             RuntimeException unavailable = DataUnavailable.find(ex);
 
-            if(unavailable != null) {
+            if(unavailable == null) {
+               unavailable = TableLoadException.find(ex);
+            }
+
+            if(unavailable != null || ScriptTimeoutGuard.isStop(ex)) {
                if(dirty && table != null) {
                   table.setIsDirty(true);
                }
 
-               throw unavailable;
+               if(unavailable != null) {
+                  throw unavailable;
+               }
+
+               ScriptTimeoutGuard.rethrowStop(ex);
             }
 
             String msg = "Failed to get table for: " + getVSAssemblyInfo().getAbsoluteName();
@@ -471,7 +500,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          }
 
          if(table == null) {
-            table = new TableFilter2((TableLens) getTableArray().getTable());
+            table = new TableFilter2((TableLens) getArrayTable());
          }
 
          if(link == null) {
@@ -635,7 +664,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          }
 
          if(table == null) {
-            table = new TableFilter2((TableLens) getTableArray().getTable());
+            table = new TableFilter2((TableLens) getArrayTable());
          }
 
          if(header != null) {
@@ -722,6 +751,11 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          // a lock stall or a lost swap file is not a missing table, which TableArray reads as
          // an empty one and getTableArray()/getTableData() would cache (#77123, #77910)
          DataUnavailable.rethrow(ex);
+         // nor is a table that failed to load for a reader that has to fail, e.g. a scheduled
+         // run (#78083)
+         TableLoadException.rethrow(ex);
+         // nor a table whose script was stopped, the next read gets it again (#78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          if(!box.isCancelled(ts)) {
             if(LOG.isDebugEnabled()) {
@@ -1393,6 +1427,16 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       return this.tarr = new TableArray(getTable0(false));
    }
 
+   /**
+    * Get the table of the table array, or the data table if the table array is not bound.
+    * Unlike getTableArray(), it does not bind the table array to the data table, so the next
+    * read of the script table binds it to the view table (78458).
+    */
+   private XTable getArrayTable() {
+      TableArray tarr = this.tarr;
+      return tarr != null ? tarr.getTable() : getTable0(false);
+   }
+
    protected boolean isCrosstabOrCalc() {
       return false;
    }
@@ -1461,7 +1505,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       }
 
       if(table == null) {
-         table = new TableFilter2((TableLens) getTableArray().getTable());
+         table = new TableFilter2((TableLens) getArrayTable());
       }
 
       TableLens temp = table.getTable();

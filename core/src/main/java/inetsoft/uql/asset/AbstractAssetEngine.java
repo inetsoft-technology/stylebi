@@ -50,6 +50,7 @@ import java.lang.ref.WeakReference;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 
@@ -1685,7 +1686,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    public void addFolder(AssetEntry entry, Principal user)
       throws Exception
    {
-      writeLock.lock();
+      lockWrite();
 
       try {
          String identifier = entry.toIdentifier();
@@ -1741,8 +1742,12 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             // @by jasonshobe, try to create the new folder before adding it to
             // the parent so that if an exception occurs while creating the new
             // folder, the parent is not modified.
-            AssetFolder folder = new AssetFolder();
-            storage.putXMLSerializable(identifier, folder);
+            // Bug #78230, a caller checks that the folder doesn't exist before it calls this
+            // without a lock (e.g. the Recycle Bin of concurrent deletes), so a folder that is
+            // already stored is kept rather than replaced by an empty one
+            if(!(getStoredFolder(entry, storage) instanceof AssetFolder)) {
+               storage.putXMLSerializable(identifier, new AssetFolder());
+            }
 
             long time = System.currentTimeMillis();
 
@@ -1759,7 +1764,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
       finally {
-         writeLock.unlock();
+         unlockWrite();
       }
    }
 
@@ -1832,7 +1837,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                             Principal user, boolean force, boolean callFireEvent)
    throws Exception
    {
-      writeLock.lock();
+      lockWrite();
 
       try {
          if(!oentry.isFolder() || !supportsScope(oentry.getScope()) ||
@@ -1905,7 +1910,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
       finally {
-         writeLock.unlock();
+         unlockWrite();
       }
    }
 
@@ -2215,13 +2220,165 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    }
 
    /**
+    * Bug #78217, reports that the permission granted to the creator of a new item couldn't be
+    * saved after the item was created. The item is kept, because it may be named automatically and
+    * creating it again would create another one, so the failure is logged and a warning for the
+    * user is returned instead of thrown.
+    *
+    * @return the warning to show to the user.
+    */
+   public static String getCreatorPermissionWarning(ResourceType type, Object resource,
+                                                    Exception cause)
+   {
+      LOG.error("Failed to grant the permission of {} {} to its creator, it may not have been " +
+                "saved", type, resource, cause);
+
+      try {
+         return Catalog.getCatalog().getString("em.repository.creatorPermissionNotSaved");
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get the message for the creator permission of {} {}",
+                  type, resource, e);
+         return "The item was created, but the permission that gives you access to it may not " +
+            "have been saved. Check its permissions before you use it.";
+      }
+   }
+
+   /**
+    * Writes the permission of an asset that is being moved or removed. The write is a side effect
+    * of the structural change, so a failure is logged and does not stop the rest of the change.
+    *
+    * @return {@code true} if the permission was written.
+    */
+   public static boolean setPermissionBestEffort(SecurityEngine security, ResourceType type,
+                                                 String path, Permission perm)
+   {
+      return setPermissionBestEffort(() -> security.setPermission(type, path, perm), type, path);
+   }
+
+   /**
+    * Writes the permission of an asset that is being moved or removed through an authorization
+    * provider. Bug #78217, the write is a side effect of the structural change, so a failure is
+    * logged and does not stop the rest of the change.
+    *
+    * @return {@code true} if the permission was written.
+    */
+   public static boolean setPermissionBestEffort(AuthorizationProvider provider, ResourceType type,
+                                                 String path, Permission perm)
+   {
+      return setPermissionBestEffort(() -> provider.setPermission(type, path, perm), type, path);
+   }
+
+   private static boolean setPermissionBestEffort(Runnable write, ResourceType type, String path) {
+      try {
+         write.run();
+         return true;
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to set the permission of {} {}, it may not have been saved",
+                   type, path, e);
+         return false;
+      }
+   }
+
+   /**
+    * Removes the permission of an asset that is being moved or removed. The write is a side
+    * effect of the structural change, so a failure is logged and does not stop the rest of the
+    * change. A permission that may still be stored is reported to the user (Bug #77939).
+    *
+    * @return {@code true} if the permission was removed.
+    */
+   public static boolean removePermissionBestEffort(SecurityEngine security, ResourceType type,
+                                                    String path)
+   {
+      return removePermissionBestEffort(
+         () -> security.removePermission(type, path), security, type, path);
+   }
+
+   /**
+    * Removes the permission of an asset that is being moved or removed through an authorization
+    * provider. Bug #78217, the write is a side effect of the structural change, so a failure is
+    * logged and does not stop the rest of the change. A permission that may still be stored is
+    * reported to the user.
+    *
+    * @return {@code true} if the permission was removed.
+    */
+   public static boolean removePermissionBestEffort(AuthorizationProvider provider,
+                                                    ResourceType type, String path)
+   {
+      return removePermissionBestEffort(
+         () -> provider.removePermission(type, path), SecurityEngine.getSecurity(), type, path);
+   }
+
+   private static boolean removePermissionBestEffort(Runnable write, SecurityEngine security,
+                                                     ResourceType type, String path)
+   {
+      try {
+         write.run();
+         return true;
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to remove the permission of {} {}, it may still be stored",
+                   type, path, e);
+         reportPermissionMayRemain(security, type, path);
+         return false;
+      }
+   }
+
+   /**
+    * Bug #78217, moves the permission of an asset that is already moved or renamed from its old
+    * resource to its new one. The new key is written before the old one is removed, so a failed
+    * write never deletes the only copy, and the old key is kept (and reported as possibly
+    * remaining) when the new one could not be written. Nothing is written when both are the same
+    * resource.
+    *
+    * @return {@code true} if the permission was moved.
+    */
+   public static boolean movePermissionBestEffort(SecurityEngine security, ResourceType type,
+                                                  String opath, String npath, Permission perm)
+   {
+      if(Objects.equals(opath, npath)) {
+         return true;
+      }
+
+      if(!setPermissionBestEffort(security, type, npath, perm)) {
+         reportPermissionMayRemain(security, type, opath);
+         return false;
+      }
+
+      return removePermissionBestEffort(security, type, opath);
+   }
+
+   /**
+    * Bug #78217, moves the permission of an asset that is already moved or renamed through an
+    * authorization provider, the same way as
+    * {@link #movePermissionBestEffort(SecurityEngine, ResourceType, String, String, Permission)}.
+    *
+    * @return {@code true} if the permission was moved.
+    */
+   public static boolean movePermissionBestEffort(AuthorizationProvider provider, ResourceType type,
+                                                  String opath, String npath, Permission perm)
+   {
+      if(Objects.equals(opath, npath)) {
+         return true;
+      }
+
+      if(!setPermissionBestEffort(provider, type, npath, perm)) {
+         reportPermissionMayRemain(SecurityEngine.getSecurity(), type, opath);
+         return false;
+      }
+
+      return removePermissionBestEffort(provider, type, opath);
+   }
+
+   /**
     * {@inheritDoc}
     */
    @Override
    public void removeFolder(AssetEntry entry, Principal user, boolean force)
       throws Exception
    {
-      writeLock.lock();
+      lockWrite();
 
       try {
          if(!entry.isFolder() || !supportsScope(entry.getScope()) ||
@@ -2253,7 +2410,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
       finally {
-         writeLock.unlock();
+         unlockWrite();
       }
    }
 
@@ -2638,7 +2795,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                         boolean checkDependency, boolean updateDependency, boolean checkCrossJoins)
       throws Exception
    {
-      writeLock.lock();
+      lockWrite();
 
       try {
          String identifier = entry.toIdentifier();
@@ -2974,7 +3131,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
       finally {
-         writeLock.unlock();
+         unlockWrite();
       }
    }
 
@@ -3057,7 +3214,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                            boolean ignorePermissions)
       throws Exception
    {
-      writeLock.lock();
+      lockWrite();
 
       try {
          if(!oentry.isSheet() || !supportsScope(oentry.getScope()) ||
@@ -3126,7 +3283,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
       finally {
-         writeLock.unlock();
+         unlockWrite();
       }
    }
 
@@ -3298,6 +3455,17 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          EmbeddedDataCacheHandler.clearWSCache(oidentifier);
       }
 
+      // Bug #78430: the logical models and data sources list the sheet by its full entry, so
+      // move it to the new entry once the sheet has moved. A failure here must not fail the rename.
+      if(!Tool.equals(oentry, nentry)) {
+         try {
+            dependencyHandler.renameSheetOuterDependencies(sheet, oentry, nentry);
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to rename the outer dependencies of {} to {}", oentry, nentry, ex);
+         }
+      }
+
       clearCache(oentry);
       clearCache(nentry);
 
@@ -3348,7 +3516,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
     */
    @Override
    public void removeSheet(AssetEntry entry, Principal user, boolean force) throws Exception {
-      writeLock.lock();
+      lockWrite();
 
       try {
          if(!entry.isSheet() || !supportsScope(entry.getScope()) ||
@@ -3387,7 +3555,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
       finally {
-         writeLock.unlock();
+         unlockWrite();
       }
    }
 
@@ -3450,7 +3618,21 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          ((Worksheet) sheet).clearSnapshot(this, entry);
       }
 
-      DependencyHandler.getInstance().deleteDependencies(entry);
+      DependencyHandler dependencyHandler = DependencyHandler.getInstance();
+
+      // Bug #78430: remove the sheet from the lists of the logical models, their attributes and
+      // the data sources it is bound to. deleteDependencies only cleans the dependency storage.
+      // A failure here must not fail the delete.
+      if(sheet != null) {
+         try {
+            dependencyHandler.updateSheetDependencies(sheet, entry, false);
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to remove the dependencies of the deleted sheet {}", entry, ex);
+         }
+      }
+
+      dependencyHandler.deleteDependencies(entry);
    }
 
    /**
@@ -3498,6 +3680,25 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       return folder;
+   }
+
+   /**
+    * Gets the stored content of a folder, or null if it isn't stored or can't be parsed.
+    */
+   private Object getStoredFolder(AssetEntry entry, IndexedStorage storage) {
+      String identifier = entry.toIdentifier();
+
+      if(isMetadataAware(storage)) {
+         return ((MetadataAwareStorage) storage).getAssetFolder(identifier);
+      }
+
+      try {
+         return storage.getXMLSerializable(identifier, null, entry.getOrgID());
+      }
+      catch(Throwable ex) {
+         LOG.debug("Unable to parse folder " + entry, ex);
+         return null;
+      }
    }
 
    /**
@@ -3664,8 +3865,12 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       //give permission if default org globally visible. Scope this bypass to viewsheet-type
       //entries only (VIEWSHEET/VIEWSHEET_SNAPSHOT): the "expose default org to all" feature shares
       //host-org viewsheets read-only, and dependent resources (worksheets, libraries, etc.) must
-      //not become independently readable across orgs through this grant.
+      //not become independently readable across orgs through this grant. Only shared viewsheets
+      //are exposed: a host-org user's private (USER_SCOPE, My Dashboards) viewsheets and snapshots
+      //are never shared, because this bypass runs before the owner checks below and would give a
+      //foreign-org user what a host-org non-owner is refused (#78120).
       if(Tool.equals(permission, ResourceAction.READ) && entry.isViewsheet() &&
+                           entry.getScope() != AssetRepository.USER_SCOPE &&
                            SUtil.isDefaultVSGloballyVisible(user) &&
                            Organization.getDefaultOrganizationID().equalsIgnoreCase(entry.getOrgID()) &&
                            user != null && !((XPrincipal)user).getOrgId().equalsIgnoreCase(Organization.getDefaultOrganizationID())) {
@@ -4207,6 +4412,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    {
       AssetChangeEvent event = null;
       List<AssetChangeListener> listeners;
+      boolean storageRefresh = Boolean.TRUE.equals(storageRefreshing.get());
 
       synchronized(this.listeners) {
          listeners = new ArrayList<>(this.listeners.keySet());
@@ -4221,7 +4427,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
          if(event == null) {
             event = new AssetChangeEvent(this, entryType, changeType,
-                                         assetEntry, oldName, root, sheet, reason);
+                                         assetEntry, oldName, root, sheet, reason,
+                                         storageRefresh);
          }
 
          try {
@@ -4309,18 +4516,25 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return;
       }
 
-      AssetEntry oentry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.FOLDER, "/", oname);
-      AssetEntry nentry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.FOLDER, "/", nname);
-      IndexedStorage ostorage = getStorage(oentry);
-      IndexedStorage nstorage = getStorage(nentry);
-      changeFolder0(oentry, ostorage, nentry, nstorage, true);
+      lockWrite();
 
-      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
-         AssetEntry.Type.REPOSITORY_FOLDER, "/", oname);
-      IndexedStorage storage = getStorage(entry);
-      renameUserBookmarks(entry, storage, oname, nname);
+      try {
+         AssetEntry oentry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.FOLDER, "/", oname);
+         AssetEntry nentry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.FOLDER, "/", nname);
+         IndexedStorage ostorage = getStorage(oentry);
+         IndexedStorage nstorage = getStorage(nentry);
+         changeFolder0(oentry, ostorage, nentry, nstorage, true);
+
+         AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+            AssetEntry.Type.REPOSITORY_FOLDER, "/", oname);
+         IndexedStorage storage = getStorage(entry);
+         renameUserBookmarks(entry, storage, oname, nname);
+      }
+      finally {
+         unlockWrite();
+      }
    }
 
    /**
@@ -4362,11 +4576,18 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
     */
    @Override
    public void removeUser(IdentityID identityID) throws Exception {
-      AssetEntry entry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.FOLDER, "/", identityID);
-      IndexedStorage storage = getStorage(entry);
+      lockWrite();
 
-      removeFolder0(entry, storage, true);
+      try {
+         AssetEntry entry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.FOLDER, "/", identityID);
+         IndexedStorage storage = getStorage(entry);
+
+         removeFolder0(entry, storage, true);
+      }
+      finally {
+         unlockWrite();
+      }
    }
 
    /**
@@ -4869,6 +5090,50 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
    }
 
+   /**
+    * Locks the asset folders for a change. Bug #78230, a folder is read, changed and written back
+    * as a whole, and each cluster node has its own engine and write lock, so the changes are also
+    * serialized across the cluster or a node writing a folder drops another node's change to it.
+    * The cluster lock is taken only here, right after the write lock, so the lock order is always
+    * write lock -> cluster lock. Both locks are reentrant.
+    */
+   protected final void lockWrite() {
+      writeLock.lock();
+
+      try {
+         Lock lock = getFolderLock();
+
+         if(lock != null) {
+            lock.lock();
+         }
+      }
+      catch(RuntimeException | Error e) {
+         writeLock.unlock();
+         throw e;
+      }
+   }
+
+   /**
+    * Unlocks the asset folders locked by {@link #lockWrite()}.
+    */
+   protected final void unlockWrite() {
+      try {
+         Lock lock = getFolderLock();
+
+         if(lock != null) {
+            lock.unlock();
+         }
+      }
+      finally {
+         writeLock.unlock();
+      }
+   }
+
+   // an engine created without a cluster (tests) is only locked in its own JVM
+   private Lock getFolderLock() {
+      return cluster == null ? null : cluster.getLock(FOLDER_LOCK);
+   }
+
    public static final ThreadLocal<String> LOCAL = new ThreadLocal<>();
    private static final ThreadLocal<Boolean> PORTAL_DATA_LISTING =
       ThreadLocal.withInitial(() -> Boolean.FALSE);
@@ -4889,9 +5154,13 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    private long lastMod = 0;
    private static final String TABLE_STYLE = "Table Styles";
    private static final String SCRIPT = "Scripts";
+   private static final String FOLDER_LOCK = AbstractAssetEngine.class.getName() + ".folders";
 
    private final ReentrantLock writeLock = new ReentrantLock();
    private final AtomicBoolean disposed = new AtomicBoolean(false);
+
+   // set while a storage refresh event is being fired, see refreshListener
+   private final ThreadLocal<Boolean> storageRefreshing = new ThreadLocal<>();
 
    private final StorageRefreshListener refreshListener = event -> {
       final List<TimestampIndexChange> changes = event.getChanges();
@@ -4903,8 +5172,18 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
             if(entry != null) {
                final int changeType = convertTimestampIndexChangeType(change.getChange());
-               fireEvent(entry.getType().id(), changeType, entry, entry.toIdentifier(), true, null,
-                         "StorageRefresh: " + entry);
+               // mark the event as a storage refresh. It is fired on every cluster node, so
+               // listeners that forward local changes to the other nodes must skip it.
+               // fireEvent() is overridden (RepletEngine), so the flag is passed by the thread
+               storageRefreshing.set(Boolean.TRUE);
+
+               try {
+                  fireEvent(entry.getType().id(), changeType, entry, entry.toIdentifier(), true,
+                            null, "StorageRefresh: " + entry);
+               }
+               finally {
+                  storageRefreshing.remove();
+               }
             }
          }
       }

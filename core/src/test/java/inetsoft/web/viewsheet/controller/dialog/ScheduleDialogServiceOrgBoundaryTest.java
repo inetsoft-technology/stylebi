@@ -90,6 +90,9 @@ class ScheduleDialogServiceOrgBoundaryTest {
          .addUser("sdsUser", ORG_A, "password")
          .addUserToRole("sdsUser", SCHEDULE_ROLE, ORG_A)
          .grantPermission(ResourceType.SCHEDULER, "*", ResourceAction.ACCESS,
+                          SCHEDULE_ROLE, Identity.ROLE, ORG_A)
+         // Bug #78129, a saved sheet must be readable by the saver and the run principal
+         .grantPermission(ResourceType.REPORT, "Own/Dashboard", ResourceAction.READ,
                           SCHEDULE_ROLE, Identity.ROLE, ORG_A);
       builder.setup();
 
@@ -175,6 +178,34 @@ class ScheduleDialogServiceOrgBoundaryTest {
          new IdentityID("sdsUser", ORG_A).convertToKey() + ":sdsDialogOwn", ORG_A);
       assertNotNull(stored, "stored");
       assertEquals(ownEntry.toIdentifier(), ((ViewsheetAction) stored.getAction(0)).getViewsheet());
+   }
+
+   // Bug #78129, the client substitutes another same-org user's private viewsheet for the
+   // caller's own already-open entry, the org matches but the caller can't read it
+   @Test
+   void scheduleVS_otherUsersPrivateViewsheet_isRefused() throws Exception {
+      SRPrincipal caller = builder.principalOf("sdsUser", ORG_A);
+      allowScheduling(caller);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetEntry ownEntry = AssetEntry.createAssetEntry("1^128^__NULL__^Own/Dashboard^" + ORG_A);
+      when(rvs.getEntry()).thenReturn(ownEntry);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+      when(viewsheetService.getViewsheet("vsid3", caller)).thenReturn(rvs);
+
+      ViewsheetActionModel actionModel = ViewsheetActionModel.builder()
+         .viewsheet("4^128^sdsOther~;~" + ORG_A + "^vs1^" + ORG_A)
+         .build();
+      ScheduleDialogModel model = dialogModel("sdsDialogPrivate", actionModel);
+
+      inetsoft.sree.security.SecurityException ex =
+         assertThrows(inetsoft.sree.security.SecurityException.class,
+            () -> service.scheduleVS("vsid3", model, caller, mock(CommandDispatcher.class)));
+      assertTrue(ex.getMessage().contains("isn't readable"), ex.getMessage());
+
+      assertNull(scheduleManager.getScheduleTask(
+         new IdentityID("sdsUser", ORG_A).convertToKey() + ":sdsDialogPrivate", ORG_A),
+         "not stored");
    }
 
    private void allowScheduling(SRPrincipal caller) throws inetsoft.sree.security.SecurityException {

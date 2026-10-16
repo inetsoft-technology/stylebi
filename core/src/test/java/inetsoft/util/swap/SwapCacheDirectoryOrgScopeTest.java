@@ -81,6 +81,9 @@ class SwapCacheDirectoryOrgScopeTest {
       SreeEnv.setProperty(CACHE_DIR, global);
       SreeEnv.setProperty(ORG_PREFIX + CACHE_DIR, tempDir.resolve("orga").toString());
       XIntFragment fragment = new XIntFragment(createValues());
+      // a fragment keeps the directory of its first file (#78043), so the org thread
+      // resolves the file of a fragment that has not resolved one yet
+      XIntFragment orgFragment = new XIntFragment(createValues());
 
       try {
          File noPrincipalFile = onPrincipalLessThread(() -> fragment.getFile("a.tdat"));
@@ -92,10 +95,12 @@ class SwapCacheDirectoryOrgScopeTest {
          assertEquals("org", SreeEnv.getProperty(CONTROL));
          assertEquals(global, noPrincipalDir);
          assertEquals(global, FileSystemService.getInstance().getCacheDirectory());
+         assertEquals(noPrincipalFile, orgFragment.getFile("a.tdat"));
          assertEquals(noPrincipalFile, fragment.getFile("a.tdat"));
       }
       finally {
          fragment.dispose();
+         orgFragment.dispose();
       }
    }
 

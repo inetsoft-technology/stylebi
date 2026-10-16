@@ -187,7 +187,7 @@ public class DefaultVSGauge extends VSGauge {
 
       GaugeVSAssemblyInfo info = getGaugeAssemblyInfo();
       double[] ranges = info.getRanges();
-      Color[] rangeColors = info.getRangeColors();
+      Color[] rangeColors = info.getRangeRenderColors();
       fillRanges0(g2d, ranges, rangeColors, info.isRangeGradient());
    }
 
@@ -237,7 +237,10 @@ public class DefaultVSGauge extends VSGauge {
 
             if(i < rangeColors.length) {
                c1 = rangeColors[i];
-               c2 = (i < rangeColors.length - 1) ? rangeColors[i + 1] : c1;
+               // the next row with a value, else the blend slot (#78009), else darker()
+               // below, as the other range renderers do (#78464)
+               int end = getRangeEndColorIndex(ranges, rangeColors, i);
+               c2 = end >= 0 ? rangeColors[end] : null;
             }
 
             if(c2 == null && c1 != null) {

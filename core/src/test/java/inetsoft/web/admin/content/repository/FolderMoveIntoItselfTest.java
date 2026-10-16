@@ -464,7 +464,7 @@ class FolderMoveIntoItselfTest {
       addReportFolders(n, n + "/G");
       RecycleBin bin = mock(RecycleBin.class);
 
-      allowAll(() -> RecycleUtils.moveRepositoryFolderToRecycleBin(n, n, null, admin(), bin));
+      allowAll(() -> RecycleUtils.moveRepositoryFolderToRecycleBin(n, n, null, admin(), bin, true));
 
       String binPath = binPath(bin, n);
       assertFalse(registry().isFolder(n));

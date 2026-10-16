@@ -208,7 +208,7 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
          writer.print(" defaultValue=\"" + Tool.NULL_PARAMETER_VALUE + "\"");
       }
       else {
-         writer.print(" defaultValue=\"" + getDefaultValue() + "\"");
+         writer.print(" defaultValue=\"" + Tool.encodeHTMLAttribute(getDefaultValue()) + "\"");
       }
 
    }
@@ -275,6 +275,12 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
 
       minDate.setDValue(getContentsStr(elem, "minDate", ""));
       maxDate.setDValue(getContentsStr(elem, "maxDate", ""));
+
+      // a default value saved before #77605 may have a Buddhist or Japanese year. The data type
+      // is checked here since it may come from the list binding, which is parsed in contents
+      if(defaultValue != null && XSchema.isDateType(getDataType())) {
+         defaultValue = Tool.toGregorianPersistentDate(defaultValue);
+      }
    }
 
    /**

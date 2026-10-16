@@ -29,6 +29,7 @@ import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.util.ThreadContext;
 import inetsoft.web.admin.deploy.DeployService;
 import inetsoft.web.admin.schedule.model.*;
+import inetsoft.web.viewsheet.model.dialog.schedule.TimeConditionModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -264,6 +265,28 @@ class ScheduleTaskItemPairingTest {
    }
 
    @Test
+   void typeChangedBackConditionKeepsStoredTimeWithoutStartTime() throws Exception {
+      deny("startTime");
+      ScheduleTask stored = storedTask(action(SHEET, "b@x.com", "pwB"));
+      stored.addCondition(daily(9, 0, null));
+      TimeCondition saved = saveTypeChangedBackCondition();
+      assertEquals(9, saved.getHour());
+      assertEquals(0, saved.getMinute());
+      assertEquals(2, saved.getInterval());
+   }
+
+   @Test
+   void typeChangedBackConditionKeepsStoredRangeWithoutTimeRange() throws Exception {
+      deny("timeRange");
+      TimeRange range = new TimeRange("Morning", "06:00", "12:00", false);
+      ScheduleTask stored = storedTask(action(SHEET, "b@x.com", "pwB"));
+      stored.addCondition(daily(9, 0, range));
+      TimeCondition saved = saveTypeChangedBackCondition();
+      assertNotNull(saved.getTimeRange());
+      assertEquals("Morning", saved.getTimeRange().getName());
+   }
+
+   @Test
    void deleteFirstBackupActionKeepsFtpPasswordOfKeptAction() throws Exception {
       ScheduleTask stored = storedTask(backup("ftp://files.example/bk/a.zip", "ftpA"),
                                        backup("ftp://files.example/bk/b.zip", "ftpB"));
@@ -365,6 +388,30 @@ class ScheduleTaskItemPairingTest {
       List<ScheduleConditionModel> conditions =
          new ArrayList<>(service.getTaskConditions(TASK, principal).conditions());
       conditions.remove(0);
+      ScheduleTaskEditorModel model = ScheduleTaskEditorModel.builder()
+         .taskName(TASK).oldTaskName(TASK).options(mock(TaskOptionsPaneModel.class))
+         .addAllConditions(conditions)
+         .addAllActions(editorActions())
+         .itemsIdentified(true)
+         .build();
+      ScheduleTask saved = save(model);
+      assertEquals(1, saved.getConditionCount());
+      return (TimeCondition) saved.getCondition(0);
+   }
+
+   /**
+    * Bug #78224, saves the stored condition 0 the way the EM editor sends it after its type is
+    * changed and changed back: a default Daily model (01:30, no time range) that keeps the
+    * stored condition's original index, with the interval then set to 2.
+    */
+   private TimeCondition saveTypeChangedBackCondition() throws Exception {
+      List<ScheduleConditionModel> conditions =
+         new ArrayList<>(service.getTaskConditions(TASK, principal).conditions());
+      TimeConditionModel loaded = (TimeConditionModel) conditions.get(0);
+      assertEquals(0, loaded.originalIndex());
+      conditions.set(0, TimeConditionModel.builder().from(loaded)
+         .label("New Condition").hour(1).minute(30).second(0).interval(2).timeRange(null)
+         .build());
       ScheduleTaskEditorModel model = ScheduleTaskEditorModel.builder()
          .taskName(TASK).oldTaskName(TASK).options(mock(TaskOptionsPaneModel.class))
          .addAllConditions(conditions)

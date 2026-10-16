@@ -19,10 +19,16 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.CleanupTableCacheTask;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.internal.cluster.*;
+import inetsoft.storage.KeyValueTask;
+import inetsoft.storage.LoadKeyValueTask;
 import inetsoft.test.*;
 import inetsoft.uql.erm.XDataModel;
+import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.XLogicalModel;
+import inetsoft.util.script.graal.ScriptHostAccess;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,7 +46,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * dependency checkers under inetsoft.uql.asset.delete, and the logical model renames that
  * start the pipeline, are refused to a sheet script on every route. Java callers are
  * unaffected. (Bug #77852) The two-argument logical model rename delegates to the guarded
- * rename instead of calling itself. (Bug #77920)
+ * rename instead of calling itself. (Bug #77920) The cluster task families (key-value and
+ * singleton tasks, e.g. LoadRenameQueueTask) and CleanupTableCacheTask can't be constructed
+ * by a sheet script. (Bug #78228)
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
@@ -55,6 +63,8 @@ class ScriptRenamePipelineAccessTest {
 
    private static final String SYNC = "inetsoft.uql.asset.sync.";
    private static final String DELETE = "inetsoft.uql.asset.delete.";
+   private static final String CLEANUP =
+      "inetsoft.report.composition.execution.CleanupTableCacheTask";
    private static final String UNKNOWN = "Unknown identifier";
    private static final String CTOR_REFUSED = "Message not supported";
    private static final String RENAME_REFUSED = "A script may not rename a logical model";
@@ -129,6 +139,45 @@ class ScriptRenamePipelineAccessTest {
    @Test
    void renameTransformQueueRefused() throws Exception {
       assertNotAllowed(construct("RenameTransformQueue", ""));
+   }
+
+   @Test
+   void loadRenameQueueTaskRefused() throws Exception {
+      assertNotAllowed(construct("LoadRenameQueueTask", ""));
+   }
+
+   @Test
+   void loadRenameQueueTaskLegacyRouteRefused() throws Exception {
+      assertNotAllowed(run("new " + SYNC + "LoadRenameQueueTask(); 'constructed'"));
+   }
+
+   @Test
+   void cleanupTableCacheTaskRefused() throws Exception {
+      assertNotAllowed(run("new (Java.type('" + CLEANUP + "'))(); 'constructed'"));
+   }
+
+   @Test
+   void cleanupTableCacheTaskLegacyRouteRefused() throws Exception {
+      assertNotAllowed(run("new " + CLEANUP + "(); 'constructed'"));
+   }
+
+   /**
+    * The deny spans the task families, so a task added later under an allowed package is
+    * covered without being named.
+    */
+   @Test
+   void clusterTaskFamiliesDenied() {
+      Class<?>[] types = {
+         KeyValueTask.class, LoadKeyValueTask.class, LoadRenameQueueTask.class,
+         LoadDependencyStorageTask.class, RenameTransformTask.class,
+         SingletonTask.class, SingletonRunnableTask.class, SingletonCallableTask.class,
+         RenameTransformTask.Rename.class, RenameTransformTask.Remove.class,
+         CleanupTableCacheTask.class
+      };
+
+      assertAll(Arrays.stream(types)
+                   .map(type -> (Executable) () ->
+                      assertTrue(ScriptHostAccess.isTypeDenied(type), type.getName())));
    }
 
    @Test

@@ -223,7 +223,7 @@ public class DrillSubQuery implements XMLSerializable, Serializable, Cloneable {
 
          writer.println("<variableField key=\"" +
             Tool.escape(queryKey) + "\"");
-         writer.print(" value=\"" + value);
+         writer.print(" value=\"" + Tool.escape(value));
          writer.println("\"/>");
       }
 

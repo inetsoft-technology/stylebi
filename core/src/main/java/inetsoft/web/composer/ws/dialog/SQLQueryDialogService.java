@@ -443,6 +443,9 @@ public class SQLQueryDialogService {
       }
       else {
          queryManagerService.updateQuery(runtimeId, advancedModel, null, true);
+         // a sql refused because the table of its wildcard had no columns is parsed again,
+         // the table may exist now (Bug #78384)
+         queryManagerService.reparseUnexpandedWildcard(runtimeId, principal);
       }
 
       RuntimeQueryService.RuntimeXQuery runtimeQuery = queryManagerService.getRuntimeQuery(runtimeId);

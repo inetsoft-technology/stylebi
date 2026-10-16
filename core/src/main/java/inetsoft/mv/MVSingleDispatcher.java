@@ -21,7 +21,6 @@ import inetsoft.mv.data.*;
 import inetsoft.mv.fs.*;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.XTable;
-import inetsoft.util.CancelledException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,30 +63,22 @@ class MVSingleDispatcher extends MVDispatcher {
 
       MVBuilder builder = getMVBuilder();
 
-      if(isCanceled()) {
-         throw new CancelledException("The MV creation was interrupted.");
-      }
+      checkCanceled();
 
       start = System.currentTimeMillis();
 
-      if(isCanceled()) {
-         throw new CancelledException("The MV creation was interrupted.");
-      }
+      checkCanceled();
 
       MV mv = builder.getMV();
       String name = this.name + "_temp";
       String oname = this.name;
 
-      if(isCanceled()) {
-         throw new CancelledException("The MV creation was interrupted.");
-      }
+      checkCanceled();
 
       // save to temp files
       List<BlockFile> list = saveTempFile(builder);
 
-      if(isCanceled()) {
-         throw new CancelledException("The MV creation was interrupted.");
-      }
+      checkCanceled();
 
       long built = System.currentTimeMillis();
       LOG.debug("Data loaded and saved for materialized view " + def.getName() + " in " +

@@ -932,6 +932,14 @@ public class CoreLifecycleService {
          sendMessage(msg, MessageCommand.Type.WARNING, dispatcher);
       }
 
+      // Bug #78254: initTables() above may have re-executed a table query that raised a
+      // script/calc-field UserMessage (e.g. CoreTool.addUserWarning from AssetQuery). This
+      // method is reached via the always-async VSRefreshServiceProxy.refreshViewsheetAsync
+      // call, so ServiceProxyContext.apply()'s !async guard (Bug #77135) would otherwise
+      // discard the message before any caller thread could retrieve it. Forward it directly
+      // through the thread-independent CommandDispatcher here, the same way execute() does.
+      forwardReraisedUserMessage(dispatcher);
+
       // set info after script is executed
       setViewsheetInfo(rvs, uri, dispatcher);
 
@@ -940,6 +948,23 @@ public class CoreLifecycleService {
       pointCommand.setCurrent(rvs.getCurrent());
       pointCommand.setSavePoint(rvs.getSavePoint());
       dispatcher.sendCommand(pointCommand);
+   }
+
+   /**
+    * Bug #78254: forward a user message raised on the current thread (e.g. a script/calc-field
+    * error re-raised by {@code CoreTool.addUserWarning} during table execution) directly to the
+    * browser via the thread-independent {@link CommandDispatcher}, bypassing the generic
+    * {@code ServiceProxyContext}/{@code Tool} thread-local relay that {@code apply()}'s
+    * {@code !async} guard (Bug #77135) discards for an always-async {@code @ClusterProxy} entry
+    * point such as {@code VSRefreshController}. Mirrors the pattern already used by
+    * {@link #execute}.
+    */
+   void forwardReraisedUserMessage(CommandDispatcher dispatcher) {
+      final UserMessage reraisedMessage = Tool.getUserMessage();
+
+      if(reraisedMessage != null) {
+         dispatcher.sendCommand(MessageCommand.fromUserMessage(reraisedMessage));
+      }
    }
 
    /**
@@ -1033,8 +1058,19 @@ public class CoreLifecycleService {
                      rvs.isPopComponent(assembly.getAbsoluteName()))))
          {
             int nrows = Math.max(assembly.getPixelSize().height / 16, 100);
-            BaseTableService.loadTableData(rvs, assembly.getAbsoluteName(), 0, 0, nrows,
-                                           uri, dispatcher);
+
+            try {
+               BaseTableService.loadTableData(rvs, assembly.getAbsoluteName(), 0, 0, nrows,
+                                              uri, dispatcher);
+            }
+            catch(ChangeCancelledException e) {
+               // only newer changes or queries kept cancelling it, skip it but go on with the
+               // other tables, like loadTableLens(). Any other cancel stops the request (#78244)
+               LOG.debug("Loading {} skipped, cancelled by a newer request",
+                         assembly.getAbsoluteName(), e);
+               continue;
+            }
+
             // Bug #17514 Initing a table can cause the info to have changes, like its
             // script being executed. 12.2 LoadTableLensEvent was called here which
             // not only loads data but also sends an updated assembly info to front end.
@@ -2656,6 +2692,11 @@ public class CoreLifecycleService {
          int start = ((TableDataVSAssembly) assembly).getLastStartRow();
          BaseTableService.loadTableData(rvs, name, mode, start, num, uri, dispatcher, refreshData);
       }
+      catch(ChangeCancelledException e) {
+         // only newer changes or queries cancelled its query and one of them loads it, skip it
+         // but go on with the request's other tables. Any other cancel stops the request (#78024)
+         LOG.debug("Loading {} skipped, cancelled by a newer request", name, e);
+      }
       catch(ExpiredSheetException | CancelledException | ConfirmException | MessageException |
             ColumnNotFoundException e)
       {
@@ -2812,9 +2853,32 @@ public class CoreLifecycleService {
             event, dispatcher, user);
       }
       else {
-         return viewsheetService.affinityCall(id, new HandleOpenSheetTask(
+         ProcessSheetResult result = viewsheetService.affinityCall(id, new HandleOpenSheetTask(
             id, eid, execSessionId, vsID, bookmarkIndex, drillFrom, entry, viewer, uri, variables,
             event, user));
+
+         // Bug #77188: re-publish on this (caller's) thread any UserMessage that was raised on
+         // the remote node that actually ran HandleOpenSheetTask.call(), so that
+         // EventAspect.sendUserMessage() -- which reads Tool.getUserMessages(type) on this same
+         // thread after the whole @MessageMapping handler returns -- finds it instead of nothing.
+         republishUserMessages(result == null ? null : result.getUserMessages());
+
+         return result;
+      }
+   }
+
+   /**
+    * Bug #77188: re-publish, on the calling thread, a list of {@link UserMessage}s that were
+    * harvested on a different thread (typically a remote Ignite-affinity node, via
+    * {@link HandleOpenSheetTask#harvestUserMessages()}). Must run before the enclosing
+    * {@code @MessageMapping} handler returns, since {@code EventAspect.sendUserMessage()} reads
+    * {@code Tool.getUserMessages(type)} on this same thread immediately afterward.
+    */
+   static void republishUserMessages(List<UserMessage> messages) {
+      if(messages != null) {
+         for(UserMessage message : messages) {
+            Tool.addUserMessage(message);
+         }
       }
    }
 
@@ -3600,6 +3664,12 @@ public class CoreLifecycleService {
    public static final class ProcessSheetResult implements Serializable {
       private String id;
       private boolean auditFinish;
+      // Bug #77188: user messages (e.g. a script/expression failure) raised while this result
+      // was built on a remote Ignite-affinity node. Tool's UserMessage thread-local never
+      // crosses the affinityCall() RPC boundary on its own, so HandleOpenSheetTask.call()
+      // harvests it here and handleOpenedSheet() re-publishes it on the caller's own thread
+      // after the RPC returns, before EventAspect.sendUserMessage() reads it.
+      private List<UserMessage> userMessages;
 
       public ProcessSheetResult(String id, boolean auditFinish) {
          this.id = id;
@@ -3620,6 +3690,14 @@ public class CoreLifecycleService {
 
       public void setAuditFinish(boolean auditFinish) {
          this.auditFinish = auditFinish;
+      }
+
+      public List<UserMessage> getUserMessages() {
+         return userMessages;
+      }
+
+      public void setUserMessages(List<UserMessage> userMessages) {
+         this.userMessages = userMessages;
       }
    }
 
@@ -3649,13 +3727,39 @@ public class CoreLifecycleService {
          proxyContext.preprocess();
 
          try {
-            return configContext.getSpringBean(CoreLifecycleService.class).doHandleOpenedSheet(
-               id, eid, execSessionId, vsID, bookmarkIndex, drillFrom, entry, viewer, uri,
-               variables, event, proxyContext.createCommandDispatcher(), user);
+            ProcessSheetResult result =
+               configContext.getSpringBean(CoreLifecycleService.class).doHandleOpenedSheet(
+                  id, eid, execSessionId, vsID, bookmarkIndex, drillFrom, entry, viewer, uri,
+                  variables, event, proxyContext.createCommandDispatcher(), user);
+
+            // Bug #77188: doHandleOpenedSheet() may have raised a UserMessage (e.g. a
+            // script/expression failure during the initial table load) on this thread via
+            // Tool.addUserMessage()/addUserWarning(). When this call() runs on a remote
+            // Ignite-affinity node (the caller dispatched via cluster.affinityCall()), that
+            // thread-local never crosses the RPC boundary on its own, so harvest it here and
+            // carry it back on the result -- handleOpenedSheet() re-publishes it on the
+            // caller's own thread once affinityCall() returns.
+            if(result != null) {
+               result.setUserMessages(harvestUserMessages());
+            }
+
+            return result;
          }
          finally {
             proxyContext.postprocess();
          }
+      }
+
+      // Package-private (not private) so CoreLifecycleServiceUserMessageForwardingTest, in the
+      // same package, can exercise the real harvest logic directly.
+      static List<UserMessage> harvestUserMessages() {
+         List<UserMessage> messages = new ArrayList<>();
+
+         for(MessageCommand.Type type : MessageCommand.Type.values()) {
+            messages.addAll(Tool.getUserMessages(type));
+         }
+
+         return messages;
       }
 
       private final String id;

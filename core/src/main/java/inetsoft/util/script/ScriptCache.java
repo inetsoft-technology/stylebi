@@ -26,6 +26,15 @@ import java.util.function.Consumer;
  */
 public class ScriptCache {
    public ScriptCache(int max, long timeout) {
+      this(max, timeout, false);
+   }
+
+   /**
+    * @param declaredVars whether the scripts are freehand table cell formulas, compiled by
+    *                     {@link ScriptEnv#compileDeclaredVars} (Bug #78247).
+    */
+   public ScriptCache(int max, long timeout, boolean declaredVars) {
+      this.declaredVars = declaredVars;
       cache = new ResourceCache(max, timeout) {
          @Override
          protected Object create(Object key) throws Exception {
@@ -57,7 +66,7 @@ public class ScriptCache {
       ScriptEnv senv = this.senv.get();
 
       try {
-         return senv.compile(script, true);
+         return declaredVars ? senv.compileDeclaredVars(script) : senv.compile(script, true);
       }
       catch(Exception ex) {
          this.handler.get().accept(ex);
@@ -66,6 +75,7 @@ public class ScriptCache {
    }
 
    private ResourceCache cache;
+   private final boolean declaredVars;
    private static final ThreadLocal<ScriptEnv> senv = new ThreadLocal<>();
    private static final ThreadLocal<Consumer<Exception>> handler = new ThreadLocal<>();
 }

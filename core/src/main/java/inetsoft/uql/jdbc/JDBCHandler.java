@@ -291,7 +291,12 @@ public class JDBCHandler extends XHandler {
 
       String sql = usql.getSQLString();
 
-      if(sql.contains("$(@") || !XUtil.hasSentinelParameter(sql, params)) {
+      // a parameter with several values, one of them a sentinel, is never rewritten, but the
+      // condition walk of the rewrite logs a warning for it (Bug #78386). The sql generated
+      // is the same, so the kept sql string is sent.
+      if(sql.contains("$(@") || !XUtil.hasSentinelParameter(sql, params) &&
+         !XUtil.hasMultiValueSentinelParameter(sql, params))
+      {
          return false;
       }
 
@@ -619,6 +624,10 @@ public class JDBCHandler extends XHandler {
          sql = applyQueryFilter(conn, sql, params, user);
          VarSQL varsql = new VarSQL();
          varsql.setSQLType(isproc ? VarSQL.SQLType.PROC : VarSQL.SQLType.STATEMENT);
+         // the flag depends only on the dialect, so look the helper up by product name
+         // instead of getSQLHelper(xds), which may query DB metadata through XRepository
+         varsql.setBackslashIsEscapeChar(
+            SQLHelper.getSQLHelper(SQLHelper.getProductName(xds)).isBackslashEscapeChar());
          sql = varsql.replaceVariables(sql, params);
          List<Object> vars = varsql.getParameterValues();
          List<String> names = varsql.getParameterNames();
@@ -2149,6 +2158,18 @@ public class JDBCHandler extends XHandler {
 
       if(defaultSchema != null) {
          properties.setAttribute("defaultSchema", defaultSchema);
+      }
+
+      // the database of the connection, a catalog written in a table name of a database
+      // without catalogs must be this one (Bug #78466)
+      try {
+         String currentCatalog = meta.getConnection().getCatalog();
+
+         if(currentCatalog != null && !currentCatalog.isEmpty()) {
+            properties.setAttribute("currentCatalog", currentCatalog);
+         }
+      }
+      catch(Exception ignore) {
       }
 
       return properties;

@@ -34,7 +34,6 @@ import inetsoft.uql.rest.datasource.chartmogul.ChartMogulListing;
 import inetsoft.uql.rest.datasource.clockify.ClockifyListing;
 import inetsoft.uql.rest.datasource.constantcontact.ConstantContactListing;
 import inetsoft.uql.rest.datasource.copper.CopperListing;
-import inetsoft.uql.rest.datasource.datadotworld.DataDotWorldListing;
 import inetsoft.uql.rest.datasource.firebase.FirebaseListing;
 import inetsoft.uql.rest.datasource.fortytwomatters.FortyTwoMattersListing;
 import inetsoft.uql.rest.datasource.freshdesk.FreshdeskListing;
@@ -110,7 +109,6 @@ public class RestDataSourceListingService implements DataSourceListingService {
          new ClockifyListing(),
          new ConstantContactListing(),
          new CopperListing(),
-         new DataDotWorldListing(),
          new FirebaseListing(),
          new FortyTwoMattersListing(),
          new FreshdeskListing(),

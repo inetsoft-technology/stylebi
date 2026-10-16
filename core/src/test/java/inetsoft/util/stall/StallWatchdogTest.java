@@ -41,6 +41,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static inetsoft.util.stall.StallTestSupport.assertStallOf;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -734,8 +735,8 @@ public class StallWatchdogTest {
       LockStallException ex = assertThrows(LockStallException.class, record::checkStall);
       assertNull(ex.getDumpPath());
       assertTrue(record.isFailed());
-      assertSame(ex, assertThrows(LockStallException.class, record::checkStall),
-                 "a later check rethrows the same failure instead of returning");
+      assertStallOf(ex, assertThrows(LockStallException.class, record::checkStall),
+                 "a later check rethrows the failure (a copy) instead of returning");
       record.close();
    }
 
@@ -1107,8 +1108,8 @@ public class StallWatchdogTest {
          LockStallException ex = assertThrows(LockStallException.class, record::checkStall);
          assertEquals("cycle.site", ex.getSite());
          assertTrue(record.isFailed());
-         assertSame(ex, assertThrows(LockStallException.class, record::checkStall),
-                    "a failed wait rethrows the same stall");
+         assertStallOf(ex, assertThrows(LockStallException.class, record::checkStall),
+                    "a failed wait rethrows the stall (a copy)");
          record.close();
       }
 

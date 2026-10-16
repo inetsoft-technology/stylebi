@@ -148,7 +148,7 @@ public class InsertDataService extends WorksheetControllerService {
          return data.getColCount();
       }
 
-      while(index > 0) {
+      while(index >= 0) {
          DataRef ref = columns.getAttribute(index);
 
          if(!ref.isExpression()) {

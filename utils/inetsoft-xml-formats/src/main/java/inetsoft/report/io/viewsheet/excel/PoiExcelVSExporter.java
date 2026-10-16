@@ -498,32 +498,25 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
 
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) obj.getVSAssemblyInfo();
       int ypos = obj.getPixelOffset().y;
-      int titleRow = 0;
       int rowCount = Math.min(table.getRowCount(), getMaxRow(ypos));
+      int rows = info instanceof TitledVSAssemblyInfo ?
+         PoiExcelVSUtil.getExcelTitleHeight((TitledVSAssemblyInfo) info) / AssetUtil.defh : 0;
+      VSTableLens lens = (VSTableLens) table;
+      // reserve the rows ExcelTableHelper draws, or it stops writing rows that don't fit
+      int[] heights = ExcelVSUtil.calculateRowHeights(obj.getViewsheet(), info, lens, false, true);
 
-      if(info instanceof TitledVSAssemblyInfo) {
-         // the rows the title actually merges, not a flat one
-         titleRow = PoiExcelVSUtil.getExcelTitleHeight((TitledVSAssemblyInfo) info) /
-            AssetUtil.defh;
-      }
-
-      int rows = titleRow;
-      int i = 0;
-      VSTableLens lens = (VSTableLens)table;
-
-      while(i < rowCount) {
-         int h = lens.getWrappedHeight(i, true);
-         int padded = (int) lens.getRowHeightWithPadding(h, i, info);
-         // a padded row spans what the writer's ceil gives it; an unpadded row keeps the
-         // historical rounding so legacy exports do not move
-         int count = padded > h ? (int) Math.ceil(((double) padded) / AssetUtil.defh) :
-            (int) Math.round(((double) h) / AssetUtil.defh);
-         count = Math.max(1, count);
-         rows += count;
-         i++;
+      for(int i = 0; i < rowCount; i++) {
+         rows += getExcelRowCount(heights[i]);
       }
 
       return rows * AssetUtil.defh;
+   }
+
+   /**
+    * Get the Excel rows a table row of the pixel height spans, as ExcelTableHelper draws it.
+    */
+   protected static int getExcelRowCount(int pixelHeight) {
+      return Math.max(1, (int) Math.ceil((double) pixelHeight / AssetUtil.defh));
    }
 
    protected double getSelectionHeight(SelectionBaseVSAssemblyInfo info, List<Double> rowHeights,
@@ -1070,7 +1063,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       if(info instanceof TextVSAssemblyInfo) {
          size = info.getPixelSize();
          painter = VSUtil.createPainter((TextVSAssembly) assembly);
-         shadowed = ((TextVSAssemblyInfo) info).getShadowValue();
+         shadowed = ((TextVSAssemblyInfo) info).isShadow();
       }
       else if(info instanceof TextInputVSAssemblyInfo) {
          size = info.getPixelSize();

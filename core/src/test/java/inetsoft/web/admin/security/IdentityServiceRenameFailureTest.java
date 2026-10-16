@@ -146,6 +146,11 @@ class IdentityServiceRenameFailureTest {
       dashboardManager = mock(DashboardManager.class);
       repletRegistryManager = mock(RepletRegistryManager.class);
       dashboardRegistryManager = mock(DashboardRegistryManager.class);
+      // the real manager runs the user's dashboard moves holding its lock
+      doAnswer(inv -> {
+         ((Runnable) inv.getArgument(0)).run();
+         return null;
+      }).when(dashboardManager).runLocked(any());
       service = mock(IdentityService.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
       ReflectionTestUtils.setField(service, "securityEngine", engine);
       ReflectionTestUtils.setField(service, "securityProvider", securityProvider);
@@ -279,6 +284,83 @@ class IdentityServiceRenameFailureTest {
       verify(dashboardRegistryManager).renameUser(oldId, newId);
    }
 
+   // Bug #78101: a dashboard that a request still running under the old name creates after the
+   // dashboards were read is moved too, and the selection and the registries are moved holding the
+   // dashboard manager's lock, which the create holds while it adds the dashboard
+   @Test
+   void renameUserMovesDashboardsCreatedAfterTheReadHoldingTheLock() throws Exception {
+      FSUser user = addUser("ava", null, null);
+      IdentityID oldId = user.getIdentityID();
+      IdentityID newId = new IdentityID("ava2", ORG);
+      Identity oldIdentity = new DefaultIdentity(oldId, Identity.USER);
+      // the orgs that the snapshot and the move are scoped to, which must be the user's org,
+      // not the current org of the admin who renames the user
+      List<String> orgs = new ArrayList<>();
+      when(dashboardManager.getDashboards(oldIdentity)).thenAnswer(inv -> {
+         orgs.add(OrganizationContextHolder.getCurrentOrgId());
+         return new String[] { "d1" };
+      });
+      boolean[] locked = new boolean[1];
+      List<String> unlocked = new ArrayList<>();
+      doAnswer(inv -> {
+         locked[0] = true;
+         orgs.add(OrganizationContextHolder.getCurrentOrgId());
+
+         try {
+            ((Runnable) inv.getArgument(0)).run();
+         }
+         finally {
+            locked[0] = false;
+         }
+
+         return null;
+      }).when(dashboardManager).runLocked(any());
+      doAnswer(inv -> recordUnlocked(locked, unlocked, "setDashboards"))
+         .when(dashboardManager).setDashboards(any(), any());
+      doAnswer(inv -> recordUnlocked(locked, unlocked, "removeDashboards"))
+         .when(dashboardManager).removeDashboards(any());
+      doAnswer(inv -> recordUnlocked(locked, unlocked, "replet.renameUser"))
+         .when(repletRegistryManager).renameUser(any(), any());
+      doAnswer(inv -> recordUnlocked(locked, unlocked, "dashboardRegistry.renameUser"))
+         .when(dashboardRegistryManager).renameUser(any(), any());
+      // read under the lock: d2 was selected on another node after the snapshot, d0 is a stored
+      // name that the snapshot left out, n1 was selected under the new name before the move
+      doAnswer(inv -> {
+         recordUnlocked(locked, unlocked, "getStoredDashboards");
+         return inv.getArgument(0).equals(oldIdentity) ?
+            new String[] { "d0", "d1", "d2" } : new String[] { "n1" };
+      }).when(dashboardManager).getStoredDashboards(any());
+      // recorded before the user is saved, so that a create refused once the old name is gone
+      // finds the record and leaves its viewsheet to the rename
+      List<Boolean> oldUserExistsOnRecord = new ArrayList<>();
+      doAnswer(inv -> {
+         oldUserExistsOnRecord.add(provider().getUser(oldId) != null);
+         return recordUnlocked(locked, unlocked, "addRenamedUser");
+      }).when(dashboardManager).addRenamedUser(any(), any());
+
+      assertNull(syncIdentity(renamedUser(newId), oldId, null));
+
+      // the snapshot's order first, then every other stored name: the move drops nothing
+      verify(dashboardManager).setDashboards(new DefaultIdentity(newId, Identity.USER),
+                                             new String[] { "d1", "d0", "d2", "n1" });
+      verify(dashboardManager).removeDashboards(oldIdentity);
+      verify(repletRegistryManager).renameUser(oldId, newId);
+      verify(dashboardRegistryManager).renameUser(oldId, newId);
+      verify(dashboardManager).addRenamedUser(oldId, newId);
+      assertEquals(List.of(true), oldUserExistsOnRecord);
+      assertEquals(List.of(), unlocked, "moved without holding the dashboard manager's lock");
+      // the snapshot, the rename record (written before the user is saved) and the move
+      assertEquals(List.of(ORG, ORG, ORG), orgs, "snapshot, record and move in the user's org");
+   }
+
+   private static Object recordUnlocked(boolean[] locked, List<String> unlocked, String call) {
+      if(!locked[0]) {
+         unlocked.add(call);
+      }
+
+      return null;
+   }
+
    @Test
    void setUserInfoKeepsOrganizationMemberWhenTheNewUserIsNotSaved() throws Exception {
       FSUser user = addUser("bob", null, null);
@@ -303,6 +385,26 @@ class IdentityServiceRenameFailureTest {
       assertInstanceOf(MessageException.class, thrown);
       assertTrue(organizationMembers().contains("bea2"));
       assertFalse(organizationMembers().contains("bea"));
+   }
+
+   // Bug #78101: the old name's sessions are logged out before the rename on every node, also
+   // without a session license manager (CPU or elastic license), from the logged in users that
+   // the security engine keeps for the whole cluster
+   @Test
+   void setUserInfoLogsOutTheOldNameWithoutASessionLicenseManager() throws Exception {
+      FSUser user = addUser("bea", null, null);
+      SRPrincipal oldSession = new SRPrincipal(user.getIdentityID(), new IdentityID[0],
+                                               new String[0], ORG, 1L);
+      SRPrincipal otherSession = new SRPrincipal(DAVE, new IdentityID[0], new String[0], ORG, 2L);
+      SecurityEngine engine = (SecurityEngine) ReflectionTestUtils.getField(service, "securityEngine");
+      when(engine.getActivePrincipalList()).thenReturn(List.of(oldSession, otherSession));
+      AuthenticationService authenticationService = mock(AuthenticationService.class);
+      ReflectionTestUtils.setField(service, "authenticationService", authenticationService);
+
+      assertNull(setUserInfo(user, "bea2", null));
+
+      verify(authenticationService).logout(oldSession, true);
+      verify(authenticationService, never()).logout(same(otherSession), anyBoolean());
    }
 
    @Test

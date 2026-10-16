@@ -166,9 +166,25 @@ class DateTimeProcessor {
     * Get the week of the year of the current date
     */
    public final int getWeekOfYear() {
-      jcalendar.setTimeInMillis(time);
-      jcalendar.setFirstDayOfWeek(firstDay);
-      return jcalendar.get(Calendar.WEEK_OF_YEAR);
+      // Bug #78112: a bare GregorianCalendar inherits the JVM default locale's
+      // minimalDaysInFirstWeek (1 for en_US/zh_CN/root, 4 for en_GB/de_DE/fr_FR), so the same
+      // date was grouped into a different week purely depending on the server's JVM locale.
+      // Force the value CALC.weeknum's default return type already uses -- the week
+      // containing January 1 is week 1 -- so this date level agrees with it and with
+      // week.start, regardless of locale. Save/restore around the call since jcalendar is
+      // shared with getWeekOfMonth()/getMonthOfFullWeek(), which rely on their own
+      // minimalDaysInFirstWeek value being left as they set it.
+      int minDays = jcalendar.getMinimalDaysInFirstWeek();
+      jcalendar.setMinimalDaysInFirstWeek(1);
+
+      try {
+         jcalendar.setTimeInMillis(time);
+         jcalendar.setFirstDayOfWeek(firstDay);
+         return jcalendar.get(Calendar.WEEK_OF_YEAR);
+      }
+      finally {
+         jcalendar.setMinimalDaysInFirstWeek(minDays);
+      }
    }
 
    /**

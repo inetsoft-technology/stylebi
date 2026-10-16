@@ -19,6 +19,8 @@
 package inetsoft.report.composition.graph.calc;
 
 import inetsoft.graph.data.CalcColumn;
+import inetsoft.graph.data.DataSet;
+import inetsoft.graph.data.DataSetIndex;
 import inetsoft.report.composition.graph.BrushDataSet;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.CrossFilter;
@@ -41,6 +43,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -198,6 +202,135 @@ public class ChangeColumnTest {
 
       // row 5 = all-data month 3: 40 - 20 = 20 (regression returned the raw 40)
       assertEquals(20.0, changeColumn.calculate(brushDataSet, 5, false, false));
+   }
+
+   /**
+    * Regression test for Bug #78448: change-from-previous-year on the all-data (__all__) column
+    * of a brushed chart must find the previous year in the all-data rows.
+    *
+    * The brush excludes the earliest year (e.g. the extra prior period of a date comparison
+    * chart). The "first period" guard took its minimum date from the root dataset, which below
+    * a BrushDataSet is the brushed data only, so every all-data row of the brushed year became
+    * INVALID and its point disappeared.
+    */
+   @Test
+   void testChangePreviousYearOnBrushAllDataColumnBeforeBrushedRange() {
+      DefaultTableLens atb = new DefaultTableLens(new Object[][]{
+         { "Year(Date)", "id" },
+         { toDate("2020-01-01"), 10 },
+         { toDate("2021-01-01"), 30 },
+         { toDate("2022-01-01"), 60 }
+      });
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "Year(Date)", "id" },
+         { toDate("2021-01-01"), 30 }
+      });
+
+      VSDimensionRef yearVsRef = mock(VSDimensionRef.class);
+      when(yearVsRef.getFullName()).thenReturn("Year(Date)");
+      VSDimensionRef yearVsRef2 = mock(VSDimensionRef.class);
+      when(yearVsRef2.getFullName()).thenReturn("Year(Date)");
+
+      // row 0 is the brushed row (id), rows 1-3 the all-data rows (__all__id)
+      BrushDataSet brushDataSet = new BrushDataSet(
+         new VSDataSet(atb, new VSDataRef[] { yearVsRef }),
+         new VSDataSet(tb, new VSDataRef[] { yearVsRef2 }));
+
+      changeColumn = new ChangeColumn(BrushDataSet.ALL_HEADER_PREFIX + "id",
+                                      BrushDataSet.ALL_HEADER_PREFIX + "sum(id)");
+      changeColumn.setAsPercent(false);
+      changeColumn.setChangeType(ValueOfCalc.PREVIOUS_YEAR);
+      changeColumn.setDim("Year(Date)");
+      changeColumn.setInnerDim("Year(Date)");
+
+      // row 1 = all-data 2020: the first year has no previous year
+      assertEquals(CalcColumn.INVALID, changeColumn.calculate(brushDataSet, 1, false, false));
+      // row 2 = all-data 2021: 30 - 10 = 20 (regression returned INVALID)
+      assertEquals(20.0, changeColumn.calculate(brushDataSet, 2, false, false));
+      // row 3 = all-data 2022: 60 - 30 = 30
+      assertEquals(30.0, changeColumn.calculate(brushDataSet, 3, false, false));
+
+      // the brushed data has no 2020, so the brushed 2021 change stays invalid
+      ChangeColumn brushColumn = new ChangeColumn("id", "sum(id)");
+      brushColumn.setAsPercent(false);
+      brushColumn.setChangeType(ValueOfCalc.PREVIOUS_YEAR);
+      brushColumn.setDim("Year(Date)");
+      brushColumn.setInnerDim("Year(Date)");
+
+      assertEquals(CalcColumn.INVALID, brushColumn.calculate(brushDataSet, 0, false, false));
+   }
+
+   /**
+    * Regression test for Bug #78448 in the reported chart's shape: QuarterOfYear x Year with
+    * QuarterOfYear as the facet (outer) dimension, brushed to 2021. The calc runs on a facet
+    * cell filtered from the BrushDataSet, so the "first period" guard must look through the
+    * facet filter (#76890) and stop at the BrushDataSet, where the all-data rows still hold 2020.
+    */
+   @Test
+   void testChangePreviousYearOnBrushAllDataColumnInFacetCell() {
+      DefaultTableLens atb = new DefaultTableLens(new Object[][]{
+         { "Year(Date)", "QuarterOfYear(Date)", "id" },
+         { toDate("2020-01-01"), 1, 10 },
+         { toDate("2020-01-01"), 2, 15 },
+         { toDate("2021-01-01"), 1, 30 },
+         { toDate("2021-01-01"), 2, 20 },
+         { toDate("2022-01-01"), 1, 60 },
+         { toDate("2022-01-01"), 2, 50 }
+      });
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "Year(Date)", "QuarterOfYear(Date)", "id" },
+         { toDate("2021-01-01"), 1, 30 },
+         { toDate("2021-01-01"), 2, 20 }
+      });
+
+      BrushDataSet brushDataSet = new BrushDataSet(
+         new VSDataSet(atb, createYearQuarterRefs()), new VSDataSet(tb, createYearQuarterRefs()));
+
+      XDimensionRef quarterDimRef = mock(XDimensionRef.class);
+      when(quarterDimRef.getFullName()).thenReturn("QuarterOfYear(Date)");
+      when(quarterDimRef.getDateLevel()).thenReturn(XConstants.QUARTER_OF_YEAR_DATE_GROUP);
+      XDimensionRef yearDimRef = mock(XDimensionRef.class);
+      when(yearDimRef.getFullName()).thenReturn("Year(Date)");
+      when(yearDimRef.getDateLevel()).thenReturn(XConstants.YEAR_DATE_GROUP);
+
+      changeColumn = new ChangeColumn(BrushDataSet.ALL_HEADER_PREFIX + "id",
+                                      BrushDataSet.ALL_HEADER_PREFIX + "sum(id)");
+      changeColumn.setAsPercent(false);
+      changeColumn.setChangeType(ValueOfCalc.PREVIOUS_YEAR);
+      changeColumn.setDim("Year(Date)");
+      changeColumn.setInnerDim("Year(Date)");
+      changeColumn.setDimensions(List.of(quarterDimRef, yearDimRef));
+
+      // facet cell Q2: the brushed 2021 row, then the all-data 2020, 2021 and 2022 rows
+      DataSetIndex index = new DataSetIndex(brushDataSet, Set.of("QuarterOfYear(Date)"), true);
+      DataSet facetCellQ2 = index.createSubDataSet(Map.of("QuarterOfYear(Date)", 2), false);
+      assertEquals(4, facetCellQ2.getRowCount());
+
+      // all-data 2020 Q2: the first year has no previous year
+      assertEquals(CalcColumn.INVALID, changeColumn.calculate(facetCellQ2, 1, false, false));
+      // all-data 2021 Q2: 20 - 15 = 5 (regression returned INVALID)
+      assertEquals(5.0, changeColumn.calculate(facetCellQ2, 2, false, false));
+      // all-data 2022 Q2: 50 - 20 = 30
+      assertEquals(30.0, changeColumn.calculate(facetCellQ2, 3, false, false));
+
+      // the brushed data has no 2020, so the brushed 2021 change stays invalid
+      ChangeColumn brushColumn = new ChangeColumn("id", "sum(id)");
+      brushColumn.setAsPercent(false);
+      brushColumn.setChangeType(ValueOfCalc.PREVIOUS_YEAR);
+      brushColumn.setDim("Year(Date)");
+      brushColumn.setInnerDim("Year(Date)");
+      brushColumn.setDimensions(List.of(quarterDimRef, yearDimRef));
+
+      assertEquals(CalcColumn.INVALID, brushColumn.calculate(facetCellQ2, 0, false, false));
+   }
+
+   private VSDataRef[] createYearQuarterRefs() {
+      VSDimensionRef yearVsRef = mock(VSDimensionRef.class);
+      when(yearVsRef.getFullName()).thenReturn("Year(Date)");
+      VSDimensionRef quarterVsRef = mock(VSDimensionRef.class);
+      when(quarterVsRef.getFullName()).thenReturn("QuarterOfYear(Date)");
+
+      return new VSDataRef[] { yearVsRef, quarterVsRef };
    }
 
    private VSDataSet createVSDataSet(DefaultTableLens tableLens, String name) {

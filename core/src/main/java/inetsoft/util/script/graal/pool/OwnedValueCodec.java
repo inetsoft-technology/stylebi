@@ -507,6 +507,8 @@ public final class OwnedValueCodec {
       List<Object> kept = new ArrayList<>();
       Map<Integer, String> failed = new HashMap<>();
       Map<Integer, String> drops = new HashMap<>();
+      Set<Integer> hides = new HashSet<>();
+      Set<Integer> copies = new HashSet<>();
       long start = System.nanoTime();
       ScriptTimeoutGuard.Guard budget = null;
       boolean cancelled = Thread.interrupted();
@@ -533,6 +535,8 @@ public final class OwnedValueCodec {
          KEEP_OUT.set(kept);
          FAILS.set(failed);
          DROPS.set(drops);
+         HIDES.set(hides);
+         COPIES.set(copies);
 
          // a backstop past the cloner's own time checks
          try(ScriptTimeoutGuard.Guard guard =
@@ -548,8 +552,8 @@ public final class OwnedValueCodec {
 
          for(int i = 0; i < nodes.length; i++) {
             String kind = failed.get(i);
-            nodes[i] = kind != null ? new Lost(kind, isBudgetKind(kind))
-               : new TreeRef(tree, i, drops.get(i));
+            nodes[i] = kind != null ? new Lost(kind, isBudgetKind(kind), hides.contains(i))
+               : new TreeRef(tree, i, drops.get(i), copies.contains(i));
          }
       }
       catch(PolyglotException ex) {
@@ -567,6 +571,8 @@ public final class OwnedValueCodec {
          KEEP_OUT.remove();
          FAILS.remove();
          DROPS.remove();
+         HIDES.remove();
+         COPIES.remove();
          slot.metrics().handedOff(System.nanoTime() - start);
 
          if(cancelled) {
@@ -622,10 +628,11 @@ public final class OwnedValueCodec {
 
    /** One root of a tree snapshot. */
    public static final class TreeRef {
-      TreeRef(Tree tree, int index, String dropped) {
+      TreeRef(Tree tree, int index, String dropped, boolean copies) {
          this.tree = tree;
          this.index = index;
          this.dropped = dropped;
+         this.copies = copies;
       }
 
       /**
@@ -637,7 +644,19 @@ public final class OwnedValueCodec {
          return dropped;
       }
 
+      /**
+       * @return {@code true} if this root holds an array or object (a copy now) that a root
+       *         lost by the same hand-off, whose value hid references (see
+       *         {@link Lost#hidesReferences()}), may have reached unseen; {@code false} for a
+       *         bigint or a Date whose properties hold no object, and whenever no root of the
+       *         hand-off hid references (review L1 of Testing #77123).
+       */
+      public boolean holdsCopies() {
+         return copies;
+      }
+
       private final String dropped;
+      private final boolean copies;
 
       private final Tree tree;
       private final int index;
@@ -648,6 +667,8 @@ public final class OwnedValueCodec {
    static final ThreadLocal<List<Object>> KEEP_IN = new ThreadLocal<>();
    static final ThreadLocal<Map<Integer, String>> FAILS = new ThreadLocal<>();
    static final ThreadLocal<Map<Integer, String>> DROPS = new ThreadLocal<>();
+   static final ThreadLocal<Set<Integer>> HIDES = new ThreadLocal<>();
+   static final ThreadLocal<Set<Integer>> COPIES = new ThreadLocal<>();
 
    /**
     * The marking budget of a hand-off (the objects walked to check the lost roots for
@@ -681,8 +702,13 @@ public final class OwnedValueCodec {
       }
 
       Lost(String kind, boolean budget) {
+         this(kind, budget, false);
+      }
+
+      Lost(String kind, boolean budget, boolean hides) {
          this.kind = kind;
          this.budget = budget;
+         this.hides = hides;
       }
 
       /** @return what the value was, with its article ("an array", "a function"). */
@@ -699,8 +725,20 @@ public final class OwnedValueCodec {
          return budget;
       }
 
+      /**
+       * @return {@code true} if the value held, at its hand-off, something whose references
+       *         the cloner cannot list (a function's closure, a getter, a WeakMap, a class
+       *         instance, a Proxy): a var kept by the same hand-off may be a copy of an object
+       *         it reached there, which no longer shares anything with it (Testing #77123, B1
+       *         residual).
+       */
+      public boolean hidesReferences() {
+         return hides;
+      }
+
       private final String kind;
       private final boolean budget;
+      private final boolean hides;
    }
 
    /**

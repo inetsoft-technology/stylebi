@@ -279,8 +279,11 @@ public class DatabaseDatasourcesService {
             repository.updateDataSourceFolder(folder, path);
             renameTransformHandler.addTransformTask(dinfo);
 
+            // Bug #78217, the folder is already renamed, a failed permission write is logged and
+            // does not fail the rename
             if(permission != null) {
-               securityEngine.setPermission(ResourceType.DATA_SOURCE_FOLDER, newPath, permission);
+               AbstractAssetEngine.setPermissionBestEffort(securityEngine,
+                  ResourceType.DATA_SOURCE_FOLDER, newPath, permission);
             }
          }
       }
@@ -779,11 +782,29 @@ public class DatabaseDatasourcesService {
    {
       int index = path.lastIndexOf('/');
 
-      // a data source in a folder is saved with its path as its name, an additional connection
-      // with its name alone
-      if(index < 0 || !(dataSource instanceof AdditionalConnectionDataSource<?> additional) ||
-         additional.getBaseDatasource() != null || path.equals(dataSource.getFullName()))
-      {
+      if(index < 0 || !(dataSource instanceof AdditionalConnectionDataSource<?> additional)) {
+         return dataSource;
+      }
+
+      String name = path.substring(index + 1);
+
+      if(additional.getBaseDatasource() != null) {
+         // an additional connection saved before Bug #77610 has its path as its name. It is saved
+         // with its name alone, so that a plain save isn't taken for a rename (Bug #78207)
+         if(name.equals(dataSource.getFullName())) {
+            return dataSource;
+         }
+
+         // the registry returns its cached instance, which this save changes
+         XDataSource result = (XDataSource) dataSource.clone();
+         result.setName(name);
+         return result;
+      }
+
+      // a data source in a folder, or of a data source folder at the path of a data source (older
+      // data), is saved with its path as its name, as an additional connection saved before
+      // Bug #77610 is, so the stored entries tell them apart, not the name (Bug #78207)
+      if(!dataSourceRegistry.isAdditionalConnectionPath(path)) {
          return dataSource;
       }
 
@@ -792,11 +813,15 @@ public class DatabaseDatasourcesService {
       if(parent instanceof AdditionalConnectionDataSource<?> base &&
          base.getBaseDatasource() == null)
       {
-         XDataSource result = base.getDataSource(path.substring(index + 1));
+         XDataSource result = base.getDataSource(name);
 
          if(result != null) {
-            // the registry returns its cached instance, which this save changes
-            return (XDataSource) result.clone();
+            // the registry returns its cached instance, which this save changes. An additional
+            // connection saved before Bug #77610 has its path as its name, it is saved with its
+            // name alone, as a save of its parent does (Bug #78207)
+            result = (XDataSource) result.clone();
+            result.setName(name);
+            return result;
          }
       }
 
@@ -826,22 +851,53 @@ public class DatabaseDatasourcesService {
             parent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName));
       }
 
-      Set<String> oldNames = new HashSet<>(removedNames);
-      oldNames.addAll(renames.keySet());
-
-      for(String oldName : oldNames) {
-         securityEngine.removePermission(ResourceType.DATA_SOURCE,
-            parent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName);
-      }
+      // Bug #78217, the connections are already saved, so the writes are best-effort. The new
+      // names are written first and only then the old ones are removed, except the ones that are
+      // also a new name written here (swapped or chained names), so a failed write doesn't
+      // delete the only copy of a permission
+      Set<String> newNames = new HashSet<>();
+      Set<String> keptNames = new HashSet<>();
 
       for(Map.Entry<String, String> rename : renames.entrySet()) {
          Permission permission = permissions.get(rename.getKey());
 
          if(permission != null) {
-            securityEngine.setPermission(ResourceType.DATA_SOURCE,
-               parent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getValue(), permission);
+            newNames.add(rename.getValue());
+
+            if(!AbstractAssetEngine.setPermissionBestEffort(securityEngine,
+               ResourceType.DATA_SOURCE, parent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getValue(),
+               permission))
+            {
+               keptNames.add(rename.getKey());
+            }
          }
       }
+
+      Set<String> oldNames = new HashSet<>(removedNames);
+      oldNames.addAll(renames.keySet());
+
+      for(String oldName : oldNames) {
+         String resource = parent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName;
+
+         if(newNames.contains(oldName)) {
+            continue;
+         }
+
+         if(keptNames.contains(oldName)) {
+            AbstractAssetEngine.reportPermissionMayRemain(
+               securityEngine, ResourceType.DATA_SOURCE, resource);
+            continue;
+         }
+
+         AbstractAssetEngine.removePermissionBestEffort(
+            securityEngine, ResourceType.DATA_SOURCE, resource);
+      }
+
+      // Bug #78203, and the folder grants of the removed connections' extended models
+      dataSourceRegistry.removeAdditionalConnectionFolderPermissions(parent, removedNames);
+      // Bug #78223, the folder grants of the renamed connections' extended models, after the
+      // removal, as a connection renamed to the name of a removed one gets the grants it had
+      dataSourceRegistry.moveAdditionalConnectionFolderPermissions(parent, parent, renames);
    }
 
    /**

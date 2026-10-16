@@ -215,13 +215,10 @@ public class LoginController {
 
    private String getRecordedOrgId(HttpServletRequest request) {
       Cookie[] cookies = request.getCookies();
-
-      if(cookies == null) {
-         return null;
-      }
-
-      String orgId =  Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
-         .map(Cookie::getValue).findFirst().orElse(null);
+      // no Cookie header (null array) is the same as no org cookie: fall back to the host/path
+      String orgId = cookies == null ? null :
+         Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
+            .map(Cookie::getValue).findFirst().orElse(null);
 
       return orgId != null ? orgId : SUtil.getLoginOrganization(request);
    }

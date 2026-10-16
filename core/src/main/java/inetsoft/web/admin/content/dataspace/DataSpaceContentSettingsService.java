@@ -402,11 +402,19 @@ public class DataSpaceContentSettingsService {
          }
       }
 
-      if(!SUtil.isHttpHeadersValid(suffix) && !path.startsWith("autoSavedFile")) {
+      // a name with no dot, a dot only at index 0 or a trailing dot has an empty suffix,
+      // which isHttpHeadersValid rejects; it is not an injection, so it downloads as
+      // octet-stream without an extension header (Bug #78486)
+      if(!suffix.isEmpty() && !SUtil.isHttpHeadersValid(suffix) &&
+         !path.startsWith("autoSavedFile"))
+      {
          throw new Exception("extension is invalid: " + suffix);
       }
 
-      response.setHeader("extension", Tool.cleanseCRLF(suffix));
+      if(!suffix.isEmpty()) {
+         response.setHeader("extension", Tool.cleanseCRLF(suffix));
+      }
+
       String header = Tool.encodeNL(name);
       String fileName = StringUtils.normalizeSpace(header);
       String encodedFileName = URLEncoder.encode(fileName, "UTF-8").replace("+", "%20");
@@ -485,7 +493,13 @@ public class DataSpaceContentSettingsService {
    }
 
    public String getNewPath(String oldPath, String oldName, String newName) {
-      String oldPrefix = oldPath.substring(0, oldPath.lastIndexOf(oldName));
+      if(!oldName.equals(getFileName(oldPath))) {
+         throw new IllegalArgumentException(
+            "Name \"" + oldName + "\" does not match the last path segment of \"" + oldPath + "\"");
+      }
+
+      int index = oldPath.lastIndexOf('/');
+      String oldPrefix = index < 0 ? "" : oldPath.substring(0, index + 1);
 
       if(LicenseManager.isEnterprise() || newName == null) {
          return oldPrefix + newName;

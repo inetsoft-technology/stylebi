@@ -270,7 +270,8 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
             return;
          }
 
-         QueryResult<Map<IdentityID, IdentityArray>> newUserRoles = dao.getUserRoles();
+         QueryResult<Map<IdentityID, IdentityArray>> newUserRoles =
+            dao.getUserRoles(Arrays.asList(newUsers.result()));
 
          if(cancelled.get()) {
             return;
@@ -285,7 +286,9 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          Map<String, String[]> newOrgMembers = new HashMap<>();
          Map<String, String[]> newOrgRoles = new HashMap<>();
 
-         for(String orgID : newOrganizations.result()) {
+         List<String> orgIDs = Arrays.asList(newOrganizations.result());
+
+         for(String orgID : orgIDs) {
             String name = dao.getOrganizationName(orgID);
 
             if(cancelled.get()) {
@@ -296,7 +299,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
 
             QueryResult<String[]> result;
 
-            if((result = dao.getOrganizationMembers(orgID)).failed()) {
+            if((result = dao.getOrganizationMembers(orgID, orgIDs)).failed()) {
                handleError();
                return;
             }

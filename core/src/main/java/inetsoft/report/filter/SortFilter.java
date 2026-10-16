@@ -34,6 +34,7 @@ import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
@@ -223,6 +224,13 @@ public class SortFilter extends AbstractTableLens
             throw stall;
          }
 
+         // nor is a stopped script (a script timeout or cancel) an unsorted table: the rows
+         // stay unset, the reader fails with the stop and a later read sorts again
+         // (bug #78134)
+         if(ScriptTimeoutGuard.isStop(scriptException)) {
+            throw scriptException;
+         }
+
          LOG.warn("Failed to process sort filter: {}", scriptException.getMessage());
          CoreTool.addUserMessage(scriptException.getMessage());
       }
@@ -251,6 +259,9 @@ public class SortFilter extends AbstractTableLens
          if(loadFailure != null) {
             throw loadFailure;
          }
+
+         // nor a stopped script, e.g. wrapped by the base (bug #78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          // nor a failure to read the base, e.g. of a set table (bug #77524), the rows stay
          // unsorted and a later read sorts again. a script failure keeps the log (bug #77875)
@@ -298,20 +309,9 @@ public class SortFilter extends AbstractTableLens
          return;
       }
 
-      boolean isSnapShot = isBaseBySnapshot(table);
-      Comparer comp = new DefaultComparer();
-      // @by larryl, 1/19/04, use collator to sort string to be locale sensitive
-      Comparer strcomp = Locale.getDefault().getLanguage().equals("en") ? comp
-         : new TextComparer(Collator_CN.getCollator(), isSnapShot);
-
       for(int i = 0; i < cols.length && cols[i] < comparers.length; i++) {
          if(comparers[cols[i]] == null) {
-            if(table.getColType(cols[i]) == String.class) {
-               comparers[cols[i]] = strcomp;
-            }
-            else {
-               comparers[cols[i]] = comp;
-            }
+            comparers[cols[i]] = getDefaultComparer(table, cols[i]);
          }
       }
 
@@ -430,7 +430,21 @@ public class SortFilter extends AbstractTableLens
       completed = true;
    }
 
-   private boolean isBaseBySnapshot(TableLens table) {
+   /**
+    * Get the comparer a column is sorted with when no comparer is set for it.
+    * @param table the table to sort.
+    * @param col table column index.
+    */
+   public static Comparer getDefaultComparer(TableLens table, int col) {
+      // @by larryl, 1/19/04, use collator to sort string to be locale sensitive
+      if(table.getColType(col) == String.class && !Locale.getDefault().getLanguage().equals("en")) {
+         return new TextComparer(Collator_CN.getCollator(), isBaseBySnapshot(table));
+      }
+
+      return new DefaultComparer();
+   }
+
+   private static boolean isBaseBySnapshot(TableLens table) {
       if(table == null) {
          return false;
       }

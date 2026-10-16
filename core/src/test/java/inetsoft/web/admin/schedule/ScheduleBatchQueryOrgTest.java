@@ -103,7 +103,10 @@ class ScheduleBatchQueryOrgTest {
          .grantPermission(ResourceType.SCHEDULER, "*", ResourceAction.ACCESS,
                           SCHEDULE_ROLE, Identity.ROLE, ORG_A)
          .grantPermission(ResourceType.SCHEDULER, "*", ResourceAction.ACCESS,
-                          SITE_ADMIN_ROLE, Identity.ROLE, ORG_A);
+                          SITE_ADMIN_ROLE, Identity.ROLE, ORG_A)
+         // Bug #78129, a saved query must be readable by the saver and the run principal
+         .grantPermission(ResourceType.ASSET, "Sales", ResourceAction.READ,
+                          SCHEDULE_ROLE, Identity.ROLE, ORG_A);
       builder.setup();
 
       // pin the security state to the builder's providers (Bug #77346), see
@@ -339,7 +342,17 @@ class ScheduleBatchQueryOrgTest {
       ScheduleTask task = newTask(name, "1^2^__NULL__^Secret^" + ORG_B);
       task.setOwner(IdentityID.getIdentityIDFromKey(
          builder.principalOf("sbqUser", ORG_A).getName()));
-      scheduleManager.setScheduleTask(task.getTaskId(), task, builder.principalOf("sbqAdmin", ORG_A));
+      // Bug #78129, a task saved before the query READ check, its owner can't read the query
+      AssetRepository.IGNORE_PERM.set(true);
+
+      try {
+         scheduleManager.setScheduleTask(task.getTaskId(), task,
+                                         builder.principalOf("sbqAdmin", ORG_A));
+      }
+      finally {
+         AssetRepository.IGNORE_PERM.remove();
+      }
+
       assertNotNull(scheduleManager.getScheduleTask(task.getTaskId()), "test setup");
       return task.getTaskId();
    }

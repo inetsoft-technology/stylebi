@@ -24,6 +24,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.ConfirmException;
@@ -487,8 +488,11 @@ public class DataSourceBrowserService {
          repository.updateDataSourceFolder(folder, path);
          renameTransformHandler.addTransformTask(dinfo);
 
+         // Bug #78217, the folder is already renamed, a failed permission write is logged and
+         // does not fail the rename
          if(permission != null) {
-            securityEngine.setPermission(ResourceType.DATA_SOURCE_FOLDER, newPath, permission);
+            AbstractAssetEngine.setPermissionBestEffort(securityEngine,
+               ResourceType.DATA_SOURCE_FOLDER, newPath, permission);
          }
       }
 

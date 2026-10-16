@@ -17,7 +17,12 @@
  */
 import { Component } from "@angular/core";
 import { MatCard, MatCardContent } from "@angular/material/card";
+import { ContextHelp } from "../../../context-help";
 
+@ContextHelp({
+   route: "/monitoring/monitoringoff",
+   link: "EMMonitoringOff"
+})
 @Component({
     selector: "em-monitoring-off-view",
     templateUrl: "./monitoring-off-view.component.html",

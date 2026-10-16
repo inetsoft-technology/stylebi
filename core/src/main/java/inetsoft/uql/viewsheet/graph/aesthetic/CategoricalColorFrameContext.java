@@ -17,13 +17,14 @@
  */
 package inetsoft.uql.viewsheet.graph.aesthetic;
 
-import inetsoft.graph.aesthetic.VisualFrame;
+import inetsoft.graph.aesthetic.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 
 import java.awt.*;
 import java.util.*;
+import java.util.List;
 
 /**
  * Helper object exposed as a ThreadLocal used to pass information down from the GraphGenerator
@@ -58,18 +59,70 @@ public class CategoricalColorFrameContext {
       return sharedFrames.get(sharedFrame);
    }
 
-   public VisualFrame getSharedShapeFrame(String columnName, DataRef ref) {
-      final SharedFrameParameters params = new SharedFrameParameters();
-      addParameters(columnName, ref, params);
-      params.addParameter(FrameType.SHAPE);
-      return sharedFrames.get(params);
+   /**
+    * Get the shape frame shared by another frame on the same column with the same palette.
+    *
+    * @param palette the shape frame whose palette must match, normally the caller's own frame.
+    */
+   public VisualFrame getSharedShapeFrame(String columnName, DataRef ref,
+                                          CategoricalShapeFrame palette)
+   {
+      return sharedFrames.get(getShapeParameters(columnName, ref, palette));
    }
 
-   public void addSharedShapeFrame(String columnName, VisualFrame frame, DataRef ref) {
+   /**
+    * Get the shape frame a chart last shared on the column, whatever its palette. Only for a
+    * data tip view, which never renders its full data, to borrow the frame of its parent chart.
+    *
+    * @param chart the absolute name of the chart that shared the frame.
+    */
+   public VisualFrame getChartSharedShapeFrame(String columnName, DataRef ref, String chart) {
+      return sharedFrames.get(getChartShapeParameters(columnName, ref, chart));
+   }
+
+   /**
+    * @param chart the absolute name of the chart sharing the frame, null if unknown.
+    */
+   public void addSharedShapeFrame(String columnName, CategoricalShapeFrame frame, DataRef ref,
+                                   String chart)
+   {
+      sharedFrames.put(getShapeParameters(columnName, ref, frame), frame);
+
+      if(chart != null) {
+         sharedFrames.put(getChartShapeParameters(columnName, ref, chart), frame);
+      }
+   }
+
+   private SharedFrameParameters getChartShapeParameters(String columnName, DataRef ref,
+                                                         String chart)
+   {
       final SharedFrameParameters params = new SharedFrameParameters();
       addParameters(columnName, ref, params);
       params.addParameter(FrameType.SHAPE);
-      sharedFrames.put(params, frame);
+      params.addParameter(new ChartName(chart));
+      return params;
+   }
+
+   /**
+    * The palette is part of the key so a frame is only shared between bindings that would
+    * assign the same shapes anyway. Otherwise one chart would show another chart's shape
+    * palette for the same column. (78462)
+    */
+   private SharedFrameParameters getShapeParameters(String columnName, DataRef ref,
+                                                    CategoricalShapeFrame frame)
+   {
+      final SharedFrameParameters params = new SharedFrameParameters();
+      addParameters(columnName, ref, params);
+      params.addParameter(FrameType.SHAPE);
+      final List<String> palette = new ArrayList<>();
+
+      for(int i = 0; i < frame.getShapeCount(); i++) {
+         final GShape shape = frame.getShape(i);
+         palette.add(shape == null ? "null" : shape.getLegendId() + ":" + shape.isFill());
+      }
+
+      params.addParameter(palette);
+      return params;
    }
 
    public void addParameters(String columnName, DataRef ref, SharedFrameParameters sharedFrame) {
@@ -82,6 +135,8 @@ public class CategoricalColorFrameContext {
    }
 
    private enum FrameType { SHAPE }
+
+   private record ChartName(String name) { }
 
    private static final ThreadLocal<CategoricalColorFrameContext> context =
       ThreadLocal.withInitial(CategoricalColorFrameContext::new);

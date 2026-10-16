@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -335,6 +336,26 @@ class StandardPeriodsTest {
    @Test
    void equalsReturnsFalseForNonStandardPeriods() {
       assertNotEquals(periods, "not a StandardPeriods");
+   }
+
+   // ---- getDescription — Bug #78226 ----
+
+   @Test
+   void descriptionUsesGregorianYearsOnThaiBuddhistJvm() {
+      Locale saved = Locale.getDefault(Locale.Category.FORMAT);
+
+      try {
+         Locale.setDefault(Locale.Category.FORMAT, new Locale("th", "TH"));
+         periods.setDateLevel(DateRangeRef.YEAR_INTERVAL);
+         periods.setPreCount(1);
+         periods.setEndDateValue("2026-03-31");
+
+         assertTrue(periods.getDescription().contains("2025-01-01 to 2026-03-31"),
+                    periods.getDescription());
+      }
+      finally {
+         Locale.setDefault(Locale.Category.FORMAT, saved);
+      }
    }
 
    // ---- helper ----

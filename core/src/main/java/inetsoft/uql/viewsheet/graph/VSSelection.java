@@ -265,7 +265,7 @@ public class VSSelection implements AssetObject {
    public boolean isValid(ChartInfo cinfo) {
       return points.stream().allMatch(p -> {
          for(int i = 0; i < p.getValueCount(); i++) {
-            if(cinfo.getRTFieldByFullName(p.getValue(i).getFieldName()) == null &&
+            if(!containsField(cinfo, p.getValue(i).getFieldName()) &&
                !calcContains(cinfo, p.getValue(i).getFieldName()))
             {
                return false;
@@ -274,6 +274,23 @@ public class VSSelection implements AssetObject {
 
          return true;
       });
+   }
+
+   /**
+    * Check if the chart has a runtime field that a selection value can refer to.
+    */
+   private boolean containsField(ChartInfo cinfo, String name) {
+      if(!(cinfo instanceof VSChartInfo)) {
+         return cinfo.getRTFieldByFullName(name) != null;
+      }
+
+      for(VSDataRef ref : ((VSChartInfo) cinfo).getRTSelectionFields()) {
+         if(ref.getFullName().equals(name)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private boolean calcContains(ChartInfo cinfo, String name) {

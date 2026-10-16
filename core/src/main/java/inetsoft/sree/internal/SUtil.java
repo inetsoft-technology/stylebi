@@ -331,9 +331,81 @@ public class SUtil {
          return path;
       }
 
-      dir = Util.verifyDirectory(dir, "log");
+      dir = verifyDirectory(dir, "log");
       LOG.debug("Create log: {}", dir);
       return dir + File.separator + name;
+   }
+
+   /**
+    * Verify a directory. If the directory does not exist, create a directory
+    * in the user home directory instead and return the new path.
+    *
+    * <p>Bug #78079: relocated here from the script-admitted
+    * {@code inetsoft.report.internal.Util} (this, its only caller, is not a
+    * script-admitted class) so a restricted script can no longer mkdir or probe
+    * directory existence through it. Private because {@link #verifyLog} is the
+    * only caller.
+    *
+    * @param dir directory setting from the configuration.
+    * @param name default directory name.
+    */
+   private static String verifyDirectory(String dir, String name) {
+      FileSystemService fileSystemService = FileSystemService.getInstance();
+      File file = fileSystemService.getFile(dir);
+
+      try {
+         if(mkdir(file)) {
+            return dir;
+         }
+      }
+      catch(Exception e) {
+      }
+
+      try {
+         String home = SreeEnv.getProperty("user.home");
+         File file2 = fileSystemService.getFile(home + File.separator + "sree", name);
+
+         if(mkdir(file2)) {
+            LOG.warn(
+               "Directory [" + dir +
+               "] does not exist, using default directory: " + file2);
+            return file2.getPath();
+         }
+      }
+      catch(Exception e) {
+         LOG.error("Failed to verify directory " + dir + ", " + name, e);
+      }
+
+      return ".";
+   }
+
+   /**
+    * Create a directory recursively.
+    */
+   private static boolean mkdir(File dir) {
+      if(dir.exists()) {
+         return true;
+      }
+
+      return mkdir(dir.getParent(), dir.getName());
+   }
+
+   /**
+    * Create the parent and then the directory in the parent.
+    */
+   private static boolean mkdir(String parent, String name) {
+      FileSystemService fileSystemService = FileSystemService.getInstance();
+
+      if(parent == null) {
+         return (fileSystemService.getFile(".", name)).mkdir();
+      }
+
+      if(mkdir(fileSystemService.getFile(Tool.convertUserFileName(parent)))) {
+         return (fileSystemService.getFile(Tool.convertUserFileName(parent),
+            Tool.convertUserFileName(name))).mkdir();
+      }
+
+      return false;
    }
 
    /**

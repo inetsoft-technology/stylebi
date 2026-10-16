@@ -173,7 +173,7 @@ class XEngineAdditionalConnectionSaveTest {
       registry.clearCache();
       SecurityEngine security = mock(SecurityEngine.class);
       when(security.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
-      DataSourceStatusService service = new DataSourceStatusService(repository, security);
+      DataSourceStatusService service = new DataSourceStatusService(repository, security, registry);
 
       service.getDataSourceConnectionStatuses(
          ImmutableDataSourceConnectionStatusRequest.builder()

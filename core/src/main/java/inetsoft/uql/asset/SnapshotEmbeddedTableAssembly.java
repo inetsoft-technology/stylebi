@@ -44,9 +44,11 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
@@ -756,6 +758,31 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          committedDataPaths != null && !Arrays.equals(committedDataPaths, dataPaths);
    }
 
+   /**
+    * Get the snapshot data paths named by every {@link SnapshotEmbeddedTableAssembly} currently
+    * in a worksheet. Used by the orphaned permanent snapshot file cleanup (bug #78035) to collect
+    * referenced paths from stored worksheet content, auto-save drafts and open runtime worksheet
+    * sessions alike, the same way {@link #getFrozenCopyDataPaths} already collects them from a
+    * stored frozen outer copy's worksheet.
+    *
+    * @param ws the worksheet to scan.
+    *
+    * @return the data paths named by the worksheet's snapshot tables, never {@code null}.
+    */
+   public static Set<String> getDataPaths(Worksheet ws) {
+      Set<String> paths = new HashSet<>();
+
+      for(SnapshotEmbeddedTableAssembly table : getSnapshotTables(ws)) {
+         String[] dataPaths = table.getDataPaths();
+
+         if(dataPaths != null) {
+            paths.addAll(Arrays.asList(dataPaths));
+         }
+      }
+
+      return paths;
+   }
+
    private static List<SnapshotEmbeddedTableAssembly> getSnapshotTables(Worksheet ws) {
       List<SnapshotEmbeddedTableAssembly> tables = new ArrayList<>();
 
@@ -1298,17 +1325,34 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                }
 
                String[] paths = new String[dataPaths.length];
+               File[] files = new File[dataPaths.length];
+               // the copies of the stored data, which must be readable
+               boolean[] copied = new boolean[dataPaths.length];
                Map<String, String> absolutePathsLoadVersion = new HashMap<>();
-               List<File> tempFiles = new ArrayList<>();
                FileSystemService fileSystemService = FileSystemService.getInstance();
                boolean complete = true;
+
+               for(int i = 0; i < paths.length; i++) {
+                  files[i] = fileSystemService.getCacheFile(dataPaths[i] + "_s.tdat");
+                  paths[i] = files[i].getAbsolutePath();
+                  paths[i] = paths[i].substring(0, paths[i].lastIndexOf("_s.tdat"));
+               }
+
+               XSwappableTable stable = new XSwappableTable();
+
+               // Bug #78095, count the copies before they are kept or copied. The close of
+               // another table, of this JVM or of another one on the same cache directory,
+               // and the cache sweeps delete a copy that has no count, also while it is
+               // loaded here. The reference adds itself to the cleaner (bug #78096), which
+               // removes the counts if the table is not loaded
+               if(files.length > 0) {
+                  new EmbeddedTableReference(stable, files);
+               }
 
                // copy pdata to cache folder
                for(int i = 0; i < paths.length; i++) {
                   String path = dataPaths[i] + "_s.tdat";
-                  File file = fileSystemService.getCacheFile(path);
-                  paths[i] = file.getAbsolutePath();
-                  paths[i] = paths[i].substring(0, paths[i].lastIndexOf("_s.tdat"));
+                  File file = files[i];
 
                   String orgId = OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -1356,7 +1400,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                            }
                         }
 
-                        tempFiles.add(file);
+                        copied[i] = true;
                         absolutePathsLoadVersion.put(paths[i], dataPathsLoadVersion.get(dataPaths[i]));
                      }
                      else {
@@ -1369,12 +1413,6 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                   }
                }
 
-               XSwappableTable stable = new XSwappableTable();
-
-               if(!tempFiles.isEmpty()) {
-                  Cleaner.add(new EmbeddedTableReference(stable, tempFiles.toArray(new File[0])));
-               }
-
                XTableColumnCreator[] xcreators = new XTableColumnCreator[creators.length];
                XTableFragment[] tables = new XTableFragment[paths.length];
 
@@ -1385,7 +1423,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                }
 
                for(int i = 0; i < paths.length; i++) {
-                  tables[i] = createFragment(xcreators, paths[i], absolutePathsLoadVersion);
+                  tables[i] = createFragment(xcreators, paths[i], absolutePathsLoadVersion,
+                                             copied[i]);
                }
 
                stable.init(xcreators);
@@ -1423,7 +1462,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
     * Create table fragment.
     */
    private XTableFragment createFragment(XTableColumnCreator[] creators, String path,
-                                         Map<String, String> versionMap)
+                                         Map<String, String> versionMap, boolean copied)
+      throws IOException
    {
       XTableColumn[] columns = new XTableColumn[creators.length];
 
@@ -1439,7 +1479,13 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
       XTableFragment table = new XTableFragment(columns, false);
 
-      table.setSnapshotPath(path);
+      // Bug #78095, the copy was deleted (e.g. by an older JVM on the same cache directory) or
+      // its footer could not be read (e.g. on an interrupted thread) after it was copied. The
+      // rows of the fragment would be null, don't load or cache the table, the next load
+      // copies the file again
+      if(!table.setSnapshotPath(path) && copied) {
+         throw new IOException("Failed to read snapshot cache file: " + path + "_s.tdat");
+      }
 
       return table;
    }
@@ -1515,22 +1561,240 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
    public static final String FILE_REFERENCES_MAP = "inetsoft.snapshot.file.map";
    public static final String FILE_REFERENCES_MAP_LOCK = "inetsoft.snapshot.file.map.lock";
+   // Bug #78082, file path -> (node id -> the part of the count in FILE_REFERENCES_MAP that was
+   // added by that node). FILE_REFERENCES_MAP keeps the total count of all nodes, as JVMs of an
+   // older version read and write it, and a part of the total that has no owner here (e.g. of
+   // an older JVM) is assumed to be alive
+   public static final String FILE_OWNERS_MAP = "inetsoft.snapshot.file.owner.map";
+   // Bug #78082, file path -> the number of live tables of this JVM that read the file. The node
+   // id of a client node changes when it reconnects, so the counts it added before that look
+   // like the counts of a node that is gone, and any node may remove them while the tables of
+   // the client are still open. This JVM never removes the counts of, or deletes, a file that
+   // its own tables still read
+   private static final Map<String, Integer> LOCAL_FILE_REFERENCES = new ConcurrentHashMap<>();
    private static final List<Reference<SnapshotEmbeddedTableAssembly>> snapshots = new ArrayList<>();
+
+   /**
+    * Bug #78082, the counts of {@link #FILE_REFERENCES_MAP} are removed only by the JVM that
+    * added them and the map lives as long as the cluster, so the counts of a JVM that stopped
+    * (or crashed) with live snapshot tables while other nodes stayed up were never removed. The
+    * cache path of a snapshot is the same each time it is loaded, so they kept every later copy
+    * of the snapshot from being deleted when its last table was closed, and the cache sweeps
+    * skipped it. This removes the counts of the nodes that are not in the cluster anymore. A
+    * node id is assigned each time a node joins, so a restarted JVM does not own the counts of
+    * the JVM it replaced. The cache files are left to the sweeps.
+    *
+    * @param cluster the cluster.
+    */
+   public static void removeStaleFileReferences(Cluster cluster) {
+      // Bug #78463, the leases of JVMs that stopped without deleting them, e.g. when halted
+      SnapshotOwnerLeases.removeOrphans();
+
+      try {
+         Map<String, HashMap<String, Integer>> owners = cluster.getMap(FILE_OWNERS_MAP);
+         Set<String> nodes = cluster.getClusterNodeIds();
+         List<String> stale = new ArrayList<>();
+         // Bug #78463, each lease is read once in a sweep
+         SnapshotOwnerLeases.Reads reads = new SnapshotOwnerLeases.Reads();
+
+         for(Map.Entry<String, HashMap<String, Integer>> entry : owners.entrySet()) {
+            // a file that a table of this JVM reads is in use, whatever node id it was counted
+            // under (the node id of a client changes when it reconnects)
+            if(!isFileInUseLocally(entry.getKey()) &&
+               hasDeadOwner(entry.getKey(), entry.getValue().keySet(), nodes, reads))
+            {
+               stale.add(entry.getKey());
+            }
+         }
+
+         if(stale.isEmpty()) {
+            return;
+         }
+
+         // only while the entries are changed, not for the whole sweep
+         Lock lock = cluster.getLock(FILE_REFERENCES_MAP_LOCK);
+         lock.lock();
+
+         try {
+            Map<String, Integer> map = cluster.getMap(FILE_REFERENCES_MAP);
+            // read the topology again, an owner may have joined since
+            nodes = cluster.getClusterNodeIds();
+
+            for(String file : stale) {
+               HashMap<String, Integer> fileOwners = owners.get(file);
+
+               if(fileOwners != null && !isFileInUseLocally(file)) {
+                  removeDeadOwners(file, fileOwners, nodes, map, owners, reads);
+               }
+            }
+         }
+         finally {
+            lock.unlock();
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove stale snapshot file references", e);
+      }
+   }
+
+   private static boolean hasDeadOwner(String file, Set<String> fileOwners, Set<String> nodes,
+                                       SnapshotOwnerLeases.Reads reads)
+   {
+      return fileOwners.stream().anyMatch(id -> isDeadOwner(file, id, nodes, reads));
+   }
+
+   /**
+    * Checks if an owner of a file is gone. Bug #78463, a node that is not in the cluster of this
+    * node may still be alive, as another cluster after a split (e.g. the local scheduler after a
+    * long pause), and still read the file, so it is gone only if its lease is gone too.
+    */
+   private static boolean isDeadOwner(String file, String nodeId, Set<String> nodes,
+                                      SnapshotOwnerLeases.Reads reads)
+   {
+      return !nodes.contains(nodeId) && !SnapshotOwnerLeases.isAlive(file, nodeId, reads);
+   }
+
+   /**
+    * Removes the counts of the nodes that are gone from the owners of a file and from its total
+    * count, see {@link #isDeadOwner}. The caller must hold {@link #FILE_REFERENCES_MAP_LOCK}.
+    *
+    * @return the total count of the file that is left. It is the current total count when no
+    *         owner was removed, and 0 when the file has no count.
+    */
+   private static int removeDeadOwners(String file, HashMap<String, Integer> fileOwners,
+                                       Set<String> nodes, Map<String, Integer> map,
+                                       Map<String, HashMap<String, Integer>> owners,
+                                       SnapshotOwnerLeases.Reads reads)
+   {
+      int dead = 0;
+
+      for(Iterator<Map.Entry<String, Integer>> i = fileOwners.entrySet().iterator(); i.hasNext();) {
+         Map.Entry<String, Integer> entry = i.next();
+
+         if(isDeadOwner(file, entry.getKey(), nodes, reads)) {
+            dead += entry.getValue();
+            i.remove();
+            SnapshotOwnerLeases.removeDead(file, entry.getKey(), reads);
+         }
+      }
+
+      Integer total = map.get(file);
+      int count = total == null ? 0 : total - dead;
+
+      if(dead > 0) {
+         if(fileOwners.isEmpty()) {
+            owners.remove(file);
+         }
+         else {
+            owners.put(file, fileOwners);
+         }
+
+         if(count <= 0) {
+            map.remove(file);
+         }
+         else {
+            map.put(file, count);
+         }
+      }
+
+      return count;
+   }
+
+   /**
+    * Checks if a live table of this JVM reads a snapshot copy in the cache directory. Such a file
+    * is in use even if its count in {@link #FILE_REFERENCES_MAP} was removed, e.g. by another
+    * node after the node id of this JVM changed when it reconnected to the cluster.
+    *
+    * @param path the absolute path of the file.
+    *
+    * @return {@code true} if a table of this JVM reads the file.
+    */
+   public static boolean isFileInUseLocally(String path) {
+      return LOCAL_FILE_REFERENCES.containsKey(path);
+   }
+
+   /**
+    * Bug #78463, gets the snapshot copies in a directory that live tables of other JVMs read, from
+    * their leases in that directory. Such a JVM may not be in the cluster of this node, e.g. the
+    * local scheduler after a pause split the cluster, so the copies it opened since have no count
+    * in {@link #FILE_REFERENCES_MAP} here. Get it once per sweep, it lists the directory.
+    *
+    * @param dir the directory of the copies, e.g. the cache folder.
+    *
+    * @return a test of the absolute path of a file.
+    */
+   public static Predicate<String> getFilesInUseElsewhere(File dir) {
+      return SnapshotOwnerLeases.getFilesInUseElsewhere(dir);
+   }
+
+   // the absolute paths of the files that the live tables of this JVM read
+   static Set<String> getLocalFiles() {
+      return LOCAL_FILE_REFERENCES.keySet();
+   }
 
    private static final class EmbeddedTableReference extends Cleaner.Reference<XSwappableTable> {
       EmbeddedTableReference(XSwappableTable referent, File[] files) {
          super(referent);
-         this.files = Arrays.stream(files).map(File::getAbsolutePath).toArray(String[]::new);
-         Cluster cluster = Cluster.getInstance();
+
+         // Bug #78096, the cleaner may close the reference while the counts are added, if the
+         // table is not reachable anymore. close() then sees all or none of them
+         synchronized(this) {
+            this.files = Arrays.stream(files).map(File::getAbsolutePath).toArray(String[]::new);
+            this.added = new int[this.files.length];
+            Cluster cluster = Cluster.getInstance();
+            this.nodeId = cluster.getLocalNodeId();
+
+            // closed before the counts were added, no table reads the files
+            if(closed) {
+               return;
+            }
+
+            // Bug #78096, registered before any count is added, so that the counts that were
+            // added are removed when the table is collected, even if adding the others fails
+            Cleaner.add(this);
+            // Bug #78463, the lease of the node id is held until the counts are removed, it is
+            // written once they are added
+            leaseDir = this.files.length > 0 ? new File(this.files[0]).getParentFile() : null;
+            SnapshotOwnerLeases.acquire(leaseDir, nodeId);
+            leased = true;
+
+            try {
+               addCounts(cluster);
+               // Bug #78463, lists the files before they are copied or read, so that a JVM that
+               // is not in the cluster of this node keeps them
+               SnapshotOwnerLeases.update(leaseDir);
+            }
+            catch(RuntimeException | Error e) {
+               // the local counts can be removed now. the counts in the cluster are removed by
+               // close(), removing them here would likely fail the same way
+               removeLocalCounts();
+               throw e;
+            }
+         }
+      }
+
+      private void addCounts(Cluster cluster) {
          Lock lock = cluster.getLock(FILE_REFERENCES_MAP_LOCK);
          lock.lock();
 
          try {
             Map<String, Integer> map = cluster.getMap(FILE_REFERENCES_MAP);
+            Map<String, HashMap<String, Integer>> owners = cluster.getMap(FILE_OWNERS_MAP);
 
-            for(String file : this.files) {
+            for(int i = 0; i < files.length; i++) {
+               String file = files[i];
                int count = map.getOrDefault(file, 0) + 1;
                map.put(file, count);
+               added[i] |= TOTAL;
+               // the owner after the total, the removal of stale counts subtracts the count of
+               // an owner from the total
+               HashMap<String, Integer> fileOwners = owners.get(file);
+               fileOwners = fileOwners == null ? new HashMap<>() : fileOwners;
+               fileOwners.merge(nodeId, 1, Integer::sum);
+               owners.put(file, fileOwners);
+               added[i] |= OWNER;
+               LOCAL_FILE_REFERENCES.merge(file, 1, Integer::sum);
+               added[i] |= LOCAL;
             }
          }
          finally {
@@ -1538,32 +1802,195 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          }
       }
 
+      private void removeLocalCounts() {
+         for(int i = 0; i < files.length; i++) {
+            if((added[i] & LOCAL) != 0) {
+               LOCAL_FILE_REFERENCES.computeIfPresent(files[i], (k, v) -> v <= 1 ? null : v - 1);
+               added[i] &= ~LOCAL;
+            }
+         }
+      }
+
+      /**
+       * Removes the counts that this reference added. Each count is removed once, and a count
+       * that could not be removed is removed by the next close, e.g. by the cleaner after a close
+       * by a caller failed (bug #78096).
+       */
       @Override
-      public void close() throws Exception {
+      public synchronized void close() throws Exception {
+         closed = true;
+
+         // not set yet if the cleaner closes the reference before the constructor set it
+         if(added == null) {
+            return;
+         }
+
+         // first, so that the local counts are right even if the cluster can't be reached
+         removeLocalCounts();
+
+         try {
+            removeCounts();
+         }
+         finally {
+            // Bug #78463, the lease is kept while a count of this reference is in the cluster
+            if(leased && Arrays.stream(added).allMatch(a -> a == 0)) {
+               leased = false;
+               SnapshotOwnerLeases.release(leaseDir, nodeId);
+            }
+         }
+      }
+
+      private void removeCounts() {
+         if(Arrays.stream(added).allMatch(a -> a == 0)) {
+            return;
+         }
+
          Cluster cluster = Cluster.getInstance();
          Lock lock = cluster.getLock(FILE_REFERENCES_MAP_LOCK);
          lock.lock();
 
          try {
             Map<String, Integer> map = cluster.getMap(FILE_REFERENCES_MAP);
+            Map<String, HashMap<String, Integer>> owners = cluster.getMap(FILE_OWNERS_MAP);
+            // Bug #78463, read when a file is about to be deleted
+            Predicate<String> elsewhere = null;
 
-            for(String file : files) {
-               int count = map.getOrDefault(file, 1) - 1;
+            for(int i = 0; i < files.length; i++) {
+               if(added[i] == 0) {
+                  continue;
+               }
 
-               if(count == 0) {
-                  map.remove(file);
-                  new File(file).delete();
+               String file = files[i];
+               // Bug #78082, another table of this JVM still reads the file
+               boolean inUse = isFileInUseLocally(file);
+
+               // Bug #78096, the total was added without its owner. the removal of stale counts
+               // only subtracts the counts of owners, so nothing else removes it
+               if((added[i] & OWNER) == 0) {
+                  int count = map.getOrDefault(file, 1) - 1;
+
+                  if(count <= 0) {
+                     map.remove(file);
+                  }
+                  else {
+                     map.put(file, count);
+                  }
+
+                  added[i] = 0;
+
+                  if(count <= 0 && !inUse) {
+                     elsewhere = deleteCopy(file, elsewhere);
+                  }
+
+                  continue;
+               }
+
+               HashMap<String, Integer> fileOwners = owners.get(file);
+               Integer owned = fileOwners == null ? null : fileOwners.get(nodeId);
+
+               // Bug #78082, the count of this node was removed as stale (e.g. its node id
+               // changed when it reconnected), so it is not in the total anymore
+               if(owned == null) {
+                  added[i] = 0;
+
+                  if(!inUse && !map.containsKey(file)) {
+                     elsewhere = deleteCopy(file, elsewhere);
+                  }
+
+                  continue;
+               }
+
+               if(owned <= 1) {
+                  fileOwners.remove(nodeId);
                }
                else {
-                  map.put(file, count);
+                  fileOwners.put(nodeId, owned - 1);
+               }
+
+               if(fileOwners.isEmpty()) {
+                  owners.remove(file);
+               }
+               else {
+                  owners.put(file, fileOwners);
+               }
+
+               // if the total can't be changed now, the next close removes it without an owner
+               added[i] &= ~OWNER;
+               int count = map.getOrDefault(file, 1) - 1;
+
+               if(count <= 0) {
+                  map.remove(file);
+                  added[i] = 0;
+
+                  if(!inUse) {
+                     elsewhere = deleteCopy(file, elsewhere);
+                  }
+
+                  continue;
+               }
+
+               map.put(file, count);
+               added[i] = 0;
+
+               if(inUse || fileOwners.isEmpty()) {
+                  continue;
+               }
+
+               // Bug #78082, the rest of the count may be of nodes that are gone, e.g. of the
+               // JVM this one replaced in a rolling restart
+               int left;
+
+               try {
+                  left = removeDeadOwners(file, fileOwners, cluster.getClusterNodeIds(), map,
+                                          owners, new SnapshotOwnerLeases.Reads());
+               }
+               catch(Exception e) {
+                  // e.g. on a client that is disconnected, keep the count and go on with the
+                  // other files of this reference
+                  LOG.debug("Failed to remove stale references of snapshot file {}", file, e);
+                  continue;
+               }
+
+               if(left <= 0) {
+                  elsewhere = deleteCopy(file, elsewhere);
                }
             }
          }
          finally {
             lock.unlock();
          }
+      }
+
+      /**
+       * Deletes a copy that no table of the cluster reads, unless a live table of another JVM
+       * reads it (bug #78463), e.g. one that opened it after a split, whose count is not here.
+       *
+       * @return the copies that other JVMs read, read the first time a copy is deleted.
+       */
+      private static Predicate<String> deleteCopy(String file, Predicate<String> elsewhere) {
+         if(elsewhere == null) {
+            elsewhere = SnapshotOwnerLeases.getFilesInUseElsewhere(new File(file).getParentFile());
+         }
+
+         if(!elsewhere.test(file)) {
+            new File(file).delete();
+         }
+
+         return elsewhere;
       }
 
       private final String[] files;
+      // Bug #78096, the counts of each file that this reference added and has not removed yet
+      private final int[] added;
+      // the node that added the counts, the local node id changes when a client reconnects
+      private final String nodeId;
+      // Bug #78463, the directory of the lease of the node id, and if this reference holds it
+      private File leaseDir;
+      private boolean leased;
+      private boolean closed;
+
+      private static final int TOTAL = 1;
+      private static final int OWNER = 2;
+      private static final int LOCAL = 4;
    }
 }

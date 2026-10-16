@@ -26,6 +26,7 @@ import inetsoft.util.XPortalHelper;
 
 import java.awt.Insets;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * The interface is for both excel and powerpoint.
@@ -164,4 +165,24 @@ public interface VSExporter {
     * @param exportBox the sandbox the exporter will use.
     */
    void setSandbox(ViewsheetSandbox exportBox);
+
+   /**
+    * Check if this exporter must see every exported state before the first one is exported.
+    * A caller that exports several states (the current view and bookmarks) into one exporter
+    * must then create the sandboxes of all of them first, pass them to
+    * {@link #prepareStates(List)}, and only then call <tt>export()</tt> for each. (#78131)
+    * @return <tt>true</tt> if {@link #prepareStates(List)} has to be called.
+    */
+   default boolean isPrepareStatesRequired() {
+      return false;
+   }
+
+   /**
+    * Let the exporter make the decisions that must be the same for every exported state.
+    * Called once, before the first <tt>export()</tt>, with the sandbox of each state in export
+    * order. The sandboxes must be the instances that are later passed to <tt>export()</tt>.
+    * @param boxes the sandboxes of every state exported into this exporter.
+    */
+   default void prepareStates(List<ViewsheetSandbox> boxes) {
+   }
 }

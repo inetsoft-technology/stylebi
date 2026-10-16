@@ -34,6 +34,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -49,6 +50,7 @@ import java.lang.ref.WeakReference;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Stream;
 
@@ -141,7 +143,8 @@ public final class MVManager implements MessageListener {
       if(entry.isWorksheet()) {
          MVDef mv = findMV(entry, tname, user, null);
 
-         if(mv != null) {
+         // an mv that is not created (yet) has no data to query
+         if(mv != null && mv.isSuccess()) {
             return new RuntimeMV(entry, null, null, tname, mv.getName(),
                                  false, mv.getLastUpdateTime(), null);
          }
@@ -660,19 +663,31 @@ public final class MVManager implements MessageListener {
       Identity id = user == null ? null : new DefaultIdentity(IdentityID.getIdentityIDFromKey(user.getName()), Identity.USER);
       Identity systemAdmin = new DefaultIdentity(IdentityID.getIdentityIDFromKey(XPrincipal.SYSTEM), Identity.USER);
 
+      // an mv built for the user itself comes first. an mv built for another identity is
+      // only used if the VPM gives the user the same data (Bug #78390)
+      for(MVDef def : marr) {
+         if(isUserMV(def, id)) {
+            return def;
+         }
+      }
+
       if(marr.length > 0 && SUtil.isDefaultVSGloballyVisible(user) &&
          !Tool.equals(user.getOrgId(), entry.getOrgID()) &&
          Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()))
       {
-         return marr[0];
+         for(MVDef def : marr) {
+            if(isVPMCompatible(def, user)) {
+               return def;
+            }
+         }
+
+         return null;
       }
 
       for(MVDef def : marr) {
-         if(def.containsUser(id)) {
-            return def;
-         }
-
-         if(def.containsUser(systemAdmin)) {
+         if((def.containsUser(id) || def.containsUser(systemAdmin)) &&
+            isVPMCompatible(def, user))
+         {
             return def;
          }
       }
@@ -684,7 +699,7 @@ public final class MVManager implements MessageListener {
          id = new DefaultIdentity(groups[i], Identity.GROUP);
 
          for(MVDef def : marr) {
-            if(def.containsUser(id)) {
+            if(def.containsUser(id) && isVPMCompatible(def, user)) {
                return def;
             }
          }
@@ -697,7 +712,7 @@ public final class MVManager implements MessageListener {
          id = new DefaultIdentity(roles[i], Identity.ROLE);
 
          for(MVDef def : marr) {
-            if(def.containsUser(id)) {
+            if(def.containsUser(id) && isVPMCompatible(def, user)) {
                return def;
             }
          }
@@ -768,12 +783,17 @@ public final class MVManager implements MessageListener {
       Identity id = user == null ? null : new DefaultIdentity(IdentityID.getIdentityIDFromKey(user.getName()), Identity.USER);
       Identity systemAdmin = new DefaultIdentity(IdentityID.getIdentityIDFromKey(XPrincipal.SYSTEM), Identity.USER);
 
+      // same as findMV0 (Bug #78390)
       for(MVDef def : marr) {
-         if(def.containsUser(id)) {
+         if(isUserMV(def, id)) {
             return def;
          }
+      }
 
-         if(def.containsUser(systemAdmin)) {
+      for(MVDef def : marr) {
+         if((def.containsUser(id) || def.containsUser(systemAdmin)) &&
+            isVPMCompatible(def, user))
+         {
             return def;
          }
       }
@@ -785,7 +805,7 @@ public final class MVManager implements MessageListener {
          id = new DefaultIdentity(groups[i], Identity.GROUP);
 
          for(MVDef def : marr) {
-            if(def.containsUser(id)) {
+            if(def.containsUser(id) && isVPMCompatible(def, user)) {
                return def;
             }
          }
@@ -798,13 +818,209 @@ public final class MVManager implements MessageListener {
          id = new DefaultIdentity(roles[i], Identity.ROLE);
 
          for(MVDef def : marr) {
-            if(def.containsUser(id)) {
+            if(def.containsUser(id) && isVPMCompatible(def, user)) {
                return def;
             }
          }
       }
 
       return null;
+   }
+
+   /**
+    * Check if the mv is built for the specified user identity itself.
+    */
+   private static boolean isUserMV(MVDef def, Identity id) {
+      Identity[] users = def.getUsers();
+
+      if(id == null || users == null) {
+         return false;
+      }
+
+      for(Identity user1 : users) {
+         if(user1.equals(id)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if an mv that is not built for the user itself (system user, no user, group,
+    * role, or a default org mv seen from another org) can be used by the user. The mv data
+    * is filtered by the VPM of the identity it's built for, so the VPM must give the user
+    * the same query as that identity (Bug #78390). The result is cached until the mv, a data
+    * source or a data model (including its VPMs) changes, the user's roles or groups change,
+    * or it expires.
+    */
+   private static boolean isVPMCompatible(MVDef def, XPrincipal user) {
+      MVMetaData data = def.getMetaData();
+
+      // the mv data is not filtered by VPM
+      if(data != null && data.isBypassVPM()) {
+         return true;
+      }
+
+      // the build plan depends on the org the data sources and models are read from
+      String mvKey = def.getName() + "\n" + def.getLastUpdateTime() + "\n" +
+         Arrays.toString(def.getUsers()) + "\n" +
+         OrganizationManager.getInstance().getCurrentOrgID();
+      String key = mvKey + "\n" + getVPMUserKey(user);
+      VPMCheck check = VPM_CHECKS.get(key);
+
+      if(check != null && check.isValid()) {
+         return check.compatible;
+      }
+
+      long generation = VPM_GENERATION.get();
+      boolean cacheable = listenDataSourceRegistry();
+      String buildPlan = getBuildPlan(def, mvKey, cacheable);
+      boolean compatible = def.isPlanEqual(user, buildPlan);
+
+      // expected for every VPM-restricted user, so not logged at info level
+      if(!compatible) {
+         LOG.debug("Materialized view {} is not used for user {}, the VPM gives the user " +
+                     "a different query than the identity the view is built for",
+                  def.getName(), user == null ? null : user.getName());
+      }
+
+      // don't cache a result computed while a data source or data model changed
+      if(cacheable && generation == VPM_GENERATION.get()) {
+         VPM_CHECKS.put(key, new VPMCheck(compatible));
+      }
+
+      return compatible;
+   }
+
+   /**
+    * Get the plan of the identity the mv is built for, computed once per mv until the
+    * cached VPM checks are cleared or it expires.
+    *
+    * @return the plan or <tt>null</tt> if it can't be created.
+    */
+   private static String getBuildPlan(MVDef def, String mvKey, boolean cacheable) {
+      BuildPlan plan = BUILD_PLANS.get(mvKey);
+
+      if(plan != null && plan.isValid()) {
+         return plan.plan;
+      }
+
+      long generation = VPM_GENERATION.get();
+      String plan0;
+
+      try {
+         plan0 = def.getBuildPlan();
+      }
+      catch(Throwable ex) {
+         // the failure isn't cached, so only report it once per view until the next change
+         if(BUILD_PLAN_FAILURES.put(mvKey, Boolean.TRUE) == null) {
+            LOG.info("Materialized view {} is not used for any other identity than it is " +
+                        "built for, failed to create its sql plan: {}", def.getName(),
+                     ex.toString());
+         }
+
+         LOG.debug("Failed to create sql plan for materialized view {}", def.getName(), ex);
+         return null;
+      }
+
+      if(cacheable && generation == VPM_GENERATION.get()) {
+         BUILD_PLANS.put(mvKey, new BuildPlan(plan0));
+      }
+
+      return plan0;
+   }
+
+   /**
+    * Get the key of what a VPM sees of the user.
+    */
+   private static String getVPMUserKey(XPrincipal user) {
+      if(user == null) {
+         return "";
+      }
+
+      return user.getName() + "\n" + user.getOrgId() + "\n" +
+         OrganizationManager.getInstance().getCurrentOrgID() + "\n" +
+         Arrays.toString(XUtil.getUserRoles(user, true)) + "\n" +
+         Arrays.toString(XUtil.getUserGroups(user, true));
+   }
+
+   /**
+    * Make sure the cached VPM checks are cleared when a data source or data model
+    * (including its VPMs) changes on this node or another node.
+    *
+    * @return <tt>true</tt> if the checks can be cached.
+    */
+   private static boolean listenDataSourceRegistry() {
+      try {
+         DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+
+         if(registry == null) {
+            return false;
+         }
+
+         synchronized(VPM_CHECKS) {
+            if(registry != vpmRegistry) {
+               if(vpmRegistry != null) {
+                  vpmRegistry.removeRefreshedListener(VPM_CHECK_CLEANER);
+                  vpmRegistry.removeModifiedListener(VPM_CHECK_CLEANER);
+               }
+
+               registry.addRefreshedListener(VPM_CHECK_CLEANER);
+               registry.addModifiedListener(VPM_CHECK_CLEANER);
+               vpmRegistry = registry;
+               clearVPMChecks();
+               return false;
+            }
+         }
+
+         return true;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to listen to data source changes, VPM checks are not cached", ex);
+         return false;
+      }
+   }
+
+   private static void clearVPMChecks() {
+      VPM_GENERATION.incrementAndGet();
+      VPM_CHECKS.clear();
+      BUILD_PLANS.clear();
+      BUILD_PLAN_FAILURES.clear();
+   }
+
+   /**
+    * A cached result of isVPMCompatible.
+    */
+   private static final class VPMCheck {
+      VPMCheck(boolean compatible) {
+         this.compatible = compatible;
+         this.time = System.currentTimeMillis();
+      }
+
+      boolean isValid() {
+         return System.currentTimeMillis() - time < VPM_CHECK_TIMEOUT;
+      }
+
+      private final boolean compatible;
+      private final long time;
+   }
+
+   /**
+    * A cached plan of the identity an mv is built for.
+    */
+   private static final class BuildPlan {
+      BuildPlan(String plan) {
+         this.plan = plan;
+         this.time = System.currentTimeMillis();
+      }
+
+      boolean isValid() {
+         return System.currentTimeMillis() - time < VPM_CHECK_TIMEOUT;
+      }
+
+      private final String plan;
+      private final long time;
    }
 
    /**
@@ -1666,6 +1882,33 @@ public final class MVManager implements MessageListener {
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(MVManager.class);
+   private static final long VPM_CHECK_TIMEOUT = 300000L;
+   private static final int VPM_CHECK_MAX = 10000;
+   private static final int BUILD_PLAN_MAX = 1000;
+   private static final Map<String, VPMCheck> VPM_CHECKS = Collections.synchronizedMap(
+      new LinkedHashMap<>(16, 0.75f, true) {
+         @Override
+         protected boolean removeEldestEntry(Map.Entry<String, VPMCheck> eldest) {
+            return size() > VPM_CHECK_MAX;
+         }
+      });
+   private static final Map<String, BuildPlan> BUILD_PLANS = Collections.synchronizedMap(
+      new LinkedHashMap<>(16, 0.75f, true) {
+         @Override
+         protected boolean removeEldestEntry(Map.Entry<String, BuildPlan> eldest) {
+            return size() > BUILD_PLAN_MAX;
+         }
+      });
+   private static final Map<String, Boolean> BUILD_PLAN_FAILURES = Collections.synchronizedMap(
+      new LinkedHashMap<>(16, 0.75f, true) {
+         @Override
+         protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+            return size() > BUILD_PLAN_MAX;
+         }
+      });
+   private static final AtomicLong VPM_GENERATION = new AtomicLong();
+   private static final PropertyChangeListener VPM_CHECK_CLEANER = evt -> clearVPMChecks();
+   private static DataSourceRegistry vpmRegistry;
 
    private final Cluster cluster;
    private final MVDefMap mvs = new MVDefMap();

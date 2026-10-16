@@ -253,6 +253,7 @@ public class JDBCTableNode extends XTableNode {
                rready = false;
 
                if(!more) {
+                  ended = true;
                   closeStmt = true;
                   // clear the static blobmap
                   sqlTypesHelper.clearBlobmap();
@@ -273,6 +274,10 @@ public class JDBCTableNode extends XTableNode {
          // user canceled while getting the rows, no need to report as error
          if(JDBCUtil.isCancelled(e, stmt)) {
             LOG.debug("Query cancelled", e);
+            // a driver that implements the cancel fails the read in progress, and the rows end
+            // here as at the end of the result: record it, or the rows read so far are taken
+            // for the whole result (bug #78200)
+            super.cancel();
             sqlTypesHelper.clearBlobmap();
             return false;
          }
@@ -459,6 +464,13 @@ public class JDBCTableNode extends XTableNode {
    @Override
    public synchronized void cancel() {
       try {
+         // a cancel of rows still being read ends them early: record it, so the rows read so far
+         // are not taken for the whole result (bug #78200). the cancelled field can't tell, it
+         // is also set when the rows are closed after the last one
+         if(!ended && stmt != null) {
+            super.cancel();
+         }
+
          cancelled = true;
 
          if(stmt != null) {
@@ -495,6 +507,8 @@ public class JDBCTableNode extends XTableNode {
    }
 
    private boolean cancelled = false;
+   // the rows ended (the last one was read, or max rows reached), a later cancel is no cancel
+   private boolean ended = false;
    private int ncol;
    private String[] names;
    private XTableColumnCreator[] creators;

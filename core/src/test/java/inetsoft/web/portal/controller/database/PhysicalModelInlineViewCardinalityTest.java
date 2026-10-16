@@ -342,8 +342,11 @@ class PhysicalModelInlineViewCardinalityTest {
       XPartition partition = service.createPartition(
          new com.fasterxml.jackson.databind.ObjectMapper().readValue(
             model, inetsoft.web.portal.model.database.PhysicalModelDefinition.class));
-      when(runtimePartitionService.getRuntimePartition(RUNTIME_ID)).thenReturn(
-         new RuntimePartitionService.RuntimeXPartition(partition, RUNTIME_ID, source));
+      RuntimePartitionService.RuntimeXPartition runtime =
+         new RuntimePartitionService.RuntimeXPartition(partition, RUNTIME_ID, source);
+      when(runtimePartitionService.getRuntimePartition(RUNTIME_ID)).thenReturn(runtime);
+      when(runtimePartitionService.update(org.mockito.ArgumentMatchers.eq(RUNTIME_ID), any()))
+         .thenAnswer(i -> i.<RuntimePartitionService.Mutation<?, ?>>getArgument(1).apply(runtime));
       mockMvc.perform(post("/api/data/physicalmodel/add/autoJoin")
                          .principal(PRINCIPAL)
                          .contentType(MediaType.APPLICATION_JSON)

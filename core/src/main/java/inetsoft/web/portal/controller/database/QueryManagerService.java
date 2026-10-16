@@ -36,6 +36,7 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.util.sqlparser.SQLLexer;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.model.FormatInfoModel;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.ws.*;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -158,7 +159,10 @@ public class QueryManagerService {
       // drop part of the user's sql. Keep the sql string. The editor disables the graphical
       // tabs for such a query, so the only callers reaching here are save and the switch to
       // simple mode, and their pane models are echoes of the structure, not user edits.
-      if(isSqlOnly(sql)) {
+      // Bug #78387, a saved where or having tree the condition pane can't show is sql only
+      // too, also without a sql string. The pane posted back is empty, applying it would drop
+      // the saved conditions.
+      if(isSqlOnly(sql) || !isConditionPaneSupported(sql, query.getDataSource())) {
          LOG.debug("Keep the sql string of a sql-only query, skip updating it from the {} pane",
                    all ? "all" : tab);
          saveRuntimeQuery(runtimeQuery);
@@ -296,6 +300,25 @@ public class QueryManagerService {
    static boolean isSqlOnly(UniformSQL sql) {
       return sql.hasSQLString() &&
          (!sql.isParseSQL() || sql.getParseResult() != UniformSQL.PARSE_SUCCESS || sql.isLossy());
+   }
+
+   /**
+    * Check if the condition pane can show the where and having trees of the query. A query
+    * saved before 1.2.0 keeps its parsed tree (#77477), which may hold a condition the pane
+    * has no operator for, such as the truth value of x IS [NOT] TRUE/FALSE/UNKNOWN. The parser
+    * refuses a truth test now (#77735), so a new query never has one in its tree (Bug #78387).
+    */
+   private boolean isConditionPaneSupported(UniformSQL sql, XDataSource dataSource) {
+      try {
+         createConditions(sql, dataSource, CONDITION_WHERE);
+         createConditions(sql, dataSource, CONDITION_HAVING);
+         return true;
+      }
+      catch(RuntimeException ex) {
+         LOG.debug("The condition pane can't show the conditions of the query, it is sql only",
+                   ex);
+         return false;
+      }
    }
 
    /**
@@ -509,7 +532,11 @@ public class QueryManagerService {
          fields.add(column);
       }
 
-      List<DataConditionItem> conditions = createConditions(sql, query.getDataSource(), CONDITION_WHERE);
+      // Bug #78387, a saved tree the condition pane can't show is shown as sql only, with
+      // empty condition panes (the editor disables them for a sql-only query)
+      boolean conditionPaneSupported = isConditionPaneSupported(sql, query.getDataSource());
+      List<DataConditionItem> conditions = conditionPaneSupported ?
+         createConditions(sql, query.getDataSource(), CONDITION_WHERE) : new ArrayList<>();
       conditionPaneModel.setFields(fields);
       conditionPaneModel.setConditions(conditions);
       model.setConditionPaneModel(conditionPaneModel);
@@ -527,6 +554,18 @@ public class QueryManagerService {
       // Bug #77487, without the hint the sorted column map of the cache normalizer clears the
       // sql string the user typed, so every model fetch would make a save regenerate it
       freeFormSQLPaneModel.setGeneratedSqlString(withoutSortedSql(sql, helper::generateSentence));
+
+      // a tree saved without its sql string shows the generated sql, and the lossy flag
+      // makes the editor treat the query as sql only (database-query.component isSqlOnly())
+      if(!conditionPaneSupported) {
+         if(!sql.hasSQLString()) {
+            freeFormSQLPaneModel.setSqlString(freeFormSQLPaneModel.getGeneratedSqlString());
+         }
+
+         freeFormSQLPaneModel.setHasSqlString(true);
+         freeFormSQLPaneModel.setLossy(true);
+      }
+
       model.setFreeFormSQLPaneModel(freeFormSQLPaneModel);
 
       QuerySortPaneModel sortPaneModel = new QuerySortPaneModel();
@@ -558,8 +597,8 @@ public class QueryManagerService {
       }
 
       QueryConditionPaneModel havingConditionsPaneModel = new QueryConditionPaneModel();
-      List<DataConditionItem> havingConditions =
-         createConditions(sql, query.getDataSource(), CONDITION_HAVING);
+      List<DataConditionItem> havingConditions = conditionPaneSupported ?
+         createConditions(sql, query.getDataSource(), CONDITION_HAVING) : new ArrayList<>();
       havingConditionsPaneModel.setFields(havingFields);
       havingConditionsPaneModel.setConditions(havingConditions);
 
@@ -1525,9 +1564,10 @@ public class QueryManagerService {
 
    /**
     * Fails closed unless the principal has READ on the named data source. This is the same
-    * decision (raw full name, DATA_SOURCE, READ) as the data source list filter in
+    * decision (full name, DATA_SOURCE, READ) as the data source list filter in
     * {@link #getSqlQueryDialogModel} and {@link #clearQuery}, so a source that is not offered
-    * in the SQL query dialog cannot be used by name either (Bug #77163).
+    * in the SQL query dialog cannot be used by name either (Bug #77163). An additional
+    * connection path {@code P/add} is checked as {@code P::add} (Bug #78249).
     *
     * @param dataSource the full name of the data source.
     * @param principal  the current user.
@@ -1544,7 +1584,9 @@ public class QueryManagerService {
 
       try {
          allowed = securityEngine != null && securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE, dataSource, ResourceAction.READ);
+            principal, ResourceType.DATA_SOURCE,
+            ResourcePermissionService.getDataSourcePermissionName(dataSource),
+            ResourceAction.READ);
       }
       catch(Exception e) {
          LOG.debug("Failed to check data source permission: {}", dataSource, e);
@@ -2448,7 +2490,9 @@ public class QueryManagerService {
             }
          }
 
-         JDBCUtil.fixUniformSQLInfo(sql, repository, principal.getName(), xds);
+         // a re-parse of the same text may follow the creation of a table its wildcard
+         // selects, an empty column list cached for it is fetched again (Bug #78384)
+         JDBCUtil.fixUniformSQLInfo(sql, repository, principal.getName(), xds, null, true);
          JDBCUtil.fixUniformSQLSelection(osql, sql);
          JDBCUtil.fixTableLocation(sql);
          initQuerySelectedTables(runtimeQuery);
@@ -2459,6 +2503,94 @@ public class QueryManagerService {
       }
 
       return null;
+   }
+
+   /**
+    * Bug #78384, re-derive the parse of a sql that was refused only because the columns of
+    * its wildcard (t.*) were unknown (Bug #77617), e.g. its table didn't exist yet. The
+    * refusal is saved with the query and not re-derived on load, so the query stayed unparsed,
+    * and refused by vpm, after the table was created. The sql string is parsed again on a
+    * clone, which replaces the sql of the runtime query only when the grammar parses the sql,
+    * its selection has a wildcard, and the wildcard now expands. Any other refusal (grammar,
+    * joins, a wildcard whose table is still unknown) is kept as it is.
+    *
+    * @return <tt>true</tt> if the sql of the runtime query was replaced.
+    */
+   public boolean reparseUnexpandedWildcard(String runtimeId, Principal principal) {
+      RuntimeQueryService.RuntimeXQuery runtimeQuery =
+         runtimeQueryService.getRuntimeQuery(runtimeId);
+      JDBCQuery query = runtimeQuery == null ? null : runtimeQuery.getQuery();
+
+      if(query == null || !(query.getSQLDefinition() instanceof UniformSQL) ||
+         !(query.getDataSource() instanceof JDBCDataSource))
+      {
+         return false;
+      }
+
+      UniformSQL sql = (UniformSQL) query.getSQLDefinition();
+
+      // a sql without a '*' has no wildcard, it isn't parsed again
+      if(!sql.isParseSQL() || !sql.hasSQLString() ||
+         sql.getParseResult() != UniformSQL.PARSE_FAILED || !sql.getSQLString().contains("*"))
+      {
+         return false;
+      }
+
+      JDBCDataSource xds = (JDBCDataSource) query.getDataSource();
+      String session = principal == null ? null : principal.getName();
+      String sqlString = sql.getSQLString();
+      UniformSQL nsql = sql.clone();
+
+      try {
+         XNode node = new XNode();
+         node.setAttribute("type", "DBPROPERTIES");
+         nsql.setMetaDataNode(repository.getMetaData(session, xds, node, true, null));
+      }
+      catch(Exception ex) {
+         LOG.error(ex.getMessage(), ex);
+      }
+
+      nsql.setDataSource(xds);
+
+      synchronized(nsql) {
+         nsql.setSQLString(sqlString);
+
+         // it is waiting for the parser finish parsing the sql string.
+         try {
+            nsql.wait();
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+         }
+      }
+
+      if(nsql.getParseResult() != UniformSQL.PARSE_SUCCESS || !JDBCUtil.hasWildcard(nsql)) {
+         return false;
+      }
+
+      try {
+         // the selection is expanded without vpm, as when the sql is parsed in the editor
+         nsql.removeAllFields();
+         JDBCUtil.fixUniformSQLInfo(nsql, repository, session, xds, null, true);
+
+         if(nsql.getParseResult() != UniformSQL.PARSE_SUCCESS || JDBCUtil.hasWildcard(nsql)) {
+            return false;
+         }
+
+         JDBCUtil.fixUniformSQLSelection(sql, nsql);
+         JDBCUtil.fixTableLocation(nsql);
+         query.setSQLDefinition(nsql);
+         initQuerySelectedTables(runtimeQuery);
+      }
+      catch(Exception ex) {
+         LOG.error(ex.getMessage(), ex);
+      }
+      finally {
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+      }
+
+      return query.getSQLDefinition() == nsql;
    }
 
    /**

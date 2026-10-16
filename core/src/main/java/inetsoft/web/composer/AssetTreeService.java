@@ -32,6 +32,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.xmla.XMLADataSource;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.composer.model.LoadAssetTreeNodesValidator;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -156,8 +157,11 @@ public class AssetTreeService {
       }
 
       try {
+         // Bug #78249, an additional connection path P/add is checked as P::add
          return securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE, dataSource, ResourceAction.READ);
+            principal, ResourceType.DATA_SOURCE,
+            ResourcePermissionService.getDataSourcePermissionName(dataSource),
+            ResourceAction.READ);
       }
       catch(Exception e) {
          return false;

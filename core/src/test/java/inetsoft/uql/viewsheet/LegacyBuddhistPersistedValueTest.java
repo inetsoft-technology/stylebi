@@ -1,0 +1,523 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.uql.viewsheet;
+
+import inetsoft.report.Hyperlink;
+import inetsoft.sree.DynamicParameterValue;
+import inetsoft.sree.SreeEnv;
+import inetsoft.sree.schedule.BatchAction;
+import inetsoft.test.*;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.tabular.DataType;
+import inetsoft.uql.tabular.QueryParameter;
+import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.Tool;
+import inetsoft.util.XMLSerializable;
+import inetsoft.web.admin.deploy.PartialDeploymentJarInfo;
+import inetsoft.web.composer.model.vs.DynamicValueModel;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Element;
+
+import java.io.*;
+import java.sql.Timestamp;
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Dates that the server formatted from a Date and saved before Bug #77605 hold Buddhist years
+ * when they were written on a th_TH server. Besides the selections covered by
+ * SelectionLegacyBuddhistViewsheetTest, they are read back as the same Gregorian dates when
+ * date.legacy.buddhist.compat is on, and kept when it is off (Bug #78040): Text Input values
+ * and bookmark state of a date type, edited embedded table cells, list input values, batch
+ * action parameters, tabular query parameters, hyperlink parameters, date comparison custom
+ * periods and the deployment date of a jar. Each object is written by its real writer, its
+ * 1996 years are replaced by the Buddhist 2539 and the legacy XML is parsed by its real reader.
+ * A Buddhist 2539-02-29 read as a Gregorian year rolls to 2539-02-28 or 2539-03-01.
+ *
+ * <p>Bug #78363 adds two more sites to the same family: a Combo Box's own
+ * {@code defaultValue} (not just its candidate {@code values}/{@code selectedObject}, which
+ * #78040 already covered) and a date dimension's manual sort order (both the raw
+ * {@code VSDimensionRef.manualOrderList} and the {@link inetsoft.graph.internal.ManualOrderComparer}
+ * built from it via {@code createComparator}).
+ */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
+@Tag("core")
+class LegacyBuddhistPersistedValueTest {
+   @AfterEach
+   void restore() {
+      SreeEnv.remove(COMPAT_PROPERTY);
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void viewsheetDesign(boolean on) throws Exception {
+      String xml = legacy(toXML(buildViewsheet()));
+      SreeEnv.setProperty(COMPAT_PROPERTY, String.valueOf(on));
+      Viewsheet vs = new Viewsheet();
+      vs.parseXML(Tool.parseXML(new StringReader(xml)).getDocumentElement());
+
+      TextInputVSAssemblyInfo tinfo = (TextInputVSAssemblyInfo) vs.getAssembly("TD").getInfo();
+      assertDate(on, tinfo.getValue());
+      // a string text input holds typed text, which is never rewritten
+      TextInputVSAssemblyInfo sinfo = (TextInputVSAssemblyInfo) vs.getAssembly("TS").getInfo();
+      assertEquals("2539-02-29", sinfo.getValue());
+      assertEquals("2539-02-29", sinfo.getDefaultText());
+
+      ComboBoxVSAssemblyInfo cinfo = (ComboBoxVSAssemblyInfo) vs.getAssembly("CB").getInfo();
+      assertDate(on, cinfo.getValues()[0]);
+      // a label is display text
+      assertEquals("2539-02-29", cinfo.getLabels()[0]);
+
+      EmbeddedTableVSAssembly table = (EmbeddedTableVSAssembly) vs.getAssembly("ET");
+      assertDate(on, table.getStateDataMap().get(new CellRef("d", 0)));
+      assertEquals("2539-02-29", table.getStateDataMap().get(new CellRef("s", 0)));
+   }
+
+   // in a viewsheet the state of a text input replaces its value, so the info is read alone
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void textInputInfoValue(boolean on) throws Exception {
+      TextInputVSAssemblyInfo info = new TextInputVSAssemblyInfo();
+      info.setDataType(XSchema.DATE);
+      info.setValue(new java.sql.Date(date(1996, 2, 29)));
+      TextInputVSAssemblyInfo info2 = new TextInputVSAssemblyInfo();
+      parse(info2, legacy(toXML(info)), on);
+
+      assertDate(on, info2.getValue());
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void viewsheetBookmarkState(boolean on) throws Exception {
+      Viewsheet vs0 = buildViewsheet();
+      StringWriter buf = new StringWriter();
+      PrintWriter writer = new PrintWriter(buf);
+      vs0.writeState(writer, false);
+      writer.flush();
+      String xml = legacy(buf.toString());
+      assertTrue(xml.contains("2539-02-29"), xml);
+
+      SreeEnv.setProperty(COMPAT_PROPERTY, String.valueOf(on));
+      Viewsheet vs = buildViewsheet();
+      ((TextInputVSAssembly) vs.getAssembly("TD")).setSelectedObject(null);
+      ((EmbeddedTableVSAssembly) vs.getAssembly("ET")).setStateDataMap(null);
+      vs.parseState(Tool.parseXML(new StringReader(xml)).getDocumentElement(), true);
+
+      assertDate(on, ((TextInputVSAssembly) vs.getAssembly("TD")).getSelectedObject());
+      assertEquals("2539-02-29", ((TextInputVSAssembly) vs.getAssembly("TS")).getSelectedObject());
+
+      EmbeddedTableVSAssembly table = (EmbeddedTableVSAssembly) vs.getAssembly("ET");
+      assertDate(on, table.getStateDataMap().get(new CellRef("d", 0)));
+      assertEquals("2539-02-29", table.getStateDataMap().get(new CellRef("s", 0)));
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void batchActionParameters(boolean on) throws Exception {
+      Map<String, Object> params = new LinkedHashMap<>();
+      params.put("d", new java.sql.Date(date(1996, 2, 29)));
+      params.put("ts", new Timestamp(date(1996, 2, 29)));
+      params.put("arr", new Object[] { new java.sql.Date(date(1996, 2, 29)) });
+      params.put("dyn", new DynamicParameterValue(
+         new java.sql.Date(date(1996, 2, 29)), DynamicValueModel.VALUE, XSchema.DATE));
+      params.put("dynStr", new DynamicParameterValue(
+         "1996-02-29", DynamicValueModel.VALUE, XSchema.STRING));
+      params.put("exp", new DynamicParameterValue(
+         "=\"1996-02-29\"", DynamicValueModel.EXPRESSION, XSchema.DATE));
+      BatchAction action = new BatchAction();
+      action.setTaskId("admin~;~host-org:task");
+      action.setEmbeddedParameters(new ArrayList<>(List.of(params)));
+
+      BatchAction action2 = new BatchAction();
+      parse(action2, legacy(toXML(action)), on);
+      Map<String, Object> map = action2.getEmbeddedParameters().get(0);
+
+      assertDate(on, map.get("d"));
+      assertInstanceOf(java.sql.Date.class, map.get("d"));
+      assertDate(on, map.get("ts"));
+      assertInstanceOf(Timestamp.class, map.get("ts"));
+      assertDate(on, ((Object[]) map.get("arr"))[0]);
+
+      // a dynamic value is kept as the string it was saved as
+      Object dyn = ((DynamicParameterValue) map.get("dyn")).getValue();
+      assertEquals(on ? "1996-02-29" : "2539-02-29", dyn);
+      assertEquals("2539-02-29", ((DynamicParameterValue) map.get("dynStr")).getValue());
+      assertEquals("=\"2539-02-29\"", ((DynamicParameterValue) map.get("exp")).getValue());
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void queryParameter(boolean on) throws Exception {
+      QueryParameter param = new QueryParameter();
+      param.setName("p");
+      param.setType(DataType.DATE);
+      param.setValue(new java.sql.Date(date(1996, 2, 29)));
+      QueryParameter param2 = new QueryParameter();
+      parse(param2, legacy(toXML(param)), on);
+
+      assertDate(on, param2.getValue());
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void hyperlinkRefParameter(boolean on) throws Exception {
+      Hyperlink.Ref ref = new Hyperlink.Ref("link");
+      ref.setParameter("p", new java.sql.Date(date(1996, 2, 29)));
+      ref.setParameter("s", "1996-02-29");
+      Hyperlink.Ref ref2 = new Hyperlink.Ref();
+      parse(ref2, legacy(toXML(ref)), on);
+
+      assertDate(on, ref2.getParameter("p"));
+      assertEquals("2539-02-29", ref2.getParameter("s"));
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void dateComparisonCustomPeriods(boolean on) throws Exception {
+      DCNamedGroupInfo info = new DCNamedGroupInfo();
+      info.addGroupName("P1");
+      info.setGroupValue("P1", new ArrayList<>(
+         List.of(new Date(date(1996, 2, 29)), new Date(date(1996, 3, 31)))));
+      DCNamedGroupInfo info2 = new DCNamedGroupInfo();
+      parse(info2, legacy(toXML(info)), on);
+
+      List<?> values = info2.getGroupValue("P1");
+      assertDate(on, values.get(0));
+      assertEquals(on ? date(1996, 3, 31) : date(2539, 3, 31), ((Date) values.get(1)).getTime());
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void deploymentDate(boolean on) throws Exception {
+      PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
+      info.setName("jar");
+      info.setDeploymentDate(new Timestamp(date(1996, 2, 29)));
+      PartialDeploymentJarInfo info2 = new PartialDeploymentJarInfo();
+      parse(info2, legacy(toXML(info)), on);
+
+      assertDate(on, info2.getDeploymentDate());
+   }
+
+   // Bug #78363: a Combo Box's own defaultValue, read raw by ComboBoxVSAssemblyInfo.parseAttributes,
+   // must be converted the same way its sibling candidate values already are (Bug #78040), or a
+   // legacy th_TH server's saved default silently stops matching any candidate and validate()
+   // falls back to the first one instead of the designed default.
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void comboBoxDefaultValue(boolean on) throws Exception {
+      ComboBoxVSAssemblyInfo info = new ComboBoxVSAssemblyInfo();
+      info.setDataType(XSchema.DATE);
+      ListData data = new ListData();
+      data.setDataType(XSchema.DATE);
+      data.setValues(new Object[] {
+         new java.sql.Date(date(1996, 1, 15)), new java.sql.Date(date(1996, 2, 29)) });
+      data.setLabels(new String[] { "1996-01-15", "1996-02-29" });
+      info.setListData(data);
+      info.setValues(new Object[] {
+         new java.sql.Date(date(1996, 1, 15)), new java.sql.Date(date(1996, 2, 29)) });
+      info.setLabels(new String[] { "1996-01-15", "1996-02-29" });
+      info.setDefaultValue("1996-02-29");
+
+      ComboBoxVSAssemblyInfo info2 = new ComboBoxVSAssemblyInfo();
+      parse(info2, legacy(toXML(info)), on);
+
+      // the raw attribute itself is converted when on, and left exactly as persisted when off
+      assertEquals(on ? "1996-02-29" : "2539-02-29", info2.getDefaultValue());
+
+      info2.validate();
+
+      if(on) {
+         // the designed default (Feb 29) is now matched and selected -- not converted to a typed
+         // Date here (Tool.getPersistentDataString is a pre-existing, unrelated String pass-through
+         // in this branch of validate()), but crucially not the wrong first candidate (Jan 15)
+         // that the pre-fix defaultValue mismatch produced
+         assertEquals("1996-02-29", info2.getSelectedObject());
+      }
+   }
+
+   // Bug #78363: the conversion must be gated on the field actually being a date type, or a
+   // non-date default value that happens to look like a Buddhist-window year would be corrupted.
+   @Test
+   void comboBoxDefaultValueNonDateTypeUnaffected() throws Exception {
+      SreeEnv.setProperty(COMPAT_PROPERTY, "true");
+
+      ComboBoxVSAssemblyInfo info = new ComboBoxVSAssemblyInfo();
+      info.setDataType(XSchema.INTEGER);
+      info.setDefaultValue("2500");
+
+      ComboBoxVSAssemblyInfo info2 = new ComboBoxVSAssemblyInfo();
+      info2.parseXML(Tool.parseXML(new StringReader(toXML(info))).getDocumentElement());
+
+      assertEquals("2500", info2.getDefaultValue());
+   }
+
+   // Bug #78515: a combo box bound to a date column of a query is first saved with the dataType
+   // attribute "string", and its effective type comes from the binding, which is parsed after the
+   // attributes. The default value must be converted by the effective type, as values are.
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void comboBoxDefaultValueQueryDate(boolean on) throws Exception {
+      Object[] values = {
+         new java.sql.Date(date(1996, 1, 15)), new java.sql.Date(date(1996, 2, 29)) };
+      ComboBoxVSAssemblyInfo info2 =
+         parseQueryComboBox(XSchema.DATE, "1996-02-29", on);
+
+      assertEquals(XSchema.DATE, info2.getDataType());
+      assertEquals(on ? "1996-02-29" : "2539-02-29", info2.getDefaultValue());
+
+      // the runtime values of the query, as the sandbox sets them
+      info2.setValues(values);
+      info2.validate();
+      assertEquals(on ? "1996-02-29" : "1996-01-15",
+                   Tool.toString(info2.getSelectedObject()));
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void comboBoxDefaultValueQueryTimeInstant(boolean on) throws Exception {
+      Object[] values = { new Timestamp(date(1996, 1, 15)), new Timestamp(date(1996, 2, 29)) };
+      ComboBoxVSAssemblyInfo info2 =
+         parseQueryComboBox(XSchema.TIME_INSTANT, "1996-02-29 00:00:00", on);
+
+      assertEquals(XSchema.TIME_INSTANT, info2.getDataType());
+      assertEquals(on ? "1996-02-29 00:00:00" : "2539-02-29 00:00:00", info2.getDefaultValue());
+
+      info2.setValues(values);
+      info2.validate();
+      assertEquals(on ? "1996-02-29 00:00:00" : "1996-01-15 00:00:00",
+                   Tool.toString(info2.getSelectedObject()));
+   }
+
+   // Bug #78515: the conversion follows the effective type, so a dataType attribute left as date
+   // on a combo box bound to a string column no longer converts a default value that is one of
+   // the column's own strings, which would then never match the (unconverted) string values.
+   @Test
+   void comboBoxDefaultValueQueryStringColumnWithDateAttr() throws Exception {
+      SreeEnv.setProperty(COMPAT_PROPERTY, "true");
+
+      ComboBoxVSAssemblyInfo info = new ComboBoxVSAssemblyInfo();
+      info.setDataType(XSchema.DATE);
+      info.setSourceType(ListInputVSAssembly.BOUND_SOURCE);
+      ListBindingInfo binding = new ListBindingInfo();
+      binding.setTableName("Orders");
+      binding.setLabelColumn(column("OrderText", XSchema.STRING));
+      binding.setValueColumn(column("OrderText", XSchema.STRING));
+      info.setListBindingInfo(binding);
+      info.setDefaultValue("2539-02-29");
+
+      String xml = toXML(info);
+      assertTrue(xml.contains("dataType=\"date\""), xml);
+      ComboBoxVSAssemblyInfo info2 = new ComboBoxVSAssemblyInfo();
+      info2.parseXML(Tool.parseXML(new StringReader(xml)).getDocumentElement());
+
+      assertEquals(XSchema.STRING, info2.getDataType());
+      assertEquals("2539-02-29", info2.getDefaultValue());
+
+      info2.setValues(new Object[] { "2539-01-15", "2539-02-29" });
+      info2.validate();
+      assertEquals("2539-02-29", Tool.toString(info2.getSelectedObject()));
+   }
+
+   private static ComboBoxVSAssemblyInfo parseQueryComboBox(String type, String defaultValue,
+                                                            boolean on)
+      throws Exception
+   {
+      ComboBoxVSAssemblyInfo info = new ComboBoxVSAssemblyInfo();
+      // the dialog keeps the type of a new combo box when the list is not embedded
+      info.setDataType(XSchema.STRING);
+      info.setSourceType(ListInputVSAssembly.BOUND_SOURCE);
+      ListBindingInfo binding = new ListBindingInfo();
+      binding.setTableName("Orders");
+      binding.setLabelColumn(column("OrderDate", type));
+      binding.setValueColumn(column("OrderDate", type));
+      info.setListBindingInfo(binding);
+      info.setDefaultValue(defaultValue);
+
+      String xml = legacy(toXML(info));
+      assertTrue(xml.contains("dataType=\"string\""), xml);
+      ComboBoxVSAssemblyInfo info2 = new ComboBoxVSAssemblyInfo();
+      parse(info2, xml, on);
+      return info2;
+   }
+
+   // Bug #78363: a date dimension's manual sort order, read raw by VSDimensionRef.parseContents,
+   // must be converted the same way, or a legacy th_TH server's saved order is parsed as the
+   // literal (wrong) Gregorian year, never matches real query values, and createComparator()'s
+   // ManualOrderComparer silently discards the designed order.
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void vsDimensionRefManualOrder(boolean on) throws Exception {
+      // a manual order item round-trips through ItemList's own byte encoding
+      // (Tool.byteEncode/ItemList.writeSerializableObject), not plain CDATA text, so the
+      // Buddhist-tainted value is set directly rather than text-replaced in written XML, the
+      // same shape VSDimensionRef.parseContents actually sees after the generic decode
+      VSDimensionRef ref = new VSDimensionRef(new AttributeRef(null, "date"));
+      ref.setDataType(XSchema.DATE);
+      ref.setOrder(XConstants.SORT_SPECIFIC);
+      ref.setManualOrderList(new ArrayList<>(List.of("2539-02-29", "2539-01-15")));
+
+      SreeEnv.setProperty(COMPAT_PROPERTY, String.valueOf(on));
+      VSDimensionRef result = new VSDimensionRef();
+      result.parseXML(Tool.parseXML(new StringReader(toXML(ref))).getDocumentElement());
+
+      if(on) {
+         assertEquals(List.of("1996-02-29", "1996-01-15"), result.getManualOrderList());
+
+         // the designed order puts Feb 29 before Jan 15, the opposite of natural ascending order
+         java.util.Comparator comparator = result.createComparator(null);
+         assertTrue(comparator.compare(
+            new java.sql.Date(date(1996, 1, 15)), new java.sql.Date(date(1996, 2, 29))) > 0);
+      }
+      else {
+         // unchanged pre-fix behavior when compat is off: entries stay the raw Buddhist strings
+         assertEquals(List.of("2539-02-29", "2539-01-15"), result.getManualOrderList());
+      }
+   }
+
+   // Bug #78363: a named group's manual order holds group names, not dates, and must never be
+   // run through the date conversion even when the dimension's own data type is a date type and
+   // date.legacy.buddhist.compat is on.
+   @Test
+   void vsDimensionRefManualOrderSkipsNamedGroup() throws Exception {
+      VSDimensionRef ref = new VSDimensionRef(new AttributeRef(null, "date"));
+      ref.setDataType(XSchema.DATE);
+      ref.setOrder(XConstants.SORT_SPECIFIC);
+      ref.setManualOrderList(new ArrayList<>(List.of("2539-02-29", "2539-01-15")));
+      SNamedGroupInfo groupInfo = new SNamedGroupInfo();
+      // a non-empty group list is enough to make isNameGroup() true, the fix's actual gate
+      groupInfo.addGroupName("g1");
+      ref.setNamedGroupInfo(groupInfo);
+
+      SreeEnv.setProperty(COMPAT_PROPERTY, "true");
+      VSDimensionRef result = new VSDimensionRef();
+      result.parseXML(Tool.parseXML(new StringReader(toXML(ref))).getDocumentElement());
+
+      // left exactly as persisted, not converted to 1996, even though compat is on
+      assertEquals(List.of("2539-02-29", "2539-01-15"), result.getManualOrderList());
+   }
+
+   private static Viewsheet buildViewsheet() {
+      Viewsheet vs = new Viewsheet();
+
+      // a text input bound to an embedded table date column has a date type
+      TextInputVSAssembly td = new TextInputVSAssembly(vs, "TD");
+      ((TextInputVSAssemblyInfo) td.getInfo()).setDataType(XSchema.DATE);
+      td.setSelectedObject(new java.sql.Date(date(1996, 2, 29)));
+
+      TextInputVSAssembly ts = new TextInputVSAssembly(vs, "TS");
+      ((TextInputVSAssemblyInfo) ts.getInfo()).setDefaultTextValue("1996-02-29");
+      ts.setSelectedObject("1996-02-29");
+
+      ComboBoxVSAssembly cb = new ComboBoxVSAssembly(vs, "CB");
+      ComboBoxVSAssemblyInfo cinfo = (ComboBoxVSAssemblyInfo) cb.getInfo();
+      cinfo.setDataType(XSchema.DATE);
+      ListData data = new ListData();
+      data.setDataType(XSchema.DATE);
+      data.setValues(new Object[] { new java.sql.Date(date(1996, 2, 29)) });
+      data.setLabels(new String[] { "1996-02-29" });
+      cinfo.setListData(data);
+      cinfo.setValues(new Object[] { new java.sql.Date(date(1996, 2, 29)) });
+      cinfo.setLabels(new String[] { "1996-02-29" });
+
+      EmbeddedTableVSAssembly et = new EmbeddedTableVSAssembly(vs, "ET");
+      ColumnSelection columns = new ColumnSelection();
+      columns.addAttribute(column("d", XSchema.DATE));
+      columns.addAttribute(column("s", XSchema.STRING));
+      et.setColumnSelection(columns);
+      Map<CellRef, Object> dmap = new HashMap<>();
+      dmap.put(new CellRef("d", 0), new java.sql.Date(date(1996, 2, 29)));
+      dmap.put(new CellRef("s", 0), "1996-02-29");
+      et.setStateDataMap(dmap);
+
+      for(VSAssembly assembly : new VSAssembly[] { td, ts, cb, et }) {
+         vs.addAssembly(assembly);
+      }
+
+      return vs;
+   }
+
+   private static ColumnRef column(String name, String type) {
+      ColumnRef column = new ColumnRef(new AttributeRef(null, name));
+      column.setDataType(type);
+      return column;
+   }
+
+   private static void parse(XMLSerializable obj, String xml, boolean on) throws Exception {
+      assertTrue(xml.contains("2539-"), xml);
+      SreeEnv.setProperty(COMPAT_PROPERTY, String.valueOf(on));
+      obj.parseXML(Tool.parseXML(new StringReader(xml)).getDocumentElement());
+   }
+
+   // the output of a th_TH server before #77605
+   private static String legacy(String xml) {
+      return xml.replace("1996-", "2539-");
+   }
+
+   private static String toXML(Viewsheet vs) {
+      StringWriter buf = new StringWriter();
+      PrintWriter writer = new PrintWriter(buf);
+      vs.writeXML(writer);
+      writer.flush();
+      return buf.toString();
+   }
+
+   private static String toXML(XMLSerializable obj) {
+      StringWriter buf = new StringWriter();
+      PrintWriter writer = new PrintWriter(buf);
+      obj.writeXML(writer);
+      writer.flush();
+      return buf.toString();
+   }
+
+   private static void assertDate(boolean on, Object value) {
+      assertInstanceOf(Date.class, value);
+      long time = ((Date) value).getTime();
+
+      if(on) {
+         assertEquals(date(1996, 2, 29), time);
+      }
+      else {
+         // CE 2539 has no Feb 29, the lenient parse rolls it
+         GregorianCalendar cal = new GregorianCalendar();
+         cal.setTimeInMillis(time);
+         assertEquals(2539, cal.get(Calendar.YEAR));
+      }
+   }
+
+   private static long date(int year, int month, int day) {
+      GregorianCalendar cal = new GregorianCalendar();
+      cal.clear();
+      cal.set(year, month - 1, day);
+      return cal.getTimeInMillis();
+   }
+
+   private static final String COMPAT_PROPERTY = "date.legacy.buddhist.compat";
+}

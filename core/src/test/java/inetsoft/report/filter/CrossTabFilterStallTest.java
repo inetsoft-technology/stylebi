@@ -81,7 +81,7 @@ public class CrossTabFilterStallTest {
       CrossTabFilter crosstab = crosstab(summary(new FailingTable(30, 5, original)));
       Future<Integer> reader = pool.submit(crosstab::getRowCount);
 
-      assertSame(original, stallIn(failureOf(reader, 15)).getCause(),
+      assertStallOf(original, stallIn(failureOf(reader, 15)).getCause(),
                  "the crosstab's reader gets the worker's stall");
    }
 

@@ -43,8 +43,9 @@ import static org.mockito.Mockito.*;
 
 /**
  * Bug #77628: secrets that could not be decrypted on import are reported as warnings. A warning
- * does not mark the import as failed, so the EM shows the import as successful with a warning,
- * and the file import (public REST API, shell, setup) logs it instead of throwing.
+ * does not mark the import as failed, so the EM shows the import as successful with a warning.
+ * Bug #78221: the file import (public REST API, shell, setup) logs the warnings and returns them
+ * with the ignored user assets instead of throwing, so its callers can report them too.
  */
 @Tag("core")
 class DeployServiceImportWarningsTest {
@@ -110,7 +111,37 @@ class DeployServiceImportWarningsTest {
       try(MockedStatic<DeployManagerService> dms = mockGetInfo();
           MockedConstruction<DeploymentInfo> ignored = mockConstruction(DeploymentInfo.class))
       {
-         assertDoesNotThrow(() -> spy.importAssets(zip(), new ArrayList<>(), true, principal));
+         ImportAssetResponse result = assertDoesNotThrow(
+            () -> spy.importAssets(zip(), new ArrayList<>(), true, principal));
+         assertEquals(List.of(WARNING), result.warnings());
+      }
+   }
+
+   @Test
+   void fileImportReturnsWarningsAndIgnoredUserAssets() throws Exception {
+      DeployService spy = fileImportService(ImportAssetResponse.builder()
+         .addWarnings(WARNING, SCHEDULE_WARNING).addIgnoreUserAssets(USER_ASSET).build());
+
+      try(MockedStatic<DeployManagerService> dms = mockGetInfo();
+          MockedConstruction<DeploymentInfo> ignored = mockConstruction(DeploymentInfo.class))
+      {
+         ImportAssetResponse result =
+            spy.importAssets(zip(), new ArrayList<>(), true, null, true, principal);
+         assertEquals(List.of(WARNING, SCHEDULE_WARNING), result.warnings());
+         assertEquals(List.of(USER_ASSET), result.ignoreUserAssets());
+      }
+   }
+
+   @Test
+   void fileImportWithoutWarningsReturnsEmptyLists() throws Exception {
+      DeployService spy = fileImportService(ImportAssetResponse.builder().build());
+
+      try(MockedStatic<DeployManagerService> dms = mockGetInfo();
+          MockedConstruction<DeploymentInfo> ignored = mockConstruction(DeploymentInfo.class))
+      {
+         ImportAssetResponse result = spy.importAssets(zip(), new ArrayList<>(), true, principal);
+         assertTrue(result.warnings().isEmpty(), result.warnings().toString());
+         assertTrue(result.ignoreUserAssets().isEmpty(), result.ignoreUserAssets().toString());
       }
    }
 
@@ -151,6 +182,8 @@ class DeployServiceImportWarningsTest {
    }
 
    private static final String WARNING = "secrets could not be decrypted";
+   private static final String SCHEDULE_WARNING = "schedule task passwords were cleared";
+   private static final String USER_ASSET = "other-org-user/Dashboard";
 
    @TempDir
    Path tempDir;

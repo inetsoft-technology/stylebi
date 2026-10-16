@@ -36,6 +36,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
+import static inetsoft.util.swap.SwapLostTestSupport.assertSwapOf;
+import static inetsoft.util.stall.StallTestSupport.assertStallOf;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -78,8 +80,8 @@ public class CrossJoinTableLensWorkerFailureTest {
       left.armed = true;
 
       try {
-         assertSame(failure, readFailure(lens));
-         assertSame(failure, assertThrows(SwapFileReadException.class, lens::getRowCount));
+         assertSwapOf(failure, readFailure(lens));
+         assertSwapOf(failure, assertThrows(SwapFileReadException.class, lens::getRowCount));
       }
       finally {
          lens.dispose();
@@ -98,8 +100,8 @@ public class CrossJoinTableLensWorkerFailureTest {
       left.armed = true;
 
       try {
-         assertSame(failure, readFailure(lens));
-         assertSame(failure, assertThrows(SwapFileReadException.class, lens::getRowCount));
+         assertSwapOf(failure, readFailure(lens));
+         assertSwapOf(failure, assertThrows(SwapFileReadException.class, lens::getRowCount));
       }
       finally {
          lens.dispose();
@@ -290,7 +292,7 @@ public class CrossJoinTableLensWorkerFailureTest {
 
          LockStallException thrown =
             assertThrows(LockStallException.class, () -> lens.moreRows(TableLens.EOT));
-         assertSame(stall, thrown.getCause());
+         assertStallOf(stall, thrown.getCause());
          assertThrows(LockStallException.class, lens::getRowCount);
       }
       finally {

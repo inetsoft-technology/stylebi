@@ -631,13 +631,13 @@ private void clearUsingMerges(UniformSQL sql) {
  * Get the alias of the left operand table that has a column of a JOIN USING. The parser
  * has no column metadata, so it's only known for a left operand of one table, or for a
  * column of an earlier inner or RIGHT JOIN USING of the same left operand, whose merged
- * column is the joined table's column. Otherwise the column could be in any table of
- * the left operand, so the join fails the parse and the original sql runs (Bug #77490).
+ * column is the joined table's column. Otherwise it's the last table of the left operand,
+ * which a chain (a join b using (x) join c using (y)) usually joins (Bug #78381). If the
+ * column is only in an earlier table of the left operand, the regenerated sql fails on
+ * the database (last.y doesn't exist). If several tables have it, the original sql is
+ * ambiguous, an error except on SQLite, which takes the first table (Bug #77490).
  */
-private String getUsingTable(UniformSQL sql, String column, int lstart, int rstart,
-                             String jc, Token tok)
-   throws SemanticException
-{
+private String getUsingTable(UniformSQL sql, String column, int lstart, int rstart) {
    if(rstart - lstart == 1) {
       return sql.getTableAlias(lstart);
    }
@@ -648,12 +648,26 @@ private String getUsingTable(UniformSQL sql, String column, int lstart, int rsta
    // a join of a nested join in the left operand has its own left operand, the other
    // tables of this left operand may have the column too
    if(table == null || table[1] != lstart || table[0] >= rstart) {
-      throw new SemanticException(
-         "Unsupported USING join, the left operand table of the column is unknown: " + jc,
-         getFilename(), tok.getLine(), tok.getColumn());
+      return sql.getTableAlias(rstart - 1);
    }
 
    return sql.getTableAlias(table[0]);
+}
+
+/**
+ * Create the column of a table in a JOIN USING, keeping the quotes of the column
+ * (using ("Col")), as the ON form (t."Col") does. Without them, the regenerated
+ * t.Col is folded by the database, e.g. to t.col on PostgreSQL (Bug #78381).
+ */
+private XExpression createUsingColumn(String table, String column, int quote) {
+   XExpression exp = new XExpression(table + "." + column, XExpression.FIELD);
+
+   if(quote != XExpression.QUOTE_NONE) {
+      exp.setQuote(quote);
+      exp.setQuotedColumn(column);
+   }
+
+   return exp;
 }
 
 /**
@@ -676,10 +690,11 @@ private void addUsingTables(UniformSQL sql, List columns, int lstart, int rstart
  * Refuse a derived column list (t(p, q)) of a from clause table. UniformSQL
  * has no place for the column list, so it would be kept as part of the alias
  * and regenerated as one quoted alias ("t(p,q)") without the column names.
- * A SQL Server table hint of an unaliased table (from a with (nolock)) parses
+ * A table hint after AS or on a derived table (from a as with (nolock)) parses
  * as an unquoted alias with and a column list. It is refused too: the
  * regenerated alias "with(nolock)" hides the table name, so a qualified column
- * fails or binds to an outer query's table (Bug #77492).
+ * fails or binds to an outer query's table (Bug #77492). The hint of a table
+ * (from a with (nolock)) is read by table_hint instead (Bug #78382).
  */
 private void checkDerivedColumnList(UniformSQL sql, String alias, String columns,
                                     Token aliasTok, Token tok)
@@ -707,6 +722,48 @@ private void checkEscapeTable(UniformSQL sql, Token esc) throws SemanticExceptio
       throw new SemanticException("Unsupported JDBC escape as a table: " + esc.getText(),
                                   getFilename(), esc.getLine(), esc.getColumn());
    }
+}
+
+/**
+ * Check if the next tokens start a table hint, with (...). With is not a keyword, so
+ * without this check it's read as the alias with and a derived column list (Bug #78382).
+ */
+private boolean isTableHintStart() throws TokenStreamException {
+   return LA(1) == IDENT && "with".equalsIgnoreCase(LT(1).getText()) && LA(2) == OPEN_PAREN;
+}
+
+/**
+ * Refuse a table hint, with (...), on a dialect that has no table hints, or when the
+ * dialect is unknown (see isTableHintDialect). The hint is kept on the SelectTable and
+ * written back after the alias only on SQL Server and Sybase (Bug #78382). It must never
+ * be kept as the alias, which gave wrong rows (Bug #77492).
+ */
+private void checkTableHint(UniformSQL sql, String hint, Token tok) throws SemanticException {
+   if(sql != null && !isTableHintDialect()) {
+      throw new SemanticException(
+         "Unsupported table hint: " + tok.getText() + "(" + hint + ")",
+         getFilename(), tok.getLine(), tok.getColumn());
+   }
+}
+
+/**
+ * Keep the table hint of a from clause table. A table that has another hint already (the
+ * same table listed twice) refuses the hint rather than drop one of them.
+ */
+private void setTableHint(UniformSQL sql, SelectTable stable, String hint, Token tok)
+   throws SemanticException
+{
+   if(sql == null || hint == null) {
+      return;
+   }
+
+   if(stable == null || stable.getHint() != null && !stable.getHint().equals(hint)) {
+      throw new SemanticException(
+         "Unsupported table hint: " + tok.getText() + "(" + hint + ")",
+         getFilename(), tok.getLine(), tok.getColumn());
+   }
+
+   stable.setHint(hint);
 }
 
 private boolean collectOuterJoins(XFilterNode node, List joins) {
@@ -2285,6 +2342,15 @@ boolean isAliasAssignDialect() {
    SQLHelper helper = SQLHelper.getSQLHelper(dx, (Principal) null);
    String type = helper != null ? helper.getSQLHelperType() : null;
    return "sql server".equals(type) || "sybase".equals(type);
+}
+
+// true if a table hint (from t with (nolock)) is kept on the table. Only SQL Server and
+// Sybase have the WITH (...) table hint, and the same rule as isAliasAssignDialect applies:
+// the dialect comes from the statement's uniSql, without a uniSql (validity checks, which
+// never regenerate) the hint is accepted, and with a uniSql but no data source it's
+// refused, so the statement runs as written (Bug #78382)
+boolean isTableHintDialect() {
+   return isAliasAssignDialect();
 }
 }
 
@@ -4598,7 +4664,7 @@ ansi_joins [UniformSQL sql] returns [String str = ""]
 ;
 
 table_ref [UniformSQL sql] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; Token atok = null; XExpression exp; int[] quoted = null; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = "", hint = null; Token atok = null, htok = null; XExpression exp; int[] quoted = null; {checkStatus();}}
         :
      (ansi_joins[null])=> tbref = ansi_joins[sql]
         | name = derived_table
@@ -4626,6 +4692,8 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
         |
         name = table_name {quoted = qnameQuoted; checkEscapeTable(sql, qnameEscape);}
         (
+         // an unaliased with (...) is a table hint, not the alias with (Bug #78382)
+         {!isTableHintStart()}?
          ( a:AS {as = a.getText();})?
          {atok = LT(1);} alias = correlation_name
 
@@ -4637,8 +4705,9 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
 
          ( dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc2); alias += "(" + tmp + ")";})?
         )?
+        ( {isTableHintStart()}? {htok = LT(1);} hint = table_hint[sql] )?
         {
-         tbref = name + " " + as + " " + alias;
+         tbref = name + " " + as + " " + alias + (hint != null ? " with (" + hint + ")" : "");
 
          if(sql != null) {
                  SelectTable stable;
@@ -4654,22 +4723,27 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
                  if(stable != null) {
                         stable.setQuotedSegments(quoted);
                  }
+
+                 setTableHint(sql, stable, hint, htok);
          }
          }
         ;
 
 table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; Token atok = null; int[] quoted = null; SelectTable stable; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = "", hint = null; Token atok = null, htok = null; int[] quoted = null; SelectTable stable; {checkStatus();}}
         :
         name = table_name {quoted = qnameQuoted; checkEscapeTable(sql, qnameEscape);}
         (
+         // an unaliased with (...) is a table hint, not the alias with (Bug #78382)
+         {!isTableHintStart()}?
          ( a:AS {as = a.getText();})?
          {atok = LT(1);} alias = correlation_name
          ( (OPEN_PAREN derived_column_list)=>
          dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc1); alias += "(" + tmp + ")";})?
         )?
+        ( {isTableHintStart()}? {htok = LT(1);} hint = table_hint[sql] )?
         {
-         tbref = name + " " + as + " " + alias;
+         tbref = name + " " + as + " " + alias + (hint != null ? " with (" + hint + ")" : "");
 
          if(sql != null) {
                  if(!alias.equals("")) {
@@ -4694,6 +4768,8 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
                  if(stable != null) {
                         stable.setQuotedSegments(quoted);
                  }
+
+                 setTableHint(sql, stable, hint, htok);
          }
          }
         | name = derived_table
@@ -4724,6 +4800,57 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
                 }
         }
         }
+        ;
+
+// a SQL Server/Sybase table hint, with (nolock, index(ix)). Only identifiers ([..] and ".."
+// quoted too), unsigned numbers, commas, = and parentheses are read, so a hint can't carry
+// a string, a keyword such as select, or a comment (the lexer drops comments). The hint is
+// rebuilt from the tokens as written, quoted names with their escapes (Bug #78382)
+table_hint [UniformSQL sql] returns [String hint = ""]
+        {String tmp, sep = " "; Token start = LT(1); {checkStatus();}}
+        :
+        IDENT OPEN_PAREN tmp = table_hint_item {hint = tmp;}
+        ( (COMMA {sep = ", ";})? tmp = table_hint_item {hint += sep + tmp; sep = " ";} )*
+        CLOSE_PAREN
+        {checkTableHint(sql, hint, start);}
+        ;
+
+table_hint_item returns [String item = ""]
+        {String tmp, sep = " "; {checkStatus();}}
+        :
+        item = table_hint_name
+        (
+          OPEN_PAREN tmp = table_hint_arg {item += "(" + tmp;}
+          ( (COMMA {sep = ", ";})? tmp = table_hint_arg {item += sep + tmp; sep = " ";} )*
+          CLOSE_PAREN {item += ")";}
+        | EQ {item += " = ";}
+          ( tmp = table_hint_name {item += tmp;}
+          | n:UNSIGNED_NUM_LIT {item += n.getText();}
+          )
+        )?
+        ;
+
+// an argument of a table hint: an index or a number, or an index with its columns
+// (forceseek(ix(c1, c2)))
+table_hint_arg returns [String arg = ""]
+        {String tmp; {checkStatus();}}
+        :
+        arg = table_hint_name
+        ( OPEN_PAREN tmp = table_hint_name {arg += "(" + tmp;}
+          ( COMMA tmp = table_hint_name {arg += ", " + tmp;} )*
+          CLOSE_PAREN {arg += ")";}
+        )?
+        | n:UNSIGNED_NUM_LIT {arg = n.getText();}
+        ;
+
+// a name in a table hint, as written: quoted names keep their quotes and escapes ("a""b",
+// [a]]b])
+table_hint_name returns [String name = ""]
+        {checkStatus();}
+        :
+        a:IDENT {name = a.getText();}
+        | b:SPIDENT {name = b.getText();}
+        | c:SPIDENT_SQUARE {name = c.getText();}
         ;
 
 derived_column_list returns [String dcl = ""]
@@ -5120,9 +5247,10 @@ join_condition [UniformSQL sql, String op, String tbl2, int rstart, int rend] re
         ;
 
 named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend] returns [String jc = ""]
-        {String tmp; Vector list = null; if(sql != null){list = new Vector();} {checkStatus();}}
+        {String tmp; Vector list = null; Vector quotes = null;
+         if(sql != null){list = new Vector(); quotes = new Vector();} {checkStatus();}}
         :
-        a:USING OPEN_PAREN tmp = join_column_list[list] CLOSE_PAREN
+        a:USING OPEN_PAREN tmp = join_column_list[list, quotes] CLOSE_PAREN
         {jc = a.getText() + "(" + tmp + ")";
          if(sql != null && list.size()>0) {
           // the database merges a USING column, so select * returns one copy and an
@@ -5159,11 +5287,11 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            node.setName(getUniqueName());
 
            if(list.size() == 1) {
-                String t1 = getUsingTable(sql, (String) list.elementAt(0), lstart, rstart, jc, a);
-                e1 = new XExpression(t1+"."+(String)list.elementAt(0),
-                                        XExpression.FIELD);
-                e2 = new XExpression(t2+"."+(String)list.elementAt(0),
-                                        XExpression.FIELD);
+                String col = (String) list.elementAt(0);
+                int quote = ((Integer) quotes.elementAt(0)).intValue();
+                String t1 = getUsingTable(sql, col, lstart, rstart);
+                e1 = createUsingColumn(t1, col, quote);
+                e2 = createUsingColumn(t2, col, quote);
                 ((XJoin)node).setExpression1(e1);
                 ((XJoin)node).setExpression2(e2);
                 ((XJoin)node).setOp(joinOp);
@@ -5171,12 +5299,11 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            else {
                 ((XSet)node).setRelation(XSet.AND);
                 for(int i = 0; i < list.size(); i++) {
-                        String t1 = getUsingTable(sql, (String) list.elementAt(i), lstart,
-                                                  rstart, jc, a);
-                        e1 = new XExpression(t1+"."+(String)list.elementAt(i),
-                                                XExpression.FIELD);
-                        e2 = new XExpression(t2+"."+(String)list.elementAt(i),
-                                                XExpression.FIELD);
+                        String col = (String) list.elementAt(i);
+                        int quote = ((Integer) quotes.elementAt(i)).intValue();
+                        String t1 = getUsingTable(sql, col, lstart, rstart);
+                        e1 = createUsingColumn(t1, col, quote);
+                        e2 = createUsingColumn(t2, col, quote);
                         tmpNode = new XJoin();
                         tmpNode.setExpression1(e1);
                         tmpNode.setExpression2(e2);
@@ -5209,10 +5336,16 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
         }
         ;
 
-join_column_list [Vector list] returns [String jcl = ""]
-        {checkStatus();}
+// the quotes of each column (identQuote, reset by the next column_name) are kept in
+// quotes, so the column is regenerated quoted (Bug #78381)
+join_column_list [Vector list, Vector quotes] returns [String jcl = ""]
+        {String tmp; {checkStatus();}}
         :
-        jcl = column_name_list[list]
+        jcl = column_name
+        {if(list != null){list.addElement(jcl); quotes.addElement(Integer.valueOf(identQuote));}}
+        ( COMMA tmp = column_name
+        {jcl += "," + tmp;
+         if(list != null){list.addElement(tmp); quotes.addElement(Integer.valueOf(identQuote));}})*
         ;
 
 corresponding_spec returns [String cs = ""]

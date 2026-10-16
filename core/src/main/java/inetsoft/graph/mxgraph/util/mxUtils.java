@@ -20,6 +20,8 @@ package inetsoft.graph.mxgraph.util;
 import inetsoft.graph.mxgraph.io.mxCodecRegistry;
 import inetsoft.graph.mxgraph.model.*;
 import inetsoft.graph.mxgraph.view.mxCellState;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.graal.ScriptHostAccess;
 import org.w3c.dom.*;
 
 import javax.imageio.ImageIO;
@@ -32,6 +34,7 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.ImageObserver;
 import java.io.*;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -1635,62 +1638,11 @@ public class mxUtils {
       return null;
    }
 
-   /**
-    * Reads the given filename into a string.
-    *
-    * @param filename Name of the file to be read.
-    *
-    * @return Returns a string representing the file contents.
-    *
-    * @throws IOException
-    */
-   public static String readFile(String filename) throws IOException
-   {
-      return readInputStream(new FileInputStream(filename));
-   }
-
-   /**
-    * Reads the given filename into a string.
-    *
-    * @param filename Name of the file to be read.
-    *
-    * @return Returns a string representing the file contents.
-    *
-    * @throws IOException
-    */
-   public static String readInputStream(InputStream stream) throws IOException
-   {
-      BufferedReader reader = new BufferedReader(
-         new InputStreamReader(stream));
-      StringBuffer result = new StringBuffer();
-      String tmp = reader.readLine();
-
-      while(tmp != null) {
-         result.append(tmp + "\n");
-         tmp = reader.readLine();
-      }
-
-      reader.close();
-
-      return result.toString();
-   }
-
-   /**
-    * Writes the given string into the given file.
-    *
-    * @param contents String representing the file contents.
-    * @param filename Name of the file to be written.
-    *
-    * @throws IOException
-    */
-   public static void writeFile(String contents, String filename)
-      throws IOException
-   {
-      FileWriter fw = new FileWriter(filename);
-      fw.write(contents);
-      fw.flush();
-      fw.close();
-   }
+   // Bug #78079: readFile/readInputStream/writeFile/loadDocument relocated to
+   // inetsoft.graph.mxgraph.io.mxFileIO, a package scripts cannot name, so these
+   // raw file/URL read/write/parse sinks are no longer reachable from a restricted
+   // script through this script-admitted class. eval/loadImage and the in-memory
+   // document helpers stay here and reachable.
 
    /**
     * Returns the Md5 hash for the given text.
@@ -1859,6 +1811,11 @@ public class mxUtils {
             catch(Exception e) {
                log.log(Level.SEVERE, "Failed to load a data URI image", e);
             }
+         }
+         // Bug #78490, honor javascript.getImageFunction.disabled when a script
+         // asks for an image by URL or path
+         else if(JavaScriptEngine.isScriptImageLoadDisabled()) {
+            return null;
          }
          else {
             URL realUrl = null;
@@ -2201,24 +2158,8 @@ public class mxUtils {
       return document;
    }
 
-   /**
-    * Returns a new DOM document for the given URI. External entities and DTDs are ignored.
-    *
-    * @param uri URI to parse into the document.
-    *
-    * @return Returns a new DOM document for the given URI.
-    */
-   public static Document loadDocument(String uri)
-   {
-      try {
-         return mxXmlUtils.getDocumentBuilder().parse(uri);
-      }
-      catch(Exception e) {
-         log.log(Level.SEVERE, "Failed to load the document from " + uri, e);
-      }
-
-      return null;
-   }
+   // Bug #78079: loadDocument(String uri) relocated to
+   // inetsoft.graph.mxgraph.io.mxFileIO (see note above).
 
    /**
     * Returns a new document for the given XML string.
@@ -2250,8 +2191,16 @@ public class mxUtils {
 
          if(clazz != null) {
             try {
-               return clazz.getField(expression.substring(dot + 1)).get(
-                  null);
+               Field field = clazz.getField(expression.substring(dot + 1));
+
+               // Bug #78064: this method is visible to scripts, so don't read a
+               // static that the script host access denies, such as one inherited
+               // from a denied supertype
+               if(ScriptHostAccess.isTypeDenied(field.getDeclaringClass())) {
+                  throw new SecurityException("Field " + expression + " is not allowed in scripts");
+               }
+
+               return field.get(null);
             }
             catch(Exception e) {
                log.log(Level.SEVERE, "Failed to eval expression: " + expression, e);

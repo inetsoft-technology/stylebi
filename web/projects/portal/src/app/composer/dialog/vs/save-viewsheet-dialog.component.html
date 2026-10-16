@@ -20,7 +20,7 @@
 @if (model && form) {
   <div class="modal-body" [enterSubmit]="formValid" (onEnter)="enter()">
     <ul ngbNav #nav="ngbNav" class="nav-tabs">
-      <ng-container ngbNavItem="repository">
+      <ng-container ngbNavItem="repository" [destroyOnHide]="false">
         <a ngbNavLink>_#(Repository)</a>
         <ng-template ngbNavContent>
           <form [formGroup]="form" class="form-horizontal">

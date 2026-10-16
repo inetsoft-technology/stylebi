@@ -31,7 +31,6 @@ inetsoft.uql.rest.datasource.chartmogul.ChartMogulService
 inetsoft.uql.rest.datasource.clockify.ClockifyService
 inetsoft.uql.rest.datasource.constantcontact.ConstantContactService
 inetsoft.uql.rest.datasource.copper.CopperService
-inetsoft.uql.rest.datasource.datadotworld.DataDotWorldService
 inetsoft.uql.rest.datasource.firebase.FirebaseService
 inetsoft.uql.rest.datasource.fortytwomatters.FortyTwoMattersService
 inetsoft.uql.rest.datasource.freshdesk.FreshdeskService

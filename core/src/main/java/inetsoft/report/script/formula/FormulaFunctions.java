@@ -617,12 +617,17 @@ public class FormulaFunctions {
    }
 
    /**
-    * Get the week of year for the date=week option. This keeps the locale's week numbering,
-    * which matches the Week of Year date group of a crosstab under the default week.start,
-    * instead of the Excel numbering of CALC.weeknum().
+    * Get the week of year for the date=week option. This matches the Week of Year date
+    * group of a crosstab under the default week.start (both force minimalDaysInFirstWeek
+    * to 1, the week containing January 1 is week 1), instead of the Excel numbering of
+    * CALC.weeknum(). A bare GregorianCalendar otherwise inherits minimalDaysInFirstWeek
+    * from the JVM default locale (1 for en_US/zh_CN, 4 for en_GB/de_DE), which would make
+    * this disagree with the crosstab level on any server whose default locale isn't 1-based
+    * (bug #78112) -- this is a new Calendar on every call, so no save/restore is needed.
     */
    private static int weekOfYear(Object date) {
       Calendar cal = new GregorianCalendar();
+      cal.setMinimalDaysInFirstWeek(1);
       cal.setTime((Date) date);
       cal.setFirstDayOfWeek(Calendar.SUNDAY);
       return cal.get(Calendar.WEEK_OF_YEAR);

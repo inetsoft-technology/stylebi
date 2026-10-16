@@ -23,6 +23,7 @@ import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
@@ -393,6 +394,10 @@ public class RankingTableLens extends AbstractTableLens
          if(swapFailure != null) {
             throw swapFailure;
          }
+
+         // nor is a stopped script of the base, a stopped cell has no value to rank on: the
+         // rows stay unset and every read fails with the stop (bug #78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          LOG.error("Failed to sort list", ex);
       }

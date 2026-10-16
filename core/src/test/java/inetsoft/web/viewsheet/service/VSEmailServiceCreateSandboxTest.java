@@ -646,8 +646,7 @@ class VSEmailServiceCreateSandboxTest {
       // Bug #77446: the export streams were closed only after a successful export, and the PNG
       // branch with several bookmarks opened an extra stream it never used or closed. An open
       // stream keeps the cache file locked on Windows, so list the open file descriptors.
-      Path fds = Path.of("/proc/self/fd");
-      assumeTrue(Files.isDirectory(fds), "needs /proc/self/fd to list open files");
+      assumeTrue(hasProcFds(), "needs /proc/self/fd to list open files");
 
       ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
       when(liveBox.getVariableTable()).thenReturn(new VariableTable());
@@ -713,8 +712,7 @@ class VSEmailServiceCreateSandboxTest {
       // Bug #77446: a large Excel export is written to an .xlsx file and then exported again as
       // CSV, which zips and deletes the .xlsx. The .xlsx stream must be closed before the CSV
       // export, and neither stream may stay open when either export fails.
-      assumeTrue(Files.isDirectory(Path.of("/proc/self/fd")),
-                 "needs /proc/self/fd to list open files");
+      assumeTrue(hasProcFds(), "needs /proc/self/fd to list open files");
 
       ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
       when(liveBox.getVariableTable()).thenReturn(new VariableTable());
@@ -779,6 +777,33 @@ class VSEmailServiceCreateSandboxTest {
 
       assertEquals(List.of(), openFilesIn(dir),
          "emailViewsheet must close the xlsx and csv streams it opens");
+   }
+
+   /**
+    * Whether /proc/self/fd lists this process's descriptors as symbolic links. On Windows,
+    * "/proc/self/fd" resolves to a directory on the current drive, so a stray directory of
+    * that name is not enough (Bug #78370). Listing the directory opens a descriptor itself,
+    * so a real /proc/self/fd always has at least one link.
+    */
+   private static boolean hasProcFds() {
+      Path fds = Path.of("/proc/self/fd");
+
+      if(!Files.isDirectory(fds)) {
+         return false;
+      }
+
+      try(DirectoryStream<Path> links = Files.newDirectoryStream(fds)) {
+         for(Path link : links) {
+            if(Files.isSymbolicLink(link)) {
+               return true;
+            }
+         }
+      }
+      catch(IOException ignore) {
+         // not a readable descriptor directory
+      }
+
+      return false;
    }
 
    /**

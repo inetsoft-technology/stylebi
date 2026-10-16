@@ -54,8 +54,14 @@ public class NotificationService implements MessageListener {
 
    @Override
    public void messageReceived(MessageEvent event) {
-      if(event.getMessage() instanceof NotificationMessage) {
-         NotificationMessage notification = (NotificationMessage) event.getMessage();
+      if(event.getMessage() instanceof UserNotificationMessage message) {
+         // the node that sent the message has already delivered it to the user's web socket
+         // sessions on that node. Never broadcast it, it is for one user only
+         if(!event.isLocal()) {
+            sendToUser(message.getDestination(), message.getNotification());
+         }
+      }
+      else if(event.getMessage() instanceof NotificationMessage notification) {
          messagingTemplate.convertAndSend("/notifications", notification);
       }
    }
@@ -65,10 +71,42 @@ public class NotificationService implements MessageListener {
       cluster.sendMessage(notification);
    }
 
+   /**
+    * Sends a notification to one user. The user's web socket may be connected to any cluster
+    * node, and a user destination only reaches the sessions on the node that sends it, so the
+    * notification is delivered on this node and forwarded to the other nodes too. Failures are
+    * logged, not thrown.
+    */
    public void sendNotificationToUser(String message, Principal principal) {
+      String destination = SUtil.getUserDestination(principal);
+
+      if(destination == null) {
+         LOG.info("Notification not sent, no user destination for principal {}: {}",
+                  principal, message);
+         return;
+      }
+
       NotificationMessage notification = NotificationMessage.builder().message(message).build();
-      messagingTemplate.convertAndSendToUser(SUtil.getUserDestination(principal), "/notifications",
-                                             notification);
+      sendToUser(destination, notification);
+
+      // Bug #78248, the user's web socket may be connected to another node
+      UserNotificationMessage userMessage = new UserNotificationMessage(destination, notification);
+
+      try {
+         cluster.sendMessage(userMessage);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to send the notification to the cluster: {}", userMessage, e);
+      }
+   }
+
+   private void sendToUser(String destination, NotificationMessage notification) {
+      try {
+         messagingTemplate.convertAndSendToUser(destination, "/notifications", notification);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to send the notification to user {}: {}", destination, notification, e);
+      }
    }
 
    private final SimpMessagingTemplate messagingTemplate;

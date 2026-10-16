@@ -320,7 +320,9 @@ public class WorksheetOpenAssetService extends WorksheetControllerService {
          WorksheetEventUtil.refreshDateRange(ws);
       }
 
-      String name = nassembly.getAssemblyName();
+      // the new mirror's own name: getAssemblyName() is the name of the mirrored assembly, the
+      // hidden OUTER_ copy, which the client never sees
+      String name = ((WSAssembly) nassembly).getName();
       WorksheetEventUtil.loadTableData(rws, name, false, false);
       WorksheetEventUtil.focusAssembly(name, commandDispatcher);
       WorksheetEventUtil.refreshAssembly(rws, name, false, commandDispatcher, principal);

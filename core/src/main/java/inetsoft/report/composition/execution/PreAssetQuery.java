@@ -45,6 +45,8 @@ import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.ScriptStateLint;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1381,7 +1383,8 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       String alias = getAlias(column);
       alias = Tool.equals(col, alias) ? null : alias;
       int index = nselection.addColumn(col);
-      nselection.setExpression(index, column.isExpression() || column.isQueryExpressionField());
+      nselection.setExpression(index, column.isExpression() || column.isQueryExpressionField() ||
+         isNiladicKeywordSource(column, col));
 
       if(alias != null) {
          nselection.setAlias(index, alias, getColumnAliasQuote());
@@ -2549,6 +2552,38 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    }
 
    /**
+    * Check if a column is merged from an unquoted niladic keyword function (current_date,
+    * user...) in the select list of the query before the merge. The parser marks such a select
+    * item as an expression, but the worksheet column only carries the mark when the query
+    * dialog built it (queryExpressionField), so an imported or older worksheet would merge it
+    * as a column and the keyword would be quoted as an identifier (Bug #78489).
+    * The column is found as in getQuotedSourceIndex. A keyword written as a quoted identifier
+    * ("current_date") is not an expression in the backup selection, so it stays a column.
+    * @param column the specified column.
+    * @param col the merged column text, from getColumn.
+    * @return true if the source select item is an unquoted niladic keyword function.
+    */
+   private boolean isNiladicKeywordSource(DataRef column, String col) {
+      UniformSQL nsql = getUniformSQL();
+
+      if(column == null || column.isExpression() || !XUtil.isNiladicKeywordFunction(col) ||
+         nsql == null || nsql.getBackupSelection() == null)
+      {
+         return false;
+      }
+
+      DataRef base = getBaseAttribute(column);
+
+      if(base == null || base.isExpression()) {
+         return false;
+      }
+
+      XSelection bselection = nsql.getBackupSelection();
+      int idx = indexOfExactColumn(bselection, getAttributeString(base));
+      return idx >= 0 && col.equals(bselection.getColumn(idx)) && bselection.isExpression(idx);
+   }
+
+   /**
     * Find a column by its path, alias or column segment, as XSelection.indexOfColumn does,
     * comparing case.
     */
@@ -3636,13 +3671,28 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       DataRef attr = getBaseAttribute(sort);
 
       try {
-         return !isSubQuery(getColumn(attr));
+         return !isSubQuery(getColumn(attr)) && !isHiddenNiladicKeywordSort(sort);
       }
       // date grouping function not available in this database
       catch(UnsupportedOperationException ex) {
          LOG.debug("Date grouping is not available in this database", ex);
          return false;
       }
+   }
+
+   /**
+    * Check if a sort is on a hidden column merged from an unquoted niladic keyword function
+    * (current_date...). The column is not in the merged select list, and the helper reads an
+    * order by keyword without a select item as a column and quotes it, so the sort is done
+    * after the query, which selects the column (Bug #78489).
+    */
+   private boolean isHiddenNiladicKeywordSort(SortRef sort) {
+      if(!(sort.getDataRef() instanceof ColumnRef)) {
+         return false;
+      }
+
+      ColumnRef column = findColumn(sort.getDataRef());
+      return !column.isVisible() && isNiladicKeywordSource(column, getColumn(column));
    }
 
    /**
@@ -4149,7 +4199,11 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             LOG.warn(msg);
          }
 
-         throw new ScriptException(msg);
+         // keep unavailable data or a load failure as the cause (bug #78450) and a timeout's
+         // or cancel's stop (bug #78212), or a reader caches the failure
+         ScriptException se = new ScriptException(msg, DataUnavailable.causeInChain(ex));
+         se.setStopped(ScriptTimeoutGuard.isStop(ex));
+         throw se;
       }
       finally {
          FormulaContext.setRestricted(restricted);
@@ -4517,6 +4571,14 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             return condnode;
          }
          catch(Exception ex) {
+            // a stopped condition script fails the query, ignoring the node would run it
+            // unfiltered and cache the wrong rows (bug #78212)
+            ScriptTimeoutGuard.rethrowStop(ex);
+            // so does a condition script that read unavailable data or a table that failed
+            // to load (bug #78450)
+            DataUnavailable.rethrow(ex);
+            TableLoadException.rethrow(ex);
+
             if(!ex.getMessage().equals("no parameter set.")) {
                LOG.warn("Failed to create condition", ex);
             }

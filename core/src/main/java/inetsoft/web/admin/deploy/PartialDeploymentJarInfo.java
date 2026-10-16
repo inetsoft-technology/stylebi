@@ -238,7 +238,9 @@ public class PartialDeploymentJarInfo implements XMLSerializable, Serializable {
       elem = Tool.getChildNodeByTagName(node, "overwriting");
       overwriting = "true".equalsIgnoreCase(Tool.getValue(elem));
       elem = Tool.getChildNodeByTagName(node, "deploymentDate");
-      deploymentDate = (Timestamp) Tool.getData(Tool.TIME_INSTANT, Tool.getValue(elem));
+      // a date saved before #77605 may have a Buddhist or Japanese year
+      deploymentDate =
+         (Timestamp) Tool.getPersistentData(Tool.TIME_INSTANT, Tool.getValue(elem), false);
 
       if(beforeSchemaChangeVersion()) {
          elem = Tool.getChildNodeByTagName(node, "entries");

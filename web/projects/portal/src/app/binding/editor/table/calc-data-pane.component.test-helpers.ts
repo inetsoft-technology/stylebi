@@ -36,6 +36,7 @@ export const editorServiceMock = {
    getSelectCells: vi.fn(() => [TestUtils.createMockCalcTableCell()]),
    getCellNamesWithDefaults: vi.fn(() => [{ label: "(none)", value: null }]),
    changeColumnValue: vi.fn(),
+   isCellBindingReady: vi.fn(() => true),
 };
 
 export const bindingServiceMock = {

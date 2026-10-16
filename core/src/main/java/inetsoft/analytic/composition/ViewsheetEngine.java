@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.ServiceProxyContext;
+import inetsoft.web.vswizard.recommender.execution.WizardDataExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -359,6 +360,8 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
                             boolean force, boolean updateDependency)
       throws Exception
    {
+      // a wizard probe crosstab still running (or leaked earlier) must not be saved
+      WizardDataExecutor.removeTempCrosstabs(vs);
       setSheet(vs, entry, user, force, updateDependency);
    }
 

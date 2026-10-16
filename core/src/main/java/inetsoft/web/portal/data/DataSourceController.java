@@ -969,21 +969,19 @@ public class DataSourceController {
 
    @PostMapping("/api/portal/data/datasources/grant-password")
    @Secured(
-      value = {
-         @RequiredPermission(
-            resourceType = ResourceType.PORTAL_TAB,
-            resource = "Data",
-            actions = ResourceAction.ACCESS
-         ),
-         @RequiredPermission(
-            resourceType = ResourceType.WORKSHEET,
-            resource = "*",
-            actions = ResourceAction.ACCESS
-         )
-      },
-      operator = "OR"
+      @RequiredPermission(
+         resourceType = ResourceType.PORTAL_TAB,
+         resource = "Data",
+         actions = ResourceAction.ACCESS
+      )
    )
-   public Tokens getPasswordGrantResponse(@RequestBody TabularOAuthParams request) {
+   public Tokens getPasswordGrantResponse(@RequestBody TabularOAuthParams request,
+                                          Principal principal)
+      throws Exception
+   {
+      // Bug #78243, the server posts the credentials to the token URI that the request names, so
+      // the caller must be able to save the data source that the grant is for
+      datasourcesService.checkPasswordGrantPermission(request, principal);
       return AuthorizationClient.doPasswordGrantAuth(
          request.user(), request.password(), request.clientId(), request.clientSecret(),
          request.scope(), request.tokenUri());

@@ -66,6 +66,7 @@ public class XNodeTable implements XTable {
    public void setNode(XNode root) {
       cancelled = false;
       loadException = null;
+      loadInBackground = false;
       this.root = root;
 
       if(root instanceof CompositeTableNode) {
@@ -133,6 +134,18 @@ public class XNodeTable implements XTable {
     */
    public Exception getLoadException() {
       return loadException;
+   }
+
+   /**
+    * Check if the rows of the data tree are loaded on a background thread after the table is
+    * created (replet.streaming). A load failure may then be stored at any time after creation,
+    * before or after a caller checks the table. Otherwise the rows are loaded before the
+    * constructor returns, so a load failure is already stored when the table is created.
+    *
+    * @return {@code true} if the rows are loaded in the background.
+    */
+   public boolean isLoadInBackground() {
+      return loadInBackground;
    }
 
    private void setLoadException(Exception ex) {
@@ -444,6 +457,7 @@ public class XNodeTable implements XTable {
 
          String prop = SreeEnv.getProperty("replet.streaming");
          boolean bgproc = prop.equalsIgnoreCase("true");
+         loadInBackground = bgproc;
 
          try {
             level = MonitorLevelService.getMonitorLevel();
@@ -510,21 +524,14 @@ public class XNodeTable implements XTable {
        */
       @Override
       public boolean moreRows(int row) {
+         // a load failure is not thrown here, the readers get it from getLoadException() once
+         // they reach the end of the rows (XNodeTableLens), so every reader gets the same
+         // warning or TableLoadException (Bug #78250)
          if(cancelled) {
             return row < Math.abs(this.getRowCount());
          }
-         else {
-            if(loadDataException != null) {
-               try {
-                  throw new RuntimeException(loadDataException.getMessage(), loadDataException);
-               }
-               finally {
-                  loadDataException = null;
-               }
-            }
 
-            return super.moreRows(row);
-         }
+         return super.moreRows(row);
       }
 
       /**
@@ -609,22 +616,17 @@ public class XNodeTable implements XTable {
          }
 
          dataLoaded = true;
-         String prop = SreeEnv.getProperty("replet.streaming");
-         boolean bgproc = prop.equalsIgnoreCase("true");
 
-         if(bgproc) {
+         // same choice as the constructor, so isLoadInBackground() describes how the rows load
+         if(loadInBackground) {
             ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
                @Override
                public void run() {
                   try {
                      loadTable0();
                   }
-                  catch(ClassCastException ex) {
-                     loadDataException = ex;
-                  }
                   catch(Exception ex) {
                      cancelled = true;
-                     loadDataException = ex;
                      setLoadException(ex);
                      LOG.debug("Failed to load XTableNode", ex);
                   }
@@ -695,11 +697,13 @@ public class XNodeTable implements XTable {
             throw ex;
          }
          finally {
-            complete();
-
+            // set before complete() wakes a reader waiting for the rows, so the reader that finds
+            // no more rows sees the cancel, as it sees a load exception (bug #78200)
             if(baseTableCancelBreakLoad) {
                cancelled = true;
             }
+
+            complete();
 
             LOG.debug("Query data finished loading: {}", getRowCount());
          }
@@ -981,9 +985,9 @@ public class XNodeTable implements XTable {
 
    private transient XTable delegate;
    private volatile boolean cancelled = false;
-   private Exception loadDataException = null;
    // not serialized, a load failure only matters to the caller that ran the query
    private transient volatile Exception loadException;
+   private transient boolean loadInBackground;
    private boolean disposed = false;
    private transient XNode root;
    private Class<?>[] types;

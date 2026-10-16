@@ -27,6 +27,7 @@ import inetsoft.report.io.viewsheet.excel.PoiExcelVSUtil;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.style.TableStyle;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.util.filereader.ExcelDateUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
@@ -397,7 +398,7 @@ public class PoiImportXLSService implements ImportXLSService {
 
                   if(cellVal instanceof Number) {
                      cellVal = Tool.getData(cls,
-                                            DateUtil.getJavaDate((Double) cellVal));
+                                            ExcelDateUtil.getJavaDate((Double) cellVal, false));
                   }
                }
             }

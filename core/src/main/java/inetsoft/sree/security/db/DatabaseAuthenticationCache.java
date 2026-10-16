@@ -233,8 +233,22 @@ class DatabaseAuthenticationCache implements AutoCloseable {
          return new IdentityID[0];
       }
 
-      return userRoles.computeIfAbsent(userId, k ->
-         new IdentityArray(provider.getDao().getRoles(k).result())).getValue();
+      IdentityArray roles = userRoles.get(userId);
+
+      if(roles != null) {
+         return roles.getValue();
+      }
+
+      QueryResult<IdentityID[]> result = provider.getDao().getRoles(userId);
+
+      // a failed lookup returns no roles and is not cached, so a transient database error does
+      // not hide the roles until the cache is cleared
+      if(result.failed()) {
+         return result.result();
+      }
+
+      roles = userRoles.putIfAbsent(userId, new IdentityArray(result.result()));
+      return roles == null ? result.result() : roles.getValue();
    }
 
    public Map<IdentityID, IdentityID[]> getAllUserRoles() {
@@ -271,7 +285,21 @@ class DatabaseAuthenticationCache implements AutoCloseable {
          return new String[0];
       }
 
-      return userEmails.computeIfAbsent(userIdentity, k -> provider.getDao().getEmails(k).result());
+      String[] emails = userEmails.get(userIdentity);
+
+      if(emails != null) {
+         return emails;
+      }
+
+      QueryResult<String[]> result = provider.getDao().getEmails(userIdentity);
+
+      // a failed lookup is not cached, see getRoles(IdentityID)
+      if(result.failed()) {
+         return result.result();
+      }
+
+      emails = userEmails.putIfAbsent(userIdentity, result.result());
+      return emails == null ? result.result() : emails;
    }
 
    public boolean isLoading() {

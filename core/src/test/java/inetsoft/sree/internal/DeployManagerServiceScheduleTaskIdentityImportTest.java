@@ -209,6 +209,25 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
       verify(asset).parseContent(any(InputStream.class), any(), eq(true), eq(false));
    }
 
+   // Bug #78120, #78129, a task the save refuses (e.g. its owner can't read its sheet) fails only
+   // its own entry, the later tasks of the same import are imported
+   @Test
+   void refusedTaskSave_failsOnlyThatTask_laterTasksAreImported() throws Exception {
+      ScheduleTaskAsset refused = taskAsset();
+      String message = "Unauthorized access to viewsheet \"4^128^bob~;~" + ORG_A +
+         "^vs1^" + ORG_A + "\" by oa, it isn't readable by the user or the task's run principal";
+      doThrow(new inetsoft.sree.security.SecurityException(message))
+         .when(refused).parseContent(any(InputStream.class), any(), anyBoolean(), anyBoolean());
+      ScheduleTaskAsset later = taskAsset();
+      List<String> failed = new ArrayList<>();
+
+      importEntry(taskXml(BOB.convertToKey(), ""), refused, failed);
+      importEntry(taskXml(BOB.convertToKey(), ""), later, failed);
+
+      assertEquals(List.of(message), failed);
+      verify(later).parseContent(any(InputStream.class), any(), eq(true), eq(false));
+   }
+
    @Test
    void siteAdmin_isNotChecked() throws Exception {
       when(orgManager.isSiteAdmin(principal)).thenReturn(true);
@@ -377,6 +396,18 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
     * Imports one SCHEDULETASK entry through the private per-asset import step.
     */
    private List<String> importEntry(String content, ScheduleTaskAsset asset) throws Exception {
+      List<String> failed = new ArrayList<>();
+      importEntry(content, asset, failed);
+      return failed;
+   }
+
+   /**
+    * Imports one SCHEDULETASK entry through the private per-asset import step, adding a failure
+    * to a list shared by the entries of one import.
+    */
+   private void importEntry(String content, ScheduleTaskAsset asset, List<String> failed)
+      throws Exception
+   {
       File file = write(content);
       Map<String, String> names = new HashMap<>();
       names.put(file.getName(), ScheduleTaskAsset.SCHEDULETASK + "_" +
@@ -385,7 +416,6 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
       when(info.getNames()).thenReturn(names);
       XAssetConfig config = new XAssetConfig();
       config.setOverwriting(true);
-      List<String> failed = new ArrayList<>();
 
       Method method = Arrays.stream(DeployManagerService.class.getDeclaredMethods())
          .filter(m -> m.getName().equals("importAsset") && m.getParameterCount() == 14)
@@ -393,7 +423,6 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
       method.setAccessible(true);
       method.invoke(service, file, asset, new ArrayList<>(), failed, null, new ArrayList<>(),
                     new ArrayList<>(), true, null, info, false, config, null, principal);
-      return failed;
    }
 
    private File write(String content) throws Exception {

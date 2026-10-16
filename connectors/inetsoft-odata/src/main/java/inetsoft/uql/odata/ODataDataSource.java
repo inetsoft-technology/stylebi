@@ -89,6 +89,7 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
    }
 
    @PropertyEditor(dependsOn = "useCredentialId")
+   @Property(label = "User")
    public String getUser() {
       if(getCredential() instanceof PasswordCredential) {
          return ((PasswordCredential) getCredential()).getUser();
@@ -104,6 +105,7 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
    }
 
    @PropertyEditor(dependsOn = "useCredentialId")
+   @Property(label = "Password", password = true)
    public String getPassword() {
       if(getCredential() instanceof PasswordCredential) {
          return ((PasswordCredential) getCredential()).getPassword();
@@ -229,6 +231,8 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
       ((OAuth2CredentialsGrant) getCredential()).setScope(scope);
    }
 
+   @PropertyEditor(enabled = false)
+   @Property(label = "Access Token", password = true)
    public String getAccessToken() {
       if(getCredential() instanceof AccessTokenCredential) {
          return ((AccessTokenCredential) getCredential()).getAccessToken();
@@ -243,6 +247,8 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
       }
    }
 
+   @PropertyEditor(enabled = false)
+   @Property(label = "Refresh Token", password = true)
    public String getRefreshToken() {
       if(getCredential() instanceof RefreshTokenCredential) {
          return ((RefreshTokenCredential) getCredential()).getRefreshToken();
@@ -257,6 +263,8 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
       }
    }
 
+   @PropertyEditor(enabled = false)
+   @Property(label = "Token Expiration")
    public long getTokenExpiration() {
       return tokenExpiration;
    }

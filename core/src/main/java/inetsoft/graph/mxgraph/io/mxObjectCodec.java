@@ -17,7 +17,6 @@
  */
 package inetsoft.graph.mxgraph.io;
 
-import inetsoft.graph.mxgraph.util.mxUtils;
 import org.w3c.dom.*;
 
 import java.lang.reflect.*;
@@ -1138,7 +1137,8 @@ public class mxObjectCodec {
 
          if(name != null) {
             try {
-               Node xml = mxUtils.loadDocument(
+               // Bug #78079: loadDocument moved out of mxUtils to mxFileIO
+               Node xml = mxFileIO.loadDocument(
                   mxObjectCodec.class.getResource(name).toString())
                   .getDocumentElement();
 

@@ -29,10 +29,13 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.swap.SwapReadInterruptedException;
 import inetsoft.util.swap.XSwappableIntList;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.slf4j.Logger;
@@ -216,6 +219,18 @@ public class DistinctTableLens extends AbstractTableLens
    }
 
    /**
+    * Check if a script timeout or cancel interrupted a swap read of the base table as this
+    * table was computed (bug #78100), or stopped a script of the base table (bug #78134), so
+    * every read fails until it is invalidated. A cache treats such a table as not cached, and
+    * the next reader computes it again.
+    */
+   public boolean isStopped() {
+      RuntimeException baseFailure = this.baseFailure;
+      return baseFailure instanceof SwapReadInterruptedException ||
+         ScriptTimeoutGuard.isStop(baseFailure);
+   }
+
+   /**
     * Invalidate the table filter forcely, and the table filter will
     * perform filtering calculation to validate itself.
     */
@@ -298,8 +313,9 @@ public class DistinctTableLens extends AbstractTableLens
                }
                catch(RuntimeException ex) {
                   // a load failure of the base was logged where it happened and the readers
-                  // rethrow it, the pool needn't log it again (bug #77966)
-                  if(TableLoadException.find(ex) == null) {
+                  // rethrow it, the pool needn't log it again (bug #77966), nor a stopped
+                  // script of the base the readers rethrow (bug #78134)
+                  if(TableLoadException.find(ex) == null && !ScriptTimeoutGuard.isStop(ex)) {
                      throw ex;
                   }
                }
@@ -382,7 +398,8 @@ public class DistinctTableLens extends AbstractTableLens
          if(stall == null) {
             // a swap file read failure must not look like a complete (silently
             // empty/partial) distinct table either (bug #77651), nor a base that failed to
-            // load for a reader that has to fail, e.g. a scheduled run (bug #77966)
+            // load for a reader that has to fail, e.g. a scheduled run (bug #77966), nor a
+            // stopped script of the base (bug #78134)
             baseFailure = findBaseFailure(ex);
          }
 
@@ -398,8 +415,8 @@ public class DistinctTableLens extends AbstractTableLens
     * next pass finds the rows of the table (bug #77333).
     * @param target the rows of the pass.
     * @param stall the stall the pass failed with, if any.
-    * @param baseFailure the lost swap file or the load failure of the base the pass failed
-    *                    with, if any.
+    * @param baseFailure the lost swap file, the load failure or the script stop of the base
+    *                    the pass failed with, if any.
     * @param background {@code true} if on the worker: its user messages, e.g. the warning of
     *                   a base that failed to load, are kept for the readers before they are
     *                   woken, they are lost with the worker thread otherwise (bug #77966).
@@ -424,12 +441,15 @@ public class DistinctTableLens extends AbstractTableLens
          return;
       }
 
+      // copies are kept, which are never thrown: the pass throws the failure on, maybe
+      // through a script, which adds a suppressed stack trace element that cannot be
+      // serialized to it (bug #78084)
       if(stall != null) {
-         stallFailure = stall;
+         stallFailure = stall.copy();
       }
 
       if(baseFailure != null) {
-         this.baseFailure = baseFailure;
+         this.baseFailure = copyFailure(baseFailure);
       }
 
       userMsg = msg;
@@ -475,8 +495,8 @@ public class DistinctTableLens extends AbstractTableLens
       }
       catch(Exception ex) {
          // a load failure of the base was logged where it happened, sortDistinct0() kept it
-         // for the readers (bug #77966)
-         if(TableLoadException.find(ex) == null) {
+         // for the readers (bug #77966), as it kept a stopped script (bug #78134)
+         if(TableLoadException.find(ex) == null && !ScriptTimeoutGuard.isStop(ex)) {
             LOG.error("Failed to process sort distinct", ex);
          }
       }
@@ -549,7 +569,8 @@ public class DistinctTableLens extends AbstractTableLens
          if(stall == null) {
             // a swap file read failure must not look like a complete (silently
             // empty/partial) distinct table either (bug #77651), nor a base that failed to
-            // load for a reader that has to fail, e.g. a scheduled run (bug #77966)
+            // load for a reader that has to fail, e.g. a scheduled run (bug #77966), nor a
+            // stopped script of the base (bug #78134)
             baseFailure = findBaseFailure(ex);
          }
 
@@ -652,6 +673,7 @@ public class DistinctTableLens extends AbstractTableLens
 
    private boolean moreRows0(int row) {
       WaitRecord record = null;
+      boolean interrupted = false;
 
       try {
          while(true) {
@@ -688,7 +710,8 @@ public class DistinctTableLens extends AbstractTableLens
                      wait(record.waitMillis(JavaScriptEngine.getScriptLockWaitMillis(500)));
                   }
                   catch(InterruptedException ex) {
-                     // ignore it
+                     // keep waiting for the rows, the interrupt is restored on exit (bug #78135)
+                     interrupted = true;
                   }
 
                   continue;
@@ -714,7 +737,7 @@ public class DistinctTableLens extends AbstractTableLens
                         wait(record.waitMillis(JavaScriptEngine.getScriptLockWaitMillis(500)));
                      }
                      catch(InterruptedException ex) {
-                        // ignore it
+                        interrupted = true;
                      }
                   }
                }
@@ -746,6 +769,9 @@ public class DistinctTableLens extends AbstractTableLens
             throw loadFailure;
          }
 
+         // nor a stopped script of the base (bug #78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
+
          synchronized(this) {
             completed = true;
          }
@@ -757,6 +783,11 @@ public class DistinctTableLens extends AbstractTableLens
       finally {
          if(record != null) {
             record.close();
+         }
+
+         // restored once on exit: restoring it in the loop would make each wait throw at once
+         if(interrupted) {
+            Thread.currentThread().interrupt();
          }
       }
    }
@@ -785,17 +816,43 @@ public class DistinctTableLens extends AbstractTableLens
       RuntimeException baseFailure = this.baseFailure;
 
       if(baseFailure != null) {
-         throw baseFailure;
+         // a new instance for each reader (bug #78084)
+         throw copyFailure(baseFailure);
       }
    }
 
    /**
     * Find the lost swap file (bug #77651) or the load failure of the base (bug #77966) in the
-    * cause chain of a failure of the worker.
+    * cause chain of a failure of the worker, or copy the script stop (bug #78134).
     */
    private static RuntimeException findBaseFailure(Throwable ex) {
       RuntimeException baseFailure = SwapFileReadException.find(ex);
-      return baseFailure != null ? baseFailure : TableLoadException.find(ex);
+
+      if(baseFailure == null) {
+         baseFailure = TableLoadException.find(ex);
+      }
+
+      // a stopped script of the base, which fails every read as a stopped cell of a formula
+      // table does (bug #78134)
+      return baseFailure != null ? baseFailure : ScriptTimeoutGuard.copyStop(ex);
+   }
+
+   /**
+    * A copy of a kept failure of the base, a new instance that is never thrown itself, or is
+    * thrown to one reader only (bug #78084).
+    */
+   private static RuntimeException copyFailure(RuntimeException failure) {
+      RuntimeException copy = DataUnavailable.copy(failure);
+
+      if(copy == failure) {
+         RuntimeException stop = ScriptTimeoutGuard.copyStop(failure);
+
+         if(stop != null) {
+            return stop;
+         }
+      }
+
+      return copy;
    }
 
    /**
@@ -865,6 +922,9 @@ public class DistinctTableLens extends AbstractTableLens
          if(loadFailure != null) {
             throw loadFailure;
          }
+
+         // nor a stopped script of the base (bug #78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          completed = true;
          LOG.error("Failed to validate table rows when getting row count", ex);

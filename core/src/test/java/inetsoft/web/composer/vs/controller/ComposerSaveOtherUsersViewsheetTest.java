@@ -90,6 +90,10 @@ class ComposerSaveOtherUsersViewsheetTest {
       admin = new SRPrincipal(new IdentityID("admin", orgId),
                               new IdentityID[] { new IdentityID("Administrator", null) },
                               new String[0], orgId, 1L);
+      // a real admin session is in SecurityEngine's logged-in map; admin-of-owner checks on
+      // another user's private asset now ask SecurityEngine, which refuses a principal that is
+      // not (Bug #78075)
+      admin.setIgnoreLogin(true);
       assertTrue(OrganizationManager.getInstance().isSiteAdmin(admin), "admin must be site admin");
 
       AssetEntry created = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,

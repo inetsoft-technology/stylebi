@@ -45,6 +45,7 @@ import {
    EditUserPaneModel
 } from "../edit-identity-pane/edit-identity-pane.model";
 import {SecurityBusyService } from "../security-busy.service";
+import { SavedOrgPropertiesService } from "../saved-org-properties.service";
 import {SecurityTreeService} from "../security-tree.service";
 import {SecurityTreeNodeModel} from "../users-settings-view/security-tree-node-model";
 import {SecurityTreeRootModel} from "../users-settings-view/security-tree-root-model";
@@ -105,7 +106,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                private snackBar: MatSnackBar,
                private usersService: ScheduleUsersService,
                private orgDropDownService: OrganizationDropdownService,
-               private orgBusy: SecurityBusyService)
+               private orgBusy: SecurityBusyService,
+               private savedOrgProperties: SavedOrgPropertiesService)
    {
       this.subscriptions.add(orgDropdownService.onRefresh.subscribe(res => {
          if(this.selfRefreshing) {
@@ -165,6 +167,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
 
       this.selectedNodes = [];
       this.selectedProvider = provider;
+      this.savedOrgProperties.clear();
       this.refreshTree(null, null, providerChanged, selectProvider);
    }
 
@@ -260,8 +263,25 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                let id: IdentityId = {name: model.name, orgID: model.organization};
                this.newUserIdentity = id;
                this.refreshTree(id, IdentityType.USER);
+               this.showCreateWarning(model);
             }
          });
+   }
+
+   /**
+    * Bug #78217, the identity is created but reports a warning, e.g. that the permission granted
+    * to its creator may not have been saved. It's only shown, the identity is kept.
+    */
+   private showCreateWarning(model: EditIdentityPaneModel): void {
+      if(model?.warning) {
+         this.dialog.open(MessageDialog, <MatDialogConfig>{
+            data: {
+               title: "_#(js:Warning)",
+               content: model.warning,
+               type: MessageDialogType.WARNING
+            }
+         });
+      }
    }
 
    setUser(model: EditIdentityPaneModel) {
@@ -343,7 +363,17 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                this.identityEditable.next(true);
                return this.errorService.showSnackBar(error);
             }),
-            tap(() => this.refreshTree({name: model.name, orgID: (model as EditOrganizationPaneModel).id}, IdentityType.ORGANIZATION)),
+            tap(() => {
+               const orgModel = model as EditOrganizationPaneModel;
+
+               // the reload below may return the properties from before the save (Bug #78447).
+               // A rename refreshes the provider instead, which doesn't reload the organization
+               if(!orgNameChanged) {
+                  this.savedOrgProperties.set(orgModel.id, orgModel.properties);
+               }
+
+               this.refreshTree({name: model.name, orgID: orgModel.id}, IdentityType.ORGANIZATION);
+            }),
             finalize(() => this.orgBusy.endOrgSave())
          ).subscribe((msg: string) => {
             // no need to subscribe: dialog.open() shows the message right away and there is
@@ -448,6 +478,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          .subscribe(model => {
             if(model) {
                this.refreshTree({name: model.name, orgID: model.organization}, IdentityType.GROUP);
+               this.showCreateWarning(model);
             }
          });
    }
@@ -463,6 +494,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          .subscribe(model => {
             if(model) {
                this.refreshTree({name: model.name, orgID: model.organization}, IdentityType.ROLE);
+               this.showCreateWarning(model);
             }
          });
    }
@@ -646,6 +678,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             }
          }),
          catchError((error: HttpErrorResponse) => {
+            // the organization isn't reloaded, so its saved properties must not be used later
+            this.savedOrgProperties.clear();
             const orgInvalid = error.error.type === "InvalidOrgException";
 
             if(orgInvalid) {
@@ -710,5 +744,6 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    ngOnDestroy(): void {
       this.subscriptions.unsubscribe();
       this.identityEditable.complete();
+      this.savedOrgProperties.clear();
    }
 }

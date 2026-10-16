@@ -26,6 +26,7 @@
  *   Group 4 [Risk 2] — getFilteredFeatures(): filter string logic
  *   Group 5 [Risk 2] — ok()/cancel(): onCommit/onCancel emitters
  *   Group 6 [Risk 2] — changeAlgorithm/unmatchedListChange: algorithm switch refreshes cities
+ *   Group 7 [Risk 3] — Cancel leaves the field's mappings untouched; OK saves them (Bug #78707)
  *
  * Old spec ported (Risk 2):
  *   Bug #19048: changeAlgorithm() must call unmatchedListChange
@@ -89,7 +90,7 @@ const modalMock = {
    open: vi.fn().mockReturnValue({ result: Promise.resolve("ok") }),
 };
 
-function createGeoProvider(geoModel: ChartGeoRef): GeoProvider {
+function createGeoProvider(geoModel: ChartGeoRef, data: any = dataMapping): GeoProvider {
    return {
       getBindingModel: vi.fn(),
       getChartGeoModel: vi.fn().mockReturnValue(geoModel),
@@ -102,12 +103,12 @@ function createGeoProvider(geoModel: ChartGeoRef): GeoProvider {
             { name: "San Francisco", geoCode: "US-SF" },
          ],
       }))),
-      getMappingData: vi.fn().mockReturnValue(of(new HttpResponse({ body: dataMapping }))),
+      getMappingData: vi.fn().mockReturnValue(of(new HttpResponse({ body: data }))),
    };
 }
 
-async function renderComponent(geoModel: ChartGeoRef = createGeoModel()) {
-   const provider = createGeoProvider(geoModel);
+async function renderComponent(geoModel: ChartGeoRef = createGeoModel(), data: any = dataMapping) {
+   const provider = createGeoProvider(geoModel, data);
    const { fixture } = await render(GeoMappingDialog, {
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
@@ -326,5 +327,101 @@ describe("GeoMappingDialog — changeAlgorithm and unmatchedListChange", () => {
       fixture.detectChanges();
 
       expect(fixture.nativeElement.querySelector("div.alert-danger")).toBeNull();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 7: Cancel leaves the field untouched, OK saves (Bug #78707) [Risk 3]
+// ---------------------------------------------------------------------------
+
+describe("GeoMappingDialog — Cancel and OK through the dialog buttons (Bug #78707)", () => {
+   type Fixture = Awaited<ReturnType<typeof renderComponent>>["fixture"];
+
+   function click(fixture: Fixture, el: Element): void {
+      (el as HTMLElement).click();
+      fixture.detectChanges();
+   }
+
+   function q(fixture: Fixture, css: string): HTMLElement[] {
+      return Array.from(fixture.nativeElement.querySelectorAll(css));
+   }
+
+   function footerButton(fixture: Fixture, label: string): HTMLElement {
+      return q(fixture, ".modal-footer button").find(b => b.textContent.includes(label));
+   }
+
+   function rows(fixture: Fixture): string[][] {
+      return q(fixture, "tbody tr").map(tr =>
+         Array.from(tr.querySelectorAll("td")).map(td => td.textContent.trim()));
+   }
+
+   function addFirstCity(fixture: Fixture, region: string): void {
+      click(fixture, q(fixture, ".region-list .list-item")
+         .find(e => e.textContent.trim() === region));
+      click(fixture, q(fixture, ".city-list .list-item")[0]);
+      click(fixture, fixture.nativeElement.querySelector(".add-btn_id"));
+   }
+
+   // add()/remove() edit the reply's unmatched lists, so each test gets its own copy
+   const reply = (over: any = {}) => structuredClone({ ...dataMapping, ...over });
+   const noSaved = (over: any = {}) => reply({ smapping: null, ...over });
+
+   it("Add + Cancel leaves the field's mappings untouched", async () => {
+      const geoModel = createGeoModel();
+      const mappings = geoModel.option.mapping.mappings;
+      const { fixture, comp } = await renderComponent(geoModel, noSaved());
+      const cancelled: string[] = [];
+      comp.onCancel.subscribe(v => cancelled.push(v));
+
+      addFirstCity(fixture, "CA");
+      expect(rows(fixture)).toContainEqual(["CA", "Los Angeles"]);
+      click(fixture, footerButton(fixture, "Cancel"));
+
+      expect(cancelled).toEqual(["cancel"]);
+      expect(geoModel.option.mapping.mappings).toBe(mappings);
+      expect(geoModel.option.mapping.mappings).toEqual({});
+   });
+
+   it("Remove + Cancel keeps the field's mapping", async () => {
+      const geoModel = createGeoModel();
+      geoModel.option.mapping.mappings = { Flordia: "FL" };
+      const { fixture } = await renderComponent(geoModel, noSaved({
+         manualMappings: { FL: "Florida" },
+         unmatchedValue: {},
+         ounmatchedValue: { Flordia: 2 },
+      }));
+
+      click(fixture, q(fixture, "tbody tr").find(tr => tr.textContent.includes("Flordia")));
+      click(fixture, fixture.nativeElement.querySelector(".remove-btn_id"));
+      expect(rows(fixture).map(r => r[0])).not.toContain("Flordia");
+      click(fixture, footerButton(fixture, "Cancel"));
+
+      expect(geoModel.option.mapping.mappings).toEqual({ Flordia: "FL" });
+   });
+
+   it("open + Cancel does not copy the server's saved mapping into the field", async () => {
+      const geoModel = createGeoModel();
+      const { fixture } = await renderComponent(geoModel, reply());
+
+      expect(rows(fixture).map(r => r[0])).toContain("NY");
+      click(fixture, footerButton(fixture, "Cancel"));
+
+      expect(geoModel.option.mapping.mappings).toEqual({});
+   });
+
+   it("OK saves the edits with the field's and the server's saved mappings", async () => {
+      const geoModel = createGeoModel();
+      geoModel.option.mapping.mappings = { Texsa: "TX" };
+      const { fixture, comp } = await renderComponent(geoModel,
+         reply({ smapping: { mappings: { Flordia: "FL" } } }));
+      const committed: ChartGeoRef[] = [];
+      comp.onCommit.subscribe(v => committed.push(v));
+
+      addFirstCity(fixture, "CA");
+      click(fixture, footerButton(fixture, "OK"));
+
+      expect(committed).toEqual([geoModel]);
+      expect(geoModel.option.mapping.mappings)
+         .toEqual({ Texsa: "TX", Flordia: "FL", CA: "US-LA" });
    });
 });

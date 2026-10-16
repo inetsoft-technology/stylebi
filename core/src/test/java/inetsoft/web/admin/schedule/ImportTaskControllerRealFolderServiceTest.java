@@ -195,6 +195,71 @@ class ImportTaskControllerRealFolderServiceTest {
       verify(folderService, never()).moveScheduleItems(any(), any(), any(), any());
    }
 
+   // Bug #78136, a folder the caller can't write is refused whether it exists or not, so the
+   // import result doesn't tell an existing folder from a missing one, and the folder isn't
+   // looked up for a refused task. A missing folder takes its permission from its parent path,
+   // which the mocked security engine denies the same as the real one with no grant
+   @Test
+   void unwritableFolder_existingAndMissingFailTheSame() throws Exception {
+      String[] paths = { LOCKED, LOCKED + "/Nope", "Nope", PARENT + "/Missing", "Missing/Child",
+                         CHILD };
+      List<ScheduleTask> tasks = new ArrayList<>();
+
+      for(int i = 0; i < paths.length; i++) {
+         tasks.add(task("e" + i, paths[i], ScheduleTask.Type.NORMAL_TASK));
+      }
+
+      ScheduleTask cycle = task("c1", LOCKED + "/Nope", ScheduleTask.Type.CYCLE_TASK);
+      tasks.add(cycle);
+      when(session.getAttribute(INFO_ATTR)).thenReturn(new ArrayList<>(tasks));
+      List<String> selected = tasks.stream().map(ScheduleTask::getTaskId).toList();
+
+      ImportTaskResponse response = assertDoesNotThrow(
+         () -> controller.importScheduleTask(selected, request, false, "http://host", principal));
+
+      assertEquals(selected.subList(0, paths.length), response.failedTasks());
+
+      for(int i = 0; i < paths.length; i++) {
+         verify(securityEngine).checkPermission(principal, ResourceType.SCHEDULE_TASK_FOLDER,
+                                                paths[i], ResourceAction.WRITE);
+         verify(scheduleManager, never()).setScheduleTask(eq(tasks.get(i).getTaskId()), any(),
+                                                          any());
+      }
+
+      // the data cycle task is never moved, so it is imported without a folder check
+      verify(scheduleManager).setScheduleTask(cycle.getTaskId(), cycle, principal);
+      verify(folderService, never()).checkFolderExists(any());
+      verify(folderService, never()).moveScheduleItems(any(), any(), any(), any());
+      verify(securityEngine, never()).checkPermission(any(), eq(ResourceType.SCHEDULE_TASK_FOLDER),
+                                                      eq("/"), any());
+   }
+
+   // Bug #78136, with the write permission a missing folder still leaves the task in the root
+   // folder and an existing one still moves it, as before
+   @Test
+   void writableFolder_missingStaysInRootAndExistingIsMoved() throws Exception {
+      String missing = PARENT + "/Missing";
+      allowWrite(missing);
+      allowWrite(CHILD);
+      doNothing().when(folderService).moveScheduleItems(any(), any(), any(), any());
+      ScheduleTask atRoot = task("t1", missing, ScheduleTask.Type.NORMAL_TASK);
+      ScheduleTask moved = task("t2", CHILD, ScheduleTask.Type.NORMAL_TASK);
+      when(session.getAttribute(INFO_ATTR)).thenReturn(new ArrayList<>(List.of(atRoot, moved)));
+
+      ImportTaskResponse response = controller.importScheduleTask(
+         List.of(atRoot.getTaskId(), moved.getTaskId()), request, false, "http://host",
+         principal);
+
+      assertEquals(List.of(), response.failedTasks());
+      verify(scheduleManager).setScheduleTask(atRoot.getTaskId(), atRoot, principal);
+      verify(scheduleManager).setScheduleTask(moved.getTaskId(), moved, principal);
+      verify(folderService).checkFolderExists(missing);
+      verify(folderService, never()).moveScheduleItems(
+         any(), any(), argThat(e -> missing.equals(e.getPath())), any());
+      verify(folderService).moveScheduleItems(
+         any(), eq(new String[0]), argThat(e -> CHILD.equals(e.getPath())), eq(principal));
+   }
+
    private void allowWrite(String path) throws Exception {
       when(securityEngine.checkPermission(any(), eq(ResourceType.SCHEDULE_TASK_FOLDER),
                                           eq(path), eq(ResourceAction.WRITE)))

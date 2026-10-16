@@ -121,7 +121,6 @@ export class TabularQueryDialog implements OnInit {
          {dataSourceTypeName: "Rest.ConstantContact", value: "ConstantContact"},
          {dataSourceTypeName: "Rest.Copper", value: "Copper"},
          {dataSourceTypeName: "Datagov", value: "DataGovJSON"},
-         {dataSourceTypeName: "Rest.DataDotWorld", value: "DataWorld"},
          {dataSourceTypeName: "FacebookAdInsights", value: "FacebookAdInsights"},
          {dataSourceTypeName: "FacebookPageInsights", value: "FacebookPageInsights"},
          {dataSourceTypeName: "Rest.Firebase", value: "Firebase"},

@@ -80,6 +80,9 @@ public class VSCalendar extends VSFloatable {
 
       int w = getContentWidth();
       int h = getContentHeight();
+      // the year grid's cell edges must stay inside the border, so lay it out within it
+      int yearW = w - (int) (getBW(LEFT) + getBW(RIGHT));
+      int yearH = h - (int) (getBW(TOP) + getBW(BOTTOM));
       int headerH = (int) getTitleHeight(true);
       int header2H = 5;
       String[] seldates = info.getDates();
@@ -110,7 +113,7 @@ public class VSCalendar extends VSFloatable {
          }
          else {
             g.translate(0, headerH);
-            paintYearCalendar(g, date1, w, h - headerH, info, seldates);
+            paintYearCalendar(g, date1, yearW, yearH - headerH, info, seldates);
             g.translate(0, -headerH);
          }
       }
@@ -154,12 +157,12 @@ public class VSCalendar extends VSFloatable {
             }
 
             g.translate(0, headerH + header2H);
-            paintYearCalendar(g, date1, w / 2,
-                              h - headerH - header2H, info, sel1);
-            g.translate(w / 2, 0);
-            paintYearCalendar(g, date2, w / 2,
-                              h - headerH - header2H, info, sel2);
-            g.translate(-w / 2, -(headerH + header2H));
+            paintYearCalendar(g, date1, yearW / 2,
+                              yearH - headerH - header2H, info, sel1);
+            g.translate(yearW / 2, 0);
+            paintYearCalendar(g, date2, yearW / 2,
+                              yearH - headerH - header2H, info, sel2);
+            g.translate(-yearW / 2, -(headerH + header2H));
          }
 
          paintRangeTitle(g, 0, headerH, w, header2H, info.isPeriod());

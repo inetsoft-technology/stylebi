@@ -379,6 +379,69 @@ class PermissionMatrixSpecialTest {
       });
    }
 
+   // ── Bug #78120: the bypass shares host-org shared viewsheets, never a private one ──
+
+   @Test
+   void nonHostOrgUser_defaultVisibility_readDeniedForHostOrgPrivateViewsheetAndSnapshot()
+      throws Exception
+   {
+      // Regression for Bug #78120. The bypass ran before the owner checks without looking at the
+      // scope, so a non-host-org user under exposeDefaultOrgToAll could READ a host-org user's
+      // private (My Dashboards) viewsheet or snapshot, which a host-org non-owner is refused.
+      ThreadContext.setContextPrincipal(null);
+
+      AssetEntry privateViewsheet = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, "bug78120PrivateVs",
+         loginAsTarget, HOST_ORG_ID);
+      AssetEntry privateSnapshot = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET_SNAPSHOT, "bug78120PrivateSnap",
+         loginAsTarget, HOST_ORG_ID);
+      AssetEntry sharedViewsheet = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "bug78120SharedVs", null,
+         HOST_ORG_ID);
+      assertTrue(privateSnapshot.isViewsheet(), "test setup: a snapshot is a viewsheet entry");
+
+      withMultiTenant(true, () -> {
+         SreeEnv.setProperty("security.exposeDefaultOrgToAll", "true");
+         SreeEnv.save();
+
+         try {
+            assertTrue(SUtil.isDefaultVSGloballyVisible(createdOrgPlainUser),
+                       "test setup: host-org viewsheets are visible to the non-host-org user");
+
+            for(AbstractAssetEngine engine :
+               new AbstractAssetEngine[] { new StubAssetEngine(), new DenyingStubAssetEngine() })
+            {
+               for(boolean checkUserAsset : new boolean[] { false, true }) {
+                  for(AssetEntry entry : new AssetEntry[] { privateViewsheet, privateSnapshot }) {
+                     assertThrows(MessageException.class,
+                        () -> engine.checkAssetPermission(
+                           createdOrgPlainUser, entry, ResourceAction.READ, checkUserAsset),
+                        "a host-org user's private " + entry.getType() + " must not be " +
+                        "READ-able by a non-host-org user under exposeDefaultOrgToAll " +
+                        "(checkUserAsset=" + checkUserAsset + ", Bug #78120)");
+                  }
+               }
+            }
+
+            // control: the feature still shares a host-org shared viewsheet
+            assertDoesNotThrow(
+               () -> new StubAssetEngine().checkAssetPermission(
+                  createdOrgPlainUser, sharedViewsheet, ResourceAction.READ, true),
+               "a host-org shared viewsheet must remain READ-able by a non-host-org user");
+         }
+         finally {
+            SreeEnv.remove("security.exposeDefaultOrgToAll");
+            SreeEnv.save();
+         }
+
+         // control: without the mechanism the private viewsheet is refused too
+         assertThrows(MessageException.class,
+            () -> new StubAssetEngine().checkAssetPermission(
+               createdOrgPlainUser, privateViewsheet, ResourceAction.READ, false));
+      });
+   }
+
    // ── Round-1 review follow-up for Bug #76920 PR #5508: checkAssetPermission0()'s bypass ──
    // ── condition must treat BOTH org-ID-vs-default-org comparisons case-insensitively ──────
 

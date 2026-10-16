@@ -23,6 +23,7 @@ import inetsoft.report.internal.binding.OrderInfo;
 import inetsoft.report.internal.binding.TopNInfo;
 import inetsoft.report.internal.table.CalcAttr;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
+import inetsoft.report.internal.table.TableFormat;
 import inetsoft.report.lens.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -31,12 +32,14 @@ import inetsoft.uql.asset.internal.ConditionUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
@@ -288,6 +291,18 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                               {
                                  minfo.setXFormatInfo(null);
                               }
+
+                              // a percentage summary (e.g. Sum<16>) shows a share, not a value
+                              // of the source column, so it gets the percent format the calc
+                              // lens descriptor would give it instead of the column's format.
+                              // percent is -1 for no <n> and for Correlation<-1>(col) etc.
+                              if(binding.getBType() == CellBinding.SUMMARY &&
+                                 LayoutTool.parseFormula(formula).percent > 0)
+                              {
+                                 minfo.setXFormatInfo(
+                                    new XFormatInfo(TableFormat.PERCENT_FORMAT, ""));
+                                 minfo.removeProperty("autoCreatedFormat");
+                              }
                            }
                            else if(binding.getDateOption() > 0) {
                               XFormatInfo finfo = rlens.createXFormatInfo(r0, c0);
@@ -359,6 +374,19 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             if(swapFailure != null) {
                throw swapFailure;
             }
+
+            // nor a base that failed to load, for a reader that has to fail, e.g. a scheduled
+            // run (bug #78071)
+            TableLoadException loadFailure = TableLoadException.find(e);
+
+            if(loadFailure != null) {
+               throw loadFailure;
+            }
+
+            // nor a stopped script (a script timeout or cancel) of a cell formula, which is
+            // not a table without data: the sandbox does not cache it and the next reader
+            // computes the table again (bug #78134)
+            ScriptTimeoutGuard.rethrowStop(e);
 
             LOG.error("Failed to create calc table: " + e, e);
          }

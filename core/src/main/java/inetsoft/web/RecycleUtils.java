@@ -76,16 +76,25 @@ public final class RecycleUtils {
    }
 
    public static void moveRepositoryToRecycleBin(RepositoryEntry entry, Principal principal,
-                                                 RecycleBin recycleBin)
+                                                 RecycleBin recycleBin, boolean force)
       throws Exception
    {
       if(entry.isFolder()) {
-         moveRepositoryFolderToRecycleBin(entry.getPath(), entry.getName(), entry.getOwner(), principal, recycleBin);
+         moveRepositoryFolderToRecycleBin(entry.getPath(), entry.getName(), entry.getOwner(),
+                                          principal, recycleBin, force);
       }
    }
 
+   /**
+    * Moves a dashboard (repository) folder to the recycle bin.
+    *
+    * @param force <tt>false</tt> to first check whether any dashboard in the folder or its
+    *              subfolders is used by another asset and throw a {@link ConfirmException}
+    *              if so; <tt>true</tt> to skip that check (the user already confirmed).
+    */
    public static void moveRepositoryFolderToRecycleBin(String path, String name, IdentityID owner,
-                                                       Principal principal, RecycleBin recycleBin)
+                                                       Principal principal, RecycleBin recycleBin,
+                                                       boolean force)
       throws Exception
    {
       // A "My Reports" folder entry can arrive with an owner set but a path that is not
@@ -95,6 +104,12 @@ public final class RecycleUtils {
       // stays within the owning user's repository.
       if(path != null && owner != null && !SUtil.isMyReport(path)) {
          path = Tool.MY_DASHBOARD + "/" + path;
+      }
+
+      if(!force) {
+         // Must run outside the try below, which would wrap the ConfirmException in a
+         // RemoteException and hide the dependency confirm from the controllers.
+         checkRepositoryFolderRemoveable(path, owner);
       }
 
       String newName = UUID.randomUUID().toString().replaceAll("-", "");
@@ -124,7 +139,9 @@ public final class RecycleUtils {
             recycleBin.addEntry(npath, path, name, originalPermission,
                                 RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER,
                                 assetScope, owner);
-            SecurityEngine.getSecurity().setPermission(ResourceType.REPORT, npath, originalPermission);
+            // Bug #78217, the folder is already in the recycle bin, which records its permission
+            AbstractAssetEngine.setPermissionBestEffort(
+               SecurityEngine.getSecurity(), ResourceType.REPORT, npath, originalPermission);
          }
          else {
             throw new RemoteException(msg);
@@ -139,6 +156,50 @@ public final class RecycleUtils {
       }
       finally {
          writeLock.unlock();
+      }
+   }
+
+   /**
+    * Checks whether any dashboard in a repository folder (or in its subfolders) is used by
+    * another asset, the same check a single dashboard delete runs. The check walks the asset
+    * engine's mirror of the repository folder. It is dependency-only: the callers already
+    * authorized the delete, so no permission check is made here.
+    *
+    * @param path  the repository folder path, prefixed with My Dashboards for a private folder.
+    * @param owner the owner of a private folder, or <tt>null</tt> for a global folder.
+    *
+    * @throws ConfirmException if a contained dashboard has dependents.
+    */
+   private static void checkRepositoryFolderRemoveable(String path, IdentityID owner)
+      throws Exception
+   {
+      if(path == null) {
+         return;
+      }
+
+      boolean myDashboard = SUtil.isMyDashboard(path);
+      String assetPath = myDashboard && path.startsWith(Tool.MY_DASHBOARD + "/") ?
+         path.substring(Tool.MY_DASHBOARD.length() + 1) : path;
+      AssetEntry folderEntry = new AssetEntry(
+         myDashboard ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.REPOSITORY_FOLDER, assetPath, myDashboard ? owner : null);
+
+      try {
+         AssetRepository repository = AssetUtil.getAssetRepository(false);
+
+         if(repository.containsEntry(folderEntry)) {
+            repository.checkFolderRemoveable(folderEntry, null);
+         }
+      }
+      catch(ConfirmException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         // A damaged asset mirror (missing subfolder record, non-sheet child) must not block a
+         // folder delete that the registry can perform, so log it and proceed without a check.
+         LOG.warn("Failed to check the dependencies of repository folder {}, deleting it " +
+                     "without a dependency check: {}", path, e.getMessage());
+         LOG.debug("Repository folder dependency check failed", e);
       }
    }
 
@@ -177,13 +238,23 @@ public final class RecycleUtils {
       newEntry.addFavoritesUser(oldEntry.getFavoritesUser());
 
       repository.changeSheet(oldEntry, newEntry, principal, true);
+
+      // Bug #78230, the entry of a sheet that is no longer stored is only removed from its
+      // folder (see AbstractAssetEngine.changeSheet0), so nothing was moved to the recycle bin
+      if(!repository.containsEntry(newEntry)) {
+         LOG.debug("Sheet {} is not stored, it is not added to the recycle bin", opath);
+         return;
+      }
+
       recycleBin.addEntry(newEntry.getPath(), oldEntry.getPath(),
          oldEntry.getName(), originalPermission,
          oldEntry.isViewsheet() ? RepositoryEntry.VIEWSHEET :
          RepositoryEntry.WORKSHEET, oldEntry.getScope(), oldEntry.getUser());
 
+      // Bug #78217, the entry is already in the recycle bin, which records its permission
       if(globalScope) {
-         SecurityEngine.getSecurity().setPermission(otype, newEntry.getPath(), originalPermission);
+         AbstractAssetEngine.setPermissionBestEffort(
+            SecurityEngine.getSecurity(), otype, newEntry.getPath(), originalPermission);
       }
    }
 
@@ -244,8 +315,10 @@ public final class RecycleUtils {
          originalPermission, RepositoryEntry.WORKSHEET_FOLDER, oldEntry.getScope(),
          oldEntry.getUser());
 
+      // Bug #78217, the entry is already in the recycle bin, which records its permission
       if(globalScope) {
-         SecurityEngine.getSecurity().setPermission(otype, newEntry.getPath(), originalPermission);
+         AbstractAssetEngine.setPermissionBestEffort(
+            SecurityEngine.getSecurity(), otype, newEntry.getPath(), originalPermission);
       }
    }
 
@@ -483,10 +556,17 @@ public final class RecycleUtils {
                                               Permission newPermission, int originalScope)
    {
       SecurityEngine sengine = SecurityEngine.getSecurity();
-      sengine.removePermission(type, oldPath);
 
+      // Bug #78217, the entry is already restored and its recycle bin entry removed, so a failed
+      // write must not stop the restore of the other entries. The permission is written at the
+      // original path before it is removed from the recycle bin path, so a failed write doesn't
+      // delete the only copy of it
       if(originalScope == AssetRepository.GLOBAL_SCOPE) {
-         sengine.setPermission(type, newPath, newPermission);
+         AbstractAssetEngine.movePermissionBestEffort(sengine, type, oldPath, newPath,
+                                                      newPermission);
+      }
+      else {
+         AbstractAssetEngine.removePermissionBestEffort(sengine, type, oldPath);
       }
 
       SecurityEngine.touch();

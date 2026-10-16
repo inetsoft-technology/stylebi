@@ -239,10 +239,23 @@ public class CategoricalColorFrameWrapper extends ColorFrameWrapper {
          // a render-derived color is not saved: it must follow the palette, and writing it per
          // value would keep the old colors after the palette changes
          if(col != null && !frame.isDerived(dim)) {
+            // a dimension value is matched with data, so a character XML 1.0 can't
+            // carry is encoded losslessly and the element is marked (#78460)
+            boolean ctrl = dim instanceof String && Tool.hasXMLIllegalChars((String) dim);
+
+            if(ctrl) {
+               dim = Tool.encodeXMLIllegalChars((String) dim);
+            }
+
             dim = (dim == null) ? GTool.toString(dim)
                : StringEscapeUtils.escapeXml((String) dim);
 
             writer.print("<color dim=\"" + dim + "\" ");
+
+            if(ctrl) {
+               writer.print(Tool.XML_ILLEGAL_CHARS_ATTR + "=\"true\" ");
+            }
+
             writer.print("value=\"" + (col.getRGB() & 0xFFFFFF) + "\" ");
             writer.println("/>");
          }
@@ -385,6 +398,13 @@ public class CategoricalColorFrameWrapper extends ColorFrameWrapper {
 
             if(val != null && !val.equals("")) {
                attr = "".equals(attr) ? null : StringEscapeUtils.unescapeXml(attr);
+
+               if(attr != null &&
+                  "true".equals(node.getAttribute(Tool.XML_ILLEGAL_CHARS_ATTR)))
+               {
+                  attr = Tool.decodeXMLIllegalChars(attr);
+               }
+
                Color color = new Color(Integer.decode(val));
 
                if(!colors.contains(color)) {

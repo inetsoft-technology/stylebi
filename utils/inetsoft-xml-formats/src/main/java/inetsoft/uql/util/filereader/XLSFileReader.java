@@ -223,7 +223,7 @@ public class XLSFileReader implements ExcelFileReader {
             loader = new ExcelLoader(output, firstRowHeader) {
                @Override
                protected Date getJavaDate(double value) {
-                  return DateUtil.getJavaDate(value, dateFlag);
+                  return ExcelDateUtil.getJavaDate(value, dateFlag);
                }
 
                @Override

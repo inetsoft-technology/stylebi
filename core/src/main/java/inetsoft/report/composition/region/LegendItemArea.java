@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition.region;
 
+import inetsoft.graph.aesthetic.CategoricalFrame;
 import inetsoft.graph.aesthetic.LinearColorFrame;
 import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.graph.data.DataSet;
@@ -67,13 +68,17 @@ public class LegendItemArea extends DefaultArea implements RollOverArea {
       dnameIdx = palette.put(field);
       vtextIdx = palette.put(vtext);
       labelIdx = palette.put(item.getLabel());
+      this.nodeAesthetic = GraphUtil.isNodeAestheticFrame(frame, legend.getGraphElement());
       dimension = !"".equals(field) && field != null &&
          // don't support brushing for discrete measure. (60579)
-         !data.isMeasure(ChartAggregateRef.getBaseName(ElementVO.getBaseName(field)));
+         (!data.isMeasure(ChartAggregateRef.getBaseName(ElementVO.getBaseName(field))) ||
+         // a relation chart node color/size dimension is a MAX aggregate in the data set
+         // (#75253), but its legend items still select on the dimension. (78481)
+         nodeAesthetic && frame instanceof CategoricalFrame &&
+         !field.startsWith(ChartAggregateRef.DISCRETE_PREFIX));
       this.targetFields = targetFields;
       this.sharedColor = sharedColor;
       this.palette = palette;
-      this.nodeAesthetic = GraphUtil.isNodeAestheticFrame(frame, legend.getGraphElement());
    }
 
    /**

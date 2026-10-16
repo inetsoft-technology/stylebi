@@ -39,6 +39,7 @@ import inetsoft.report.internal.binding.BindingAttr;
 import inetsoft.report.internal.binding.ChartOption;
 import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.report.internal.table.TableHighlightAttr.HighlightTableLens;
+import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.report.io.viewsheet.VSTableDataHelper;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.DefaultTextLens;
@@ -99,6 +100,15 @@ public class VsToReportConverter {
    private Insets getCardInset(TableDataVSAssemblyInfo info) {
       Insets inset = tableCardInsets == null ? null : tableCardInsets.apply(info);
       return inset == null ? new Insets(0, 0, 0, 0) : inset;
+   }
+
+   /**
+    * Set the message of a failed onLoad script to show in the report's warning text. It is
+    * passed in because the failed script may belong to the sheet that embeds the one whose
+    * sandbox this converter renders. (#78219)
+    */
+   public void setScriptErrorMessage(String scriptErrorMessage) {
+      this.scriptErrorMessage = scriptErrorMessage;
    }
 
    /**
@@ -170,6 +180,16 @@ public class VsToReportConverter {
             !warningText.getTextValue().contains(limitMessage)))
          {
             warningText.setTextValue(warningText.getTextValue() + "\n" + limitMessage);
+         }
+      }
+
+      if(scriptErrorMessage != null) {
+         if(warningText == null) {
+            warningText = vs0.getWarningTextAssembly();
+         }
+
+         if(warningText != null) {
+            AbstractVSExporter.addWarningMessage(warningText, scriptErrorMessage);
          }
       }
 
@@ -3457,6 +3477,7 @@ public class VsToReportConverter {
    private Function<TableDataVSAssemblyInfo, Insets> tableCardInsets = null;
    private PrintLayout playout = null;
    private String baseName = null;
+   private String scriptErrorMessage = null;
    private ViewsheetSandbox box = null;
    private TabularSheet report;
    // sections used to hold content elements

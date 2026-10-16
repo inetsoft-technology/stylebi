@@ -138,6 +138,27 @@ class DateComparisonUtilApplyDateRangeTest {
    }
 
    /**
+    * Bug #78454: Year / Week to Date / Week, End Date Saturday 2021-01-02. Its week starts
+    * 2020-12-27, so under week alignment the current year is 2020 and the compared years are
+    * 2018 and 2019 (full-week years); 2017 is the extra prior period fetched for Change. The
+    * threshold used to be the calendar-anchored 2019-01-01, which hid 2018 as well.
+    */
+   @Test
+   void weekAlignedEndDateInAWeekStartedLastYearKeepsTheFirstComparedYear() {
+      DataSet data = rows(
+         "2017-01-01", 1, 53,   // extra prior period for Change
+         "2018-01-01", 1, 52,
+         "2019-01-01", 1, 52);
+      DateComparisonInfo dcInfo = standardPeriods(XConstants.YEAR_DATE_GROUP, "2021-01-02",
+         false, DateComparisonInfo.WEEK, DateComparisonInfo.WEEK_TO_DATE,
+         XConstants.WEEK_DATE_GROUP);
+
+      Scale partScale = applyAndGetPartScale(dcInfo, data, CoordShape.PERIOD_IS_FACET);
+
+      assertOnlyRowsBeforeStartHidden(partScale, data, "2018-01-01");
+   }
+
+   /**
     * Bug #76389: "Compare Data Of: All" must render every part of each comparison period, e.g.
     * 2019/2020's December weeks while 2021 has only reached week 17.
     */

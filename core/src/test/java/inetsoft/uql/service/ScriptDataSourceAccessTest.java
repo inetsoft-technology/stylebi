@@ -214,6 +214,21 @@ class ScriptDataSourceAccessTest {
       // no script on the stack
       assertFalse(ScriptDataSourceAccess.isScriptAccess(List.of(
          "inetsoft.uql.service.DataSourceRegistry", "inetsoft.uql.service.XEngine").iterator()));
+      // Bug #78237: the plumbing of the @Lazy registry proxy XEngine holds is skipped
+      assertTrue(ScriptDataSourceAccess.isScriptAccess(List.of(
+         "inetsoft.uql.service.DataSourceRegistry",
+         "org.springframework.aop.support.AopUtils",
+         "org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor",
+         "inetsoft.uql.service.DataSourceRegistry$$SpringCGLIB$$0",
+         "inetsoft.uql.service.XEngine", "inetsoft.uql.asset.internal.AssetUtil",
+         "com.oracle.truffle.host.HostMethodDesc$SingleMethod").iterator()));
+      // a proxied product bean's own frame, inside the proxy, still makes the access its own
+      assertFalse(ScriptDataSourceAccess.isScriptAccess(List.of(
+         "inetsoft.uql.service.DataSourceRegistry", "inetsoft.uql.asset.internal.AssetUtil",
+         "inetsoft.web.Foo", "org.springframework.aop.support.AopUtils",
+         "org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor",
+         "inetsoft.web.Foo$$SpringCGLIB$$0",
+         "com.oracle.truffle.host.HostMethodDesc$SingleMethod").iterator()));
    }
 
    /** The number of refusals of {@link #DS} the gate logs while {@code action} runs. */

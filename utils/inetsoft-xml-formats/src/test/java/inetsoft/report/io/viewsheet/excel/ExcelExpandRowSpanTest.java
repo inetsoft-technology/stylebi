@@ -32,53 +32,62 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 
 /**
- * The space an expanded table reserves has to be the space the writer draws.
- * {@code ExcelTableHelper.initExcelRowCount} spans a row with {@code ceil(paddedHeight / defh)};
- * a reader that rounds the unpadded height under-reserves and the assemblies below overlap it.
+ * Bug #78632: the space an expanded table reserves has to be the space the writer draws.
+ * {@code ExcelTableHelper.initExcelRowCount} spans a row with {@code ceil(paddedHeight / defh)}
+ * and stops writing rows once the reserved space is used up.
  *
  * <p>The assembly infos are mocked rather than constructed: {@code VSAssemblyInfo}'s constructor
  * reads {@code SreeEnv} properties, which needs a bootstrapped server this module's tests do
  * not have.</p>
  */
 class ExcelExpandRowSpanTest {
-   /** 16 stored + 12 of cell inset = 28, which the writer spans as two 20px Excel rows. */
    @Test
-   void aPaddedRowReservesBothRowsTheWriterDraws() {
-      assertEquals(3 * 2 * AssetUtil.defh, expandHeight(16, 12, 3, 0));
-   }
-
-   /** An unpadded row keeps the historical rounding, so legacy exports do not move. */
-   @Test
-   void anUnpaddedRowKeepsItsHistoricalRounding() {
-      assertEquals(3 * AssetUtil.defh, expandHeight(25, 0, 3, 0));
+   void aShortRowIsOneRow() {
+      assertEquals(3 * ROW, expandHeight(16, 0, 3, 0));
    }
 
    @Test
-   void aShortUnpaddedRowIsOneRow() {
-      assertEquals(3 * AssetUtil.defh, expandHeight(16, 0, 3, 0));
+   void aRowOfOneAndAHalfExcelRowsIsTwoRows() {
+      assertEquals(3 * 2 * ROW, expandHeight(30, 0, 3, 0));
    }
 
-   /** A 30px title merges two Excel rows, so two have to be reserved for it. */
+   /** 25px is drawn over two 20px Excel rows, so two have to be reserved. */
    @Test
-   void aDensityTitleReservesTwoRows() {
-      assertEquals(2 * AssetUtil.defh + AssetUtil.defh, expandHeight(16, 0, 1, 30));
-   }
-
-   /** The legacy 20px title is one row, as it has always been. */
-   @Test
-   void aLegacyTitleReservesOneRow() {
-      assertEquals(AssetUtil.defh + AssetUtil.defh, expandHeight(16, 0, 1, 20));
-   }
-
-   /** The offline exporter reserves the same space; it writes the same sheet. */
-   @Test
-   void theOfflineExporterAgreesOnAPaddedRow() {
-      assertEquals(3 * 2 * AssetUtil.defh, expandHeight(16, 12, 3, 0, true));
+   void a25pxRowReservesBothRowsTheWriterDraws() {
+      assertEquals(3 * 2 * ROW, expandHeight(25, 0, 3, 0));
    }
 
    @Test
-   void theOfflineExporterAgreesOnAnUnpaddedRow() {
-      assertEquals(3 * AssetUtil.defh, expandHeight(25, 0, 3, 0, true));
+   void a45pxRowReservesThreeRows() {
+      assertEquals(3 * 3 * ROW, expandHeight(45, 0, 3, 0));
+   }
+
+   /** 16 stored + 12 of stylesheet padding = 28, which the writer spans as two Excel rows. */
+   @Test
+   void stylesheetPaddingIsReservedToo() {
+      assertEquals(3 * 2 * ROW, expandHeight(16, 12, 3, 0));
+   }
+
+   /** A 30px title is anchored two Excel rows above the body, so two have to be reserved. */
+   @Test
+   void a30pxTitleReservesTwoRows() {
+      assertEquals(2 * ROW + ROW, expandHeight(16, 0, 1, 30));
+   }
+
+   @Test
+   void a20pxTitleReservesOneRow() {
+      assertEquals(ROW + ROW, expandHeight(16, 0, 1, 20));
+   }
+
+   /** The offline exporter writes the same sheet, so it reserves the same space. */
+   @Test
+   void theOfflineExporterReservesBothRowsOfA25pxRow() {
+      assertEquals(3 * 2 * ROW, expandHeight(25, 0, 3, 0, true));
+   }
+
+   @Test
+   void theOfflineExporterReservesStylesheetPadding() {
+      assertEquals(3 * 2 * ROW, expandHeight(16, 12, 3, 0, true));
    }
 
    private static int expandHeight(int storedRowHeight, int padding, int rowCount,
@@ -93,13 +102,14 @@ class ExcelExpandRowSpanTest {
       TableVSAssemblyInfo info = Mockito.mock(TableVSAssemblyInfo.class);
       when(info.isTitleVisible()).thenReturn(titleHeight > 0);
       when(info.getTitleHeight()).thenReturn(titleHeight);
+      when(info.getPixelSize()).thenReturn(new Dimension(400, 240));
 
       VSTableLens lens = Mockito.mock(VSTableLens.class);
       when(lens.getRowCount()).thenReturn(rowCount);
       when(lens.getRowHeights()).thenReturn(new int[rowCount]);
       when(lens.getWrappedHeight(anyInt(), anyBoolean())).thenReturn(storedRowHeight);
       when(lens.getRowHeightWithPadding(anyDouble(), anyInt(), any()))
-         .thenReturn((double) (storedRowHeight + padding));
+         .thenAnswer(inv -> (double) inv.getArgument(0, Double.class) + padding);
 
       TableVSAssembly table = Mockito.mock(TableVSAssembly.class);
       when(table.getVSAssemblyInfo()).thenReturn(info);
@@ -114,4 +124,6 @@ class ExcelExpandRowSpanTest {
 
       return exporter.getExpandTableHeight(table, lens);
    }
+
+   private static final int ROW = AssetUtil.defh;
 }

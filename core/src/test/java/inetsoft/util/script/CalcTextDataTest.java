@@ -23,9 +23,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -428,5 +431,56 @@ class CalcTextDataTest {
       // Test null input
       Exception exception3 = assertThrows(RuntimeException.class, () -> CalcTextData.value(null));
       assertEquals("Invalid Data !", exception3.getMessage());
+   }
+
+   // Bug #78111: the number text must parse the same way on every JVM default
+   // locale ('.' is the decimal point, ',' grouping), and keep the sign.
+   @ParameterizedTest
+   @ValueSource(strings = { "en-US", "tr-TR", "de-DE" })
+   void testValueNumberIsLocaleIndependent(String tag) {
+      Locale defaultLocale = Locale.getDefault();
+      Locale formatLocale = Locale.getDefault(Locale.Category.FORMAT);
+      Locale displayLocale = Locale.getDefault(Locale.Category.DISPLAY);
+
+      try {
+         Locale.setDefault(Locale.forLanguageTag(tag));
+
+         assertEquals(1234.5, CalcTextData.value("1234.5"));
+         assertEquals(1234.5, CalcTextData.value("1,234.5"));
+         assertEquals(1234.0, CalcTextData.value("1234"));
+         assertEquals(-1234.0, CalcTextData.value("-1234"));
+         assertEquals(-1234.5, CalcTextData.value("-1234.5"));
+         assertEquals(-12.0, CalcTextData.value("(12)"));
+         assertEquals(-12.0, CalcTextData.value("($12.00)"));
+         assertEquals(-12.0, CalcTextData.value("(-12)"));
+         assertEquals(-1234.5, CalcTextData.value("-$1,234.50"));
+         assertEquals(-1234.5, CalcTextData.value("$-1,234.50"));
+         assertEquals(1234.5, CalcTextData.value("$1,234.50"));
+         assertEquals(-0.5, CalcTextData.value("-.5"));
+         assertEquals(-12.0, CalcTextData.value(" -12 "));
+         assertEquals(5.0, CalcTextData.value("+5"));
+         assertEquals(0.0, CalcTextData.value("-0"));
+
+         // a '-' after other text or after the first digit is not a sign
+         assertEquals(42.0, CalcTextData.value("SKU-0042"));
+         assertEquals(12.0, CalcTextData.value("abc-12"));
+         assertEquals(12.0, CalcTextData.value("(note) 12 (est)"));
+         assertEquals(12.0, CalcTextData.value("(abc-12)"));
+         assertEquals(20240105.0, CalcTextData.value("2024-01-05"));
+
+         // date and time text are not affected
+         assertEquals(44926.0, CalcTextData.value("01/01/2023"), 1);
+         assertEquals(0.5, CalcTextData.value("12:00:00"), 0.01);
+
+         Exception exception = assertThrows(RuntimeException.class, () -> CalcTextData.value("-"));
+         assertEquals("Invalid Data !", exception.getMessage());
+         exception = assertThrows(RuntimeException.class, () -> CalcTextData.value("invalid"));
+         assertEquals("Invalid Data !", exception.getMessage());
+      }
+      finally {
+         Locale.setDefault(defaultLocale);
+         Locale.setDefault(Locale.Category.FORMAT, formatLocale);
+         Locale.setDefault(Locale.Category.DISPLAY, displayLocale);
+      }
    }
 }

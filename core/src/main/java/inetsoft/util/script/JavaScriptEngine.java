@@ -297,7 +297,8 @@ public class JavaScriptEngine {
    /**
     * Create a new instance of an object. The class must be visible to scripts
     * according to the script class filter; the name is checked before the class
-    * is loaded so a rejected class is never initialized.
+    * is loaded so a rejected class is never initialized. A class the script host
+    * access denies by type is refused too, as {@code new (Java.type(cls))()} is.
     */
    public static Object newInstance(String cls) throws Exception {
       if(cls == null || cls.isBlank()) {
@@ -682,11 +683,33 @@ public class JavaScriptEngine {
     */
    public static Image getImageJS(Object img) {
       // use getImageJS only from js. (54833)
-      if("true".equals(SreeEnv.getProperty("javascript.getImageFunction.disabled"))) {
+      if(isImageFunctionDisabled()) {
          return null;
       }
 
       return getImage(img);
+   }
+
+   /**
+    * Check if the admin switch that disables the script image function
+    * ({@code getImage}) is on.
+    */
+   private static boolean isImageFunctionDisabled() {
+      return "true".equals(SreeEnv.getProperty(IMAGE_FUNCTION_DISABLED));
+   }
+
+   /**
+    * Check if loading an image from a script-supplied URL or local file must be refused.
+    * This is the case when the {@code javascript.getImageFunction.disabled} switch is
+    * on and the caller runs inside a restricted script/expression. Every
+    * script-reachable loader that turns a value into a URL fetch or a local file read
+    * must honor it, not only the {@code getImage} script function (Bug #78490).
+    * In-memory sources (data: URIs, ascii encoded images, byte arrays) and classpath
+    * resources involve no fetch and stay allowed. Callers outside a script (rendering,
+    * export) are not affected.
+    */
+   public static boolean isScriptImageLoadDisabled() {
+      return FormulaContext.isRestricted() && isImageFunctionDisabled();
    }
 
    /**
@@ -696,6 +719,14 @@ public class JavaScriptEngine {
       Image image = null;
       ImageLocation iloc = null;
       img = unwrap(img);
+      // only URL fetches and local file reads are refused (Bug #78490), encoded
+      // strings and classpath resources are still loaded
+      boolean loadDisabled = isScriptImageLoadDisabled();
+
+      if(img instanceof URL && loadDisabled) {
+         return null;
+      }
+
       boolean imageavaliable = false;
 
       // string is a resource, or ascii encoded string
@@ -705,6 +736,10 @@ public class JavaScriptEngine {
 
          try {
             if((img instanceof String) && img.toString().indexOf("://") > 0) {
+               if(loadDisabled) {
+                  return null;
+               }
+
                iloc = new ImageLocation(".");
                iloc.setPath(img.toString());
                iloc.setPathType(ImageLocation.IMAGE_URL);
@@ -718,9 +753,9 @@ public class JavaScriptEngine {
                   return null;
                }
 
-               File file = FileSystemService.getInstance().getFile(str);
+               File file = loadDisabled ? null : FileSystemService.getInstance().getFile(str);
 
-               if(file.exists()) {
+               if(file != null && file.exists()) {
                   input = new FileInputStream(file);
                   iloc = new ImageLocation(".");
                   iloc.setPath(str);
@@ -1128,6 +1163,7 @@ public class JavaScriptEngine {
    private static SreeEnv.Value maxErrorsProperty = new SreeEnv.Value("script.max.errors", 30000);
 
    private static final Logger LOG = LoggerFactory.getLogger(JavaScriptEngine.class);
+   private static final String IMAGE_FUNCTION_DISABLED = "javascript.getImageFunction.disabled";
 
    private static final String THREAD_LOCALS = JavaScriptEngine.class.getName() + ".threadLocals";
 

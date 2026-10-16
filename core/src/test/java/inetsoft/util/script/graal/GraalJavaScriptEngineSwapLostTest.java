@@ -31,6 +31,7 @@ import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
+import static inetsoft.util.swap.SwapLostTestSupport.assertSwapOf;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -67,7 +68,7 @@ class GraalJavaScriptEngineSwapLostTest {
       for(int i = 0; i < 2; i++) {
          SwapFileReadException ex = assertThrows(SwapFileReadException.class,
             () -> engine.exec(src, null, null));
-         assertSame(host.swap, ex);
+         assertSwapOf(host.swap, ex);
          assertEquals(lost.getFile(), ex.getFile());
       }
 
@@ -82,7 +83,7 @@ class GraalJavaScriptEngineSwapLostTest {
 
       SwapFileReadException ex = assertThrows(SwapFileReadException.class,
          () -> engine.exec(src, null, null));
-      assertSame(host.swap, ex);
+      assertSwapOf(host.swap, ex);
       assertFalse(errorCounts().containsKey(src), "a lost swap file is not a script error");
    }
 

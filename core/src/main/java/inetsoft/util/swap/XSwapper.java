@@ -21,6 +21,8 @@ import com.sun.management.HotSpotDiagnosticMXBean;
 import com.sun.management.VMOption;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
+import inetsoft.uql.asset.SnapshotEmbeddedTableAssembly;
 import inetsoft.util.*;
 import inetsoft.util.ConfigurationContext;
 import jakarta.annotation.PreDestroy;
@@ -51,6 +53,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -440,52 +443,13 @@ public final class XSwapper {
 
       DEBUG_LOG.debug("Swap dir is {}", cdir);
       final File file = fileSystemService.getFile(cdir);
+      // Bug #78044, before any swap file with this seed can be registered
+      registerSeed();
 
       if(file.isDirectory()) {
          // the cache directory could be very large so do it in background
          // to avoid holding up the server startup
-         (new Thread(() -> {
-            Cluster cluster;
-            Lock lock;
-
-            try {
-               cluster = Cluster.getInstance();
-               lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
-               lock.lock();
-            }
-            catch(Exception e) {
-               DEBUG_LOG.debug(
-                  "Unable to acquire swap file map lock for cache cleanup, " +
-                  "cluster may be stopped", e);
-               return;
-            }
-
-            try {
-               Map<String, Integer> map = cluster.getMap(SWAP_FILE_MAP);
-               File[] files = file.listFiles();
-
-               for(int i = 0; files != null && i < files.length; i++) {
-                  // Bug #77600, this JVM may already have written live swap files
-                  // Bug #77627, another JVM's file may still be inside its own
-                  // registration window (see SWAP_FILE_GRACE_PERIOD)
-                  if(!files[i].isDirectory() && files[i].getName().endsWith(".tdat") &&
-                     !map.containsKey(files[i].getAbsolutePath()) &&
-                     !isOwnSwapFile(files[i].getName()) &&
-                     System.currentTimeMillis() - files[i].lastModified() >= SWAP_FILE_GRACE_PERIOD)
-                  {
-                     files[i].delete();
-                  }
-               }
-            }
-            finally {
-               try {
-                  lock.unlock();
-               }
-               catch(Exception e) {
-                  DEBUG_LOG.debug("Unable to release swap file map lock", e);
-               }
-            }
-         })).start();
+         (new Thread(() -> sweepDeadSeedSwapFiles(file), CACHE_SWEEP_THREAD)).start();
       }
 
       // Bug #77649, the swapper threads are JVM-wide and swap the data of every user and
@@ -508,6 +472,92 @@ public final class XSwapper {
          }
          catch(Exception | LinkageError ex) {
             LOG.debug("Failed to set {}", PERIODIC_GC_OPTION, ex);
+         }
+      }
+   }
+
+   /**
+    * Deletes the swap files of this cache directory that are not in use by a JVM that may still
+    * be running (see {@link RegisteredSwapFiles#contains}). A <tt>*.tdat</tt> file past
+    * {@link #SWAP_FILE_GRACE_PERIOD} that is not this JVM's own and not a snapshot copy in use is
+    * deleted when either the seed in its name is registered in {@link #SWAP_SEED_MAP} and none of
+    * its owner nodes is in the current cluster topology (whether or not the file is in the swap
+    * file map), or the file is not in the swap file map and its name has no seed or its seed is
+    * not registered in {@link #SWAP_SEED_MAP}. Unregistered files named with the seed of a
+    * running JVM (<tt>s&lt;seed&gt;_...</tt>), e.g. the MV dictionary files of a running local
+    * scheduler, are kept (Bug #78322), so a live swap or scratch <tt>*.tdat</tt> file that is not
+    * in the swap file map must carry the swapper prefix (Bug #78368). This is
+    * the same, unmodified check the constructor's one-shot startup sweep above runs; it is
+    * factored out here, unchanged, so it can also be re-run by a short recurring task
+    * (Bug #78245) instead of only once per JVM. A swap file written in the last seconds of a
+    * JVM that then left the cluster during a rolling restart can still be inside its grace
+    * period the only time the one-shot startup sweep evaluates it; without a second look, it
+    * was never swept again until a manual EM Clean Up or another restart. Re-running this exact
+    * check on a short interval closes that gap without weakening the grace period itself: a
+    * file still being written by a merely-misclassified, still-alive JVM (e.g. a cluster split,
+    * see {@code claude/cluster.md}) keeps exactly the same protection it has today.
+    *
+    * @param dir the swap cache directory.
+    */
+   void sweepDeadSeedSwapFiles(File dir) {
+      Cluster cluster;
+      Lock lock;
+
+      try {
+         cluster = Cluster.getInstance();
+         lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
+         lock.lock();
+      }
+      catch(Exception e) {
+         DEBUG_LOG.debug(
+            "Unable to acquire swap file map lock for cache cleanup, " +
+            "cluster may be stopped", e);
+         return;
+      }
+
+      try {
+         RegisteredSwapFiles registered = new RegisteredSwapFiles(cluster);
+         // Bug #78082, e.g. of the JVM this one replaced in a rolling restart, so that
+         // the copies this JVM makes of the same snapshots are deleted when closed
+         // Bug #78095, before the snapshot counts are read below, so that the copies of
+         // a node that is gone are deleted
+         SnapshotEmbeddedTableAssembly.removeStaleFileReferences(cluster);
+         Map<String, Integer> snapshotMap =
+            cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
+         // Bug #78463, a live JVM that is not in this cluster may read a copy it has no
+         // count of
+         Predicate<String> snapshotElsewhere =
+            SnapshotEmbeddedTableAssembly.getFilesInUseElsewhere(dir);
+         File[] files = dir.listFiles();
+
+         for(int i = 0; files != null && i < files.length; i++) {
+            // Bug #77600, this JVM may already have written live swap files
+            // Bug #77627, another JVM's file may still be inside its own
+            // registration window (see SWAP_FILE_GRACE_PERIOD)
+            // Bug #78095, a snapshot copy is never in the swap file map, a live table of
+            // another JVM on the same cache directory (e.g. the server and the local
+            // scheduler) or of this one may read it, whatever its age
+            if(!files[i].isDirectory() && files[i].getName().endsWith(".tdat") &&
+               !registered.contains(files[i]) &&
+               !snapshotMap.containsKey(files[i].getAbsolutePath()) &&
+               !SnapshotEmbeddedTableAssembly.isFileInUseLocally(
+                  files[i].getAbsolutePath()) &&
+               !snapshotElsewhere.test(files[i].getAbsolutePath()) &&
+               !isOwnSwapFile(files[i].getName()) &&
+               System.currentTimeMillis() - files[i].lastModified() >= SWAP_FILE_GRACE_PERIOD)
+            {
+               files[i].delete();
+            }
+         }
+
+         registered.removeStaleEntries();
+      }
+      finally {
+         try {
+            lock.unlock();
+         }
+         catch(Exception e) {
+            DEBUG_LOG.debug("Unable to release swap file map lock", e);
          }
       }
    }
@@ -716,6 +766,14 @@ public final class XSwapper {
     *                needs to see memory that has since become garbage. With the default
     *                interval and pauses up to 500ms the waiter gets one within 10s.
     *
+    *                A collection whose pause exceeds the swapper.gc.safe.pause threshold also
+    *                logs a WARN for operator visibility, since a pause that long is a danger
+    *                signal for a cluster's failure-detection timeout (Bug #78106). It does not
+    *                additionally throttle future collections: for any pause large enough to
+    *                cross the default threshold, the pre-existing spacing formula above (20x
+    *                the last pause) already pushes the next collection out further than the
+    *                back-off below ever could, so no separate escalation is needed.
+    *
     * @return <tt>true</tt> if a garbage collection was run.
     */
    boolean doGC(boolean waiting) {
@@ -734,11 +792,30 @@ public final class XSwapper {
          final long count = getGCCount();
          final long free = getFreeSpace();
          runGC();
-         lastGCPause.set(Math.max(clock.getAsLong() - now, 0L));
+         final long pause = Math.max(clock.getAsLong() - now, 0L);
+         lastGCPause.set(pause);
          final long freed = getFreeSpace() - free;
          final boolean collected = getGCCount() != count;
          stateTS = 0;
          final boolean critical = getMemoryState() == CRITICAL_MEM;
+         final long safePause = getGCSafePause();
+         final boolean dangerousPause = pause > safePause;
+
+         if(dangerousPause) {
+            LOG.warn("A garbage collection requested by the swapper paused the JVM for {}ms, " +
+                        "which is above the {}ms safety threshold (swapper.gc.safe.pause) for " +
+                        "a cluster's failure detection timeout. This is for operator visibility " +
+                        "only: the next forced collection is already spaced out at least 20x " +
+                        "this pause (see the class doc on doGC(boolean)), which throttles it " +
+                        "more than any additional back-off could for a pause this long.",
+                     pause, safePause);
+         }
+
+         // the non-waiting back-off still escalates only on a genuinely critical memory state
+         // (Bug #78106 originally also escalated it on a merely dangerous pause, but that is
+         // mathematically inert: any pause large enough to be "dangerous" already makes the
+         // spacing formula above exceed MAX_GC_BACKOFF on its own, so the escalation could never
+         // be the value that actually governs scheduling -- see the WARN above instead).
          gcBackoff.set(critical ? Math.min(Math.max(base, gcBackoff.get()) * 2, MAX_GC_BACKOFF) : 0);
 
          if(!collected) {
@@ -846,6 +923,41 @@ public final class XSwapper {
     */
    void setGCMinInterval(long gcMinInterval) {
       this.gcMinInterval = gcMinInterval;
+   }
+
+   /**
+    * Get the pause duration, in milliseconds, above which a forced collection is a danger
+    * signal for cluster stability rather than just a cost to amortize (Bug #78106). A
+    * cluster's failure detection timeout defaults to 10s, and a forced GC that runs a true
+    * stop-the-world collection freezes every thread in the JVM, including the threads that
+    * answer failure-detection heartbeats, for the pause's entire duration. The default is
+    * kept meaningfully below that 10s so there is margin before a pause even approaches it.
+    */
+   long getGCSafePause() {
+      // test override
+      if(gcSafePause >= 0) {
+         return gcSafePause;
+      }
+
+      // read every time so a property change takes effect without a restart
+      try {
+         return Long.parseLong(
+            SreeEnv.getProperty("swapper.gc.safe.pause", Long.toString(DEFAULT_GC_SAFE_PAUSE)));
+      }
+      catch(NumberFormatException ex) {
+         if(gcSafePauseWarned.compareAndSet(false, true)) {
+            LOG.warn("Invalid swapper.gc.safe.pause value, using {}ms", DEFAULT_GC_SAFE_PAUSE, ex);
+         }
+
+         return DEFAULT_GC_SAFE_PAUSE;
+      }
+   }
+
+   /**
+    * Set the GC safety pause threshold. For tests.
+    */
+   void setGCSafePause(long gcSafePause) {
+      this.gcSafePause = gcSafePause;
    }
 
    /**
@@ -1020,6 +1132,69 @@ public final class XSwapper {
     */
    public boolean isOwnSwapFile(String name) {
       return name != null && name.startsWith("s" + seed + "_");
+   }
+
+   /**
+    * Bug #78044, records in {@link #SWAP_SEED_MAP} that this swapper's seed belongs to the
+    * local node, so that the cache sweeps of other JVMs can tell when the JVM that registered
+    * a swap file in {@link #SWAP_FILE_MAP} is gone.
+    */
+   private void registerSeed() {
+      try {
+         Cluster cluster = Cluster.getInstance();
+
+         if(!registerSeed(cluster.getMap(SWAP_SEED_MAP), seed, cluster.getLocalNodeId())) {
+            LOG.debug("Unable to register swapper seed {}", seed);
+         }
+      }
+      catch(Exception e) {
+         // the files of an unregistered seed stay protected by their swap file map entries
+         LOG.debug("Unable to register swapper seed, cluster may be stopped", e);
+      }
+   }
+
+   /**
+    * Adds a node to the owners of a seed in {@link #SWAP_SEED_MAP}.
+    * @return <tt>true</tt> if the node is registered.
+    */
+   static boolean registerSeed(Map<Long, String> seeds, long seed, String nodeId) {
+      // several JVMs get the same seed if they start in the same millisecond, so the value
+      // lists every node that uses the seed
+      for(int i = 0; i < 100; i++) {
+         String owners = seeds.putIfAbsent(seed, nodeId);
+
+         if(owners == null || Arrays.asList(owners.split(",")).contains(nodeId) ||
+            seeds.replace(seed, owners, owners + "," + nodeId))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Gets the seed of the swapper that created a swap file.
+    * @param name the file name.
+    * @return the seed or <tt>null</tt> if the name does not have a swapper prefix.
+    */
+   static Long getSwapFileSeed(String name) {
+      if(name == null || !name.startsWith("s")) {
+         return null;
+      }
+
+      int index = name.indexOf('_', 1);
+
+      if(index < 2) {
+         return null;
+      }
+
+      try {
+         return Long.parseLong(name.substring(1, index));
+      }
+      catch(NumberFormatException e) {
+         return null;
+      }
    }
 
    /**
@@ -1228,8 +1403,10 @@ public final class XSwapper {
                      criticalNoSwap.incrementAndGet();
                   }
 
-                  // get an acurate memory state after swapping
-                  if(swapCnt > 0 && state <= BAD_MEM) {
+                  // get an acurate memory state after swapping. only force a collection when
+                  // memory is genuinely critical, not merely BAD_MEM, so idle/lightly-loaded
+                  // nodes don't pay for a forced full GC they don't need (Bug #78106).
+                  if(swapCnt > 0 && state == CRITICAL_MEM) {
                      doGC();
                   }
                }
@@ -1343,6 +1520,14 @@ public final class XSwapper {
    private static final long DEFAULT_GC_MIN_INTERVAL = 10000L;
    // cap on the garbage collection interval while memory stays critical after a collection
    private static final long MAX_GC_BACKOFF = 60000L;
+   // default pause, in ms, above which a forced collection is logged as a WARN for operator
+   // visibility only (Bug #78106); see the doc on doGC(boolean). It has no effect on
+   // gcBackoff or scheduling -- the pre-existing spacing formula (20x the last pause) already
+   // pushes the next collection out further than any additional back-off could for a pause
+   // this long. Kept well under a cluster's 10s failure-detection timeout default so repeated
+   // forced collections don't compound into (or recur soon after) a pause long enough to risk
+   // a false node-failure declaration and a cluster split.
+   private static final long DEFAULT_GC_SAFE_PAUSE = 5000L;
    // lowest accepted swapper.gc.min.interval
    private static final long MIN_GC_INTERVAL = 1000L;
    // minimum spacing between two garbage collections, as a multiple of the last pause
@@ -1419,6 +1604,8 @@ public final class XSwapper {
    private final AtomicInteger criticalNoSwap = new AtomicInteger(0);
    private volatile long maxCriticalWait = -1L;
    private volatile long gcMinInterval = -1L;
+   private volatile long gcSafePause = -1L;
+   private final AtomicBoolean gcSafePauseWarned = new AtomicBoolean(false);
    private volatile boolean dcmdUnavailable = false;
    private volatile boolean lastGCDiagnostic = false;
    private final AtomicLong lastGC = new AtomicLong(0L);
@@ -1536,6 +1723,10 @@ public final class XSwapper {
 
    public static final String SWAP_FILE_MAP = "inetsoft.swap.file.map";
    public static final String SWAP_FILE_MAP_LOCK = "inetsoft.swap.file.map.lock";
+   // Bug #78044, swapper seed -> comma-separated ids of the nodes whose swapper uses it
+   public static final String SWAP_SEED_MAP = "inetsoft.swap.seed.map";
+   // name of the thread of the cache sweep that runs when a swapper is created
+   public static final String CACHE_SWEEP_THREAD = "XSwapper cache sweep";
 
    // Bug #77627, swapRemaining() writes a whole batch of swap files to disk before
    // registering any of them in SWAP_FILE_MAP (one lock acquisition for the batch). A file
@@ -1544,6 +1735,130 @@ public final class XSwapper {
    // age gate of their own must wait at least this long after a file's last modification
    // before treating it as orphaned, so they don't land inside that window.
    public static final long SWAP_FILE_GRACE_PERIOD = 60000L; // 1 min
+
+   /**
+    * Bug #78044, the view of {@link #SWAP_FILE_MAP} that a cache sweep uses to decide if a file
+    * is still in use. Entries are removed only by {@link XSwappableReference#close()} in the JVM
+    * that added them, and the map lives as long as the cluster, so the entries of a JVM that
+    * stopped while other nodes stayed up (e.g. in a rolling restart) would protect its files
+    * forever. An entry protects its file unless the seed in the file name is registered in
+    * {@link #SWAP_SEED_MAP} and none of the nodes that use the seed is in the cluster anymore. A
+    * seed that is not registered (e.g. of a JVM of an older version) is assumed to be alive for
+    * entries in the map. A file that is not in the map is protected when its seed is registered
+    * and at least one of its owner nodes is in the cluster (Bug #78322).
+    * An instance is meant for a single sweep.
+    */
+   public static final class RegisteredSwapFiles {
+      public RegisteredSwapFiles(Cluster cluster) {
+         this.cluster = cluster;
+         this.map = cluster.getMap(SWAP_FILE_MAP);
+         this.seeds = cluster.getMap(SWAP_SEED_MAP);
+      }
+
+      /**
+       * Checks if a file is in use by a JVM that may still be running: it is registered in the
+       * swap file map by such a JVM, or its seed is registered in {@link #SWAP_SEED_MAP} and one
+       * of the nodes that use the seed is in the cluster. The second case protects the files
+       * that are not (yet) registered, e.g. of a swappable that does not register its files or
+       * is still inside the batch window of Bug #77627. A seed that is not registered is not
+       * treated as live here, so that the files of a JVM that is gone and whose seed was already
+       * removed are still deleted.
+       * @param file the file.
+       * @return <tt>true</tt> if the file is in use.
+       */
+      public boolean contains(File file) {
+         if(map.containsKey(file.getAbsolutePath()) && !isStale(file.getName())) {
+            return true;
+         }
+
+         Long seed = getSwapFileSeed(file.getName());
+         return seed != null && isLive(seed);
+      }
+
+      // one distributed read per seed, not per file, a cache directory can hold many files
+      private boolean isLive(Long seed) {
+         return live.computeIfAbsent(seed, s -> {
+            String owners = seeds.get(s);
+            return owners != null && !owners.isEmpty() && !dead.computeIfAbsent(s, this::isDead);
+         });
+      }
+
+      /**
+       * Removes the swap file map entries and the seeds of the JVMs that are gone, so that the
+       * maps don't grow with every restart. The caller must hold {@link #SWAP_FILE_MAP_LOCK}.
+       */
+      public void removeStaleEntries() {
+         try {
+            Set<String> stale = new HashSet<>();
+
+            for(String path : map.keySet()) {
+               if(isStale(new File(path).getName())) {
+                  stale.add(path);
+               }
+            }
+
+            if(!stale.isEmpty()) {
+               map.removeAll(stale);
+            }
+
+            // only after the entries are gone, a seed that is not registered protects its files.
+            // A dead seed without entries is removed too, e.g. of a JVM that had closed all its
+            // swap files
+            for(Long seed : seeds.keySet()) {
+               if(dead.computeIfAbsent(seed, this::isDead)) {
+                  // not if a node was added to the seed since
+                  seeds.remove(seed, deadOwners.get(seed));
+               }
+            }
+         }
+         catch(Exception e) {
+            LOG.debug("Failed to remove stale swap file map entries", e);
+         }
+      }
+
+      private boolean isStale(String name) {
+         Long seed = getSwapFileSeed(name);
+         return seed != null && dead.computeIfAbsent(seed, this::isDead);
+      }
+
+      private boolean isDead(Long seed) {
+         try {
+            String owners = seeds.get(seed);
+
+            if(owners == null || owners.isEmpty()) {
+               return false;
+            }
+
+            List<String> ids = Arrays.asList(owners.split(","));
+
+            if(nodes != null && ids.stream().anyMatch(nodes::contains)) {
+               return false;
+            }
+
+            // read the topology again, the owner may have joined after it was last read
+            nodes = cluster.getClusterNodeIds();
+
+            if(ids.stream().anyMatch(nodes::contains)) {
+               return false;
+            }
+
+            deadOwners.put(seed, owners);
+            return true;
+         }
+         catch(Exception e) {
+            LOG.debug("Unable to check if swapper seed {} is alive", seed, e);
+            return false;
+         }
+      }
+
+      private final Cluster cluster;
+      private final DistributedMap<String, Integer> map;
+      private final Map<Long, String> seeds;
+      private final Map<Long, Boolean> dead = new HashMap<>();
+      private final Map<Long, Boolean> live = new HashMap<>();
+      private final Map<Long, String> deadOwners = new HashMap<>();
+      private Set<String> nodes;
+   }
 
    public static final class XSwappableReference extends Cleaner.Reference<XSwappable> {
       public XSwappableReference(XSwappable referent, File[] files) {

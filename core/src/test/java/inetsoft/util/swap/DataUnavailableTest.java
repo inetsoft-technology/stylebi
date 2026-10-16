@@ -18,6 +18,7 @@
 package inetsoft.util.swap;
 
 import inetsoft.test.*;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.stall.LockStallException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -70,5 +71,27 @@ class DataUnavailableTest {
       assertNull(DataUnavailable.find(other));
       assertNull(DataUnavailable.find(null));
       assertDoesNotThrow(() -> DataUnavailable.rethrow(other));
+   }
+
+   /**
+    * Bug #78450: the cause a condition keeps for a failed value script is a copy of the
+    * stall, lost swap file or load failure in the chain, and none for any other failure.
+    */
+   @Test
+   void causeInChainCopiesOnlyUnavailableDataOrLoadFailure() {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      Throwable stallCause = DataUnavailable.causeInChain(new RuntimeException("script", stall));
+      assertInstanceOf(LockStallException.class, stallCause);
+      assertNotSame(stall, stallCause);
+
+      TableLoadException load = new TableLoadException("load failed", null);
+      Throwable loadCause = DataUnavailable.causeInChain(new RuntimeException("script", load));
+      assertInstanceOf(TableLoadException.class, loadCause);
+      assertNotSame(load, loadCause);
+      assertEquals("load failed", loadCause.getMessage());
+
+      assertNull(DataUnavailable.causeInChain(new RuntimeException("script",
+         new IllegalStateException("read failed"))));
+      assertNull(DataUnavailable.causeInChain(null));
    }
 }

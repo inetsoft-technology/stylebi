@@ -149,22 +149,35 @@ public class RelationElement extends GraphElement {
       // fields. (76417)
       //
       // Root nodes keep the pre-existing structural precedence -- among all rows sharing a
-      // source (fromDim) value, the one with the earliest target (toDim) value wins -- and
+      // source (fromDim) value, the one with the earliest target (toDim) value in the sorted
+      // (display) order wins, not the natural-order smallest target (78457) -- and
       // only break ties *within* that earliest-target group using whichever frame
       // RelationGeometry.getColor() would actually consult for a root: when
       // isApplyAestheticsToSource() is true, that method's general-Color fallback branch
       // is skipped entirely and a root's color comes from Node Color directly, exactly
-      // like a leaf -- so the tie-break field must follow suit. Leaf nodes have no such
-      // secondary structural dimension (toDim alone already fully identifies a leaf), so
-      // all rows sharing a target value are eligible, and are always resolved directly by
-      // the Node Color field. In all cases, "most recent" (largest) tie-break value wins,
-      // and a missing/unbound color field falls back to the first row encountered -- an
-      // exact no-op match for the pre-fix behavior.
+      // like a leaf -- so the tie-break field must follow suit. Leaf nodes are drawn under
+      // the source of their first row in the sorted (display) order, so only rows with that
+      // same source are eligible -- a multi-parent leaf must not take its color, size or
+      // label from a row under another parent (78519) -- and ties within that
+      // [source, target] group are always resolved directly by the Node Color field. In
+      // all cases, the smallest tie-break value wins (the first row with the color field
+      // ascending, 78519), and a missing/unbound color field falls back to the first row
+      // encountered -- an exact no-op match for the pre-fix behavior.
+      //
+      // The To-node loop below doesn't draw a leaf from a row whose size is null (e.g. a
+      // brushed row of a BrushDataSet, where the __all__ columns are null), so such rows
+      // are not eligible as a leaf's representative row either. Otherwise a brushed leaf
+      // in the all-data element would read its __all__ size and label from a brushed row
+      // and be drawn at the minimum size without a label. Roots are drawn from every row
+      // and keep their pre-existing selection. (78569)
       ColorFrame rootColorFrame = isApplyAestheticsToSource() ? getNodeColorFrame() : getColorFrame();
+      String leafNullSizeField = sizeField != null &&
+         (overlay || sizeField.startsWith(ElementVO.ALL_PREFIX)) ? sizeField : null;
       Map<String, Integer> rootRepresentativeRows = findRepresentativeRows(
-         data, sdata, fromDim, toDim, resolveTieField(rootColorFrame, data));
+         data, sdata, fromDim, toDim, resolveTieField(rootColorFrame, data), null);
       Map<String, Integer> leafRepresentativeRows = findRepresentativeRows(
-         data, sdata, toDim, null, resolveTieField(getNodeColorFrame(), data));
+         data, sdata, toDim, fromDim, resolveTieField(getNodeColorFrame(), data),
+         leafNullSizeField);
 
       // add To nodes
       for(int i = getStartRow(data); i < max; i++) {
@@ -183,9 +196,7 @@ public class RelationElement extends GraphElement {
             continue;
          }
 
-         if(sizeField != null && (overlay || sizeField.startsWith(ElementVO.ALL_PREFIX)) &&
-            data.getData(sizeField, i) == null)
-         {
+         if(leafNullSizeField != null && data.getData(leafNullSizeField, i) == null) {
             continue;
          }
 
@@ -698,26 +709,37 @@ public class RelationElement extends GraphElement {
     * order below matches this element's pre-existing, already-verified behavior):
     * <ol>
     *   <li>The first row seen for a given group id is the initial candidate.</li>
-    *   <li>If {@code rankField} is non-null (used for root nodes, to preserve the existing
-    *       "earliest target dimension wins" structural rule -- a root fans out across many
-    *       target values, and only the earliest-target subgroup is eligible to be its
-    *       representative row), a later row with a strictly smaller {@code rankField}
-    *       value replaces the candidate outright, establishing a new, smaller-rank
-    *       baseline.</li>
-    *   <li>Among rows tied on {@code rankField} (or, when {@code rankField} is null -- used
-    *       for leaf nodes, which have no such secondary structural dimension since
-    *       {@code toDim} alone already fully identifies a leaf -- among *all* rows sharing
-    *       the group id), a later row whose {@code tieField} value compares as "more
-    *       recent" (greater, via {@link DefaultComparator}'s natural ordering) than the
-    *       current candidate's replaces it.</li>
+    *   <li>If {@code rankField} is non-null, a later row is eligible only if its
+    *       {@code rankField} value equals the first row's. For root nodes it is the target
+    *       dimension ("earliest target wins" -- a root fans out across many target values,
+    *       and only the earliest-target subgroup is eligible to be its representative row).
+    *       For leaf nodes it is the source dimension: a leaf with several parents is drawn
+    *       under its first displayed parent, so only rows under that parent are eligible
+    *       (78519). "Earliest" means first in the sorted (display) order, which follows the
+    *       dataset's own comparators (sort by value, descending, manual order, original
+    *       order for brushing), not the natural order, so the first row seen is never
+    *       replaced by a row with a different rank value (78457).</li>
+    *   <li>Among rows with that same {@code rankField} value (or, when {@code rankField}
+    *       is null, among *all* rows sharing the group id), a later row whose
+    *       {@code tieField} value is smaller (via {@link DefaultComparator}'s natural
+    *       ordering, not the field's display order) than the current candidate's replaces
+    *       it, so the node takes the first row with the color field ascending (78519). An
+    *       equal value never replaces the candidate, and a null value never replaces a
+    *       non-null one.</li>
     *   <li>If {@code tieField} is null (see {@link #resolveTieField}), step 3 never fires,
     *       so the first row at the winning rank keeps its position -- an exact no-op match
     *       for the pre-fix, order-dependent selection when there is no color field to
     *       tie-break on.</li>
     * </ol>
+    * If {@code nullSizeField} is non-null, a row whose {@code nullSizeField} value is null
+    * is skipped before any of the steps above, so it can neither be the first row nor set
+    * the rank. This is the same rule the To-node loop uses to skip rows it doesn't draw a
+    * leaf from (78569). A group with no eligible row has no entry, and the caller falls
+    * back to its own row.
     */
    private Map<String, Integer> findRepresentativeRows(
-      DataSet data, SortedDataSet sdata, String groupDim, String rankField, String tieField)
+      DataSet data, SortedDataSet sdata, String groupDim, String rankField, String tieField,
+      String nullSizeField)
    {
       Map<String, Integer> result = new HashMap<>();
       Map<String, Object> ranks = new HashMap<>();
@@ -727,6 +749,10 @@ public class RelationElement extends GraphElement {
 
       for(int i = getStartRow(data); i < max; i++) {
          if(!isAccepted(data, i)) {
+            continue;
+         }
+
+         if(nullSizeField != null && data.getData(nullSizeField, i) == null) {
             continue;
          }
 
@@ -748,28 +774,20 @@ public class RelationElement extends GraphElement {
             continue;
          }
 
-         if(rankField != null) {
-            Object newRank = data.getData(rankField, i);
-            int rc = comp.compare(newRank, ranks.get(id));
-
-            if(rc < 0) {
-               // new smallest rank seen for this group -- replace the candidate outright
-               result.put(id, sidx);
-               ranks.put(id, newRank);
-               tieValues.put(id, tieField != null ? data.getData(tieField, i) : null);
-               continue;
-            }
-            else if(rc > 0) {
-               // not part of the (tied-for-)smallest rank group -- not eligible
-               continue;
-            }
-            // rc == 0: tied on rank, fall through to the tie-break below
+         // the data is sorted with the dataset's own comparators (e.g. sort by value), so the
+         // first row seen already has the earliest rank value in display order. only later
+         // rows with that same rank value compete in the tie-break below. don't use the
+         // dataset's comparator here, it may tie distinct values (e.g. equal sums). (78457)
+         if(rankField != null && comp.compare(data.getData(rankField, i), ranks.get(id)) != 0) {
+            continue;
          }
 
          if(tieField != null) {
             Object newTie = data.getData(tieField, i);
+            Object oldTie = tieValues.get(id);
 
-            if(comp.compare(newTie, tieValues.get(id)) > 0) {
+            // smallest value wins (78519). null sorts first, so keep it from replacing a value
+            if(newTie != null && (oldTie == null || comp.compare(newTie, oldTie) < 0)) {
                result.put(id, sidx);
                tieValues.put(id, newTie);
             }

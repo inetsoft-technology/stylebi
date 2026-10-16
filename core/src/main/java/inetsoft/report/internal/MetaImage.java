@@ -20,6 +20,7 @@ package inetsoft.report.internal;
 import inetsoft.report.io.Builder;
 import inetsoft.util.*;
 import inetsoft.util.graphics.SVGSupport;
+import inetsoft.util.script.JavaScriptEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -276,6 +277,10 @@ public class MetaImage extends Image implements ObjectWrapper {
          return image;
       }
 
+      if(isScriptLoadDisabled()) {
+         return null;
+      }
+
       if(isSVGImage()) {
          image = getSVGImage(svgContextWidth, svgContextHeight);
          imgmap.put(iloc, image);
@@ -393,6 +398,9 @@ public class MetaImage extends Image implements ObjectWrapper {
 
             return istream;
          }
+         else if(isScriptLoadDisabled()) {
+            return null;
+         }
          else if(url != null) {
             return url.openStream();
          }
@@ -500,6 +508,9 @@ public class MetaImage extends Image implements ObjectWrapper {
             url = getImageLoader().getResource(resource.substring(1));
          }
       }
+      else if(isScriptLoadDisabled()) {
+         return null;
+      }
       else if(this.url != null) {
          url = this.url;
       }
@@ -513,6 +524,17 @@ public class MetaImage extends Image implements ObjectWrapper {
       }
 
       return url;
+   }
+
+   /**
+    * Check if this image would be read from a URL or a local file inside a script while
+    * the {@code javascript.getImageFunction.disabled} switch is on. A script can build a
+    * MetaImage from an ImageLocation and hand it to any loader that takes an Image, so
+    * the fetch itself is refused here (Bug #78490). Classpath resources stay allowed.
+    */
+   private boolean isScriptLoadDisabled() {
+      return resource == null && (url != null || file != null) &&
+         JavaScriptEngine.isScriptImageLoadDisabled();
    }
 
    /**

@@ -474,7 +474,7 @@ public class Catalog {
          && params.length > 0)
       {
          try {
-            String result = MessageFormat.format(val, params);
+            String result = format(val, params);
 
             // if format result is empty, return original result, because in
             // most case, it is not what we wanted, it should not a format
@@ -510,7 +510,7 @@ public class Catalog {
 
       if(val.contains("{") || val.contains("'")) {
          try {
-            return MessageFormat.format(val, params);
+            return format(val, params);
          }
          catch(Exception ex) {
             return val;
@@ -519,6 +519,14 @@ public class Catalog {
       else {
          return val;
       }
+   }
+
+   /**
+    * Format a message pattern. A {n,date,...} subformat prints Gregorian years even when the
+    * default format locale uses another calendar, e.g. th_TH or ja_JP_JP.
+    */
+   private static String format(String pattern, Object[] params) {
+      return CoreTool.setGregorianCalendar(new MessageFormat(pattern)).format(params);
    }
 
    /**

@@ -17,6 +17,8 @@
  */
 package inetsoft.util;
 
+import java.util.*;
+
 /**
  * Cancelled exception.
  *
@@ -40,5 +42,22 @@ public class CancelledException extends RuntimeException {
 
    public CancelledException(Exception ex) {
       super(ex);
+   }
+
+   /**
+    * Find a cancel in the cause chain of {@code failure}, e.g. one a proxy wrapped.
+    *
+    * @return the outermost cancel of the chain, or {@code null} if there is none.
+    */
+   public static CancelledException find(Throwable failure) {
+      Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(Throwable t = failure; t != null && seen.add(t); t = t.getCause()) {
+         if(t instanceof CancelledException) {
+            return (CancelledException) t;
+         }
+      }
+
+      return null;
    }
 }

@@ -31,6 +31,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.portal.controller.SearchComparator;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.viewsheet.DatasourceIgnoreGlobalShare;
@@ -76,7 +77,10 @@ public class DataSourceService {
                                      Principal principal)
       throws Exception
    {
-      return securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, databasePath,
+      // Bug #78249, an additional connection path P/add is checked as P::add
+      return securityEngine.checkPermission(
+         principal, ResourceType.DATA_SOURCE,
+         ResourcePermissionService.getDataSourcePermissionName(databasePath, dataSourceRegistry),
          action);
    }
 

@@ -68,6 +68,30 @@ public class SummaryFilterTest {
       });
    }
 
+   // Bug #78458: a cell set by setObject() must not make the other cells read the
+   // "undefined" sentinel of the cell value matrix
+   @Test
+   public void setObjectKeepsTheOtherCells() {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 5},
+         {"a", 1, 2},
+         {"b", 3, 10}
+      });
+
+      final SummaryFilter summary =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[] {2}, new SumFormula(), null);
+      summary.moreRows(Integer.MAX_VALUE);
+      summary.setObject(1, 0, "x");
+      summary.setObject(2, 2, null);
+
+      XTableUtil.assertEquals(summary, new Object[][] {
+         {"col1", "col2", "col3"},
+         {"x", 1, 7.0},
+         {"b", 3, null}
+      });
+   }
+
    @Test
    public void topTwo() {
       DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
@@ -443,6 +467,163 @@ public class SummaryFilterTest {
       });
    }
 
+   /**
+    * With more than one group level below the "Others" level, the merged rows must be
+    * ordered level by level (year, then name), not by the innermost level alone, so that
+    * a running total broken by the outer dimension accumulates in group order. (78468)
+    */
+   @Test
+   public void othersBucketKeepsIntermediateGroupOrder() {
+      SummaryFilter summary = othersSummary(XConstants.SORT_ASC, XConstants.SORT_ASC);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      assertOthersRows(summary, new Object[][] {
+         {2001, "a", 3.0}, {2001, "b", 5.0}, {2001, "c", 1.0},
+         {2002, "a", 2.0}, {2002, "b", 4.0},
+         {2003, "a", 7.0}, {2003, "d", 6.0}
+      });
+   }
+
+   /**
+    * A descending intermediate group order is honoured inside "Others". (78468)
+    */
+   @Test
+   public void othersBucketKeepsIntermediateGroupOrderDesc() {
+      SummaryFilter summary = othersSummary(XConstants.SORT_DESC, XConstants.SORT_ASC);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      assertOthersRows(summary, new Object[][] {
+         {2003, "a", 7.0}, {2003, "d", 6.0},
+         {2002, "a", 2.0}, {2002, "b", 4.0},
+         {2001, "a", 3.0}, {2001, "b", 5.0}, {2001, "c", 1.0}
+      });
+   }
+
+   /**
+    * An intermediate level sorted by value is ordered inside "Others" by its total over
+    * the "Others" bucket (2003 = 13, 2001 = 9, 2002 = 6). (78468)
+    */
+   @Test
+   public void othersBucketSortsIntermediateLevelByValue() {
+      SummaryFilter summary = othersSummary(XConstants.SORT_ASC, XConstants.SORT_ASC);
+      summary.setSortByValInfo(1, 0, false);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      assertOthersRows(summary, new Object[][] {
+         {2003, "a", 7.0}, {2003, "d", 6.0},
+         {2001, "a", 3.0}, {2001, "b", 5.0}, {2001, "c", 1.0},
+         {2002, "a", 2.0}, {2002, "b", 4.0}
+      });
+   }
+
+   /**
+    * An unsorted innermost level keeps the data order inside each intermediate group of
+    * "Others", instead of the order of the parents the rows were gathered from. (78468)
+    */
+   @Test
+   public void othersBucketKeepsDataOrderOfUnsortedLevel() {
+      SummaryFilter summary = othersSummary(XConstants.SORT_ASC, XConstants.SORT_NONE);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      assertOthersRows(summary, new Object[][] {
+         {2001, "c", 1.0}, {2001, "a", 3.0}, {2001, "b", 5.0},
+         {2002, "a", 2.0}, {2002, "b", 4.0},
+         {2003, "d", 6.0}, {2003, "a", 7.0}
+      });
+   }
+
+   /**
+    * With a top-N "Others" on the year level too, the years merged into the inner
+    * "Others" of several types are still an "Others" group, so they stay last inside the
+    * outer "Others" whatever the year order is. (78468)
+    */
+   @Test
+   public void othersBucketKeepsStackedOthersLast() {
+      SummaryFilter summary = othersSummary(XConstants.SORT_DESC, XConstants.SORT_ASC);
+      summary.setTopN(1, 0, 1, false, false, true);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      // B keeps 2003 and C keeps 2001; B/2001, B/2002, C/2002, C/2003 are the inner Others
+      assertOthersRows(summary, new Object[][] {
+         {2003, "d", 6.0},
+         {2001, "a", 3.0}, {2001, "b", 5.0},
+         {"Others", "a", 9.0}, {"Others", "b", 4.0}, {"Others", "c", 1.0}
+      });
+   }
+
+   /**
+    * Ordering the "Others" rows doesn't change their parent: a percentage of group is
+    * still a percentage of the whole "Others" bucket (28). (78468)
+    */
+   @Test
+   public void othersBucketPercentageOfGroupUnchanged() {
+      SumFormula formula = new SumFormula();
+      formula.setPercentageType(StyleConstants.PERCENTAGE_OF_GROUP);
+      SummaryFilter summary = othersSummary(XConstants.SORT_ASC, XConstants.SORT_ASC, formula);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      assertOthersRows(summary, new Object[][] {
+         {2001, "a", 3 / 28.0}, {2001, "b", 5 / 28.0}, {2001, "c", 1 / 28.0},
+         {2002, "a", 2 / 28.0}, {2002, "b", 4 / 28.0},
+         {2003, "a", 7 / 28.0}, {2003, "d", 6 / 28.0}
+      });
+   }
+
+   private static SummaryFilter othersSummary(int yearOrder, int nameOrder) {
+      return othersSummary(yearOrder, nameOrder, new SumFormula());
+   }
+
+   /**
+    * Type, year and name grouped, Top 1 type ("A", 200) with "Others" for "B" and "C".
+    */
+   private static SummaryFilter othersSummary(int yearOrder, int nameOrder, Formula formula) {
+      DefaultTableLens tbl = new DefaultTableLens(new Object[][] {
+         {"type", "year", "name", "v"},
+         {"A", 2001, "a", 100},
+         {"A", 2002, "b", 100},
+         {"B", 2001, "c", 1},
+         {"B", 2002, "a", 2},
+         {"B", 2003, "d", 6},
+         {"C", 2001, "a", 3},
+         {"C", 2001, "b", 5},
+         {"C", 2002, "b", 4},
+         {"C", 2003, "a", 7}
+      });
+
+      SummaryFilter summary =
+         new SummaryFilter(tbl, new int[] {0, 1, 2}, new int[] {3}, formula, null);
+      summary.setGroupOrder(0, new SortOrder(XConstants.SORT_ASC));
+      summary.setGroupOrder(1, new SortOrder(yearOrder));
+      summary.setGroupOrder(2, new SortOrder(nameOrder));
+      summary.setTopN(0, 0, 1, false, false, true);
+      return summary;
+   }
+
+   /**
+    * Assert the year, name and value of the "Others" rows, in order.
+    */
+   private static void assertOthersRows(SummaryFilter summary, Object[][] expected) {
+      java.util.List<Object[]> rows = new java.util.ArrayList<>();
+
+      for(int r = summary.getHeaderRowCount(); summary.moreRows(r); r++) {
+         if("Others".equals(summary.getObject(r, 0))) {
+            rows.add(new Object[] { summary.getObject(r, 1), summary.getObject(r, 2),
+                                    summary.getObject(r, 3) });
+         }
+      }
+
+      Assertions.assertEquals(expected.length, rows.size(), "Others rows");
+
+      for(int i = 0; i < expected.length; i++) {
+         Object[] row = rows.get(i);
+         Assertions.assertEquals(expected[i][0], row[0], "year of Others row " + i);
+         Assertions.assertEquals(expected[i][1], row[1], "name of Others row " + i);
+         Assertions.assertEquals(((Number) expected[i][2]).doubleValue(),
+                                 ((Number) row[2]).doubleValue(), 1e-9,
+                                 "value of Others row " + i);
+      }
+   }
+
    private Date date(String date) {
       return new Date(LocalDate.parse(date).atStartOfDay()
                          .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
@@ -457,7 +638,7 @@ public class SummaryFilterTest {
       SwapFileReadException lost = swapLost();
       SummaryFilter summary = summary(new LostTable(values(40), 21, lost));
 
-      Assertions.assertSame(lost, swapIn(failureOf(15, () -> drain(summary))));
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(summary))));
    }
 
    /**
@@ -469,7 +650,61 @@ public class SummaryFilterTest {
       SummaryFilter summary =
          summary(new LostTable(values(40), 21, new RuntimeException("wrapped", lost)));
 
-      Assertions.assertSame(lost, swapIn(failureOf(15, () -> drain(summary))));
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(summary))));
+   }
+
+   /**
+    * A pass that completed because a cancel already ended the rows of its base (a query
+    * manager cancels the lenses below the summary first) is cut short: the cancel of the
+    * summary that follows stays a cancel (bug #78200).
+    */
+   @Test
+   public void cancelAfterACancelledBaseEndedThePassIsACancel() {
+      CancelledBase base = new CancelledBase(values(10));
+      base.cancel();
+      SummaryFilter summary = new SummaryFilter(new SortFilter(base, new int[] { 0 }),
+                                                new int[] { 0 }, new int[] { 1 },
+                                                new SumFormula(), new SumFormula());
+      drain(summary);
+
+      summary.cancel();
+      Assertions.assertTrue(summary.isCancelled(), "the cut-short summary is not cancelled");
+   }
+
+   /**
+    * The control: a cancel after the pass completed over a whole base is no cancel.
+    */
+   @Test
+   public void cancelAfterThePassCompletedOverAWholeBaseIsNoCancel() {
+      CancelledBase base = new CancelledBase(values(10));
+      SummaryFilter summary = new SummaryFilter(new SortFilter(base, new int[] { 0 }),
+                                                new int[] { 0 }, new int[] { 1 },
+                                                new SumFormula(), new SumFormula());
+      drain(summary);
+
+      summary.cancel();
+      Assertions.assertFalse(summary.isCancelled(), "the complete summary is cancelled");
+   }
+
+   /** A base whose cancel is recorded, as a query result whose rows a cancel ended. */
+   private static final class CancelledBase extends DefaultTableLens
+      implements inetsoft.report.internal.table.CancellableTableLens
+   {
+      CancelledBase(Object[][] data) {
+         super(data);
+      }
+
+      @Override
+      public void cancel() {
+         cancelled = true;
+      }
+
+      @Override
+      public boolean isCancelled() {
+         return cancelled;
+      }
+
+      private volatile boolean cancelled;
    }
 
    private static SummaryFilter summary(DefaultTableLens base) {

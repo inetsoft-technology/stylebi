@@ -32,6 +32,7 @@ import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
 import java.io.ByteArrayInputStream;
+import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.net.URL;
 
@@ -312,12 +313,14 @@ public class SVGShape extends GShape {
             }
          }
 
-         if(uri.indexOf(':') < 0) {
-            URL url = SVGShape.class.getResource(uri);
-            uri = url.toExternalForm();
+         // only resolve local classpath resources, never fetch a caller-supplied URL
+         URL url = uri.indexOf(':') < 0 ? SVGShape.class.getResource(uri) : null;
+
+         if(url == null) {
+            throw new FileNotFoundException("SVG resource not found: " + uri);
          }
 
-         SVGTransformer svg = SVGSupport.getInstance().createSVGTransformer(new URL(uri));
+         SVGTransformer svg = SVGSupport.getInstance().createSVGTransformer(url);
          Dimension isize = svg.getDefaultSize();
 
          if(isize.width > 0 && isize.height > 0) {

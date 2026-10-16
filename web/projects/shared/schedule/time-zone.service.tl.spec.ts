@@ -256,4 +256,56 @@ describe("TimeZoneService", () => {
          expect(() => service.calculateTimezoneOffset("Invalid/Zone")).not.toThrow();
       });
    });
+
+   // ---------------------------------------------------------------------------
+   // Bug #78045 — calculateTimezoneOffset must not depend on the browser's display language
+   // ---------------------------------------------------------------------------
+   describe("calculateTimezoneOffset() with a non-US default locale (Bug #78045)", () => {
+      function forceDefaultLocale(locale: string): void {
+         const nativeToLocaleString = Date.prototype.toLocaleString;
+
+         vi.spyOn(Date.prototype, "toLocaleString").mockImplementation(
+            function(this: Date, locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
+               const useDefault = locales == null || (Array.isArray(locales) && locales.length === 0);
+               return nativeToLocaleString.call(this, useDefault ? locale : locales, options);
+            });
+      }
+
+      function setNow(utcMillis: number): void {
+         vi.useFakeTimers({ toFake: ["Date"] });
+         vi.setSystemTime(utcMillis);
+      }
+
+      afterEach(() => {
+         vi.useRealTimers();
+         vi.restoreAllMocks();
+      });
+
+      const cases: [string, string, number, number][] = [
+         ["en-US (control)", "en-US", Date.UTC(2026, 9, 20, 3, 0), 420],
+         ["en-GB on day 20", "en-GB", Date.UTC(2026, 9, 20, 3, 0), 420],
+         ["de-DE on day 20", "de-DE", Date.UTC(2026, 9, 20, 3, 0), 420],
+         ["en-GB, 12th in UTC but 13th in Bangkok", "en-GB", Date.UTC(2026, 9, 12, 20, 0), 420],
+         ["en-GB, 5th in UTC but 6th in Bangkok", "en-GB", Date.UTC(2026, 9, 5, 23, 30), 420],
+         ["ko-KR on day 5", "ko-KR", Date.UTC(2026, 9, 5, 3, 0), 420],
+      ];
+
+      for(const [name, locale, now, minutes] of cases) {
+         it(`returns the Asia/Bangkok offset for ${name}`, () => {
+            forceDefaultLocale(locale);
+            setNow(now);
+
+            expect(service.calculateTimezoneOffset("Asia/Bangkok")).toBe(minutes * 60000);
+            expect(service.calculateTimezoneOffset("UTC")).toBe(0);
+            expect(service.calculateTimezoneOffset("Asia/Kolkata")).toBe(330 * 60000);
+         });
+      }
+
+      it("gives a finite minuteOffset to a synthesized option under en-GB on day 20", () => {
+         forceDefaultLocale("en-GB");
+         setNow(Date.UTC(2026, 9, 20, 3, 0));
+
+         expect(service.createTimeZoneOption("Asia/Bangkok", null).minuteOffset).toBe(420);
+      });
+   });
 });

@@ -1244,6 +1244,21 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
    }
 
    /**
+    * Get the data paths named by every currently open runtime worksheet/viewsheet session,
+    * cluster-wide. Used by the orphaned permanent snapshot file cleanup (bug #78035) as a
+    * "referenced by a live session" signal, additive to its stored-content scan.
+    *
+    * <p>Deliberately narrower than exposing the backing {@link RuntimeSheetCache} itself: that
+    * cache is a live, mutable {@code Map<String, RuntimeSheet>} view of every open session
+    * cluster-wide, and handing it out widens what any caller reachable from a
+    * {@code WorksheetEngine}/{@code ViewsheetService} reference can do (e.g. evict another
+    * user's open session) well beyond what this cleanup, or anything else today, actually needs.
+    */
+   public Set<String> getOpenWorksheetDataPaths() {
+      return amap.getOpenWorksheetDataPaths();
+   }
+
+   /**
     * Print the current status.
     */
    public void print() {

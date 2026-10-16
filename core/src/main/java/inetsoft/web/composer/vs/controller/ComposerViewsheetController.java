@@ -182,13 +182,10 @@ public class ComposerViewsheetController {
       }
 
       runtimeViewsheetRef.setRuntimeId(event.getRuntimeViewsheetId());
-      String previewRuntimeID = composerViewsheetService.previewViewsheet(runtimeViewsheetRef.getRuntimeId(),
+      // previewViewsheet() already refreshes the new preview sheet, don't refresh it again or
+      // the second pass cancels the chart queries of the first (Bug #78544)
+      composerViewsheetService.previewViewsheet(runtimeViewsheetRef.getRuntimeId(),
                                                 event, principal, dispatcher, linkUri);
-
-      if(previewRuntimeID != null) {
-         composerViewsheetService.refreshPreviewViewsheet(previewRuntimeID, event,
-                                                          principal, dispatcher, linkUri, true);
-      }
    }
 
    /**
@@ -218,7 +215,7 @@ public class ComposerViewsheetController {
       String id = runtimeViewsheetRef.getRuntimeId();
 
       if(composerViewsheetService.refreshPreviewViewsheet(id, event,
-                                                          principal, commandDispatcher, linkUri, false))
+                                                          principal, commandDispatcher, linkUri))
       {
          runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
       }

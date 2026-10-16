@@ -38,6 +38,22 @@ public class SwapReadInterruptedException extends SwapFileReadException {
             "not read", cause);
    }
 
+   private SwapReadInterruptedException(File file, String message, Throwable cause) {
+      super(file, message, cause);
+   }
+
+   /**
+    * Copy this failure, keeping its class: a reader that must not go on without the data
+    * tells an interrupted read by it (bug #77916, #78084).
+    */
+   @Override
+   public SwapReadInterruptedException copy() {
+      SwapReadInterruptedException copy =
+         new SwapReadInterruptedException(getFile(), getMessage(), getCause());
+      copy.setStackTrace(getStackTrace());
+      return copy;
+   }
+
    /**
     * Check if a swap file read failed because the reading thread was interrupted: a channel
     * closed by the interrupt, or an interrupted read or close while the interrupt flag of the

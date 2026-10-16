@@ -65,7 +65,7 @@ public class SelfJoinTableLensTest {
       SelfJoinTableLens lens = new SelfJoinTableLens(base);
       lens.addJoin(0, SelfJoinTableLens.INNER_JOIN, 1);
 
-      Assertions.assertSame(failure, Assertions.assertThrows(
+      assertSwapOf(failure, Assertions.assertThrows(
          SwapFileReadException.class, () -> lens.moreRows(XTable.EOT)));
    }
 
@@ -79,7 +79,7 @@ public class SelfJoinTableLensTest {
       SwapFileReadException lost = swapLost();
       SelfJoinTableLens lens = selfJoin(new LostTable(ids(40), 21, lost));
 
-      assertSame(lost, swapIn(failureOf(15, () -> drain(lens))));
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(lens))));
    }
 
    /**
@@ -91,7 +91,7 @@ public class SelfJoinTableLensTest {
       SelfJoinTableLens lens =
          selfJoin(new LostTable(ids(40), 21, new RuntimeException("wrapped", lost)));
 
-      assertSame(lost, swapIn(failureOf(15, () -> drain(lens))));
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(lens))));
    }
 
    /**

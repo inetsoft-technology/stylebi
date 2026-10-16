@@ -78,6 +78,18 @@ export class ScheduleCycleListPageComponent {
          (cycle: DataCycleInfo) => {
             this.dataService.sendMessage(UPDATE_CYCLES_URI);
             this.router.navigate(["/settings/schedule/cycles", cycle.name]);
+
+            // Bug #78217, the cycle is created but reports a warning, e.g. that the permission
+            // granted to its creator may not have been saved. It's only shown
+            if(cycle?.warning) {
+               this.dialog.open(MessageDialog, <MatDialogConfig>{
+                  data: {
+                     title: "_#(js:Warning)",
+                     content: cycle.warning,
+                     type: MessageDialogType.WARNING
+                  }
+               });
+            }
          });
    }
 

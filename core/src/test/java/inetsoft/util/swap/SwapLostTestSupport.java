@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Support for tests of a table built over a base whose swap file is lost (bug #77651). A lost
@@ -112,6 +112,25 @@ public final class SwapLostTestSupport {
       }
 
       return swap;
+   }
+
+   /**
+    * Check that {@code actual} is {@code expected} or a copy of it: the same class, file,
+    * message and cause. A table keeps a copy of a lost swap file it rethrows to its later
+    * readers, and the script engine rethrows a copy, so the failure is not always the same
+    * instance (bug #78084).
+    */
+   public static void assertSwapOf(Throwable expected, Throwable actual, String message) {
+      assertNotNull(actual, message);
+      assertEquals(expected.getClass(), actual.getClass(), message);
+      SwapFileReadException swap = (SwapFileReadException) actual;
+      assertEquals(expected.getMessage(), swap.getMessage(), message);
+      assertEquals(((SwapFileReadException) expected).getFile(), swap.getFile(), message);
+      assertSame(expected.getCause(), swap.getCause(), message);
+   }
+
+   public static void assertSwapOf(Throwable expected, Throwable actual) {
+      assertSwapOf(expected, actual, null);
    }
 
    /**

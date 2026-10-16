@@ -18,15 +18,22 @@
 package inetsoft.report.lens;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.PostProcessor;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
+import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
-import inetsoft.util.script.graal.GraalJavaScriptEnv;
-import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.script.graal.pool.PoolTestSupport;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
+import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapReadInterruptedException;
 import inetsoft.util.swap.XIntFragment;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -37,10 +44,12 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #77916: a script timeout that interrupts a swap read of Java code a formula calls is a
- * swap read failure of the formula lens, like a lost swap file (bug #77912): the reader gets
- * it, and the row is not kept, so a later read computes the row again instead of reading a
- * null cell.
+ * Bug #77916: a script timeout or a cancel that interrupts a swap read of Java code a formula
+ * calls fails the read with a {@link SwapReadInterruptedException}. Bug #78098: the swap file is
+ * not lost, the exec was stopped, so the row takes the stop path (bug #77949): the reader gets
+ * the stop, the row is kept and its cell fails every later read with the stop, and the row is
+ * not computed again from the vars the stopped exec already changed. A formula that keeps a var
+ * across rows (bug #77123) so gives the other rows the values it gives with no interrupt.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -59,52 +68,104 @@ public class FormulaTableLensSwapInterruptTest {
    public void tearDown() throws Exception {
       Thread.interrupted();
       host.fragment.dispose();
+
+      if(env != null) {
+         env.remove("host");
+
+         if(env instanceof WorksheetScriptEnv pooled) {
+            pooled.retire();
+         }
+      }
+
       SreeEnv.setProperty("script.execution.timeout", previousTimeout);
       refreshTimeout();
    }
 
-   @Test
-   public void timeoutDuringHostSwapReadIsNotKeptAsANullCell() {
-      GraalJavaScriptEnv env = new GraalJavaScriptEnv();
-      env.init();
-      env.put("host", host);
-      FormulaTableLens lens = new FormulaTableLens(new DefaultTableLens(data()),
-         new String[] { "f" },
-         new String[] { "(field['value'] == 3 && host.armed() ? host.loop() : 0) + " + RUNNING_TOTAL },
-         env, null);
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   public void timeoutDuringHostSwapReadStopsTheRowAndAppliesTheVarOnce(boolean pool)
+      throws Exception
+   {
+      TableLens lens = lens(pool, "host.loop()");
 
-      SwapFileReadException ex = assertThrows(SwapFileReadException.class, () -> drain(lens));
-      assertInstanceOf(SwapReadInterruptedException.class, ex);
+      assertStop(assertThrows(RuntimeException.class, () -> drain(lens)));
       assertInstanceOf(SwapReadInterruptedException.class, host.failure,
                        "the timeout did not interrupt a swap read");
       Thread.interrupted();
 
-      List<Object> control = drain(new FormulaTableLens(new DefaultTableLens(data()),
-         new String[] { "f" }, new String[] { RUNNING_TOTAL }, env, null));
-      assertEquals(List.of(1.0, 3.0, 6.0, 10.0, 15.0, 21.0, 28.0, 36.0), toDoubles(control));
-      // twice: the row must be computed again, not read back as a kept null cell
-      assertEquals(control, drain(lens));
-      assertEquals(control, drain(lens));
+      assertStoppedAtRow3(lens);
    }
 
-   private static List<Object> drain(TableLens table) {
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   public void cancelDuringHostSwapReadStopsTheRowAndAppliesTheVarOnce(boolean pool)
+      throws Exception
+   {
+      TableLens lens = lens(pool, "host.cancelledRead()");
+
+      assertStop(assertThrows(RuntimeException.class, () -> drain(lens)));
+      assertInstanceOf(SwapReadInterruptedException.class, host.failure,
+                       "the cancel did not interrupt a swap read");
+      assertTrue(Thread.interrupted(), "the cancel's interrupt flag was cleared");
+
+      assertStoppedAtRow3(lens);
+   }
+
+   /**
+    * Read the lens twice more: row 3 fails with the stop every time, and the other rows have
+    * the values the formula gives with no interrupt.
+    */
+   private static void assertStoppedAtRow3(TableLens lens) {
+      List<Object> expected = List.of(1, 2, STOP, 4, 5, 6, 7, 8);
+      assertEquals(expected, cells(lens));
+      assertEquals(expected, cells(lens));
+   }
+
+   /**
+    * A formula lens built as a worksheet builds it, whose formula keeps a var across rows and
+    * calls {@code trigger} on the host at row 3, once.
+    */
+   private TableLens lens(boolean pool, String trigger) throws Exception {
+      AssetQuerySandbox box = PoolTestSupport.poolBox(pool);
+      env = box.getScriptEnv();
+      env.put("host", host);
+      String formula = "var k = (k || 0) + 1; " +
+         "var x = (field['value'] == 3 && host.armed() ? " + trigger + " : 0); k";
+      return PostProcessor.formula(new DefaultTableLens(data()), new String[] { "f" },
+                                   new String[] { formula }, env, box.getScope(), null, "T",
+                                   null, List.of(Integer.class), new boolean[] { false });
+   }
+
+   private static void assertStop(Throwable ex) {
+      assertTrue(ScriptTimeoutGuard.isStop(ex), "not a stop: " + ex);
+      assertNull(DataUnavailable.find(ex), "the stop reads as a lost swap file: " + ex);
+   }
+
+   private static void drain(TableLens table) {
+      for(int r = 1; table.moreRows(r); r++) {
+         table.getObject(r, 2);
+      }
+   }
+
+   /**
+    * The cells of the formula column, {@link #STOP} for a cell whose read fails with a stop.
+    */
+   private static List<Object> cells(TableLens table) {
       List<Object> values = new ArrayList<>();
 
-      for(int r = 1; table.moreRows(r); r++) {
-         values.add(table.getObject(r, 2));
+      for(int r = 1; r <= N; r++) {
+         try {
+            assertTrue(table.moreRows(r), "row " + r);
+            Object value = table.getObject(r, 2);
+            values.add(value instanceof Number ? ((Number) value).intValue() : value);
+         }
+         catch(RuntimeException ex) {
+            assertStop(ex);
+            values.add(STOP);
+         }
       }
 
       return values;
-   }
-
-   private static List<Double> toDoubles(List<Object> values) {
-      List<Double> doubles = new ArrayList<>();
-
-      for(Object value : values) {
-         doubles.add(value == null ? null : ((Number) value).doubleValue());
-      }
-
-      return doubles;
    }
 
    private static Object[][] data() {
@@ -125,8 +186,7 @@ public class FormulaTableLensSwapInterruptTest {
    }
 
    /**
-    * A host object whose loop swaps a fragment out and reads it back until the timeout
-    * interrupts a read. It loops once only.
+    * A host object whose read of a swapped fragment is interrupted, once.
     */
    public static final class Host {
       Host() {
@@ -143,6 +203,9 @@ public class FormulaTableLensSwapInterruptTest {
          return !done;
       }
 
+      /**
+       * Swap the fragment out and read it back until the timeout interrupts a read.
+       */
       public int loop() {
          done = true;
          long end = System.currentTimeMillis() + 10000;
@@ -161,15 +224,32 @@ public class FormulaTableLensSwapInterruptTest {
          return 0;
       }
 
+      /**
+       * Read the swapped fragment on a thread that a cancel interrupted.
+       */
+      public int cancelledRead() {
+         done = true;
+         assertTrue(fragment.swap(), "fragment was not swapped");
+         Thread.currentThread().interrupt();
+
+         try {
+            return fragment.getSafely(5);
+         }
+         catch(RuntimeException ex) {
+            failure = ex;
+            throw ex;
+         }
+      }
+
       final XIntFragment fragment;
       volatile boolean done;
       volatile RuntimeException failure;
    }
 
    private static final int N = 8;
-   private static final String RUNNING_TOTAL = "field['value'] + (field[-1] == null || " +
-      "field[-1]['f'] == null || isNaN(field[-1]['f']) ? 0 : field[-1]['f'])";
+   private static final String STOP = "STOP";
 
    private String previousTimeout;
    private Host host;
+   private ScriptEnv env;
 }

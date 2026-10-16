@@ -26,10 +26,13 @@ import inetsoft.uql.XConstants;
 import inetsoft.util.*;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
 import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.swap.SwapReadInterruptedException;
 import inetsoft.util.swap.XSwappableIntList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -163,7 +166,12 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       cancelLock.lock();
 
       try {
-         cancelled = !completed;
+         // a repeated cancel, after the cancelled scan ended, must not make the partial rows
+         // look whole (bug #78341)
+         if(!completed) {
+            cancelled = true;
+            cancelCount++;
+         }
 
          if(table instanceof CancellableTableLens) {
             ((CancellableTableLens) table).cancel();
@@ -183,6 +191,16 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    }
 
    /**
+    * Check if a script timeout or cancel interrupted a swap read of the base table as this
+    * table was joined (bug #78100), or stopped a script of the base table (bug #78134), so
+    * every read fails until it is invalidated. A cache treats such a table as not cached, and
+    * the next reader computes it again.
+    */
+   public boolean isStopped() {
+      return swapFailure instanceof SwapReadInterruptedException || stopFailure != null;
+   }
+
+   /**
     * Invalidate the table filter forcely, and the table filter will
     * perform filtering calculation to validate itself.
     */
@@ -195,6 +213,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
          completed = false;
          stallFailure = null;
          swapFailure = null;
+         stopFailure = null;
          baseFailure = null;
          scannedRows = 0;
       }
@@ -225,13 +244,14 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       }
 
       final XSwappableIntList rows2 = rows;
+      final int cancels = cancelCount;
 
       // if this is called from JavaScriptEngine.exec() or a condition filter
       // (bug #76938), the script engine is already locked. joining in a separate
       // thread would create a deadlock waiting forever for the JavaScriptEngine lock
       // to be released.
       if(JavaScriptEngine.holdsScriptLock()) {
-         join(rows2);
+         join(rows2, cancels);
          return;
       }
 
@@ -246,7 +266,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
             borrower.begin();
 
             try {
-               join(rows2);
+               join(rows2, cancels);
             }
             finally {
                borrower.end();
@@ -258,16 +278,23 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    /**
     * Find the rows matching the join operators.
     */
-   private void join(XSwappableIntList rows2) {
+   private void join(XSwappableIntList rows2, int cancels) {
       SelfJoinOperator[] ops = new SelfJoinOperator[oplist.size()];
       oplist.toArray(ops);
       LockStallException stall = null;
       SwapFileReadException swapFailure = null;
+      ScriptException stopFailure = null;
       MessageException baseFailure = null;
 
       try {
          OUTER:
          for(int i = table.getHeaderRowCount(); table.moreRows(i); i++) {
+            // cancelled during this pass: end with the rows so far. a cancel of an earlier pass
+            // does not end a re-run after invalidate() (bug #78341)
+            if(cancelCount != cancels) {
+               break;
+            }
+
             scannedRows = i;
 
             for(int j = 0; j < ops.length; j++) {
@@ -311,11 +338,20 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
          }
 
          if(stall == null && swapFailure == null) {
+            // nor a stopped script of the base: every read fails with the stop, as a
+            // stopped cell of a formula table does (bug #78134)
+            stopFailure = ScriptTimeoutGuard.copyStop(ex);
+         }
+
+         if(stall == null && swapFailure == null && stopFailure == null) {
             // nor must a failure to read the base, e.g. of a set table (bug #77875)
             baseFailure = MessageException.find(ex);
          }
 
-         if(swapFailure == null && baseFailure == null) {
+         if(stopFailure != null) {
+            LOG.debug("Self join stopped by a script of the base table", ex);
+         }
+         else if(swapFailure == null && baseFailure == null) {
             LOG.error("Failed to validate table rows", ex);
          }
          else if(baseFailure != null) {
@@ -327,12 +363,18 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       // the next pass early nor fail it with its stale stall (bug #77397)
       synchronized(SelfJoinTableLens.this) {
          if(rows == rows2) {
+            // copies are kept, which are never thrown: a failure thrown through a script gets
+            // a suppressed stack trace element that cannot be serialized (bug #78084)
             if(stall != null) {
-               stallFailure = stall;
+               stallFailure = stall.copy();
             }
 
             if(swapFailure != null) {
-               SelfJoinTableLens.this.swapFailure = swapFailure;
+               SelfJoinTableLens.this.swapFailure = swapFailure.copy();
+            }
+
+            if(stopFailure != null) {
+               SelfJoinTableLens.this.stopFailure = stopFailure;
             }
 
             if(baseFailure != null) {
@@ -455,8 +497,8 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    /**
     * Rethrow the stall or swap file read failure the worker failed with, called when the
     * table is complete. A stall must never look like the end of the table (bug #76967), and
-    * neither must a swap file read failure (bug #77651) or a failure to read the base
-    * (bug #77875).
+    * neither must a swap file read failure (bug #77651), a script stop of the base
+    * (bug #78134) or a failure to read the base (bug #77875).
     */
    private void throwStallFailure() {
       LockStallException failure = stallFailure;
@@ -468,7 +510,15 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       SwapFileReadException swapFailure = this.swapFailure;
 
       if(swapFailure != null) {
-         throw swapFailure;
+         // a new instance for each reader (bug #78084)
+         throw swapFailure.copy();
+      }
+
+      ScriptException stopFailure = this.stopFailure;
+
+      if(stopFailure != null) {
+         // a new instance for each reader (bug #78084)
+         throw ScriptTimeoutGuard.copyStop(stopFailure);
       }
 
       MessageException baseFailure = this.baseFailure;
@@ -1028,6 +1078,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    private TableLens table;       // base table
    private boolean completed;     // completed flag
    private volatile boolean cancelled;     // cancelled flag
+   private volatile int cancelCount;       // cancels of an unfinished lens
    private final Lock cancelLock = new ReentrantLock();
    private int maxRows = Integer.MAX_VALUE;
    private transient boolean maxAlert = false;
@@ -1038,6 +1089,8 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    private transient volatile LockStallException stallFailure;
    // the swap file read failure the worker failed with, if any (bug #77651)
    private transient volatile SwapFileReadException swapFailure;
+   // the script stop of the base the worker failed with, if any (bug #78134)
+   private transient volatile ScriptException stopFailure;
    // the failure to read the base the worker failed with, if any (bug #77875)
    private transient volatile MessageException baseFailure;
 

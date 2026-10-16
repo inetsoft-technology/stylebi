@@ -23,6 +23,7 @@
  *   Group 1 [Risk 3] — fireModelChanged: valid = form.valid (startTime Validators.required)
  *   Group 2 [Risk 2] — condition setter: startTime form control initialized from condition.date + TZ
  *   Group 3 [Risk 2] — startTime.valueChanges deduplication: only fires fireModelChanged on real change
+ *   Group 4 [Risk 3] — Bug #78045: real TimeZoneService/DateTimeService with a non-US default locale
  *
  * KEY contracts:
  *   - fireModelChanged emits valid = form.valid (startTime Validators.required — the only gate).
@@ -34,7 +35,8 @@
  *     no change and does NOT call fireModelChanged() again — no infinite loop.
  *   - TZ NOTE: applyDateTimeZoneOffsetDifference handles DATE+TIME combined (not just time).
  *     Unlike hourly/daily/weekly, the date component also shifts when crossing midnight.
- *     Testing requires mocking TimeZoneService.calculateTimezoneOffset.
+ *     Groups 1-3 mock TimeZoneService.calculateTimezoneOffset to 0; Group 4 uses the real service,
+ *     because the mock hid Bug #78045 (offset NaN under a day-first default locale).
  */
 
 import { Component, forwardRef, NO_ERRORS_SCHEMA } from "@angular/core";
@@ -257,6 +259,106 @@ describe("RunOnceConditionEditorComponent — startTime.valueChanges: deduplicat
       await new Promise(resolve => setTimeout(resolve, 0));
 
       expect(emitted.length).toBeGreaterThan(0);
+   });
+
+});
+
+// ---------------------------------------------------------------------------
+// Group 4 [Risk 3] — Bug #78045: real services with a non-US default locale
+// ---------------------------------------------------------------------------
+
+describe("RunOnceConditionEditorComponent — Bug #78045: opens and saves a zoned condition in any locale", () => {
+
+   // The offset used to be computed by parsing toLocaleString([], {timeZone}) with new Date().
+   // With a day-first default locale (en-GB) on the 13th or later, or ko-KR on any day, that was
+   // NaN: the editor opened with an empty date and time ("Need to set a time.") and a save stored
+   // date = NaN. With UTC and the zone on different days it was about a month off. The default
+   // locale is forced by wrapping Date.prototype.toLocaleString for an empty/undefined locale.
+   function forceDefaultLocale(locale: string): void {
+      const nativeToLocaleString = Date.prototype.toLocaleString;
+
+      vi.spyOn(Date.prototype, "toLocaleString").mockImplementation(
+         function(this: Date, locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
+            const useDefault = locales == null || (Array.isArray(locales) && locales.length === 0);
+            return nativeToLocaleString.call(this, useDefault ? locale : locales, options);
+         });
+   }
+
+   async function renderWithRealServices(condition: TimeConditionModel) {
+      const result = await render(RunOnceConditionEditorComponent, {
+         imports: [ReactiveFormsModule, NoopAnimationsModule],
+         declarations: [TimeZoneSelectStub, TimePickerStub],
+         schemas: [NO_ERRORS_SCHEMA],
+         providers: [DateTimeService, TimeZoneService],
+         componentProperties: { condition },
+      });
+
+      await result.fixture.whenStable();
+      return result.fixture.componentInstance;
+   }
+
+   afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+   });
+
+   // 2026-12-20 09:30 in Asia/Bangkok (UTC+7). "Now" is in November so that, for hosts with DST,
+   // now and the run date are in the same DST period: DateTimeService.setDate computes with the
+   // offset of now, and is 1 h off when the two differ (a separate, pre-existing issue).
+   const STORED = Date.UTC(2026, 11, 20, 2, 30);
+
+   const cases: [string, string, number][] = [
+      ["en-US (control)", "en-US", Date.UTC(2026, 10, 23, 3, 0)],
+      ["en-GB on day 23", "en-GB", Date.UTC(2026, 10, 23, 3, 0)],
+      ["de-DE on day 23", "de-DE", Date.UTC(2026, 10, 23, 3, 0)],
+      ["en-GB, 5th in UTC but 6th in Bangkok", "en-GB", Date.UTC(2026, 10, 5, 23, 30)],
+      ["ko-KR on day 5", "ko-KR", Date.UTC(2026, 10, 5, 3, 0)],
+   ];
+
+   for(const [name, locale, now] of cases) {
+      it(`shows the saved date and time and saves them unchanged: ${name}`, async () => {
+         forceDefaultLocale(locale);
+         vi.useFakeTimers({ toFake: ["Date"] });
+         vi.setSystemTime(now);
+
+         const comp = await renderWithRealServices(makeCondition({
+            date: STORED,
+            timeZone: "Asia/Bangkok",
+            timeZoneLabel: "Asia/Bangkok",
+         }));
+
+         expect(comp.dateValue.getFullYear()).toBe(2026);
+         expect(comp.dateValue.getMonth()).toBe(11);
+         expect(comp.dateValue.getDate()).toBe(20);
+         expect(comp.form.get("startTime").value).toBe("09:30:00");
+         expect(comp.form.get("startTime").errors).toBeNull();
+
+         const emitted: TaskConditionChanges[] = [];
+         comp.modelChanged.subscribe(e => emitted.push(e));
+         comp.fireModelChanged();
+
+         const saved = emitted.at(-1);
+         expect(saved.valid).toBe(true);
+         expect(comp.form.get("startTime").value).toBe("09:30:00");
+         expect((saved.model as TimeConditionModel).date).toBe(STORED);
+      });
+   }
+
+   it("keeps a half-hour zone (Asia/Kolkata) under en-GB on day 23", async () => {
+      forceDefaultLocale("en-GB");
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(Date.UTC(2026, 10, 23, 3, 0));
+
+      // 2026-12-20 09:30 in Asia/Kolkata (UTC+5:30)
+      const stored = Date.UTC(2026, 11, 20, 4, 0);
+      const comp = await renderWithRealServices(makeCondition({
+         date: stored,
+         timeZone: "Asia/Kolkata",
+         timeZoneLabel: "Asia/Kolkata",
+      }));
+
+      expect(comp.dateValue.getDate()).toBe(20);
+      expect(comp.form.get("startTime").value).toBe("09:30:00");
    });
 
 });

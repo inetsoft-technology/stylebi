@@ -2270,6 +2270,17 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
    }
 
    /**
+    * Get the runtime fields a chart selection or a selection condition can refer to.
+    * This is {@link #getRTFields()} plus any fields that are excluded from the query
+    * grouping but can still be selected in the chart, e.g. the dimension bound to a
+    * relation chart's node color/size. Use it only to map a selected field name back to
+    * its ref, never to build the query.
+    */
+   public VSDataRef[] getRTSelectionFields() {
+      return getRTFields();
+   }
+
+   /**
     * @return true if the date comparison base date field is on x, else on y.
     */
    public boolean isDcBaseDateOnX() {

@@ -64,4 +64,6 @@ export interface EditIdentityPaneModel {
    editable: boolean;
    oldName?: string;
    theme?: string;
+   // Bug #78217, a warning about the identity that was created, e.g. a failed creator grant
+   warning?: string;
 }

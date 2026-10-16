@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.*;
+import java.util.function.Predicate;
 
 /**
  * This class checks periodically whether the cache limit has been exceeded or
@@ -208,9 +209,15 @@ public class ClearOldCacheFilesRunnable extends TimedQueue.TimedRunnable {
             }});
 
          long curr = System.currentTimeMillis();
-         Map<String, Integer> swapFileMap = Cluster.getInstance().getMap(XSwapper.SWAP_FILE_MAP);
+         XSwapper.RegisteredSwapFiles swapFiles =
+            new XSwapper.RegisteredSwapFiles(Cluster.getInstance());
+         // Bug #78082, the snapshot copies of a node that is gone are not in use
+         SnapshotEmbeddedTableAssembly.removeStaleFileReferences(Cluster.getInstance());
          Map<String, Integer> snapshotFileMap = Cluster.getInstance().getMap(
             SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
+         // Bug #78463, a live JVM that is not in this cluster may read a copy it has no count of
+         Predicate<String> snapshotElsewhere =
+            SnapshotEmbeddedTableAssembly.getFilesInUseElsewhere(file);
          XSwapper swapper = XSwapper.getSwapper();
 
          for(int i = 0; files != null && i < files.length; i++) {
@@ -221,7 +228,12 @@ public class ClearOldCacheFilesRunnable extends TimedQueue.TimedRunnable {
             String filePath = files[i].getAbsolutePath();
 
             // file in use, skip. Bug #77600, files of this JVM's swapper are live
-            if(swapFileMap.containsKey(filePath) || snapshotFileMap.containsKey(filePath) ||
+            // Bug #78044, a registered file of a JVM that is gone is not in use
+            // Bug #78082, a snapshot copy that this JVM reads is in use, even if its count
+            // is gone
+            if(swapFiles.contains(files[i]) || snapshotFileMap.containsKey(filePath) ||
+               SnapshotEmbeddedTableAssembly.isFileInUseLocally(filePath) ||
+               snapshotElsewhere.test(filePath) ||
                swapper.isOwnSwapFile(files[i].getName()))
             {
                continue;

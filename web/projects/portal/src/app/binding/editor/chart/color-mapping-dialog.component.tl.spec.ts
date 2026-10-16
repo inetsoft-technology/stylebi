@@ -128,7 +128,9 @@ describe("ColorMappingDialog — ok [Group 2, Risk 3]", () => {
 });
 
 describe("ColorMappingDialog — edit lifecycle [Group 3, Risk 2]", () => {
-   it("should emit initial maps on close and cancel", () => {
+   // 🔁 Regression-sensitive: Bug #78706 — ComponentTool.showDialog treats any onCommit as OK,
+   // so close() (Cancel / header X) must emit only onCancel
+   it("should emit only cancel on close", () => {
       const dialog = createDialog();
       dialog.ngOnInit();
       const committed = vi.fn();
@@ -138,8 +140,31 @@ describe("ColorMappingDialog — edit lifecycle [Group 3, Risk 2]", () => {
 
       dialog.close();
 
-      expect(committed).toHaveBeenCalled();
+      expect(committed).not.toHaveBeenCalled();
       expect(cancelled).toHaveBeenCalledWith("cancel");
+   });
+
+   // 🔁 Regression-sensitive: Bug #73337 / #78706 — close() no longer re-commits the initial rows,
+   // so edits made before Cancel must never reach the model; reopening shows the saved maps
+   it("should leave the model untouched on close so reopening shows the saved maps", () => {
+      const model = createModel();
+      const saved = JSON.parse(JSON.stringify(model.colorMaps));
+      const dialog = createDialog(model);
+      dialog.ngOnInit();
+
+      dialog.currentColorMaps[0].color = "#123456";
+      dialog.currentColorMaps[1].option = "1998";
+      dialog.addRow();
+      dialog.deleteRow(2);
+      dialog.close();
+
+      expect(model.colorMaps).toEqual(saved);
+
+      const reopened = createDialog(model);
+      reopened.ngOnInit();
+
+      expect(reopened.currentColorMaps.map(m => [m.option, m.color]))
+         .toEqual(saved.map(m => [m.option, m.color]));
    });
 
    it("should add, delete, reset rows and toggle global mode", () => {

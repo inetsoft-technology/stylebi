@@ -283,7 +283,9 @@ public class DashboardAsset extends AbstractXAsset {
       boolean overwriting = config != null && config.isOverwriting();
       DashboardRegistry registry = DashboardRegistryManager.getInstance().getRegistry(user);
 
-      if(registry.getDashboard(dashboard) != null && !overwriting) {
+      boolean exists = registry.getDashboard(dashboard) != null;
+
+      if(exists && !overwriting) {
          return;
       }
 
@@ -300,6 +302,13 @@ public class DashboardAsset extends AbstractXAsset {
             String identifier = ((VSDashboard) board).getViewsheet().getIdentifier();
             AssetEntry assetEntry = AssetEntry.createAssetEntryForCurrentOrg(identifier);
             ((VSDashboard) board).getViewsheet().setIdentifier(assetEntry.toIdentifier());
+
+            // Bug #78138, a new global dashboard must not receive the grants a deleted dashboard
+            // with the same name left behind. The export carries no permission, and the grants
+            // of an existing dashboard that is overwritten are kept.
+            if(!exists && user == null) {
+               registry.removePermissionBestEffort(dashboard);
+            }
 
             registry.putDashboard(dashboard, board);
          }

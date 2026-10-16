@@ -214,20 +214,8 @@ public class RepositoryObjectService {
                if(permanent || RecycleUtils.isInRecycleBin(node.path())) {
                   AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
 
-                  try {
-                     AbstractSheet assetSheet =
-                        assetRepository.getSheet(asset, principal, true, AssetContent.CONTEXT);
-                     RecycleBin.Entry binEntry = recycleBin.getEntry(path);
-                     AssetEntry dasset = new AssetEntry(
-                        binEntry.getOriginalScope(), type, binEntry.getOriginalPath(),
-                        node.owner());
-                     this.dependencyHandler.updateSheetDependencies(assetSheet, dasset, false);
-                  }
-                  catch(MissingAssetClassNameException e) {
-                     LOG.error(
-                        "Cannot update dependencies for corrupt asset {}", asset.getPath(), e);
-                  }
-
+                  // Bug #78430: removeSheet removes the sheet from its dependencies, under the
+                  // entry it is listed by (its Recycle Bin path once it was moved there)
                   assetRepository.removeSheet(asset, principal, true);
                   recycleBin.removeEntry(node.path());
                }
@@ -446,7 +434,10 @@ public class RepositoryObjectService {
             case RepositoryEntry.SCRIPT:
                libManagerProvider.getManager(principal).removeScript(node.label());
                libManagerProvider.getManager(principal).save();
-               securityProvider.removePermission(ResourceType.SCRIPT, node.label());
+               // Bug #78217, the script is already deleted, a failed permission write must not
+               // stop the delete of the other selected nodes
+               AbstractAssetEngine.removePermissionBestEffort(
+                  securityProvider, ResourceType.SCRIPT, node.label());
                break;
             case RepositoryEntry.TABLE_STYLE:
                int index = node.path().lastIndexOf(LibManager.SEPARATOR);
@@ -476,7 +467,7 @@ public class RepositoryObjectService {
                }
                else {
                   RecycleUtils.moveRepositoryFolderToRecycleBin(node.path(),
-                     node.label(), node.owner(), principal, recycleBin);
+                     node.label(), node.owner(), principal, recycleBin, force);
                }
 
                break;
@@ -656,8 +647,9 @@ public class RepositoryObjectService {
    }
 
    private void removeDataSource(String dxname) {
+      // Bug #78217, the registry removes the permission of the data source best-effort, and
+      // only when there is a data source at the path (Bug #77700)
       dataSourceRegistry.removeDataSource(dxname);
-      securityProvider.removePermission(ResourceType.DATA_SOURCE, dxname);
    }
 
    public ConnectionStatus removeDataSourceFolder(String dxname, boolean force,
@@ -774,8 +766,10 @@ public class RepositoryObjectService {
       dataModel.removeLogicalModel(name);
       removeDataModelDependencies(path, AssetEntry.Type.LOGIC_MODEL, true);
 
+      // Bug #78217, the model is already removed, a failed permission write must not stop the
+      // delete of the other selected nodes
       if(logicalModel != null) {
-         securityProvider.removePermission(ResourceType.QUERY,
+         AbstractAssetEngine.removePermissionBestEffort(securityProvider, ResourceType.QUERY,
             XUtil.getLogicalModelResourceName(dataModel.getDataSource(), folder, name));
       }
 
@@ -1298,7 +1292,14 @@ public class RepositoryObjectService {
             (typeFrom & RepositoryEntry.PARTITION) == RepositoryEntry.PARTITION))
          {
             moveDataModel(pathFrom, pathTo, info, typeFrom);
-            renameDataModelPermission(pathFrom, pathTo);
+
+            // Bug #78204, moveDataModel records a refusal (e.g. the target does not belong to the
+            // same data source) in info's "error" list and returns without mutating anything; only
+            // rename the permission when the move was actually accepted, otherwise this runs on
+            // paths/targets moveDataModel never validated and can throw.
+            if(info.get("error").isEmpty()) {
+               renameDataModelPermission(pathFrom, pathTo);
+            }
          }
          else {
             // do nothing when folder path is not changed.
@@ -1408,7 +1409,12 @@ public class RepositoryObjectService {
       int idx = pathFrom.indexOf("^");
       String dsName = idx == -1 ? null : pathFrom.substring(0, idx);
 
-      if(dsName != null && (pathTo == null || !pathTo.startsWith(dsName))) {
+      // Bug #78204, a bare startsWith() is not path-separator aware and wrongly accepts a target
+      // data source whose name merely starts with dsName (e.g. "OrdersX" or "OrdersX/g" against
+      // "Orders"). isSameOrDescendantPath() requires pathTo to equal dsName (move onto the data
+      // source itself) or be dsName + "/" + <folder> (move into one of its own data-model
+      // folders), which still allows a legitimate same-data-source subfolder move.
+      if(dsName != null && (pathTo == null || !Tool.isSameOrDescendantPath(dsName, pathTo))) {
          infos.get("error").add(catalog.getString("em.database.drag.dataModel.source.note"));
          return;
       }
@@ -1494,8 +1500,10 @@ public class RepositoryObjectService {
 
       if(permission != null) {
          String resourcePathTo = ResourcePermissionService.getLogicalModelResourceName(pathTo + resourceID).getPath();
-         securityProvider.getAuthorizationProvider().setPermission(ResourceType.QUERY, resourcePathTo, permission);
-         securityProvider.getAuthorizationProvider().removePermission(ResourceType.QUERY, resourcePathFrom);
+         // Bug #78217, the model is already moved, a failed permission write must not stop the
+         // move of the other selected items
+         AbstractAssetEngine.movePermissionBestEffort(securityProvider.getAuthorizationProvider(),
+            ResourceType.QUERY, resourcePathFrom, resourcePathTo, permission);
       }
    }
 

@@ -99,7 +99,10 @@ class ScheduleSaveRefusalKeepsTaskTest {
          .grantPermission(ResourceType.SCHEDULER, "*", ResourceAction.ACCESS,
                           SCHEDULE_ROLE, Identity.ROLE, ORG_A)
          .grantPermission(ResourceType.SCHEDULER, "*", ResourceAction.ACCESS,
-                          SITE_ADMIN_ROLE, Identity.ROLE, ORG_A);
+                          SITE_ADMIN_ROLE, Identity.ROLE, ORG_A)
+         // Bug #78129, a saved sheet must be readable by the saver and the run principal
+         .grantPermission(ResourceType.REPORT, "Examples/Census", ResourceAction.READ,
+                          SCHEDULE_ROLE, Identity.ROLE, ORG_A);
       builder.setup();
 
       // pin the security state to the builder's providers (Bug #77346), see
@@ -247,13 +250,22 @@ class ScheduleSaveRefusalKeepsTaskTest {
 
    /**
     * Stores a task the way a site admin (exempt from the checks) or a save before #77530 stored
-    * it. The owner gets the permissions on it in its organization.
+    * it. The owner gets the permissions on it in its organization. The sheet isn't checked
+    * (Bug #78129), as before that check: the owner can't read a sheet of another organization.
     */
    private String storeTask(String name, String owner, String sheet) throws Exception {
       ThreadContext.setContextPrincipal(builder.principalOf(owner, ORG_A));
       ScheduleTask task = newTask(name, owner, sheet);
-      scheduleManager.setScheduleTask(task.getTaskId(), task,
-                                      builder.principalOf("ssrkAdmin", ORG_A));
+      AssetRepository.IGNORE_PERM.set(true);
+
+      try {
+         scheduleManager.setScheduleTask(task.getTaskId(), task,
+                                         builder.principalOf("ssrkAdmin", ORG_A));
+      }
+      finally {
+         AssetRepository.IGNORE_PERM.remove();
+      }
+
       assertNotNull(scheduleManager.getScheduleTask(task.getTaskId(), ORG_A), "test setup");
       return task.getTaskId();
    }

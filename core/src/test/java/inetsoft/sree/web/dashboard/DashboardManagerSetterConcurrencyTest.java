@@ -141,6 +141,20 @@ class DashboardManagerSetterConcurrencyTest {
       OrganizationContextHolder.clear();
    }
 
+   // ── Bug #78101: a user rename moves the stored names as they are stored ──
+
+   @Test
+   void getStoredDashboards_returnsTheStoredNamesUnfiltered() throws Exception {
+      // names that are in no registry, which getDashboards() leaves out
+      seed(user, List.of("B", "A", "C__GLOBAL"), List.of("D__GLOBAL"));
+
+      assertArrayEquals(new String[] { "B", "A", "C__GLOBAL" },
+                        manager.getStoredDashboards(user));
+      assertArrayEquals(new String[0],
+                        manager.getStoredDashboards(new DefaultIdentity("none", Identity.USER)));
+      assertArrayEquals(new String[0], manager.getStoredDashboards(null));
+   }
+
    // ── P1: a setter racing a locked rename RMW keeps its write ──
 
    @Test

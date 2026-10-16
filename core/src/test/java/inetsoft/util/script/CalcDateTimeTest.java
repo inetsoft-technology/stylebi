@@ -1307,4 +1307,81 @@ public class CalcDateTimeTest {
                                     .atZone(ZoneId.systemDefault())
                                     .toInstant());
    }
+
+   // Bug #78112, CalcDateTime.date()'s WEEK_DATE_GROUP case (which backs the toList/mapList
+   // "round=week" date-rounding option, a distinct code path from CalcDateTime.weeknum() above)
+   // must round every date to the same week bucket under any JVM default locale, not just
+   // locales whose GregorianCalendar default minimalDaysInFirstWeek happens to be 1 (en-US,
+   // zh-CN). de-DE/en-GB/th-TH default to 4, which used to round December/January dates near a
+   // year boundary to a different week bucket than en-US, because the method read
+   // Calendar.WEEK_OF_YEAR from CoreTool.calendar without correcting minimalDaysInFirstWeek.
+   @ParameterizedTest
+   @ValueSource(strings = { "de-DE", "en-GB", "th-TH" })
+   void dateWeekGroupMatchesEnUsUnderAnyLocale(String tag) throws Exception {
+      long[][] results = new long[2][];
+      Throwable[] error = { null };
+
+      // Locale.setDefault() is JVM-global, not thread-local, so even though
+      // weekGroupDates() below runs on separate worker threads, the locale it sets must be
+      // restored once on this thread after both have finished (matching the save/restore
+      // pattern used by this file's other locale-switching tests, e.g.
+      // gregorianResultsUnderNonGregorianDefaultLocale above).
+      Locale oldLocale = Locale.getDefault();
+
+      try {
+         // CoreTool.calendar is a shared ThreadLocal, never reconstructed when the locale
+         // changes -- each locale must run on its own fresh thread, same trap as
+         // DateRangeRefWeekOfYearLocaleTest/SortOrderTest's locale-switching tests.
+         Thread enUs = new Thread(() -> {
+            try {
+               results[0] = weekGroupDates("en-US");
+            }
+            catch(Throwable ex) {
+               error[0] = ex;
+            }
+         });
+         Thread other = new Thread(() -> {
+            try {
+               results[1] = weekGroupDates(tag);
+            }
+            catch(Throwable ex) {
+               error[0] = ex;
+            }
+         });
+
+         enUs.start();
+         enUs.join();
+         other.start();
+         other.join();
+      }
+      finally {
+         Locale.setDefault(oldLocale);
+      }
+
+      if(error[0] != null) {
+         throw new AssertionError(error[0]);
+      }
+
+      assertArrayEquals(results[0], results[1], tag + " vs en-US");
+   }
+
+   /**
+    * Round every day from 2015-01-01 through 2030 to its week bucket via
+    * CalcDateTime.date(..., WEEK_DATE_GROUP, 1), under the given JVM default locale. Must be
+    * called on a fresh thread per locale (see dateWeekGroupMatchesEnUsUnderAnyLocale).
+    */
+   private long[] weekGroupDates(String tag) {
+      Locale.setDefault(Locale.forLanguageTag(tag));
+      java.util.List<Long> millis = new java.util.ArrayList<>();
+
+      for(LocalDate day = LocalDate.of(2015, 1, 1); day.getYear() <= 2030;
+          day = day.plusDays(1))
+      {
+         Date date = Date.from(day.atStartOfDay(ZoneId.systemDefault()).toInstant());
+         Date rounded = CalcDateTime.date(date, CalcDateTime.WEEK_DATE_GROUP, 1d);
+         millis.add(rounded.getTime());
+      }
+
+      return millis.stream().mapToLong(Long::longValue).toArray();
+   }
 }

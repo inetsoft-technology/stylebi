@@ -103,4 +103,27 @@ public class QueryManagerTest {
       assertEquals(2, qmgr.getCancelCount(), "any cancel is counted");
       assertEquals(1, qmgr.getQueryCancelCount(), "another cancel is not a query's cancel");
    }
+
+   /**
+    * Bug #78024: the sandbox skips or runs again a query that only newer changes or newer
+    * queries cancelled, but not one the user cancelled, so the kinds are counted apart.
+    */
+   @Test
+   void newerCancelsAreCountedApartFromOtherCancels() {
+      QueryManager qmgr = new QueryManager();
+      long[] counts = qmgr.getCancelCounts();
+      assertFalse(qmgr.isCancelledForNewerOnly(counts), "nothing cancelled yet");
+
+      qmgr.cancelForChange();
+      assertTrue(qmgr.isCancelledForNewerOnly(counts), "only a change cancelled it");
+      assertEquals(1, qmgr.getCancelCount(), "a change's cancel is a cancel");
+      assertEquals(0, qmgr.getQueryCancelCount(), "a change's cancel is not a query's");
+
+      qmgr.cancelForQuery();
+      assertTrue(qmgr.isCancelledForNewerOnly(counts), "a newer query's cancel is newer too");
+      assertEquals(1, qmgr.getQueryCancelCount(), "a newer query's cancel is counted as one");
+
+      qmgr.cancel();
+      assertFalse(qmgr.isCancelledForNewerOnly(counts), "a plain cancel, e.g. the user's");
+   }
 }

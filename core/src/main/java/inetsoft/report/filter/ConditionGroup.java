@@ -34,7 +34,9 @@ import inetsoft.util.Catalog;
 import inetsoft.util.OrderedMap;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -675,7 +677,11 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
                "common.conditionMerge") + ex.getMessage();
          }
 
-         throw new ScriptException(scriptMsg);
+         // keep unavailable data or a load failure as the cause (bug #78450) and a timeout's
+         // or cancel's stop (bug #78212), or a reader caches the failure
+         ScriptException se = new ScriptException(scriptMsg, DataUnavailable.causeInChain(ex));
+         se.setStopped(ScriptTimeoutGuard.isStop(ex));
+         throw se;
       }
       finally {
          FormulaContext.setRestricted(restricted);

@@ -864,7 +864,15 @@ public class PropertiesEngine {
       }
 
       initFonts();
-      LOG.info("InetSoft {} build {} started", Tool.getReportVersion(), Tool.getBuildNumber());
+
+      // a reload runs on every property save on every node, so only a real start is announced
+      // (Bug #78124)
+      if(fromChange) {
+         LOG.debug("Reloaded properties");
+      }
+      else {
+         LOG.info("InetSoft {} build {} started", Tool.getReportVersion(), Tool.getBuildNumber());
+      }
    }
 
    /**

@@ -32,11 +32,13 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.web.AutoSaveUtils;
+import inetsoft.web.composer.model.vs.DynamicValueModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -194,11 +196,10 @@ public class BatchAction extends AbstractAction {
       TableAssembly tableAssembly = null;
       TableLens queryTable = null;
       Worksheet sheet = null;
+      AssetEntry readEntry = getReadEntry();
 
       if(entry.isTable()) {
-         AssetEntry wsEntry = new AssetEntry(entry.getScope(), AssetEntry.Type.WORKSHEET,
-                                             entry.getParentPath(), entry.getUser());
-         sheet = (Worksheet) assetRepository.getSheet(wsEntry, principal, true,
+         sheet = (Worksheet) assetRepository.getSheet(readEntry, principal, true,
                                                       AssetContent.ALL);
          Assembly assembly = sheet.getAssembly(entry.getName());
 
@@ -207,7 +208,7 @@ public class BatchAction extends AbstractAction {
          }
       }
       else if(entry.isWorksheet()) {
-         sheet = (Worksheet) assetRepository.getSheet(entry, principal, true,
+         sheet = (Worksheet) assetRepository.getSheet(readEntry, principal, true,
                                                       AssetContent.ALL);
          Assembly assembly = sheet.getPrimaryAssembly();
 
@@ -339,6 +340,30 @@ public class BatchAction extends AbstractAction {
 
    public AssetEntry getQueryEntry() {
       return queryEntry;
+   }
+
+   /**
+    * Bug #78129, gets the worksheet entry that the run reads the query from, so the READ check
+    * made when the task is saved ({@code ScheduleManager}) checks exactly what the run reads: the
+    * query entry without its auto-save properties, or the worksheet that holds it for a table
+    * query. The worksheet of a table query gets the current organization, as when it runs.
+    *
+    * @return the entry, or {@code null} if there's no query or it's neither a worksheet nor a
+    *         table, which the run doesn't read.
+    */
+   AssetEntry getReadEntry() {
+      AssetEntry entry = removeAutoSaveProperties(queryEntry);
+
+      if(entry == null) {
+         return null;
+      }
+
+      if(entry.isTable()) {
+         return new AssetEntry(entry.getScope(), AssetEntry.Type.WORKSHEET,
+                               entry.getParentPath(), entry.getUser());
+      }
+
+      return entry.isWorksheet() ? entry : null;
    }
 
    public void setQueryEntry(AssetEntry queryEntry) {
@@ -544,13 +569,23 @@ public class BatchAction extends AbstractAction {
             String value = readCDATAElement(valNode);
             String type = Tool.getValue(typeNode);
             String dataType = Tool.getValue(dataTypeNode);
+
+            // a date value saved before #77605 may have a Buddhist or Japanese year, it is
+            // kept as a string as before
+            if(DynamicValueModel.VALUE.equals(type) &&
+               (XSchema.DATE.equals(dataType) || XSchema.TIME_INSTANT.equals(dataType)))
+            {
+               value = Tool.toGregorianPersistentDate(value);
+            }
+
             map.put(key, new DynamicParameterValue(value, type, dataType));
          }
          else {
             Element valNode = Tool.getChildNodeByTagName(propNode, "value");
             Element valTypeNode = Tool.getChildNodeByTagName(propNode, "valueType");
             String valType = Tool.getValue(valTypeNode);
-            Object val = Tool.getData(valType, readCDATAElement(valNode));
+            // a date saved before #77605 may have a Buddhist or Japanese year
+            Object val = Tool.getPersistentData(valType, readCDATAElement(valNode), false);
             map.put(key, val);
          }
       }

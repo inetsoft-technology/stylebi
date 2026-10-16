@@ -136,7 +136,9 @@ public final class ScriptHostAccess {
       // script-supplied settings. HikariCP (com.zaxxer) and jdbi3 (org.jdbi),
       // listed above, are the other connection-pool / SQL-access libraries on the
       // runtime classpath.
-      "com.mchange"
+      "com.mchange",
+      // Bug #78064: the mxgraph codec, also denied by type in hostAccess()
+      "inetsoft.graph.mxgraph.io"
    );
 
    // Specific dangerous classes that are blocked by exact name.
@@ -157,6 +159,8 @@ public final class ScriptHostAccess {
       "java.lang.Compiler",
       "java.util.ServiceLoader",
       "java.awt.Desktop",
+      // Bug #78490: Toolkit.getImage/createImage(String) read a local image file
+      "java.awt.Toolkit",
       "javax.swing.JFileChooser",
       "java.io.File",
       "java.io.FileInputStream",
@@ -259,6 +263,8 @@ public final class ScriptHostAccess {
       "boolean", "byte", "char", "short", "int", "long", "float", "double");
 
    private static volatile HostAccess hostAccess;
+   // the type denies of hostAccess(), type -> includeSubclasses; set before it
+   private static volatile Map<Class<?>, Boolean> deniedTypes;
 
    public static HostAccess hostAccess() {
       if(hostAccess == null) {
@@ -283,24 +289,32 @@ public final class ScriptHostAccess {
                   // same allowance the built-in HostAccess.ALL/EXPLICIT presets use, and
                   // it does not widen class reachability (still gated by classFilter) or
                   // permit implementing arbitrary/abstract types. (#75690)
-                  .allowImplementationsAnnotatedBy(FunctionalInterface.class)
+                  .allowImplementationsAnnotatedBy(FunctionalInterface.class);
+
+               // Bug #78064: every type deny goes through TypeDenies, which also records
+               // it for isTypeDenied(). A denyAccess call made on the builder directly
+               // would be enforced by Graal but missed by the helpers that construct a
+               // class named by a script.
+               TypeDenies denies = new TypeDenies(builder);
+
+               denies
                   // FIX 2: Deny reflective escape paths even when allowPublicAccess(true) is set.
                   // denyAccess takes precedence over allowPublicAccess for the listed classes.
                   // denyAccess(Object.class, false) blocks only methods declared on Object itself
                   // (getClass, wait, notify, etc.) without affecting methods declared on subclasses.
                   // This prevents d.getClass().getClassLoader().loadClass(...) escapes.
-                  .denyAccess(Object.class, false)
-                  .denyAccess(Class.class)
-                  .denyAccess(ClassLoader.class)
-                  .denyAccess(java.lang.reflect.Method.class)
-                  .denyAccess(java.lang.reflect.Field.class)
-                  .denyAccess(java.lang.reflect.Constructor.class)
-                  .denyAccess(java.lang.reflect.AccessibleObject.class)
-                  .denyAccess(System.class)
-                  .denyAccess(Runtime.class)
-                  .denyAccess(Process.class)
-                  .denyAccess(ProcessBuilder.class)
-                  .denyAccess(Thread.class)
+                  .deny(Object.class, false)
+                  .deny(Class.class)
+                  .deny(ClassLoader.class)
+                  .deny(java.lang.reflect.Method.class)
+                  .deny(java.lang.reflect.Field.class)
+                  .deny(java.lang.reflect.Constructor.class)
+                  .deny(java.lang.reflect.AccessibleObject.class)
+                  .deny(System.class)
+                  .deny(Runtime.class)
+                  .deny(Process.class)
+                  .deny(ProcessBuilder.class)
+                  .deny(Thread.class)
                   // Bug #77497: a public static is shared by every script context and by
                   // Java code in the JVM, and a script can reach the statics of a class by
                   // more than one route (Java.type, the legacy package shim, the class
@@ -309,14 +323,14 @@ public final class ScriptHostAccess {
                   // - a thread-local carries state from one script run to whatever runs
                   //   next on that thread; scripts cannot name the type already
                   //   (BLOCKED_CLASSES), and no script API hands one out
-                  .denyAccess(ThreadLocal.class)
+                  .deny(ThreadLocal.class)
                   // - the constant holders the StyleConstant and Chart scopes are built
                   //   from declare only constants, some of them shared mutable arrays and
                   //   page sizes; scripts read them through those scopes, which hand out
                   //   copies (ConstantScope). Exact type only: the members of the classes
                   //   that implement or extend them are unaffected
-                  .denyAccess(inetsoft.report.StyleConstants.class, false)
-                  .denyAccess(inetsoft.report.composition.region.ChartConstants.class, false)
+                  .deny(inetsoft.report.StyleConstants.class, false)
+                  .deny(inetsoft.report.composition.region.ChartConstants.class, false)
                   // Bug #77348: the #77255 read-only principal view is applied only
                   // where the engine converts a value for a script (toGuest). A raw
                   // host call (a Spring holder, VariableTable.get('__principal__'),
@@ -327,28 +341,28 @@ public final class ScriptHostAccess {
                   // trusts. Deny is by the member's declaring class, so the extra
                   // interfaces a principal implements are listed too: Graal reports
                   // their methods as declared by the interface, not the principal.
-                  .denyAccess(java.security.Principal.class)
+                  .deny(java.security.Principal.class)
                   // SRPrincipal.getClientUserID() is the live ClientInfo IdentityID
                   // that getName()/getIdentityID() are computed from
-                  .denyAccess(inetsoft.util.LogPrincipal.class)
+                  .deny(inetsoft.util.LogPrincipal.class)
                   // readExternal resets an object's whole state; only the
                   // interface-declared methods, not every Externalizable class
-                  .denyAccess(java.io.Externalizable.class, false)
+                  .deny(java.io.Externalizable.class, false)
                   // DestinationUserNameProviderPrincipal is a Principal, but Graal
                   // reports getDestinationUserName() as declared by this interface
-                  .denyAccess(org.springframework.messaging.simp.user
-                                 .DestinationUserNameProvider.class, false)
+                  .deny(org.springframework.messaging.simp.user
+                           .DestinationUserNameProvider.class, false)
                   // the principal's user identity holder
-                  .denyAccess(inetsoft.sree.ClientInfo.class)
+                  .deny(inetsoft.sree.ClientInfo.class)
                   // setUser/setBaseUser/setVPMUser swap which principal a session
                   // trusts without touching the principal itself
-                  .denyAccess(inetsoft.report.composition.execution.ViewsheetSandbox.class)
-                  .denyAccess(inetsoft.report.composition.execution.AssetQuerySandbox.class)
+                  .deny(inetsoft.report.composition.execution.ViewsheetSandbox.class)
+                  .deny(inetsoft.report.composition.execution.AssetQuerySandbox.class)
                   // every live session's sheet, its user and its sandbox
-                  .denyAccess(inetsoft.report.composition.RuntimeSheet.class)
+                  .deny(inetsoft.report.composition.RuntimeSheet.class)
                   // the engine (static WorksheetEngine.getWorksheetService(),
                   // ViewsheetEngine), which hands out every user's sheets on the node
-                  .denyAccess(inetsoft.report.composition.WorksheetService.class)
+                  .deny(inetsoft.report.composition.WorksheetService.class)
                   // Bug #77827, #77828: the asset engine, its storage and the
                   // Java-side helpers and singletons under the allowed prefixes
                   // that read, write or delete stored state for an entry, org id or
@@ -365,65 +379,76 @@ public final class ScriptHostAccess {
                   // - the asset engine (AbstractAssetEngine, RepletEngine,
                   //   AnalyticEngine, RuntimeAssetEngine, StyleCore and so ReportSheet
                   //   and TabularSheet) and the raw storage getStorage() returns
-                  .denyAccess(inetsoft.uql.asset.AssetRepository.class)
-                  .denyAccess(inetsoft.sree.RepletRepository.class)
-                  .denyAccess(inetsoft.util.IndexedStorage.class)
+                  .deny(inetsoft.uql.asset.AssetRepository.class)
+                  .deny(inetsoft.sree.RepletRepository.class)
+                  .deny(inetsoft.util.IndexedStorage.class)
                   // - asset readers that load a stored sheet for a minted entry with
                   //   no principal (LayoutTool covers VSLayoutTool and ReportLayoutTool,
                   //   whose public statics reach getNamedGroupAssembly)
-                  .denyAccess(inetsoft.uql.asset.sync.DependencyTool.class)
-                  .denyAccess(inetsoft.report.LayoutTool.class)
+                  .deny(inetsoft.uql.asset.sync.DependencyTool.class)
+                  .deny(inetsoft.report.LayoutTool.class)
                   // ReportWorksheetProcessor, the only implementor, runs a stored
                   // worksheet for a minted entry (a null user loads it unchecked) and
                   // returns its data; XUtil.runQuery checks permission before using it
-                  .denyAccess(inetsoft.uql.asset.WorksheetProcessor.class)
+                  .deny(inetsoft.uql.asset.WorksheetProcessor.class)
                   // - storage services keyed by an org id the caller passes
-                  .denyAccess(inetsoft.report.LibManagerProvider.class)
-                  .denyAccess(inetsoft.report.LibManager.class)
-                  .denyAccess(inetsoft.uql.asset.EmbeddedTableStorage.class)
-                  .denyAccess(inetsoft.uql.asset.EmbeddedDataCacheHandler.class)
-                  .denyAccess(inetsoft.uql.asset.sync.DependencyStorageService.class)
-                  .denyAccess(inetsoft.uql.viewsheet.vslayout.DeviceRegistry.class)
+                  .deny(inetsoft.report.LibManagerProvider.class)
+                  .deny(inetsoft.report.LibManager.class)
+                  .deny(inetsoft.uql.asset.EmbeddedTableStorage.class)
+                  .deny(inetsoft.uql.asset.EmbeddedDataCacheHandler.class)
+                  .deny(inetsoft.uql.asset.sync.DependencyStorageService.class)
+                  .deny(inetsoft.uql.viewsheet.vslayout.DeviceRegistry.class)
                   // - per-user and node-wide state
-                  .denyAccess(inetsoft.uql.viewsheet.BookmarkLockManager.class)
-                  .denyAccess(inetsoft.report.composition.execution.AssetDataCache.class)
-                  .denyAccess(inetsoft.report.composition.execution
-                                 .DistributedTableCacheStore.class)
+                  .deny(inetsoft.uql.viewsheet.BookmarkLockManager.class)
+                  .deny(inetsoft.report.composition.execution.AssetDataCache.class)
+                  .deny(inetsoft.report.composition.execution
+                           .DistributedTableCacheStore.class)
                   // - the dependency and rename machinery
-                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformHandler.class)
+                  .deny(inetsoft.uql.asset.sync.RenameTransformHandler.class)
                   // Bug #77852: the rest of the rename pipeline. DependencyTransformer
                   // covers its public subclasses; RenameTransformTask$Rename and $Remove
                   // don't extend RenameTransformTask, so they are named
-                  .denyAccess(inetsoft.uql.asset.sync.DependencyTransformer.class)
-                  .denyAccess(inetsoft.uql.asset.sync.UpdateDependencyHandler.class)
-                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformTask.class)
-                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformTask.Rename.class)
-                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformTask.Remove.class)
-                  .denyAccess(inetsoft.uql.asset.sync.LoadDependencyStorageTask.class)
-                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformQueue.class)
+                  .deny(inetsoft.uql.asset.sync.DependencyTransformer.class)
+                  .deny(inetsoft.uql.asset.sync.UpdateDependencyHandler.class)
+                  .deny(inetsoft.uql.asset.sync.RenameTransformTask.class)
+                  .deny(inetsoft.uql.asset.sync.RenameTransformTask.Rename.class)
+                  .deny(inetsoft.uql.asset.sync.RenameTransformTask.Remove.class)
+                  .deny(inetsoft.uql.asset.sync.LoadDependencyStorageTask.class)
+                  .deny(inetsoft.uql.asset.sync.RenameTransformQueue.class)
+                  // Bug #78228: the cluster task families, so a task added under an
+                  // allowed package (e.g. LoadRenameQueueTask, which reloads and replays
+                  // the rename queue) can't be constructed and the members the family
+                  // declares can't be called, not just the leaves named above. This
+                  // doesn't hide an interface method such as Runnable.run on an instance
+                  // a script already holds. KeyValueTask covers every key-value task,
+                  // SingletonTask every singleton-service task. CleanupTableCacheTask is a
+                  // plain Runnable submitted by DistributedTableCacheStore, so it is named
+                  .deny(inetsoft.storage.KeyValueTask.class)
+                  .deny(inetsoft.sree.internal.cluster.SingletonTask.class)
+                  .deny(inetsoft.report.composition.execution.CleanupTableCacheTask.class)
                   // the delete dependency checkers load a stored sheet through
                   // DependencyTool for the entry they are passed. DependencyChecker covers
                   // AssetDependencyChecker and ViewsheetDependencyChecker
-                  .denyAccess(inetsoft.uql.asset.delete.DependencyChecker.class)
-                  .denyAccess(inetsoft.uql.asset.delete.DeleteDependencyHandler.class)
-                  .denyAccess(inetsoft.uql.asset.UpdateAssetDependenciesHandler.class)
-                  .denyAccess(inetsoft.uql.asset.DependencyHandler.class)
-                  .denyAccess(inetsoft.report.internal.MVInfoClient.class)
+                  .deny(inetsoft.uql.asset.delete.DependencyChecker.class)
+                  .deny(inetsoft.uql.asset.delete.DeleteDependencyHandler.class)
+                  .deny(inetsoft.uql.asset.UpdateAssetDependenciesHandler.class)
+                  .deny(inetsoft.uql.asset.DependencyHandler.class)
+                  .deny(inetsoft.report.internal.MVInfoClient.class)
                   // XUtil.getXIdentityFinder() resolves every user's roles, groups
                   // and org, and its getters return the live arrays
-                  .denyAccess(inetsoft.uql.util.XIdentityFinder.class)
+                  .deny(inetsoft.uql.util.XIdentityFinder.class)
                   // Bug #77421: the driver and data source registries load and
                   // initialize classes by name through plugin class loaders
                   // without consulting classFilter(); neither is script API
-                  .denyAccess(inetsoft.uql.util.Drivers.class)
-                  .denyAccess(inetsoft.uql.util.Config.class)
+                  .deny(inetsoft.uql.util.Drivers.class)
+                  .deny(inetsoft.uql.util.Config.class)
                   // JDBCHandler's statics do the same for driver classes and return
                   // live drivers and connections; TabularUtil's view helpers invoke
                   // the methods a view names on whatever bean they are passed. Both
                   // are used by Java callers only. (Bug #77467: the XHandler deny
                   // below now also covers JDBCHandler; this line is not load-bearing.)
-                  .denyAccess(inetsoft.uql.jdbc.JDBCHandler.class)
-                  .denyAccess(inetsoft.uql.tabular.TabularUtil.class)
+                  .deny(inetsoft.uql.jdbc.JDBCHandler.class)
+                  .deny(inetsoft.uql.tabular.TabularUtil.class)
                   // Bug #77467: classFilter() gates only the Java.type(...) lookup;
                   // it never consults member access on an object a script already
                   // holds. So once a script reaches any object that is or yields a
@@ -444,25 +469,25 @@ public final class ScriptHostAccess {
                   // at the type layer), so the form write-back API (createConnection ->
                   // DBScriptable, which keeps the Connection on the Java side and hands
                   // the script only XTableArray/primitives) still works.
-                  .denyAccess(javax.sql.DataSource.class)
-                  .denyAccess(javax.sql.ConnectionPoolDataSource.class)
-                  .denyAccess(javax.sql.XADataSource.class)
-                  .denyAccess(javax.sql.PooledConnection.class)
-                  .denyAccess(java.sql.Connection.class)
-                  .denyAccess(java.sql.Statement.class)
-                  .denyAccess(java.sql.Driver.class)
-                  .denyAccess(java.sql.DriverManager.class)
+                  .deny(javax.sql.DataSource.class)
+                  .deny(javax.sql.ConnectionPoolDataSource.class)
+                  .deny(javax.sql.XADataSource.class)
+                  .deny(javax.sql.PooledConnection.class)
+                  .deny(java.sql.Connection.class)
+                  .deny(java.sql.Statement.class)
+                  .deny(java.sql.Driver.class)
+                  .deny(java.sql.DriverManager.class)
                   // the pool factory interface (covers Default/JNDI/Legacy impls, their
                   // statics and construction) and the Hikari pool types a script could
                   // drive directly (HikariConfig.setDriverClassName instantiates an
                   // arbitrary named class via internal reflection, bypassing classFilter)
-                  .denyAccess(inetsoft.uql.jdbc.ConnectionPoolFactory.class)
+                  .deny(inetsoft.uql.jdbc.ConnectionPoolFactory.class)
                   // (HikariDataSource extends HikariConfig, so this covers it too)
-                  .denyAccess(com.zaxxer.hikari.HikariConfig.class)
+                  .deny(com.zaxxer.hikari.HikariConfig.class)
                   // unwrap()/isWrapperFor() let a held JDBC handle whose class is not
                   // public (Graal then reports the interface-declared method) hand
                   // out the vendor API behind it; nothing script-facing is a Wrapper
-                  .denyAccess(java.sql.Wrapper.class)
+                  .deny(java.sql.Wrapper.class)
                   // Bug #77467 (R5): the query engine runs a query against the data
                   // source the query carries (XQuery.getDataSource()) with no
                   // data-source permission check. A script that builds a JDBCQuery
@@ -475,8 +500,8 @@ public final class ScriptHostAccess {
                   // XRepository/XEngine expose). Both are Java-caller APIs; the
                   // permission-checked, by-name script query path (XUtil.runQuery) is
                   // unaffected because it runs on the Java side.
-                  .denyAccess(inetsoft.report.XSessionManager.class)
-                  .denyAccess(inetsoft.uql.XDataService.class)
+                  .deny(inetsoft.report.XSessionManager.class)
+                  .deny(inetsoft.uql.XDataService.class)
                   // Bug #77467 (round 1): the same cause has more Java-side helpers
                   // than the two entry points above. XAgent/JDBCAgent.getQueryData,
                   // ColumnCache.getColumnData, SQLTypes.getChildMetaData,
@@ -491,8 +516,8 @@ public final class ScriptHostAccess {
                   // setters, getters (incl. credentials) and clone(). No script API
                   // hands these objects to scripts; the form write-back API
                   // (DBScriptable) holds its data source on the Java side.
-                  .denyAccess(inetsoft.uql.XDataSource.class)
-                  .denyAccess(inetsoft.uql.XQuery.class)
+                  .deny(inetsoft.uql.XDataSource.class)
+                  .deny(inetsoft.uql.XQuery.class)
                   // ...and the Java-side factories that would otherwise build one from
                   // script input without the script touching an XDataSource member:
                   // the XML wrappers (parseXML instantiates and configures the data
@@ -501,31 +526,101 @@ public final class ScriptHostAccess {
                   // set/remove methods read and write the stored data sources with no
                   // permission check of their own) and the data source listings
                   // (createDataSource() returns a configured data source)
-                  .denyAccess(inetsoft.uql.XDataSourceWrapper.class)
-                  .denyAccess(inetsoft.uql.XQueryWrapper.class)
-                  .denyAccess(inetsoft.uql.service.DataSourceRegistry.class)
-                  .denyAccess(inetsoft.uql.DataSourceListing.class)
+                  .deny(inetsoft.uql.XDataSourceWrapper.class)
+                  .deny(inetsoft.uql.XQueryWrapper.class)
+                  .deny(inetsoft.uql.service.DataSourceRegistry.class)
+                  .deny(inetsoft.uql.DataSourceListing.class)
                   // Defense in depth for a data source or query a script still holds
                   // (e.g. one a Java API returned): deny the helpers that connect or
                   // run it. XAgent covers JDBCAgent/XMLAAgent, and XHandler covers
                   // JDBCHandler/XMLAHandler/TabularHandler. None is script API.
-                  .denyAccess(inetsoft.uql.util.XAgent.class)
-                  .denyAccess(inetsoft.uql.util.ColumnCache.class)
-                  .denyAccess(inetsoft.uql.service.XHandler.class)
-                  .denyAccess(inetsoft.uql.jdbc.util.SQLTypes.class)
-                  .denyAccess(inetsoft.uql.jdbc.util.JDBCUtil.class)
+                  .deny(inetsoft.uql.util.XAgent.class)
+                  .deny(inetsoft.uql.util.ColumnCache.class)
+                  .deny(inetsoft.uql.service.XHandler.class)
+                  .deny(inetsoft.uql.jdbc.util.SQLTypes.class)
+                  .deny(inetsoft.uql.jdbc.util.JDBCUtil.class)
                   // DefaultMetaDataProvider (the only MetaDataProvider) runs metadata
                   // Java-side against whatever data source it is given, connecting
                   // with its stored credentials and no permission check
-                  .denyAccess(inetsoft.uql.util.MetaDataProvider.class)
-                  .denyAccess(inetsoft.uql.util.DefaultMetaDataProvider.class)
+                  .deny(inetsoft.uql.util.MetaDataProvider.class)
+                  .deny(inetsoft.uql.util.DefaultMetaDataProvider.class)
                   // XUtil.getSecurityProvider(), and the interfaces its providers'
                   // configuration and cache methods are declared by
-                  .denyAccess(inetsoft.sree.security.AuthenticationProvider.class)
-                  .denyAccess(inetsoft.sree.security.AuthorizationProvider.class)
-                  .denyAccess(inetsoft.sree.security.JsonConfigurableProvider.class)
-                  .denyAccess(inetsoft.sree.security.CachableProvider.class)
-                  .denyAccess(inetsoft.sree.security.AuthenticationChangeListener.class, false)
+                  .deny(inetsoft.sree.security.AuthenticationProvider.class)
+                  .deny(inetsoft.sree.security.AuthorizationProvider.class)
+                  .deny(inetsoft.sree.security.JsonConfigurableProvider.class)
+                  .deny(inetsoft.sree.security.CachableProvider.class)
+                  .deny(inetsoft.sree.security.AuthenticationChangeListener.class, false)
+                  // Bug #78064: the mxgraph codec (its package is also blocked by name)
+                  // constructs the class an XML node or a name gives it, reads and
+                  // writes an object's state through its getters and setters by Java
+                  // reflection with no member check, and keeps the codecs it registers
+                  // in JVM-wide statics shared by every script. Only Java callers use
+                  // it. mxObjectCodec covers every codec subclass
+                  .deny(inetsoft.graph.mxgraph.io.mxCodec.class)
+                  .deny(inetsoft.graph.mxgraph.io.mxCodecRegistry.class)
+                  .deny(inetsoft.graph.mxgraph.io.mxObjectCodec.class)
+                  .deny(inetsoft.graph.mxgraph.io.mxGdCodec.class)
+                  // Bug #78079: #78064 stopped construction-by-name through the mxgraph
+                  // codec, but the sandbox still keys its file/network boundary on class
+                  // name (classFilter admits the inetsoft.graph./report./uql. prefixes;
+                  // BLOCKED_PACKAGES blocks java.io/nio/net by name only) and never looks
+                  // at what a method does. So any public member of an admitted,
+                  // non-type-denied class that performs file/URL I/O with a
+                  // script-controlled path, or that mints a java.io.File a script then
+                  // feeds to a File-typed sink, runs that I/O for a restricted script even
+                  // though the script cannot name java.io.* itself. Graal 24.1.2 has no
+                  // member-level deny (HostAccess$Builder exposes only denyAccess(Class[,
+                  // boolean]) with allowPublicAccess(true)), so each offending class is
+                  // denied whole. The deny must sit on the class that DECLARES the
+                  // raw-read/write member (the sink owner) and on the File-minting source,
+                  // not on the input builder: BeanUtil.readPropertyValue builds a MetaImage
+                  // around any ImageLocation, so denying MetaImage (not ImageLocation)
+                  // closes getInputStream; and TransformDescriptor.getInputFile/
+                  // getOutputFile re-open every File-typed sink regardless of other denies,
+                  // so it must be denied too. None of these is script API (no shipped
+                  // script references any of them); only Java callers use them, and a type
+                  // deny limits only GUEST/script member access, so Java callers are
+                  // unaffected. Image-only members (loadImage, getImage parity, #33237) are
+                  // left reachable on purpose. mxUtils is NOT denied here: it also
+                  // exposes the benign eval/loadImage script helpers, so its three raw
+                  // I/O statics (readFile/writeFile/loadDocument) were relocated to the
+                  // already-blocked inetsoft.graph.mxgraph.io package (mxFileIO) instead.
+                  // -- confirmed reproduced (restricted script got raw content / a write):
+                  .deny(inetsoft.report.internal.MetaImage.class)
+                  .deny(inetsoft.report.pdf.CMap.class)
+                  .deny(inetsoft.uql.util.filereader.CSVLoader.class)
+                  .deny(inetsoft.uql.jdbc.drivers.DriverPluginGenerator.class)
+                  // the File-minting source that feeds every File-typed sink
+                  .deny(inetsoft.uql.erm.transform.TransformDescriptor.class)
+                  // -- same class of defect (a public member reaches a file/the network or
+                  // a File-minter/System.exit), denied for the same reason but not
+                  // individually reproduced:
+                  .deny(inetsoft.graph.internal.GDebug.class)
+                  .deny(inetsoft.report.internal.graph.MapHelper.class)
+                  .deny(inetsoft.report.afm.afm.AFMGenerator.class)
+                  .deny(inetsoft.uql.erm.transform.ERMExporter.class)
+                  // -- confirmed reproduced: mxSvgCanvas.drawShape on an embedded canvas
+                  // (setEmbedded, declared here) copies the raw body of any URL whose
+                  // string ends in .png/.jpg/.gif (getResource -> URL.openStream, e.g.
+                  // http://... or file:/<any path>#.png) into the script-readable SVG
+                  // DOM; the deny also closes getResource's getResourceAsStream classpath
+                  // fallback. mxGraphViewImageReader.convert(String) opens any path with
+                  // FileInputStream, a server-file existence oracle. Neither has a script
+                  // API; mxCellRenderer.createSvgDocument builds a non-embedded canvas
+                  // from Java and is unaffected
+                  .deny(inetsoft.graph.mxgraph.canvas.mxSvgCanvas.class)
+                  .deny(inetsoft.graph.mxgraph.reader.mxGraphViewImageReader.class)
+                  // Bug #78490: Toolkit.getImage(String)/createImage(String) decode any
+                  // local image file for the script, outside the
+                  // javascript.getImageFunction.disabled switch the inetsoft loaders
+                  // honor. java.awt is admitted whole and a Toolkit instance is also
+                  // handed out by Component.getToolkit(), so the sink owner is denied by
+                  // type (with its subclasses, e.g. the headless toolkit). Toolkit is not
+                  // script API and no shipped script uses it
+                  .deny(java.awt.Toolkit.class);
+
+               builder
                   // legacy convenience: scripts pass JS numbers to Java APIs.
                   // The range check matters: Double::intValue narrows by Java
                   // cast, which CLAMPS anything past the int range to
@@ -658,7 +753,7 @@ public final class ScriptHostAccess {
                // instance of the class) gives a script the class's public members,
                // statics and constructors, with no name check. So every class
                // refused by exact name is also denied here by type.
-               denyBlockedClasses(builder);
+               denyBlockedClasses(denies);
 
                // A graph object a script holds is a HostBeanProxy (a ProxyObject),
                // which GraalJS cannot convert to its Java type on its own, so it
@@ -678,6 +773,7 @@ public final class ScriptHostAccess {
                   addUnwrapMapping(builder, type);
                }
 
+               deniedTypes = denies.types();
                hostAccess = builder.build();
             }
          }
@@ -756,7 +852,7 @@ public final class ScriptHostAccess {
     * allowed API. A name that doesn't load (e.g. a class removed from the JDK) is
     * skipped. (Bug #77521)
     */
-   private static void denyBlockedClasses(HostAccess.Builder builder) {
+   private static void denyBlockedClasses(TypeDenies denies) {
       for(String name : BLOCKED_CLASSES) {
          Class<?> type;
 
@@ -767,8 +863,41 @@ public final class ScriptHostAccess {
             continue;
          }
 
-         builder.denyAccess(type);
+         denies.deny(type);
       }
+   }
+
+   /**
+    * Whether {@link #hostAccess()} denies a class by type, with the semantics Graal
+    * uses for a member declared by the class: a type denied with its subclasses
+    * covers every class assignable to it, and a type denied without them (such as
+    * {@code java.lang.Object}) covers that exact class only. A constructor of a
+    * class this returns true for is refused to {@code new (Java.type(name))()}, and
+    * a static field it declares is not readable from a script. (Bug #78064)
+    *
+    * @param type the class to check.
+    *
+    * @return {@code true} if script access to the members the class declares is
+    *         denied.
+    */
+   public static boolean isTypeDenied(Class<?> type) {
+      hostAccess();
+
+      for(Map.Entry<Class<?>, Boolean> entry : deniedTypes.entrySet()) {
+         Class<?> denied = entry.getKey();
+
+         if(entry.getValue() ? denied.isAssignableFrom(type) : denied == type) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /** The type denies of {@link #hostAccess()}, type -> includeSubclasses, for tests. */
+   static Map<Class<?>, Boolean> deniedTypes() {
+      hostAccess();
+      return deniedTypes;
    }
 
    /** The classes refused by exact name, for tests. */
@@ -795,12 +924,18 @@ public final class ScriptHostAccess {
     * {@link #classFilter()} first, and the class is loaded without being initialized,
     * so no code of a class the filter refuses runs. (Bug #77421)
     *
+    * <p>A class whose members {@link #hostAccess()} denies by type is refused too,
+    * so a helper cannot construct a class whose constructor
+    * {@code new (Java.type(name))()} is refused. That includes
+    * {@code java.lang.Object}, whose exact type is denied. (Bug #78064)
+    *
     * @param name   the fully qualified class name.
     * @param loader the class loader to load the class from.
     *
     * @return the loaded, uninitialized class.
     *
-    * @throws SecurityException      if the class filter refuses the name.
+    * @throws SecurityException      if the class filter refuses the name, or the
+    *                                host access denies the class by type.
     * @throws ClassNotFoundException if the class could not be found.
     */
    public static Class<?> loadScriptVisibleClass(String name, ClassLoader loader)
@@ -810,7 +945,13 @@ public final class ScriptHostAccess {
          throw new SecurityException("Class " + name + " is not allowed in scripts");
       }
 
-      return Class.forName(name, false, loader);
+      Class<?> type = Class.forName(name, false, loader);
+
+      if(isTypeDenied(type)) {
+         throw new SecurityException("Class " + name + " is not allowed in scripts");
+      }
+
+      return type;
    }
 
    /**
@@ -1100,5 +1241,33 @@ public final class ScriptHostAccess {
       }
 
       return s;
+   }
+
+   /**
+    * Registers the type denies of {@link #hostAccess()} on its builder and records
+    * each one for {@link #isTypeDenied}. Like {@code HostAccess.Builder}, it keeps
+    * one entry per type, and the last call for a type wins. (Bug #78064)
+    */
+   private static final class TypeDenies {
+      TypeDenies(HostAccess.Builder builder) {
+         this.builder = builder;
+      }
+
+      TypeDenies deny(Class<?> type) {
+         return deny(type, true);
+      }
+
+      TypeDenies deny(Class<?> type, boolean includeSubclasses) {
+         builder.denyAccess(type, includeSubclasses);
+         types.put(type, includeSubclasses);
+         return this;
+      }
+
+      Map<Class<?>, Boolean> types() {
+         return Collections.unmodifiableMap(types);
+      }
+
+      private final HostAccess.Builder builder;
+      private final Map<Class<?>, Boolean> types = new LinkedHashMap<>();
    }
 }

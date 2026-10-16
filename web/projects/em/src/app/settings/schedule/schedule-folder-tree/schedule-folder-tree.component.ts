@@ -250,7 +250,9 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
 
       dialogRef.afterClosed().subscribe((res) => {
          if(res) {
+            // Bug #78136, the hint is refused without write permission on the parent folder
             this.http.post(CHECK_ADD_DUPLICATE_URI, {parent: node, folderName: res.folderName})
+               .pipe(catchError(error => this.handleError(error)))
                .subscribe((data: boolean) => {
                   if(data) {
                      this.dialog.open(MessageDialog, this.setConfigs("_#(js:Error)",
@@ -398,7 +400,9 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
 
       let params = new HttpParams().set("folderPath", node.path);
 
+      // Bug #78136, the edit model is refused without permission on the folder (#77906)
       this.http.post<EditTaskFolderDialogModel>(GET_TASK_FOLDER_EDIT_MODEL_URI, null, {params})
+         .pipe(catchError(error => this.handleError<EditTaskFolderDialogModel>(error)))
          .subscribe(data => {
             const dialogRef = this.dialog.open(EditTaskFolderDialogComponent, {
                role: "dialog",

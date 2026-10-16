@@ -119,7 +119,16 @@ public class DataSpaceFolderSettingsController {
       else {
          if(!model.name().equals(model.newName())) {
             DataSpaceContentSettingsService.validateName(model.newName());
-            newPath = model.path().substring(0, model.path().lastIndexOf(model.name())) + model.newName();
+
+            if(!model.name().equals(dataSpaceContentSettingsService.getFileName(model.path()))) {
+               throw new IllegalArgumentException(
+                  "Name \"" + model.name() + "\" does not match the last path segment of \"" +
+                  model.path() + "\"");
+            }
+
+            int index = model.path().lastIndexOf('/');
+            String parentPath = index < 0 ? null : model.path().substring(0, index);
+            newPath = dataSpaceContentSettingsService.getPath(parentPath, model.newName());
             actionRecord.setActionName(ActionRecord.ACTION_NAME_RENAME);
             actionRecord.setObjectName(newPath);
             actionRecord.setActionError("new name:" + newPath);

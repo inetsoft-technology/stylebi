@@ -499,16 +499,36 @@ public class DeployService {
       }
    }
 
-   public void importAssets(File zipFile, List<String> excluded, boolean overwrite,
-                            Principal principal)
+   /**
+    * Imports the assets in an exported JAR file.
+    *
+    * @return the import response. Its {@link ImportAssetResponse#warnings() warnings} and
+    *         {@link ImportAssetResponse#ignoreUserAssets() ignored user assets} must be reported to
+    *         the caller. They do not mean that the import failed, a failed import throws instead.
+    *
+    * @see #importAssets(File, List, boolean, String, boolean, Principal)
+    */
+   public ImportAssetResponse importAssets(File zipFile, List<String> excluded, boolean overwrite,
+                                           Principal principal)
       throws Exception
    {
-      importAssets(zipFile, excluded, overwrite, null, true, principal);
+      return importAssets(zipFile, excluded, overwrite, null, true, principal);
    }
 
-   public void importAssets(File zipFile, List<String> excluded, boolean overwrite,
-                            String targetFolder, boolean applyTargetToDependencies,
-                            Principal principal)
+   /**
+    * Imports the assets in an exported JAR file.
+    *
+    * @return the import response. Its {@link ImportAssetResponse#warnings() warnings} (e.g.
+    *         secrets that could not be decrypted, or schedule task passwords that were cleared)
+    *         and {@link ImportAssetResponse#ignoreUserAssets() ignored user assets} (user-scoped
+    *         assets of other organizations that were not imported) must be reported to the
+    *         caller. They do not mean that the import failed, a failed import throws instead.
+    *
+    * @throws Exception if the import failed.
+    */
+   public ImportAssetResponse importAssets(File zipFile, List<String> excluded, boolean overwrite,
+                                           String targetFolder, boolean applyTargetToDependencies,
+                                           Principal principal)
       throws Exception
    {
       boolean isImportAsSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
@@ -580,10 +600,14 @@ public class DeployService {
             String.join(", ", response.failedAssets()));
       }
 
-      // Bug #77628, the assets are imported, only log the warnings
+      // Bug #77628, the assets are imported, log the warnings
       for(String warning : response.warnings()) {
          LOG.warn("Import of {}: {}", zipFile.getName(), warning);
       }
+
+      // Bug #78221, return the warnings and the ignored user assets so that the file-based import
+      // callers (public REST API, shell, setup) can report them like the EM does
+      return response;
    }
 
    /**

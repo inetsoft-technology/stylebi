@@ -212,9 +212,9 @@ public class NodeProtectionService implements MembershipListener, MapChangeListe
    @Override
    public void entryUpdated(EntryEvent<String, Boolean> event) {
       if(event.getKey().equals(cluster.getLocalMember())) {
-         if(getNodeProtection() != event.getValue()) {
-            updateNodeProtection(event.getValue());
-         }
+         // always apply the coordinator's value. It is only put once per change, so gating it
+         // on the protector's read-back (which reports false when it fails) can drop it for good
+         updateNodeProtection(event.getValue());
       }
    }
 

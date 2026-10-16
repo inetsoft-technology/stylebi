@@ -21,6 +21,7 @@ import inetsoft.report.Comparer;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XTable;
 import inetsoft.util.DataComparer;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
@@ -197,6 +198,9 @@ public final class SelfJoinOperator implements Serializable {
          if(LockStallException.find(ex) != null || SwapFileReadException.find(ex) != null) {
             throw ex;
          }
+
+         // nor is a stopped script of the base, a stopped cell has no value (bug #78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          LOG.warn("Failed to evaluate row: " + row, ex);
          // ignore the invalid values

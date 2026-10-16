@@ -81,7 +81,10 @@ import static org.mockito.Mockito.when;
  * order must go on by one or restart at 1 (never an older value), no more restarts than
  * warnings of the var, and every row-preserving table of the round must read the same values
  * of A (they read one lens). Plain data ({@code p}, the base columns, the row count) is never
- * excused. {@link Rule#STRICT} runs excuse nothing.
+ * excused. {@link Rule#STRICT} runs excuse nothing. Since #5955 the condition path keeps A's
+ * vars, so the only loss left is a pool-internal window (the evictor's, a take-over's): an
+ * evidence run may excuse at most {@link #MAX_EXCUSED_PER_100} tables per 100 read (at least
+ * one), where before #5955 about one in four of the condition tables lost A's vars.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class, RelDashboardTest.TestConfig.class }, initializers = ConfigurationContextInitializer.class)
@@ -362,6 +365,14 @@ public class RelDashboardTest {
       add(name + ".tables", (long) k * rounds);
       add(name + ".wrongTables", wrongTables);
       add(name + ".excusedTables", excusedTables);
+      int maxExcused = Math.max(1, k * rounds * MAX_EXCUSED_PER_100 / 100);
+
+      if(rule == Rule.EVIDENCE && excusedTables > maxExcused) {
+         failures.add(excusedTables + " of " + k * rounds + " tables lost A's vars with " +
+                      "evidence, more than the " + maxExcused + " a pool-internal window " +
+                      "explains (the condition-path loss #5955 fixed?)");
+      }
+
       add(name + ".ms", (System.nanoTime() - start) / 1_000_000);
       assertEquals(0, SlotClaim.openClaims(), name + ": a claim was left open");
       assertEquals(leaked, PoolMetrics.nodeLeakedClaims(), name + ": a claim leaked");
@@ -647,10 +658,16 @@ public class RelDashboardTest {
       STATS.merge(key, n, Long::sum);
    }
 
+   /** the evidence-excused tables allowed per 100 tables of a run */
+   static final int MAX_EXCUSED_PER_100 = 1;
+
    enum Rule {
       /** every table exact */
       STRICT,
-      /** a plain-data var may differ only with its B1_HOME_BUSY evidence (see the class) */
+      /**
+       * a plain-data var may differ only with its B1_HOME_BUSY evidence, in at most
+       * {@link #MAX_EXCUSED_PER_100} of 100 tables (see the class)
+       */
       EVIDENCE
    }
 

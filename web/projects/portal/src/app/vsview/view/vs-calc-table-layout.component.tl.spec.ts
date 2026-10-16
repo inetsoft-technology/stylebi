@@ -135,6 +135,7 @@ function createComponent(opts: { vsObjectModel?: VSCalcTableModel } = {}) {
       resetCellBinding: vi.fn(),
       getCellBinding: vi.fn(() => makeCellBindingInfo()),
       setCellBinding: vi.fn(),
+      isCellScriptCurrent: vi.fn(() => true),
       namedGroups: [] as string[],
    };
    const commands = new Subject<ViewsheetCommandMessage>();
@@ -762,6 +763,20 @@ describe("CalcTableLayoutPane — command processors", () => {
       expect(binding.value).toBe("sum(x)");
       expect(comp.tableModel.tableRows[0].tableCells[0].text).toBe("=sum(x)");
       expect(editorService.setCellBinding).toHaveBeenCalled();
+   });
+
+   it("processGetCellScriptCommand should ignore a script requested for another cell or binding (Bug #78560)", () => {
+      const { comp, editorService } = createComponent();
+      comp.tableModel = makeTableModel(1, 1);
+      comp.selectedRect = new Rectangle(0, 0, 1, 1);
+      const binding = makeCellBindingInfo({ type: CellBindingInfo.BIND_TEXT, value: "t" });
+      editorService.getCellBinding.mockReturnValue(binding);
+      editorService.isCellScriptCurrent.mockReturnValue(false);
+
+      (comp as any).processGetCellScriptCommand({ script: "sum(x)" } as GetCellScriptCommand);
+
+      expect(binding.value).toBe("t");
+      expect(editorService.setCellBinding).not.toHaveBeenCalled();
    });
 
    it("processGetPredefinedNamedGroupCommand should set the editor service's namedGroups", () => {

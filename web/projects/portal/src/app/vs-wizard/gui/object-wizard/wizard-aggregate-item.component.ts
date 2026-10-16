@@ -34,6 +34,15 @@ import { FormattingPane } from "../../../format/objects/formatting-pane.componen
 import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 
+/**
+ * An edit of an aggregate's second ("With") column, with the column it replaced.
+ */
+export interface SecondColumnEdit {
+   index: number;
+   oldColumn: DataRef;
+   oldValue: string;
+}
+
 
 @Component({
     selector: "wizard-aggregate-item",
@@ -50,7 +59,8 @@ export class VSWizardAggregateItem extends VSWizardItem<BAggregateRef> implement
    @Input() fixedFormulaMap: Map<string, string>;
    @Output() addItem: EventEmitter<number> = new EventEmitter<number>();
    @Output() onEditAggregate: EventEmitter<null> = new EventEmitter<null>();
-   @Output() onEditSecondColumn: EventEmitter<number> = new EventEmitter<number>();
+   @Output() onEditSecondColumn: EventEmitter<SecondColumnEdit> =
+      new EventEmitter<SecondColumnEdit>();
    @Output() onEditAggregateFormat: EventEmitter<null> = new EventEmitter<null>();
    formulaObjs: any[];
    availableValues: any[];
@@ -153,6 +163,9 @@ export class VSWizardAggregateItem extends VSWizardItem<BAggregateRef> implement
    }
 
    changeSecondColumnValue(val: string): void {
+      // Bug #78716, kept so that the column can be put back if the user undoes a trap
+      const oldColumn = this.dataRef.secondaryColumn;
+      const oldValue = this.dataRef.secondaryColumnValue;
       this.dataRef.secondaryColumnValue = val;
 
       this.availableFields.forEach((field: DataRef) => {
@@ -161,7 +174,7 @@ export class VSWizardAggregateItem extends VSWizardItem<BAggregateRef> implement
          }
       });
 
-      this.onEditSecondColumn.emit(this.index);
+      this.onEditSecondColumn.emit({ index: this.index, oldColumn, oldValue });
    }
 
    private isWithFormula(): boolean {

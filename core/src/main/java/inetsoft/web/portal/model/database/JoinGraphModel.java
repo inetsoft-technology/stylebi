@@ -458,7 +458,7 @@ public class JoinGraphModel {
     * @param join
     * @return
     */
-   private static boolean joinExist(XPartition partition, XRelationship join) {
+   public static boolean joinExist(XPartition partition, XRelationship join) {
       Enumeration<XRelationship> relationships = partition.getRelationships();
 
       while(relationships != null && relationships.hasMoreElements()) {

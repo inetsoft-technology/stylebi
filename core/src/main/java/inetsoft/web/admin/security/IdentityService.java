@@ -52,6 +52,7 @@ import inetsoft.util.audit.*;
 import inetsoft.util.css.CSSDictionary;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.AutoSaveUtils;
+import inetsoft.web.SnapshotFileGcService;
 import inetsoft.web.session.IgniteSessionRepository;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoritesService;
@@ -132,6 +133,17 @@ public class IdentityService {
       this.xRepository = xRepository;
       this.repletRegistryManager = repletRegistryManager;
       this.sessionRepository = sessionRepository.orElse(null);
+   }
+
+   // Bug #78035: setter injection, not a constructor parameter, so the long-standing
+   // positional test constructor calls scattered across inetsoft.sree.security and
+   // inetsoft.web.admin.security (which construct IdentityService directly, not through
+   // Spring) don't all need to be updated for this one new collaborator. Spring still wires
+   // it in production; a directly-constructed instance (as in tests) simply never gets a
+   // SnapshotFileGcService and removeStorages() below no-ops the cleanup call.
+   @Autowired(required = false)
+   public void setSnapshotFileGcService(SnapshotFileGcService snapshotFileGcService) {
+      this.snapshotFileGcService = snapshotFileGcService;
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -399,12 +411,22 @@ public class IdentityService {
    private void logoutSession(IdentityID user) {
       SessionLicenseManager sessionLicenseManager =
          sessionLicenseServiceProvider.getSessionLicenseManager();
+      Set<SRPrincipal> principals = new LinkedHashSet<>();
 
-      if(sessionLicenseManager == null) {
-         return;
+      if(sessionLicenseManager != null) {
+         principals.addAll(sessionLicenseManager.getActiveSessions());
       }
 
-      Set<SRPrincipal> principals = sessionLicenseManager.getActiveSessions();
+      // the logged in users of every cluster node, also when there is no session license manager
+      // (CPU or elastic license) or it only knows this node's sessions (hosted license), so that a
+      // renamed or removed user's sessions can't send any more requests anywhere (Bug #78101)
+      List<SRPrincipal> active =
+         securityEngine == null ? null : securityEngine.getActivePrincipalList();
+
+      if(active != null) {
+         principals.addAll(active);
+      }
+
       Iterator<SRPrincipal> iterator  = principals.iterator();
 
       while(iterator.hasNext()) {
@@ -610,12 +632,19 @@ public class IdentityService {
             smanager.identityRemoved(identity, eprovider);
          }
       }
-      else if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {
+      else if(type == Identity.USER && !identityId.equals(oID)) {
+         // read in the user's org, where renameUserDashboards() moves them, not in the org of
+         // the admin who renames the user
+         renamedDashboards = OrganizationManager.runInOrgScope(
+            getUserDashboardsOrgID(oID), () -> dmanager.getDashboards(oid));
+      }
+      else if(type == Identity.GROUP && !identityId.equals(oID)) {
          renamedDashboards = dmanager.getDashboards(oid);
       }
 
       final String[] dashboards = renamedDashboards;
-      // moves a renamed user's or group's schedule tasks and dashboards to the new name
+      // moves a renamed group's schedule tasks and dashboards to the new name. A renamed user's
+      // are moved by renameUserDashboards()
       RenameStep renameTasksAndDashboards = () -> {
          smanager.identityRenamed(oID, identity);
          dmanager.setDashboards(nid, dashboards);
@@ -651,15 +680,18 @@ public class IdentityService {
          }
          else if(!identityId.equals(oID)) {
             String orgId = identityId.orgID;
+            // recorded before the user is saved, so that every dashboard create refused once the
+            // old name is gone finds the record (Bug #78101)
+            OrganizationManager.runInOrgScope(getUserDashboardsOrgID(oID), () -> {
+               dmanager.runLocked(() -> dmanager.addRenamedUser(oID, identityId));
+               return null;
+            });
 
             renameIdentity(eprovider, identityId, type, () -> eprovider.setUser(oID, (User) identity),
                () -> {
-                  renameTasksAndDashboards.run();
+                  smanager.identityRenamed(oID, identity);
                   //rep.renameUser(oID, identityId);
-                  repletRegistryManager.renameUser(oID, identityId);
-                  dashboardRegistryManager.clear(identityId);
-                  dashboardRegistryManager.renameUser(oID, identityId);
-                  dashboardRegistryManager.clear(oID);
+                  renameUserDashboards(oid, nid, dashboards);
                   updateUserAutoSaveFiles(oID, identityId);
                   // update user identityId inside of permissions. The provider's change listener
                   // renames the grantees too, but not the permissions keyed by the user's resources
@@ -899,6 +931,64 @@ public class IdentityService {
       }
 
       migrate.run();
+   }
+
+   /**
+    * Moves a renamed user's dashboard selection and dashboard registry to the new name. It runs
+    * after the renamed user is saved, holding the dashboard manager's lock (runLocked()) in the
+    * user's organization. A dashboard create holds the same lock while it adds the dashboard to
+    * the user's registry and selection, and fails once the user is gone, so a create that is
+    * still running under the old name either completes before the move and is moved with it, or
+    * fails (Bug #78101). The registry file locks are not taken here: they come after the
+    * DashboardRegistryManager lock, which the registry rename takes (see DashboardRegistry).
+    *
+    * @param dashboards the selected dashboards of the old user, read before the user was saved.
+    *                   The ones that have been selected since are added to them.
+    */
+   private void renameUserDashboards(Identity oid, Identity nid, String[] dashboards)
+      throws Exception
+   {
+      IdentityID oID = oid.getIdentityID();
+      IdentityID nID = nid.getIdentityID();
+      OrganizationManager.runInOrgScope(getUserDashboardsOrgID(oID), () -> {
+         dashboardManager.runLocked(() -> {
+            // the names stored for the old and the new name now are kept, read from the
+            // cluster's record, so that the move never drops a name that another node has
+            // selected since the snapshot, or that the snapshot left out. They are not
+            // synchronized with the user's groups and roles, which the old user no longer has,
+            // or checked against the registries, which the reads of the new name do.
+            List<String> moved = dashboards == null ?
+               new ArrayList<>() : new ArrayList<>(Arrays.asList(dashboards));
+            addMissing(moved, dashboardManager.getStoredDashboards(oid));
+            addMissing(moved, dashboardManager.getStoredDashboards(nid));
+
+            dashboardManager.setDashboards(nid, moved.toArray(new String[0]));
+            dashboardManager.setDashboards(oid, null);
+            dashboardManager.removeDashboards(oid);
+            dashboardRegistryManager.clear(oID);
+            repletRegistryManager.renameUser(oID, nID);
+            dashboardRegistryManager.clear(nID);
+            dashboardRegistryManager.renameUser(oID, nID);
+            dashboardRegistryManager.clear(oID);
+         });
+
+         return null;
+      });
+   }
+
+   /**
+    * Gets the org of a user's dashboard selections and dashboard lock.
+    */
+   private static String getUserDashboardsOrgID(IdentityID user) {
+      return user.orgID != null ? user.orgID : OrganizationManager.getInstance().getCurrentOrgID();
+   }
+
+   private static void addMissing(List<String> list, String[] names) {
+      for(String name : names == null ? new String[0] : names) {
+         if(!list.contains(name)) {
+            list.add(name);
+         }
+      }
    }
 
    /**
@@ -1599,6 +1689,11 @@ public class IdentityService {
       removeOldOrgTaskFormScheduleServer(orgID);
       dashboardManager.removeDashboardStorage(orgID);
       dependencyStorageService.removeDependencyStorage(orgID);
+
+      if(snapshotFileGcService != null) {
+         snapshotFileGcService.removeState(orgID);
+      }
+
       recycleBin.removeStorage(orgID);
       indexedStorage.removeStorage(orgID);
       libManagerProvider.getManager(orgID).close();
@@ -1729,37 +1824,39 @@ public class IdentityService {
    }
 
    public void copyRepletRegistry(String oOID, String nOID) {
-      String tempCurrID = OrganizationManager.getInstance().getCurrentOrgID();
-      OrganizationManager.getInstance().setCurrentOrgID(nOID);
-
+      // Bug #78118, scope the copy to the new organization on this thread only. Setting the
+      // current organization would change it for the whole session, so concurrent requests of
+      // the session would see the new organization and then an organization that is removed
+      // when the organization is renamed.
       try {
-         RepletRegistry oldRegistry = repletRegistryManager.getRegistry(oOID);
-         RepletRegistry newRegistry = repletRegistryManager.getRegistry(nOID);
-         String[] oldFolders = oldRegistry.getAllFolders();
+         OrganizationManager.runInOrgScope(nOID, () -> {
+            RepletRegistry oldRegistry = repletRegistryManager.getRegistry(oOID);
+            RepletRegistry newRegistry = repletRegistryManager.getRegistry(nOID);
+            String[] oldFolders = oldRegistry.getAllFolders();
 
-         for(String oldFolder : oldFolders) {
-            if(!Tool.MY_DASHBOARD.equals(oldFolder)) {
-               newRegistry.addFolder(oldFolder, false);
+            for(String oldFolder : oldFolders) {
+               if(!Tool.MY_DASHBOARD.equals(oldFolder)) {
+                  newRegistry.addFolder(oldFolder, false);
+               }
             }
-         }
 
-         repletRegistryManager.copyFolderContextMap(oOID, nOID);
-         IdentityID[] orgUsers = securityEngine.getOrgUsers(oOID);
+            repletRegistryManager.copyFolderContextMap(oOID, nOID);
+            IdentityID[] orgUsers = securityEngine.getOrgUsers(oOID);
 
-         if(orgUsers != null) {
-            for(IdentityID orgUser : orgUsers) {
-               IdentityID newUser = new IdentityID(orgUser.name, nOID);
-               repletRegistryManager.copyUser(orgUser, newUser);
+            if(orgUsers != null) {
+               for(IdentityID orgUser : orgUsers) {
+                  IdentityID newUser = new IdentityID(orgUser.name, nOID);
+                  repletRegistryManager.copyUser(orgUser, newUser);
+               }
             }
-         }
 
-         newRegistry.save();
+            newRegistry.save();
+            return null;
+         });
       }
       catch(Exception e) {
          LOG.warn("Could not copy registry from {} to {}", oOID, nOID, e);
       }
-
-      OrganizationManager.getInstance().setCurrentOrgID(tempCurrID);
    }
 
    public void copyDashboardRegistry(Organization oorg, Organization norg) {
@@ -1925,8 +2022,15 @@ public class IdentityService {
       return Catalog.getCatalog().getString("em.servlet.sessionTimeout");
    }
 
-   public void createIdentityPermissions(IdentityID identityID, ResourceType resourceType,
-                                         Principal principal)
+   /**
+    * Grants the creator of a new identity the permission to administer it.
+    *
+    * @return {@code null} if the permission is saved, or the warning to show to the user if it
+    *         may not have been saved (Bug #78217). The identity is already created then, and
+    *         creating it again would create another identity with the next free name.
+    */
+   public String createIdentityPermissions(IdentityID identityID, ResourceType resourceType,
+                                           Principal principal)
    {
       AuthorizationProvider authoc = securityProvider.getAuthorizationProvider();
       Permission perm = new Permission();
@@ -1938,7 +2042,15 @@ public class IdentityService {
       }
 
       perm.setUserGrantsForOrg(ResourceAction.ADMIN, userGrants, OrganizationManager.getInstance().getCurrentOrgID());
-      authoc.setPermission(resourceType, identityID, perm);
+
+      try {
+         authoc.setPermission(resourceType, identityID, perm);
+      }
+      catch(RuntimeException e) {
+         return AbstractAssetEngine.getCreatorPermissionWarning(resourceType, identityID, e);
+      }
+
+      return null;
    }
 
    public List<IdentityModel> getPermission(String resourceName, ResourceType resourceType,
@@ -2982,6 +3094,7 @@ public class IdentityService {
       groupV.toArray(groups);
       user.setGroups(Arrays.stream(groups).map(id -> id.name).toArray(String[]::new));
       User oldUser = eprovider.getUser(oIdentity);
+      boolean loggedOut = false;
 
       if(oldUser == null || Tool.isEmptyString(oldUser.getGoogleSSOId())) {
          if(model.password() != null) {
@@ -2995,6 +3108,7 @@ public class IdentityService {
                   user.setPasswordSalt(null);
                   user.setAppendPasswordSalt(false);
                   logoutSession(oIdentity);
+                  loggedOut = true;
                }
             }
          }
@@ -3003,11 +3117,13 @@ public class IdentityService {
             user.setPasswordAlgorithm(oldUser.getPasswordAlgorithm());
             user.setPasswordSalt(oldUser.getPasswordSalt());
             user.setAppendPasswordSalt(oldUser.isAppendPasswordSalt());
-
-            if(!Tool.equals(oldUser.getName(), user.getName())) {
-               logoutSession(oIdentity);
-            }
          }
+      }
+
+      // a renamed user's sessions are logged out before the rename, whatever the password and
+      // sign-in type, so that they can't store anything under the old name (Bug #78101)
+      if(!loggedOut && oldUser != null && !Tool.equals(oldUser.getName(), user.getName())) {
+         logoutSession(oIdentity);
       }
 
       if(Tool.equals(ouser.getName(), model.name())) {
@@ -3932,6 +4048,15 @@ public class IdentityService {
                   continue;
                }
 
+               // Bug #78497, a user, group or role moved by an organization id change renames its
+               // grants in the organization's own key (who may administer it), but leaves the key
+               // and its organization alone. The organization step that follows moves it from the
+               // old name and id to the new ones, but only finds it at the old name and id in the
+               // old organization.
+               boolean keepOrgKey = type != Identity.ORGANIZATION &&
+                  resourceType == ResourceType.SECURITY_ORGANIZATION &&
+                  newName != null && !Tool.equals(oldOrgId, newOrgId);
+
                for(ResourceAction action : ResourceAction.values()) {
                   if(permission != null) {
                      if(type == Identity.USER) {
@@ -3971,6 +4096,18 @@ public class IdentityService {
                         updateOrgIdentitiesPermission(newName, oldName, oldOrganization, newOrgId, permission, action);
                      }
                   }
+               }
+
+               if(keepOrgKey) {
+                  try {
+                     aprovider.setPermission(resourceType, path, permission, resourceOrgID);
+                  }
+                  catch(RuntimeException e) {
+                     LOG.error("Failed to update the permission of {} {} from {} to {}, it may " +
+                               "not have been saved", resourceType, path, oldName, newName, e);
+                  }
+
+                  continue;
                }
 
                String oldOrgName;
@@ -4626,4 +4763,5 @@ public class IdentityService {
    private final XRepository xRepository;
    private final RepletRegistryManager repletRegistryManager;
    private final IgniteSessionRepository sessionRepository;
+   private SnapshotFileGcService snapshotFileGcService;
 }

@@ -451,24 +451,52 @@ public final class XUtil {
             talias + "." + column;
       }
 
-      if(!sql.isTableColumn(column)) {
-         return column;
-      }
+      boolean tableColumn = sql.isTableColumn(column);
 
       for(int i = 0; i < sql.getTableCount(); i++) {
          SelectTable stable = sql.getSelectTable(i);
          Object name = stable.getName();
          String alias = stable.getAlias();
          alias = alias == null || alias.length() == 0 ? name.toString() : alias;
+         // the column of a table is output by its own name. On a case-sensitive helper the
+         // parser stores the qualifier quoted in the text ("c".CITY for alias c), and a
+         // column whose table didn't resolve (no metadata) is still qualified by the table
+         // (Bug #78409)
+         String prefix = getSubQueryColumnPrefix(column, alias);
 
-         if(column.startsWith(alias + ".")) {
-            column = column.substring(alias.length() + 1);
+         if(prefix == null && name instanceof String) {
+            prefix = getSubQueryColumnPrefix(column, (String) name);
+         }
+
+         // an expression (c.a || c.b) is not a column of the table
+         if(prefix != null && !tableColumn &&
+            !SUB_QUERY_COLUMN_NAME.matcher(column.substring(prefix.length())).matches())
+         {
+            prefix = null;
+         }
+
+         if(prefix != null) {
+            column = column.substring(prefix.length());
             return talias == null || talias.length() == 0 ? column :
                talias + "." + column;
          }
+      }
 
-         if((name instanceof String) && column.startsWith(name + ".")) {
-            column = column.substring(((String) name).length() + 1);
+      // a table without an alias is referenced by its last name segments (CUSTOMERS.CITY
+      // from "public"."CUSTOMERS"), or by more segments than written (APP.CUSTOMERS.CITY
+      // from CUSTOMERS). The parser stores such a table's alias as its full name (Bug #78409)
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         SelectTable stable = sql.getSelectTable(i);
+         Object name = stable.getName();
+
+         if(!(name instanceof String) || !name.equals(stable.getAlias())) {
+            continue;
+         }
+
+         String prefix = getSubQueryColumnSegmentPrefix(column, (String) name, tableColumn);
+
+         if(prefix != null) {
+            column = column.substring(prefix.length());
             return talias == null || talias.length() == 0 ? column :
                talias + "." + column;
          }
@@ -476,6 +504,149 @@ public final class XUtil {
 
       return column;
    }
+
+   /**
+    * Get the qualifier of a column, with its dot, if its name segments and the name segments
+    * of the table end the same way. A segment matches as written or quoted.
+    */
+   private static String getSubQueryColumnSegmentPrefix(String column, String table,
+                                                        boolean tableColumn)
+   {
+      List<String> tableSegments = splitSubQueryName(table);
+
+      if(tableSegments == null) {
+         return null;
+      }
+
+      List<String> qualifier = new ArrayList<>();
+      int start = 0;
+
+      for(int dot = getSubQueryNameDot(column, 0); dot >= 0;
+          dot = getSubQueryNameDot(column, start))
+      {
+         String segment = column.substring(start, dot);
+
+         // a qualifier is a dotted name, not an expression
+         if(!SUB_QUERY_NAME_SEGMENT.matcher(segment).matches()) {
+            return null;
+         }
+
+         qualifier.add(segment);
+         start = dot + 1;
+         String rest = column.substring(start);
+
+         // an expression (c.a || c.b) is not a column of the table
+         if(!rest.isEmpty() && isSubQueryNameSuffix(qualifier, tableSegments) &&
+            (tableColumn || SUB_QUERY_COLUMN_NAME.matcher(rest).matches()))
+         {
+            return column.substring(0, start);
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Check if the shorter of two names is the end of the other, segment by segment.
+    */
+   private static boolean isSubQueryNameSuffix(List<String> name1, List<String> name2) {
+      int n = Math.min(name1.size(), name2.size());
+
+      for(int i = 1; i <= n; i++) {
+         String segment1 = name1.get(name1.size() - i);
+         String segment2 = name2.get(name2.size() - i);
+
+         if(!segment1.equals(segment2) &&
+            !unquoteSubQueryName(segment1).equals(unquoteSubQueryName(segment2)))
+         {
+            return false;
+         }
+      }
+
+      return n > 0;
+   }
+
+   /**
+    * Split a name at the dots outside quotes, or return null if a segment is not one
+    * identifier.
+    */
+   private static List<String> splitSubQueryName(String name) {
+      List<String> segments = new ArrayList<>();
+      int start = 0;
+
+      while(true) {
+         int dot = getSubQueryNameDot(name, start);
+         String segment = dot < 0 ? name.substring(start) : name.substring(start, dot);
+
+         if(!SUB_QUERY_NAME_SEGMENT.matcher(segment).matches()) {
+            return null;
+         }
+
+         segments.add(segment);
+
+         if(dot < 0) {
+            return segments;
+         }
+
+         start = dot + 1;
+      }
+   }
+
+   /**
+    * Get the index of the next dot outside quotes ("..." or `...`), or -1.
+    */
+   private static int getSubQueryNameDot(String name, int from) {
+      char quote = 0;
+
+      for(int i = from; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if(quote != 0) {
+            quote = c == quote ? 0 : quote;
+         }
+         else if(c == '"' || c == '`') {
+            quote = c;
+         }
+         else if(c == '.') {
+            return i;
+         }
+      }
+
+      return -1;
+   }
+
+   /**
+    * Remove the quotes of a name segment.
+    */
+   private static String unquoteSubQueryName(String segment) {
+      return segment.length() > 1 && (segment.charAt(0) == '"' || segment.charAt(0) == '`') ?
+         segment.substring(1, segment.length() - 1) : segment;
+   }
+
+   /**
+    * Get the qualifier of a column, with its dot, if it is the table, written as is or
+    * quoted.
+    */
+   private static String getSubQueryColumnPrefix(String column, String table) {
+      if(table == null || table.isEmpty()) {
+         return null;
+      }
+
+      for(String prefix : new String[] { table + ".", "\"" + table + "\"." }) {
+         if(column.startsWith(prefix) && column.length() > prefix.length()) {
+            return prefix;
+         }
+      }
+
+      return null;
+   }
+
+   // one identifier, bare or quoted
+   private static final Pattern SUB_QUERY_COLUMN_NAME =
+      Pattern.compile("[\\p{L}\\p{N}_$#@]+|\"[^\"]+\"");
+   // one name segment, bare or quoted
+   private static final Pattern SUB_QUERY_NAME_SEGMENT =
+      Pattern.compile("[\\p{L}\\p{N}_$#@]+|\"[^\"]+\"|`[^`]+`");
 
    /**
     * Use different path split for data model folder to distinguish
@@ -1475,6 +1646,7 @@ public final class XUtil {
     * after the script returned (a comparator, for example) is still the script's call.
     * Only meaningful when called from {@code inetsoft.uql} code, which the walk skips: called
     * from any other package it always returns false, because the walk stops at that caller.
+    * Spring AOP proxy plumbing is skipped: the frames of the proxy's target, inside it, decide.
     * {@code ScriptDataSourceAccess.isScriptAccess} applies the same rule; keep the two in step.
     * A static that {@code inetsoft.uql} code also calls internally needs
     * {@link #isDirectScriptCall(Class)} instead.
@@ -1490,6 +1662,14 @@ public final class XUtil {
 
          if(name.startsWith("com.oracle.truffle.") || name.startsWith("org.graalvm.")) {
             return true;
+         }
+
+         // Bug #78237: the plumbing of a Spring proxy, such as the @Lazy registry XEngine
+         // holds. The proxy's target runs inside these frames, so its own frame decides
+         if(name.startsWith("org.springframework.aop.") ||
+            name.startsWith("org.springframework.cglib."))
+         {
+            continue;
          }
 
          if(!name.startsWith("inetsoft.uql.") && !name.startsWith("java.") &&
@@ -4000,7 +4180,177 @@ public final class XUtil {
          }
       }
 
+      if(filterNode == null) {
+         warnKeptSentinels(bin, params);
+      }
+
       return filterNode;
+   }
+
+   /**
+    * Log a warning for a sentinel parameter that is kept as written in a condition, so that
+    * its text (e.g. 'NULL_VALUE') is compared: an item of an IN list with other items, e.g.
+    * a.name IN ($(p), 'x'), and an operand or IN list item that is exactly a parameter with
+    * several values, one of them a sentinel. Rewriting them, e.g. to OR a.name IS NULL,
+    * would return more rows (#78139), so they are only logged, as Condition logs a ONE_OF
+    * condition with a sentinel among its values (Bug #78386). Nothing is logged unless an
+    * item or value is a sentinel.
+    */
+   private static void warnKeptSentinels(XBinaryCondition bin, VariableTable params) {
+      try {
+         XExpression right = bin.getExpression2();
+         String rightText = right == null ? "" : right.toString().trim();
+         String leftText = bin.getExpression1() == null ? "" :
+            bin.getExpression1().toString().trim();
+
+         if(params == null || !rightText.contains("$(") && !leftText.contains("$(")) {
+            return;
+         }
+
+         List<String> operands = new ArrayList<>();
+         List<String> items = right == null || right.getValue() instanceof UniformSQL ?
+            null : getListItems(rightText);
+
+         if(items != null) {
+            operands.addAll(items);
+         }
+         else if(right != null) {
+            operands.add(rightText);
+         }
+
+         operands.add(leftText);
+
+         Set<String> warned = new HashSet<>();
+
+         for(int i = 0; i < operands.size(); i++) {
+            String operand = operands.get(i);
+            Matcher matcher = SPECIFIC_RIGHT_OPERAND.matcher(operand);
+
+            if(!matcher.matches()) {
+               continue;
+            }
+
+            String name = getParameterName(matcher);
+            boolean listItem = items != null && i < items.size();
+            String sentinel = listItem && items.size() > 1 ?
+               getSpecificValue(params, name) : null;
+
+            if(sentinel != null && warned.add(name)) {
+               LOG.warn("The {} value of parameter {} is in an IN list with other items " +
+                           "and is not rewritten, its text is compared: {}",
+                        sentinel, name, bin);
+               continue;
+            }
+
+            sentinel = getMultiValueSentinel(params, name);
+
+            if(sentinel != null && warned.add(name)) {
+               LOG.warn("Parameter {} has several values, one of them {}, which is not " +
+                           "rewritten, its text is compared: {}", name, sentinel, bin);
+            }
+         }
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to check the kept sentinel parameters of: {}", bin, ex);
+      }
+   }
+
+   /**
+    * Get the items of a parenthesized list, e.g. ($(p), 'x'), split at the commas outside
+    * string literals and nested parentheses.
+    * @return the trimmed items, or null if the text isn't one parenthesized list.
+    */
+   private static List<String> getListItems(String text) {
+      if(text.length() < 2 || text.charAt(0) != '(' || text.charAt(text.length() - 1) != ')') {
+         return null;
+      }
+
+      List<String> items = new ArrayList<>();
+      boolean quoted = false;
+      int depth = 0;
+      int start = 1;
+
+      for(int i = 0; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(c == '\'') {
+            quoted = !quoted;
+         }
+         else if(quoted) {
+            continue;
+         }
+         else if(c == '(') {
+            depth++;
+         }
+         else if(c == ')') {
+            depth--;
+
+            // the first parenthesis closes before the end, e.g. (a) + (b)
+            if(depth == 0 && i != text.length() - 1) {
+               return null;
+            }
+         }
+         else if(c == ',' && depth == 1) {
+            items.add(text.substring(start, i).trim());
+            start = i + 1;
+         }
+      }
+
+      if(quoted || depth != 0) {
+         return null;
+      }
+
+      items.add(text.substring(start, text.length() - 1).trim());
+      return items;
+   }
+
+   /**
+    * Check if the sql refers to a parameter, as <tt>$(name)</tt> anywhere in the text, that
+    * has several values, one of them a sentinel (NULL_VALUE, EMPTY_STRING or NULL_STRING).
+    * Such a parameter is never rewritten, the check only tells whether a warning may be
+    * logged for it (Bug #78386).
+    */
+   public static boolean hasMultiValueSentinelParameter(String sql, VariableTable params) {
+      if(sql == null || params == null || !sql.contains("$(")) {
+         return false;
+      }
+
+      Matcher matcher = SQL_PARAMETER.matcher(sql);
+
+      while(matcher.find()) {
+         if(getMultiValueSentinel(params, matcher.group(1)) != null) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Get the sentinel among the values of a parameter with several values. Unlike
+    * getSpecificValue, which is what the rewrite uses, it only serves to log a warning.
+    * @return the first sentinel value, or null if the parameter doesn't have several values
+    * or none of them is a sentinel.
+    */
+   private static String getMultiValueSentinel(VariableTable params, String name) {
+      try {
+         Object val = params.get(name);
+
+         if(val instanceof Object[] && ((Object[]) val).length > 1) {
+            for(Object item : (Object[]) val) {
+               if(Tool.equals(item, XConstants.CONDITION_NULL_VALUE) ||
+                  Tool.equals(item, XConstants.CONDITION_EMPTY_STRING) ||
+                  Tool.equals(item, XConstants.CONDITION_NULL_STRING))
+               {
+                  return (String) item;
+               }
+            }
+         }
+      }
+      catch(Exception e) {
+      }
+
+      return null;
    }
 
    /**
@@ -6310,6 +6660,8 @@ public final class XUtil {
    // for portal data model, ignore additional connection.
    public static final String OUTER_MOSE_LAYER_DATABASE = "^default^";
    public static final String PORTAL_DATA = "portal_data";
+   // a meta data request that replaces the cached result of its key with a fresh one
+   public static final String REFRESH_META_DATA = "refresh_meta_data";
    public static final String DATASOURCE_ADDITIONAL = "additional";
    public static final String DATAMODEL_FOLDER_SPLITER = "^__^";
    public static final String DATAMODEL_PATH_SPLITER = "^";

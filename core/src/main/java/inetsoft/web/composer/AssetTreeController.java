@@ -33,6 +33,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.RecycleUtils;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.composer.model.*;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
 import inetsoft.web.portal.controller.database.QueryManagerService;
@@ -199,8 +200,9 @@ public class AssetTreeController {
             Set<UserVariable> list = new HashSet<>();
 
             // Bug #77401, only look up the connection parameters of a readable data source. A
-            // server-built cube table path (ds/cube) is not a data source and does not inherit
-            // READ from ds, so skip the lookup instead of denying and expand the node as on a miss.
+            // server-built cube table path (ds/cube) is not a data source; it is checked as
+            // ds::cube (Bug #78249) and so inherits READ from ds. Skip the lookup instead of
+            // denying when it is not readable and expand the node as on a miss.
             if(("true".equals(expandedEntry.getProperty("CUBE_TABLE")) ||
                expandedEntry.isDataSource()) &&
                isDataSourceReadable(expandedEntry.getPath(), principal))
@@ -533,7 +535,7 @@ public class AssetTreeController {
             String db = (String) iterator.next();
             XDataSource ds = xRepository.getDataSource(db);
 
-            if(db != null) {
+            if(ds != null) {
                try {
                   xRepository.testDataSource(session, ds, vtable);
                }
@@ -1099,8 +1101,11 @@ public class AssetTreeController {
       }
 
       try {
+         // Bug #78249, an additional connection path P/add is checked as P::add
          return securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE, dataSource, ResourceAction.READ);
+            principal, ResourceType.DATA_SOURCE,
+            ResourcePermissionService.getDataSourcePermissionName(dataSource),
+            ResourceAction.READ);
       }
       catch(Exception e) {
          return false;

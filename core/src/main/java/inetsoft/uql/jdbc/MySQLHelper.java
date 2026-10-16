@@ -61,6 +61,15 @@ public class MySQLHelper extends SQLHelper {
    }
 
    /**
+    * MySQL/MariaDB treat backslash as a string-literal escape character in
+    * their default sql_mode.
+    */
+   @Override
+   public boolean isBackslashEscapeChar() {
+      return true;
+   }
+
+   /**
     * Check if requires alias in having for an expression.
     */
    @Override

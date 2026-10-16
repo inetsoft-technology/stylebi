@@ -25,6 +25,7 @@ import inetsoft.uql.erm.AbstractDataRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.*;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -372,12 +373,12 @@ public class SubQueryValue implements AssetObject {
    }
 
    /**
-    * If {@code ex} is a lock stall or a lost swap file, forget the values read so far: they are
-    * not the values of the sub-query, and the next evaluation reads the sub table again (bugs
-    * #76967, #77910).
+    * If {@code ex} is a lock stall, a lost swap file or a stopped script, forget the values read
+    * so far: they are not the values of the sub-query, and the next evaluation reads the sub
+    * table again (bugs #76967, #77910, #78134).
     */
    private void forgetValuesOnUnavailable(RuntimeException ex) {
-      if(DataUnavailable.find(ex) != null) {
+      if(DataUnavailable.find(ex) != null || ScriptTimeoutGuard.isStop(ex)) {
          values = null;
          lmobj = null;
       }

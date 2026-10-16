@@ -115,7 +115,7 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
     */
    @Override
    public String toString() {
-      return "MVAction: " + getOptionalMV().orElse(null);
+      return "MVAction: " + getMVName();
    }
 
    /**
@@ -446,10 +446,18 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
       }
    }
 
+   // Bug #78240, doesn't load the mv, the action may be serialized in a job store transaction,
+   // which fails if the serialization accesses a cache
    private void writeObject(ObjectOutputStream out) throws IOException {
       out.writeObject(email);
-      getOptionalMV().ifPresent(mv -> mvname = mv.getName());
-      out.writeObject(mvname);
+      out.writeObject(getMVName());
+   }
+
+   /**
+    * Gets the name of the mv without loading it.
+    */
+   private synchronized String getMVName() {
+      return mv != null ? mv.getName() : mvname;
    }
 
    private void readObject(ObjectInputStream in)

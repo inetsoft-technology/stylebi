@@ -322,19 +322,6 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          return new StringBuffer(date.toString());
       }
 
-      // with format "yyyy ww", 2001-12-30 is formatted to "2001 01" because
-      // the week is 1 (1st week of 2002) and year is 2001
-      if(pattern.contains("w")) {
-         Calendar cal = CoreTool.calendar.get();
-         cal.setTime(date);
-
-         while(cal.get(Calendar.WEEK_OF_YEAR) == 1 && cal.get(Calendar.MONTH) == 11) {
-            cal.add(Calendar.DATE, 1);
-         }
-
-         date = cal.getTime();
-      }
-
       // for "yyyy MMM" and "MMM", either java to handle them or ourself to
       // handle them, but not make java handle one, ourself handle one, this
       // will make the result is different for month
@@ -359,7 +346,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       // formats first (this instance may be cached and shared) decides the year for every
       // later caller, e.g. Buddhist years for all users after a th_TH user (#77605)
       if(fastFmt == null) {
-         fastFmt = FastDateFormat.getInstance(toPattern(), getTimeZone(),
+         fastFmt = FastDateFormat.getInstance(getWeekYearPattern(toPattern()), getTimeZone(),
             CoreTool.getGregorianLocale(locale == null ? ThreadContext.getLocale() : locale));
       }
 
@@ -431,6 +418,63 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       }
 
       return sbuf;
+   }
+
+   /**
+    * With format "yyyy ww", 2001-12-30 must be formatted to "2002 01" (week 1 of 2002), not
+    * "2001 01". For a year + week pattern, the calendar year field (y) is replaced by the week
+    * year field (Y) so the year is computed by the same calendar (time zone and locale week
+    * rules) that prints the week. The date itself is not changed. The pattern is not changed
+    * when it has no week of year (w), already has a week year (Y), or prints a calendar month
+    * or day (M, L, d, D, F), where the calendar year matches the other fields. Quoted text is
+    * ignored.
+    */
+   static String getWeekYearPattern(String pattern) {
+      if(pattern == null || pattern.indexOf('w') < 0) {
+         return pattern;
+      }
+
+      boolean week = false;
+      boolean quoted = false;
+
+      for(int i = 0; i < pattern.length(); i++) {
+         char c = pattern.charAt(i);
+
+         // an escaped quote ('') toggles twice, so it never changes the quoted state
+         if(c == QT) {
+            quoted = !quoted;
+         }
+         else if(!quoted) {
+            if(c == 'w') {
+               week = true;
+            }
+            else if("YMLdDF".indexOf(c) >= 0) {
+               return pattern;
+            }
+         }
+      }
+
+      if(!week) {
+         return pattern;
+      }
+
+      StringBuilder buf = new StringBuilder(pattern.length());
+      quoted = false;
+
+      for(int i = 0; i < pattern.length(); i++) {
+         char c = pattern.charAt(i);
+
+         if(c == QT) {
+            quoted = !quoted;
+         }
+         else if(!quoted && c == 'y') {
+            c = 'Y';
+         }
+
+         buf.append(c);
+      }
+
+      return buf.toString();
    }
 
    /**

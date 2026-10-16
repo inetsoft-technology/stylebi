@@ -4343,7 +4343,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          final String dimension = dimensionColor.getKey();
          final Color color = dimensionColor.getValue();
          writer.println("<dimensionColor>");
-         writer.format("<dimension><![CDATA[%s]]></dimension>%n", dimension);
+         // the key holds a dimension value matched with data, so write it losslessly
+         // (#78460)
+         writer.format("<dimension%s><![CDATA[%s]]></dimension>%n",
+                       Tool.cdataDataAttr(dimension), Tool.cdataData(dimension));
          writer.format("<color><![CDATA[%s]]></color>%n", Tool.colorToHTMLString(color));
          writer.println("</dimensionColor>");
       }
@@ -4501,7 +4504,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             final Node entry = dimensionColor.item(i);
             final Element dimensionNode = Tool.getChildNodeByTagName(entry, "dimension");
             final Element colorNode = Tool.getChildNodeByTagName(entry, "color");
-            final String dimension = Tool.getValue(dimensionNode);
+            final String dimension = Tool.getCDATAData(dimensionNode);
             final String colorValue = Tool.getValue(colorNode);
             final Color color = Tool.getColorFromHexString(colorValue);
             this.dimensionColors.put(dimension, color);

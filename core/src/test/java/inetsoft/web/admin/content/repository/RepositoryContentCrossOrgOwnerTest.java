@@ -106,7 +106,7 @@ class RepositoryContentCrossOrgOwnerTest {
       util.when(() -> Util.getObjectFullPath(anyInt(), any(), any())).thenReturn("x");
       recycleUtils = mockStatic(RecycleUtils.class, CALLS_REAL_METHODS);
       recycleUtils.when(() -> RecycleUtils.moveRepositoryFolderToRecycleBin(
-         anyString(), any(), any(), any(), any())).thenAnswer(inv -> null);
+         anyString(), any(), any(), any(), any(), anyBoolean())).thenAnswer(inv -> null);
       // stubbing a static with CALLS_REAL_METHODS records the stubbing call itself
       recycleUtils.clearInvocations();
       // addFolder creates an XPrincipal for the folder owner, which needs a session service
@@ -319,7 +319,7 @@ class RepositoryContentCrossOrgOwnerTest {
                    () -> objectService.deleteNodes(nodes, dave, false, false));
       assertNoRegistryLoaded();
       recycleUtils.verify(() -> RecycleUtils.moveRepositoryFolderToRecycleBin(
-         anyString(), any(), any(), any(), any()), never());
+         anyString(), any(), any(), any(), any(), anyBoolean()), never());
    }
 
    @Test
@@ -341,7 +341,16 @@ class RepositoryContentCrossOrgOwnerTest {
       objectService.deleteNodes(new TreeNodeInfo[]{ node(RepositoryEntry.FOLDER, FOLDER, CAROL) },
                                 dave, false, false);
       recycleUtils.verify(() -> RecycleUtils.moveRepositoryFolderToRecycleBin(
-         eq(FOLDER), any(), eq(CAROL), eq(dave), any()));
+         eq(FOLDER), any(), eq(CAROL), eq(dave), any(), eq(false)));
+   }
+
+   @Test
+   void deleteNodes_forcedRepositoryFolder_forwardsForce() throws Exception {
+      // Bug #78093, the confirmed retry of a dependency prompt skips the dependency check
+      objectService.deleteNodes(new TreeNodeInfo[]{ node(RepositoryEntry.FOLDER, FOLDER, CAROL) },
+                                dave, true, false);
+      recycleUtils.verify(() -> RecycleUtils.moveRepositoryFolderToRecycleBin(
+         eq(FOLDER), any(), eq(CAROL), eq(dave), any(), eq(true)));
    }
 
    @Test
@@ -349,7 +358,7 @@ class RepositoryContentCrossOrgOwnerTest {
       objectService.deleteNodes(new TreeNodeInfo[]{ node(RepositoryEntry.FOLDER, FOLDER, BOB) },
                                 siteAdmin, false, false);
       recycleUtils.verify(() -> RecycleUtils.moveRepositoryFolderToRecycleBin(
-         eq(FOLDER), any(), eq(BOB), eq(siteAdmin), any()));
+         eq(FOLDER), any(), eq(BOB), eq(siteAdmin), any(), eq(false)));
    }
 
    @ParameterizedTest

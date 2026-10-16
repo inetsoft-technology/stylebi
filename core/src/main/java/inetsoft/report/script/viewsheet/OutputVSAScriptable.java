@@ -19,6 +19,7 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
@@ -124,10 +125,12 @@ public class OutputVSAScriptable extends VSAScriptable {
 
    /**
     * A lock stall or a lost swap file under the output query is not a missing value: rethrow
-    * it so the script fails instead of computing with a null value (bugs #77123, #77910).
+    * it so the script fails instead of computing with a null value (bugs #77123, #77910). So is
+    * a load failure for a reader that has to fail, e.g. a scheduled run (bug #78083).
     */
    private static void rethrowUnavailable(Throwable ex) {
       DataUnavailable.rethrow(ex);
+      TableLoadException.rethrow(ex);
    }
 
    /**

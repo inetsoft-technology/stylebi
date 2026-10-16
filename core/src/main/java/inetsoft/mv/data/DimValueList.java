@@ -84,7 +84,10 @@ public class DimValueList {
 
    private File getFile(int idx) {
       if(prefix == null) {
-         prefix = "dimvalue" + System.currentTimeMillis() + hashCode();
+         // Bug #78368, name the fragments with the swapper prefix so the cache sweeps of this
+         // and other JVMs keep them while the seed is alive (a name without a seed is deleted
+         // once it is past the grace period, even in the middle of an MV build)
+         prefix = XSwapper.getSwapper().getPrefix() + "_dimvalue";
       }
 
       return FileSystemService.getInstance().getCacheFile(prefix + "_" + idx + ".tdat");
@@ -167,7 +170,8 @@ public class DimValueList {
             }
          }
          else {
-            File file = getFile(i / FRAGMENT_SIZE);
+            // the file the fragment was written to, the cache directory may have changed
+            File file = seg < fragmentFiles.size() ? fragmentFiles.get(seg) : getFile(seg);
 
             try(FileChannel fc = new RandomAccessFile(file, "r").getChannel()) {
                buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, file.length());

@@ -23,8 +23,11 @@ import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.table.XSwappableTable;
+import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.SwapReadInterruptedException;
 import org.junit.jupiter.api.*;
@@ -42,9 +45,11 @@ import static org.mockito.Mockito.when;
 
 /**
  * Bug #77916: a script timeout that interrupts a swap read of the base of a freehand (calc)
- * table formula is a swap read failure, like a lost swap file (bug #77909): the reader gets
- * it, the cell is not cached as an "ERROR: ..." text and the table is not processed as null,
- * so a later read evaluates the formula again.
+ * table formula fails the read with a {@link SwapReadInterruptedException}. Bug #78098: the swap
+ * file is not lost, the formula was stopped, so it takes the stop path (bug #77949): the reader
+ * gets the stop, not a swap read failure, and the cell is not evaluated again from the state
+ * the stopped formula left, nor cached as an "ERROR: ..." text, nor is the table processed as
+ * null. The table computed again evaluates it again.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -76,25 +81,30 @@ public class CalcTableLensSwapInterruptTest {
    }
 
    @Test
-   public void timeoutDuringBaseSwapReadIsNotCachedAsAnErrorCell() {
+   public void timeoutDuringBaseSwapReadIsAStopNotAnErrorCell() {
       CalcTableLens calc = calcTable("while(data['spin'][2] == 1) {} data['value'][2]", false);
 
-      assertThrows(SwapReadInterruptedException.class, () -> calc.getValue(0, 0));
+      assertStop(assertThrows(ScriptException.class, () -> calc.getValue(0, 0)));
       assertInstanceOf(SwapReadInterruptedException.class, base.failure,
                        "the timeout did not interrupt a swap read");
       Thread.interrupted();
       base.armed = false;
 
-      // twice: the formula must be evaluated again, not read back as a cached error cell
+      // not evaluated again, which would now give a value, nor read back as an error cell
+      assertStop(assertThrows(ScriptException.class, () -> calc.getValue(0, 0)));
+      assertTrue(calc.isStopped(), "a cache computes it again");
+
+      // computed again
+      calc.invalidate();
       assertEquals(30, ((Number) calc.getValue(0, 0)).intValue());
       assertEquals(30, ((Number) calc.getValue(0, 0)).intValue());
    }
 
    @Test
-   public void timeoutDuringBaseSwapReadInExpansionIsNotANullTable() {
+   public void timeoutDuringBaseSwapReadInExpansionIsAStopNotANullTable() {
       CalcTableLens calc = calcTable("while(data['spin'][2] == 1) {} data['value']", true);
 
-      assertThrows(SwapReadInterruptedException.class, calc::process);
+      assertStop(assertThrows(ScriptException.class, calc::process));
       assertInstanceOf(SwapReadInterruptedException.class, base.failure,
                        "the timeout did not interrupt a swap read");
       Thread.interrupted();
@@ -103,6 +113,11 @@ public class CalcTableLensSwapInterruptTest {
       List<Object> expected = List.of(10, 20, 30, 40, 50, 60, 70, 80);
       assertEquals(expected, cells(calc.process()));
       assertEquals(expected, cells(calc.process()));
+   }
+
+   private static void assertStop(Throwable failure) {
+      assertTrue(ScriptTimeoutGuard.isStop(failure), "the reader gets the stop: " + failure);
+      assertNull(DataUnavailable.find(failure), "the stop reads as a lost swap file: " + failure);
    }
 
    /**

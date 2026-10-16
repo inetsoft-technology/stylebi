@@ -194,6 +194,44 @@ public class ScriptTimeoutGuard {
       throw se;
    }
 
+   /**
+    * A new stop for a table that keeps the stop {@code ex} it was computed with and throws it
+    * to each of its readers (bug #78134): a stopped expression failure with the same column
+    * and rows, or a stopped script exception with the same message. Like the copies of
+    * {@link inetsoft.util.swap.DataUnavailable#copy}, the copy does not keep {@code ex} in its
+    * cause chain, a reader may add a suppressed stack trace element to the one it gets.
+    *
+    * @return the copy, or {@code null} if {@code ex} {@link #isStop(Throwable) is no stop}.
+    */
+   public static inetsoft.util.script.ScriptException copyStop(Throwable ex) {
+      if(!isStop(ex)) {
+         return null;
+      }
+
+      inetsoft.util.script.ScriptException stop;
+
+      if(ex instanceof inetsoft.util.script.ExpressionFailedException failure &&
+         failure.getOriginalException() != null)
+      {
+         inetsoft.util.script.ExpressionFailedException copy =
+            new inetsoft.util.script.ExpressionFailedException(
+               failure.getColIndex(), failure.getColName(), failure.getTableName(),
+               failure.getOriginalException());
+
+         for(int failedRow : failure.getFailedRows()) {
+            copy.addFailedRow(failedRow);
+         }
+
+         stop = copy;
+      }
+      else {
+         stop = new inetsoft.util.script.ScriptException(ex.getMessage());
+      }
+
+      stop.setStopped(true);
+      return stop;
+   }
+
    /** Test hook run by the interrupt task right before it interrupts; null in production. */
    static volatile Runnable beforeInterruptHook;
 

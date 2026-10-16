@@ -27,6 +27,7 @@ import inetsoft.graph.element.GraphtDataSelector;
 import inetsoft.graph.internal.ManualOrderComparer;
 import inetsoft.graph.scale.*;
 import inetsoft.report.*;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.graph.data.ScaleRouter;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.*;
@@ -40,6 +41,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
@@ -49,6 +51,7 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogManager;
 import inetsoft.util.profile.ProfileUtils;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 
 import java.io.*;
 import java.text.Format;
@@ -76,8 +79,8 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
 
       this.data = this.odata = data;
       this.refs = refs == null ? new VSDataRef[0] : refs;
-      data.addChangeListener(event -> VSDataSet.this.process());
-      process();
+      data.addChangeListener(event -> VSDataSet.this.process(false));
+      process(true);
    }
 
    /**
@@ -115,8 +118,13 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
 
    /**
     * Initialization.
+    * @param rethrowStop {@code true} to fail with a stopped script of the table (a script
+    *                    timeout or cancel), or with a table that failed to load in a
+    *                    scheduled run (bug #78083), rather than be an empty or partial data
+    *                    set (bug #78134). A change event of the table does not, its listeners
+    *                    must all be called; a cache drops a data set whose table is stopped.
     */
-   private void process() {
+   private void process(boolean rethrowStop) {
       try {
          // for Feature #26586, add post processing time record for current report/vs.
          ProfileUtils.addExecutionBreakDownRecord(data.getReportName(),
@@ -130,6 +138,24 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
             LOG, colNotFoundException.getLogLevel(), colNotFoundException.getMessage(), thrown);
       }
       catch(Exception ex) {
+         if(rethrowStop) {
+            ScriptTimeoutGuard.rethrowStop(ex);
+
+            // a table that failed to load for a reader that has to fail (a scheduled run) is
+            // not an empty data set, which the chart would plot as no data (#78083). Rows that
+            // another reader's cancel cut are not a load failure: the cache drops this data
+            // set and computes it again (#78200)
+            if(!AssetDataCache.isDataSetCancelled(this)) {
+               TableLoadException.rethrow(ex);
+            }
+         }
+         // a change event of a table whose script was stopped: no error, the cache drops
+         // the data set and the next reader gets the stop (bug #78134)
+         else if(ScriptTimeoutGuard.isStop(ex)) {
+            LOG.debug("Script of the vsdataset table stopped", ex);
+            return;
+         }
+
          LOG.error("Failed to process vsdataset", ex);
       }
    }
@@ -289,7 +315,7 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
 
             try {
                initDataMap(header);
-               comparer[i] = dim.createComparator(this);
+               comparer[i] = createColumnComparator(dim);
 
                if(comparer[i] instanceof DimensionComparer) {
                   ((DimensionComparer) comparer[i]).setComparator(
@@ -349,7 +375,7 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
                int col = super.indexOfHeader(subdim.getFullName());
 
                if(col >= 0) {
-                  Comparator comp = subdim.createComparator(this);
+                  Comparator comp = createColumnComparator(subdim);
                   comps[col].add(comp);
                   compranges[col].add(range);
                }
@@ -362,6 +388,17 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
             }
          }
       }
+   }
+
+   /**
+    * Create the column comparator of a dimension. A comparator that only puts Others last
+    * ties all other values, which breaks the readers that binary search with it or treat a
+    * null comparator as data order (scale, routers, part-date order, brushing, stacking).
+    * The legend sorts Others last through the dimension itself, so keep the column null.
+    */
+   private Comparator createColumnComparator(XDimensionRef dim) {
+      Comparator comp = dim.createComparator(this);
+      return comp instanceof OthersComparator ? null : comp;
    }
 
    /**
@@ -821,7 +858,9 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
       // A legacy WeekOfYear part value can map to a different actual week across years; use the
       // equivalence cell so the drill condition matches the displayed week. For Same-Day
       // sequential-week grouping getEquivalenceCell() returns null (already aligned), leaving
-      // the raw cell. (Bug #75351)
+      // the raw cell. (Bug #75351) It also returns null when the date group is a DC period
+      // level, as in every DC table, since the stored part value is then already the one the
+      // condition is evaluated with. (Bug #78446)
       else if(obj instanceof DCMergeDatePartFilter.MergePartCell) {
          DCMergeDatePartFilter.MergePartCell equivalenceCell =
             ((DCMergeDatePartFilter.MergePartCell) obj).getEquivalenceCell();

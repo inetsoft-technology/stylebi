@@ -104,7 +104,28 @@ public class DistributedLockProxy implements Lock {
 
    @Override
    public void unlock() {
-      realLock.unlock();
+      unlock(realLock);
+   }
+
+   /**
+    * Releases a lock on a thread that may be interrupted. An Ignite lock that is unlocked on an
+    * interrupted thread throws {@code IgniteInterruptedException} and stays held by the thread
+    * until its node leaves the cluster, so every later {@link #lock()} of it waits forever
+    * (bug #78096). The interrupt flag is cleared for the unlock and set again after it.
+    *
+    * @param lock the lock to release.
+    */
+   public static void unlock(Lock lock) {
+      boolean interrupted = Thread.interrupted();
+
+      try {
+         lock.unlock();
+      }
+      finally {
+         if(interrupted) {
+            Thread.currentThread().interrupt();
+         }
+      }
    }
 
    @NotNull

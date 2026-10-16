@@ -48,6 +48,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.annotation.DirtiesContext;
@@ -74,7 +76,9 @@ import static org.mockito.Mockito.*;
  * </ul>
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
+                                  TabularQueryDialogPermissionTest.Beans.class },
+                      initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
@@ -556,5 +560,18 @@ class TabularQueryDialogPermissionTest {
       ArgumentCaptor<MessageCommand> command = ArgumentCaptor.forClass(MessageCommand.class);
       verify(dispatcher).sendCommand(command.capture());
       assertEquals(MessageCommand.Type.ERROR, command.getValue().getType());
+   }
+
+   // the READ check looks up the data sources of the registry to tell an additional connection
+   // path from a data source in a folder (Bug #78249)
+   @Configuration
+   static class Beans {
+      @Bean
+      public DataSourceRegistry dataSourceRegistry() {
+         DataSourceRegistry registry = mock(DataSourceRegistry.class);
+         when(registry.getDataSourceFullNames())
+            .thenReturn(new String[] { DS, "Folder/DS1", "Folder/Sub/DS2", "DS3" });
+         return registry;
+      }
    }
 }

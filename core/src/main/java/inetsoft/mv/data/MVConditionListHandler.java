@@ -31,6 +31,8 @@ import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.ScriptStateLint;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -164,7 +166,11 @@ public class MVConditionListHandler extends ConditionListHandler {
          }
       }
       catch(Exception ex) {
-         throw new ScriptException("MV Script error: " + ex.getMessage());
+         // keep unavailable data or a load failure as the cause (bug #78450)
+         ScriptException sex = new ScriptException("MV Script error: " + ex.getMessage(),
+                                                   DataUnavailable.causeInChain(ex));
+         sex.setStopped(ScriptTimeoutGuard.isStop(ex));
+         throw sex;
       }
       finally {
          FormulaContext.setRestricted(restricted);

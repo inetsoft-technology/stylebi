@@ -857,17 +857,26 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          if(aliasnode != null) {
-            String alias = Tool.getValue(aliasnode);
+            // text with a character XML 1.0 can't carry is encoded and marked (Bug #78128)
+            String alias = Tool.getCDATAData(aliasnode);
             Object name = null;
 
             if(namenode != null) {
                boolean issql = issqlnode != null &&
                   "true".equals(Tool.getValue(issqlnode));
-               name = Tool.getValue(namenode);
+               name = Tool.getCDATAData(namenode);
 
                if(issql) {
                   // the sql with the quotes of its quoted table names (#77569)
                   String quoted = Tool.getAttribute(namenode, "quotedSql");
+
+                  // encoded with the text under the same marker, see writeXML0
+                  if(quoted != null &&
+                     "true".equals(Tool.getAttribute(namenode, XML_ILLEGAL_CHARS_ATTR)))
+                  {
+                     quoted = Tool.decodeXMLIllegalChars(quoted);
+                  }
+
                   name = new UniformSQL(quoted != null ? quoted : (String) name, false);
                }
             }
@@ -878,12 +887,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
 
             SelectTable stable = addTable(alias, name, loc, scrollLoc);
-            stable.setCatalog(Tool.getValue(cnode));
-            stable.setSchema(Tool.getValue(snode));
+            stable.setCatalog(Tool.getCDATAData(cnode));
+            stable.setSchema(Tool.getCDATAData(snode));
 
             // the name segments written quoted in the parsed sql (#77569)
             if(namenode != null && name instanceof String) {
                stable.setQuotedSegmentsString(Tool.getAttribute(namenode, "quotedSegments"));
+               // the table hint, with (nolock), missing before Bug #78382
+               stable.setHint(Tool.getAttribute(namenode, "tableHint"));
             }
          }
       }
@@ -905,7 +916,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          column = (Element) nlist.item(i);
 
-         String columnName = Tool.getValue(column);
+         // the marker is on <column>, see writeXML0
+         String columnName = Tool.getCDATAData(column);
 
          if(columnName == null) {
             columnName = "column" + i;
@@ -921,8 +933,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          if(child != null) {
-            selection.setAlias(selection.getColumnCount() - 1,
-               (Tool.getValue(child) == null ? "" : Tool.getValue(child)));
+            String alias = Tool.getCDATAData(child);
+            selection.setAlias(selection.getColumnCount() - 1, alias == null ? "" : alias);
 
             // whether the alias was written quoted, absent if not known (#77616)
             String aliasQuoted = Tool.getAttribute(child, "quoted");
@@ -941,8 +953,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          if(child != null) {
-            selection.setType(columnName,
-               (Tool.getValue(child) == null ? "" : Tool.getValue(child)));
+            String type = Tool.getCDATAData(child);
+            selection.setType(columnName, type == null ? "" : type);
          }
 
          // set table of column
@@ -953,7 +965,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          if(child != null) {
-            selection.setTable(columnName, Tool.getValue(child));
+            selection.setTable(columnName, Tool.getCDATAData(child));
          }
 
          list = Tool.getChildNodesByTagName(column, "description");
@@ -963,7 +975,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          if(child != null) {
-            selection.setDescription(columnName, Tool.getValue(child));
+            selection.setDescription(columnName, Tool.getCDATAData(child));
          }
 
          list = Tool.getChildNodesByTagName(column, "isExp");
@@ -1062,7 +1074,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          for(int i = 0; i < nlist.getLength(); i++) {
             Element sortNode = (Element) nlist.item(i);
-            String field = Tool.getValue(sortNode);
+            String field = Tool.getCDATAData(sortNode);
             String order = Tool.getAttribute(sortNode, "order");
 
             // a missing direction was written as "null" (Bug #77570)
@@ -1094,7 +1106,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          for(int i = 0; i < nlist.getLength(); i++) {
             Element groupNode = (Element) nlist.item(i);
-            String field = Tool.getValue(groupNode);
+            String field = Tool.getCDATAData(groupNode);
             groups[i] = field;
 
             groupQuotes[i] = readQuotedField(groupNode, field);
@@ -1119,7 +1131,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          for(int i = 0; i < nlist.getLength(); i++) {
             Element groupNode = (Element) nlist.item(i);
-            String field = Tool.getValue(groupNode);
+            String field = Tool.getCDATAData(groupNode);
             orderDBFields.add(field);
          }
       }
@@ -1132,7 +1144,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          for(int i = 0; i < nlist.getLength(); i++) {
             Element groupNode = (Element) nlist.item(i);
-            String field = Tool.getValue(groupNode);
+            String field = Tool.getCDATAData(groupNode);
             groupDBFields.add(field);
          }
       }
@@ -1234,7 +1246,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          for(int i = 0; i < nlist.getLength(); i++) {
             Element cnode = (Element) nlist.item(i);
             String type = Tool.getAttribute(cnode, "type");
-            String name = Tool.getValue(cnode);
+            String name = Tool.getCDATAData(cnode);
             columns[i] = new XField(name);
             columns[i].setType(type);
          }
@@ -1290,7 +1302,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          boolean issql = name instanceof UniformSQL;
 
          writer.println("<table>");
-         writer.println("<alias><![CDATA[" + Tool.splitCDATAEnd(alias) + "]]></alias>");
+         // SQL text with a character XML 1.0 can't carry (a literal in a select item or a
+         // derived table) is encoded behind a marker, and other text is written unchanged.
+         // The reader decodes only marked text (Bug #78128)
+         writer.println("<alias" + Tool.cdataDataAttr(alias) + "><![CDATA[" +
+                        Tool.cdataData(alias) + "]]></alias>");
 
          if(full && issql) {
             writer.println("<sqlName>");
@@ -1309,15 +1325,31 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
             String text = toUnquotedString(sub);
             String quoted = name.toString();
-            writer.println("<name" + (!quoted.equals(text) ?
+            boolean differs = !quoted.equals(text);
+            // one marker covers the text and the quotedSql attribute, so both are encoded
+            // when either one needs it, and the reader decodes both only when marked
+            boolean ctrl = Tool.hasXMLIllegalChars(text) ||
+               differs && Tool.hasXMLIllegalChars(quoted);
+
+            if(ctrl) {
+               text = Tool.encodeXMLIllegalChars(text);
+               quoted = Tool.encodeXMLIllegalChars(quoted);
+            }
+
+            writer.println("<name" + (differs ?
                " quotedSql=\"" + Tool.escape(quoted) + "\"" : "") +
+               (ctrl ? " " + XML_ILLEGAL_CHARS_ATTR + "=\"true\"" : "") +
                "><![CDATA[" + Tool.splitCDATAEnd(text) + "]]></name>");
          }
          else {
             String quotedSegments = name instanceof String ? table.getQuotedSegmentsString() : null;
+            String hint = name instanceof String ? table.getHint() : null;
+            String text = String.valueOf(name);
             writer.println("<name" + (quotedSegments != null ?
                " quotedSegments=\"" + quotedSegments + "\"" : "") +
-               "><![CDATA[" + Tool.splitCDATAEnd(String.valueOf(name)) + "]]></name>");
+               (hint != null ? " tableHint=\"" + Tool.escape(hint) + "\"" : "") +
+               Tool.cdataDataAttr(text) +
+               "><![CDATA[" + Tool.cdataData(text) + "]]></name>");
          }
 
          writer.println("<issql><![CDATA[" + issql + "]]></issql>");
@@ -1329,13 +1361,15 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          String catalog = table.getCatalog();
 
          if(catalog != null) {
-            writer.println("<catalog><![CDATA[" + Tool.splitCDATAEnd(catalog) + "]]></catalog>");
+            writer.println("<catalog" + Tool.cdataDataAttr(catalog) + "><![CDATA[" +
+                           Tool.cdataData(catalog) + "]]></catalog>");
          }
 
          String schema = table.getSchema();
 
          if(schema != null) {
-            writer.println("<schema><![CDATA[" + Tool.splitCDATAEnd(schema) + "]]></schema>");
+            writer.println("<schema" + Tool.cdataDataAttr(schema) + "><![CDATA[" +
+                           Tool.cdataData(schema) + "]]></schema>");
          }
 
          writer.println("</table>");
@@ -1345,8 +1379,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       int columnCount = selection.getColumnCount();
 
       for(int i = 0; i < columnCount; i++) {
-         writer.println("<column>");
          String column = selection.getColumn(i);
+         // the marker of the column text goes on <column>, which keeps it when a rename
+         // transform replaces the text and its child elements
+         writer.println("<column" + Tool.cdataDataAttr(column) + ">");
          String alias = selection.getAlias(i);
          String type = selection.getType(column);
          String tname = selection.getTable(column);
@@ -1357,17 +1393,18 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             tname = selection.getTable(alias);
          }
 
-         writer.println("<![CDATA[" + Tool.splitCDATAEnd(column) + "]]>");
+         writer.println("<![CDATA[" + Tool.cdataData(column) + "]]>");
          // whether the alias was written quoted, if known. Older versions ignore it
          Boolean aliasQuoted = selection.isAliasQuoted(i);
          writer.println("<alias" + (aliasQuoted == null ? "" : " quoted=\"" + aliasQuoted + "\"") +
-                        "><![CDATA[" + (alias == null ? "" : Tool.splitCDATAEnd(alias)) + "]]></alias>");
-         writer.println("<type><![CDATA[" + (type == null ? "" : Tool.splitCDATAEnd(type)) +
-                        "]]></type>");
-         writer.println("<table><![CDATA[" + (tname == null ? "" : Tool.splitCDATAEnd(tname)) +
-                        "]]></table>");
-         writer.println("<description><![CDATA[" + (desc == null ? "" : Tool.splitCDATAEnd(desc)) +
-                        "]]></description>");
+                        Tool.cdataDataAttr(alias) + "><![CDATA[" +
+                        (alias == null ? "" : Tool.cdataData(alias)) + "]]></alias>");
+         writer.println("<type" + Tool.cdataDataAttr(type) + "><![CDATA[" +
+                        (type == null ? "" : Tool.cdataData(type)) + "]]></type>");
+         writer.println("<table" + Tool.cdataDataAttr(tname) + "><![CDATA[" +
+                        (tname == null ? "" : Tool.cdataData(tname)) + "]]></table>");
+         writer.println("<description" + Tool.cdataDataAttr(desc) + "><![CDATA[" +
+                        (desc == null ? "" : Tool.cdataData(desc)) + "]]></description>");
          writer.println("<isExp><![CDATA[" + isExp + "]]></isExp>");
 
          if(selection.isQuoted(i)) {
@@ -1411,10 +1448,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       for(int i = 0; i < orderField.length; i++) {
          // the direction of the item itself, none if not set (Bug #77570)
          String order = orderItems[i].getOrder();
+         String field = orderField[i].toString();
          writer.print("<field" + (order != null ? " order=\"" + order + "\"" : "") +
                       quotedFieldAttribute(getQuote(orderItems[i]), orderField[i], quotedTexts) +
-                      quotedAggregateAttribute(orderField[i]) + "><![CDATA[");
-         writer.print(Tool.splitCDATAEnd(orderField[i].toString()));
+                      quotedAggregateAttribute(orderField[i]) + Tool.cdataDataAttr(field) +
+                      "><![CDATA[");
+         writer.print(Tool.cdataData(field));
          writer.print("]]></field>");
 
          if(i != orderField.length - 1) {
@@ -1428,9 +1467,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       Object[] groupby = this.getGroupBy();
 
       for(int i = 0; groupby != null && i < groupby.length; i++) {
+         String field = groupby[i].toString();
          writer.print("<field" + quotedFieldAttribute(getGroupQuote(i), groupby[i], quotedTexts) +
-                      "><![CDATA[");
-         writer.print(Tool.splitCDATAEnd(groupby[i].toString()));
+                      Tool.cdataDataAttr(field) + "><![CDATA[");
+         writer.print(Tool.cdataData(field));
          writer.print("]]></field>");
       }
 
@@ -1442,8 +1482,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          writer.println("<orderdbfields>");
 
          for(int i = 0; i < orderDBFlds.size(); i++) {
-            writer.print("<field><![CDATA[");
-            writer.print(Tool.splitCDATAEnd(orderDBFlds.get(i)));
+            writer.print("<field" + Tool.cdataDataAttr(orderDBFlds.get(i)) + "><![CDATA[");
+            writer.print(Tool.cdataData(orderDBFlds.get(i)));
             writer.print("]]></field>");
          }
 
@@ -1456,8 +1496,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          writer.println("<groupdbfields>");
 
          for(int i = 0; i < groupDBFlds.size(); i++) {
-            writer.print("<field><![CDATA[");
-            writer.print(Tool.splitCDATAEnd(groupDBFlds.get(i)));
+            writer.print("<field" + Tool.cdataDataAttr(groupDBFlds.get(i)) + "><![CDATA[");
+            writer.print(Tool.cdataData(groupDBFlds.get(i)));
             writer.print("]]></field>");
          }
 
@@ -1486,8 +1526,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          writer.println("<columnInfo>");
 
          for(XField fld : columns) {
-            writer.println("<column type=\"" + fld.getType() + "\">");
-            writer.println("<![CDATA[" + Tool.splitCDATAEnd(String.valueOf(fld.getName())) + "]]>");
+            String name = String.valueOf(fld.getName());
+            writer.println("<column type=\"" + fld.getType() + "\"" + Tool.cdataDataAttr(name) + ">");
+            writer.println("<![CDATA[" + Tool.cdataData(name) + "]]>");
             writer.println("</column>");
          }
 
@@ -3758,8 +3799,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                return table_alias;
             }
 
-            if(ignoreCase ? table.equalsIgnoreCase(table_name + "") :
-               table.equals(table_name + ""))
+            // a derived table is named by its alias. Its sql isn't generated to compare it,
+            // which generated it again for every column during sql generation (Bug #78119)
+            if(!(table_name instanceof UniformSQL) &&
+               (ignoreCase ? table.equalsIgnoreCase(table_name + "") :
+                table.equals(table_name + "")))
             {
                return table_alias != null && table_alias.length() > 0 ?
                   table_alias : (String) table_name;
@@ -3982,9 +4026,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          nstable.setCatalog(ostable.getCatalog());
          nstable.setSchema(ostable.getSchema());
 
-         // the quoted segments describe the name, keep them only for the same name
+         // the quoted segments describe the name, keep them only for the same name, as
+         // the table hint (Bug #78382)
          if(Tool.equals(ostable.getName(), name)) {
             nstable.setQuotedSegments(ostable.getQuotedSegments());
+            nstable.setHint(ostable.getHint());
          }
 
          tables.set(index, nstable);
@@ -4009,9 +4055,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          nstable.setCatalog(ostable.getCatalog());
          nstable.setSchema(ostable.getSchema());
 
-         // the quoted segments describe the name, keep them only for the same name
+         // the quoted segments describe the name, keep them only for the same name, as
+         // the table hint (Bug #78382)
          if(Tool.equals(ostable.getName(), name)) {
             nstable.setQuotedSegments(ostable.getQuotedSegments());
+            nstable.setHint(ostable.getHint());
          }
 
          tables.set(index, nstable);
@@ -5097,6 +5145,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          Objects.equals(xselect2, that.xselect2) &&
          Objects.equals(tables, that.tables) &&
          equalsQuotedSegments(tables, that.tables) &&
+         equalsTableHints(tables, that.tables) &&
          Objects.equals(fields, that.fields) &&
          Objects.equals(orderByList, that.orderByList) &&
          Arrays.equals(groups, that.groups) &&
@@ -5127,6 +5176,26 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          if(!Arrays.equals(tables1.get(i).getQuotedSegments(),
                            tables2.get(i).getQuotedSegments()))
          {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Check if the tables at each index have the same table hint (Bug #78382).
+    */
+   private static boolean equalsTableHints(Vector<SelectTable> tables1,
+                                           Vector<SelectTable> tables2)
+   {
+      // different tables are told apart by the table comparison
+      if(tables1 == null || tables2 == null || tables1.size() != tables2.size()) {
+         return true;
+      }
+
+      for(int i = 0; i < tables1.size(); i++) {
+         if(!Objects.equals(tables1.get(i).getHint(), tables2.get(i).getHint())) {
             return false;
          }
       }
@@ -5762,7 +5831,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
 
             boolean legacyCycle = isLegacyCycleJoins(this);
-            boolean result = (sql.lossy != null && sql.lossy) || legacyCycle;
+            // a query saved when a table hint was parsed as the alias with(nolock) (1.1.x) is
+            // regenerated with that alias and without the hint, which can bind a column of a
+            // subquery to another table (Bug #77492). Its sql string, which now parses with
+            // the hint, is kept (Bug #78382)
+            boolean result = (sql.lossy != null && sql.lossy) || legacyCycle ||
+               hasLegacyTableHintAlias(this);
             // a legacy query with an outer join whose join clauses can't be recorded is
             // regenerated in the outer-last order. Lossy isn't enough, vpm regenerates a lossy
             // query (XUtil.isParsedSQL ignores lossy), so it's refused with a data source and
@@ -6027,6 +6101,70 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Check if a query, at any level (subqueries, derived tables and select list subqueries),
+    * has a table hint kept as the alias, with(nolock), as the parser stored it before table
+    * hints were refused (Bug #77492) and then kept (Bug #78382).
+    */
+   private static boolean hasLegacyTableHintAlias(UniformSQL sql) {
+      return hasLegacyTableHintAlias(sql, sql,
+                                     Collections.newSetFromMap(new IdentityHashMap<>()));
+   }
+
+   /**
+    * @param top the query whose sql string is the text being parsed, which isn't checked.
+    */
+   private static boolean hasLegacyTableHintAlias(UniformSQL sql, UniformSQL top,
+                                                  Set<UniformSQL> visited)
+   {
+      List<UniformSQL> queries = new ArrayList<>();
+      addQueryLevels(sql, queries);
+
+      for(UniformSQL query : queries) {
+         if(!visited.add(query)) {
+            continue;
+         }
+
+         // a derived table or a subquery loaded from its text
+         if(query != top && query.sqlstring != null &&
+            LEGACY_HINT_TEXT.matcher(query.sqlstring).find())
+         {
+            return true;
+         }
+
+         for(SelectTable table : query.getSelectTable()) {
+            if(table == null) {
+               continue;
+            }
+
+            if(table.getAlias() != null &&
+               LEGACY_HINT_ALIAS.matcher(table.getAlias()).matches())
+            {
+               return true;
+            }
+
+            if(table.getName() instanceof UniformSQL &&
+               hasLegacyTableHintAlias((UniformSQL) table.getName(), top, visited))
+            {
+               return true;
+            }
+         }
+
+         XSelection selection = query.getSelection();
+
+         // a select list subquery is kept as its text
+         for(int i = 0; selection != null && i < selection.getColumnCount(); i++) {
+            String column = selection.getColumn(i);
+
+            if(column != null && LEGACY_HINT_TEXT.matcher(column).find()) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * Add a query and its where and having subqueries, in the order of its conditions. A derived
     * table is not added, it is parsed again from its own sql string.
     */
@@ -6163,6 +6301,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       "[A-Za-z_\\u00AA\\u00B5\\u00BA\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u00FF\\u0100-\\uFFFE]" +
       "[A-Za-z0-9_\\u00AA\\u00B5\\u00B7\\u00BA\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u00FF" +
       "\\u0100-\\uFFFE]*";
+
+   // a table hint kept as the alias, with(nolock), and its quoted form in a generated text
+   // ("with(nolock)"), see hasLegacyTableHintAlias (Bug #78382)
+   private static final Pattern LEGACY_HINT_ALIAS =
+      Pattern.compile("with\\(.*\\)", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+   private static final Pattern LEGACY_HINT_TEXT =
+      Pattern.compile("[\"\\[`]with\\(", Pattern.CASE_INSENSITIVE);
 
    // a double quoted name, or a name that isn't quoted
    private static final Pattern MATCH_NAME =

@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.*;
+import static inetsoft.util.stall.StallTestSupport.assertStallOf;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -255,8 +256,8 @@ public class FormulaLensLockStallTest {
 
    /**
     * The formula's script calls into Java code whose wait stalled, e.g. a read of another
-    * table: the stall crosses the script engine and reaches the lens reader as it is, not as
-    * a script error.
+    * table: the stall crosses the script engine and reaches the lens reader, as a copy of it
+    * (bug #78084), not as a script error.
     */
    @Test
    public void stallInsideTheScriptReachesTheReader() throws Exception {
@@ -268,7 +269,8 @@ public class FormulaLensLockStallTest {
 
       Throwable failure =
          StallTestSupport.failureOf(harness.submit(() -> drain(lens)), ACTIVE_CAP);
-      assertSame(original, failure, "the reader must get the stall thrown inside the script");
+      assertStallOf(original, failure,
+                    "the reader must get the stall thrown inside the script");
    }
 
    /**
@@ -286,7 +288,7 @@ public class FormulaLensLockStallTest {
 
       Throwable failure =
          StallTestSupport.failureOf(harness.submit(() -> drain(sorted)), ACTIVE_CAP);
-      assertSame(original, failure, "the sort must not swallow the stall");
+      assertStallOf(original, failure, "the sort must not swallow the stall");
    }
 
    /**
@@ -313,7 +315,7 @@ public class FormulaLensLockStallTest {
 
       Throwable failure =
          StallTestSupport.failureOf(harness.submit(() -> drain(lens)), ACTIVE_CAP);
-      assertSame(original, failure, "the reader must get the stall of the field read");
+      assertStallOf(original, failure, "the reader must get the stall of the field read");
    }
 
    /**
@@ -348,7 +350,7 @@ public class FormulaLensLockStallTest {
 
       Throwable failure = StallTestSupport.failureOf(
          harness.submit(() -> lens.moreRows(TableLens.EOT)), ACTIVE_CAP);
-      assertSame(original, failure, "the end-of-table read must get the stall");
+      assertStallOf(original, failure, "the end-of-table read must get the stall");
       assertFalse(rowTable(lens).isCompleted(),
                   "a batch that stalled must not complete the lens's row table");
 
@@ -388,7 +390,7 @@ public class FormulaLensLockStallTest {
       };
       FormulaTableLens lens = harness.track(s.formula(base, "f", "field['value'] + 1"));
 
-      assertSame(original, StallTestSupport.failureOf(
+      assertStallOf(original, StallTestSupport.failureOf(
          harness.submit(() -> lens.moreRows(TableLens.EOT)), ACTIVE_CAP));
       assertFalse(rowTable(lens).isCompleted());
 

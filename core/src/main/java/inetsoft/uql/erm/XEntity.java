@@ -546,7 +546,8 @@ public class XEntity implements Cloneable, Serializable, Comparable<XEntity>, XM
     * Return xEntity's all outer dependencies.
     */
    public DependencyException getDependencyException() {
-      Object[] depencies = getOuterDepencies();
+      // Bug #78430, don't report sheets that were renamed, moved or deleted
+      Object[] depencies = DependencyException.getExistingDependencies(getOuterDepencies());
 
       if(depencies.length == 0) {
          return null;

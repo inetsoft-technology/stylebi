@@ -1369,6 +1369,11 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       throws Exception
    {
       int vmode = Viewsheet.SHEET_RUNTIME_MODE;
+      // Bug #78131: a PDF decides whether to use an inherited print layout over all
+      // bookmarks, so create every bookmark's sandbox before the first one is exported
+      boolean prepareStates = exporter.isPrepareStatesRequired();
+      List<ViewsheetSandbox> stateBoxes = new ArrayList<>();
+      List<String> stateNames = new ArrayList<>();
 
       for(int i = 0; i < bookmarks.length; i ++) {
          String bookmarkName = bookmarks[i].getName();
@@ -1418,6 +1423,12 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
 
          box.resetAll(new ChangedAssemblyList());
 
+         if(prepareStates) {
+            stateBoxes.add(box);
+            stateNames.add(bookmarkName);
+            continue;
+         }
+
          if(exporter instanceof AbstractVSExporter) {
             ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
          }
@@ -1427,6 +1438,18 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          // Bug #61272
          if(exporter instanceof HTMLVSExporter) {
             break;
+         }
+      }
+
+      if(prepareStates) {
+         exporter.prepareStates(stateBoxes);
+
+         for(int i = 0; i < stateBoxes.size(); i++) {
+            if(exporter instanceof AbstractVSExporter) {
+               ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
+            }
+
+            exporter.export(stateBoxes.get(i), stateNames.get(i), new VSPortalHelper());
          }
       }
    }

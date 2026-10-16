@@ -846,6 +846,69 @@ public final class XObjectFragment<T> extends XSwappable {
       return disposed;
    }
 
+   /**
+    * Write the objects of a swapped fragment, not only the names of its swap files. The copy may
+    * be read by another JVM (e.g. from the distributed table cache), which can't read the swap
+    * files of this JVM (bug #78042).
+    */
+   private void writeObject(ObjectOutputStream out) throws IOException {
+      holding.incrementAndGet();
+
+      try {
+         // read the objects back outside of the lock, access() waits for memory
+         access();
+
+         // swap() drops the array while holding the lock, so it can't run while the fields
+         // are written
+         synchronized(this) {
+            if((!valid || arr == null) && !disposed) {
+               validate0(false);
+            }
+
+            out.defaultWriteObject();
+         }
+      }
+      finally {
+         holding.decrementAndGet();
+      }
+   }
+
+   /**
+    * Read a copy, which gets its own swap files and is swapped by the swapper of this JVM.
+    */
+   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+      in.defaultReadObject();
+
+      // written by an older version, which only wrote the swap file names of a swapped fragment
+      if(arr == null && !disposed) {
+         throw new InvalidObjectException("Swapped fragment written without its values: " + prefix);
+      }
+
+      // the writer's prefix names the writer's swap files, which the copy must not read, reuse
+      // for its own swap or delete when it is changed
+      XSwapper s = getSwapper();
+      prefix = s.getPrefix();
+      holding = new AtomicInteger(0);
+      valid = true;
+      lastValid = false;
+      rewriteRequired = false;
+      hasSwapFiles = false;
+      swapFileCount = 0;
+      spos = 0;
+      iaccessed = s.cur;
+
+      if(getMonitor() != null) {
+         isCountHM = getMonitor().isLevelQualified(XSwappableMonitor.HITS);
+         isCountRW = getMonitor().isLevelQualified(XSwappableMonitor.READ);
+      }
+
+      if(completed && !disposed) {
+         completed = false;
+         complete();
+      }
+   }
+
+   private static final long serialVersionUID = -8549751950069082289L;
    private static final int HEADER_LENGTH = 8;
    private static final long MIN_SIZE = 131072L;
    private static final Logger LOG =

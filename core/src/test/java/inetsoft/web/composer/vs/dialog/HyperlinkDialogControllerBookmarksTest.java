@@ -31,6 +31,12 @@ package inetsoft.web.composer.vs.dialog;
  *   grants, DenyingStubAssetEngine always denies;
  * - VSUtil (static), so the bookmark lookup is observable and needs no bookmark storage;
  * - SUtil.isMultiTenant() -> true (structurally false on community/core's test classpath).
+ *
+ * Bug #78057: for another same-org user's private (USER_SCOPE) viewsheet the 3-arg
+ * checkAssetPermission passed any caller with MY_DASHBOARDS READ, so the endpoint listed the
+ * owner's shared bookmarks. It now uses checkAssetPermission(..., READ, true), the check that
+ * opening the viewsheet uses. The granting stub grants MY_DASHBOARDS, so only that private-asset
+ * check refuses the non-owner.
  */
 
 import inetsoft.report.LibManagerProvider;
@@ -74,10 +80,14 @@ class HyperlinkDialogControllerBookmarksTest {
    private static final String ORG_A_VS = "1^128^__NULL__^Finance/Report^" + ORG_A;
    private static final String ORG_B_VS = "1^128^__NULL__^Finance/Secret^" + ORG_B;
    private static final String HOST_ORG_VS = "1^128^__NULL__^Shared/Dashboard^" + HOST_ORG;
+   private static final String PRIVATE_VS =
+      "4^128^bug78057Owner~;~" + HOST_ORG + "^Private/Dash^" + HOST_ORG;
 
    private static SecurityTestDataBuilder builder;
    private static SRPrincipal orgAUser;
    private static SRPrincipal siteAdmin;
+   private static SRPrincipal privateOwner;
+   private static SRPrincipal hostOrgUser;
 
    @BeforeAll
    static void setUpAll() throws Exception {
@@ -88,9 +98,13 @@ class HyperlinkDialogControllerBookmarksTest {
          .addSysAdminRole("Bug77064SiteAdminRole", HOST_ORG)
          .addUser("bug77064SiteAdmin", HOST_ORG, "password")
          .addUserToRole("bug77064SiteAdmin", "Bug77064SiteAdminRole", HOST_ORG)
+         .addUser("bug78057Owner", HOST_ORG, "password")
+         .addUser("bug78057User", HOST_ORG, "password")
          .setup();
       orgAUser = builder.principalOf("orgAUser", ORG_A);
       siteAdmin = builder.principalOf("bug77064SiteAdmin", HOST_ORG);
+      privateOwner = builder.principalOf("bug78057Owner", HOST_ORG);
+      hostOrgUser = builder.principalOf("bug78057User", HOST_ORG);
    }
 
    @AfterAll
@@ -166,6 +180,36 @@ class HyperlinkDialogControllerBookmarksTest {
    }
 
    @Test
+   void otherUsersPrivateViewsheet_sameOrgUser_returnsEmptyAndSkipsBookmarkLookup()
+      throws Exception
+   {
+      List<String> result = withMocks(false, vsUtil -> {
+         List<String> names =
+            controller(new GrantingStubAssetEngine()).getBookmarks(PRIVATE_VS, hostOrgUser);
+         vsUtil.verify(() -> VSUtil.getBookmarks(any(AssetEntry.class), any()), never());
+         return names;
+      });
+
+      assertEquals(Collections.emptyList(), result);
+   }
+
+   @Test
+   void privateViewsheet_owner_listsBookmarks() throws Exception {
+      List<String> result = withMocks(false, vsUtil ->
+         controller(new GrantingStubAssetEngine()).getBookmarks(PRIVATE_VS, privateOwner));
+
+      assertEquals(List.of("shared(owner)"), result);
+   }
+
+   @Test
+   void otherUsersPrivateViewsheet_siteAdmin_listsBookmarks() throws Exception {
+      List<String> result = withMocks(false, vsUtil ->
+         controller(new GrantingStubAssetEngine()).getBookmarks(PRIVATE_VS, siteAdmin));
+
+      assertEquals(List.of("shared(owner)"), result);
+   }
+
+   @Test
    void malformedIdentifier_returnsEmptyWithoutPermissionCheck() throws Exception {
       AssetRepository repository = mock(AssetRepository.class);
 
@@ -176,7 +220,7 @@ class HyperlinkDialogControllerBookmarksTest {
       });
 
       assertEquals(Collections.emptyList(), result);
-      verify(repository, never()).checkAssetPermission(any(), any(), any());
+      verify(repository, never()).checkAssetPermission(any(), any(), any(), anyBoolean());
    }
 
    private static HyperlinkDialogController controller(AssetRepository repository) {

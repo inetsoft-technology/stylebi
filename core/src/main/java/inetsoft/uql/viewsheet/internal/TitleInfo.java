@@ -283,7 +283,11 @@ public class TitleInfo implements AssetObject {
     */
    protected void writeAttributes(PrintWriter writer) {
       writer.print(" titleVisible=\"" + isTitleVisible() + "\"");
-      writer.print(" titleVisibleValue=\"" + getTitleVisibleValue() + "\"");
+      // persist the stored design value, not getTitleVisibleValue(), so a $(var),
+      // =expr or truthy literal such as "yes" is not rewritten to false
+      String titleVisibleValue = titleVisible.getDValue();
+      writer.print(" titleVisibleValue=\"" +
+         Tool.escape(titleVisibleValue == null ? "true" : titleVisibleValue) + "\"");
       writer.print(" titleHeight=\"" + getTitleHeight() + "\"");
       writer.print(" titleHeightValue=\"" + getTitleHeightValue() + "\"");
       writer.print(" userTitleHeight=\"" + isUserTitleHeight() + "\"");

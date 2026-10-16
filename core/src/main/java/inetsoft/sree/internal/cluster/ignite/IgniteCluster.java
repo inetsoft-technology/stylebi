@@ -26,6 +26,8 @@ import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.util.*;
 import inetsoft.util.config.*;
+import inetsoft.util.health.ClusterHealthService;
+import inetsoft.util.health.ClusterHealthStatus;
 import inetsoft.web.messaging.MessageContextHolder;
 import org.apache.ignite.*;
 import org.apache.ignite.binary.BinaryObject;
@@ -78,7 +80,32 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    IgniteCluster(IgniteConfiguration config) {
+      this(config, -1L, -1L);
+   }
+
+   /**
+    * @param islandCheckMillis   the interval of the minority island check, or a value
+    *                            {@code <= 0} for the default.
+    * @param islandConfirmMillis how long a larger cluster must keep answering before this node
+    *                            reports itself as a minority island, or a value {@code <= 0} for
+    *                            the default.
+    */
+   IgniteCluster(IgniteConfiguration config, long islandCheckMillis, long islandConfirmMillis) {
       System.out.format("Joining cluster on %s/24%n", Tool.getIP());
+
+      if(!config.isClientMode()) {
+         // lets the minority island check tell this deployment's clusters from others'
+         String fingerprint = MinorityIslandDetector.getDeploymentFingerprint(
+            config.getDiscoverySpi(), InetsoftConfig.getInstance().getCluster());
+
+         if(fingerprint != null) {
+            Map<String, Object> attributes = config.getUserAttributes() == null ?
+               new HashMap<>() : new HashMap<>(config.getUserAttributes());
+            attributes.put(MinorityIslandDetector.DEPLOYMENT_ATTR, fingerprint);
+            config.setUserAttributes(attributes);
+         }
+      }
+
       ignite = createIgniteInstance(config);
       ignite.message().localListen(MESSAGE_TOPIC, new MessageDispatcher());
       ignite.message().localListen(AFFINITY_TOPIC, new AffinityCallProcessor());
@@ -117,6 +144,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          r -> new GroupedThread(r, "IgniteAffinity"));
       listenerExecutor = Executors.newSingleThreadExecutor(
          r -> new GroupedThread(r, "IgniteMapEvents"));
+      clientMessageSender = new ClientMessageSender(
+         ignite, MESSAGE_TOPIC, config.getClientFailureDetectionTimeout());
 
       if(!config.isClientMode()) {
          try {
@@ -133,6 +162,26 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
          initLockTimer();
          ignite.getOrCreateCache(getCacheConfiguration(RW_MAP_NAME));
+         islandDetector =
+            new MinorityIslandDetector(ignite, islandCheckMillis, islandConfirmMillis);
+         islandDetector.start();
+
+         Long stuckExchangeHaltMinutes =
+            InetsoftConfig.getInstance().getCluster().getStuckExchangeHaltMinutes();
+
+         if(stuckExchangeHaltMinutes != null && stuckExchangeHaltMinutes > 0) {
+            healthWatchdog = new ClusterHealthWatchdog(ignite, this::sampleHealthStatus,
+               () -> getMinorityIslandMessage() != null, -1L,
+               TimeUnit.MINUTES.toMillis(stuckExchangeHaltMinutes));
+            healthWatchdog.start();
+         }
+         else {
+            healthWatchdog = null;
+         }
+      }
+      else {
+         islandDetector = null;
+         healthWatchdog = null;
       }
 
       if("reportServer".equals(System.getProperty("inetsoft.cluster.node.type"))) {
@@ -140,6 +189,27 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       registerSpringProxyPartitionedCache(WorksheetEngine.CACHE_NAME);
+   }
+
+   /**
+    * Samples the current cluster health status for {@link #healthWatchdog} (Bug #78141).
+    * <p>
+    * Looks the Spring-managed {@link ClusterHealthService} singleton up lazily, on the watchdog's
+    * own thread, instead of resolving it once in the constructor: this constructor runs inside
+    * the {@code Cluster} bean's own {@code @Bean} factory method
+    * ({@code EngineConfiguration.cluster(InetsoftConfig)}), so the {@code Cluster} bean is not
+    * registered yet, and {@code ClusterHealthService}'s {@code @Autowired} constructor needs a
+    * {@code Cluster} — resolving it here would be a circular bean dependency. {@link #start} only
+    * schedules the watchdog's first tick after its sampling interval, well after this constructor
+    * (and the {@code @Bean} method it runs inside) has returned, so by the time this method is
+    * actually invoked the {@code Cluster} bean is safely registered. If the application context
+    * is not yet set at all, {@link ConfigurationContext#getSpringBean} throws
+    * {@link ShutdownException}, which {@link ClusterHealthWatchdog#check()} already treats as an
+    * inconclusive tick that neither starts nor clears the not-ready timer — so a lookup this early
+    * cannot be mistaken for a genuinely stuck exchange.
+    */
+   private ClusterHealthStatus sampleHealthStatus() {
+      return ConfigurationContext.getContext().getSpringBean(ClusterHealthService.class).getStatus();
    }
 
    public static IgniteConfiguration getDefaultConfig(Path workDir) {
@@ -156,6 +226,17 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       if("true".equals(System.getProperty("inetsoftStorageInitializing"))) {
          config.setFailureHandler(new StopNodeFailureHandler());
+      }
+
+      Long failureDetectionTimeout = clusterConfig.getFailureDetectionTimeout();
+
+      if(failureDetectionTimeout != null && failureDetectionTimeout > 0) {
+         config.setFailureDetectionTimeout(failureDetectionTimeout);
+      }
+      else if(failureDetectionTimeout != null) {
+         LOG.warn("Ignoring non-positive cluster.failureDetectionTimeout: {}, using the Ignite " +
+                  "default of {} ms", failureDetectionTimeout,
+                  IgniteConfiguration.DFLT_FAILURE_DETECTION_TIMEOUT);
       }
 
       // atomic data structures like distributed long
@@ -305,6 +386,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       config.setExecutorConfiguration(executePools);
+      // a server runs the lock and atomic jobs of the client nodes on these
+      ClientDataStructures.addExecutors(config);
       IgniteUtils.configBinaryTypes(config);
 
       return config;
@@ -592,6 +675,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       attrMap.put("inetsoft.host.port", System.getProperty("inetsoft.host.port"));
       attrMap.put("inetsoft.host.outbound.port", System.getProperty("inetsoft.host.outbound.port"));
       attrMap.put(CACHE_MODE_ATTR, getDefaultCacheMode().name());
+      attrMap.put(START_TIME_ATTR, System.currentTimeMillis());
       config.setUserAttributes(attrMap);
    }
 
@@ -691,6 +775,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          LOG.debug("Error checking cluster readiness: {}", e.getMessage());
          return false;
       }
+   }
+
+   @Override
+   public String getMinorityIslandMessage() {
+      return islandDetector == null ? null : islandDetector.getMinorityMessage();
    }
 
    @Override
@@ -798,11 +887,43 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public Lock getLock(String name) {
+      if(isClientNode()) {
+         return new DistributedLockProxy(name, ClientDataStructures.getLock(ignite, name));
+      }
+
       return new DistributedLockProxy(name, ignite.reentrantLock(name, true, false, true));
+   }
+
+   /**
+    * Checks if this is a client node (a cloud-runner task container). A client node must not
+    * create or obtain an Ignite lock, atomic or queue: that registers one of Ignite's internal
+    * continuous queries on every server, and after the client is killed every lock change or
+    * queue update on a server waits for it until it is dropped (bug #78451). Its locks, atomics
+    * and queues are kept on a server by {@link ClientDataStructures}.
+    */
+   private boolean isClientNode() {
+      return ignite.cluster().localNode().isClient();
+   }
+
+   /**
+    * Refuses a remote event listener on a client node. It would make every server send the
+    * client its events, and after the client is killed each send waits for it until it is dropped
+    * (bug #78451). No caller registers one on a client node.
+    */
+   private void checkRemoteListenerAllowed() {
+      if(isClientNode()) {
+         throw new UnsupportedOperationException(
+            "A client node can't listen to the events of other nodes");
+      }
    }
 
    @Override
    public void destroyLock(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyLock(ignite, name);
+         return;
+      }
+
       IgniteLock lock = ignite.reentrantLock(name, true, false, false);
 
       if(lock != null) {
@@ -811,10 +932,15 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    public void unlockLock(String name) {
+      if(isClientNode()) {
+         getLock(name).unlock();
+         return;
+      }
+
       IgniteLock lock = ignite.reentrantLock(name, true, false, false);
 
       if(lock != null) {
-         lock.unlock();
+         DistributedLockProxy.unlock(lock);
       }
    }
 
@@ -1062,6 +1188,18 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public Set<String> getMapNames(String prefix) {
+      return ignite.cacheNames().stream()
+         .filter(name -> name.startsWith(prefix))
+         .collect(Collectors.toSet());
+   }
+
+   @Override
+   public void destroyReplicatedMaps(Collection<String> names) {
+      ignite.destroyCaches(names);
+   }
+
+   @Override
    public <K, V> Cache<K, V> getCache(String name, boolean replicated, ExpiryPolicy expiryPolicy) {
       CacheConfiguration<K, V> config;
 
@@ -1203,7 +1341,24 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       try {
          AffinityCallResponse response = new AffinityCallResponse<>(
             request.getId(), request.getSender(), null, error);
-         ignite.message().sendOrdered(AFFINITY_TOPIC, response, 0);
+         String sender = request.getSender();
+         ClusterNode target = ignite.cluster().nodes().stream()
+            .filter(n -> getNodeName(n).equals(sender))
+            .findFirst().orElse(null);
+
+         if(target != null) {
+            ignite.message(ignite.cluster().forNode(target))
+               .sendOrdered(AFFINITY_TOPIC, response, 0);
+         }
+         else {
+            // The original sender has already left the cluster, so nobody is waiting on this
+            // response: either the sender process is gone, or its own affinityFutures entries
+            // were already failed via failAffinityCallsTo()/MembershipDispatcher. Log it rather
+            // than dropping it with no trace at all, unlike sendMessage(String, Serializable)'s
+            // silent no-op for the same not-found case.
+            LOG.debug("Dropping affinity failure response, sender is no longer in the cluster: {}",
+                      request);
+         }
       }
       catch(Exception e) {
          LOG.error("Failed to send affinity failure response: {}", request, e);
@@ -1314,7 +1469,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       try {
          LOG.debug("AFFINITY CALL SENDING: cache={}, key={}, node={}, id={}, request={}", cache, key, node, id, request);
-         ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
+         ignite.message(ignite.cluster().forNode(node)).sendOrdered(AFFINITY_TOPIC, request, 0);
       }
       catch(Exception e) {
          // The request never left this node, so no response can ever arrive. Fail now instead of
@@ -1404,7 +1559,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       try {
          LOG.debug("AFFINITY CALL ASYNC SENDING: cache={}, key={}, node={}, id={}, request={}", cache, key, node, id, request);
-         ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
+         ignite.message(ignite.cluster().forNode(node)).sendOrdered(AFFINITY_TOPIC, request, 0);
       }
       catch(Exception e) {
          // The request never left this node, so no response can ever arrive. Fail the returned
@@ -1484,6 +1639,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
+      checkRemoteListenerAllowed();
       UUID id = ignite.events()
          .remoteListen(new RebalanceListenerAdapter(listener),
                        new RebalanceEventFilter(cacheName),
@@ -1519,11 +1675,21 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       queueConfig.setBackups(getDefaultBackupCount());
       queueConfig.setCacheMode(getDefaultCacheMode());
       queueConfig.setAtomicityMode(CacheAtomicityMode.ATOMIC);
+
+      if(isClientNode()) {
+         return ClientDataStructures.getQueue(ignite, name, queueConfig);
+      }
+
       return ignite.queue(name, 0, queueConfig);
    }
 
    @Override
    public void destroyQueue(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyQueue(ignite, name);
+         return;
+      }
+
       IgniteQueue<?> queue = ignite.queue(name, 0, null);
 
       if(queue != null) {
@@ -1567,11 +1733,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public DistributedLong getLong(String name) {
+      if(isClientNode()) {
+         return ClientDataStructures.getLong(ignite, name);
+      }
+
       return new IgniteDistributedLong(ignite.atomicLong(name, 0, true));
    }
 
    @Override
    public void destroyLong(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyLong(ignite, name);
+         return;
+      }
+
       IgniteAtomicLong igniteAtomicLong = ignite.atomicLong(name, 0, false);
 
       if(igniteAtomicLong != null) {
@@ -1581,11 +1756,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <V> DistributedReference<V> getReference(String name) {
+      if(isClientNode()) {
+         return ClientDataStructures.getReference(ignite, name);
+      }
+
       return new IgniteDistributedReference<>(ignite.atomicReference(name, null, true));
    }
 
    @Override
    public void destroyReference(String name) {
+      if(isClientNode()) {
+         ClientDataStructures.destroyReference(ignite, name);
+         return;
+      }
+
       IgniteAtomicReference<?> igniteAtomicReference = ignite.atomicReference(name, null, false);
 
       if(igniteAtomicReference != null) {
@@ -1788,7 +1972,17 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public void sendMessage(Serializable message) {
-      ignite.message().sendOrdered(MESSAGE_TOPIC, message, 0);
+      // Bug #78364: a send to the whole topology fails, after it has reached every other node, if
+      // any one member cannot be reached, and a client started with
+      // forceClientToServerConnections (a cloud-runner task container) that died without a
+      // graceful Ignite stop also blocks the send for failureDetectionTimeout until discovery
+      // drops it. So the remote clients get the message through their own queues, which never
+      // block or fail this call, and the servers plus this node (exactly once, whether it is a
+      // server or a client) get it as one ordered group send on the caller's thread, as before.
+      // The clients are queued first so that they still get the message if a server send fails.
+      clientMessageSender.send(message);
+      ignite.message(ignite.cluster().forPredicate(SERVER_OR_LOCAL_NODE_FILTER))
+         .sendOrdered(MESSAGE_TOPIC, message, 0);
    }
 
    @Override
@@ -1949,6 +2143,16 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       }
 
+      if(islandDetector != null) {
+         islandDetector.close();
+      }
+
+      if(healthWatchdog != null) {
+         // not healthService.close(): sampleHealthStatus() looks up the Spring-managed
+         // ClusterHealthService singleton lazily, it does not own an instance of its own
+         healthWatchdog.close();
+      }
+
       clusterFileTransfer.close();
       ignite.close();
       closed = true;
@@ -1982,6 +2186,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       messageExecutor.shutdownNow();
       affinityExecutor.shutdownNow();
       listenerExecutor.shutdownNow();
+      clientMessageSender.close();
    }
 
    public void setClosed(boolean closed) {
@@ -2077,6 +2282,102 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public <T, E extends Exception> T runInTransaction(long timeout, TimeUnit unit,
+                                                       TransactionalAction<T, E> action) throws E
+   {
+      return runInTransaction(ignite, timeout, unit, action);
+   }
+
+   /**
+    * Implements {@link Cluster#runInTransaction} on an Ignite instance.
+    */
+   public static <T, E extends Exception> T runInTransaction(Ignite ignite, long timeout,
+                                                              TimeUnit unit,
+                                                              TransactionalAction<T, E> action)
+      throws E
+   {
+      IgniteTransactions transactions = ignite.transactions();
+      Transaction current = transactions.tx();
+
+      if(current != null) {
+         if(current.concurrency() != TransactionConcurrency.PESSIMISTIC) {
+            throw new IllegalStateException(
+               "The thread is already running an " + current.concurrency() + " transaction");
+         }
+
+         // join the transaction of the outer action, which commits or rolls it back
+         try {
+            return action.run();
+         }
+         catch(Throwable ex) {
+            current.setRollbackOnly();
+
+            if(isTransactionFailure(ex)) {
+               throw new DistributedTransactionException("The transaction failed", ex);
+            }
+
+            throw ex;
+         }
+      }
+
+      Transaction tx = transactions.txStart(
+         TransactionConcurrency.PESSIMISTIC, TransactionIsolation.REPEATABLE_READ,
+         unit.toMillis(timeout), 0);
+
+      try {
+         T result = action.run();
+         tx.commit();
+         return result;
+      }
+      catch(Throwable ex) {
+         if(isTransactionFailure(ex)) {
+            throw new DistributedTransactionException(
+               "The transaction failed and was rolled back", ex);
+         }
+
+         throw ex;
+      }
+      finally {
+         try {
+            // rolls back the transaction unless it was committed
+            tx.close();
+         }
+         catch(RuntimeException ex) {
+            LOG.warn("Failed to roll back a transaction", ex);
+         }
+      }
+   }
+
+   /**
+    * Checks if an exception means that the transaction failed: it timed out (including waiting
+    * for a lock), deadlocked, was rolled back, had a heuristic outcome, or a node it locked keys
+    * on left the cluster.
+    */
+   private static boolean isTransactionFailure(Throwable ex) {
+      if(ex instanceof DistributedTransactionException) {
+         return false;
+      }
+
+      for(Throwable cause = ex; cause != null; cause = cause.getCause()) {
+         if(cause instanceof TransactionException ||
+            cause instanceof org.apache.ignite.internal.transactions.TransactionCheckedException ||
+            // Bug #77879, a pessimistic lock whose primary node leaves fails the transaction
+            // with a topology exception, which callers handle like any other failure
+            cause instanceof org.apache.ignite.cluster.ClusterTopologyException ||
+            cause instanceof org.apache.ignite.internal.cluster.ClusterTopologyCheckedException)
+         {
+            return true;
+         }
+
+         if(cause.getCause() == cause) {
+            break;
+         }
+      }
+
+      return false;
+   }
+
+   @Override
    public <T extends Service> T getSingletonService(String serviceName,
                                                     Class<T> type, Supplier<T> init)
    {
@@ -2134,6 +2435,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                      EventType.EVT_CACHE_OBJECT_EXPIRED);
                }
                else {
+                  checkRemoteListenerAllowed();
                   remoteListenerId = ignite.events().remoteListen(
                      adapter, new CacheEventFilter(cache.getName()),
                      EventType.EVT_CACHE_OBJECT_PUT,
@@ -2198,6 +2500,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final ExecutorService messageExecutor;
    private final ExecutorService affinityExecutor;
    private final ExecutorService listenerExecutor;
+   private final ClientMessageSender clientMessageSender;
+   private final MinorityIslandDetector islandDetector;
+   private final ClusterHealthWatchdog healthWatchdog;
 
    private static final int DEFAULT_BACKUP_COUNT = 2;
    private static final int DEFAULT_AFFINITY_POOL_MAX_SIZE = 64;
@@ -2209,6 +2514,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final String AFFINITY_TOPIC = IgniteCluster.class.getName() + ".affinityTopic";
    private static final String RW_MAP_NAME = IgniteCluster.class.getName() + ".rwMap";
    private static final String CACHE_MODE_ATTR = "inetsoft.cluster.cacheMode";
+   static final String START_TIME_ATTR = "inetsoft.cluster.startTime";
    private static final IgnitePredicate<ClusterNode> SCHEDULE_SELECTOR = node -> {
       // select any node when config has cloud runner, because the separate scheduler server do not exist.
       if(InetsoftConfig.getInstance().getCloudRunner() != null) {
@@ -2217,6 +2523,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       return Boolean.TRUE.equals(node.attribute("scheduler"));
    };
+   private static final IgnitePredicate<ClusterNode> SERVER_OR_LOCAL_NODE_FILTER =
+      node -> !node.isClient() || node.isLocal();
    private static final IgnitePredicate<ClusterNode> WEB_SERVER_NODE_FILTER =
       node -> !Boolean.TRUE.equals(node.attribute("scheduler"));
    private static final IgnitePredicate<ClusterNode> SPRING_PROXY_NODE_FILTER = new SpringProxyNodeFilter();
@@ -2379,7 +2687,24 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             new AffinityCallResponse<>(request.getId(), request.getSender(), result, error);
          IgniteCluster cluster = (IgniteCluster) Cluster.getInstance();
          LOG.debug("SENDING AFFINITY RESPONSE: {}", response);
-         cluster.ignite.message().sendOrdered(AFFINITY_TOPIC, response, 0);
+         String sender = request.getSender();
+         ClusterNode target = cluster.ignite.cluster().nodes().stream()
+            .filter(n -> cluster.getNodeName(n).equals(sender))
+            .findFirst().orElse(null);
+
+         if(target != null) {
+            cluster.ignite.message(cluster.ignite.cluster().forNode(target))
+               .sendOrdered(AFFINITY_TOPIC, response, 0);
+         }
+         else {
+            // The original sender has already left the cluster, so nobody is waiting on this
+            // response: either the sender process is gone, or its own affinityFutures entries
+            // were already failed via failAffinityCallsTo()/MembershipDispatcher. Log it rather
+            // than dropping it with no trace at all, unlike sendMessage(String, Serializable)'s
+            // silent no-op for the same not-found case.
+            LOG.debug("Dropping affinity response, sender is no longer in the cluster: {}",
+                      response);
+         }
       }
 
       private final AffinityCallRequest<T> request;

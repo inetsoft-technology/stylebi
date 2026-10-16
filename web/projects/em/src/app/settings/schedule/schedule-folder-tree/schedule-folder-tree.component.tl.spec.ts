@@ -25,6 +25,7 @@
  *   Group 3 [Risk 2] — editFolderEnabled: root-path guard and empty-selection guard
  *   Group 4 [Risk 2] — contextMenuClick: node selection toggle behavior
  *   Group 5 [Risk 2] — excludeCurrentPath: recursive path-based child removal
+ *   Group 7 [Risk 2] — newTaskFolder / editTaskFolder: refused folder calls are surfaced (Bug #78136)
  *
  * Confirmed bugs (it.failing — remove wrapper once fixed):
  *
@@ -52,7 +53,7 @@ import { MatDialog } from "@angular/material/dialog";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 
-import { EMPTY, of, Subject } from "rxjs";
+import { config as rxjsConfig, EMPTY, of, Subject } from "rxjs";
 import { server } from "@test-mocks/server";
 import { ScheduleFolderTreeComponent } from "./schedule-folder-tree.component";
 import { EmScheduleChangeService } from "../schedule-task-list/em-schedule-change.service";
@@ -557,4 +558,95 @@ describe("ScheduleFolderTreeComponent — removeTasks: folder dependency check",
       expect(dialogOpen).toHaveBeenCalledTimes(1);
    });
 
+});
+
+// ---------------------------------------------------------------------------
+// Group 7 [Risk 2] — refused folder calls are surfaced (Bug #78136)
+// ---------------------------------------------------------------------------
+describe("ScheduleFolderTreeComponent — refused folder calls are surfaced (Bug #78136)", () => {
+
+   // handleError emits errorResponse and rethrows, the rethrown error reaches rxjs's unhandled
+   // error hook, which is captured here so it doesn't fail the run
+   async function withCapturedErrors(run: (captured: unknown[]) => Promise<void>) {
+      const captured: unknown[] = [];
+      const previousOnUnhandledError = rxjsConfig.onUnhandledError;
+      rxjsConfig.onUnhandledError = (err) => captured.push(err);
+
+      try {
+         await run(captured);
+      }
+      finally {
+         rxjsConfig.onUnhandledError = previousOnUnhandledError;
+      }
+   }
+
+   function denied() {
+      return MswHttpResponse.json(
+         { type: "SecurityException", message: "denied" }, { status: 403 });
+   }
+
+   async function newFolder(hint: () => any) {
+      let addCalls = 0;
+      server.use(
+         http.post("*/api/em/schedule/add/checkDuplicate", hint),
+         http.post("*/api/em/schedule/folder/add", () => {
+            addCalls++;
+            return MswHttpResponse.json({});
+         }),
+      );
+
+      const { comp } = await renderComponent();
+      vi.spyOn(comp as any, "safeRefreshTree").mockImplementation(() => {});
+      comp.selectedNodes = [makeRepositoryFlatNode("f1", "f1")];
+      const dialogOpen = vi.fn().mockReturnValue({ afterClosed: () => of({ folderName: "new" }) });
+      comp.dialog.open = dialogOpen;
+      const errors: any[] = [];
+      comp.errorResponse.subscribe(e => errors.push(e));
+
+      comp.newTaskFolder(makeTreeNode("f1", "f1"));
+      return { errors, dialogOpen, addCalls: () => addCalls };
+   }
+
+   // a duplicate hint refused without write permission on the parent folder (#77811) shows the
+   // error instead of nothing, and the folder isn't added
+   it("should surface a refused duplicate hint and not add the folder", async () => {
+      await withCapturedErrors(async () => {
+         const { errors, dialogOpen, addCalls } = await newFolder(denied);
+
+         await waitFor(() => expect(errors.length).toBe(1));
+         expect(errors[0].status).toBe(403);
+         expect(errors[0].error.message).toBe("denied");
+         await new Promise(resolve => setTimeout(resolve, 50));
+         expect(addCalls()).toBe(0);
+         // only the new folder dialog, no duplicate-name dialog
+         expect(dialogOpen).toHaveBeenCalledTimes(1);
+      });
+   });
+
+   // control: an allowed hint that isn't a duplicate still adds the folder
+   it("should add the folder when the hint allows it", async () => {
+      const { errors, addCalls } = await newFolder(() => MswHttpResponse.json(false));
+
+      await waitFor(() => expect(addCalls()).toBe(1));
+      expect(errors).toEqual([]);
+   });
+
+   // the edit model refused without permission on the folder (#77906) shows the error and
+   // doesn't open the edit dialog
+   it("should surface a refused edit model and not open the edit dialog", async () => {
+      await withCapturedErrors(async () => {
+         server.use(http.post("*/api/em/schedule/folder/editModel", denied));
+         const { comp } = await renderComponent();
+         const dialogOpen = vi.fn().mockReturnValue({ afterClosed: () => of(false) });
+         comp.dialog.open = dialogOpen;
+         const errors: any[] = [];
+         comp.errorResponse.subscribe(e => errors.push(e));
+
+         comp.editTaskFolder(makeTreeNode("f1", "f1"));
+
+         await waitFor(() => expect(errors.length).toBe(1));
+         expect(errors[0].status).toBe(403);
+         expect(dialogOpen).not.toHaveBeenCalled();
+      });
+   });
 });

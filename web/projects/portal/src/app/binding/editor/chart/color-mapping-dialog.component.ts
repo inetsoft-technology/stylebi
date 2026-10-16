@@ -48,7 +48,6 @@ export class ColorMappingDialog implements OnInit {
    dimensionData: ValueLabelModel[] = [];
    _truncatedDimensionData: ValueLabelModel[];
    private _currentColorMaps: ColorMap[] = [];
-   private initialColorMap: ColorMap[] = [];
    palette: ColorPalette;
 
    constructor(private modalService: NgbModal, chartPaletteService: ChartPaletteService) {
@@ -87,7 +86,6 @@ export class ColorMappingDialog implements OnInit {
    ngOnInit(): void {
       const sourceMaps = (this.model.useGlobal ? this.model.globalModel : this.model).colorMaps;
       this._currentColorMaps = sourceMaps.map(m => ({ ...m }));
-      this.initialColorMap = sourceMaps.map(m => ({ ...m }));
 
       this.updateDimensionLabels();
 
@@ -97,13 +95,15 @@ export class ColorMappingDialog implements OnInit {
           .then(() => {}, () => {});
       }
 
-      if(this.initialColorMap.length == 0) {
+      if(this._currentColorMaps.length == 0) {
          this.addRow();
       }
    }
 
    close(): void {
-      this.onCommit.emit(this.initialColorMap);
+      // Cancel and the header X must not emit onCommit: ComponentTool.showDialog treats any
+      // onCommit as OK and drops the following onCancel. The dialog edits copies, so there is
+      // nothing to restore (Bug #78706).
       this.onCancel.emit("cancel");
    }
 

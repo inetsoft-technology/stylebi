@@ -750,6 +750,19 @@ public class SQLHelper implements KeywordProvider {
     * @return SQL statement.
     */
    public final String generateSentence() {
+      // the text of the derived tables of this generation only (Bug #78119)
+      Map<UniformSQL, String> osubqueryTexts = subqueryTexts;
+      subqueryTexts = new IdentityHashMap<>();
+
+      try {
+         return generateSentence1();
+      }
+      finally {
+         subqueryTexts = osubqueryTexts;
+      }
+   }
+
+   private String generateSentence1() {
       vJoin = null;
       textJoinOrder = null;
       ansiWhereJoins = null;
@@ -773,9 +786,15 @@ public class SQLHelper implements KeywordProvider {
          Object tobj = table.getName();
 
          if(tobj instanceof UniformSQL) {
-            UniformSQL ssql = (UniformSQL) tobj;
-            // generate ssql here to quote column properly
-            ssql.toString();
+            // generate ssql here to quote column properly. It is prepared as the table clause
+            // prepares it (row limit hint, data source, parent) and generated once, and the
+            // table clause, the ANSI join sides and the column lookups use this text. They
+            // used to generate it again each, so the generation time grew about 4x (or more)
+            // per nesting level of derived tables (Bug #78119).
+            UniformSQL ssql = (UniformSQL) getFromTable(tobj, null);
+            ssql.setDataSource(uniformSql.getDataSource());
+            ssql.setParent(uniformSql);
+            subqueryTexts.put(ssql, ssql.toString());
          }
       }
 
@@ -934,8 +953,11 @@ public class SQLHelper implements KeywordProvider {
     */
    protected String generateTableClause(SelectTable table) {
       Object tobj = table.getName();
-      Object tname = getFromTable(tobj);
-      String namestr = tname.toString().trim();
+      // the table hint (with (nolock)) of a table, null if it's not written (Bug #78382)
+      String hint = tobj instanceof UniformSQL || !emitTableHint() ? null : table.getHint();
+      Object tname = getFromTable(tobj, hint);
+      String namestr = tname instanceof UniformSQL ?
+         getSubqueryText((UniformSQL) tname).trim() : tname.toString().trim();
       String alias = table.getAlias();
       StringBuilder sb = new StringBuilder();
       boolean eq = Tool.equals(tobj, alias);
@@ -995,7 +1017,46 @@ public class SQLHelper implements KeywordProvider {
          }
       }
 
+      // the hint follows the alias. A table wrapped for the input max rows has it inside
+      // the wrapper instead (see getFromTable), a derived table has none (Bug #78382)
+      if(hint != null && !(tname instanceof UniformSQL) && !XUtil.isSubQuery(namestr)) {
+         sb.append(" WITH (").append(hint).append(")");
+      }
+
       return formatSubquery(sb);
+   }
+
+   /**
+    * Check if the table hints (from t with (nolock)) are written. The parser keeps a hint
+    * only for a SQL Server or Sybase data source (Bug #78382), so it is written for those.
+    * A subquery's sql has no data source until it's generated, so the data source is looked
+    * up through the queries that contain it. A hint is dropped on another known dialect
+    * (e.g. the data source of a saved query was changed), where with (...) is an error, and
+    * written when no query has a data source (e.g. the plan text), where it can only have
+    * come from a T-SQL parse.
+    */
+   protected boolean emitTableHint() {
+      Set<UniformSQL> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+      UniformSQL sql = uniformSql;
+      JDBCDataSource source = null;
+
+      while(sql != null && visited.add(sql)) {
+         source = sql.getDataSource();
+
+         if(source != null) {
+            break;
+         }
+
+         sql = sql.getParent() != null ? sql.getParent() : sql.getOuterSQL();
+      }
+
+      if(source == null) {
+         return true;
+      }
+
+      SQLHelper helper = getSQLHelper(source, (Principal) null);
+      String type = helper != null ? helper.getSQLHelperType() : null;
+      return "sql server".equals(type) || "sybase".equals(type);
    }
 
    /**
@@ -1006,10 +1067,10 @@ public class SQLHelper implements KeywordProvider {
     */
    protected String getSubQueryString(SelectTable table, UniformSQL sub) {
       if(!supportsMapKeySubqueryAliasing()) {
-         return sub.toString().trim();
+         return getSubqueryText(sub).trim();
       }
 
-      String sql = sub.toString().trim();
+      String sql = getSubqueryText(sub).trim();
       Matcher matcher = MAP_KEY_ACCESS.matcher(sql);
 
       if(!matcher.find()) {
@@ -1051,6 +1112,16 @@ public class SQLHelper implements KeywordProvider {
 
       matcher.appendTail(result);
       return result + tail;
+   }
+
+   /**
+    * Get the sql of a FROM derived table, as generated once for the running generateSentence()
+    * after it was prepared there, or generated now if it wasn't. Generating it at each use
+    * made the time exponential in the nesting depth of derived tables (Bug #78119).
+    */
+   private String getSubqueryText(UniformSQL sub) {
+      String text = subqueryTexts == null ? null : subqueryTexts.get(sub);
+      return text != null ? text : sub.toString();
    }
 
    /**
@@ -1355,9 +1426,11 @@ public class SQLHelper implements KeywordProvider {
       SelectTable[] tables = uniformSql.getSelectTable();
 
       for(SelectTable t : tables) {
-         if((t.getAlias().equals(table) || t.getName().toString().equals(table))
-            && t.getName() instanceof UniformSQL) {
-            UniformSQL usql = (UniformSQL) t.getName();
+         // the sql of a derived table is taken from this generation, not generated again for
+         // each column (Bug #78119)
+         if(t.getName() instanceof UniformSQL usql &&
+            (t.getAlias().equals(table) || getSubqueryText(usql).equals(table)))
+         {
             JDBCSelection jsel = (JDBCSelection) usql.getSelection();
             int idx = jsel.indexOfColumn(c, requiresUpperCasedAlias(c));
 
@@ -1379,10 +1452,10 @@ public class SQLHelper implements KeywordProvider {
       SelectTable[] tables = uniformSql.getSelectTable();
 
       for(SelectTable t : tables) {
-         if((t.getAlias().equals(table) || t.getName().toString().equals(table))
-            && t.getName() instanceof UniformSQL)
+         // the sql of a derived table is taken from this generation (Bug #78119)
+         if(t.getName() instanceof UniformSQL usql &&
+            (t.getAlias().equals(table) || getSubqueryText(usql).equals(table)))
          {
-            UniformSQL usql = (UniformSQL) t.getName();
             JDBCSelection jsel = (JDBCSelection) usql.getSelection();
             return jsel.getOriginalAlias(c);
          }
@@ -2031,7 +2104,7 @@ public class SQLHelper implements KeywordProvider {
    /**
     * Get the string (or UniformSQL) to use for the table name on FROM clause.
     */
-   private Object getFromTable(Object tbl) {
+   private Object getFromTable(Object tbl, String tableHint) {
       if(tbl instanceof UniformSQL) {
          UniformSQL sql = (UniformSQL) tbl;
          Object hint = sql.getHint(UniformSQL.HINT_INPUT_MAXROWS, false);
@@ -2059,6 +2132,18 @@ public class SQLHelper implements KeywordProvider {
 
       if(sqlstr == null && uniformSql.hasVPMCondition()) {
          return tbl;
+      }
+
+      // the table hint goes on the table inside the wrapper (select top n * from t with
+      // (nolock)), never after the alias of the wrapper, where it's an error. A wrapper
+      // that doesn't end with the table isn't used, the table is read without the limit
+      // (Bug #78382)
+      if(tableHint != null && ostr == null) {
+         if(sqlstr == null || !sqlstr.endsWith(getQuotedTableName(str))) {
+            return str;
+         }
+
+         sqlstr += " WITH (" + tableHint + ")";
       }
 
       if(ostr != null) {
@@ -5666,6 +5751,20 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Whether this dialect treats a backslash as an escape character inside a
+    * {@code '...'} string literal (e.g. MySQL/MariaDB in their default
+    * {@code sql_mode}). Most dialects (Postgres with the default
+    * {@code standard_conforming_strings=on}, Oracle, SQL Server, DB2, and
+    * others) do not, and a backslash is just a literal character there —
+    * the default is {@code false}.
+    *
+    * @return {@code true} if backslash is a string-literal escape character.
+    */
+   public boolean isBackslashEscapeChar() {
+      return false;
+   }
+
+   /**
     * Create a query that limits the output to the specified number of rows.
     */
    protected String generateMaxRowsClause(String sql, int maxrows) {
@@ -6386,14 +6485,17 @@ public class SQLHelper implements KeywordProvider {
          Object tobj = uniformSql.getTableName(alias);
          String nalias = fixTableAlias(tobj, alias, maxlen, i, aliases);
          SelectTable selectTable = uniformSql.getSelectTable(i);
-         String catalog = selectTable.getCatalog() == null ? null :
-            XUtil.quoteNameSegment(selectTable.getCatalog(), this);
-         String schema = selectTable.getSchema() == null ? null :
-            XUtil.quoteNameSegment(selectTable.getSchema(), this);
-         String realTableName =
-            JDBCUtil.getRealTableName(Tool.toString(selectTable.getName()), catalog, schema);
 
+         // the name is only needed for a table named by its name, never for a derived table,
+         // whose sql would be generated here (Bug #78119)
          if(alisDuplicateTableName() && Tool.equals(nalias, tobj)) {
+            String catalog = selectTable.getCatalog() == null ? null :
+               XUtil.quoteNameSegment(selectTable.getCatalog(), this);
+            String schema = selectTable.getSchema() == null ? null :
+               XUtil.quoteNameSegment(selectTable.getSchema(), this);
+            String realTableName =
+               JDBCUtil.getRealTableName(Tool.toString(selectTable.getName()), catalog, schema);
+
             if(tableNames.contains(realTableName)) {
                nalias = getAutoAlias(nalias, i);
             }
@@ -6890,6 +6992,9 @@ public class SQLHelper implements KeywordProvider {
       Pattern.compile("select(\\s+(distinct|all))?\\s+top\\s");
    // Maps "tableAlias.originalColExpr" -> safe alias used in the inner query
    private final Map<String, String> subQueryMapKeyAliases = new HashMap<>();
+   // the sql of each FROM derived table, generated once in the running generateSentence()
+   // (Bug #78119), keyed by identity, null outside generateSentence()
+   private Map<UniformSQL, String> subqueryTexts;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(SQLHelper.class);

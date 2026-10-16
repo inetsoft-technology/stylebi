@@ -114,6 +114,18 @@ public interface Cluster extends AutoCloseable {
     */
    boolean isClusterReady();
 
+   /**
+    * Checks if this node is in a minority cluster island: after a network split, another,
+    * larger cluster of the same deployment is running apart from this one, and the two never
+    * merge on their own. The check runs in the background, so this method never blocks.
+    *
+    * @return a description of the larger cluster if this node is in a minority island, or
+    *         {@code null} if it is not or if this cluster implementation cannot tell.
+    */
+   default String getMinorityIslandMessage() {
+      return null;
+   }
+
    void debug();
 
    /**
@@ -382,6 +394,23 @@ public interface Cluster extends AutoCloseable {
    void removeReplicatedMapListener(String name, MapChangeListener<?, ?> l);
 
    boolean mapExists(String name);
+
+   /**
+    * Gets the names of the existing maps whose names start with a prefix.
+    *
+    * @param prefix the name prefix.
+    *
+    * @return the map names.
+    */
+   Set<String> getMapNames(String prefix);
+
+   /**
+    * Destroys several replicated maps at once. For Ignite, this is one partition map exchange
+    * for the whole batch instead of one per map.
+    *
+    * @param names the names of the maps to destroy.
+    */
+   void destroyReplicatedMaps(Collection<String> names);
 
    <E> BlockingQueue<E> getQueue(String name);
 
@@ -676,6 +705,36 @@ public interface Cluster extends AutoCloseable {
    List<String> getClusterAddresses();
 
    DistributedTransaction startTx();
+
+   /**
+    * Runs an action in a pessimistic, repeatable-read transaction on the cluster's transactional
+    * maps, and commits it if the action returns. This is how a key is updated exclusively: lock
+    * it with {@link DistributedMap#getForUpdate} first, then write it. Every key the action reads
+    * (except with {@code containsKey}) or writes is locked until the transaction ends, so take
+    * the locks of a transaction in a fixed order to avoid deadlocks.
+    * <p>
+    * If the calling thread is already running an action in such a transaction, the action joins
+    * it: its locks and writes are committed or rolled back with the outer action, and if it
+    * throws, the transaction is marked rollback-only.
+    * <p>
+    * Bug #77879, an explicit cache-entry lock followed by a write of the same key must not be
+    * used instead: if the locking node fails while the write commits, a surviving backup can
+    * wait forever for the removed lock, and every later partition map exchange hangs.
+    *
+    * @param timeout the transaction timeout, which also bounds waiting for a lock.
+    * @param unit    the unit of the timeout.
+    * @param action  the action to run.
+    *
+    * @return the result of the action.
+    *
+    * @throws E                               if the action throws it, after rolling back.
+    * @throws DistributedTransactionException if the transaction timed out, deadlocked, was
+    *                                         rolled back by the cluster or lost a node it locked
+    *                                         keys on. Nothing was committed, unless it failed
+    *                                         while committing (see the exception).
+    */
+   <T, E extends Exception> T runInTransaction(long timeout, TimeUnit unit,
+                                                TransactionalAction<T, E> action) throws E;
 
    /**
     * Gets a stub for a cluster singleton service. If the service is not deployed, it will be. This

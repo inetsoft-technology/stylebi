@@ -58,4 +58,18 @@ public class TableLoadException extends RuntimeException {
 
       return null;
    }
+
+   /**
+    * Rethrow the load failure in the cause chain of {@code failure}, if there is one. A script
+    * read helper that turns its other failures into a null value calls this, because a table
+    * that failed to load for a reader that has to fail (a scheduled run) has no value to return
+    * (Bug #78083). The found instance is thrown as-is, as {@code TableArray} does.
+    */
+   public static void rethrow(Throwable failure) {
+      TableLoadException loadFailure = find(failure);
+
+      if(loadFailure != null) {
+         throw loadFailure;
+      }
+   }
 }

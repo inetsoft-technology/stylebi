@@ -17,6 +17,7 @@
  */
 package inetsoft.util.swap;
 
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.stall.LockStallException;
 
 /**
@@ -57,5 +58,89 @@ public final class DataUnavailable {
       if(unavailable != null) {
          throw unavailable;
       }
+   }
+
+   /**
+    * Copy a lock stall, a swap file read failure or a table load failure: a new instance of
+    * the same class with the same message, fields, cause and stack trace, and none of its
+    * suppressed exceptions. The copy does not keep {@code failure} in its cause chain.
+    * <p>
+    * A failure that Java code called by a script throws gets a suppressed Truffle stack trace
+    * element added to it, which cannot be serialized, e.g. in the response of a cluster call.
+    * So the script engine rethrows a copy of such a failure, and a table that keeps a failure
+    * for its later readers keeps a copy that is never thrown itself, and throws a new instance
+    * to each reader (bug #78084).
+    *
+    * @return the copy, {@code failure} itself if it is none of these failures, or
+    * {@code null} if it is {@code null}.
+    */
+   public static RuntimeException copy(RuntimeException failure) {
+      if(failure instanceof LockStallException stall) {
+         return stall.copy();
+      }
+      else if(failure instanceof SwapFileReadException swap) {
+         return swap.copy();
+      }
+      else if(failure instanceof TableLoadException load) {
+         return copy(load);
+      }
+
+      return failure;
+   }
+
+   /**
+    * The cause for a new exception that a table throws to a reader for a failure it keeps,
+    * e.g. {@code new SetOperationException(copyInChain(kept))}. A reader finds a lock stall,
+    * a swap file read failure or a load failure in the cause chain by its class and may throw
+    * it on through a script, so the chain must not hold the kept instance of one (bug #78084).
+    *
+    * @return a copy of {@code failure} if it is such a failure, a copy of the one in its cause
+    * chain otherwise, the copy taking the place of {@code failure}, or {@code failure} itself
+    * if its chain has none.
+    */
+   public static Throwable copyInChain(Throwable failure) {
+      if(failure instanceof RuntimeException ex) {
+         RuntimeException copy = copy(ex);
+
+         if(copy != ex) {
+            return copy;
+         }
+      }
+
+      RuntimeException found = find(failure);
+
+      if(found == null) {
+         found = TableLoadException.find(failure);
+      }
+
+      return found != null ? copy(found) : failure;
+   }
+
+   /**
+    * The cause for a new exception that a reader throws in place of {@code failure}, e.g. a
+    * condition that throws its own script exception for a failed value script. A reader up
+    * the stack, e.g. one that must not cache the failure, finds a lock stall, a swap file read
+    * failure or a load failure in the cause chain, so the new exception must keep it there
+    * (bug #78450).
+    *
+    * @return {@link #copyInChain(Throwable) a copy} of the failure in the cause chain of
+    * {@code failure}, or {@code null} if its chain has none.
+    */
+   public static Throwable causeInChain(Throwable failure) {
+      return find(failure) != null || TableLoadException.find(failure) != null ?
+         copyInChain(failure) : null;
+   }
+
+   /**
+    * Copy a table load failure, see {@link #copy(RuntimeException)}.
+    */
+   public static TableLoadException copy(TableLoadException failure) {
+      if(failure == null) {
+         return null;
+      }
+
+      TableLoadException copy = new TableLoadException(failure.getMessage(), failure.getCause());
+      copy.setStackTrace(failure.getStackTrace());
+      return copy;
    }
 }

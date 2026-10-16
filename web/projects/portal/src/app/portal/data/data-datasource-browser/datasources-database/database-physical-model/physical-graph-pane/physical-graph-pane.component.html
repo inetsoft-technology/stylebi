@@ -111,6 +111,7 @@
           (onRefreshPhysicalGraph)="refreshPhysicalGraphModel($event)"
           (onNodeSelected)="onNodeSelected.emit($event)"
           (onRemoveTable)="onRemoveTable.emit($event)"
+          (onNodeMove)="nodeMoved($event)"
         ></physical-model-network-graph>
       }
       @if (physicalGraph.joinEdit) {

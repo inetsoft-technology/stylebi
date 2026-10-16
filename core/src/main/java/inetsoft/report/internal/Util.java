@@ -1704,70 +1704,10 @@ public class Util implements inetsoft.report.StyleConstants {
       return sz;
    }
 
-   /**
-    * Verify a directory. If the directory does not exist, create a directory
-    * in the user home directory instead and return the new path.
-    * @param dir directory setting from the configuration.
-    * @param name default directory name.
-    */
-   public static String verifyDirectory(String dir, String name) {
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      File file = fileSystemService.getFile(dir);
-
-      try {
-         if(mkdir(file)) {
-            return dir;
-         }
-      }
-      catch(Exception e) {
-      }
-
-      try {
-         String home = SreeEnv.getProperty("user.home");
-         File file2 = fileSystemService.getFile(home + File.separator + "sree", name);
-
-         if(mkdir(file2)) {
-            LOG.warn(
-               "Directory [" + dir +
-               "] does not exist, using default directory: " + file2);
-            return file2.getPath();
-         }
-      }
-      catch(Exception e) {
-         LOG.error("Failed to verify directory " + dir + ", " + name, e);
-      }
-
-      return ".";
-   }
-
-   /**
-    * Create a directory recursively.
-    */
-   private static boolean mkdir(File dir) {
-      if(dir.exists()) {
-         return true;
-      }
-
-      return mkdir(dir.getParent(), dir.getName());
-   }
-
-   /**
-    * Create the parent and then the directory in the parent.
-    */
-   private static boolean mkdir(String parent, String name) {
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-
-      if(parent == null) {
-         return (fileSystemService.getFile(".", name)).mkdir();
-      }
-
-      if(mkdir(fileSystemService.getFile(Tool.convertUserFileName(parent)))) {
-         return (fileSystemService.getFile(Tool.convertUserFileName(parent),
-            Tool.convertUserFileName(name))).mkdir();
-      }
-
-      return false;
-   }
+   // Bug #78079: verifyDirectory (and its private mkdir helpers) relocated to
+   // inetsoft.sree.internal.SUtil, its only caller and a non-script-admitted
+   // class, so a restricted script can no longer mkdir or probe directory
+   // existence through this script-admitted Util class.
 
    /**
     * Build a report condition list from any condition list.
