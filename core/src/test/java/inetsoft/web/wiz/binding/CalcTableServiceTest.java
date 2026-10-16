@@ -372,6 +372,128 @@ class CalcTableServiceTest {
                                                        any());
    }
 
+   private static List<BindableTable> orderTables() {
+      return List.of(new BindableTable("Orders", true,
+                                       List.of(new BindableField("Customer:State", "string",
+                                                                 "dimension"),
+                                               new BindableField("Order:Discount", "double",
+                                                                 "measure"))));
+   }
+
+   private static SetCellBindingEvent bindAndCapture(Harness h, Map<String, Object> binding)
+      throws Exception
+   {
+      h.service.setCellBinding("tok", principal(), "Calc1", 1, 1, binding);
+      ArgumentCaptor<SetCellBindingEvent> captor =
+         ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
+                                             any());
+      return captor.getValue();
+   }
+
+   @Test
+   void storesTheRealSpellingOfAMisCasedGroupColumn() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h, columnCell("customer:state"));
+
+      assertEquals("Customer:State", event.getBinding().getValue());
+   }
+
+   @Test
+   void storesTheRealSpellingOfAMisCasedSummaryColumn() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h,
+         spec("content", "column", "grouping", "summary", "expand", "none", "formula", "Sum",
+              "field", Map.of("column", "order:discount", "type", "measure")));
+
+      assertEquals("Order:Discount", event.getBinding().getValue());
+   }
+
+   /** The default cell name StyleBI derives for the binding the layout service received. */
+   private static String runtimeCellName(CellBindingInfo info) {
+      TableCellBinding cell = info.getBtype() == CellBinding.SUMMARY
+         ? TableCellBinding.getSummaryBinding(info.getValue())
+         : TableCellBinding.getGroupBinding(info.getValue());
+      cell.setFormula(info.getFormula());
+      return cell.getRuntimeCellName();
+   }
+
+   @Test
+   void derivedSummaryCellNameFollowsTheCanonicalSpelling() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h,
+         spec("content", "column", "grouping", "summary", "expand", "none", "formula", "Sum",
+              "field", Map.of("column", "order:discount", "type", "measure")));
+
+      assertEquals("Sum_Order_Discount_", runtimeCellName(event.getBinding()));
+   }
+
+   @Test
+   void derivedGroupCellNameFollowsTheCanonicalSpelling() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h, columnCell("customer:state"));
+
+      assertEquals("Customer_State", runtimeCellName(event.getBinding()));
+   }
+
+   @Test
+   void leavesAnExactCaseColumnUnchanged() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h, columnCell("Customer:State"));
+
+      assertEquals("Customer:State", event.getBinding().getValue());
+   }
+
+   @Test
+   void stillRefusesAnUnknownColumnWhenCanonicalizing() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.setCellBinding("tok", principal(), "Calc1", 1, 1,
+                                                  columnCell("customer:nosuch")));
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class),
+                                                       any());
+   }
+
+   @Test
+   void leavesADynamicColumnReferenceUntouched() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      SetCellBindingEvent event = bindAndCapture(h, columnCell("$(PickColumn)"));
+
+      assertEquals("$(PickColumn)", event.getBinding().getValue());
+   }
+
+   @Test
+   void aListingFailureKeepsTheTypedColumnAndSkipsTheCheck() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenThrow(new IllegalStateException("tree unavailable"));
+
+      SetCellBindingEvent event = bindAndCapture(h, columnCell("customer:state"));
+
+      assertEquals("customer:state", event.getBinding().getValue());
+   }
+
    @Test
    void eachBindIsExactlyOneCheckpoint() throws Exception {
       Harness h = harness(3, 3);
