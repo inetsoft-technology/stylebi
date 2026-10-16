@@ -208,7 +208,7 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
          String script = info.getScript();
 
          if(script.contains("query") || script.contains("fields")) {
-            box.executeScript(getAssembly());
+            box.executeScriptForExport(getAssembly());
          }
       }
 
@@ -311,7 +311,7 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
     * Refresh the view selection value.
     */
    protected void refreshViewSelectionValue0() throws Exception {
-      box.executeScript(getAssembly());
+      box.executeScriptForExport(getAssembly());
    }
 
    /**

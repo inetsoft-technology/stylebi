@@ -229,7 +229,7 @@ public abstract class AbstractVSExporter implements VSExporter {
             }
          }
 
-         box.executeScript(assembly);
+         box.executeScriptForExport(assembly);
 
          if(assembly instanceof CalcTableVSAssembly) {
             continue;
@@ -352,7 +352,14 @@ public abstract class AbstractVSExporter implements VSExporter {
     * with the document, including to the recipient of a scheduled export. (#76780)
     */
    private void addScriptErrorMessage(ViewsheetSandbox box) {
-      if(box == null || box.getExportScriptError() == null) {
+      if(box == null) {
+         return;
+      }
+
+      boolean onLoadFailed = box.getExportScriptError() != null;
+      List<String> failedAssemblies = box.getExportFailedAssemblies();
+
+      if(!onLoadFailed && failedAssemblies.isEmpty()) {
          return;
       }
 
@@ -362,7 +369,15 @@ public abstract class AbstractVSExporter implements VSExporter {
          return;
       }
 
-      addWarningMessage(warningText, Catalog.getCatalog().getString("vs.export.onLoadScriptFailed"));
+      if(onLoadFailed) {
+         addWarningMessage(warningText,
+                           Catalog.getCatalog().getString("vs.export.onLoadScriptFailed"));
+      }
+
+      for(String name : failedAssemblies) {
+         addWarningMessage(warningText,
+                           Catalog.getCatalog().getString("vs.export.assemblyScriptFailed", name));
+      }
    }
 
    /**
@@ -1248,6 +1263,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       cappedCharts.clear();
       Viewsheet origViewsheet = box.getViewsheet();
       Viewsheet rvsOrigViewsheet = rvs != null ? rvs.getViewsheet() : null;
+      box.beginExport();
 
       try {
          // vs may be modified (e.g. expand table) so we should make
@@ -1654,6 +1670,8 @@ public abstract class AbstractVSExporter implements VSExporter {
          box.setExportFormat(null);
       }
       finally {
+         box.endExport();
+
          if(rvs != null) {
             rvs.setViewsheet(rvsOrigViewsheet);
          }
