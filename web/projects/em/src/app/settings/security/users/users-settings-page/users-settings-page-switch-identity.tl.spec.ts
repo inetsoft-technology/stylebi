@@ -286,6 +286,28 @@ describe("UsersSettingsPage - switching identity with unsaved edits (Bug #78726)
       expect(h.gets).toEqual(["users/alice", "users/bob", "users/alice"]);
    });
 
+   it("OK after two cancelled switches loads the other identity and clears both flags", async () => {
+      const h = await setup();
+      await h.clickRow("alice");
+      await h.rename("X");
+
+      for(let i = 0; i < 2; i++) {
+         await h.clickRow("bob");
+         await h.closeDialog("cancel");
+      }
+
+      expect(h.gets).toEqual(["users/alice"]);
+      await h.clickRow("bob");
+      expect(h.state().dialogs).toBe(1);
+      await h.closeDialog("ok");
+      expect(h.state()).toEqual({ dialogs: 0, name: "bob", pageChanged: false, viewChanged: false });
+      expect(h.gets).toEqual(["users/alice", "users/bob"]);
+
+      // not dirty any more: the next switch needs no confirmation
+      await h.clickRow("alice");
+      expect(h.state()).toEqual({ dialogs: 0, name: "alice", pageChanged: false, viewChanged: false });
+   });
+
    it("OK from a user to the group with the same name loads the group", async () => {
       const h = await setup();
       await h.clickRow("Sales", USERS);
