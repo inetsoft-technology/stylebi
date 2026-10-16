@@ -878,6 +878,20 @@ class AssemblyPropertyServiceTest {
    }
 
    @Test
+   void bug78579UnknownVariableRefusalNamesTheDataInputField() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(Nope)");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Input", patch, ""));
+      assertTrue(thrown.getMessage().contains("columnValue"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Nope"), thrown.getMessage());
+   }
+
+   @Test
    void bug78263TableUnknownVariableWithVariableFlagIsRefusedByName() {
       TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
       AssemblyPropertyService service =
