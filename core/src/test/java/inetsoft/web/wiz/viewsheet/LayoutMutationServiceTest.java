@@ -841,6 +841,71 @@ class LayoutMutationServiceTest {
       assertEquals(List.of("Dup"), namesIn(fx, VSLayoutService.FOOTER));
    }
 
+   // ── Bug 78704: set_layout_table_options resolves header/footer like move_resize/remove ──
+
+   private static VSAssemblyLayout placedIn(Fixture fx, int region, String name) {
+      return fx.vsLayoutService.getVSAssemblyLayouts(
+         fx.masterVs.getLayoutInfo().getPrintLayout(), region).stream()
+         .filter(l -> name.equals(l.getName())).findFirst().orElseThrow();
+   }
+
+   @Test
+   void setTableLayoutOptionsReachesAHeaderOrFooterOnlyTableFromContent() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addAssembly(new TableVSAssembly(fx.masterVs, "HeaderTbl"));
+      fx.masterVs.addAssembly(new TableVSAssembly(fx.masterVs, "FooterTbl"));
+      place(fx, VSLayoutService.HEADER, "HeaderTbl");
+      place(fx, VSLayoutService.FOOTER, "FooterTbl");
+
+      fx.service.setTableLayoutOptions("tok1", AGENT, PRINT_LAYOUT, "HeaderTbl",
+                                        VSLayoutService.CONTENT, 2);
+      fx.service.setTableLayoutOptions("tok1", AGENT, PRINT_LAYOUT, "FooterTbl",
+                                        VSLayoutService.CONTENT, 3);
+
+      assertEquals(2, placedIn(fx, VSLayoutService.HEADER, "HeaderTbl").getTableLayout());
+      assertEquals(3, placedIn(fx, VSLayoutService.FOOTER, "FooterTbl").getTableLayout());
+   }
+
+   @Test
+   void setTableLayoutOptionsPrefersContentWhenTheNameIsAlsoInHeader() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      place(fx, VSLayoutService.HEADER, "Table1");
+      int headerBefore = placedIn(fx, VSLayoutService.HEADER, "Table1").getTableLayout();
+
+      fx.service.setTableLayoutOptions("tok1", AGENT, PRINT_LAYOUT, "Table1",
+                                        VSLayoutService.CONTENT, 2);
+
+      assertEquals(2, fx.printLayoutObject("Table1").getTableLayout());
+      assertEquals(headerBefore, placedIn(fx, VSLayoutService.HEADER, "Table1").getTableLayout());
+   }
+
+   @Test
+   void setTableLayoutOptionsRefusesAmbiguousAndUnplacedNames() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addAssembly(new TableVSAssembly(fx.masterVs, "Dup"));
+      fx.masterVs.addAssembly(new TableVSAssembly(fx.masterVs, "Nowhere"));
+      place(fx, VSLayoutService.HEADER, "Dup");
+      place(fx, VSLayoutService.FOOTER, "Dup");
+
+      IllegalArgumentException ambiguous = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.setTableLayoutOptions("tok1", AGENT, PRINT_LAYOUT, "Dup",
+                                                 VSLayoutService.CONTENT, 2));
+      assertTrue(ambiguous.getMessage().contains("HEADER") &&
+                 ambiguous.getMessage().contains("FOOTER"), ambiguous.getMessage());
+
+      IllegalArgumentException unplaced = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.setTableLayoutOptions("tok1", AGENT, PRINT_LAYOUT, "Nowhere",
+                                                 VSLayoutService.CONTENT, 2));
+      assertTrue(unplaced.getMessage().contains("not placed") &&
+                 unplaced.getMessage().contains("add it first"), unplaced.getMessage());
+      // Refused before the mutation seam: no clone minted.
+      verify(fx.viewsheetService, never())
+         .openTemporaryViewsheet(anyString(), any(AssetEntry.class), eq(AGENT));
+   }
+
    /**
     * Wires one {@code LayoutMutationService} against a REAL {@code LayoutSessionService}/
     * {@code VSLayoutService} (mocked only at the {@code ViewsheetSessionService}/

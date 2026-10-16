@@ -25,14 +25,18 @@ import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.TabVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.SubmitVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.RelationVSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TipVSAssemblyInfo;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
@@ -745,6 +749,114 @@ class ScriptImageServiceTest {
       assertTrue(note.contains("them"), note);
    }
 
+
+   // ── Bug 78704: the notes cover assemblies inside embedded viewsheets ──
+
+   private static Viewsheet embedded(Viewsheet parent, String name) {
+      Viewsheet emb = new Viewsheet();
+      emb.getVSAssemblyInfo().setName(name);
+      parent.addAssembly(emb);
+      return emb;
+   }
+
+   @Test
+   void notesADropdownListAndSubmitInsideAnEmbeddedViewsheetByAbsoluteName() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      Viewsheet emb = embedded(vs, "EmbVS");
+      dropdownList(emb, "EmbList");
+      emb.addAssembly(new SubmitVSAssembly(emb, "EmbSubmit"));
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("\"EmbVS.EmbList\" is a dropdown-mode selection list"), note);
+      assertTrue(note.contains("\"EmbVS.EmbSubmit\" is a Submit assembly"), note);
+   }
+
+   @Test
+   void notesATopLevelAndAnEmbeddedDropdownTogether() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      dropdownList(vs, "Top1");
+      dropdownList(embedded(vs, "EmbVS"), "EmbList");
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("Top1") && note.contains("EmbVS.EmbList"), note);
+      assertTrue(note.contains("are dropdown-mode selection lists"), note);
+   }
+
+   @Test
+   void notesAChildOfATwoLevelEmbeddedViewsheet() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      Viewsheet outerEmb = embedded(vs, "Outer");
+      Viewsheet innerEmb = embedded(outerEmb, "Inner");
+      dropdownList(innerEmb, "DeepList");
+      innerEmb.addAssembly(new SubmitVSAssembly(innerEmb, "DeepSubmit"));
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("DeepList"), note);
+      assertTrue(note.contains("DeepSubmit"), note);
+   }
+
+   @Test
+   void doesNotNoteEmbeddedChildrenOfAHiddenEmbeddedViewsheet() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      Viewsheet emb = embedded(vs, "HiddenVS");
+      emb.getVSAssemblyInfo().setVisibleValue("false");
+      dropdownList(emb, "EmbList");
+      emb.addAssembly(new SubmitVSAssembly(emb, "EmbSubmit"));
+
+      assertNull(wholeSheetNote(vs));
+   }
+
+   @Test
+   void doesNotNoteAnEmbeddedDropdownInANonSelectedTab() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      Viewsheet emb = embedded(vs, "EmbVS");
+      dropdownList(emb, "TabA");
+      dropdownList(emb, "TabB");
+      TabVSAssembly tab = new TabVSAssembly(emb, "Tab1");
+      tab.setAssemblies(new String[] {"TabA", "TabB"});
+      ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).setSelected("TabA");
+      emb.addAssembly(tab);
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("EmbVS.TabA"), note);
+      assertFalse(note.contains("EmbVS.TabB"), note);
+   }
+
+   @Test
+   void doesNotNoteAnEmbeddedTipViewOrPopComponent() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      Viewsheet emb = embedded(vs, "EmbVS");
+      dropdownList(emb, "Shown1");
+      dropdownList(emb, "TipList");
+      dropdownList(emb, "PopList");
+
+      TableVSAssembly tipSource = new TableVSAssembly(emb, "TipSource");
+      TipVSAssemblyInfo tip = (TipVSAssemblyInfo) tipSource.getInfo();
+      tip.setTipOptionValue(TipVSAssemblyInfo.VIEWTIP_OPTION);
+      tip.setTipViewValue("TipList");
+      emb.addAssembly(tipSource);
+
+      TextVSAssembly popSource = new TextVSAssembly(emb, "PopSource");
+      PopVSAssemblyInfo pop = (PopVSAssemblyInfo) popSource.getInfo();
+      pop.setPopOptionValue(PopVSAssemblyInfo.POP_OPTION);
+      pop.setPopComponentValue("PopList");
+      emb.addAssembly(popSource);
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("EmbVS.Shown1"), note);
+      assertFalse(note.contains("TipList"), note);
+      assertFalse(note.contains("PopList"), note);
+   }
    /**
     * Bug #76717 / VOF-006: every export format's {@code writeSubmit} is a deliberate no-op — a
     * Submit assembly's reserved footprint renders as an empty area in every format, including

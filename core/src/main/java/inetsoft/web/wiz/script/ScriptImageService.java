@@ -313,7 +313,7 @@ public class ScriptImageService {
       boolean trees = false;
       int count = 0;
 
-      for(Assembly assembly : vs.getAssemblies()) {
+      for(Assembly assembly : vs.getAssemblies(true, true)) {
          boolean list = assembly instanceof SelectionListVSAssembly selectionList &&
             selectionList.getVSAssemblyInfo() instanceof SelectionListVSAssemblyInfo info &&
             info.getShowType() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE;
@@ -367,8 +367,10 @@ public class ScriptImageService {
     * zero size) is not in the image, so it must not be named in a note about the image.
     */
    private static boolean isExported(Viewsheet vs, VSAssembly assembly) {
-      if(VSUtil.isTipView(assembly.getAbsoluteName(), vs) ||
-         VSUtil.isPopComponent(assembly.getAbsoluteName(), vs))
+      // Bug 78704: iterated recursively like the exporter, so an embedded sheet's child is
+      // checked against its own sheet, exactly as needExport does.
+      if(VSUtil.isTipView(assembly.getAbsoluteName(), assembly.getViewsheet()) ||
+         VSUtil.isPopComponent(assembly.getAbsoluteName(), assembly.getViewsheet()))
       {
          return false;
       }
@@ -397,7 +399,7 @@ public class ScriptImageService {
 
       StringBuilder names = new StringBuilder();
 
-      for(Assembly assembly : vs.getAssemblies()) {
+      for(Assembly assembly : vs.getAssemblies(true, true)) {
          if(assembly instanceof SubmitVSAssembly submit && isExported(vs, submit)) {
             if(names.length() > 0) {
                names.append(", ");
