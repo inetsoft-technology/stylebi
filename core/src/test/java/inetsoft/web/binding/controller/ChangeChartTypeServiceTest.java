@@ -217,6 +217,58 @@ class ChangeChartTypeServiceTest {
          .changeSeparateStatus(eq("rid"), any(), any(), eq(harness.dispatcher), anyString());
    }
 
+   /**
+    * Bug #78680. Under a date comparison the chart's {@code isMultiStyles()} /
+    * {@code isSeparatedGraph()} report the DC runtime override (multi on, separated off), while
+    * the design flags are what the caller's {@code multi} is stated against. Comparing against the
+    * runtime value made {@code multi:false} look like a multi-to-single flip: the separate-status
+    * path ran and wrote separated=false into the design, and the multi teardown cleared the global
+    * aesthetic fields.
+    */
+   @Test
+   void multiEqualToTheDesignValueIsNotAFlipUnderADateComparison() throws Exception {
+      Harness harness = new Harness(dcBarChart());
+
+      harness.retypeToWithMulti(GraphTypes.CHART_BAR, false);
+
+      verify(harness.changeSeparateStatusService, never())
+         .changeSeparateStatus(any(), any(), any(), any(), any());
+      VSChartInfo info = harness.chart.getVSChartInfo();
+      assertTrue(info.isDesignSeparated());
+      assertNotNull(info.getColorField());
+      assertEquals("Year", info.getColorField().getFullName());
+   }
+
+   /** Design multi=false, design separated=true, DC runtime multi=true / separated=false. */
+   private static ChartVSAssembly dcBarChart() {
+      VSChartInfo info = new DefaultVSChartInfo() {
+         @Override
+         public boolean isMultiStyles() {
+            return true;
+         }
+
+         @Override
+         public boolean isSeparatedGraph() {
+            return false;
+         }
+
+         @Override
+         public boolean isDesignSeparated() {
+            return true;
+         }
+
+         @Override
+         public boolean isDesignMultiStyles() {
+            return false;
+         }
+      };
+      info.setChartType(GraphTypes.CHART_BAR);
+      info.addXField(dimension("Month"));
+      info.addYField(aggregate("Sales"));
+      info.setColorField(aestheticRef(dimension("Year")));
+      return chartWith(info);
+   }
+
    /** Bar, with a measure on color: the pie migration has nowhere to move it to. */
    private static ChartVSAssembly measureOnColorBarChart() {
       VSChartInfo info = new DefaultVSChartInfo();
