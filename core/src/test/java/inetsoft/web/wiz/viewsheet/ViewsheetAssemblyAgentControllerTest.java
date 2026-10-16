@@ -2059,8 +2059,8 @@ class ViewsheetAssemblyAgentControllerTest {
       order.verify(viewsheetService).setViewsheet(any(), eq(savedEntry), any(), eq(true), eq(true));
       order.verify(viewsheetService).fixRenameDepEntry("rt-vs-78662", savedEntry);
       order.verify(viewsheetService).renameDep("rt-vs-78662");
-      order.verify(rvs).setViewsheet(any(inetsoft.uql.viewsheet.Viewsheet.class));
       order.verify(rvs).resetCheckpoints(any());
+      order.verify(rvs).setViewsheet(any(inetsoft.uql.viewsheet.Viewsheet.class));
       assertEquals(Boolean.TRUE, result.get("reloaded"));
       assertTrue(result.get("message").toString().contains("reloaded"));
    }

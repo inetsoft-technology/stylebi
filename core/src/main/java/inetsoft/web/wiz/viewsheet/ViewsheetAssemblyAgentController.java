@@ -2608,11 +2608,18 @@ public class ViewsheetAssemblyAgentController {
          // bound to the old table/column and look clean. Reload it from the healed storage.
          if(renamesApplied) {
             try {
-               StaleViewsheetReloader.reload(rvs, viewsheetService.getAssetRepository());
-               result.put("reloaded", true);
-               result.put("message", "Viewsheet saved; renamed table/column bindings were " +
-                  "applied and the open viewsheet was reloaded from the saved copy (undo " +
-                  "history restarted).");
+               if(StaleViewsheetReloader.reload(rvs, viewsheetService.getAssetRepository())) {
+                  result.put("reloaded", true);
+                  result.put("message", "Viewsheet saved; renamed table/column bindings were " +
+                     "applied and the open viewsheet was reloaded from the saved copy (undo " +
+                     "history restarted).");
+               }
+               else {
+                  result.put("warning", "Viewsheet saved and renamed bindings were applied to " +
+                     "the saved copy, but the open session was not reloaded because its " +
+                     "layouts differ from the saved copy; it may still use the old " +
+                     "table/column names.");
+               }
             }
             catch(Exception e) {
                LOG.warn("Failed to reload viewsheet runtime {} after save", rvs.getID(), e);

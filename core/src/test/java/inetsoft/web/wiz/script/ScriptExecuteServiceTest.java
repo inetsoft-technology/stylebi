@@ -477,18 +477,17 @@ class ScriptExecuteServiceTest {
       verify(rvs).bumpWriteRevision();
    }
 
-   /** The target could not even be read, so no script ran and no checkpoint is added. */
+   /** A run refused for needing confirmation executes nothing, so it adds no checkpoint. */
    @Test
-   void aRunThatCannotReadItsTargetAddsNoCheckpoint() throws Exception {
-      ScriptReadService readService = mock(ScriptReadService.class);
-      when(readService.read(any(), any())).thenThrow(new PairingException("no such target"));
-      RuntimeViewsheet rvs = viewsheetWithScript("1 + 1", mock(ViewsheetScope.class));
-      ScriptExecuteService svc = new ScriptExecuteService(readService);
+   void aRunRefusedForNeedingConfirmationAddsNoCheckpoint() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      RuntimeViewsheet rvs = viewsheetWithScript("setCellValue('T', 0, 0, 1)", scope);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
 
-      assertThrows(PairingException.class,
-         () -> svc.runLive(rvs, ScriptTarget.parse("vs-init"), true));
+      svc.runLive(rvs, ScriptTarget.parse("vs-init"), false);
 
       verify(rvs, never()).addCheckpoint(any());
+      verify(rvs, never()).bumpWriteRevision();
    }
 
    @Test

@@ -153,9 +153,6 @@ public class ScriptExecuteService {
     * the script's effect. Mark the runtime changed whenever a script was attempted.
     */
    private ScriptExecResult execute(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {
-      // a read failure means no script ran: no checkpoint
-      readService.read(rvs, target);
-
       try {
          return executeScript(rvs, target);
       }

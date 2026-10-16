@@ -11642,6 +11642,15 @@ class WorksheetAgentControllerTest {
                                    java.util.function.Consumer<RuntimeViewsheet> tweak)
       throws Exception
    {
+      return cascadeSave(vsEntry, savePoint, current, storedVsMissing, tweak, null);
+   }
+
+   private CascadeCase cascadeSave(AssetEntry vsEntry, int savePoint, int current,
+                                   boolean storedVsMissing,
+                                   java.util.function.Consumer<RuntimeViewsheet> tweak,
+                                   inetsoft.uql.viewsheet.vslayout.LayoutInfo storedLayout)
+      throws Exception
+   {
       Principal agent = TestPrincipals.user("alice", "host-org");
       AssetEntry wsEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
          AssetEntry.Type.WORKSHEET, "Orders WS", null);
@@ -11663,7 +11672,9 @@ class WorksheetAgentControllerTest {
          .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-78662"));
 
       CascadeCase c = new CascadeCase();
-      c.stored = new Viewsheet();
+      c.stored = mock(Viewsheet.class);
+      when(c.stored.clone()).thenReturn(c.stored);
+      when(c.stored.getLayoutInfo()).thenReturn(storedLayout);
       c.repo = mock(AssetRepository.class);
 
       if(storedVsMissing) {
@@ -11691,7 +11702,10 @@ class WorksheetAgentControllerTest {
       AssetEntry dependent = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
          AssetEntry.Type.VIEWSHEET, "Orders VS", null);
 
-      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class)) {
+      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class);
+          MockedStatic<inetsoft.analytic.composition.event.VSEventUtil> vsUtil =
+             mockStatic(inetsoft.analytic.composition.event.VSEventUtil.class))
+      {
          dependencyTool.when(() -> DependencyTool.getDependencies(anyString()))
             .thenReturn(List.of(dependent));
          c.result = ctrl.save("TOK-78662", new WorksheetAgentController.SaveRequest(null, null),
@@ -11746,17 +11760,46 @@ class WorksheetAgentControllerTest {
       assertTrue(warning.contains("rt-vs-78662") && warning.contains("save_viewsheet"), warning);
    }
 
-   /** Layout edits checkpoint a separate stack, so any layout checkpoint means unsaved work (B-1). */
+   /**
+    * Layout edits checkpoint a separate stack that is cleared on a layout switch, so dirtiness is
+    * judged by comparing the runtime's layouts with the stored copy: edit layout A, read layout B
+    * (stack cleared), cascade -> A's edit must survive (B-1).
+    */
    @Test
-   void renameCascadeKeepsViewsheetRuntimeWithLayoutEditsAndReportsItStale78662() throws Exception {
+   void renameCascadeKeepsViewsheetRuntimeWithUnsavedLayoutEditsEvenAfterTheStackWasCleared78662()
+      throws Exception
+   {
+      inetsoft.uql.viewsheet.vslayout.LayoutInfo edited =
+         new inetsoft.uql.viewsheet.vslayout.LayoutInfo();
+      edited.setPrintLayout(new inetsoft.uql.viewsheet.vslayout.PrintLayout());
+
+      // layout stack size is 0 (as after a layout read-switch); only the definitions differ
       CascadeCase c = cascadeSave(savedVsEntry(), 2, 2, false,
-         rvs -> when(rvs.getLayoutPointsSize()).thenReturn(1));
+         rvs -> when(rvs.getViewsheet().getLayoutInfo()).thenReturn(edited));
 
       verify(c.rvs, never()).setViewsheet(any());
       verify(c.rvs, never()).resetLayoutUndoRedo();
+      verify(c.rvs, never()).resetCheckpoints(any());
+      verify(c.rvs).resetRuntime();
       List<?> stale = (List<?>) c.result.get("staleViewsheets");
       assertEquals(1, stale.size());
-      assertTrue(((Map<?, ?>) stale.get(0)).get("reason").toString().contains("layout edit"));
+      assertTrue(((Map<?, ?>) stale.get(0)).get("reason").toString().contains("layouts"));
+   }
+
+   /** A layout edit that was SAVED equals the stored copy, so it is not stale and reloads normally. */
+   @Test
+   void renameCascadeReloadsViewsheetRuntimeWhoseLayoutsMatchTheStoredCopy78662() throws Exception {
+      inetsoft.uql.viewsheet.vslayout.LayoutInfo saved =
+         new inetsoft.uql.viewsheet.vslayout.LayoutInfo();
+      saved.setPrintLayout(new inetsoft.uql.viewsheet.vslayout.PrintLayout());
+      CascadeCase c = cascadeSave(savedVsEntry(), 2, 2, false, rvs -> {
+         when(rvs.getViewsheet().getLayoutInfo()).thenReturn(saved);
+         // layout stack is non-empty after the saved edit; that alone must not make it stale
+         when(rvs.getLayoutPointsSize()).thenReturn(2);
+      }, saved);
+
+      assertEquals(List.of("rt-vs-78662"), c.result.get("reloadedViewsheets"));
+      assertNull(c.result.get("staleViewsheets"));
    }
 
    /** Binding-editor / viewer / preview runtimes only get the plain reset: never reloaded, not reported (I-2). */

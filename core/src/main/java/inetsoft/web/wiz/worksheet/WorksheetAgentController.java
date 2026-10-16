@@ -2395,12 +2395,23 @@ public class WorksheetAgentController {
             AssetEntry vsEntry = rvs.getEntry();
             reason = vsEntry == null || vsEntry.getScope() == AssetRepository.TEMPORARY_SCOPE ?
                "the viewsheet has never been saved" :
-               "the viewsheet has changes since its last save (a refresh, a failed edit, a " +
-               "script run or a layout edit also counts as a change)";
+               "the viewsheet has changes since its last save (a refresh, a failed edit or " +
+               "a script run also counts as a change)";
          }
          else {
             try {
-               StaleViewsheetReloader.reload(rvs, worksheetService.getAssetRepository());
+               if(!StaleViewsheetReloader.reload(rvs, worksheetService.getAssetRepository())) {
+                  reason = "the viewsheet's layouts have edits that are not saved (a saved " +
+                     "layout is compared with the stored copy, so only unsaved edits count)";
+                  rvs.resetRuntime();
+                  Map<String, Object> item = new LinkedHashMap<>();
+                  item.put("runtimeId", rvs.getID());
+                  item.put("name", rvs.getEntry().toView());
+                  item.put("reason", reason);
+                  stale.add(item);
+                  continue;
+               }
+
                reloaded.add(rvs.getID());
 
                if(rvs.getSocketSessionId() != null) {
