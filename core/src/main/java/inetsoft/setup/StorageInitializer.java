@@ -113,8 +113,7 @@ public class StorageInitializer implements Callable<Integer> {
          scriptsDirectory, new HashMap<>());
 
       try {
-         List<SetupExtension> extensions = new ArrayList<>();
-         ServiceLoader.load(SetupExtension.class).forEach(extensions::add);
+         List<SetupExtension> extensions = sortExtensions(ServiceLoader.load(SetupExtension.class));
          context = applyExtensions(context, extensions, SetupExtension.Phase.START, (c, e) -> e.start(c));
 
          context = setProperties(context, extensions);
@@ -322,6 +321,23 @@ public class StorageInitializer implements Callable<Integer> {
       }
 
       return applyExtensions(context, extensions, SetupExtension.Phase.AFTER_ASSETS_INSTALLED, (c, e) -> e.afterAssetsInstalled(c));
+   }
+
+   /**
+    * Collects the extensions in the order in which they are called in each phase. The order
+    * returned by the service loader follows the class path, which for a wildcard class path is the
+    * unsorted directory listing order and differs between hosts, so the extensions are sorted by
+    * {@link SetupExtension#ORDER}.
+    *
+    * @param loaded the extensions to sort.
+    *
+    * @return a new, sorted list of the extensions.
+    */
+   static List<SetupExtension> sortExtensions(Iterable<SetupExtension> loaded) {
+      List<SetupExtension> extensions = new ArrayList<>();
+      loaded.forEach(extensions::add);
+      extensions.sort(SetupExtension.ORDER);
+      return extensions;
    }
 
    private SetupExtension.Context applyExtensions(
