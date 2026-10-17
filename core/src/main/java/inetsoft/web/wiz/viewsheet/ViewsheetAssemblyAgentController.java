@@ -2509,9 +2509,9 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
-   public void save(@PathVariable String sessionToken,
-                    @RequestBody(required = false) SaveRequest body,
-                    Principal user) throws PairingException
+   public Map<String, Object> save(@PathVariable String sessionToken,
+                                   @RequestBody(required = false) SaveRequest body,
+                                   Principal user) throws PairingException
    {
       requireEnabled();
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
@@ -2585,6 +2585,8 @@ public class ViewsheetAssemblyAgentController {
          }
       }
 
+      Map<String, Object> result = new LinkedHashMap<>();
+
       try {
          viewsheetService.setViewsheet(rvs.getViewsheet(), entry, xp, true, true);
          rvs.setEntry(entry);
@@ -2596,9 +2598,36 @@ public class ViewsheetAssemblyAgentController {
          // always answers "yes" instead. Safe either way -- both calls are no-ops when nothing is
          // pending for this runtime id.
          viewsheetService.fixRenameDepEntry(rvs.getID(), entry);
+         boolean renamesApplied = viewsheetService.needRenameDep(rvs.getID());
          viewsheetService.renameDep(rvs.getID());
 
          rvs.setSavePoint(rvs.getCurrent());
+
+         // Bug #78662: the pending rename was just applied to STORAGE; this runtime still holds
+         // the pre-rename sheet (renameDep never touches it), so a saved runtime would stay
+         // bound to the old table/column and look clean. Reload it from the healed storage.
+         if(renamesApplied) {
+            try {
+               if(StaleViewsheetReloader.reload(rvs, viewsheetService.getAssetRepository(), false)) {
+                  result.put("reloaded", true);
+                  result.put("message", "Viewsheet saved; renamed table/column bindings were " +
+                     "applied and the open viewsheet was reloaded from the saved copy (undo " +
+                     "history restarted).");
+               }
+               else {
+                  result.put("warning", "Viewsheet saved and renamed bindings were applied to " +
+                     "the saved copy, but the open session was not reloaded because its " +
+                     "layouts differ from the saved copy; it may still use the old " +
+                     "table/column names.");
+               }
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to reload viewsheet runtime {} after save", rvs.getID(), e);
+               result.put("warning", "Viewsheet saved and renamed bindings were applied to the " +
+                  "saved copy, but reloading the open session failed (" + e.getMessage() +
+                  "); it may still use the old table/column names.");
+            }
+         }
 
          // Mirrors SaveViewsheetDialogService.saveViewsheet(): the old entry's autosave draft is
          // orphaned once this (its first real save) lands, since nothing else ever cleans it up.
@@ -2611,6 +2640,12 @@ public class ViewsheetAssemblyAgentController {
       }
 
       broadcast.broadcastSave(rvs, rvs.getID(), user);
+
+      if(result.get("reloaded") != null && rvs.getSocketSessionId() != null) {
+         broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user);
+      }
+
+      return result;
    }
 
    /**

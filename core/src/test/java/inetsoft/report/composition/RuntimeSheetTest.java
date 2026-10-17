@@ -355,6 +355,22 @@ class RuntimeSheetTest {
       }
    }
 
+   @Test
+   void resetCheckpointsRestartsHistoryAtASavedPoint() {
+      RuntimeSheet sheet = newSheet();
+      sheet.addCheckpoint(new Worksheet());
+      sheet.addCheckpoint(new Worksheet());
+      sheet.addCheckpoint(new Worksheet());
+      assertEquals(3, sheet.size());
+
+      int current = sheet.resetCheckpoints(new Worksheet());
+
+      assertEquals(1, sheet.size(), "history restarts from the reloaded sheet only");
+      assertEquals(0, current);
+      assertEquals(0, sheet.getCurrent());
+      assertEquals(sheet.getCurrent(), sheet.getSavePoint(), "the reloaded sheet is the save point");
+   }
+
    private static RuntimeSheet newSheet() {
       return new RuntimeSheet() {
          @Override public boolean undo(ChangedAssemblyList clist) { return false; }

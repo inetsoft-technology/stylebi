@@ -463,6 +463,33 @@ class ScriptExecuteServiceTest {
       verify(scope).execute(eq("setCellValue('T', 0, 0, 1)"), nullable(String.class));
    }
 
+   /** Bug #78662: a script run changes the live runtime, so it must read as changed since the last save. */
+   @Test
+   void runLiveAddsAnUndoCheckpointAndBumpsTheWriteRevision() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq("1 + 1"), nullable(String.class))).thenReturn(2.0);
+      RuntimeViewsheet rvs = viewsheetWithScript("1 + 1", scope);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+
+      verify(rvs).addCheckpoint(any());
+      verify(rvs).bumpWriteRevision();
+   }
+
+   /** A run refused for needing confirmation executes nothing, so it adds no checkpoint. */
+   @Test
+   void aRunRefusedForNeedingConfirmationAddsNoCheckpoint() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      RuntimeViewsheet rvs = viewsheetWithScript("setCellValue('T', 0, 0, 1)", scope);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      svc.runLive(rvs, ScriptTarget.parse("vs-init"), false);
+
+      verify(rvs, never()).addCheckpoint(any());
+      verify(rvs, never()).bumpWriteRevision();
+   }
+
    @Test
    void dryRunExecutesNonDestructiveScriptsAgainstTheLiveScope() throws Exception {
       // Documents the known, accepted limitation: "dry run" has no isolated clone to run

@@ -439,6 +439,25 @@ public abstract class RuntimeSheet {
    }
 
    /**
+    * Drop the whole undo/redo history and restart it from {@code sheet}, marked as the save
+    * point. For a sheet that was just re-read from storage, so undo/redo can never restore a
+    * pre-reload (stale) state.
+    * @param sheet the freshly loaded sheet.
+    * @return current point.
+    */
+   public synchronized int resetCheckpoints(AbstractSheet sheet) {
+      if(disposed || points == null) {
+         return -1;
+      }
+
+      points.clear();
+      point = -1;
+      int current = addCheckpoint(sheet);
+      savePoint = current;
+      return current;
+   }
+
+   /**
     * Add a check point for undo.
     * @param sheet the specified sheet.
     * @return current point.
