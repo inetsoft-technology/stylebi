@@ -175,6 +175,36 @@ class OpenScriptControllerTest {
       verify(libManager, never()).save();
    }
 
+   /** Bug #78735: the dependency graph moves from the stored body (old) to the saved body (new). */
+   @Test
+   void saveScriptUpdatesDependenciesFromOldBodyToNewBody() throws Exception {
+      when(libManager.getScript("sharedFn")).thenReturn("old text");
+
+      ScriptModel scriptModel = new ScriptModel();
+      AssetEntry entry = new AssetEntry(AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT,
+         "sharedFn", null);
+      scriptModel.setId(entry.toIdentifier());
+      scriptModel.setLabel("sharedFn");
+      scriptModel.setText("new text");
+
+      controller.saveScript(scriptModel, principal);
+
+      verify(scriptService).updateScriptDependencies(eq("old text"), eq("new text"),
+         any(AssetEntry.class));
+   }
+
+   /** Bug #78735: a Save As creates the function, so its body's edges must be recorded. */
+   @Test
+   void saveScriptAsRecordsDependenciesOfTheNewBody() throws Exception {
+      controller.saveScriptAs(createRequest("sharedFn", AssetRepository.COMPONENT_SCOPE), principal);
+
+      ArgumentCaptor<AssetEntry> captor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(scriptService).updateScriptDependencies(isNull(), eq("function sharedFn() {}"),
+         captor.capture());
+      assertEquals("sharedFn", captor.getValue().getName());
+      assertEquals(AssetEntry.Type.SCRIPT, captor.getValue().getType());
+   }
+
    private ScriptRequestModel createRequest(String name, int parentScope) {
       AssetEntry parent = new AssetEntry(parentScope, AssetEntry.Type.SCRIPT_FOLDER, "/Script", null);
       SaveScriptDialogModel saveModel = new SaveScriptDialogModel();

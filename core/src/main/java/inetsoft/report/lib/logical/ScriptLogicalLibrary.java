@@ -28,6 +28,8 @@ import org.slf4j.LoggerFactory;
 import java.lang.invoke.MethodHandles;
 import java.util.*;
 import java.util.concurrent.locks.ReadWriteLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ScriptLogicalLibrary extends AbstractLogicalLibrary<ScriptEntry> {
    protected ScriptLogicalLibrary(LibrarySecurity security) {
@@ -58,7 +60,8 @@ public class ScriptLogicalLibrary extends AbstractLogicalLibrary<ScriptEntry> {
    {
       final ScriptEntry oldScript = oldEntry.asset();
       final String newSignature = Optional.ofNullable(oldScript.signature())
-         .map(sig -> sig.replaceFirst(oldName, newName))
+         .map(sig -> sig.replaceFirst(Pattern.quote(oldName),
+                              Matcher.quoteReplacement(newName)))
          .orElse(null);
 
       final ScriptEntry newScript = ScriptEntry.builder()

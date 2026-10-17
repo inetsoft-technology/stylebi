@@ -19,7 +19,6 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
-import inetsoft.report.internal.Util;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -150,7 +149,8 @@ public class ScriptLibraryController {
             "update_script_library_function to change it, or pick a different name.");
       }
 
-      lib.setScript(name, request.text() == null ? "" : request.text());
+      lib.setScript(name, request.text());
+      DependencyHandler.getInstance().updateScriptDependencies(null, request.text(), scriptEntry(name));
 
       if(request.comment() != null && !request.comment().isBlank()) {
          lib.setScriptComment(name, request.comment());
@@ -191,23 +191,9 @@ public class ScriptLibraryController {
    }
 
    /**
-    * Renames a function AND rewrites its own declaration text so the new name is what
-    * {@code GraalJavaScriptEngine.installLibraryFunctions} actually binds as the JS global --
-    * {@code LibManager.renameScript} alone only relocates the registry key and the derived
-    * signature (see {@code ScriptLogicalLibrary.renameEntry}), leaving the stored source still
-    * declaring {@code function <oldName>(...)}. Left alone, that would strand every caller
-    * (which {@code RenameTransformHandler} has already, asynchronously, rewritten to call
-    * {@code newName(...)}) with a {@code ReferenceError} once the engine next installs library
-    * functions -- worse than not renaming at all.
-    *
-    * <p>Reuses {@code Util.renameScriptDepended}, the same utility {@code
-    * AssetScriptDependencyTransformer} already uses to rewrite callers' scripts. It is a
-    * dot/bracket-bounded substring replace, not an identifier-exact-match rename (contrast {@code
-    * renameScriptRefDepended}, which does check for an exact reference-token match) -- a sibling
-    * identifier that merely contains {@code oldName} as a substring (e.g. renaming
-    * {@code formatShortDollar} while a local variable is named {@code formatShortDollarBackup})
-    * could also get corrupted. This is a pre-existing property of the shared utility, not
-    * something newly introduced here.
+    * Renames a function. {@code LibManager.renameScript} relocates the registry key and renames the
+    * function's own {@code function <oldName>(...)} declaration, so the new name is what
+    * {@code GraalJavaScriptEngine.installLibraryFunctions} binds as the JS global.
     */
    @PostMapping("/{name}/rename")
    public ScriptLibraryFunctionDetail rename(@PathVariable String name,
@@ -234,15 +220,8 @@ public class ScriptLibraryController {
       // Rename and save under the library monitor (the same one reloadLibrary()/save() use), so a
       // reload triggered by another thread cannot wipe the unsaved in-memory rename.
       synchronized(lib) {
-         String oldText = lib.getScript(name);
+         String newText = LibManager.renameFunctionDeclaration(name, newName, lib.getScript(name));
          lib.renameScript(name, newName);
-
-         String newText = Util.renameScriptDepended(name, newName, oldText);
-
-         if(!Objects.equals(oldText, newText)) {
-            lib.setScript(newName, newText);
-         }
-
          lib.save();
 
          if(lib.getScript(name) != null || lib.getScript(newName) == null ||
@@ -292,6 +271,9 @@ public class ScriptLibraryController {
       }
 
       synchronized(lib) {
+         // drop the function's edges to its callees so they are not refused as "used by" a deleted one
+         DependencyHandler.getInstance().updateScriptDependencies(
+            lib.getScript(name), null, scriptEntry(name));
          lib.removeScript(name);
          lib.save();
 

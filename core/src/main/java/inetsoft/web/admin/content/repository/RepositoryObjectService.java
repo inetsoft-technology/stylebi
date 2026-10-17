@@ -432,6 +432,11 @@ public class RepositoryObjectService {
                removeQueryFolder(node.label(), node.path());
                break;
             case RepositoryEntry.SCRIPT:
+               // drop this function's edges to its callees so they are not refused as "used by" it
+               dependencyHandler.updateScriptDependencies(
+                  libManagerProvider.getManager(principal).getScript(node.label()), null,
+                  new AssetEntry(AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT,
+                                 node.label(), null));
                libManagerProvider.getManager(principal).removeScript(node.label());
                libManagerProvider.getManager(principal).save();
                // Bug #78217, the script is already deleted, a failed permission write must not

@@ -18,6 +18,7 @@
 package inetsoft.web.composer;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.test.BaseTestConfiguration;
@@ -34,6 +35,7 @@ import inetsoft.web.wiz.service.WizVisualizationService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -228,5 +230,29 @@ class RemoveAssetControllerWizFolderTest {
       }
 
       verify(assetRepository, never()).removeFolder(any(), any(), anyBoolean());
+   }
+
+   /** Bug #78735: deleting a library function drops its outgoing dependency edges first. */
+   @Test
+   void removingAScriptDropsItsOutgoingDependencyEdges() throws Exception {
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      LibManagerProvider libProvider = mock(LibManagerProvider.class);
+      LibManager lib = mock(LibManager.class);
+      DependencyHandler handler = mock(DependencyHandler.class);
+      Principal principal = mock(Principal.class);
+      when(libProvider.getManager(principal)).thenReturn(lib);
+      when(lib.getScript("caller")).thenReturn("return callee();");
+      AssetEntry script = new AssetEntry(
+         AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, "caller", null);
+      RemoveAssetEvent event = new RemoveAssetEvent.Builder().entry(script).confirmed(true).build();
+      RemoveAssetController controller = new RemoveAssetController(
+         assetRepository, mock(ViewsheetService.class), mock(SecurityProvider.class),
+         libProvider, mock(RecycleBin.class), handler);
+
+      controller.removeAsset(event, principal);
+
+      InOrder order = inOrder(handler, lib);
+      order.verify(handler).updateScriptDependencies(eq("return callee();"), isNull(), eq(script));
+      order.verify(lib).removeScript("caller");
    }
 }

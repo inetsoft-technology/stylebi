@@ -385,7 +385,7 @@ public final class GTool {
       }
 
       float[] comps = color.getColorComponents(null);
-      return new Color(comps[0], comps[1], comps[2], (float) alpha);
+      return new Color(comps[0], comps[1], comps[2], (float) clampAlpha(alpha));
    }
 
    /**
@@ -1378,7 +1378,14 @@ public final class GTool {
          return null;
       }
 
-      return new Color(clr.getRed(), clr.getGreen(), clr.getBlue(), (int) (alpha * 255));
+      return new Color(clr.getRed(), clr.getGreen(), clr.getBlue(), (int) (clampAlpha(alpha) * 255));
+   }
+
+   /**
+    * Limit an alpha to 0-1 (NaN is opaque) so a bad script value cannot make painting throw.
+    */
+   public static double clampAlpha(double alpha) {
+      return Double.isNaN(alpha) ? 1 : Math.max(0, Math.min(1, alpha));
    }
 
    private static GImpl impl;

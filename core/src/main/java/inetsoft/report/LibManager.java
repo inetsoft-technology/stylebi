@@ -37,6 +37,8 @@ import java.awt.event.ActionListener;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * This class manages the bean, table style, and script library.
@@ -335,11 +337,188 @@ public class LibManager implements AutoCloseable {
     */
    public void renameScript(String oldName, String newName) {
       if(scripts.rename(oldName, newName)) {
+         final String text = scripts.getFunction(newName);
+         final String renamed = renameFunctionDeclaration(oldName, newName, text);
+
+         if(renamed != null && !renamed.equals(text)) {
+            setScript(newName, renamed);
+         }
+
          RenameInfo rinfo = new RenameInfo(oldName, newName, RenameInfo.SCRIPT_FUNCTION);
          rinfo.setUpdateStorage(true);
          RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
          fireActionEvent(newName, SCRIPT_MODIFIED);
          fireActionEvent(oldName, SCRIPT_REMOVED);
+      }
+   }
+
+   /**
+    * Rename a library function in its own text: the declaration ({@code function <oldName>(...)},
+    * {@code function* <oldName>(...)} or {@code var|let|const <oldName> =}) and every identifier-exact
+    * reference to it (a recursive call, for instance). Only code is touched: a string literal,
+    * template text, comment, property access ({@code x.<oldName>}) or longer identifier that merely
+    * contains the old name is left alone. A declaration at the top level is preferred over a local
+    * one inside a helper.
+    * @param oldName old name of the script function.
+    * @param newName new name of the script function.
+    * @param text the stored function text.
+    * @return the text declaring {@code newName}, or {@code text} if it has no such declaration.
+    */
+   public static String renameFunctionDeclaration(String oldName, String newName, String text) {
+      if(text == null || oldName == null || newName == null) {
+         return text;
+      }
+
+      final boolean[] code = new boolean[text.length()];
+      final int[] depth = new int[text.length()];
+      scanCode(text, code, depth);
+
+      final String declarator = "(?:\\bfunction(?:\\s*\\*\\s*|\\s+)|\\b(?:var|let|const)\\s+)";
+      final Matcher decl = Pattern.compile(
+         declarator + Pattern.quote(oldName) + "(?![\\w$])(?=\\s*[(=])").matcher(text);
+      boolean found = false;
+
+      while(decl.find()) {
+         if(!code[decl.start()]) {
+            continue;
+         }
+
+         found = true;
+
+         if(depth[decl.start()] == 0) {
+            break;
+         }
+      }
+
+      if(!found) {
+         return text;
+      }
+
+      final Matcher ref = Pattern.compile("(?<![\\w$])" + Pattern.quote(oldName) + "(?![\\w$])")
+         .matcher(text);
+      final StringBuilder result = new StringBuilder();
+      int last = 0;
+
+      while(ref.find()) {
+         final int start = ref.start();
+         final boolean property = start > 0 && text.charAt(start - 1) == '.' &&
+            !(start > 2 && text.startsWith("...", start - 3));
+
+         if(code[start] && !property) {
+            result.append(text, last, start).append(newName);
+            last = ref.end();
+         }
+      }
+
+      return result.append(text, last, text.length()).toString();
+   }
+
+   /**
+    * Classify each character of script text as code or not (string literal, template text, comment,
+    * regex literal), and record the brace depth at each code character.
+    */
+   private static void scanCode(String text, boolean[] code, int[] depth) {
+      final int n = text.length();
+      final java.util.ArrayDeque<Integer> templates = new java.util.ArrayDeque<>();
+      int braces = 0;
+      char prev = ';'; // last significant code character, to tell a regex literal from a division
+      int i = 0;
+
+      while(i < n) {
+         final char c = text.charAt(i);
+         final char next = i + 1 < n ? text.charAt(i + 1) : ' ';
+
+         if(c == '/' && next == '/') {
+            while(i < n && text.charAt(i) != '\n') {
+               i++;
+            }
+         }
+         else if(c == '/' && next == '*') {
+            final int end = text.indexOf("*/", i + 2);
+            i = end < 0 ? n : end + 2;
+         }
+         else if(c == '\'' || c == '"') {
+            i++;
+
+            while(i < n && text.charAt(i) != c && text.charAt(i) != '\n') {
+               i += text.charAt(i) == '\\' ? 2 : 1;
+            }
+
+            i++;
+            prev = 'a';
+         }
+         else if(c == '`' || (c == '}' && !templates.isEmpty() && templates.peek() == braces - 1)) {
+            if(c == '}') {
+               templates.pop();
+               braces--;
+            }
+
+            i++;
+            prev = 'a';
+
+            while(i < n) {
+               final char t = text.charAt(i);
+
+               if(t == '\\') {
+                  i += 2;
+               }
+               else if(t == '`') {
+                  i++;
+                  break;
+               }
+               else if(t == '$' && i + 1 < n && text.charAt(i + 1) == '{') {
+                  templates.push(braces);
+                  braces++;
+                  i += 2;
+                  prev = '{';
+                  break;
+               }
+               else {
+                  i++;
+               }
+            }
+         }
+         else if(c == '/' && "(,=:[!&|?{};".indexOf(prev) >= 0) {
+            boolean inClass = false;
+            i++;
+
+            while(i < n && (inClass || text.charAt(i) != '/') && text.charAt(i) != '\n') {
+               final char r = text.charAt(i);
+
+               if(r == '\\') {
+                  i++;
+               }
+               else if(r == '[') {
+                  inClass = true;
+               }
+               else if(r == ']') {
+                  inClass = false;
+               }
+
+               i++;
+            }
+
+            i++;
+            prev = 'a';
+         }
+         else {
+            code[i] = true;
+
+            if(c == '{') {
+               braces++;
+            }
+            else if(c == '}') {
+               braces--;
+            }
+
+            depth[i] = braces;
+
+            if(!Character.isWhitespace(c)) {
+               prev = c;
+            }
+
+            i++;
+         }
       }
    }
 
