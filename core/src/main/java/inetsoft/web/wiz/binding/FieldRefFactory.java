@@ -31,6 +31,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XNamedGroupInfo;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.ColumnRefModel;
@@ -146,6 +147,8 @@ public final class FieldRefFactory {
          ref.setDateLevel(DateLevels.normalize(field.dateLevel()));
       }
 
+      refuseNamedGroupOnDateDimension(
+         field, dimensionDataType(model, rvs, source, field.column()));
       NamedGroupInfoModel namedGroupInfo = resolveNamedGroupInfo(field, rvs, source, refModelService);
 
       if(namedGroupInfo != null) {
@@ -158,6 +161,41 @@ public final class FieldRefFactory {
       }
 
       return ref;
+   }
+
+   /**
+    * Bug #78751 (p1): the render path ({@code VSDimensionRef.createGroupRef}) always groups a
+    * date-typed column by its date range and never applies a named group to it, so a
+    * {@code namedGroup}/{@code namedGroupValues} sent for one was stored, read back and then
+    * silently ignored. Thrown before anything is assigned, so nothing is written. A column of
+    * unknown type is not refused.
+    *
+    * @param dataType the dimension column's data type, or {@code null} if unknown.
+    */
+   public static void refuseNamedGroupOnDateDimension(FieldRef field, String dataType) {
+      if(dataType == null || !XSchema.isDateType(dataType) ||
+         (field.namedGroup() == null && field.namedGroupValues() == null))
+      {
+         return;
+      }
+
+      String key = field.namedGroupValues() != null ? "namedGroupValues" : "namedGroup";
+      throw new IllegalArgumentException(
+         "'" + key + "' is not supported on '" + field.column() + "': it is a " + dataType +
+         " column, and a date column is always grouped by its date range, so the named group " +
+         "would be stored and reported but never applied. Group it with 'dateLevel' instead " +
+         "(year, quarter, month, ...), or put the named group on a string or number column.");
+   }
+
+   /**
+    * A dimension column's data type: a viewsheet calc field's own declared type, else the bound
+    * source's reported type, or {@code null} if unknown.
+    */
+   public static String dimensionDataType(BindingModel model, RuntimeViewsheet rvs,
+                                          SourceInfo source, String column)
+   {
+      CalculateRef calc = findCalcField(model, rvs, source, column);
+      return calc != null ? calc.getDataType() : dataTypeOf(model, column);
    }
 
    /**

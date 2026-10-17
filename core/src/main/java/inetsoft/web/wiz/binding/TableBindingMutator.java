@@ -829,6 +829,14 @@ public final class TableBindingMutator {
 
          boolean resolved = false;
 
+         // An echoed stored group (placeholder name) is not a new write; only a group the
+         // request itself defines or names is refused on a date column.
+         if(echoed == null) {
+            FieldRefFactory.refuseNamedGroupOnDateDimension(field,
+               ref.getDataType() != null ? ref.getDataType()
+                  : FieldRefFactory.dimensionDataType(model, rvs, source, field.column()));
+         }
+
          if(field.namedGroupValues() != null || (field.namedGroup() != null && rvs != null)) {
             try {
                ref.setNamedGroupInfo(
