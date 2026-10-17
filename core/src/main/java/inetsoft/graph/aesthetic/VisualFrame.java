@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.text.Format;
 import java.util.*;
 
 /**
@@ -589,10 +590,11 @@ public abstract class VisualFrame implements Cloneable, Serializable {
    // Try to format value using the text format
    Object formatValue(Object val) {
       Object formatted = val;
+      Format fmt = keyFormat != null ? keyFormat : getLegendSpec().getTextSpec().getFormat();
 
-      if(val != null && getLegendSpec().getTextSpec().getFormat() != null) {
+      if(val != null && fmt != null) {
          try {
-            formatted = getLegendSpec().getTextSpec().getFormat().format(val);
+            formatted = fmt.format(val);
          }
          catch(Exception ex) {
             // ignore
@@ -600,6 +602,16 @@ public abstract class VisualFrame implements Cloneable, Serializable {
       }
 
       return formatted;
+   }
+
+   /**
+    * Set the format used to turn a value into the key that user assignments (e.g. a pinned
+    * colour) are stored under. It stays the dimension's default format when the legend text is
+    * given a user format, so a display format change does not orphan the assignments.
+    * @hidden
+    */
+   public void setKeyFormat(Format keyFormat) {
+      this.keyFormat = keyFormat;
    }
 
    void createScale(DataSet data) {
@@ -629,6 +641,7 @@ public abstract class VisualFrame implements Cloneable, Serializable {
    private Scale scale = null;
    private LegendSpec legendSpec = new LegendSpec();
    private transient LegendSpec legendSpec0 = null; // cached
+   private transient Format keyFormat;
    private int scaleOption = Scale.TICKS;
    private VisualFrame legendFrame;
    private Comparator comparator;

@@ -246,6 +246,28 @@ public class AxisPropertyDialogModel implements Serializable {
          cfmt = axisDesc.getAxisLabelTextFormat();
       }
 
+      // Parsed before the first write: a bad number must not leave the descriptor half-applied.
+      Float incrementValue = null;
+      Float maximumValue = null;
+      Float minimumValue = null;
+      Float minorIncrementValue = null;
+
+      if(this.linear || this.timeSeries && !this.outer) {
+         String increment = axisLinePaneModel.getIncrement();
+         incrementValue = increment == null || "".equals(increment) ? null
+            : Float.valueOf(increment);
+      }
+
+      if(this.linear) {
+         String maximum = axisLinePaneModel.getMaximum();
+         String minimum = axisLinePaneModel.getMinimum();
+         String minorIncrement = axisLinePaneModel.getMinorIncrement();
+         maximumValue = maximum == null || "".equals(maximum) ? null : Float.valueOf(maximum);
+         minimumValue = minimum == null || "".equals(minimum) ? null : Float.valueOf(minimum);
+         minorIncrementValue = minorIncrement == null || "".equals(minorIncrement)
+            ? null : Float.valueOf(minorIncrement);
+      }
+
       if(maxMode) {
          axisDesc.setMaxModeLineVisible(axisLinePaneModel.isShowAxisLine());
       }
@@ -258,22 +280,13 @@ public class AxisPropertyDialogModel implements Serializable {
       axisDesc.setTicksVisible(axisLinePaneModel.isShowTicks());
 
       if(this.linear || this.timeSeries && !this.outer) {
-         String increment = axisLinePaneModel.getIncrement();
-         axisDesc.setIncrement(increment == null || "".equals(increment) ? null
-                               : Float.valueOf(increment).floatValue());
+         axisDesc.setIncrement(incrementValue);
       }
 
       if(this.linear) {
-         String maximum = axisLinePaneModel.getMaximum();
-         String minimum = axisLinePaneModel.getMinimum();
-         String minorIncrement = axisLinePaneModel.getMinorIncrement();
-
-         axisDesc.setMaximum(maximum == null || "".equals(maximum)
-                             ? null : Float.valueOf(maximum).floatValue());
-         axisDesc.setMinimum(minimum == null || "".equals(minimum)
-                             ? null : Float.valueOf(minimum).floatValue());
-         axisDesc.setMinorIncrement(minorIncrement == null || "".equals(minorIncrement)
-                                    ? null : Float.parseFloat(minorIncrement));
+         axisDesc.setMaximum(maximumValue);
+         axisDesc.setMinimum(minimumValue);
+         axisDesc.setMinorIncrement(minorIncrementValue);
          axisDesc.setLogarithmicScale(axisLinePaneModel.isLogarithmicScale());
          axisDesc.setReversed(axisLinePaneModel.isReverse());
          axisDesc.setSharedRange(axisLinePaneModel.isShared());

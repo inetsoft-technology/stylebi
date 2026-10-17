@@ -41,6 +41,7 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -60,6 +61,7 @@ import java.awt.Dimension;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.*;
+import org.mockito.InOrder;
 
 import static inetsoft.web.wiz.viewsheet.ViewsheetFormatServiceTest.principal;
 import static inetsoft.web.wiz.viewsheet.ViewsheetFormatServiceTest.sessionsFor;
@@ -94,7 +96,8 @@ class ViewsheetFormatServiceFieldTargetRenderTest {
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
-      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(mock(ViewsheetSandbox.class)));
+      box = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
       sessions = sessionsFor(rvs);
    }
 
@@ -170,6 +173,38 @@ class ViewsheetFormatServiceFieldTargetRenderTest {
 
       service().setFormat("tok", principal(), reset(name), "");
       assertEquals(defaults, ticks(data, name));
+   }
+
+   /**
+    * Bug #78752: applyFieldFormats clears the runtime aesthetic refs, which only updateAssembly
+    * restores, so a field format on a colour-bound chart dropped the colour legend until some
+    * later binding write. The sandbox must be updated, then the graph cleared.
+    */
+   @Test
+   void aFieldFormatOnAColourBoundChartRestoresTheRuntimeColourRefBeforeClearingTheGraph()
+      throws Exception
+   {
+      cinfo.addXField(dimension("Region", XSchema.STRING, -1));
+      cinfo.addYField(aggregate("Revenue"));
+      VSChartDimensionRef colour = dimension("Segment", XSchema.STRING, -1);
+      VSAestheticRef aesthetic = new VSAestheticRef();
+      aesthetic.setDataRef(colour);
+      aesthetic.setRTDataRef(colour);
+      cinfo.setColorField(aesthetic);
+      bind();
+
+      doAnswer(invocation -> {
+         aesthetic.setRTDataRef(colour);
+         return null;
+      }).when(box).updateAssembly("Chart1");
+
+      service().setFormat("tok", principal(), field("Sum(Revenue)", dollars()), "");
+
+      InOrder order = inOrder(box);
+      order.verify(box).updateAssembly("Chart1");
+      order.verify(box).clearGraph("Chart1");
+      assertNotNull(((VSAestheticRef) cinfo.getColorField()).getRTDataRef(),
+                    "the colour field's runtime ref is restored after the format write");
    }
 
    // ── helpers ─────────────────────────────────────────────────────────────────────────────
@@ -288,4 +323,5 @@ class ViewsheetFormatServiceFieldTargetRenderTest {
    private ChartVSAssembly chart;
    private VSChartInfo cinfo;
    private ViewsheetSessionService sessions;
+   private ViewsheetSandbox box;
 }

@@ -28,7 +28,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
@@ -66,6 +68,24 @@ class AxisPropertyDialogModelTest {
       assertNull(axisDescriptor.getMaximum());
       assertNull(axisDescriptor.getIncrement());
       assertNull(axisDescriptor.getMinorIncrement());
+   }
+
+   @Test
+   void aBadNumberLeavesTheDescriptorUntouched() {
+      AxisDescriptor axisDescriptor = new AxisDescriptor();
+      boolean ticks = axisDescriptor.isTicksVisible();
+      java.awt.Color color = axisDescriptor.getLineColor();
+      axisPropertyDialogModel.getAxisLinePaneModel().setShowTicks(!ticks);
+      axisPropertyDialogModel.getAxisLinePaneModel().setLineColor("#ff0000");
+      axisPropertyDialogModel.getAxisLinePaneModel().setIncrement("2");
+      axisPropertyDialogModel.getAxisLinePaneModel().setMinimum("abc");
+
+      assertThrows(NumberFormatException.class, () ->
+         axisPropertyDialogModel.updateAxisPropertyDialogModel(axisDescriptor, "", "", false));
+
+      assertEquals(ticks, axisDescriptor.isTicksVisible());
+      assertNull(axisDescriptor.getIncrement());
+      assertEquals(color, axisDescriptor.getLineColor());
    }
 
    @Test

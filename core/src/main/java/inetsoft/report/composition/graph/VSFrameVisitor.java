@@ -422,6 +422,7 @@ public class VSFrameVisitor {
       }
 
       frame.getLegendSpec().getTextSpec().setFormat(dfmt);
+      frame.setKeyFormat(dfmt);
 
       if(col != null && frame instanceof CategoricalColorFrame &&
          ((CategoricalColorFrame) frame).isShareColors())
@@ -435,6 +436,7 @@ public class VSFrameVisitor {
          if(sharedFrame != null) {
             frame = (VisualFrame) sharedFrame.clone();
             frame.setField(col);
+            frame.setKeyFormat(dfmt);
             tref.setVisualFrame(frame);
          }
 

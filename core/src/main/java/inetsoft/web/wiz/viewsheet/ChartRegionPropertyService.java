@@ -153,6 +153,7 @@ public class ChartRegionPropertyService {
       properties = normalizeToAliasKeys(name, properties);
 
       if("axis".equals(name)) {
+         requireNumericAxisValues(properties);
          field = resolveAxisField(sessionToken, user, assembly, key, field);
          // First, so a mixed or multi-dimension shelf gets the "pass field" message rather than a
          // misleading linear/non-linear one (bug #78187).
@@ -213,6 +214,12 @@ public class ChartRegionPropertyService {
                "'" + propertyKey + "' is not a property of a chart " + name + ". Known " +
                "names: " + String.join(", ", new TreeSet<>(aliases.keySet())) +
                ". A raw model path (containing a '.') is also accepted.");
+         }
+
+         if(resolved.containsKey(path)) {
+            throw new IllegalArgumentException(
+               "'" + propertyKey + "' sets '" + path + "', which another key in this patch " +
+               "already sets. Send each property once.");
          }
 
          resolved.put(path, property.getValue());
@@ -535,6 +542,34 @@ public class ChartRegionPropertyService {
          return GraphUtil.isTimeSeriesVisible(info, kind.matchedRef());
       });
 
+      boolean outer = timeSeries &&
+         sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+            VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+            String canonical = ChartRegionResolver.canonical(axisTarget);
+            boolean onYShelf = "y".equals(canonical) || "y2".equals(canonical);
+            ChartRef[] shelf = onYShelf ? info.getYFields() : info.getXFields();
+
+            if(Arrays.stream(shelf).anyMatch(ref -> ref instanceof ChartAggregateRef)) {
+               return false;
+            }
+
+            for(int i = 0; i < shelf.length - 1; i++) {
+               if(shelf[i] == kind.matchedRef()) {
+                  return true;
+               }
+            }
+
+            return false;
+         });
+
+      if(outer) {
+         throw new IllegalArgumentException(
+            "'increment' only applies to the innermost time-series axis; '" + axisTarget + "'" +
+            (field != null && !field.isBlank() ? " ('" + field + "')" : "") +
+            " is an outer axis here (another dimension follows it on the shelf), so this would " +
+            "be silently ignored. Omit it.");
+      }
+
       if(!timeSeries) {
          throw new IllegalArgumentException(
             "'increment' only applies to a linear (measure) axis, or a non-linear time-series " +
@@ -609,6 +644,45 @@ public class ChartRegionPropertyService {
             : Arrays.asList(axisCandidates(info, canonical));
          return new AxisKind(false, onAxis.size() == 1 ? onAxis.get(0) : null);
       });
+   }
+
+   private static final List<String> NUMERIC_AXIS_KEYS =
+      List.of("minimum", "maximum", "increment", "minorIncrement");
+
+   /**
+    * Refuses a non-numeric axis range value before anything is written. The model parses these
+    * with Float.valueOf mid-way through writing the live axis descriptor, so a bad value used to
+    * leave the keys written before it applied. null or exactly "" clears the value, as the model
+    * does; anything else must parse to a finite number.
+    */
+   private static void requireNumericAxisValues(Map<String, Object> properties) {
+      for(String key : NUMERIC_AXIS_KEYS) {
+         if(!properties.containsKey(key)) {
+            continue;
+         }
+
+         Object value = properties.get(key);
+
+         if(value == null || "".equals(value)) {
+            continue;
+         }
+
+         String text = String.valueOf(value);
+         boolean valid;
+
+         try {
+            valid = Float.isFinite(Float.parseFloat(text));
+         }
+         catch(NumberFormatException ex) {
+            valid = false;
+         }
+
+         if(!valid) {
+            throw new IllegalArgumentException(
+               "'" + key + "' must be a finite number (or empty to clear it); '" + text +
+               "' is not. Nothing was changed.");
+         }
+      }
    }
 
    /** The angles both the axis label and the title actually offer, degrees, "auto" aside. */
@@ -1199,7 +1273,15 @@ public class ChartRegionPropertyService {
       for(Map.Entry<String, Object> entry : properties.entrySet()) {
          String key = PropertyAliases.lowerSegmentInitials(entry.getKey());
          String canonical = key != null ? reverse.get(key) : null;
-         normalized.put(canonical != null ? canonical : key, entry.getValue());
+         String target = canonical != null ? canonical : key;
+
+         if(normalized.containsKey(target)) {
+            throw new IllegalArgumentException(
+               "'" + target + "' is given twice in one patch (as '" + entry.getKey() + "' and " +
+               "under another spelling of the same property). Send each property once.");
+         }
+
+         normalized.put(target, entry.getValue());
       }
 
       return normalized;
