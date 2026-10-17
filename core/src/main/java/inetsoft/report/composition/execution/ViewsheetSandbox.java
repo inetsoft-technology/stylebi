@@ -6709,7 +6709,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    /**
     * Stop reusing the cached graph of a chart, so the next request builds it again. Unlike
     * clearGraph, the graph is not cancelled: its init may still be running, e.g. it runs the
-    * chart's own script, which may be the caller (Bug #76862).
+    * chart's own script, which may be the caller (Bug #76862). Whichever pair is cached is
+    * removed, even one being built from the new binding, which costs at most one more build.
     */
    public void removeGraph(String name) {
       int index = name.lastIndexOf('.');

@@ -38,8 +38,11 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.util.CoreTool;
 import inetsoft.util.Plugins;
 import inetsoft.util.ThreadContext;
+import inetsoft.util.UserMessage;
 import inetsoft.util.credential.CredentialService;
 import inetsoft.util.script.graal.pool.PoolConfig;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
@@ -237,6 +240,45 @@ class ChartRankingScriptWriteTest {
       }
       finally {
          ThreadContext.setPrincipal(old);
+      }
+   }
+
+   /**
+    * A BINDING_FIELD ranking write in a chart's own script, on a field the chart has on its
+    * group shelf, throws. On the graph build the first script pass ignores errors, so the
+    * second pass must report it to the user. The statements after it do not run.
+    */
+   @Test
+   void groupShelfBindingFieldWriteInChartScriptIsReportedOnTheGraphBuild() throws Exception {
+      VSChartInfo info = chart.getVSChartInfo();
+      info.removeXFields();
+      info.addGroupField(dim);
+      ChartVSAssemblyInfo ainfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      ainfo.setScriptEnabled(true);
+      ainfo.setScript("bindingInfo.setTopN('" + STATE + "', 2, Chart.BINDING_FIELD);\n" +
+                      "bindingInfo.setTopNReverse('" + STATE + "', true);");
+      Principal old = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         CoreTool.clearUserMessage();
+         VGraphPair pair = vbox.getVGraphPair(CHART, true, null);
+         assertNotNull(pair, "the chart still renders");
+
+         UserMessage msg = CoreTool.getUserMessage();
+         assertNotNull(msg, "the script error is reported to the user");
+         assertTrue(msg.getMessage().contains(STATE + " is not on the x or y shelf"),
+                    msg.getMessage());
+         assertTrue(msg.getMessage().contains("omit the type (or pass 0)"), msg.getMessage());
+         assertEquals("3", dim.getRankingNValue(), "the throwing write changed nothing");
+         assertEquals("" + XCondition.TOP_N, dim.getRankingOptionValue(),
+                      "the statement after the throwing one did not run");
+      }
+      finally {
+         ThreadContext.setPrincipal(old);
+         CoreTool.clearUserMessage();
       }
    }
 

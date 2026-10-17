@@ -122,6 +122,12 @@ public class VSChartBindingScriptableTopNTypeTest {
       assertThrows(RuntimeException.class, () -> ctx.eval("js", "getTopN()"));
       assertEquals("5", stateRef.getRankingNValue());
 
+      bind("setTopNSummaryCol", "getTopNSummaryCol");
+      String col = stateRef.getRankingColValue();
+      assertThrows(RuntimeException.class, () -> ctx.eval("js", "setTopNSummaryCol('STATE')"));
+      assertThrows(RuntimeException.class, () -> ctx.eval("js", "getTopNSummaryCol()"));
+      assertEquals(col, stateRef.getRankingColValue());
+
       // the message VSD-018 pins for the 0-arg getter
       Exception ex = assertThrows(RuntimeException.class,
                                   () -> ctx.eval("js", "isTopNReverse()"));
