@@ -123,4 +123,50 @@ class ChangeSeparateStatusDesignFlagsTest {
                    withDc.getAxisDescriptor().isLogarithmicScale());
       assertFalse(withDc.isDesignMultiStyles());
    }
+
+   /** Design merged, a shared axis minimum of 5; the first measure's own axis is untouched. */
+   private static VSChartInfo mergedChart(boolean underDateComparison) {
+      VSChartInfo info = chart(underDateComparison);
+      info.setSeparatedGraph(false);
+      info.getAxisDescriptor().setMinimum(5);
+
+      if(underDateComparison) {
+         // changeAndValue: the override says separated=false/multi=true, same as the design flag
+         // read for separated, so make the override differ from the request being made below.
+         info.setRuntimeSeparated(false);
+      }
+
+      return info;
+   }
+
+   private static Number minimumOf(VSChartInfo info, int y) {
+      return ((VSChartAggregateRef) info.getYField(y)).getAxisDescriptor().getMinimum();
+   }
+
+   @Test
+   void mergedToSeparatedUnderADateComparisonCopiesTheSharedAxisToEveryMeasure() {
+      VSChartInfo without = mergedChart(false);
+      VSChartInfo withDc = mergedChart(true);
+      // a fresh y axis of its own would hide a copy that did not happen
+      ((VSChartAggregateRef) without.getYField(1)).setAxisDescriptor(new AxisDescriptor());
+      ((VSChartAggregateRef) withDc.getYField(1)).setAxisDescriptor(new AxisDescriptor());
+
+      new ChangeSeparateStatusProcessor(without, new ChartDescriptor()).process(true, false);
+      new ChangeSeparateStatusProcessor(withDc, new ChartDescriptor()).process(true, false);
+
+      assertEquals(minimumOf(without, 1), minimumOf(withDc, 1));
+      assertEquals(minimumOf(without, 0), minimumOf(withDc, 0));
+      assertEquals(5, minimumOf(withDc, 1).intValue());
+      assertTrue(withDc.isDesignSeparated());
+   }
+
+   @Test
+   void designMultiStyleToggleUnderADateComparisonDoesNotFail() {
+      VSChartInfo info = chart(true);
+      info.setMultiStyles(true);
+
+      assertDoesNotThrow(
+         () -> new ChangeSeparateStatusProcessor(info, new ChartDescriptor()).process(false, true));
+      assertTrue(info.isDesignMultiStyles());
+   }
 }

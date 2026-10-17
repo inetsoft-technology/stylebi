@@ -625,12 +625,20 @@ public class ChangeChartProcessor {
     * Get the available chart type to show a corresponding shape frame.
     */
    protected int getChartType(ChartInfo info, ChartAggregateRef aggr) {
+      return getChartType(info, aggr, info.isMultiStyles());
+   }
+
+   /**
+    * @param multi the multi-style state to decide from, for a caller that must not read the
+    *              runtime flag (an applied date comparison overrides it).
+    */
+   protected int getChartType(ChartInfo info, ChartAggregateRef aggr, boolean multi) {
       ChartRef[] xrefs = info.getXFields();
       ChartRef[] yrefs = info.getYFields();
-      info.updateChartType(!info.isMultiStyles(), xrefs, yrefs);
+      info.updateChartType(!multi, xrefs, yrefs);
 
       // separated?
-      if(!info.isMultiStyles()) {
+      if(!multi) {
          return info.getRTChartType();
       }
 
@@ -1419,7 +1427,12 @@ public class ChangeChartProcessor {
             break;
          case Calculator.RUNNINGTOTAL :
          case Calculator.COMPOUNDGROWTH :
-            modifiedBreakBy((RunningTotalCalc) calc, info);
+            if(!Tool.equals(AbstractCalc.ROW_INNER, ((RunningTotalCalc) calc).getColumnName()) &&
+               !Tool.equals(AbstractCalc.COLUMN_INNER, ((RunningTotalCalc) calc).getColumnName()))
+            {
+               modifiedBreakBy((RunningTotalCalc) calc, info);
+            }
+
             break;
          case Calculator.CHANGE :
          case Calculator.VALUE :

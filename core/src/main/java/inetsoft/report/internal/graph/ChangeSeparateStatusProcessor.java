@@ -61,7 +61,7 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
       info.updateChartType(!multi);
 
       if(separatedChanged) {
-         fixAxisProperties(info, info.isSeparatedGraph());
+         fixAxisProperties(info, separated);
 
          // keep the y axis settings/format
          if(info.getYFieldCount() > 0 && info.getYField(0) instanceof ChartAggregateRef) {
@@ -149,13 +149,15 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
          }
       }
 
-      if(info.isMultiAesthetic()) {
+      // The requested multi, not info.isMultiAesthetic()/isMultiStyles(): under a date
+      // comparison those read the runtime override, not the design just written above.
+      if(multi || info instanceof GanttVSChartInfo) {
          for(ChartAggregateRef ref : info.getAestheticAggregateRefs(false)) {
-            fixShapeField(ref, info, getChartType(info, ref));
+            fixShapeField(ref, info, getChartType(info, ref, multi));
          }
       }
       else {
-         fixShapeField(info, info, getChartType(info, null));
+         fixShapeField(info, info, getChartType(info, null, multi));
       }
    }
 
