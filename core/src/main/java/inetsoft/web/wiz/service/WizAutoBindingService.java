@@ -808,11 +808,6 @@ public class WizAutoBindingService {
    }
 
    /**
-    * Every {@link DynamicColumnCollision} on {@code target}, in binding order. Matched by kind, so a
-    * static dimension is never made dynamic by a "$(...)" MEASURE over the same column. Empty for the
-    * common chart without a dynamic ref.
-    */
-   /**
     * One message per measure whose column the configs also bind as a dimension. The rebuild feeds the
     * recommender one field per column and the dimension wins, so that measure does not survive.
     */
@@ -846,6 +841,11 @@ public class WizAutoBindingService {
       return messages;
    }
 
+   /**
+    * Every {@link DynamicColumnCollision} on {@code target}, in binding order. Matched by kind, so a
+    * static dimension is never made dynamic by a "$(...)" MEASURE over the same column. Empty for the
+    * common chart without a dynamic ref.
+    */
    List<DynamicColumnCollision> dynamicColumnCollisions(VSAssembly target) {
       List<DataRef> refs = bindingRefsOf(target);
       Map<String, String> dynamicDims = new LinkedHashMap<>();
@@ -1387,7 +1387,7 @@ public class WizAutoBindingService {
             continue;
          }
 
-         SimpleFieldInfo fc = configMap.get(agg.getColumnValue());
+         SimpleFieldInfo fc = configFor(configMap, agg.getColumnValue(), false);
 
          if(fc instanceof MeasureFieldInfo meaFc) {
             if(meaFc.getAggregateFormula() != null) {

@@ -214,6 +214,7 @@ class WizAutoBindingServiceCrossKindColumnTest {
 
       assertEquals("State", row.getGroupColumnValue());
       assertEquals(DYNAMIC, agg.getColumnValue());
+      assertEquals("Sum", agg.getFormulaValue());
    }
 
    @Test
