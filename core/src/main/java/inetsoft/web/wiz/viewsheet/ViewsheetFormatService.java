@@ -1469,7 +1469,14 @@ public class ViewsheetFormatService {
          // clear the cached descriptor and graph explicitly, as WizAutoBindingService does after
          // the same call, or the next render serves the old axis.
          ((ChartVSAssemblyInfo) liveChart.getVSAssemblyInfo()).setRTChartDescriptor(null);
-         rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(liveChart.getAbsoluteName()));
+         Optional<ViewsheetSandbox> sandbox = rvs.getViewsheetSandbox();
+
+         if(sandbox.isPresent()) {
+            // clearRuntime also nulled every aesthetic ref's runtime data ref, which only
+            // updateAssembly restores; without it a cached chart renders with no colour legend.
+            sandbox.get().updateAssembly(liveChart.getAbsoluteName());
+            sandbox.get().clearGraph(liveChart.getAbsoluteName());
+         }
       });
 
       if(sessionWarnings != null) {

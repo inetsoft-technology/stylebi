@@ -739,7 +739,8 @@ class ChartRegionPropertyServiceTest {
       verifyNoInteractions(h.regions);
    }
 
-   /** Review r1 N1: a full name equal to another ref's base name still resolves to one ref. */
+   /** Review r1 N1: a full name equal to another ref's base name still resolves to one ref.
+    *  The date ref is innermost, so the increment is not refused as an outer axis (#78752). */
    @Test
    void resolvesAFullNameThatEqualsAnotherRefsBaseName() throws Exception {
       VSChartDimensionRef year = mock(VSChartDimensionRef.class);
@@ -751,7 +752,7 @@ class ChartRegionPropertyServiceTest {
       when(other.getFullName()).thenReturn("Month(Order:Date)");
       when(other.getName()).thenReturn("Year(Order:Date)");
 
-      Harness h = harness(withRuntimeFields(mixedShelfViewsheet(new ChartRef[] { year, other })));
+      Harness h = harness(withRuntimeFields(mixedShelfViewsheet(new ChartRef[] { other, year })));
       when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
                                                 any(), anyString(), any(Principal.class)))
          .thenReturn(axisModel());
@@ -2101,6 +2102,144 @@ class ChartRegionPropertyServiceTest {
     * panes null, and PropertyPath deliberately refuses to instantiate an absent intermediate
     * (a null pane means "this property does not apply here"). So the fixtures populate them.
     */
+   // ── Bug #78752 ──────────────────────────────────────────────────────────────────────────
+
+   private static VSChartDimensionRef dateDim() {
+      VSChartDimensionRef date = mock(VSChartDimensionRef.class);
+      when(date.getFullName()).thenReturn("Year(ORDER_DATE)");
+      when(date.getName()).thenReturn("ORDER_DATE");
+      when(date.getDataType()).thenReturn(XSchema.DATE);
+      when(date.isTimeSeries()).thenReturn(true);
+      return date;
+   }
+
+   private static VSChartDimensionRef categoryDim() {
+      VSChartDimensionRef cat = mock(VSChartDimensionRef.class);
+      when(cat.getFullName()).thenReturn("STATE");
+      when(cat.getName()).thenReturn("STATE");
+      when(cat.getDataType()).thenReturn(XSchema.STRING);
+      when(cat.isTimeSeries()).thenReturn(false);
+      return cat;
+   }
+
+   private static void stubAxisModel(Harness h) throws Exception {
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+   }
+
+   @Test
+   void refusesAnAliasAndItsRawSpellingInOnePatch() {
+      Harness h = harness();
+      Map<String, Object> patch = new java.util.LinkedHashMap<>();
+      patch.put("rotation", "30");
+      patch.put("axisLabelPaneModel.rotationRadioGroupModel.Rotation", "45");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null, patch, ""));
+
+      assertTrue(thrown.getMessage().matches("(?is).*(rotation|minimum).*"),
+                 thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void refusesAMinimumGivenAsAliasAndRawPathInOnePatch() {
+      Harness h = harness();
+      Map<String, Object> patch = new java.util.LinkedHashMap<>();
+      patch.put("minimum", 5);
+      patch.put("axisLinePaneModel.Minimum", 7);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null, patch, ""));
+
+      assertTrue(thrown.getMessage().toLowerCase().contains("minimum"), thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void refusesIncrementOnAnOuterTimeSeriesAxisOfADimensionsOnlyShelf() {
+      VSChartDimensionRef date = dateDim();
+      Harness h = harness(withRuntimeFields(
+         mixedShelfViewsheet(new ChartRef[] { date, categoryDim() })));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", "Year(ORDER_DATE)",
+                             Map.of("increment", "3"), ""));
+
+      assertTrue(thrown.getMessage().contains("increment"), thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void stillAcceptsIncrementOnTheInnermostTimeSeriesAxis() throws Exception {
+      Harness h = harness(withRuntimeFields(
+         mixedShelfViewsheet(new ChartRef[] { categoryDim(), dateDim() })));
+      stubAxisModel(h);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", "Year(ORDER_DATE)",
+                    Map.of("increment", "2"), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   @Test
+   void stillRefusesIncrementOnACategoricalDimensionOfATwoDimensionShelf() {
+      Harness h = harness(withRuntimeFields(
+         mixedShelfViewsheet(new ChartRef[] { dateDim(), categoryDim() })));
+
+      assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", "STATE",
+                             Map.of("increment", "3"), ""));
+      verifyNoInteractions(h.regions);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "minimum", "maximum", "increment", "minorIncrement" })
+   void refusesANonNumericRangeValueNamingTheKeyAndWritesNothing(String key) {
+      Harness h = harness();
+      Map<String, Object> patch = new java.util.LinkedHashMap<>();
+      patch.put("showTicks", false);
+      patch.put("lineColor", "#ff0000");
+      patch.put(key, "abc");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null, patch, ""));
+
+      assertTrue(thrown.getMessage().contains(key), thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("For input string"), thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "   ", "NaN", "Infinity", "-Infinity", "1e999", "1,000" })
+   void refusesWhitespaceAndNonFiniteRangeValues(String value) {
+      Harness h = harness();
+
+      assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("minimum", value), ""));
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void acceptsNumberAndEmptyRangeValues() throws Exception {
+      Harness h = harness();
+      stubAxisModel(h);
+      Map<String, Object> patch = new java.util.LinkedHashMap<>();
+      patch.put("minimum", 5);
+      patch.put("maximum", "");
+      patch.put("minorIncrement", null);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null, patch, "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
    private static AxisPropertyDialogModel axisModel() {
       AxisPropertyDialogModel model = new AxisPropertyDialogModel();
       model.setAxisLinePaneModel(new AxisLinePaneModel());
