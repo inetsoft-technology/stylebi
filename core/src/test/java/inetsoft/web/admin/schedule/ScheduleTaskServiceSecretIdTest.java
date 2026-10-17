@@ -21,6 +21,8 @@ import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.util.*;
@@ -374,7 +376,12 @@ class ScheduleTaskServiceSecretIdTest {
          List.of(imported.getTaskId()), request, true, "http://host/", principal);
 
       assertTrue(response.failedTasks().isEmpty(), response.failedTasks().toString());
-      verify(scheduleManager).setScheduleTask(imported.getTaskId(), imported, principal);
+      // Bug #78740, an overwritten unmoved task is saved with the explicit root folder entry
+      verify(scheduleManager).setScheduleTask(
+         eq(imported.getTaskId()), eq(imported),
+         argThat(e -> e != null && e.getType() == AssetEntry.Type.SCHEDULE_TASK_FOLDER &&
+            "/".equals(e.getPath()) && e.getScope() == AssetRepository.GLOBAL_SCOPE),
+         eq(principal));
    }
 
    private void assertRejected(org.junit.jupiter.api.function.Executable executable) {
