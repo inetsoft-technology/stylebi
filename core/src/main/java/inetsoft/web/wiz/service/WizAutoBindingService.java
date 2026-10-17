@@ -261,9 +261,7 @@ public class WizAutoBindingService {
             fieldConfigs = derivedFieldConfigsWithin(sourceAssembly, worksheetColumns);
          }
 
-         Map<String, SimpleFieldInfo> configMap = fieldConfigs.stream()
-            .filter(f -> f != null && f.getField() != null)
-            .collect(Collectors.toMap(SimpleFieldInfo::getField, f -> f, (a, b) -> a));
+         Map<String, SimpleFieldInfo> configMap = new KindSplitConfigMap(fieldConfigs);
 
          final String tableNameFinal = tableName;
          List<ColumnRef> bindColumns =
@@ -814,6 +812,40 @@ public class WizAutoBindingService {
     * static dimension is never made dynamic by a "$(...)" MEASURE over the same column. Empty for the
     * common chart without a dynamic ref.
     */
+   /**
+    * One message per measure whose column the configs also bind as a dimension. The rebuild feeds the
+    * recommender one field per column and the dimension wins, so that measure does not survive.
+    */
+   static List<String> crossKindDroppedFields(List<SimpleFieldInfo> configs) {
+      Set<String> dimensionColumns = new HashSet<>();
+
+      for(SimpleFieldInfo fc : configs) {
+         if(fc instanceof DimensionFieldInfo && fc.getField() != null) {
+            dimensionColumns.add(fc.getField());
+         }
+      }
+
+      List<String> messages = new ArrayList<>();
+      Set<String> seen = new HashSet<>();
+
+      for(SimpleFieldInfo fc : configs) {
+         if(fc instanceof MeasureFieldInfo mea && mea.getField() != null &&
+            dimensionColumns.contains(mea.getField()))
+         {
+            String name = !Tool.isEmptyString(mea.getFullName()) ? mea.getFullName() :
+               !Tool.isEmptyString(mea.getAggregateFormula())
+                  ? mea.getAggregateFormula() + "(" + mea.getField() + ")" : mea.getField();
+
+            if(seen.add(name)) {
+               messages.add(name + " was dropped: " + mea.getField() + " is also bound as a " +
+                  "dimension, and a rebuilt binding keeps one field per column.");
+            }
+         }
+      }
+
+      return messages;
+   }
+
    List<DynamicColumnCollision> dynamicColumnCollisions(VSAssembly target) {
       List<DataRef> refs = bindingRefsOf(target);
       Map<String, String> dynamicDims = new LinkedHashMap<>();
@@ -1262,6 +1294,60 @@ public class WizAutoBindingService {
    }
 
    /**
+    * The field-config lookup, first-wins by column name as before, that also keeps a separate
+    * first-wins map per kind. A column bound as both a dimension and a measure (State and
+    * Count(State)) has two configs under one name, and the plain name-keyed map only ever holds the
+    * dimension's; {@link #configFor} resolves the one of the kind the ref being configured has.
+    */
+   static final class KindSplitConfigMap extends LinkedHashMap<String, SimpleFieldInfo> {
+      private final Map<String, SimpleFieldInfo> dimensions = new HashMap<>();
+      private final Map<String, SimpleFieldInfo> measures = new HashMap<>();
+
+      KindSplitConfigMap(List<SimpleFieldInfo> configs) {
+         for(SimpleFieldInfo fc : configs) {
+            if(fc == null || fc.getField() == null) {
+               continue;
+            }
+
+            putIfAbsent(fc.getField(), fc);
+
+            if(fc instanceof DimensionFieldInfo) {
+               dimensions.putIfAbsent(fc.getField(), fc);
+            }
+            else if(fc instanceof MeasureFieldInfo) {
+               measures.putIfAbsent(fc.getField(), fc);
+            }
+         }
+      }
+   }
+
+   /**
+    * The config for {@code name} of the ref's own kind; a config of the other kind is never
+    * returned, so a dimension ref cannot pick up its measure's settings or the reverse.
+    */
+   static SimpleFieldInfo configFor(Map<String, SimpleFieldInfo> configMap, String name,
+                                    boolean dimension)
+   {
+      if(configMap == null || name == null) {
+         return null;
+      }
+
+      if(configMap instanceof KindSplitConfigMap split) {
+         return (dimension ? split.dimensions : split.measures).get(name);
+      }
+
+      SimpleFieldInfo fc = configMap.get(name);
+
+      if(fc == null || fc instanceof DimensionFieldInfo == dimension
+         || !(fc instanceof DimensionFieldInfo || fc instanceof MeasureFieldInfo))
+      {
+         return fc;
+      }
+
+      return null;
+   }
+
+   /**
     * Puts the original "$(ComponentName)" literal back on any ref that was bound through the column
     * that reference resolved to (see {@link #resolveDynamicFieldConfigs}), so the rebuilt binding
     * keeps following the Form component. No-op for the ordinary case where no config carries one.
@@ -1273,14 +1359,14 @@ public class WizAutoBindingService {
 
       for(DataRef ref : refs) {
          if(ref instanceof VSDimensionRef dim) {
-            SimpleFieldInfo fc = configMap.get(dim.getGroupColumnValue());
+            SimpleFieldInfo fc = configFor(configMap, dim.getGroupColumnValue(), true);
 
             if(fc != null && fc.getDynamicColumnValue() != null) {
                dim.setGroupColumnValue(fc.getDynamicColumnValue());
             }
          }
          else if(ref instanceof VSAggregateRef agg) {
-            SimpleFieldInfo fc = configMap.get(agg.getColumnValue());
+            SimpleFieldInfo fc = configFor(configMap, agg.getColumnValue(), false);
 
             if(fc != null && fc.getDynamicColumnValue() != null) {
                agg.setColumnValue(fc.getDynamicColumnValue());
@@ -1383,7 +1469,8 @@ public class WizAutoBindingService {
             continue;
          }
 
-         SimpleFieldInfo fc = configMap.get(WizardRecommenderUtil.getChartRefFieldName(ref));
+         SimpleFieldInfo fc = configFor(configMap, WizardRecommenderUtil.getChartRefFieldName(ref),
+                                        ref instanceof VSChartDimensionRef);
          String title = fc == null ? null : fc.getTitle();
 
          if(title != null && !title.isEmpty()) {
@@ -1592,7 +1679,7 @@ public class WizAutoBindingService {
    static void applyFieldConfig(ChartRef ref, Map<String, SimpleFieldInfo> configMap,
                                   int chartType) {
       String fieldName = WizardRecommenderUtil.getChartRefFieldName(ref);
-      SimpleFieldInfo fc = configMap.get(fieldName);
+      SimpleFieldInfo fc = configFor(configMap, fieldName, ref instanceof VSChartDimensionRef);
 
       if(fc == null) {
          return;
@@ -2960,9 +3047,7 @@ public class WizAutoBindingService {
       // assign that same field.
       List<SimpleFieldInfo> fieldConfigs = request.getFieldConfigs();
       Map<String, SimpleFieldInfo> configMap = fieldConfigs == null ? Collections.emptyMap() :
-         fieldConfigs.stream()
-            .filter(f -> f != null && f.getField() != null)
-            .collect(Collectors.toMap(SimpleFieldInfo::getField, f -> f, (a, b) -> a));
+         new KindSplitConfigMap(fieldConfigs);
 
       // 1. Try to get the recommendation model stored by a prior autoBinding call.
       VSRecommendationModel model = null;
@@ -3069,6 +3154,12 @@ public class WizAutoBindingService {
                   "through " + collision.dynamicValue() + "; the rebuilt binding has one " +
                   collision.column() + " field, which follows " + collision.dynamicValue() + ".");
             }
+         }
+
+         // One field per column survives the rebuild, and a dimension always wins over a measure of
+         // the same column, so say which measure was dropped rather than lose it silently.
+         for(String dropped : crossKindDroppedFields(targetFieldConfigs)) {
+            result.addWarning("binding", dropped);
          }
 
          // Populate headers/rows for data insight (same as the fast path below).
