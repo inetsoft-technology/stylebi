@@ -1224,7 +1224,7 @@ public class VGraph extends BoundedContainer {
                                              BufferedImage.TYPE_INT_ARGB);
       int width = img.getWidth();
       int[] imgData = new int[width];
-      int mask = ((int) (alpha * 255)) << (6 * 4);
+      int mask = ((int) (GTool.clampAlpha(alpha) * 255)) << (6 * 4);
 
       for(int y = 0; y < img.getHeight(); y++) {
          img.getRGB(0, y, width, 1, imgData, 0, 1);

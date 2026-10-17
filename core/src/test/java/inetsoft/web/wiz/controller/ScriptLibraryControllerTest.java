@@ -60,12 +60,37 @@ class ScriptLibraryControllerTest {
    void create_returnsAResyncWarning() throws Exception {
       Fixture fixture = new Fixture();
 
-      ScriptLibraryController.ScriptLibraryFunctionDetail result = fixture.controller.create(
-         new ScriptLibraryController.CreateScriptLibraryFunctionRequest(
-            "helper", "return 1;", null),
-         fixture.principal);
+      try(MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class)) {
+         handler.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
 
-      assertNotNull(result.resyncWarning());
+         ScriptLibraryController.ScriptLibraryFunctionDetail result = fixture.controller.create(
+            new ScriptLibraryController.CreateScriptLibraryFunctionRequest(
+               "helper", "return 1;", null),
+            fixture.principal);
+
+         assertNotNull(result.resyncWarning());
+      }
+   }
+
+   /** Bug #78735: create must record the new body's outgoing edges, as update does. */
+   @Test
+   void create_recordsTheOutgoingDependencyGraph() throws Exception {
+      Fixture fixture = new Fixture();
+      DependencyHandler dependencyHandler = mock(DependencyHandler.class);
+
+      try(MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class)) {
+         handler.when(DependencyHandler::getInstance).thenReturn(dependencyHandler);
+
+         fixture.controller.create(
+            new ScriptLibraryController.CreateScriptLibraryFunctionRequest(
+               "helper", "return other();", null),
+            fixture.principal);
+
+         AssetEntry expectedEntry = new AssetEntry(
+            AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, "helper", null);
+         verify(dependencyHandler).updateScriptDependencies(
+            isNull(), eq("return other();"), eq(expectedEntry));
+      }
    }
 
    @Test
@@ -92,7 +117,10 @@ class ScriptLibraryControllerTest {
       Fixture fixture = new Fixture();
       fixture.stubRemovableScript("helper", "return 1;");
 
-      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class);
+          MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class))
+      {
+         handler.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
          transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
             .thenReturn(List.of());
 
@@ -121,7 +149,10 @@ class ScriptLibraryControllerTest {
       AssetEntry dependent = new AssetEntry(
          AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.VIEWSHEET, "report", null);
 
-      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class);
+          MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class))
+      {
+         handler.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
          transformer.when(() -> DependencyTransformer.getDependencies(componentScopedId("helper")))
             .thenReturn(List.<AssetObject>of(dependent));
 
@@ -140,7 +171,10 @@ class ScriptLibraryControllerTest {
       // GLOBAL_SCOPE is the scope RemoveAssetController.checkScriptRemoveable's own (buggy) lookup
       // used, and the bug this test guards against: a lookup keyed there never matches a real
       // dependency record, so force=false would silently allow an unsafe delete.
-      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class);
+          MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class))
+      {
+         handler.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
          transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
             .thenReturn(List.of());
 
@@ -154,12 +188,38 @@ class ScriptLibraryControllerTest {
       verify(fixture.lib).removeScript("helper");
    }
 
+   /** Bug #78735: deleting a caller must drop its edges to its callees, or deleting the callee is refused. */
+   @Test
+   void delete_removesTheDeletedFunctionsOutgoingDependencyEdges() throws Exception {
+      Fixture fixture = new Fixture();
+      fixture.stubRemovableScript("helper", "return other();");
+      DependencyHandler dependencyHandler = mock(DependencyHandler.class);
+
+      try(MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class);
+          MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class))
+      {
+         handler.when(DependencyHandler::getInstance).thenReturn(dependencyHandler);
+         transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
+            .thenReturn(List.of());
+
+         fixture.controller.delete("helper", false, fixture.principal);
+
+         AssetEntry expectedEntry = new AssetEntry(
+            AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, "helper", null);
+         verify(dependencyHandler).updateScriptDependencies(
+            eq("return other();"), isNull(), eq(expectedEntry));
+      }
+   }
+
    @Test
    void delete_allowsRemovalWhenNoDependentsExist() throws Exception {
       Fixture fixture = new Fixture();
       fixture.stubRemovableScript("helper", "return 1;");
 
-      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class);
+          MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class))
+      {
+         handler.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
          transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
             .thenReturn(List.of());
 
@@ -271,17 +331,8 @@ class ScriptLibraryControllerTest {
    }
 
    /**
-    * The regression this fix is actually about: renameScript() alone only moves the registry key
-    * and patches the derived signature (ScriptLogicalLibrary.renameEntry) -- it never touches the
-    * function's own declaration text, which is what GraalJavaScriptEngine.installLibraryFunctions
-    * actually binds as the JS global. Without the follow-up setScript() rewriting the declaration
-    * itself, the renamed entry would still read "function oldFn(...)" and every caller (already
-    * rewritten by RenameTransformHandler to call newFn(...)) would break with a ReferenceError.
-    *
-    * <p>Note: Util.renameScriptDepended is a dot/bracket-bounded substring replace, not an
-    * identifier-exact-match rename -- this test's fixture avoids any substring-collision (e.g. a
-    * sibling local variable containing "oldFn" as a substring) since that's a known pre-existing
-    * limitation of the shared utility, not something this fix is expected to solve.
+    * LibManager.renameScript renames the function's own declaration (covered against a real
+    * LibManager in LibManagerRenameDeclarationTest); the controller must not rewrite it again.
     */
    @Test
    void rename_rewritesTheFunctionsOwnDeclarationText() throws Exception {
@@ -294,7 +345,8 @@ class ScriptLibraryControllerTest {
          fixture.principal);
 
       verify(fixture.lib).renameScript("oldFn", "newFn");
-      verify(fixture.lib).setScript("newFn", "function newFn(x) { return x * 2; }");
+      verify(fixture.lib, never()).setScript(anyString(), anyString());
+      assertEquals("function newFn(x) { return x * 2; }", fixture.lib.getScript("newFn"));
       verify(fixture.lib).save();
    }
 
@@ -419,7 +471,11 @@ class ScriptLibraryControllerTest {
          scripts.put(name, text);
          when(lib.getScript(anyString())).thenAnswer(i -> scripts.get(i.<String>getArgument(0)));
          doAnswer(i -> {
-            scripts.put(i.getArgument(1), scripts.remove(i.<String>getArgument(0)));
+            String oldName = i.getArgument(0);
+            String newName = i.getArgument(1);
+            // LibManager.renameScript renames the declaration itself
+            scripts.put(newName, LibManager.renameFunctionDeclaration(
+               oldName, newName, scripts.remove(oldName)));
             return null;
          }).when(lib).renameScript(anyString(), anyString());
          doAnswer(i -> {
