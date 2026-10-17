@@ -57,6 +57,7 @@ import inetsoft.util.css.CSSParameter;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.profile.ProfileUtils;
+import inetsoft.util.script.BindingFieldShelfException;
 import inetsoft.util.swap.DataUnavailable;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -494,9 +495,10 @@ public class VGraphPair {
                // clear one of chart's alert message
                Tool.getUserMessage();
             }
-            // the script is not run again to report its error, so report the one the first
-            // run ignored, e.g. a bindingInfo call that failed loud (Bug #76862)
-            else if(scriptError != null) {
+            // the script is not run again to report its error, so report a bindingInfo write
+            // that failed loud in the first run, which ignored it (Bug #76862). Other errors
+            // of that run keep going unreported here, as before
+            else if(BindingFieldShelfException.find(scriptError) != null) {
                reportScriptError(scriptError);
             }
 

@@ -19,6 +19,7 @@ package inetsoft.util.script.graal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.util.TableLoadException;
+import inetsoft.util.script.BindingFieldShelfException;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.pool.WsExecContext;
@@ -2743,6 +2744,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             // (a calc table), and other callers get the script error as before (bug #78071)
             TableLoadException loadFailure = ex.isHostException() ?
                TableLoadException.find(ex.asHostException()) : null;
+            // and a bindingInfo write that failed loud, for the chart graph build, which
+            // reports it where it ignores other errors of the script (Bug #76862)
+            BindingFieldShelfException shelfFailure = ex.isHostException() ?
+               BindingFieldShelfException.find(ex.asHostException()) : null;
 
             // FIX B: increment per-Source error count and warn when limit first crossed
             int limit = maxErrors();
@@ -2771,10 +2776,13 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             // merged host/guest stack trace so nothing useful is lost. (#75555)
             // Nor the load failure itself, which carries a suppressed Truffle stack trace
             // element once it crossed the engine: keep a copy of it (bug #78071)
-            ScriptException se = loadFailure == null ?
-               new ScriptException(ex.getMessage() + loc) :
+            ScriptException se = loadFailure != null ?
                new ScriptException(ex.getMessage() + loc, new TableLoadException(
-                  loadFailure.getMessage(), loadFailure.getCause()));
+                  loadFailure.getMessage(), loadFailure.getCause())) :
+               shelfFailure != null ?
+               new ScriptException(ex.getMessage() + loc,
+                  new BindingFieldShelfException(shelfFailure.getMessage())) :
+               new ScriptException(ex.getMessage() + loc);
             se.setStackTrace(ex.getStackTrace());
             // what the dropped cause said: stopped by a timeout or cancel, not failed. Also
             // when Java code the script called was stopped, e.g. a read of a formula cell

@@ -282,6 +282,33 @@ class ChartRankingScriptWriteTest {
       }
    }
 
+   /**
+    * The graph-build report is only for the bindingInfo fail-loud error: any other error of
+    * the chart's own script keeps its old behaviour there. On the first build that is no
+    * report (the reporting second script run is skipped); a later build that runs it, e.g.
+    * after a resize, reports it as it always did.
+    */
+   @Test
+   void unrelatedChartScriptErrorIsNotNewlyReportedOnTheFirstGraphBuild() throws Exception {
+      ChartVSAssemblyInfo ainfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      ainfo.setScriptEnabled(true);
+      ainfo.setScript("noSuchFunction76862();");
+      Principal old = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         CoreTool.clearUserMessage();
+         assertNotNull(vbox.getVGraphPair(CHART, true, null));
+         assertNull(CoreTool.getUserMessage(), "first build");
+      }
+      finally {
+         ThreadContext.setPrincipal(old);
+         CoreTool.clearUserMessage();
+      }
+   }
+
    private List<String> graphStates() throws Exception {
       VGraphPair pair = vbox.getVGraphPair(CHART, true, null);
       assertNotNull(pair, "graph");

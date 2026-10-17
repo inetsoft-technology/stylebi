@@ -2144,7 +2144,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          XDimensionRef[] others = getInfo().getAllDimensions(ref, true);
 
          if(others != null && others.length > 0) {
-            throw new IllegalArgumentException(
+            throw new BindingFieldShelfException(
                "bindingInfo." + function + "(): " + field + " is not on the x or y shelf, " +
                "which is all Chart.BINDING_FIELD searches; omit the type (or pass 0) to " +
                "reach it on the shelf it is bound to");
