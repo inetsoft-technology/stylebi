@@ -34,6 +34,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -172,6 +173,79 @@ class AssemblyHighlightServiceDerivedConditionTest {
          .filter(r -> r instanceof VSChartDimensionRef)
          .map(ChartRef::getFullName)
          .filter(n -> info.getFieldByName(n, false) == null).toList();
+   }
+
+   private static AssemblyHighlightService.Highlight operandHighlight(String conditionField,
+                                                                       String operator,
+                                                                       List<Object> values)
+   {
+      return new AssemblyHighlightService.Highlight(
+         "h", "#ff0000", null, null,
+         List.of(new ConditionVocabulary.Clause(conditionField, operator, values, null, false,
+                                                false, 0)),
+         false);
+   }
+
+   private static Map<String, Object> fieldOperand(String type, String field) {
+      return Map.of("type", type, "field", field);
+   }
+
+   private static void assertOperandRefused(Built built, AssemblyHighlightService.Highlight hl,
+                                            String named)
+   {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> AssemblyHighlightService.requireNoDerivedConditionField(built.assembly(), hl));
+      assertTrue(e.getMessage().contains("'" + named + "'"), e.getMessage());
+      assertTrue(e.getMessage().toLowerCase().contains("date comparison"), e.getMessage());
+   }
+
+   @Test
+   void fieldTypedValueOperandOnADerivedMeasureOrDimensionIsRefused() {
+      Built built = chart(XConstants.MONTH_DATE_GROUP, DateComparisonInfo.MONTH);
+      List<String> names = new java.util.ArrayList<>(derivedDimensions(built));
+      names.add(built.derivedName());
+      assertTrue(names.size() > 1);
+
+      for(String name : names) {
+         assertOperandRefused(built, operandHighlight(built.baseName(), ">",
+            List.of(fieldOperand("field", name))), name);
+      }
+   }
+
+   @Test
+   void fieldTypedValueOperandTypeIsCaseInsensitiveAndNameTrimmed() {
+      Built built = chart();
+      assertOperandRefused(built, operandHighlight(built.baseName(), ">",
+         List.of(fieldOperand(" FIELD ", " " + built.derivedName() + " "))), built.derivedName());
+   }
+
+   @Test
+   void derivedOperandInTheSecondBetweenSlotIsRefused() {
+      Built built = chart();
+      assertOperandRefused(built, operandHighlight(built.baseName(), "between",
+         List.of(0, fieldOperand("field", built.derivedName()))), built.derivedName());
+   }
+
+   @Test
+   void rankingGroupFieldOnADerivedFieldIsRefused() {
+      Built built = chart(XConstants.MONTH_DATE_GROUP, DateComparisonInfo.MONTH);
+      String dim = derivedDimensions(built).get(0);
+      assertOperandRefused(built, operandHighlight(built.baseName(), "top_n",
+         List.of(Map.of("n", 3, "groupField", dim))), dim);
+   }
+
+   @Test
+   void operandOnABaseFieldOrALiteralIsAccepted() {
+      Built built = chart();
+      assertDoesNotThrow(() -> AssemblyHighlightService.requireNoDerivedConditionField(
+         built.assembly(), operandHighlight(built.baseName(), ">",
+            List.of(fieldOperand("field", built.baseName())))));
+      assertDoesNotThrow(() -> AssemblyHighlightService.requireNoDerivedConditionField(
+         built.assembly(), operandHighlight(built.baseName(), "top_n",
+            List.of(Map.of("n", 3, "groupField", "Year(date)")))));
+      assertDoesNotThrow(() -> AssemblyHighlightService.requireNoDerivedConditionField(
+         built.assembly(), operandHighlight(built.baseName(), "=",
+            List.of(built.derivedName(), Map.of("type", "variable", "name", "x")))));
    }
 
    @Test

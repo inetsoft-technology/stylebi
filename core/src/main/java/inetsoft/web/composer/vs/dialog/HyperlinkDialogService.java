@@ -298,6 +298,22 @@ public class HyperlinkDialogService {
                "instead.");
          }
 
+         // A field only the date comparison adds (a re-leveled or inserted period dimension, a
+         // temp group) lives on runtime clones alone: the design-time lookup below finds nothing
+         // to write the link to, so it would be accepted and then lost. Clearing a link is let
+         // through since it cannot lose anything.
+         if(model.isRejectDerivedMeasure() && !model.isTitleLink() && !model.isEmptyPlotLink() &&
+            model.getLinkType() != NONE && dcRef != null &&
+            chartInfo.getFieldByName(model.getColName(), false) == null)
+         {
+            throw new IllegalArgumentException(
+               "'" + model.getColName() + "' exists only while the active date comparison is " +
+               "on and has no design-time field behind it, so a link set on it would be lost " +
+               "as soon as the comparison changes or is cleared. Set the link on the base " +
+               "field instead (e.g. the original date dimension), or clear the date comparison " +
+               "first.");
+         }
+
          if(model.isTitleLink()) {
             info.setTitleLinkValue(hyperlink);
          }

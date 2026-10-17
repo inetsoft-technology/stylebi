@@ -924,28 +924,57 @@ public class AssemblyHighlightService {
 
       for(ConditionVocabulary.Clause clause : highlight.conditions()) {
          index++;
-         String field = clause == null || clause.field() == null ? "" : clause.field().trim();
-
-         if(fields.isDerived(field)) {
-            String advice = dimensions.contains(field.toLowerCase())
-               ? "Put the condition on a field that is listed without the date comparison, " +
-                  "or clear the date comparison first."
-               : "Put the condition on the base measure instead.";
-            throw new IllegalArgumentException(
-               "Condition " + index + "'s field '" + field + "' is derived by the active date " +
-               "comparison and has no design-time field behind it, so the highlight would be " +
-               "lost or left dangling as soon as the comparison changes or is cleared. " +
-               advice);
+         if(clause == null) {
+            continue;
          }
 
-         if(fields.isAmbiguous(field)) {
-            throw new IllegalArgumentException(
-               "Condition " + index + "'s field '" + field + "' cannot be told apart from a " +
-               "field the active date comparison derives, so it is refused rather than risk a " +
-               "highlight that is lost or left dangling once the comparison changes or is " +
-               "cleared. Put the condition on a field that is listed without the comparison, " +
-               "or clear the date comparison first.");
+         String field = clause.field() == null ? "" : clause.field().trim();
+         requireNotDerived(fields, dimensions, index, "field", field);
+
+         // A field-typed value operand ({type:"field", field}) and a ranking value's groupField
+         // name a column just like the condition field does; matched on the raw JSON shape, before
+         // ConditionVocabulary parses it, so anything unrecognised is left for its own error.
+         for(Object value : clause.values() == null ? List.of() : clause.values()) {
+            if(!(value instanceof Map<?, ?> map)) {
+               continue;
+            }
+
+            if(map.get("type") instanceof String type && "field".equals(type.trim().toLowerCase()) &&
+               map.get("field") instanceof String operand)
+            {
+               requireNotDerived(fields, dimensions, index, "value operand field", operand.trim());
+            }
+
+            if(map.get("groupField") instanceof String group) {
+               requireNotDerived(fields, dimensions, index, "ranking groupField", group.trim());
+            }
          }
+      }
+   }
+
+   private static void requireNotDerived(HighlightService.DateComparisonFields fields,
+                                         Set<String> dimensions, int index, String role,
+                                         String field)
+   {
+      if(fields.isDerived(field)) {
+         String advice = dimensions.contains(field.toLowerCase())
+            ? "Put the condition on a field that is listed without the date comparison, " +
+               "or clear the date comparison first."
+            : "Put the condition on the base measure instead.";
+         throw new IllegalArgumentException(
+            "Condition " + index + "'s " + role + " '" + field + "' is derived by the active date " +
+            "comparison and has no design-time field behind it, so the highlight would be " +
+            "lost or left dangling as soon as the comparison changes or is cleared. " +
+            advice);
+      }
+
+      if(fields.isAmbiguous(field)) {
+         throw new IllegalArgumentException(
+            "Condition " + index + "'s " + role + " '" + field + "' cannot be told apart from a " +
+            "field the active date comparison derives, so it is refused rather than risk a " +
+            "highlight that is lost or left dangling once the comparison changes or is " +
+            "cleared. Put the condition on a field that is listed without the comparison, " +
+            "or clear the date comparison first.");
       }
    }
 
