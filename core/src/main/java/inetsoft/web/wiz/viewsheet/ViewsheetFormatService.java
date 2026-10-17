@@ -124,11 +124,11 @@ public class ViewsheetFormatService {
     *                   {@code "title"} formats only that assembly's own title-bar text, distinct
     *                   from a chart's axis titles or any other sub-region; {@code "text"} formats
     *                   a single chart's {@code text}-aesthetic-bound field (its data labels);
-    *                   {@code "data"} formats a Crosstab/Table's body cells directly, the only
-    *                   target that reaches rendered body text (e.g. {@code color}/font color) once
-    *                   a table style applies; {@code "header"} formats a Crosstab/Table's HEADER
-    *                   (row/column dimension label) cells directly, for the same reason -- see
-    *                   {@link #requireTarget}
+    *                   {@code "data"} formats a Crosstab/Table's body cells per cell, bypassing
+    *                   the table-style gate that strips whole-object background/borders/alignment
+    *                   (a user-set whole-object foreground already wins over the style);
+    *                   {@code "header"} does the same for the HEADER (row/column dimension label)
+    *                   cells -- see {@link #requireTarget}
     * @param field      required when {@code target} is {@code "text"} — the column currently
     *                   bound to the chart's text aesthetic channel. Optional when {@code target}
     *                   is {@code "data"} or {@code "header"}: scopes the write to one named
@@ -2373,12 +2373,11 @@ public class ViewsheetFormatService {
             "'title' formats only that assembly's own title-bar text; for a chart's " +
             "x/y axis titles, use set_chart_region_properties with region 'title' instead. " +
             "'text' formats a single chart's text-aesthetic-bound field (its data labels) — " +
-            "requires 'field'. 'data' formats a Crosstab or Table's body cells directly — use " +
-            "this for 'color' on a Crosstab/Table: 'object' can never reach rendered body text " +
-            "once a table style applies, which is true for essentially every realistic " +
-            "Crosstab/Table. 'header' formats a Crosstab or Table's header (row/column " +
-            "dimension label) cells directly, for the same reason — 'object' can never reach " +
-            "them once a table style colors them explicitly either.");
+            "requires 'field'. 'data' formats a Crosstab or Table's body cells per cell; " +
+            "'header' does the same for its header (row/column dimension label) cells. A " +
+            "whole-object 'color' you set yourself takes precedence over the table style's " +
+            "text colour on header and body text; use 'data'/'header' to scope a colour, or " +
+            "for background/border/alignment overrides when a table style applies.");
       }
 
       return name;
