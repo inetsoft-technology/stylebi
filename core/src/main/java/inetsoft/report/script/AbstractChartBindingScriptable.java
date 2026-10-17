@@ -175,12 +175,14 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          // Rhino-parity padding would otherwise silently turn into
          // setTopNReverse("true", false, 0), a no-op on a bogus "true"-named field) must
          // be rejected with a clear error naming the expected signature, not padded.
-         addFunctionProperty(getClass(), "setTopN", true, siiparams);
-         addFunctionProperty(getClass(), "getTopN", true, siparams);
-         addFunctionProperty(getClass(), "setTopNSummaryCol", true, ssiparams);
-         addFunctionProperty(getClass(), "getTopNSummaryCol", true, siparams);
-         addFunctionProperty(getClass(), "setTopNReverse", true, sbiparams);
-         addFunctionProperty(getClass(), "isTopNReverse", true, siparams);
+         // The trailing type is optional, as documented (setTopNReverse(col, bool),
+         // setTopN(col, n), getTopN(col)): an omitted type is 0, any shelf (Bug #76862).
+         addFunctionProperty(getClass(), "setTopN", 2, siiparams);
+         addFunctionProperty(getClass(), "getTopN", 1, siparams);
+         addFunctionProperty(getClass(), "setTopNSummaryCol", 2, ssiparams);
+         addFunctionProperty(getClass(), "getTopNSummaryCol", 1, siparams);
+         addFunctionProperty(getClass(), "setTopNReverse", 2, sbiparams);
+         addFunctionProperty(getClass(), "isTopNReverse", 1, siparams);
          addFunctionProperty(getClass(), "setColumnOrder", siooparams);
          addFunctionProperty(getClass(), "getColumnOrder", siparams);
          addFunctionProperty(getClass(), "setGroupOrder", siiparams);
@@ -1292,7 +1294,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          }
       }
       else if(type == ChartConstants.BINDING_FIELD) {
-         XDimensionRef[] flds = getInfo().getAllDimensions(ref, false);
+         XDimensionRef[] flds = getBindingDimensions("setTopN", field, ref);
          setBindingTopN(field, flds, n);
       }
       else {
@@ -1404,7 +1406,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          }
       }
       else if(type == ChartConstants.BINDING_FIELD) {
-         XDimensionRef[] flds = getInfo().getAllDimensions(ref, false);
+         XDimensionRef[] flds = getBindingDimensions("setTopNSummaryCol", field, ref);
          setBindingTopNSummaryCol(field, flds, sumfield);
       }
       else {
@@ -1519,7 +1521,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          }
       }
       else if(type == ChartConstants.BINDING_FIELD) {
-         XDimensionRef[] flds = getInfo().getAllDimensions(ref, false);
+         XDimensionRef[] flds = getBindingDimensions("setTopNReverse", field, ref);
          setBindingTopNReverse(field, flds, reserve);
       }
       else {
@@ -2126,6 +2128,30 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
       else {
          LOG.warn("Geographic column not found: {}", field);
       }
+   }
+
+   /**
+    * Get the x/y dimensions of a field for a Chart.BINDING_FIELD write. BINDING_FIELD searches
+    * the x and y shelves only, so a write to a field bound only on another shelf (group, path
+    * or aesthetic) would be silently skipped: fail loud instead and name the call that reaches
+    * it (Bug #76862). A field bound nowhere is still left to the caller's warning, and the
+    * getters keep returning their documented not-found value.
+    */
+   private XDimensionRef[] getBindingDimensions(String function, String field, DataRef ref) {
+      XDimensionRef[] flds = getInfo().getAllDimensions(ref, false);
+
+      if(flds == null || flds.length == 0) {
+         XDimensionRef[] others = getInfo().getAllDimensions(ref, true);
+
+         if(others != null && others.length > 0) {
+            throw new IllegalArgumentException(
+               "bindingInfo." + function + "(): " + field + " is not on the x or y shelf, " +
+               "which is all Chart.BINDING_FIELD searches; omit the type (or pass 0) to " +
+               "reach it on the shelf it is bound to");
+         }
+      }
+
+      return flds;
    }
 
    /**

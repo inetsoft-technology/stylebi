@@ -604,6 +604,7 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
    protected void setTopN(XDimensionRef dim, int n) {
       if(dim instanceof VSDimensionRef) {
          VSDimensionRef dim2 = (VSDimensionRef) dim;
+         String oranking = rankingKey(dim2);
          dim2.setRankingNValue(n + "");
 
          if(n > 0) {
@@ -619,6 +620,8 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
                }
             }
          }
+
+         resetDataIfChanged(oranking, dim2);
       }
       else {
          LOG.warn("Dimension column not found: " + dim.getName());
@@ -659,7 +662,9 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
    @Override
    protected void setTopNSummaryCol(XDimensionRef dim, String sumfield) {
       if(dim instanceof VSDimensionRef) {
+         String oranking = rankingKey((VSDimensionRef) dim);
          ((VSDimensionRef) dim).setRankingColValue(sumfield);
+         resetDataIfChanged(oranking, (VSDimensionRef) dim);
       }
       else {
          LOG.warn("Dimension column not found: " + dim.getName());
@@ -690,10 +695,38 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
    protected void setTopNReverse(XDimensionRef dim, boolean reserve) {
       if(dim instanceof VSDimensionRef) {
          int op = reserve ? XCondition.BOTTOM_N : XCondition.TOP_N;
+         String oranking = rankingKey((VSDimensionRef) dim);
          ((VSDimensionRef) dim).setRankingOptionValue(op + "");
+         resetDataIfChanged(oranking, (VSDimensionRef) dim);
       }
       else {
          LOG.warn("Dimension column not found: " +  dim.getName());
+      }
+   }
+
+   /**
+    * The ranking settings of a dimension, to tell whether a write changed them.
+    */
+   private static String rankingKey(VSDimensionRef dim) {
+      return dim.getRankingOptionValue() + "|" + dim.getRankingNValue() + "|" +
+         dim.getRankingColValue();
+   }
+
+   /**
+    * A ranking write edits the chart info in place, which neither the sandbox's cached chart
+    * data nor its cached graph detects (both compare with the same live info), so the next
+    * read would return the data of the old ranking. Reset the chart's data and graph when the
+    * ranking changed, so the next read, in this script or after it, runs the query again
+    * (Bug #76862). An unchanged ranking, e.g. a script setting the same value on every
+    * refresh, keeps both.
+    */
+   private void resetDataIfChanged(String oranking, VSDimensionRef dim) {
+      ViewsheetSandbox box = getViewsheetSandbox();
+      String name = script.getAssembly();
+
+      if(box != null && name != null && !oranking.equals(rankingKey(dim))) {
+         box.resetDataMap(name);
+         box.removeGraph(name);
       }
    }
 

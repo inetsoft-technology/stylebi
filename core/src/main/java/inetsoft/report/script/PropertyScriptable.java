@@ -88,6 +88,16 @@ public abstract class PropertyScriptable implements ScriptScope, Cloneable {
    }
 
    /**
+    * Add a strict-arity script function property whose trailing parameters may be omitted:
+    * a call must supply at least {@code minArity} arguments, the omitted trailing ones are
+    * padded to their Java defaults. E.g. bindingInfo.setTopNReverse(field, reverse[, type]),
+    * where a missing type means 0 (any shelf) but setTopNReverse(true) is still rejected.
+    */
+   public void addFunctionProperty(Class cls, String name, int minArity, Class ...params) {
+      addProperty(name, new ScriptFunction(this, cls, name, minArity, params));
+   }
+
+   /**
     * Add a property to this scriptable.
     * @name property name.
     * @param obj value as a String, Boolean, Number, or Scriptable.
