@@ -164,6 +164,40 @@ class LayoutUndoServiceTest {
       assertPosition(fx.printLayoutObject("Table1"), 999, 999, 9, 9);
    }
 
+   /** Bug 78755 p2: undo to the first snapshot must keep the scaleFont set before it. */
+   @Test
+   void undoToTheBaselineKeepsThePrintScaleFontSetBeforeIt() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.getLayoutInfo().getPrintLayout().setScaleFont(1.5f);
+
+      fx.mutationService.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize",
+         VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 555, "y", 666, "width", 70, "height", 80)), false);
+
+      Map<String, Object> undone = fx.undoService.layoutUndo("tok1", AGENT, PRINT_LAYOUT);
+
+      assertEquals(true, undone.get("applied"));
+      assertPosition(fx.printLayoutObject("Table1"), 300, 400, 50, 60);
+      assertEquals(1.5f, fx.masterVs.getLayoutInfo().getPrintLayout().getScaleFont(), 0.0001f);
+   }
+
+   /** A scaleFont set after the baseline was taken is reverted with the baseline: correct undo. */
+   @Test
+   void undoToTheBaselineRevertsAScaleFontSetAfterIt() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.getLayoutInfo().getPrintLayout().setScaleFont(1.25f);
+
+      fx.mutationService.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize",
+         VSLayoutService.CONTENT, List.of(Map.of("name", "Table1", "x", 5)), false);
+      fx.masterVs.getLayoutInfo().getPrintLayout().setScaleFont(2f);
+
+      fx.undoService.layoutUndo("tok1", AGENT, PRINT_LAYOUT);
+
+      assertEquals(1.25f, fx.masterVs.getLayoutInfo().getPrintLayout().getScaleFont(), 0.0001f);
+   }
+
    private static void assertPosition(VSAssemblyLayout layout, int x, int y, int width,
                                        int height)
    {

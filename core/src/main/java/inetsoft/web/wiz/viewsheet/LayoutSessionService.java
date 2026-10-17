@@ -260,7 +260,9 @@ public class LayoutSessionService {
          master.resetLayoutUndoRedo();
 
          if(checkpoint) {
-            master.addLayoutCheckPoint(layoutClone);
+            // Bug 78755: the baseline must be the master's real layout. layoutClone carries the
+            // scale-1 editing override, and undo writes the checkpoint back onto the master.
+            master.addLayoutCheckPoint(found);
          }
       }
       catch(Exception | Error e) {
