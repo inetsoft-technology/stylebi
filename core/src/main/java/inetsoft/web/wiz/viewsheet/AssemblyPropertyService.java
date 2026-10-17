@@ -48,6 +48,7 @@ import inetsoft.web.composer.model.vs.TableStylePaneModel;
 import inetsoft.web.composer.model.vs.TextInputColumnOptionPaneModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
+import inetsoft.web.wiz.binding.OutputAggregateResolver;
 import inetsoft.web.wiz.binding.SelectionFormulaResolver;
 import inetsoft.web.wiz.binding.SelectionMeasureResolver;
 import inetsoft.web.viewsheet.service.VSInputService;
@@ -271,6 +272,7 @@ public class AssemblyPropertyService {
          Object model = readModel(rvs, type, assemblyName, user);
          String measureBefore = selectionMeasure(type, model);
          String formulaBefore = selectionFormula(type, model);
+         String outputAggregateBefore = outputAggregate(type, model);
          SelectionSourceGuard.Snapshot sourceBefore = SelectionSourceGuard.snapshot(type, model);
 
          // Resolved whole before anything is written: a typo in the fourth key must not
@@ -324,6 +326,7 @@ public class AssemblyPropertyService {
          model = requireKnownSelectionMeasure(runtimeId, user, assemblyName, type, model,
                                               measureBefore);
          model = requireKnownSelectionFormula(assemblyName, type, model, formulaBefore);
+         model = requireKnownOutputAggregate(assemblyName, type, model, outputAggregateBefore);
 
          if("selectiontree".equals(type) && resolved.values().stream().anyMatch(
             path -> path.equalsIgnoreCase(SINGLE_SELECTION_LEVELS_PATH)))
@@ -586,6 +589,35 @@ public class AssemblyPropertyService {
       return resolved.equals(after) ? model :
          PropertyPath.set(model, pane + ".selectionMeasurePaneModel.formula", resolved);
    }
+
+   private static String outputAggregate(String type, Object model) {
+      return PropertyAliases.isDataOutputType(type) ?
+         (String) PropertyPath.get(model, OUTPUT_AGGREGATE_PATH) : null;
+   }
+
+   /**
+    * A gauge/text/image {@code dataOutputPaneModel.aggregate} was stored verbatim, so an unknown
+    * name rendered no/odd values (bug #78756). Same before/after shape as
+    * {@link #requireKnownSelectionFormula}; covers the {@code aggregate} alias and the raw path.
+    * Blank, unchanged (legacy) and dynamic values are not rejected; the rest is resolved to the
+    * canonical formula name before anything is written.
+    */
+   private Object requireKnownOutputAggregate(String assemblyName, String type, Object model,
+                                              String before)
+   {
+      String after = outputAggregate(type, model);
+
+      if(after == null || after.isBlank() || after.equals(before)) {
+         return model;
+      }
+
+      String resolved = OutputAggregateResolver.resolve(assemblyName, after);
+
+      return resolved.equals(after) ? model :
+         PropertyPath.set(model, OUTPUT_AGGREGATE_PATH, resolved);
+   }
+
+   private static final String OUTPUT_AGGREGATE_PATH = "dataOutputPaneModel.aggregate";
 
    private static String selectionMeasure(String type, Object model) {
       String pane = selectionPane(type);

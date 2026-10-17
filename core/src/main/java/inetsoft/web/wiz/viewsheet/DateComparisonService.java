@@ -1602,7 +1602,8 @@ public class DateComparisonService {
     * previous level would survive the change, be reported back by {@link #read}, and then be
     * refused when that read-back is echoed (the strict check in
     * {@link #requireValidIntervalFields}). Only a field the call did not name is touched, only for
-    * literal values (a dynamic one is unknowable until render, as in the dialog), and the
+    * a literal interval level (a dynamic one is unknowable until render, as in the dialog; a
+    * dynamic period level is treated as unknown), and the
     * replacement is reported as {@code intervalGranularityAdjusted} /
     * {@code intervalContextLevelAdjusted} with the before/after, so the change is never silent.
     * Read stays raw, so what is reported is what is stored and what renders.
@@ -1624,7 +1625,9 @@ public class DateComparisonService {
       Integer periodLevel = standard == null ? null : parseLevel(standard.getDateLevel());
       Integer intervalLevel = parseLevel(interval.getLevel());
 
-      if(periodLevel == null || intervalLevel == null) {
+      // A dynamic period level stays null: allowedGranularities / contextLevelAllowed treat it as
+      // unknown, exactly as requireValidIntervalFields does, so the two cannot disagree (#78756).
+      if(intervalLevel == null) {
          return out;
       }
 
