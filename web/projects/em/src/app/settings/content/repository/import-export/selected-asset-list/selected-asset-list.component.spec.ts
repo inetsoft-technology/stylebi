@@ -49,3 +49,79 @@ describe("SelectedAssetListComponent", () => {
       expect(component).toBeTruthy();
    });
 });
+
+// Bug #78732: on a Mac, Cmd-click (metaKey) must add or remove a row like Ctrl-click.
+describe("SelectedAssetListComponent modifier-key selection", () => {
+   let fixture: ComponentFixture<SelectedAssetListComponent>;
+   let emitted: string[][];
+
+   const asset = (path: string): any =>
+      ({ label: path, path, type: 1, typeName: "VIEWSHEET", typeLabel: "" });
+   const rows = (): HTMLElement[] =>
+      Array.from(fixture.nativeElement.querySelectorAll("tr.table-row"));
+   const label = (row: HTMLElement) => row.querySelector("td").textContent.trim();
+   const selected = () => rows().filter(r => r.classList.contains("selected-row")).map(label);
+
+   function click(path: string, init: MouseEventInit = {}): void {
+      const row = rows().find(r => label(r) === path);
+      expect(row).toBeTruthy();
+      row.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ...init }));
+      fixture.detectChanges();
+   }
+
+   beforeEach(async () => {
+      await TestBed.configureTestingModule({
+         imports: [SelectedAssetListComponent, NoopAnimationsModule]
+      }).compileComponents();
+
+      fixture = TestBed.createComponent(SelectedAssetListComponent);
+      emitted = [];
+      fixture.componentInstance.selectedAssetsChange
+         .subscribe(assets => emitted.push(assets.map(a => a.path)));
+      fixture.componentRef.setInput("assets", [asset("Sales"), asset("Customers"), asset("Orders")]);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+   });
+
+   it("adds a row on Cmd-click instead of replacing the selection", () => {
+      click("Sales");
+      click("Customers", { metaKey: true });
+      expect(selected()).toEqual(["Sales", "Customers"]);
+      expect(emitted[emitted.length - 1]).toEqual(["Sales", "Customers"]);
+   });
+
+   it("removes only the clicked row on Cmd-click of a selected row", () => {
+      click("Sales");
+      click("Customers", { metaKey: true });
+      click("Sales", { metaKey: true });
+      expect(selected()).toEqual(["Customers"]);
+      expect(emitted[emitted.length - 1]).toEqual(["Customers"]);
+   });
+
+   it("adds and removes a row on Ctrl-click", () => {
+      click("Sales");
+      click("Customers", { ctrlKey: true });
+      expect(selected()).toEqual(["Sales", "Customers"]);
+
+      click("Sales", { ctrlKey: true });
+      expect(selected()).toEqual(["Customers"]);
+   });
+
+   it("selects a range on Shift-click", () => {
+      click("Sales");
+      click("Orders", { shiftKey: true });
+      expect(selected()).toEqual(["Sales", "Customers", "Orders"]);
+   });
+
+   // The toggle branches are tested before shiftKey, so Shift+Ctrl has always toggled. Shift+Cmd
+   // now does the same on a Mac (before the fix Cmd was ignored and it selected a range).
+   it("toggles on Shift+Cmd-click and Shift+Ctrl-click", () => {
+      click("Sales");
+      click("Orders", { shiftKey: true, metaKey: true });
+      expect(selected()).toEqual(["Sales", "Orders"]);
+
+      click("Orders", { shiftKey: true, ctrlKey: true });
+      expect(selected()).toEqual(["Sales"]);
+   });
+});
