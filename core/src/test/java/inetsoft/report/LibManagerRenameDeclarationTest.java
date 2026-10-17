@@ -126,6 +126,17 @@ class LibManagerRenameDeclarationTest {
       assertEquals(text, LibManager.renameFunctionDeclaration("f", "g", text));
    }
 
+   /** A name that merely begins with "function" is not a declarator keyword. */
+   @Test
+   void renameFunctionDeclarationDoesNotTreatAFunctionPrefixedNameAsADeclaration() {
+      String text = "var y = functionTotal(1);\nvar Total = function(x) { return x; };";
+
+      assertEquals("var y = functionTotal(1);\nvar Sum = function(x) { return x; };",
+                   LibManager.renameFunctionDeclaration("Total", "Sum", text));
+      assertEquals("var y = functionTotal(1);",
+                   LibManager.renameFunctionDeclaration("Total", "Sum", "var y = functionTotal(1);"));
+   }
+
    @Test
    void renameFunctionDeclarationTolerantOfNullText() {
       assertNull(LibManager.renameFunctionDeclaration("f", "g", null));

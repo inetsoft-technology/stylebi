@@ -367,7 +367,7 @@ public class LibManager implements AutoCloseable {
          return text;
       }
 
-      final String declarator = "(?:\\bfunction\\s*\\*?\\s*|\\b(?:var|let|const)\\s+)";
+      final String declarator = "(?:\\bfunction(?:\\s*\\*\\s*|\\s+)|\\b(?:var|let|const)\\s+)";
       final String tail = Pattern.quote(oldName) + "(?![\\w$])(?=\\s*[(=])";
       final String replacement = "$1" + Matcher.quoteReplacement(newName);
 

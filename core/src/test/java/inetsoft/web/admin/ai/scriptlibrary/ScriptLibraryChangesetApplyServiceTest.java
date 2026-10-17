@@ -412,6 +412,58 @@ class ScriptLibraryChangesetApplyServiceTest {
       }
    }
 
+   /** Bug #78735: undoing a create drops the new function's edges, as the delete paths do. */
+   @Test void rollbackOfACreateRemovesTheNewFunctionsOutgoingEdges() throws Exception {
+      scripts.put("keep", "return 1;");
+      comments.put("keep", "desc");
+      ScriptLibraryChangeRequest create = change(ScriptLibraryChangeRequest.VERB_CREATE, "newScript");
+      create.setText("return callee();");
+      ScriptLibraryChangeRequest delete = change(ScriptLibraryChangeRequest.VERB_DELETE, "keep");
+
+      try(MockedStatic<DependencyTransformer> dep = mockStatic(DependencyTransformer.class)) {
+         dep.when(() -> DependencyTransformer.getDependencies(anyString())).thenReturn(List.of());
+         ScriptLibraryApplyRequest req =
+            applyRequest(hashOf(create, delete), "looks good", true, create, delete);
+         doAnswer(inv -> null).when(lib).removeScript("keep");
+
+         ScriptLibraryApplyResult result = service.apply(req, user);
+
+         assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      }
+
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, "newScript", null);
+      verify(dependencyHandler).updateScriptDependencies(
+         eq("return callee();"), isNull(), eq(entry));
+   }
+
+   /** Bug #78735: undoing a delete re-adds the restored function's edges. */
+   @Test void rollbackOfADeleteReAddsTheRestoredFunctionsOutgoingEdges() throws Exception {
+      scripts.put("caller", "return callee();");
+      comments.put("caller", "desc");
+      scripts.put("keep", "return 1;");
+      comments.put("keep", "desc");
+      ScriptLibraryChangeRequest first = change(ScriptLibraryChangeRequest.VERB_DELETE, "caller");
+      ScriptLibraryChangeRequest second = change(ScriptLibraryChangeRequest.VERB_DELETE, "keep");
+
+      try(MockedStatic<DependencyTransformer> dep = mockStatic(DependencyTransformer.class)) {
+         dep.when(() -> DependencyTransformer.getDependencies(anyString())).thenReturn(List.of());
+         ScriptLibraryApplyRequest req =
+            applyRequest(hashOf(first, second), "looks good", true, first, second);
+         doAnswer(inv -> null).when(lib).removeScript("keep");
+
+         ScriptLibraryApplyResult result = service.apply(req, user);
+
+         assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      }
+
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, "caller", null);
+      assertEquals("return callee();", scripts.get("caller"));
+      verify(dependencyHandler).updateScriptDependencies(
+         isNull(), eq("return callee();"), eq(entry));
+   }
+
    /** Bug #78583: undoing a rename restores the old name and the old declaration. */
    @Test void rollsBackARenameRestoringTheOriginalDeclaration() throws Exception {
       scripts.put("old", "function old() { return 1; }");
