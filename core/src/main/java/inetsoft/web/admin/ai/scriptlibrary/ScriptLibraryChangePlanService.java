@@ -17,7 +17,7 @@
  */
 package inetsoft.web.admin.ai.scriptlibrary;
 
-import inetsoft.report.internal.Util;
+import inetsoft.report.LibManager;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
@@ -287,12 +287,12 @@ public class ScriptLibraryChangePlanService {
    }
 
    /**
-    * The entry's text after a rename: its own declaration (and any self-reference) renamed with
-    * the same {@code Util.renameScriptDepended} rewrite the composer-chat rename endpoint and the
-    * caller transform use, so the function keeps declaring the name it is stored under.
+    * The entry's text after a rename: its declaration renamed by the same helper
+    * {@code LibManager.renameScript} applies, so the function keeps declaring the name it is
+    * stored under.
     */
    static String renamedText(String name, String newName, String text) {
-      return text == null ? null : Util.renameScriptDepended(name, newName, text);
+      return LibManager.renameFunctionDeclaration(name, newName, text);
    }
 
    /** Canonical projection of an existing entry -- used as both the plan hash input and the audit

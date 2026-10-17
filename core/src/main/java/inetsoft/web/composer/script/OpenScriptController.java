@@ -65,7 +65,7 @@ public class OpenScriptController {
          Catalog catalog = Catalog.getCatalog();
          String permissionDenied = "";
          AssetEntry entry = AssetEntry.createAssetEntry(scriptModel.getId());
-         this.scriptService.updateScriptDependencies(scriptModel.getText(), function, entry);
+         this.scriptService.updateScriptDependencies(function, scriptModel.getText(), entry);
 
          if(!Tool.equals(function, scriptModel.getText())) {
             change = true;
@@ -144,6 +144,7 @@ public class OpenScriptController {
          String scriptText = scriptModel.getText();
          scriptText = scriptText == null ? "" : scriptText;
          lib.setScript(saveModel.getName(), scriptText);
+         scriptService.updateScriptDependencies(null, scriptText, entry);
 
          if(!Tool.isEmptyString(scriptModel.getComment())) {
             lib.setScriptComment(saveModel.getName(), scriptModel.getComment());

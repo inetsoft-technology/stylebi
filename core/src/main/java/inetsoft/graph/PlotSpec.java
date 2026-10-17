@@ -175,11 +175,21 @@ public class PlotSpec implements Cloneable, Serializable {
 
    /**
     * Set the alpha of the background image or color.
-    * @param alpha a value between 0 and 1.
+    * @param alpha a value between 0 (transparent) and 1 (opaque).
+    * @throws IllegalArgumentException if alpha is outside 0 to 1.
     */
    @TernMethod
    public void setAlpha(double alpha) {
-      this.alpha = alpha;
+      this.alpha = checkAlpha(alpha);
+   }
+
+   private static double checkAlpha(double alpha) {
+      if(Double.isNaN(alpha) || alpha < 0 || alpha > 1) {
+         throw new IllegalArgumentException(
+            "alpha must be 0 to 1 (0 is transparent, 1 is opaque), got " + alpha);
+      }
+
+      return alpha;
    }
 
    /**

@@ -21,6 +21,9 @@ import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.security.Permission;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
 import inetsoft.web.admin.ai.*;
@@ -217,6 +220,8 @@ public class ScriptLibraryChangesetApplyService {
       String text = original.getText() == null ? "" : original.getText();
       mutationEntered.set(true);
       lib.setScript(name, text);
+      DependencyHandler.getInstance().updateScriptDependencies(
+         null, text, new AssetEntry(AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, name, null));
 
       if(!description.isEmpty()) {
          lib.setScriptComment(name, description);
@@ -261,13 +266,6 @@ public class ScriptLibraryChangesetApplyService {
       boolean rewritten = !Objects.equals(oldText, newText);
       mutationEntered.set(true);
       lib.renameScript(name, newName);
-
-      // rename the function's own declaration in the same save, or it keeps installing the old
-      // global name while its callers are rewritten to the new one
-      if(rewritten) {
-         lib.setScript(newName, newText);
-      }
-
       lib.save();
 
       if(permission != null) {

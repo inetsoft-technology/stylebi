@@ -37,6 +37,8 @@ import java.awt.event.ActionListener;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * This class manages the bean, table style, and script library.
@@ -335,12 +337,46 @@ public class LibManager implements AutoCloseable {
     */
    public void renameScript(String oldName, String newName) {
       if(scripts.rename(oldName, newName)) {
+         final String text = scripts.getFunction(newName);
+         final String renamed = renameFunctionDeclaration(oldName, newName, text);
+
+         if(renamed != null && !renamed.equals(text)) {
+            setScript(newName, renamed);
+         }
+
          RenameInfo rinfo = new RenameInfo(oldName, newName, RenameInfo.SCRIPT_FUNCTION);
          rinfo.setUpdateStorage(true);
          RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
          fireActionEvent(newName, SCRIPT_MODIFIED);
          fireActionEvent(oldName, SCRIPT_REMOVED);
       }
+   }
+
+   /**
+    * Rename the declaration {@code function <oldName>(...)} in a library function's text. Only the
+    * declaration is changed, so a string literal, comment, built-in call or sibling identifier that
+    * merely contains the old name is left alone.
+    * @param oldName old name of the script function.
+    * @param newName new name of the script function.
+    * @param text the stored function text.
+    * @return the text declaring {@code newName}, or {@code text} if it has no such declaration.
+    */
+   public static String renameFunctionDeclaration(String oldName, String newName, String text) {
+      if(text == null || oldName == null || newName == null) {
+         return text;
+      }
+
+      final String tail = Pattern.quote(oldName) + "(?![\\w$])(\\s*\\()";
+      final String replacement = "$1" + Matcher.quoteReplacement(newName) + "$2";
+
+      // prefer a declaration at the start of a line over one inside a string literal or comment
+      final Matcher lineStart = Pattern.compile("(?m)^(\\s*function\\s+)" + tail).matcher(text);
+
+      if(lineStart.find()) {
+         return lineStart.replaceFirst(replacement);
+      }
+
+      return Pattern.compile("(\\bfunction\\s+)" + tail).matcher(text).replaceFirst(replacement);
    }
 
    /**

@@ -22,7 +22,10 @@ import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.sync.DependencyTransformer;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.AdminBackupService;
@@ -76,6 +79,8 @@ class ScriptLibraryChangesetApplyServiceTest {
    private ScriptLibraryChangePlanService planService;
    private ScriptLibraryChangesetApplyService service;
    private MockedStatic<Tool> tool;
+   private MockedStatic<DependencyHandler> dependencyStatic;
+   private final DependencyHandler dependencyHandler = mock(DependencyHandler.class);
 
    @BeforeEach
    void setUp() throws Exception {
@@ -96,12 +101,31 @@ class ScriptLibraryChangesetApplyServiceTest {
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
       tool.when(Tool::getHost).thenReturn("test-host");
 
+      dependencyStatic = mockStatic(DependencyHandler.class);
+      dependencyStatic.when(DependencyHandler::getInstance).thenReturn(dependencyHandler);
+
       wireLibManagerFake();
    }
 
    @AfterEach
    void tearDown() {
+      dependencyStatic.close();
       tool.close();
+   }
+
+   /** Bug #78735: a created function's body edges are recorded, as an update does. */
+   @Test void applyOfACreateRecordsTheNewBodysDependencies() throws Exception {
+      ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_CREATE, "caller");
+      c.setText("return callee();");
+      ScriptLibraryApplyRequest req = applyRequest(hashOf(c), null, null, c);
+
+      ScriptLibraryApplyResult result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      AssetEntry expectedEntry = new AssetEntry(
+         AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, "caller", null);
+      verify(dependencyHandler).updateScriptDependencies(
+         isNull(), eq("return callee();"), eq(expectedEntry));
    }
 
    private void wireLibManagerFake() {
@@ -119,7 +143,8 @@ class ScriptLibraryChangesetApplyServiceTest {
       lenient().doAnswer(inv -> {
          String oldName = inv.getArgument(0);
          String newName = inv.getArgument(1);
-         scripts.put(newName, scripts.remove(oldName));
+         scripts.put(newName, LibManager.renameFunctionDeclaration(
+            oldName, newName, scripts.remove(oldName)));
 
          if(comments.containsKey(oldName)) {
             comments.put(newName, comments.remove(oldName));
