@@ -87,7 +87,7 @@ class LibManagerRenameDeclarationTest {
 
       String renamed = LibManager.renameFunctionDeclaration("f", "g2", text);
 
-      assertEquals("// f is used by g\nvar s = 'function f(';\nfunction fooBackup(x) { return f; }\n" +
+      assertEquals("// f is used by g\nvar s = 'function f(';\nfunction fooBackup(x) { return g2; }\n" +
                    "function g2 (x) { return 'f'; }", renamed);
    }
 
@@ -108,7 +108,7 @@ class LibManagerRenameDeclarationTest {
 
    @Test
    void renameFunctionDeclarationHandlesVarLetConstAndGeneratorForms() {
-      assertEquals("var g = function(x) { return f(x); };\nvar fBackup = 1;",
+      assertEquals("var g = function(x) { return g(x); };\nvar fBackup = 1;",
                    LibManager.renameFunctionDeclaration(
                       "f", "g", "var f = function(x) { return f(x); };\nvar fBackup = 1;"));
       assertEquals("const g = 0.1;", LibManager.renameFunctionDeclaration("f", "g", "const f = 0.1;"));
@@ -135,6 +135,77 @@ class LibManagerRenameDeclarationTest {
                    LibManager.renameFunctionDeclaration("Total", "Sum", text));
       assertEquals("var y = functionTotal(1);",
                    LibManager.renameFunctionDeclaration("Total", "Sum", "var y = functionTotal(1);"));
+   }
+
+   @Test
+   void renameFunctionDeclarationRenamesSelfReferencesInCode() {
+      assertEquals("function g(n) { return n <= 1 ? 1 : n * g(n - 1); }",
+                   LibManager.renameFunctionDeclaration(
+                      "f", "g", "function f(n) { return n <= 1 ? 1 : n * f(n - 1); }"));
+      assertEquals("var g = function(n) { return n ? g(n - 1) : 0; };",
+                   LibManager.renameFunctionDeclaration(
+                      "f", "g", "var f = function(n) { return n ? f(n - 1) : 0; };"));
+      assertEquals("const g = n => n ? g(n - 1) : 0;",
+                   LibManager.renameFunctionDeclaration(
+                      "f", "g", "const f = n => n ? f(n - 1) : 0;"));
+      assertEquals("function* g(n) { if(n) { yield* g(n - 1); } yield n; }",
+                   LibManager.renameFunctionDeclaration(
+                      "f", "g", "function* f(n) { if(n) { yield* f(n - 1); } yield n; }"));
+   }
+
+   @Test
+   void renameFunctionDeclarationLeavesStringsTemplatesAndCommentsInTheBodyAlone() {
+      String text = "function f(n) {\n" +
+         "   // f calls f\n" +
+         "   /* f( */\n" +
+         "   var a = 'f(' + \"f\" + `f ${f(n - 1)} f`;\n" +
+         "   var re = /f'/.test(a);\n" +
+         "   return f(n - 1);\n" +
+         "}";
+      String expected = "function g(n) {\n" +
+         "   // f calls f\n" +
+         "   /* f( */\n" +
+         "   var a = 'f(' + \"f\" + `f ${g(n - 1)} f`;\n" +
+         "   var re = /f'/.test(a);\n" +
+         "   return g(n - 1);\n" +
+         "}";
+
+      assertEquals(expected, LibManager.renameFunctionDeclaration("f", "g", text));
+   }
+
+   @Test
+   void renameFunctionDeclarationLeavesPropertyAccessAndLongerIdentifiersAlone() {
+      String text = "function f(x) { return x.f + fBackup(x) + functionf(x) + obj.f(x) + $f + f$ + f(x); }";
+
+      assertEquals("function g(x) { return x.f + fBackup(x) + functionf(x) + obj.f(x) + $f + f$ + g(x); }",
+                   LibManager.renameFunctionDeclaration("f", "g", text));
+      assertEquals("function g(a) { return g(...[a]) + [...g]; }",
+                   LibManager.renameFunctionDeclaration(
+                      "f", "g", "function f(a) { return f(...[a]) + [...f]; }"));
+   }
+
+   /** A comment holding the same declaration earlier on the same line must not win. */
+   @Test
+   void renameFunctionDeclarationFindsTheDeclarationOnlyInCode() {
+      assertEquals("/* function f() old */ function g(x) { return x; }",
+                   LibManager.renameFunctionDeclaration(
+                      "f", "g", "/* function f() old */ function f(x) { return x; }"));
+      assertEquals("var s = \"function f(\"; var g = 1;",
+                   LibManager.renameFunctionDeclaration("f", "g", "var s = \"function f(\"; var f = 1;"));
+      assertEquals("// function f(x)\nvar y = 1;",
+                   LibManager.renameFunctionDeclaration("f", "g", "// function f(x)\nvar y = 1;"));
+   }
+
+   /** A local declaration of the same name in an earlier helper is not the library function. */
+   @Test
+   void renameFunctionDeclarationPrefersATopLevelDeclarationOverANestedLocal() {
+      String text = "function helper() { var f = 1; return f; }\nfunction f(x) { return helper() + x; }";
+
+      String renamed = LibManager.renameFunctionDeclaration("f", "g", text);
+
+      assertTrue(renamed.contains("function g(x)"), renamed);
+      assertTrue(renamed.contains("function helper()"), renamed);
+      assertFalse(renamed.contains("function f("), renamed);
    }
 
    @Test
