@@ -253,7 +253,17 @@ class ImportTaskStoredPasswordTest {
 
       assertTrue(response.failedTasks().isEmpty(), response.failedTasks().toString());
       ArgumentCaptor<ScheduleTask> captor = ArgumentCaptor.forClass(ScheduleTask.class);
-      verify(scheduleManager).setScheduleTask(anyString(), captor.capture(), any(Principal.class));
+      // Bug #78740, an overwritten task is saved with an explicit folder
+      if(overwriting) {
+         verify(scheduleManager).setScheduleTask(
+            anyString(), captor.capture(), any(inetsoft.uql.asset.AssetEntry.class),
+            any(Principal.class));
+      }
+      else {
+         verify(scheduleManager).setScheduleTask(
+            anyString(), captor.capture(), any(Principal.class));
+      }
+
       return captor.getValue();
    }
 

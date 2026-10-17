@@ -142,11 +142,26 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    public ScheduleTask put(String key, ScheduleTask value, AssetEntry parent, String orgID) {
       ScheduleTask oldValue = null;
 
-      if(parent == null) {
-         parent = getRootEntry();
-      }
-
       try {
+         // A put never leaves a task listed in more than one folder. The task's current folder
+         // is located by folder membership, not by the (possibly cached/mutated) task path.
+         AssetEntry taskEntry = AssetEntry.createAssetEntry(key, orgID);
+         AssetEntry currentFolder = findContainingFolder(taskEntry, orgID);
+
+         if(parent == null) {
+            // no explicit folder: keep the stored folder of an existing task, else root
+            parent = currentFolder != null ? currentFolder : getRootEntry();
+         }
+         else if(currentFolder != null && !Objects.equals(currentFolder.getPath(), parent.getPath())) {
+            AssetFolder oldFolder = (AssetFolder) indexedStorage
+               .getXMLSerializable(currentFolder.toIdentifier(), null, orgID);
+
+            if(oldFolder != null) {
+               oldFolder.removeEntry(taskEntry);
+               indexedStorage.putXMLSerializable(currentFolder.toIdentifier(), oldFolder);
+            }
+         }
+
          AssetFolder parentFolder = (AssetFolder)
             indexedStorage.getXMLSerializable(parent.toIdentifier(), null, parent.getOrgID());
 
@@ -384,6 +399,46 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       finally {
          indexedStorage.close();
       }
+   }
+
+   /**
+    * Finds the folder (root included) that lists the task entry, or null if none does.
+    */
+   private AssetEntry findContainingFolder(AssetEntry taskEntry, String orgID) throws Exception {
+      AssetEntry rootEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "/", null, orgID);
+      return findContainingFolder(taskEntry, rootEntry, orgID, new HashSet<>());
+   }
+
+   private AssetEntry findContainingFolder(AssetEntry taskEntry, AssetEntry folderEntry,
+                                           String orgID, Set<String> visited) throws Exception
+   {
+      if(!visited.add(folderEntry.toIdentifier())) {
+         return null;
+      }
+
+      AssetFolder folder = (AssetFolder)
+         indexedStorage.getXMLSerializable(folderEntry.toIdentifier(), null, orgID);
+
+      if(folder == null) {
+         return null;
+      }
+
+      if(folder.containsEntry(taskEntry)) {
+         return folderEntry;
+      }
+
+      for(AssetEntry child : folder.getEntries()) {
+         if(child.isScheduleTaskFolder()) {
+            AssetEntry found = findContainingFolder(taskEntry, child, orgID, visited);
+
+            if(found != null) {
+               return found;
+            }
+         }
+      }
+
+      return null;
    }
 
    private boolean removeEntryFromFolders(AssetEntry entry, AssetFolder folder) throws Exception {

@@ -230,7 +230,20 @@ public class ImportTaskController {
                ScheduleImportPasswordChecker.clearUnboundPasswords(task, oldTask);
 
             updateTaskInfo(task, linkURI);
-            scheduleManager.setScheduleTask(taskId, task, principal);
+            // Bug #78740, an overwritten task is filed in the folder of the xml. When it is moved
+            // below, the save keeps the stored folder (null parent) so the move starts from it;
+            // otherwise an existing task must go to the root folder explicitly, a null parent
+            // keeps the stored folder and would leave the task in a folder the xml doesn't name
+            if(taskExists && !move) {
+               scheduleManager.setScheduleTask(
+                  taskId, task,
+                  new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                 AssetEntry.Type.SCHEDULE_TASK_FOLDER, "/", null),
+                  principal);
+            }
+            else {
+               scheduleManager.setScheduleTask(taskId, task, principal);
+            }
 
             // Bug #77950, tell the user that the saved task needs its passwords re-entered
             if(!clearedPaths.isEmpty()) {

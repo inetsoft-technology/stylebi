@@ -727,7 +727,9 @@ class ImportTaskCrossOrgTest {
       ImportTaskResponse replaced = importRows(parse(xml).tasks(), true);
 
       assertTrue(replaced.failedTasks().isEmpty(), replaced.failedTasks().toString());
+      // Bug #78740, an overwritten task is saved with an explicit folder
       verify(scheduleManager, times(1)).setScheduleTask(eq(id), any(ScheduleTask.class),
+                                                        any(inetsoft.uql.asset.AssetEntry.class),
                                                         eq(caller));
    }
 
