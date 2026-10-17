@@ -116,7 +116,8 @@ public class VSLayoutControllerService {
 
             if(!layoutName.equals(currLayout)) {
                rvs.resetLayoutUndoRedo();
-               rvs.addLayoutCheckPoint(layoutClone);
+               // Bug 78755: checkpoint the real layout, not the scale-1 editing clone.
+               rvs.addLayoutCheckPoint(layout);
             }
 
             vsLayoutService.sendLayout(rvsClone, layoutClone, dispatcher, objectModelService);

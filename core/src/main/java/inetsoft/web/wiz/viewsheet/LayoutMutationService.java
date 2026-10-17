@@ -153,6 +153,12 @@ public class LayoutMutationService {
             "edit_layout_objects needs at least one object in \"objects\".");
       }
 
+      // Bug 78755: convert/validate all geometry before any layout session is touched, so a
+      // refused call has no side effect (no focus switch, no undo reset, no half-applied list).
+      if(OP_MOVE_RESIZE.equals(op) || OP_ADD.equals(op)) {
+         validateGeometry(objects);
+      }
+
       switch(op == null ? "" : op) {
       case OP_MOVE_RESIZE:
          moveResize(sessionToken, agent, layoutName, region, objects);
@@ -244,13 +250,13 @@ public class LayoutMutationService {
                // omitted field to 0, which would silently shrink/relocate it instead.
                Point currentPosition = assemblyLayout.getPosition();
                Dimension currentSize = assemblyLayout.getSize();
-               int x = object.containsKey("x") ? toInt(object.get("x")) :
+               int x = object.containsKey("x") ? toInt("x", object.get("x")) :
                   (currentPosition != null ? currentPosition.x : 0);
-               int y = object.containsKey("y") ? toInt(object.get("y")) :
+               int y = object.containsKey("y") ? toInt("y", object.get("y")) :
                   (currentPosition != null ? currentPosition.y : 0);
-               int width = object.containsKey("width") ? toInt(object.get("width")) :
+               int width = object.containsKey("width") ? toInt("width", object.get("width")) :
                   (currentSize != null ? currentSize.width : 0);
-               int height = object.containsKey("height") ? toInt(object.get("height")) :
+               int height = object.containsKey("height") ? toInt("height", object.get("height")) :
                   (currentSize != null ? currentSize.height : 0);
                requireNonNegativePosition(x, y);
                Point position = new Point(x, y);
@@ -305,8 +311,8 @@ public class LayoutMutationService {
                String name = requireName(object);
 
                AddVSLayoutObjectEvent event = new AddVSLayoutObjectEvent();
-               int xOffset = toInt(object.getOrDefault("x", 0));
-               int yOffset = toInt(object.getOrDefault("y", 0));
+               int xOffset = toInt("x", object.getOrDefault("x", 0));
+               int yOffset = toInt("y", object.getOrDefault("y", 0));
                requireNonNegativePosition(xOffset, yOffset);
                event.setLayoutName(layoutName);
                event.setRegion(region);
@@ -655,12 +661,36 @@ public class LayoutMutationService {
       return result;
    }
 
-   private static int toInt(Object value) {
-      if(value instanceof Number number) {
-         return number.intValue();
+   /**
+    * Bug 78755: {@code Number.intValue()} keeps the low 32 bits of a long and truncates a
+    * fraction, so 4294967301 became 5 and 2.7 became 2. Convert exactly instead; an integral
+    * value such as {@code 5.0} is accepted.
+    */
+   private static int toInt(String field, Object value) {
+      try {
+         return new java.math.BigDecimal(String.valueOf(value).trim()).intValueExact();
       }
+      catch(ArithmeticException | NumberFormatException e) {
+         throw new IllegalArgumentException(
+            "edit_layout_objects: '" + field + "' must be a whole number between " +
+            Integer.MIN_VALUE + " and " + Integer.MAX_VALUE + " -- got " + value + ".");
+      }
+   }
 
-      return Integer.parseInt(String.valueOf(value));
+   private static void validateGeometry(List<Map<String, Object>> objects) {
+      for(Map<String, Object> object : objects) {
+         int x = object.containsKey("x") ? toInt("x", object.get("x")) : 0;
+         int y = object.containsKey("y") ? toInt("y", object.get("y")) : 0;
+         requireNonNegativePosition(x, y);
+
+         for(String field : new String[] { "width", "height" }) {
+            if(object.containsKey(field) && toInt(field, object.get(field)) < 0) {
+               throw new IllegalArgumentException(
+                  "edit_layout_objects: '" + field + "' must be non-negative -- got " +
+                  object.get(field) + ".");
+            }
+         }
+      }
    }
 
    private final LayoutSessionService layoutSessions;
