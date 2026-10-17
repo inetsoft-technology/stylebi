@@ -117,7 +117,10 @@ class ScriptLibraryControllerTest {
       Fixture fixture = new Fixture();
       fixture.stubRemovableScript("helper", "return 1;");
 
-      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class);
+          MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class))
+      {
+         handler.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
          transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
             .thenReturn(List.of());
 
@@ -146,7 +149,10 @@ class ScriptLibraryControllerTest {
       AssetEntry dependent = new AssetEntry(
          AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.VIEWSHEET, "report", null);
 
-      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class);
+          MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class))
+      {
+         handler.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
          transformer.when(() -> DependencyTransformer.getDependencies(componentScopedId("helper")))
             .thenReturn(List.<AssetObject>of(dependent));
 
@@ -165,7 +171,10 @@ class ScriptLibraryControllerTest {
       // GLOBAL_SCOPE is the scope RemoveAssetController.checkScriptRemoveable's own (buggy) lookup
       // used, and the bug this test guards against: a lookup keyed there never matches a real
       // dependency record, so force=false would silently allow an unsafe delete.
-      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class);
+          MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class))
+      {
+         handler.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
          transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
             .thenReturn(List.of());
 
@@ -179,12 +188,38 @@ class ScriptLibraryControllerTest {
       verify(fixture.lib).removeScript("helper");
    }
 
+   /** Bug #78735: deleting a caller must drop its edges to its callees, or deleting the callee is refused. */
+   @Test
+   void delete_removesTheDeletedFunctionsOutgoingDependencyEdges() throws Exception {
+      Fixture fixture = new Fixture();
+      fixture.stubRemovableScript("helper", "return other();");
+      DependencyHandler dependencyHandler = mock(DependencyHandler.class);
+
+      try(MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class);
+          MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class))
+      {
+         handler.when(DependencyHandler::getInstance).thenReturn(dependencyHandler);
+         transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
+            .thenReturn(List.of());
+
+         fixture.controller.delete("helper", false, fixture.principal);
+
+         AssetEntry expectedEntry = new AssetEntry(
+            AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, "helper", null);
+         verify(dependencyHandler).updateScriptDependencies(
+            eq("return other();"), isNull(), eq(expectedEntry));
+      }
+   }
+
    @Test
    void delete_allowsRemovalWhenNoDependentsExist() throws Exception {
       Fixture fixture = new Fixture();
       fixture.stubRemovableScript("helper", "return 1;");
 
-      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class);
+          MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class))
+      {
+         handler.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
          transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
             .thenReturn(List.of());
 

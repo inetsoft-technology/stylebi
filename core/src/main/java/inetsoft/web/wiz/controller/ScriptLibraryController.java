@@ -271,6 +271,9 @@ public class ScriptLibraryController {
       }
 
       synchronized(lib) {
+         // drop the function's edges to its callees so they are not refused as "used by" a deleted one
+         DependencyHandler.getInstance().updateScriptDependencies(
+            lib.getScript(name), null, scriptEntry(name));
          lib.removeScript(name);
          lib.save();
 

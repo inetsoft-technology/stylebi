@@ -220,8 +220,7 @@ public class ScriptLibraryChangesetApplyService {
       String text = original.getText() == null ? "" : original.getText();
       mutationEntered.set(true);
       lib.setScript(name, text);
-      DependencyHandler.getInstance().updateScriptDependencies(
-         null, text, new AssetEntry(AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, name, null));
+      DependencyHandler.getInstance().updateScriptDependencies(null, text, scriptEntry(name));
 
       if(!description.isEmpty()) {
          lib.setScriptComment(name, description);
@@ -338,6 +337,8 @@ public class ScriptLibraryChangesetApplyService {
 
       String before = ScriptLibraryChangePlanService.project(entry);
       mutationEntered.set(true);
+      // drop the function's edges to its callees so they are not refused as "used by" a deleted one
+      DependencyHandler.getInstance().updateScriptDependencies(entry.text(), null, scriptEntry(name));
       lib.removeScript(name);
       lib.save();
 
@@ -386,6 +387,8 @@ public class ScriptLibraryChangesetApplyService {
 
       switch(undo.kind) {
          case CREATE -> {
+            DependencyHandler.getInstance().updateScriptDependencies(
+               lib.getScript(undo.name), null, scriptEntry(undo.name));
             lib.removeScript(undo.name);
             lib.save();
             verified = lib.getScript(undo.name) == null;
@@ -414,6 +417,8 @@ public class ScriptLibraryChangesetApplyService {
          }
          default -> {
             lib.setScript(undo.name, undo.text);
+            DependencyHandler.getInstance().updateScriptDependencies(
+               null, undo.text, scriptEntry(undo.name));
 
             if(undo.description != null && !undo.description.isEmpty()) {
                lib.setScriptComment(undo.name, undo.description);
@@ -476,6 +481,10 @@ public class ScriptLibraryChangesetApplyService {
    }
 
    private enum UndoKind { CREATE, RENAME, UPDATE, DELETE }
+
+   private static AssetEntry scriptEntry(String name) {
+      return new AssetEntry(AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, name, null);
+   }
 
    /** One undo descriptor built during apply, replayed in reverse by {@link #rollback}. */
    private static final class Undo {

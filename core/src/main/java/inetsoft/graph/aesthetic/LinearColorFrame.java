@@ -41,7 +41,7 @@ public abstract class LinearColorFrame extends ColorFrame {
     * Get the alpha for the color at the relative scale.
     */
    protected double getAlpha(double ratio) {
-      return Math.max(0, minAlpha + ratio * (maxAlpha - minAlpha));
+      return inetsoft.graph.internal.GTool.clampAlpha(minAlpha + ratio * (maxAlpha - minAlpha));
    }
 
    /**

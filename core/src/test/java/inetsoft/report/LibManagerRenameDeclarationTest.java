@@ -107,6 +107,26 @@ class LibManagerRenameDeclarationTest {
    }
 
    @Test
+   void renameFunctionDeclarationHandlesVarLetConstAndGeneratorForms() {
+      assertEquals("var g = function(x) { return f(x); };\nvar fBackup = 1;",
+                   LibManager.renameFunctionDeclaration(
+                      "f", "g", "var f = function(x) { return f(x); };\nvar fBackup = 1;"));
+      assertEquals("const g = 0.1;", LibManager.renameFunctionDeclaration("f", "g", "const f = 0.1;"));
+      assertEquals("let g = 2;", LibManager.renameFunctionDeclaration("f", "g", "let f = 2;"));
+      assertEquals("function* g(x) { yield x; }",
+                   LibManager.renameFunctionDeclaration("f", "g", "function* f(x) { yield x; }"));
+      assertEquals("function *g(x) { yield x; }",
+                   LibManager.renameFunctionDeclaration("f", "g", "function *f(x) { yield x; }"));
+   }
+
+   @Test
+   void renameFunctionDeclarationLeavesASiblingVarAlone() {
+      String text = "var fBackup = 1;\nvar other = f;";
+
+      assertEquals(text, LibManager.renameFunctionDeclaration("f", "g", text));
+   }
+
+   @Test
    void renameFunctionDeclarationTolerantOfNullText() {
       assertNull(LibManager.renameFunctionDeclaration("f", "g", null));
    }

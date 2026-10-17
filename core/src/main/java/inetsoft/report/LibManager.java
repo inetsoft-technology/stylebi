@@ -353,7 +353,8 @@ public class LibManager implements AutoCloseable {
    }
 
    /**
-    * Rename the declaration {@code function <oldName>(...)} in a library function's text. Only the
+    * Rename the declaration ({@code function <oldName>(...)}, {@code function* <oldName>(...)} or
+    * {@code var|let|const <oldName> =}) in a library function's text. Only the
     * declaration is changed, so a string literal, comment, built-in call or sibling identifier that
     * merely contains the old name is left alone.
     * @param oldName old name of the script function.
@@ -366,17 +367,19 @@ public class LibManager implements AutoCloseable {
          return text;
       }
 
-      final String tail = Pattern.quote(oldName) + "(?![\\w$])(\\s*\\()";
-      final String replacement = "$1" + Matcher.quoteReplacement(newName) + "$2";
+      final String declarator = "(?:\\bfunction\\s*\\*?\\s*|\\b(?:var|let|const)\\s+)";
+      final String tail = Pattern.quote(oldName) + "(?![\\w$])(?=\\s*[(=])";
+      final String replacement = "$1" + Matcher.quoteReplacement(newName);
 
       // prefer a declaration at the start of a line over one inside a string literal or comment
-      final Matcher lineStart = Pattern.compile("(?m)^(\\s*function\\s+)" + tail).matcher(text);
+      final Matcher lineStart =
+         Pattern.compile("(?m)^(\\s*" + declarator + ")" + tail).matcher(text);
 
       if(lineStart.find()) {
          return lineStart.replaceFirst(replacement);
       }
 
-      return Pattern.compile("(\\bfunction\\s+)" + tail).matcher(text).replaceFirst(replacement);
+      return Pattern.compile("(" + declarator + ")" + tail).matcher(text).replaceFirst(replacement);
    }
 
    /**

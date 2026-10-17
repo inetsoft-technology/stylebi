@@ -103,14 +103,17 @@ public class RemoveAssetController {
 
             checkScriptRemoveable(event, entry, principal);
 
+            AssetEntry scriptEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
+                                                    AssetEntry.Type.SCRIPT, entry.getName(), null);
+            // drop this function's edges to its callees so they are not refused as "used by" it
+            dependencyHandler.updateScriptDependencies(
+               manager.getScript(entry.getName()), null, scriptEntry);
             manager.removeScript(entry.getName());
             manager.save();
             // Bug #78217, the script is already removed, a failed permission write must not skip
             // the dependency cleanup
             AbstractAssetEngine.removePermissionBestEffort(
                securityProvider, ResourceType.SCRIPT, entry.getName());
-            AssetEntry scriptEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
-                                                    AssetEntry.Type.SCRIPT, entry.getName(), null);
             dependencyHandler.deleteDependenciesKey(scriptEntry);
          }
          else if(entry.isTableStyle()) {

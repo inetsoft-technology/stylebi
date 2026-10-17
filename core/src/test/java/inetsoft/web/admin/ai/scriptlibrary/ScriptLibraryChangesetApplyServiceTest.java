@@ -128,6 +128,27 @@ class ScriptLibraryChangesetApplyServiceTest {
          isNull(), eq("return callee();"), eq(expectedEntry));
    }
 
+   /** Bug #78735: applying a delete drops the function's outgoing edges, so its callees can be deleted. */
+   @Test void applyOfADeleteRemovesTheDeletedFunctionsOutgoingEdges() throws Exception {
+      scripts.put("caller", "return callee();");
+      comments.put("caller", "desc");
+      ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_DELETE, "caller");
+
+      try(MockedStatic<DependencyTransformer> dep = mockStatic(DependencyTransformer.class)) {
+         dep.when(() -> DependencyTransformer.getDependencies(anyString())).thenReturn(List.of());
+         ScriptLibraryApplyRequest req = applyRequest(hashOf(c), "looks good", true, c);
+
+         ScriptLibraryApplyResult result = service.apply(req, user);
+
+         assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      }
+
+      AssetEntry expectedEntry = new AssetEntry(
+         AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, "caller", null);
+      verify(dependencyHandler).updateScriptDependencies(
+         eq("return callee();"), isNull(), eq(expectedEntry));
+   }
+
    private void wireLibManagerFake() {
       lenient().when(lib.getScript(anyString())).thenAnswer(inv -> scripts.get(inv.getArgument(0)));
       lenient().when(lib.getScriptComment(anyString()))
