@@ -2983,11 +2983,53 @@ class DateComparisonServiceTest {
       assertDynamic(model.getIntervalPaneModel().getGranularity(), "$(G)",
                     DynamicValueModel.VARIABLE);
 
-      DateComparisonPaneModel other = model();
-      harness(other).service.set("tok", principal(), "Chart1",
-                                 dyn("1", "$(L)", "monthToDate", null, null), "");
+      // a dynamic period level is unknown, not a reason to keep a granularity the interval forbids
+      DateComparisonPaneModel allInterval = model();
+      harness(allInterval).service.set("tok", principal(), "Chart1",
+                                       dyn("1", "$(L)", "all", null, null), "");
       assertEquals(16, Integer.parseInt(
-         String.valueOf(other.getIntervalPaneModel().getGranularity().getValue())));
+         String.valueOf(allInterval.getIntervalPaneModel().getGranularity().getValue())));
+
+      DateComparisonPaneModel dynamicInterval = model();
+      harness(dynamicInterval).service.set("tok", principal(), "Chart1",
+                                           dyn("1", "month", "$(I)", null, null), "");
+      assertEquals(16, Integer.parseInt(
+         String.valueOf(dynamicInterval.getIntervalPaneModel().getGranularity().getValue())));
+   }
+
+   /** Bug #78756: a dynamic period level skipped normalisation while the validator still ran. */
+   @Test
+   void aDynamicPeriodLevelStillReplacesTheDefaultYearGranularityForALiteralInterval()
+      throws Exception
+   {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      Map<String, Object> result = h.service.set(
+         "tok", principal(), "Chart1", dyn("1", "$(L)", "monthToDate", null, null), "");
+
+      assertDynamic(model.getIntervalPaneModel().getGranularity(), "4", DynamicValueModel.VALUE);
+      assertEquals(Boolean.TRUE, result.get("intervalGranularityAdjusted"));
+      assertEquals("year", result.get("intervalGranularityBefore"));
+      assertEquals("month", result.get("intervalGranularityAfter"));
+      assertEquals("month", readInterval(h).get("granularity"));
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", dyn("1", "$(L)", "monthToDate", "month", null), ""));
+   }
+
+   @Test
+   void aDynamicPeriodLevelDoesNotLeaveAStaleContextLevelBehind() throws Exception {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1",
+                    dyn("1", "year", "weekToDate", "day", "week"), "");
+      Map<String, Object> result = h.service.set(
+         "tok", principal(), "Chart1", dyn("1", "$(L)", "monthToDate", null, null), "");
+
+      assertEquals(Boolean.TRUE, result.get("intervalContextLevelAdjusted"));
+      assertEquals("week", result.get("intervalContextLevelBefore"));
    }
 
    // ── harness ───────────────────────────────────────────────────────────────

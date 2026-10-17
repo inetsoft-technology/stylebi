@@ -582,6 +582,11 @@ public class SelectionListVSAssembly extends AbstractSelectionVSAssembly
       if(dref != null && Tool.equals(ref, dref.getName())) {
          setTableName(null);
       }
+
+      if(getMeasure() != null && Tool.equals(getMeasure(), ref)) {
+         getSelectionListInfo().setMeasure(null);
+         getSelectionListInfo().setMeasureValue(null);
+      }
    }
 
    @Override

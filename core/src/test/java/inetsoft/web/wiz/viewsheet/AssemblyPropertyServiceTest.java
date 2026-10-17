@@ -2093,6 +2093,71 @@ class AssemblyPropertyServiceTest {
       assertEquals("AMOUNT", listMeasure(written.getValue()));
    }
 
+   // ── #78756: gauge/text/image output aggregate ──────────────────────────────
+
+   private static GaugePropertyDialogModel boundGauge(String aggregate) {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getDataOutputPaneModel().setAggregate(aggregate);
+      return model;
+   }
+
+   @Test
+   void refusesAnUnknownGaugeAggregateOnTheAliasAndTheRawPath() {
+      for(String key : new String[] {"aggregate", "dataOutputPaneModel.aggregate"}) {
+         GaugePropertyDialogModel model = boundGauge("Sum");
+         AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Gauge1", Map.of(key, "Foo"), ""));
+
+         assertTrue(e.getMessage().contains("Foo"), e.getMessage());
+         assertTrue(e.getMessage().contains("Sum"), e.getMessage());
+         assertNothingWrittenBy(lastDialogServices);
+      }
+   }
+
+   @Test
+   void refusesAnUnknownTextAndImageAggregate() {
+      TextPropertyDialogModel text = new TextPropertyDialogModel();
+      AssemblyPropertyService textService = serviceWith(mock(TextVSAssembly.class), text);
+      assertThrows(IllegalArgumentException.class,
+         () -> textService.set("tok", principal(), "Text1", Map.of("aggregate", "Foo"), ""));
+
+      ImagePropertyDialogService imageDialog = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService imageService = serviceWithImage(
+         mock(ImageVSAssembly.class), ImagePropertyDialogModel.builder().build(), imageDialog);
+      assertThrows(IllegalArgumentException.class,
+         () -> imageService.set("tok", principal(), "Image1", Map.of("aggregate", "Foo"), ""));
+      assertNothingWrittenBy(List.of(imageDialog));
+   }
+
+   @Test
+   void canonicalisesAKnownOutputAggregateAndAcceptsNoneAndDynamicValues() throws Exception {
+      GaugePropertyDialogModel model = boundGauge("Max");
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      service.set("tok", principal(), "Gauge1", Map.of("aggregate", "sum"), "");
+      assertEquals("Sum", model.getDataOutputPaneModel().getAggregate());
+
+      service.set("tok", principal(), "Gauge1", Map.of("aggregate", "Sum(Bar)"), "");
+      assertEquals("Sum", model.getDataOutputPaneModel().getAggregate());
+
+      for(String ok : new String[] {"none", "$(x)", "=1+1"}) {
+         service.set("tok", principal(), "Gauge1", Map.of("aggregate", ok), "");
+         assertEquals(ok, model.getDataOutputPaneModel().getAggregate());
+      }
+   }
+
+   @Test
+   void anUnrelatedPatchOverALegacyBadOutputAggregateIsNotBlocked() throws Exception {
+      GaugePropertyDialogModel model = boundGauge("Foo");
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      service.set("tok", principal(), "Gauge1", Map.of("aggregate", "Foo"), "");
+
+      assertEquals("Foo", model.getDataOutputPaneModel().getAggregate());
+   }
+
    // ── #78678: selection measure formula ──────────────────────────────────────
 
    private static String listFormula(SelectionListPropertyDialogModel model) {

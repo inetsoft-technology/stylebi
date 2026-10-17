@@ -46,6 +46,7 @@ import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.OutputVSAssembly;
 import inetsoft.uql.viewsheet.ScalarBindingInfo;
+import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.CalculateRef;
@@ -600,6 +601,59 @@ class ModifyCalculateFieldServiceTest {
 
    // ---- Bug #78682: removing or changing an unrelated calc field must not unbind a Calendar or
    // an Output assembly (Text/Gauge/...) bound to a different column of the same table.
+
+   /** Bug #78756: a SelectionList's measure named the removed calc field and was left dangling. */
+   @Test
+   void removeCalcFieldUsedAsSelectionListMeasureClearsTheMeasureAndKeepsTheTable()
+      throws Exception
+   {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("VCF20X", "field['Total'] * 2", true));
+      SelectionListVSAssembly list = selectionList(vs, "SelectionList1", "Orders", "State");
+      list.getSelectionListInfo().setMeasure("VCF20X");
+      list.getSelectionListInfo().setMeasureValue("VCF20X");
+
+      modify78682(vs, "Orders", "VCF20X", null);
+
+      assertNull(list.getMeasure());
+      assertNull(list.getSelectionListInfo().getMeasureValue());
+      assertEquals("Orders", list.getTableName());
+   }
+
+   @Test
+   void removeCalcFieldKeepsASelectionListMeasureOfAnotherField() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("VCF20X", "field['Total'] * 2", true));
+      SelectionListVSAssembly list = selectionList(vs, "SelectionList1", "Orders", "State");
+      list.getSelectionListInfo().setMeasure("Total");
+      list.getSelectionListInfo().setMeasureValue("Total");
+
+      modify78682(vs, "Orders", "VCF20X", null);
+
+      assertEquals("Total", list.getMeasure());
+      assertEquals("Orders", list.getTableName());
+   }
+
+   @Test
+   void removeCalcFieldUsedAsSelectionListColumnStillUnbindsTheList() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("VCF20X", "field['Total'] * 2", true));
+      SelectionListVSAssembly list = selectionList(vs, "SelectionList1", "Orders", "VCF20X");
+
+      modify78682(vs, "Orders", "VCF20X", null);
+
+      assertNull(list.getTableName());
+   }
+
+   private static SelectionListVSAssembly selectionList(Viewsheet vs, String name, String table,
+                                                        String column)
+   {
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, name);
+      list.setTableName(table);
+      list.setDataRef(new AttributeRef(null, column));
+      vs.addAssembly(list);
+      return list;
+   }
 
    private static CalendarVSAssembly calendar(Viewsheet vs, String name, String table,
                                               String column)

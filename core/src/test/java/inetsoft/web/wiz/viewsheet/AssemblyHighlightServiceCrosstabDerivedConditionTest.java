@@ -186,6 +186,33 @@ class AssemblyHighlightServiceCrosstabDerivedConditionTest {
    private static final Field[] YEAR_LENS = lens(DERIVED, BASE, "Year(ORDER_DATE)");
 
    @Test
+   void fieldTypedValueOperandOnADerivedMeasureIsRefused() {
+      CrosstabVSAssemblyInfo info = crosstab(XConstants.YEAR_DATE_GROUP, DateComparisonInfo.YEAR);
+      AssemblyHighlightService.Highlight hl = new AssemblyHighlightService.Highlight(
+         "h", "#ff0000", null, null,
+         List.of(new ConditionVocabulary.Clause(BASE, ">",
+            List.of(Map.of("type", "Field", "field", DERIVED)), null, false, false, 0)), false);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> AssemblyHighlightService.requireNoDerivedConditionField(
+            hl, service.getDateComparisonFields(info, YEAR_LENS)));
+      assertTrue(e.getMessage().contains("'" + DERIVED + "'"), e.getMessage());
+      assertTrue(e.getMessage().toLowerCase().contains("date comparison"), e.getMessage());
+   }
+
+   @Test
+   void fieldTypedValueOperandOnTheBaseMeasureIsAccepted() {
+      CrosstabVSAssemblyInfo info = crosstab(XConstants.YEAR_DATE_GROUP, DateComparisonInfo.YEAR);
+      AssemblyHighlightService.Highlight hl = new AssemblyHighlightService.Highlight(
+         "h", "#ff0000", null, null,
+         List.of(new ConditionVocabulary.Clause(BASE, ">",
+            List.of(Map.of("type", "field", "field", BASE)), null, false, false, 0)), false);
+
+      assertDoesNotThrow(() -> AssemblyHighlightService.requireNoDerivedConditionField(
+         hl, service.getDateComparisonFields(info, YEAR_LENS)));
+   }
+
+   @Test
    void derivedMeasureUnderItsListedLensNameIsRefused() {
       assertRefused(crosstab(XConstants.YEAR_DATE_GROUP, DateComparisonInfo.YEAR), YEAR_LENS,
                     DERIVED);

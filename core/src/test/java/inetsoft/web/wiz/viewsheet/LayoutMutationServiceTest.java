@@ -160,6 +160,105 @@ class LayoutMutationServiceTest {
       assertEquals(400, table.layoutY());
    }
 
+   /** Bug 78755 p1: geometry beyond int32 / fractional is refused by field name, nothing stored. */
+   @Test
+   void moveResizeRefusesNonInt32OrFractionalGeometryNamingTheField() throws Exception {
+      Object[][] cases = {
+         { "x", 4294967301L }, { "y", 4294967396L }, { "width", 3000000000L },
+         { "height", 4294967336L }, { "x", 2.7 }, { "x", 1e12 }, { "x", Double.NaN },
+         { "x", null }
+      };
+
+      for(Object[] c : cases) {
+         Fixture fx = new Fixture();
+         fx.installPrintLayout();
+         String field = (String) c[0];
+         Map<String, Object> object = new java.util.HashMap<>();
+         object.put("name", "Table1");
+         object.put(field, c[1]);
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize",
+               VSLayoutService.CONTENT, List.of(object), false), field + "=" + c[1]);
+
+         assertTrue(thrown.getMessage().contains("'" + field + "' must be a whole number"),
+                    thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("-727379968"), thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("-1294967296"), thrown.getMessage());
+         LayoutObjectModelHolder table = fx.readTableObject();
+         assertEquals(300, table.layoutX());
+         assertEquals(400, table.layoutY());
+         assertEquals(50, table.layoutWidth());
+         assertEquals(60, table.layoutHeight());
+      }
+   }
+
+   @Test
+   void moveResizeAcceptsAnIntegralDoubleAndANumericString() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 5.0, "y", "7")), false);
+
+      LayoutObjectModelHolder table = fx.readTableObject();
+      assertEquals(5, table.layoutX());
+      assertEquals(7, table.layoutY());
+   }
+
+   @Test
+   void moveResizeRefusesANegativeWidthOrHeight() throws Exception {
+      for(String field : new String[] { "width", "height" }) {
+         Fixture fx = new Fixture();
+         fx.installPrintLayout();
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize",
+               VSLayoutService.CONTENT, List.of(Map.of("name", "Table1", field, -5)), false));
+
+         assertTrue(thrown.getMessage().contains("'" + field + "' must be non-negative"),
+                    thrown.getMessage());
+         assertEquals(50, fx.readTableObject().layoutWidth());
+         assertEquals(60, fx.readTableObject().layoutHeight());
+      }
+   }
+
+   @Test
+   void addRefusesAnOverflowingPositionNamingTheField() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      int objectCountBefore = fx.printLayoutObjectNames().size();
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+            List.of(Map.of("name", "NewCaption", "type", "text", "x", 4294967301L, "y", 5)),
+            false));
+
+      assertTrue(thrown.getMessage().contains("'x' must be a whole number"), thrown.getMessage());
+      assertEquals(objectCountBefore, fx.printLayoutObjectNames().size());
+   }
+
+   /** A refused call must not switch focus or reset the undo stack of the focused layout. */
+   @Test
+   void aRefusedCallFromAnotherFocusedLayoutLeavesTheUndoStateUnchanged() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.installDeviceLayout();
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 11)), false);
+      int pointBefore = fx.masterRvs.getLayoutPoint();
+      int pointsBefore = fx.masterRvs.getLayoutPointsSize();
+      assertTrue(pointsBefore > 0);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, DEVICE_LAYOUT, "move_resize",
+            VSLayoutService.CONTENT, List.of(Map.of("name", "Table1", "x", 1e12)), false));
+
+      assertEquals(pointBefore, fx.masterRvs.getLayoutPoint());
+      assertEquals(pointsBefore, fx.masterRvs.getLayoutPointsSize());
+   }
+
    @Test
    void addRefusesANegativePosition() throws Exception {
       Fixture fx = new Fixture();

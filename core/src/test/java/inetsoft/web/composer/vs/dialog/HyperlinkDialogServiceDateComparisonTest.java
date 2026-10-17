@@ -70,6 +70,10 @@ class HyperlinkDialogServiceDateComparisonTest {
    }
 
    private static Fixture fixture(int option) throws Exception {
+      return fixture(option, XConstants.YEAR_DATE_GROUP, DateComparisonInfo.YEAR);
+   }
+
+   private static Fixture fixture(int option, int dateLevel, int granularity) throws Exception {
       DateComparisonInfo dcInfo = new DateComparisonInfo();
       StandardPeriods periods = new StandardPeriods();
       periods.setDateLevel(XConstants.YEAR_DATE_GROUP);
@@ -81,7 +85,7 @@ class HyperlinkDialogServiceDateComparisonTest {
       dcInfo.setDateComparisonPeriods(periods);
 
       DateComparisonInterval interval = new DateComparisonInterval();
-      interval.setGranularity(DateComparisonInfo.YEAR);
+      interval.setGranularity(granularity);
       interval.setLevel(DateComparisonInfo.ALL);
       interval.setContextLevel(XConstants.YEAR_DATE_GROUP);
       dcInfo.setDateComparisonInterval(interval);
@@ -90,7 +94,7 @@ class HyperlinkDialogServiceDateComparisonTest {
       AttributeRef dateAttr = new AttributeRef("date");
       dateAttr.setDataType(XSchema.DATE);
       VSChartDimensionRef dateDim = new VSChartDimensionRef(dateAttr);
-      dateDim.setDateLevel(XConstants.YEAR_DATE_GROUP);
+      dateDim.setDateLevel(dateLevel);
       dateDim.setDataType(XSchema.DATE);
 
       VSChartAggregateRef measure = new VSChartAggregateRef();
@@ -210,5 +214,52 @@ class HyperlinkDialogServiceDateComparisonTest {
          f.service.setHyperlinkDialogModel("rt", "Chart1", model(f.derivedName, false, false), "",
                                            USER, null);
       });
+   }
+
+   private static String dcOnlyDimension(Fixture f) {
+      VSChartInfo chartInfo = f.info.getVSChartInfo();
+      return Arrays.stream(chartInfo.getRuntimeDateComparisonRefs())
+         .filter(r -> r instanceof VSChartDimensionRef)
+         .map(ChartRef::getFullName)
+         .filter(n -> chartInfo.getFieldByName(n, false) == null)
+         .findFirst().orElse(null);
+   }
+
+   private static Fixture monthFixture() throws Exception {
+      Fixture f = fixture(DateComparisonInfo.CHANGE_VALUE, XConstants.MONTH_DATE_GROUP,
+                          DateComparisonInfo.MONTH);
+      assertNotNull(dcOnlyDimension(f), "date comparison must derive a dimension");
+      return f;
+   }
+
+   @Test
+   void linkOnADateComparisonOnlyDimensionIsRefused() throws Exception {
+      Fixture f = monthFixture();
+      String dim = dcOnlyDimension(f);
+
+      Exception e = assertThrows(IllegalArgumentException.class, () ->
+         f.service.setHyperlinkDialogModel("rt", "Chart1", model(dim, true, false), "", USER, null));
+      assertTrue(e.getMessage().contains(dim) &&
+                    e.getMessage().toLowerCase().contains("date comparison"), e.getMessage());
+      verify(f.props, never()).editObjectProperty(any(), any(), anyString(), anyString(), any(),
+                                                  any(), any(), anyBoolean(), any());
+   }
+
+   @Test
+   void dateComparisonOnlyDimensionIsAcceptedOnTheGuiPathAndWhenClearing() throws Exception {
+      Fixture gui = monthFixture();
+      assertDoesNotThrow(() -> gui.service.setHyperlinkDialogModel(
+         "rt", "Chart1", model(dcOnlyDimension(gui), false, false), "", USER, null));
+
+      Fixture clear = monthFixture();
+      assertDoesNotThrow(() -> clear.service.setHyperlinkDialogModel(
+         "rt", "Chart1", model(dcOnlyDimension(clear), true, true), "", USER, null));
+   }
+
+   @Test
+   void linkOnTheBaseMeasureIsStillAcceptedWithAMonthComparison() throws Exception {
+      Fixture f = monthFixture();
+      assertDoesNotThrow(() -> f.service.setHyperlinkDialogModel(
+         "rt", "Chart1", model(f.baseName, true, false), "", USER, null));
    }
 }

@@ -136,6 +136,8 @@ public final class FieldRefFactory {
          return ref;
       }
 
+      refuseAggregateCalcFieldAsChartDimension(field, model, rvs, source);
+
       ChartDimensionRefModel ref = new ChartDimensionRefModel();
       ref.setColumnValue(field.column());
       ref.setName(field.column());
@@ -689,6 +691,33 @@ public final class FieldRefFactory {
       }
 
       return calc;
+   }
+
+   /**
+    * Bug #78756: an aggregate calc field ({@code baseOnDetail} false) is computed from other
+    * aggregates, so it only exists as a measure. As a chart dimension (x/y/group shelf,
+    * path/source/target, or a color/shape/size/text channel) it was accepted and every later
+    * render failed. Thrown before anything is assigned, so nothing is written. Skipped without
+    * {@code rvs}; looked up on the chart's own source only.
+    */
+   private static void refuseAggregateCalcFieldAsChartDimension(FieldRef field,
+                                                                BindingModel model,
+                                                                RuntimeViewsheet rvs,
+                                                                SourceInfo source)
+   {
+      if(rvs == null) {
+         return;
+      }
+
+      String table = effectiveSource(model, source);
+
+      if(aggregateCalcFieldOnSource(rvs, table, field.column()) != null) {
+         throw new IllegalArgumentException(
+            "'" + field.column() + "' is an aggregate calc field (computed from other " +
+            "aggregates), so it is a measure and cannot go on a chart dimension (x/y/group " +
+            "shelf, path/source/target, or a color/shape/size/text channel). Bind it as " +
+            "{type:\"measure\"} instead.");
+      }
    }
 
    private static String effectiveSource(BindingModel model, SourceInfo source) {
