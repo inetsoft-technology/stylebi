@@ -153,7 +153,11 @@ class CrosstabNamedGroupEndToEndTest {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "Query1");
       ColumnSelection cs = new ColumnSelection();
-      cs.addAttribute(new ColumnRef(new AttributeRef("ORDER_DATE")));
+      // A real worksheet column carries its data type; an untyped ColumnRef made the date
+      // dimension look non-date to the query and falsely let the named group render (#78751).
+      ColumnRef dateColumn = new ColumnRef(new AttributeRef("ORDER_DATE"));
+      dateColumn.setDataType(XSchema.DATE);
+      cs.addAttribute(dateColumn);
       cs.addAttribute(new ColumnRef(new AttributeRef("CUSTOMER_ID")));
       table.setColumnSelection(cs, false);
 
@@ -297,17 +301,16 @@ class CrosstabNamedGroupEndToEndTest {
    }
 
    /**
-    * PC-007 (bug #76350) regression: a {@code date_in}-based named group resolves to a single
-    * {@link ConditionItem} wrapping a {@link DateCondition} clone -- exactly the shape
-    * {@code ConditionUtil.fromModelToConditionList()} produces for {@code add_named_group}'s
-    * {@code DATE_IN} branch. {@code NamedGroupInfoModel.normalizeDateInGroupCondition} (unit
-    * tested in {@code NamedGroupInfoModelTest}) expands that into the GREATER_THAN/AND/LESS_THAN
-    * range built here by hand, since it's package-private -- this test's job is to confirm that
-    * expanded shape actually groups correctly once it reaches the real query engine, not just
-    * that the shape itself is right.
+    * PC-007 (bug #76350) built a {@code date_in}-based named group into the GREATER_THAN/AND/
+    * LESS_THAN range shape {@code NamedGroupInfoModel.normalizeDateInGroupCondition} produces.
+    * That test only passed because its column was untyped. On a real, date-typed column the
+    * crosstab always groups by the date range and never applies the named group
+    * ({@code VSDimensionRef.createGroupRef}), which is why the wiz binding writes refuse
+    * {@code namedGroup}/{@code namedGroupValues} on a date column (bug #78751, p1). This pins
+    * the render behaviour that refusal rests on.
     */
    @Test
-   void groupsByDateInBasedNamedGroupCondition() throws Exception {
+   void dateTypedColumnIgnoresNamedGroupCondition() throws Exception {
       AttributeRef attribute = new AttributeRef("ORDER_DATE");
       Condition range = new DateCondition.YearCondition(2).toSqlCondition(false);
       Condition start = new Condition(XSchema.DATE);
@@ -330,7 +333,6 @@ class CrosstabNamedGroupEndToEndTest {
       // Two identical control dates so they collapse into a single ungrouped row, matching the
       // MA-passes-through-ungrouped shape of the STATE-based tests above.
       Date controlDate = dateInYear(currentYear(), 2, 1);
-      String controlLabel = String.valueOf(controlDate);
       Object[][] rows = new Object[][]{
          {"ORDER_DATE", "CUSTOMER_ID"},
          {twoYearsAgo(3, 1), "C1"}, {twoYearsAgo(6, 1), "C2"},
@@ -340,10 +342,7 @@ class CrosstabNamedGroupEndToEndTest {
 
       TableLens lens = runDate(info, rows);
 
-      assertEquals(Set.of("TwoYearsAgo", controlLabel), rowLabels(lens),
-         "the 4 dates two years ago must collapse into the named group; the control date is " +
-         "ungrouped and passes through");
-      assertEquals(4, countFor(lens, "TwoYearsAgo"), "the 4 rows dated two years ago");
-      assertEquals(2, countFor(lens, controlLabel), "the 2 rows dated on the control date");
+      assertFalse(rowLabels(lens).contains("TwoYearsAgo"),
+         "a date-typed column is grouped by its date range; the named group is never applied");
    }
 }
