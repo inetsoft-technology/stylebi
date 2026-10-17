@@ -146,24 +146,33 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          // A put never leaves a task listed in more than one folder. The task's current folder
          // is located by folder membership, not by the (possibly cached/mutated) task path.
          AssetEntry taskEntry = AssetEntry.createAssetEntry(key, orgID);
-         AssetEntry currentFolder = findContainingFolder(taskEntry, orgID);
+         AssetFolder parentFolder = null;
+         AssetEntry currentFolder = null;
+
+         if(parent != null) {
+            parentFolder = (AssetFolder)
+               indexedStorage.getXMLSerializable(parent.toIdentifier(), null, parent.getOrgID());
+
+            if(parentFolder != null && parentFolder.containsEntry(taskEntry)) {
+               currentFolder = parent;
+            }
+         }
+
+         if(currentFolder == null) {
+            currentFolder = findCurrentFolder(key, taskEntry, orgID);
+         }
+
+         AssetEntry oldFolderEntry = null;
 
          if(parent == null) {
             // no explicit folder: keep the stored folder of an existing task, else root
             parent = currentFolder != null ? currentFolder : getRootEntry();
+            parentFolder = (AssetFolder)
+               indexedStorage.getXMLSerializable(parent.toIdentifier(), null, parent.getOrgID());
          }
          else if(currentFolder != null && !Objects.equals(currentFolder.getPath(), parent.getPath())) {
-            AssetFolder oldFolder = (AssetFolder) indexedStorage
-               .getXMLSerializable(currentFolder.toIdentifier(), null, orgID);
-
-            if(oldFolder != null) {
-               oldFolder.removeEntry(taskEntry);
-               indexedStorage.putXMLSerializable(currentFolder.toIdentifier(), oldFolder);
-            }
+            oldFolderEntry = currentFolder;
          }
-
-         AssetFolder parentFolder = (AssetFolder)
-            indexedStorage.getXMLSerializable(parent.toIdentifier(), null, parent.getOrgID());
 
          if(parentFolder == null) {
             // if repository is corrupt (orphaned schedule asset), recreate the parent folder
@@ -184,6 +193,17 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          value.setPath(parent.getPath());
          indexedStorage.putXMLSerializable(parent.toIdentifier(), parentFolder);
          indexedStorage.putXMLSerializable(key, value);
+
+         if(oldFolderEntry != null) {
+            AssetFolder oldFolder = (AssetFolder) indexedStorage
+               .getXMLSerializable(oldFolderEntry.toIdentifier(), null, orgID);
+
+            if(oldFolder != null) {
+               oldFolder.removeEntry(taskEntry);
+               indexedStorage.putXMLSerializable(oldFolderEntry.toIdentifier(), oldFolder);
+            }
+         }
+
          AssetFolder rootFolder =
             (AssetFolder) indexedStorage.getXMLSerializable(getRootIdentifier(), null, orgID);
 
@@ -404,6 +424,37 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    /**
     * Finds the folder (root included) that lists the task entry, or null if none does.
     */
+   /**
+    * Finds the folder that lists an existing task: the folder named by the stored task's path
+    * when it lists the task, else a walk of the folders. A new task has no folder.
+    */
+   private AssetEntry findCurrentFolder(String key, AssetEntry taskEntry, String orgID)
+      throws Exception
+   {
+      if(!indexedStorage.contains(key, orgID)) {
+         return null;
+      }
+
+      // read the stored task, not the cached instance whose path may have been changed
+      ScheduleTask stored = (ScheduleTask) indexedStorage.getXMLSerializable(key, null, orgID);
+
+      if(stored != null) {
+         String path = stored.getPath() == null || stored.getPath().isEmpty() ? "/" : stored.getPath();
+         AssetEntry storedFolder = new AssetEntry(
+            AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, path, null, orgID);
+         AssetFolder folder = (AssetFolder)
+            indexedStorage.getXMLSerializable(storedFolder.toIdentifier(), null, orgID);
+
+         if(folder != null && folder.containsEntry(taskEntry)) {
+            return storedFolder;
+         }
+      }
+
+      // the stored path is stale or missing: only folder membership is reliable. This walk stops
+      // at the first folder listing the task, so an existing double listing is not healed.
+      return findContainingFolder(taskEntry, orgID);
+   }
+
    private AssetEntry findContainingFolder(AssetEntry taskEntry, String orgID) throws Exception {
       AssetEntry rootEntry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "/", null, orgID);

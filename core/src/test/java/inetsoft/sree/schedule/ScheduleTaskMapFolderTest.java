@@ -33,6 +33,10 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.security.Principal;
+import java.util.*;
+
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -134,6 +138,97 @@ class ScheduleTaskMapFolderTest {
       taskMap().put(key, cached, folder("FolderB"), ORG);
 
       assertListedOnlyIn(key, "FolderB");
+   }
+
+   // the target folder already lists the task: no folder other than the target is read
+   @Test
+   void putIntoFolderThatListsTheTask_performsNoWalk() throws Exception {
+      String key = store("StmfNoWalk", folder("FolderA"));
+
+      List<String> reads = spyReads();
+      taskMap().put(key, loaded(key), folder("FolderA"), ORG);
+
+      assertEquals(List.of(folder("FolderA").toIdentifier(), folder("/").toIdentifier()), reads);
+      assertListedOnlyIn(key, "FolderA");
+   }
+
+   // a new task needs no search of the folders
+   @Test
+   void putOfNewTask_performsNoWalk() throws Exception {
+      ScheduleTask task = newTask("StmfNewNoWalk");
+      String key = key(task.getTaskId());
+
+      List<String> reads = spyReads();
+      taskMap().put(key, task, folder("FolderB"), ORG);
+
+      assertEquals(List.of(folder("FolderB").toIdentifier(), folder("/").toIdentifier()), reads);
+   }
+
+   // the stored path names the folder listing the task: it is found without a walk
+   @Test
+   void storedPathFolder_isFoundWithoutWalk() throws Exception {
+      String key = store("StmfDirect", folder("FolderA"));
+
+      List<String> reads = spyReads();
+      taskMap().put(key, loaded(key), folder("FolderB"), ORG);
+
+      assertEquals(List.of(folder("FolderB").toIdentifier(), folder("FolderA").toIdentifier(), folder("FolderA").toIdentifier(), folder("/").toIdentifier()), reads);
+      assertListedOnlyIn(key, "FolderB");
+   }
+
+   // the stored path is stale: the folder is still found through the membership walk
+   @Test
+   void staleStoredPath_isFoundByWalk() throws Exception {
+      String key = store("StmfWalk", folder("FolderA"));
+      ScheduleTask stored = (ScheduleTask) IndexedStorage.getIndexedStorage()
+         .getXMLSerializable(key, null, ORG);
+      stored.setPath("Gone");
+      IndexedStorage.getIndexedStorage().putXMLSerializable(key, stored);
+      taskMap().clearCache();
+
+      taskMap().put(key, loaded(key), folder("FolderB"), ORG);
+
+      assertListedOnlyIn(key, "FolderB");
+   }
+
+   // a failed write of the target folder leaves the task in its old folder
+   @Test
+   void failedTargetWrite_keepsTheOldFolderEntry() throws Exception {
+      String key = store("StmfFail", folder("FolderA"));
+      IndexedStorage real = IndexedStorage.getIndexedStorage();
+      IndexedStorage spy = spy(real);
+      doThrow(new RuntimeException("boom")).when(spy)
+         .putXMLSerializable(eq(folder("FolderB").toIdentifier()), any());
+      ReflectionTestUtils.setField(taskMap(), "indexedStorage", spy);
+
+      try {
+         assertThrows(RuntimeException.class,
+                      () -> taskMap().put(key, loaded(key), folder("FolderB"), ORG));
+      }
+      finally {
+         ReflectionTestUtils.setField(taskMap(), "indexedStorage", real);
+      }
+
+      assertListedOnlyIn(key, "FolderA");
+   }
+
+   // records the identifiers of the folders read while a put runs
+   private List<String> spyReads() throws Exception {
+      IndexedStorage spy = spy(IndexedStorage.getIndexedStorage());
+      List<String> reads = new ArrayList<>();
+      doAnswer(inv -> {
+         String id = inv.getArgument(0);
+
+         if(id.equals(folder("FolderA").toIdentifier()) || id.equals(folder("FolderB").toIdentifier())
+            || id.equals(folder("/").toIdentifier()))
+         {
+            reads.add(id);
+         }
+
+         return inv.callRealMethod();
+      }).when(spy).getXMLSerializable(anyString(), any(), any());
+      ReflectionTestUtils.setField(taskMap(), "indexedStorage", spy);
+      return reads;
    }
 
    private String store(String name, AssetEntry parent) throws Exception {
