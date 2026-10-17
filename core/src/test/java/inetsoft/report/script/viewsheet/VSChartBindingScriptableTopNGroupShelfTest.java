@@ -108,7 +108,8 @@ public class VSChartBindingScriptableTopNGroupShelfTest {
       }
 
       boolean applied = ("" + XCondition.BOTTOM_N).equals(stateRef.getRankingOptionValue());
-      assertTrue(thrown != null || applied,
+      // the message is a supplier so that the getTopN read in it only runs on failure
+      assertTrue(thrown != null || applied, () ->
          "setTopNReverse(\"STATE\", true, Chart.BINDING_FIELD) on a group-shelf dimension " +
          "neither applied nor failed: no exception, rankingOptionValue=" +
          stateRef.getRankingOptionValue() + " (TOP_N=" + XCondition.TOP_N + "), " +
