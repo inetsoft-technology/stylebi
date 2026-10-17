@@ -169,6 +169,25 @@ public final class ChartAestheticMutator {
             throw e;
          }
       }
+      else if(dataInfo instanceof ChartAggregateRefModel) {
+         // Bug #78751: a calculator's dimension reference (columnName / breakBy) must name a
+         // bound dimension, as on a shelf write. The channel is put back on a refusal.
+         try {
+            ChartBindingMutator.requireCalculatorDimension(model, field.calculateInfo());
+         }
+         catch(RuntimeException e) {
+            if(existing == null) {
+               assign(model, name, null);
+            }
+            else {
+               existing.setFullName(previousFullName);
+               existing.setDataInfo(previousData);
+               existing.setFrame(previousFrame);
+            }
+
+            throw e;
+         }
+      }
    }
 
    /** Unbinds a channel. */

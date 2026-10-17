@@ -44,14 +44,21 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
     * Process.
     */
    public void process(boolean separated, boolean multi) {
-      separatedChanged = separated != info.isSeparatedGraph();
-      multiChanged = multi != info.isMultiStyles();
+      // The design flags, not the runtime ones: an applied date comparison overrides
+      // isSeparatedGraph()/isMultiStyles() at runtime, and a request that matches the design is a
+      // no-op that must not rewrite the axis descriptors or legends (bug #78751).
+      boolean designSeparated = info instanceof VSChartInfo vinfo
+         ? vinfo.isDesignSeparated() : info.isSeparatedGraph();
+      boolean designMulti = info instanceof VSChartInfo vinfo
+         ? vinfo.isDesignMultiStyles() : info.isMultiStyles();
+      separatedChanged = separated != designSeparated;
+      multiChanged = multi != designMulti;
 
       info.setSeparatedGraph(separated);
       info.setMultiStyles(multi);
 
       // fix the runtime chart type of refs or the chart
-      info.updateChartType(!info.isMultiStyles());
+      info.updateChartType(!multi);
 
       if(separatedChanged) {
          fixAxisProperties(info, info.isSeparatedGraph());

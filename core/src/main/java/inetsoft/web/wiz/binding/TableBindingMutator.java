@@ -19,6 +19,8 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.drm.AttributeRefModel;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -171,7 +173,7 @@ public final class TableBindingMutator {
             // see dimensions()'s own note on why this is matched by position, not just column.
             List<BDimensionRefModel> previous = dimensionsOf(model, name);
             List<BDimensionRefModel> next =
-               dimensions(refs, previous, carried, rvs, source, refModelService);
+               dimensions(refs, previous, carried, rvs, source, refModelService, model);
             rekeySuppression(model, name, previous, refs);
 
             switch(name) {
@@ -719,7 +721,7 @@ public final class TableBindingMutator {
     * overload too.
     */
    private static List<BDimensionRefModel> dimensions(List<FieldRef> fields) {
-      return dimensions(fields, List.of(), null, null, null, null);
+      return dimensions(fields, List.of(), null, null, null, null, null);
    }
 
    /**
@@ -755,7 +757,8 @@ public final class TableBindingMutator {
                                                        List<BDimensionRefModel> carried,
                                                        RuntimeViewsheet rvs,
                                                        SourceInfo source,
-                                                       DataRefModelFactoryService refModelService)
+                                                       DataRefModelFactoryService refModelService,
+                                                       BindingModel model)
    {
       List<BDimensionRefModel> out = new ArrayList<>();
       boolean[] consumed = new boolean[previous.size()];
@@ -809,7 +812,14 @@ public final class TableBindingMutator {
          }
 
          if(field.timeSeries() != null) {
+            boolean wasTimeSeries = ref.isTimeSeries();
             ref.setTimeSeries(field.timeSeries());
+
+            // A flag the ref already stored is an echo (a dormant sort carried with it stays
+            // tolerated, bug #78214); only a newly-set true is checked against the sort.
+            if(field.timeSeries() && !wasTimeSeries) {
+               requireNoOverriddenSort(model, ref, field.column());
+            }
          }
 
          if(untouched) {
@@ -861,6 +871,37 @@ public final class TableBindingMutator {
       }
 
       return out;
+   }
+
+   /**
+    * Bug #78751 (VTB-054): a crosstab forces a date-typed time-series dimension to ascending
+    * ({@code AbstractCrosstabVSAQuery}), so a desc / by-value / manual sort stored with it is
+    * reported by {@code get_table_binding} but never rendered. Unlike the chart, the crosstab
+    * honours the flag for any date-typed column whatever its level or place, so only the data
+    * type decides.
+    */
+   private static void requireNoOverriddenSort(BindingModel model, BDimensionRefModel ref,
+                                               String column)
+   {
+      String sort = ChartTimeSeriesGuard.overriddenSort(ref);
+
+      if(sort == null || !mayBeDate(model, ref, column)) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "timeSeries:true is refused for '" + column + "': it carries a stored " + sort +
+         " sort, and a time-series date dimension always renders in ascending date order, so " +
+         "that sort would be stored and reported but never applied. Call set_field_sort for '" +
+         column + "' with direction:\"asc\" first (it clears the sort field and manual list), " +
+         "then resend this call; or send timeSeries:false to keep the sort.");
+   }
+
+   /** Not known to be a non-date column: the flag only has an effect on a date-typed column. */
+   private static boolean mayBeDate(BindingModel model, BDimensionRefModel ref, String column) {
+      String type = ref.getDataType() != null ? ref.getDataType()
+         : FieldRefFactory.dataTypeOf(model, column);
+      return type == null || XSchema.isDateType(type);
    }
 
    /**
@@ -1457,7 +1498,22 @@ public final class TableBindingMutator {
          requireKnownMeasure(model, sort.sortByField(), "sortByField");
       }
 
+      if(dimension.isTimeSeries() && ChartBindingMutator.overridesAscending(sort) &&
+         mayBeDate(model, dimension, dimensionColumn(dimension)))
+      {
+         String name = dimensionColumn(dimension);
+         throw new IllegalArgumentException(
+            "Cannot sort '" + name + "' '" + sort.direction() + "': it is a time-series date " +
+            "dimension, which always renders in ascending date order (the Composer disables " +
+            "sorting there). Send timeSeries:false for it with set_table_fields first, or use " +
+            "'asc'.");
+      }
+
       DimensionSortRanking.applySort(dimension, sort);
+   }
+
+   private static String dimensionColumn(BDimensionRefModel dimension) {
+      return dimension.getColumnValue() == null ? dimension.getName() : dimension.getColumnValue();
    }
 
    public static void setRanking(BaseTableBindingModel model, String shelf, String column,

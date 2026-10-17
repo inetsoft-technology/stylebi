@@ -3017,4 +3017,114 @@ class TableBindingMutatorTest {
       assertTrue(TableBindingMutator.drainNotes().isEmpty());
       assertStateKept(model.getRows().get(0));
    }
+
+   // ── timeSeries vs a non-ascending sort on a crosstab date dimension (bug #78751 VTB-054) ──
+
+   private static FieldRef monthTs(Boolean timeSeries) {
+      return new FieldRef("Order Date", "dimension", null, "month", null, null, null, null, null,
+                          null, null, null, timeSeries);
+   }
+
+   private static CrosstabBindingModel crosstabOf(String shelf, Boolean timeSeries) {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Sales", "Sum")));
+      TableBindingMutator.setShelf(model, shelf, List.of(monthTs(timeSeries)));
+      return model;
+   }
+
+   private static List<DimensionSortRanking.Sort> overridingSorts() {
+      return List.of(new DimensionSortRanking.Sort("desc", null, null),
+                     new DimensionSortRanking.Sort("value_asc", "Sum(Sales)", null),
+                     new DimensionSortRanking.Sort("value_desc", "Sum(Sales)", null),
+                     new DimensionSortRanking.Sort("manual", null, List.of("a", "b")));
+   }
+
+   private static BDimensionRefModel first(CrosstabBindingModel model, String shelf) {
+      return ("rows".equals(shelf) ? model.getRows() : model.getCols()).get(0);
+   }
+
+   @Test
+   void sortOverATimeSeriesDateDimensionIsRefusedOnRowsAndCols() {
+      for(String shelf : List.of("rows", "cols")) {
+         for(DimensionSortRanking.Sort sort : overridingSorts()) {
+            CrosstabBindingModel model = crosstabOf(shelf, true);
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+               () -> TableBindingMutator.setSort(model, shelf, "Order Date", null, sort),
+               shelf + " " + sort.direction());
+            assertTrue(e.getMessage().contains("timeSeries"), e.getMessage());
+            assertEquals(XConstants.SORT_ASC, first(model, shelf).getOrder(),
+                         "the refused sort must not be stored");
+         }
+      }
+   }
+
+   @Test
+   void ascSortOverATimeSeriesDateDimensionIsAccepted() {
+      CrosstabBindingModel model = crosstabOf("rows", true);
+      assertDoesNotThrow(() -> TableBindingMutator.setSort(model, "rows", "Order Date", null,
+         new DimensionSortRanking.Sort("asc", null, null)));
+   }
+
+   @Test
+   void timeSeriesOverAStoredNonAscendingSortIsRefusedOnRowsAndCols() {
+      for(String shelf : List.of("rows", "cols")) {
+         for(DimensionSortRanking.Sort sort : overridingSorts()) {
+            CrosstabBindingModel model = crosstabOf(shelf, false);
+            TableBindingMutator.setSort(model, shelf, "Order Date", null, sort);
+            int order = first(model, shelf).getOrder();
+
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+               () -> TableBindingMutator.setShelf(model, shelf, List.of(monthTs(true))),
+               shelf + " " + sort.direction());
+            assertTrue(e.getMessage().contains("timeSeries") && e.getMessage().contains("asc"),
+                       e.getMessage());
+            assertFalse(first(model, shelf).isTimeSeries());
+            assertEquals(order, first(model, shelf).getOrder());
+         }
+      }
+   }
+
+   @Test
+   void timeSeriesOverAnAscendingOrUnsortedDimensionIsAccepted() {
+      CrosstabBindingModel model = crosstabOf("rows", false);
+      TableBindingMutator.setShelf(model, "rows", List.of(monthTs(true)));
+      assertTrue(first(model, "rows").isTimeSeries());
+   }
+
+   @Test
+   void timeSeriesFalseOrOmittedOverANonAscendingSortIsAccepted() {
+      CrosstabBindingModel model = crosstabOf("rows", false);
+      TableBindingMutator.setSort(model, "rows", "Order Date", null,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+      assertDoesNotThrow(() -> TableBindingMutator.setShelf(model, "rows", List.of(monthTs(false))));
+      assertDoesNotThrow(() -> TableBindingMutator.setShelf(model, "rows", List.of(monthTs(null))));
+   }
+
+   /** A stored ts:true plus a dormant sort (older assets) stays writable: the echo is tolerated. */
+   @Test
+   void echoOfAStoredTimeSeriesFlagIsNotRefused() {
+      CrosstabBindingModel model = crosstabOf("rows", false);
+      TableBindingMutator.setSort(model, "rows", "Order Date", null,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+      first(model, "rows").setTimeSeries(true);
+
+      assertDoesNotThrow(() -> TableBindingMutator.setShelf(model, "rows", List.of(monthTs(true))));
+      assertDoesNotThrow(() -> TableBindingMutator.setShelf(model, "rows", List.of(monthTs(null))));
+   }
+
+   @Test
+   void aNonDateColumnIsNotRefused() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      BindingModel.SourceTableColumn column = new BindingModel.SourceTableColumn();
+      column.setName("Order Date");
+      column.setDataType("string");
+      BindingModel.SourceTable table = new BindingModel.SourceTable();
+      table.setColumns(List.of(column));
+      model.setTables(List.of(table));
+      TableBindingMutator.setShelf(model, "rows", List.of(monthTs(false)));
+      TableBindingMutator.setSort(model, "rows", "Order Date", null,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+
+      assertDoesNotThrow(() -> TableBindingMutator.setShelf(model, "rows", List.of(monthTs(true))));
+   }
 }

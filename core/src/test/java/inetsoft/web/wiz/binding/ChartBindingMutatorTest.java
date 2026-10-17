@@ -2376,4 +2376,58 @@ class ChartBindingMutatorTest {
       assertDoesNotThrow(() -> ChartBindingMutator.setShelf(model, "y",
          List.of(changeMeasure("Region"))));
    }
+
+   // ── PERCENT columnName / RUNNINGTOTAL, COMPOUNDGROWTH breakBy (bug #78751) ──────────────
+
+   private static FieldRef percentMeasure(String columnName) {
+      inetsoft.web.binding.model.graph.calc.PercentCalcInfo calc =
+         new inetsoft.web.binding.model.graph.calc.PercentCalcInfo();
+      calc.setColumnName(columnName);
+      return new FieldRef("Total", "measure", "Sum", null, null, null, null, null, calc);
+   }
+
+   private static FieldRef runningMeasure(boolean compound, String breakBy) {
+      RunningTotalCalcInfo calc = compound
+         ? new inetsoft.web.binding.model.graph.calc.CompoundGrowthCalcInfo()
+         : new RunningTotalCalcInfo();
+      calc.setBreakBy(breakBy);
+      return new FieldRef("Total", "measure", "Sum", null, null, null, null, null, calc);
+   }
+
+   @Test
+   void percentCalculatorUnknownColumnIsRefusedNamingColumnName() {
+      ChartBindingModel model = monthOnX();
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartBindingMutator.setShelf(model, "y", List.of(percentMeasure("Nope"))));
+      assertTrue(e.getMessage().contains("calculateInfo.columnName"), e.getMessage());
+      assertTrue(model.getYFields().isEmpty());
+   }
+
+   @Test
+   void percentCalculatorBoundColumnAndBlankAreAccepted() {
+      ChartBindingModel model = monthOnX();
+      assertDoesNotThrow(() -> ChartBindingMutator.setShelf(model, "y",
+         List.of(percentMeasure("Order Date"))));
+      assertDoesNotThrow(() -> ChartBindingMutator.setShelf(model, "y",
+         List.of(percentMeasure(null))));
+   }
+
+   @Test
+   void runningTotalAndCompoundGrowthUnknownBreakByIsRefusedNamingBreakBy() {
+      for(boolean compound : new boolean[] {false, true}) {
+         ChartBindingModel model = monthOnX();
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> ChartBindingMutator.setShelf(model, "y",
+               List.of(runningMeasure(compound, "Nope"))));
+         assertTrue(e.getMessage().contains("calculateInfo.breakBy"), e.getMessage());
+         assertTrue(model.getYFields().isEmpty());
+      }
+   }
+
+   @Test
+   void runningTotalBoundBreakByIsAccepted() {
+      ChartBindingModel model = monthOnX();
+      assertDoesNotThrow(() -> ChartBindingMutator.setShelf(model, "y",
+         List.of(runningMeasure(false, "Order Date"))));
+   }
 }

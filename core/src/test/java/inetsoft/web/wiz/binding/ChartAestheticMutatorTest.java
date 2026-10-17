@@ -2787,4 +2787,49 @@ class ChartAestheticMutatorTest {
          model, "color", spec("type", "categorical", "colors", List.of("#FF0000")));
       assertNotNull(model.getColorFrame());
    }
+
+   // ── calculator column reference on an aesthetic measure (bug #78751) ──
+
+   private static FieldRef colorMeasureWithChange(String columnName) {
+      inetsoft.web.binding.model.graph.calc.ChangeCalcInfo change =
+         new inetsoft.web.binding.model.graph.calc.ChangeCalcInfo();
+      change.setColumnName(columnName);
+      return new FieldRef("Sales", "measure", "Sum", null, null, null, null, null, change);
+   }
+
+   private static ChartBindingModel monthOnXModel() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(
+         new FieldRef("Order Date", "dimension", null, "month", null)));
+      return model;
+   }
+
+   @Test
+   void colourMeasureWithAnUnboundCalculatorColumnIsRefusedAndLeavesTheChannelUnbound() {
+      ChartBindingModel model = monthOnXModel();
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setField(model, "color", colorMeasureWithChange("Nope")));
+      assertTrue(e.getMessage().contains("calculateInfo.columnName"), e.getMessage());
+      assertNull(model.getColorField());
+   }
+
+   @Test
+   void colourMeasureWithABoundCalculatorColumnIsAccepted() {
+      ChartBindingModel model = monthOnXModel();
+      assertDoesNotThrow(
+         () -> ChartAestheticMutator.setField(model, "color", colorMeasureWithChange("Order Date")));
+      assertNotNull(model.getColorField());
+   }
+
+   @Test
+   void aRefusedRebindRestoresThePreviouslyBoundField() {
+      ChartBindingModel model = monthOnXModel();
+      ChartAestheticMutator.setField(model, "color", measure("Sales", "Sum"));
+      ChartRefModel before = model.getColorField().getDataInfo();
+
+      assertThrows(IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setField(model, "color", colorMeasureWithChange("Nope")));
+
+      assertSame(before, model.getColorField().getDataInfo());
+   }
 }

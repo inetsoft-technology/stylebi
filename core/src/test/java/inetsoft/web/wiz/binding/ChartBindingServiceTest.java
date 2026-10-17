@@ -1715,4 +1715,68 @@ class ChartBindingServiceTest {
    private static Principal principal() {
       return () -> "admin";
    }
+
+   // ── design flags under an applied date comparison (bug #78751 VCS-029) ──
+
+   private static ChartBindingService dcChart(ChangeChartTypeService types,
+                                              ChangeSeparateStatusService separateStatus,
+                                              boolean designSeparated)
+   {
+      VSChartAggregateRef discount = mock(VSChartAggregateRef.class);
+      when(discount.getFullName()).thenReturn("Sum(DISCOUNT)");
+      VSChartInfo info = mock(VSChartInfo.class);
+      // A changeAndValue date comparison: the live flags are overridden, the design is untouched.
+      when(info.isMultiStyles()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(false);
+      when(info.isSeparatedGraph()).thenReturn(!designSeparated);
+      when(info.isDesignSeparated()).thenReturn(designSeparated);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      when(info.getYFieldCount()).thenReturn(1);
+      when(info.getYField(0)).thenReturn(discount);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      return harnessWithAssembly(chart, new ChartBindingModel(),
+                                 mock(ChangeChartRefService.class), types,
+                                 mock(SwapXYBindingService.class), separateStatus);
+   }
+
+   @Test
+   void refusesAPerMeasureTypeUnderADateComparisonWhenTheDesignIsNotMultiStyle() {
+      ChangeChartTypeService types = mock(ChangeChartTypeService.class);
+      ChartBindingService service = dcChart(types, mock(ChangeSeparateStatusService.class), true);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setChartType("tok", principal(), "Chart1", GraphTypes.CHART_LINE, null, null,
+                                    null, "Sum(DISCOUNT)", ""));
+
+      assertTrue(thrown.getMessage().contains("multi"), thrown.getMessage());
+      verifyNoInteractions(types);
+   }
+
+   @Test
+   void separateRequestEqualToTheDesignIsANoOpUnderADateComparison() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+
+      dcChart(mock(ChangeChartTypeService.class), separateStatus, true)
+         .setSeparateStatus("tok", principal(), "Chart1", true, "");
+
+      verifyNoInteractions(separateStatus);
+   }
+
+   @Test
+   void separateRequestDifferentFromTheDesignIsAppliedUnderADateComparison() throws Exception {
+      ChangeSeparateStatusService separateStatus = mock(ChangeSeparateStatusService.class);
+
+      dcChart(mock(ChangeChartTypeService.class), separateStatus, true)
+         .setSeparateStatus("tok", principal(), "Chart1", false, "");
+
+      ArgumentCaptor<ChangeSeparateStatusEvent> captor =
+         ArgumentCaptor.forClass(ChangeSeparateStatusEvent.class);
+      verify(separateStatus).changeSeparateStatus(eq("rt1"), captor.capture(),
+                                                  any(Principal.class), any(), anyString());
+      assertFalse(captor.getValue().isSeparate());
+      assertFalse(captor.getValue().isMulti(), "the design multi flag, not the DC override");
+   }
 }

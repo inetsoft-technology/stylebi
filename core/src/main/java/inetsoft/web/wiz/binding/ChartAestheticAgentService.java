@@ -114,6 +114,25 @@ public class ChartAestheticAgentService {
          event.setFieldType(name);
          event.setModel(model);
          aestheticService.changeChartAesthetic(runtimeId, event, user, dispatcher, linkUri);
+
+         try {
+            ChartBindingService.requireAestheticCalculatorResolved(
+               requireChart(rvs, assemblyName).getVSChartInfo(), name, field);
+         }
+         catch(IllegalArgumentException e) {
+            // The write is already committed and mutate() does not undo a thrown mutation; see
+            // ChartBindingService#setShelf.
+            boolean restored = false;
+
+            try {
+               restored = rvs.restoreCurrentCheckpoint();
+            }
+            catch(RuntimeException ignore) {
+            }
+
+            throw new IllegalArgumentException(
+               ChartBindingService.refusalMessage(e.getMessage(), restored), e);
+         }
       }));
    }
 

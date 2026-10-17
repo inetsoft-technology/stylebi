@@ -93,8 +93,8 @@ public class ChangeSeparateStatusService {
          boolean multi = event.isMulti();
 
          // the multi styles should be changed in the processor later
-         cinfo.setSeparatedGraph(oinfo.getVSChartInfo().isSeparatedGraph());
-         cinfo.setMultiStyles(oinfo.getVSChartInfo().isMultiStyles());
+         cinfo.setSeparatedGraph(oinfo.getVSChartInfo().isDesignSeparated());
+         cinfo.setMultiStyles(oinfo.getVSChartInfo().isDesignMultiStyles());
          new ChangeSeparateStatusProcessor(cinfo, cdesc).process(separated, multi);
          new ChangeChartProcessor().fixSizeFrame(cinfo);
 
