@@ -62,10 +62,36 @@ public class ScriptFunction implements ProxyExecutable {
    public ScriptFunction(Object target, Class<?> cls, String name, boolean strictArity,
                           Class<?>... params)
    {
+      this(target, cls, name, strictArity, strictArity ? params.length : 0, params);
+   }
+
+   /**
+    * A strict-arity function whose trailing parameters may be omitted: a call with
+    * {@code minArity} to {@code params.length} arguments is accepted and the omitted
+    * trailing arguments are padded to their Java defaults as usual, while a call with
+    * fewer than {@code minArity} (or more than {@code params.length}) arguments is
+    * rejected.
+    *
+    * @param target   the receiver for instance methods (may be null for static).
+    * @param cls      the class declaring the method.
+    * @param name     the method name.
+    * @param minArity the least number of arguments a call must supply.
+    * @param params   the method parameter types.
+    */
+   public ScriptFunction(Object target, Class<?> cls, String name, int minArity,
+                          Class<?>... params)
+   {
+      this(target, cls, name, true, minArity, params);
+   }
+
+   private ScriptFunction(Object target, Class<?> cls, String name, boolean strictArity,
+                          int minArity, Class<?>... params)
+   {
       this.target = target;
       this.method = findMethod(cls, name, params);
       this.name = name;
       this.strictArity = strictArity;
+      this.minArity = minArity;
    }
 
    /**
@@ -79,6 +105,7 @@ public class ScriptFunction implements ProxyExecutable {
       this.method = method;
       this.name = method == null ? null : method.getName();
       this.strictArity = false;
+      this.minArity = 0;
    }
 
    private static Method findMethod(Class<?> cls, String name, Class<?>... params) {
@@ -99,9 +126,17 @@ public class ScriptFunction implements ProxyExecutable {
 
       Class<?>[] ptypes = method.getParameterTypes();
 
-      if(strictArity && arguments.length != ptypes.length) {
-         throw new IllegalArgumentException(name + "() expects " + ptypes.length +
-            " argument" + (ptypes.length == 1 ? "" : "s") + ", got " + arguments.length);
+      if(strictArity && (arguments.length < minArity || arguments.length > ptypes.length)) {
+         String msg = name + "() expects " + ptypes.length +
+            " argument" + (ptypes.length == 1 ? "" : "s") + ", got " + arguments.length;
+         int optional = ptypes.length - minArity;
+
+         if(optional > 0) {
+            msg += optional == 1 ? " (the last argument is optional)" :
+               " (the last " + optional + " arguments are optional)";
+         }
+
+         throw new IllegalArgumentException(msg);
       }
 
       try {
@@ -341,6 +376,7 @@ public class ScriptFunction implements ProxyExecutable {
    private final Method method;
    private final String name;
    private final boolean strictArity;
+   private final int minArity;
 
    private static final Logger LOG = LoggerFactory.getLogger(ScriptFunction.class);
 }

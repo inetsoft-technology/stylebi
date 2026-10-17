@@ -57,6 +57,7 @@ import inetsoft.util.css.CSSParameter;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.profile.ProfileUtils;
+import inetsoft.util.script.BindingFieldShelfException;
 import inetsoft.util.swap.DataUnavailable;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -419,7 +420,7 @@ public class VGraphPair {
                ainfo.setRTChartDescriptor((ChartDescriptor) ainfo.getChartDescriptor().clone());
             }
 
-            executeScript(scope, script, cname, true);
+            Throwable scriptError = executeScript(scope, script, cname, true);
             creator.setScriptExecuted(true);
 
             EGraph oegraph = null;
@@ -493,6 +494,12 @@ public class VGraphPair {
             if(!"".equals(script)) {
                // clear one of chart's alert message
                Tool.getUserMessage();
+            }
+            // the script is not run again to report its error, so report a bindingInfo write
+            // that failed loud in the first run, which ignored it (Bug #76862). Other errors
+            // of that run keep going unreported here, as before
+            else if(BindingFieldShelfException.find(scriptError) != null) {
+               reportScriptError(scriptError);
             }
 
             if(cscript && isChanged && vbox.getMode() == Viewsheet.SHEET_DESIGN_MODE) {
@@ -946,12 +953,13 @@ public class VGraphPair {
       }
    }
 
-   // Execute script and report error.
-   private void executeScript(ViewsheetScope scope, String script, String cname,
-                              boolean ignoreError)
+   // Execute script and report error. Returns the error, reported or not.
+   private Throwable executeScript(ViewsheetScope scope, String script, String cname,
+                                   boolean ignoreError)
    {
       try {
          scope.execute(script, cname);
+         return null;
       }
       catch(Throwable ex) {
          // a lock stall or a lost swap file is not a script failure to swallow and render
@@ -964,13 +972,19 @@ public class VGraphPair {
          TableLoadException.rethrow(ex);
 
          if(!ignoreError) {
-            LOG.debug("Script failed", ex);
-
-            String linemsg = Catalog.getCatalog().getString("Script failed") + ex.getMessage();
-            Tool.addUserMessage(linemsg);
+            reportScriptError(ex);
             // allow chart to be rendered when script fails
          }
+
+         return ex;
       }
+   }
+
+   private static void reportScriptError(Throwable ex) {
+      LOG.debug("Script failed", ex);
+
+      String linemsg = Catalog.getCatalog().getString("Script failed") + ex.getMessage();
+      Tool.addUserMessage(linemsg);
    }
 
    /**
