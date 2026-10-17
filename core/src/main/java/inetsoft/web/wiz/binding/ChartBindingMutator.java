@@ -22,7 +22,6 @@ import inetsoft.report.internal.Util;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.viewsheet.graph.AbstractCalc;
 import inetsoft.uql.viewsheet.graph.CandleChartInfo;
 import inetsoft.uql.viewsheet.graph.GanttChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
@@ -35,7 +34,7 @@ import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
-import inetsoft.web.binding.model.graph.calc.ValueOfCalcInfo;
+import inetsoft.web.binding.model.graph.CalculateInfo;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
@@ -225,8 +224,9 @@ public final class ChartBindingMutator {
    }
 
    /**
-    * Cheap pre-check for a CHANGE/VALUE calculator written in this shelf write: some bound
-    * dimension's column must appear in {@code columnName}. Deliberately not a full-name match --
+    * Cheap pre-check for a calculator that designates a dimension (CHANGE/VALUE/PERCENT
+    * {@code columnName}, RUNNINGTOTAL/COMPOUNDGROWTH {@code breakBy}) written in this shelf write:
+    * some bound dimension's column must appear in the name. Deliberately not a full-name match --
     * the runtime decides the spelling (date level, named group, period...), so the authoritative
     * refusal is {@code ChartBindingService}'s post-write read-back; this only catches a write
     * that can never resolve (nothing bound, or a column that is not a bound dimension) before
@@ -236,55 +236,43 @@ public final class ChartBindingMutator {
                                                     List<ChartRefModel> refs,
                                                     List<FieldRef> fieldList)
    {
-      List<ChartDimensionRefModel> dims = null;
-
       for(int i = 0; i < refs.size() && i < fieldList.size(); i++) {
-         if(!(fieldList.get(i).calculateInfo() instanceof ValueOfCalcInfo calc) ||
-            !(refs.get(i) instanceof ChartAggregateRefModel))
-         {
-            continue;
+         if(refs.get(i) instanceof ChartAggregateRefModel) {
+            requireCalculatorDimension(model, fieldList.get(i).calculateInfo());
          }
+      }
+   }
 
-         String columnName = calc.getColumnName();
+   /** @see #requireCalculatorDimensions */
+   static void requireCalculatorDimension(ChartBindingModel model, CalculateInfo calculateInfo) {
+      CalculatorColumnRefs.Ref ref = CalculatorColumnRefs.sent(calculateInfo);
 
-         if(columnName == null || columnName.isBlank() ||
-            AbstractCalc.ROW_INNER.equals(columnName) ||
-            AbstractCalc.COLUMN_INNER.equals(columnName))
-         {
-            continue;
-         }
+      if(ref == null || !ref.checkable()) {
+         return;
+      }
 
-         if(dims == null) {
-            dims = boundDimensions(model);
-         }
+      String columnName = ref.name();
+      List<String> columns = new ArrayList<>();
 
-         List<String> columns = new ArrayList<>();
+      for(ChartDimensionRefModel dim : boundDimensions(model)) {
+         String column = dim.getColumnValue() == null ? dim.getName() : dim.getColumnValue();
 
-         for(ChartDimensionRefModel dim : dims) {
-            String column = dim.getColumnValue() == null ? dim.getName() : dim.getColumnValue();
+         if(column != null) {
+            columns.add(column);
 
-            if(column != null) {
-               columns.add(column);
-
-               if(columnName.toLowerCase().contains(column.toLowerCase())) {
-                  columns = null;
-                  break;
-               }
+            if(columnName.toLowerCase().contains(column.toLowerCase())) {
+               return;
             }
          }
-
-         if(columns == null) {
-            continue;
-         }
-
-         throw new IllegalArgumentException(
-            "calculateInfo.columnName '" + columnName + "' does not name a dimension bound on " +
-            "this chart" + (columns.isEmpty()
-               ? " (no dimension is bound yet -- bind the dimension to x, y, group or an " +
-                 "aesthetic channel first)"
-               : ". Bound dimension columns: " + String.join(", ", columns)) +
-            ". Use the dimension's full name, e.g. Month(Order Date) for a date dimension.");
       }
+
+      throw new IllegalArgumentException(
+         "calculateInfo." + ref.key() + " '" + columnName + "' does not name a dimension bound " +
+         "on this chart" + (columns.isEmpty()
+            ? " (no dimension is bound yet -- bind the dimension to x, y, group or an " +
+              "aesthetic channel first)"
+            : ". Bound dimension columns: " + String.join(", ", columns)) +
+         ". Use the dimension's full name, e.g. Month(Order Date) for a date dimension.");
    }
 
    private static List<ChartDimensionRefModel> boundDimensions(ChartBindingModel model) {
@@ -947,7 +935,7 @@ public final class ChartBindingMutator {
       chartDimension.setTimeSeries(false);
    }
 
-   private static boolean overridesAscending(DimensionSortRanking.Sort sort) {
+   static boolean overridesAscending(DimensionSortRanking.Sort sort) {
       String direction = sort == null || sort.direction() == null
          ? "" : sort.direction().trim().toLowerCase();
 

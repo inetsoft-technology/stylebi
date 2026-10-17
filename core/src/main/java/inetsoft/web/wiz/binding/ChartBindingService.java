@@ -18,13 +18,11 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.graph.calc.ValueOfCalc;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.VSDataRef;
-import inetsoft.uql.viewsheet.XDimensionRef;
-import inetsoft.uql.viewsheet.graph.AbstractCalc;
+import inetsoft.uql.viewsheet.XAggregateRef;
+import inetsoft.uql.viewsheet.graph.AestheticRef;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
@@ -44,7 +42,6 @@ import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
-import inetsoft.web.binding.model.graph.calc.ValueOfCalcInfo;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -169,44 +166,34 @@ public class ChartBindingService {
       // Positional: fixChartBindingModel/updateAssembly keep the shelf order and count, so
       // fields[i] is the stored ref at the same index.
       for(int i = 0; i < fields.size() && i < stored.length; i++) {
-         if(!(fields.get(i).calculateInfo() instanceof ValueOfCalcInfo sent)) {
-            continue;
+         if(stored[i] instanceof ChartAggregateRef aggregate) {
+            CalculatorColumnRefs.requireResolved(
+               info, fields.get(i).calculateInfo(), aggregate.getCalculator());
          }
+      }
+   }
 
-         String columnName = sent.getColumnName();
+   /**
+    * Post-write read-back for an aesthetic channel (bug #78751): the same refusal as the shelf
+    * write, applied to the calculator of the measure now bound on {@code channel}.
+    */
+   static void requireAestheticCalculatorResolved(VSChartInfo info, String channel,
+                                                  FieldRef field)
+   {
+      if(info == null || field == null) {
+         return;
+      }
 
-         if(columnName == null || columnName.isBlank() ||
-            AbstractCalc.ROW_INNER.equals(columnName) ||
-            AbstractCalc.COLUMN_INNER.equals(columnName))
-         {
-            continue;
-         }
+      AestheticRef aesthetic = switch(channel == null ? "" : channel.toLowerCase()) {
+         case "color" -> info.getColorField();
+         case "shape" -> info.getShapeField();
+         case "size" -> info.getSizeField();
+         case "text" -> info.getTextField();
+         default -> null;
+      };
 
-         if(stored[i] instanceof ChartAggregateRef aggregate &&
-            aggregate.getCalculator() instanceof ValueOfCalc calc && calc.getColumnName() == null)
-         {
-            List<String> names = new ArrayList<>();
-
-            for(ChartRef[] refs : new ChartRef[][] {
-               info.getXFields(), info.getYFields(), info.getGroupFields()})
-            {
-               for(ChartRef ref : refs) {
-                  if(ref instanceof XDimensionRef && ref instanceof VSDataRef dim &&
-                     !names.contains(dim.getFullName()))
-                  {
-                     names.add(dim.getFullName());
-                  }
-               }
-            }
-
-            throw new IllegalArgumentException(
-               "calculateInfo.columnName '" + columnName + "' does not designate one bound " +
-               "dimension (unknown, or the same column is bound at several levels), so the " +
-               "calculator would store no dimension. " + (names.isEmpty()
-                  ? "No dimension is bound; bind the dimension first."
-                  : "Use one of the bound dimensions' full names: " + String.join(", ", names) +
-                    "."));
-         }
+      if(aesthetic != null && aesthetic.getDataRef() instanceof XAggregateRef aggregate) {
+         CalculatorColumnRefs.requireResolved(info, field.calculateInfo(), aggregate.getCalculator());
       }
    }
 
@@ -742,6 +729,12 @@ public class ChartBindingService {
                "setting. Call with separate: true, or leave it unset.");
          }
 
+         // Already what was asked for: nothing to change, and a write would put a no-op into the
+         // Composer's history (and, under a date comparison, was once not a no-op at all).
+         if(chartInfo.isDesignSeparated() == separate) {
+            return;
+         }
+
          ChangeSeparateStatusEvent event = new ChangeSeparateStatusEvent(assemblyName, multi, separate);
          separateStatusService.changeSeparateStatus(runtimeId, event, user, dispatcher, linkUri);
       }));
@@ -871,7 +864,9 @@ public class ChartBindingService {
       String name = field.trim();
       VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
 
-      if(info == null || !info.isMultiStyles()) {
+      // The design flag: a date comparison forces the live one on, but nothing renders a
+      // per-measure type from a chart whose stored multiStyles is off (bug #78751).
+      if(info == null || !info.isDesignMultiStyles()) {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' is not a multi-style chart, so a per-measure type would be " +
             "stored and never rendered. Call set_chart_type with multi: true first, then type the " +

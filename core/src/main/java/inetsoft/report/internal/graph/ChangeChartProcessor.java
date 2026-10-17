@@ -625,12 +625,20 @@ public class ChangeChartProcessor {
     * Get the available chart type to show a corresponding shape frame.
     */
    protected int getChartType(ChartInfo info, ChartAggregateRef aggr) {
+      return getChartType(info, aggr, info.isMultiStyles());
+   }
+
+   /**
+    * @param multi the multi-style state to decide from, for a caller that must not read the
+    *              runtime flag (an applied date comparison overrides it).
+    */
+   protected int getChartType(ChartInfo info, ChartAggregateRef aggr, boolean multi) {
       ChartRef[] xrefs = info.getXFields();
       ChartRef[] yrefs = info.getYFields();
-      info.updateChartType(!info.isMultiStyles(), xrefs, yrefs);
+      info.updateChartType(!multi, xrefs, yrefs);
 
       // separated?
-      if(!info.isMultiStyles()) {
+      if(!multi) {
          return info.getRTChartType();
       }
 
@@ -1336,10 +1344,10 @@ public class ChangeChartProcessor {
          }
       }
 
-      modifiedAestheticPercentage(color, info);
-      modifiedAestheticPercentage(shape, info);
-      modifiedAestheticPercentage(size, info);
-      modifiedAestheticPercentage(text, info);
+      modifiedAestheticCalculator(color, info, oinfo);
+      modifiedAestheticCalculator(shape, info, oinfo);
+      modifiedAestheticCalculator(size, info, oinfo);
+      modifiedAestheticCalculator(text, info, oinfo);
    }
 
    private void fixAggregateRef(ChartAggregateRef aggr, ChartInfo info) {
@@ -1398,16 +1406,39 @@ public class ChangeChartProcessor {
    }
 
    /**
-    * Modified the percentage option from of-group to of-grand for AestheticRef.
+    * Resolve the dimension references of the calculator on an aesthetic measure. Unlike a
+    * shelf measure, the reset level of a running total is not adjusted (it has no axis).
     */
-   private void modifiedAestheticPercentage(AestheticRef aref, ChartInfo info) {
-      XAggregateRef ref = null;
-
-      if(aref != null && aref.getDataRef() instanceof XAggregateRef) {
-         ref = (XAggregateRef) aref.getDataRef();
+   private void modifiedAestheticCalculator(AestheticRef aref, ChartInfo info, ChartInfo oinfo) {
+      if(aref == null || !(aref.getDataRef() instanceof XAggregateRef)) {
+         return;
       }
 
-      modifiedPercentage(ref, info);
+      XAggregateRef ref = (XAggregateRef) aref.getDataRef();
+      Calculator calc = ref.getCalculator();
+
+      if(calc == null) {
+         return;
+      }
+
+      switch(calc.getType()) {
+         case Calculator.PERCENT :
+            modifiedPercentage(ref, info);
+            break;
+         case Calculator.RUNNINGTOTAL :
+         case Calculator.COMPOUNDGROWTH :
+            if(!Tool.equals(AbstractCalc.ROW_INNER, ((RunningTotalCalc) calc).getColumnName()) &&
+               !Tool.equals(AbstractCalc.COLUMN_INNER, ((RunningTotalCalc) calc).getColumnName()))
+            {
+               modifiedBreakBy((RunningTotalCalc) calc, info);
+            }
+
+            break;
+         case Calculator.CHANGE :
+         case Calculator.VALUE :
+            modifiedColumnName((ValueOfCalc) calc, info, oinfo);
+            break;
+      }
    }
 
    /**
@@ -1428,8 +1459,11 @@ public class ChangeChartProcessor {
             pcalc.setLevel(PercentCalc.GRAND_TOTAL);
          }
 
-         if(!findDimRef(pcalc.getColumnName(), info)) {
-            pcalc.setColumnName(null);
+         String columnName = pcalc.getColumnName();
+
+         if(!findDimRef(columnName, info)) {
+            VSDataRef bare = findDimByBareName(columnName, info);
+            pcalc.setColumnName(bare == null ? null : bare.getFullName());
          }
       }
    }
@@ -1737,16 +1771,29 @@ public class ChangeChartProcessor {
    }
 
    /**
+    * Resolve the break-by dimension of a running total / compound growth: an exact name is kept,
+    * a bare or case-variant name designating one dimension is resolved to its full name, anything
+    * else is cleared.
+    */
+   private void modifiedBreakBy(RunningTotalCalc rcalc, ChartInfo info) {
+      String breakBy = rcalc.getBreakBy();
+
+      if(!findDimRef(breakBy, info)) {
+         VSDataRef bare = findDimByBareName(breakBy, info);
+         rcalc.setBreakBy(bare == null ? null : bare.getFullName());
+      }
+   }
+
+   /**
     * Modified the resel level option to min avaliable level.
     */
    private void modifiedRunningTotal(RunningTotalCalc rcalc, ChartInfo info, boolean isX) {
       String columnName = rcalc.getColumnName();
 
       if(!Tool.equals(AbstractCalc.ROW_INNER, columnName) &&
-         !Tool.equals(AbstractCalc.COLUMN_INNER, columnName) &&
-         !findDimRef(rcalc.getBreakBy(), info))
+         !Tool.equals(AbstractCalc.COLUMN_INNER, columnName))
       {
-         rcalc.setBreakBy(null);
+         modifiedBreakBy(rcalc, info);
       }
 
       ChartRef[] refs = isX ? info.getYFields() : info.getXFields();

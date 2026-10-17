@@ -20,6 +20,7 @@ package inetsoft.web.wiz.binding;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
@@ -155,7 +156,7 @@ final class ChartTimeSeriesGuard {
    }
 
    /** The non-ascending sort {@code dim} carries, in the agent vocabulary, or {@code null}. */
-   private static String overriddenSort(ChartDimensionRefModel dim) {
+   static String overriddenSort(BDimensionRefModel dim) {
       int order = dim.getOrder() & ~XConstants.SORT_SPECIFIC;
       String base = switch(order) {
          case XConstants.SORT_DESC -> "'desc'";
@@ -178,7 +179,7 @@ final class ChartTimeSeriesGuard {
       return null;
    }
 
-   private static boolean sameSortState(ChartDimensionRefModel a, ChartDimensionRefModel b) {
+   static boolean sameSortState(BDimensionRefModel a, BDimensionRefModel b) {
       return a.getOrder() == b.getOrder() &&
          java.util.Objects.equals(a.getSortByCol(), b.getSortByCol()) &&
          java.util.Objects.equals(emptyToNull(a.getManualOrder()), emptyToNull(b.getManualOrder()));
