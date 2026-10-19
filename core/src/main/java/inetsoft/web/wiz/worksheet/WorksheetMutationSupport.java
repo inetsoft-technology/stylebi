@@ -1119,6 +1119,12 @@ public final class WorksheetMutationSupport {
       // scoping), so this only ever touches a column this mechanism itself put there,
       // never one created by an unrelated operation (e.g. add_date_range_column, or a
       // range column serving some other still-active purpose).
+      //
+      // The table's OWN conditions and sort on a column this sweep removes are deleted by the
+      // validateConditions call below just as silently as a downstream table's would be, so they
+      // are collected here and refused unless confirmed (Bug #78790 / WBS-141).
+      Map<String, Set<String>> ownLoss = new LinkedHashMap<>();
+
       for(int i = cs.getAttributeCount() - 1; i >= 0; i--) {
          DataRef ref0 = cs.getAttribute(i);
          String name0 = ref0.getName();
@@ -1148,6 +1154,15 @@ public final class WorksheetMutationSupport {
                cs.containsAttribute(dateRangeRef.getDataRef()))
             {
                continue;
+            }
+
+            if(!confirmed && ref0 instanceof ColumnRef removed) {
+               Set<String> own = new LinkedHashSet<>(
+                  WorksheetControllerService.findOwnColumnReferences(t, removed));
+
+               if(!own.isEmpty()) {
+                  ownLoss.put(name0, own);
+               }
             }
 
             cs.removeAttribute(i);
@@ -1466,6 +1481,26 @@ public final class WorksheetMutationSupport {
                   describeDownstreamLossConflicts(inputConflicts, referenceConflicts));
             }
          }
+      }
+
+      // Refused after the downstream guards above so a call that is refused for both reasons
+      // names the other tables first; either way nothing is committed and the caller restores
+      // the snapshot, so the sweep's removals and the dropped conditions come back.
+      if(!ownLoss.isEmpty()) {
+         List<String> dropped = new ArrayList<>();
+         List<String> uses = new ArrayList<>();
+
+         for(Map.Entry<String, Set<String>> e : ownLoss.entrySet()) {
+            dropped.add("\"" + e.getKey() + "\"");
+            uses.addAll(e.getValue());
+         }
+
+         throw new inetsoft.web.wiz.pairing.PairingException(
+            "This regroup would drop column(s) " + String.join(", ", dropped) +
+            " that this table still uses: table '" + t.getName() + "' itself (" +
+            String.join(", ", new LinkedHashSet<>(uses)) + "). Confirm with the user before " +
+            "retrying with confirmed:true -- the table's own conditions and sort on the dropped " +
+            "column are removed. Nothing was changed.");
       }
 
       List<RankingRebind> rankingRebinds = rankingRebinds(t, ainfo, originalAliases);
