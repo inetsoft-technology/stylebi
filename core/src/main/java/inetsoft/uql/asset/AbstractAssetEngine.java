@@ -2664,7 +2664,12 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          if(modified != lastMod) {
             lastMod = modified;
             contextmap.clear();
-            sheetmap.clear();
+
+            synchronized(sheetCacheLock) {
+               sheetCacheGeneration++;
+               sheetmap.clear();
+            }
+
             foldermap.clear();
             bookmarkmap.clear();
          }
@@ -2701,6 +2706,10 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
 
          if(sheet == null) {
+            // captured before the read, the sheet read here must not be cached if the entry is
+            // cleared (saved) after this point
+            long sheetGeneration = sheetCacheGeneration;
+
             if(obj == null) {
                obj = storage.getXMLSerializable(identifier, ctype, orgID);
             }
@@ -2723,7 +2732,11 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                contextmap.put(eidentifier, sheet);
             }
             else if(ctype == AssetContent.ALL) {
-               sheetmap.put(eidentifier, sheet);
+               synchronized(sheetCacheLock) {
+                  if(sheetGeneration == sheetCacheGeneration) {
+                     sheetmap.put(eidentifier, sheet);
+                  }
+               }
             }
          }
 
@@ -3090,6 +3103,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             }
 
             storage.putXMLSerializable(identifier, sheet);
+            // a reader that loaded the old sheet before the write could have cached it since the
+            // clear above, Bug #78662
+            clearCache(entry);
             EmbeddedDataCacheHandler.clearWSCache(identifier);
 
             // @by jasonshobe, add the entry to the parent after saving the
@@ -5064,7 +5080,12 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    public void clearCache(AssetEntry entry) {
       String eidentifier = getEntryIdentifier(entry);
       contextmap.remove(eidentifier);
-      sheetmap.remove(eidentifier);
+
+      synchronized(sheetCacheLock) {
+         sheetCacheGeneration++;
+         sheetmap.remove(eidentifier);
+      }
+
       foldermap.remove(eidentifier);
       // key for bookmark is not on sheet entry so we just clear it out
       bookmarkmap.clear();
@@ -5199,6 +5220,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    // folder cache
    private DataCache<String, AssetFolder> foldermap = new DataCache<>(5000, 3600000);
    private DataCache<String, VSBookmark> bookmarkmap = new DataCache<>(200, 3600000);
+   // bumped whenever the sheet cache is cleared, a sheet read before the bump is not cached
+   private final Object sheetCacheLock = new Object();
+   private long sheetCacheGeneration = 0;
    private long lastMod = 0;
    private static final String TABLE_STYLE = "Table Styles";
    private static final String SCRIPT = "Scripts";
