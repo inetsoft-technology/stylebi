@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<virtualSecurityProvider>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[admin]]></name><active><![CDATA[true]]></active><organization><![CDATA[host-org]]></organization><locale><![CDATA[]]></locale><password algorithm="bcrypt"><![CDATA[$2a$10$Mmc9IzQOXsL6qN3AnrnuruuMcBqTK2n44GHiVTUqcIig1JbFB9kKi]]></password><emails></emails><roles><role><![CDATA[Administrator~;~__GLOBAL__]]></role></roles><groups></groups></FSUser>
+</virtualSecurityProvider>

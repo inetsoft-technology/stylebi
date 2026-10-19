@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.TimeInfo;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.OutputColumnRefModel;
@@ -237,5 +238,186 @@ class SelectionPropertyGuardsTest {
    void writeThatTouchesNoRangeFieldIsNeverRefused() {
       sliderAccepts(slider(true, TimeInfo.DAY, true), "logScale");
       sliderAccepts(slider(false, TimeInfo.DAY, true), "length");
+   }
+
+   // bug-78717 P2: rangeType must fit the bound column's type
+
+   private static RangeSliderPropertyDialogModel sliderOn(String dataType, int refType,
+                                                          int rangeType)
+   {
+      RangeSliderPropertyDialogModel model = slider(false, rangeType, false);
+      OutputColumnRefModel column = new OutputColumnRefModel();
+      column.setAttribute("OrderDate");
+      column.setDataType(dataType);
+      column.setRefType(refType);
+      model.getRangeSliderDataPaneModel().setSelectedColumns(new OutputColumnRefModel[] { column });
+      return model;
+   }
+
+   @Test
+   void numberRangeTypeOnADateColumnIsRefusedWithTheDateRangeTypes() {
+      String message = sliderRefusal(sliderOn("date", 0, TimeInfo.NUMBER), "rangeType");
+
+      assertTrue(message.startsWith("rangeType") && message.contains("'number'"), message);
+      assertTrue(message.contains("year, month, day") && !message.contains("hour"), message);
+   }
+
+   @Test
+   void dateRangeTypeOnANumericColumnIsRefusedWithNumber() {
+      String message = sliderRefusal(sliderOn("integer", 0, TimeInfo.MONTH), "rangeType");
+
+      assertTrue(message.contains("'month'") && message.endsWith("number."), message);
+   }
+
+   @Test
+   void legalRangeTypesFollowTheComposerSizePaneForEveryColumnType() {
+      sliderAccepts(sliderOn("date", 0, TimeInfo.MONTH), "rangeType");
+      sliderAccepts(sliderOn("double", 0, TimeInfo.NUMBER), "rangeType");
+      sliderAccepts(sliderOn("timeInstant", 0, TimeInfo.MINUTE), "rangeType");
+      sliderAccepts(sliderOn("time", 0, TimeInfo.HOUR_OF_DAY), "rangeType");
+      sliderAccepts(sliderOn("string", DataRef.CUBE_DIMENSION, TimeInfo.MEMBER), "rangeType");
+
+      // HOUR/MINUTE need a time-of-day component the plain date column does not have
+      assertTrue(sliderRefusal(sliderOn("date", 0, TimeInfo.HOUR), "rangeType")
+         .contains("'hour'"));
+      assertTrue(sliderRefusal(sliderOn("time", 0, TimeInfo.YEAR), "rangeType")
+         .endsWith("hour_of_day, minute_of_day."));
+      assertTrue(sliderRefusal(sliderOn("timeInstant", 0, TimeInfo.HOUR_OF_DAY), "rangeType")
+         .endsWith("year, month, day, hour, minute."));
+      assertTrue(sliderRefusal(sliderOn("string", DataRef.CUBE_DIMENSION, TimeInfo.NUMBER),
+                               "rangeType").endsWith("member."));
+   }
+
+   @Test
+   void rangeTypeIsOnlyCheckedWhenThePatchWritesIt() {
+      // an already-stored mismatch never blocks an unrelated write
+      sliderAccepts(sliderOn("date", 0, TimeInfo.NUMBER), "maxRangeSize");
+      sliderAccepts(sliderOn("date", 0, TimeInfo.NUMBER), "logScale");
+   }
+
+   @Test
+   void rangeSizeOnADateSliderNeverRecommendsRangeTypeNumber() {
+      String message = sliderRefusal(sliderOn("date", 0, TimeInfo.MONTH), "rangeSize");
+
+      assertTrue(message.contains("maxRangeSize") && !message.contains("rangeType:\"number\""),
+                 message);
+   }
+
+   @Test
+   void rangeSizeOnANumericSliderStillSuggestsRangeTypeNumber() {
+      assertTrue(sliderRefusal(sliderOn("integer", 0, TimeInfo.DAY), "rangeSize")
+         .contains("rangeType:\"number\""));
+   }
+
+   // bug-78717 P3: selectChildren only works on a multi-select ID-mode tree
+
+   private static SelectionTreePropertyDialogModel childrenTree(boolean selectChildren, int mode,
+                                                                boolean single)
+   {
+      SelectionTreePropertyDialogModel model = tree(single, mode, List.of(), "Region");
+      model.getSelectionTreePaneModel().setSelectChildren(selectChildren);
+      return model;
+   }
+
+   @Test
+   void selectChildrenOnAColumnModeTreeIsRefused() {
+      String message = assertThrows(IllegalArgumentException.class,
+         () -> AssemblyPropertyService.requireApplicableSelectChildren(
+            childrenTree(true, SelectionTreeVSAssemblyInfo.COLUMN, false))).getMessage();
+
+      assertTrue(message.startsWith("selectChildren") && message.contains("mode:\"id\""),
+                 message);
+   }
+
+   @Test
+   void selectChildrenOnASingleSelectIdTreeIsRefused() {
+      String message = assertThrows(IllegalArgumentException.class,
+         () -> AssemblyPropertyService.requireApplicableSelectChildren(
+            childrenTree(true, SelectionTreeVSAssemblyInfo.ID, true))).getMessage();
+
+      assertTrue(message.startsWith("selectChildren") && message.contains("singleSelection"),
+                 message);
+   }
+
+   @Test
+   void selectChildrenIsAcceptedWhereItTakesEffect() {
+      assertDoesNotThrow(() -> AssemblyPropertyService.requireApplicableSelectChildren(
+         childrenTree(true, SelectionTreeVSAssemblyInfo.ID, false)));
+      assertDoesNotThrow(() -> AssemblyPropertyService.requireApplicableSelectChildren(
+         childrenTree(false, SelectionTreeVSAssemblyInfo.COLUMN, true)));
+      assertDoesNotThrow(() -> AssemblyPropertyService.requireApplicableSelectChildren(
+         childrenTree(false, SelectionTreeVSAssemblyInfo.ID, true)));
+   }
+
+   // bug-78717 P1: set_selection names the value a single-select assembly re-selected
+
+   private static List<List<String>> paths(String... values) {
+      return Arrays.stream(values).map(List::of).toList();
+   }
+
+   @Test
+   void emptyValuesOnSingleSelectReportsTheReselectedFirstValue() {
+      assertEquals(paths("CA"), SelectionRuntimeService.reselectedBySetSelection(
+         paths("TX"), paths("CA"), List.of(), List.of(), true, false));
+   }
+
+   @Test
+   void emptyValuesWhereTheFirstValueWasAlreadySelectedStillReportsIt() {
+      assertEquals(paths("CA"), SelectionRuntimeService.reselectedBySetSelection(
+         paths("CA"), paths("CA"), List.of(), List.of(), true, false));
+   }
+
+   @Test
+   void deselectingTheOnlyValueReportsTheNewFirstValue() {
+      assertEquals(paths("CA"), SelectionRuntimeService.reselectedBySetSelection(
+         paths("TX"), paths("CA"), List.of(), paths("TX"), false, false));
+   }
+
+   @Test
+   void deselectingTheFirstValueThatIsForciblyReselectedIsReported() {
+      assertEquals(paths("CA"), SelectionRuntimeService.reselectedBySetSelection(
+         paths("CA"), paths("CA"), List.of(), paths("CA"), false, false));
+   }
+
+   @Test
+   void requestedAndUntouchedValuesAreNotReportedAsReselected() {
+      assertTrue(SelectionRuntimeService.reselectedBySetSelection(
+         paths("TX"), paths("CA"), paths("CA"), List.of(), true, false).isEmpty());
+      assertTrue(SelectionRuntimeService.reselectedBySetSelection(
+         paths("TX"), paths("TX"), List.of(), paths("NY"), false, false).isEmpty());
+   }
+
+   @Test
+   void idModeComparesByNodeId() {
+      assertEquals(paths("A1"), SelectionRuntimeService.reselectedBySetSelection(
+         paths("B"), paths("A1"), List.of(List.of("B")), List.of(), true, true));
+      assertTrue(SelectionRuntimeService.reselectedBySetSelection(
+         paths("B"), paths("B"), List.of(List.of("A", "B")), List.of(), true, true).isEmpty());
+   }
+
+   @Test
+   void subtreeClearReselectInsideTheSameSubtreeIsReportedByValue() {
+      assertEquals(List.of(List.of("West", "CA")),
+         SelectionRuntimeService.reselectedAfterSubtreeClear(
+            List.of(List.of("West", "WA")), List.of(List.of("West", "CA")),
+            List.of(List.of("West", "WA")), List.of(List.of("West", "CA")), false));
+      // by identity: WA is gone even though the count under the subtree did not change
+      assertEquals(1, SelectionRuntimeService.clearedCount(
+         List.of(List.of("West", "WA")), List.of(List.of("West", "CA"))));
+   }
+
+   @Test
+   void subtreeClearReselectOutsideTheSubtreeIsReportedToo() {
+      assertEquals(List.of(List.of("East", "NY")),
+         SelectionRuntimeService.reselectedAfterSubtreeClear(
+            List.of(List.of("West", "WA")), List.of(List.of("East", "NY")),
+            List.of(List.of("West", "WA")), List.of(), false));
+   }
+
+   @Test
+   void subtreeClearOfAnUnselectedBranchReportsNoReselect() {
+      assertTrue(SelectionRuntimeService.reselectedAfterSubtreeClear(
+         List.of(List.of("East", "NY")), List.of(List.of("East", "NY")),
+         List.of(), List.of(), false).isEmpty());
    }
 }
