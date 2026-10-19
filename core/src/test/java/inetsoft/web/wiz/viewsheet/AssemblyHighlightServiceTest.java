@@ -960,9 +960,53 @@ class AssemblyHighlightServiceTest {
       h.service.list("tok", principal(), "Table1",
                      new AssemblyHighlightService.Region(null, null, null, false, false));
 
-      verify(h.highlights).getHighlightDialogModel(eq("rt1"), eq("Table1"), eq(0), eq(0),
+      // Not-supplied row/col reach the dialog service as null (which defaults them to 0 itself)
+      // so a crosstab can tell "no cell given" from an explicit (0, 0) -- bug 78776.
+      verify(h.highlights).getHighlightDialogModel(eq("rt1"), eq("Table1"), isNull(), isNull(),
                                                    isNull(), eq(false), eq(false),
                                                    any(Principal.class));
+   }
+
+   @Test
+   void aColNameOnlyRegionPassesNullRowAndColSoTheCrosstabCanResolveIt() throws Exception {
+      Harness h = harness(model());
+
+      h.service.list("tok", principal(), "Table1",
+                     new AssemblyHighlightService.Region(null, null, "Sum(DISCOUNT)", false, false));
+
+      verify(h.highlights).getHighlightDialogModel(eq("rt1"), eq("Table1"), isNull(), isNull(),
+                                                   eq("Sum(DISCOUNT)"), eq(false), eq(false),
+                                                   any(Principal.class));
+   }
+
+   @Test
+   void anExplicitZeroCellIsPassedAsSuppliedNotAsNull() throws Exception {
+      Harness h = harness(model());
+
+      h.service.list("tok", principal(), "Table1",
+                     new AssemblyHighlightService.Region(0, 0, "Sum(DISCOUNT)", false, false));
+
+      verify(h.highlights).getHighlightDialogModel(eq("rt1"), eq("Table1"), eq(0), eq(0),
+                                                   eq("Sum(DISCOUNT)"), eq(false), eq(false),
+                                                   any(Principal.class));
+   }
+
+   @Test
+   void refusalNamesTheColNameWhenItDidNotResolveToADataCell() throws Exception {
+      HighlightDialogModel header = new HighlightDialogModel();
+      header.setFields(new DataRefModel[0]);
+      header.setHighlights(new HighlightModel[0]);
+      Harness h = harness(header);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Crosstab1",
+                             new AssemblyHighlightService.Region(0, 0, "Year(ORDER_DATE)", false,
+                                                                 false),
+                             highlight("BigPrice"), false, ""));
+
+      assertTrue(thrown.getMessage().contains("colName 'Year(ORDER_DATE)'"), thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("header cell"), thrown.getMessage());
    }
 
    @Test

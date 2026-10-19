@@ -91,7 +91,17 @@ public class AssemblyHighlightService {
    public record SetResult(List<String> warnings) {}
 
    /** Where a highlight lives. All-defaults means the assembly itself. */
-   public record Region(Integer row, Integer col, String colName, boolean axis, boolean text) {
+   public record Region(Integer row, Integer col, String colName, boolean axis, boolean text,
+                        boolean cellSupplied) {
+      /**
+       * Five-argument form: {@code cellSupplied} is true when the caller gave a row or a col.
+       * The compact constructor below erases that (null becomes 0), so it is carried explicitly
+       * for crosstab {@code colName} resolution (bug 78776).
+       */
+      public Region(Integer row, Integer col, String colName, boolean axis, boolean text) {
+         this(row, col, colName, axis, text, row != null || col != null);
+      }
+
       /**
        * Normalizes a null row/col to <b>0</b> — on every construction path.
        *
@@ -527,7 +537,8 @@ public class AssemblyHighlightService {
          rvs, table, assemblyName, region.row(), region.col(),
          "no highlight can be addressed there (a table's highlights are stored per rendered cell)");
 
-      return new Region(cell.row(), cell.col(), region.colName(), region.axis(), region.text());
+      return new Region(cell.row(), cell.col(), region.colName(), region.axis(), region.text(),
+                        region.cellSupplied());
    }
 
    /**
@@ -551,9 +562,12 @@ public class AssemblyHighlightService {
    private HighlightDialogModel readAt(String runtimeId, String assemblyName, Region target,
                                        Principal user) throws Exception
    {
-      return highlightService.getHighlightDialogModel(runtimeId, assemblyName, target.row(),
-                                                      target.col(), target.colName(),
-                                                      target.axis(), target.text(), user);
+      boolean supplied = target.cellSupplied();
+      return highlightService.getHighlightDialogModel(runtimeId, assemblyName,
+                                                      supplied ? target.row() : null,
+                                                      supplied ? target.col() : null,
+                                                      target.colName(), target.axis(),
+                                                      target.text(), user);
    }
 
    /**
@@ -569,6 +583,16 @@ public class AssemblyHighlightService {
    {
       if(!fieldNames(model).isEmpty()) {
          return;
+      }
+
+      if(region != null && region.colName() != null && !region.colName().isBlank() &&
+         !region.axis() && !region.text())
+      {
+         throw new IllegalArgumentException(
+            "colName '" + region.colName() + "' did not resolve to a data cell of '" +
+            assemblyName + "', and the explicit cell row " + region.row() + ", col " +
+            region.col() + " exposes no highlightable fields. Name a measure of the assembly " +
+            "as colName, or address a data cell with row/col.");
       }
 
       throw new IllegalArgumentException(
