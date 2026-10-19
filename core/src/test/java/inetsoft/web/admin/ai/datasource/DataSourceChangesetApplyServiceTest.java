@@ -21,6 +21,7 @@ import inetsoft.web.admin.datasource.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.sync.DependencyTool;
+import inetsoft.uql.erm.XDataModel;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.util.audit.Audit;
@@ -326,6 +327,33 @@ class DataSourceChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertNotNull(result.results().get(0).advisory());
       assertTrue(result.results().get(0).advisory().contains("Orders Query"));
+   }
+
+   // Bug #76338: a sheet bound to one of the data source's logical models is recorded under that
+   // model's key only. The apply-time re-check must see it too, and refuse before the delete is
+   // entered -- otherwise the wrapped deleteDataSource refuses it mid-apply (ROLLBACK_FAILED).
+   @Test void deleteIsRefusedAtApplyWhenALogicalModelGainedADependentAfterPreview()
+      throws Exception
+   {
+      XDataModel dataModel = mock(XDataModel.class);
+      when(dataModel.getLogicalModelNames()).thenReturn(new String[] { "LM1", "LM2" });
+      when(dataSourceService.getDataModel("Orders")).thenReturn(dataModel);
+      DataSourceApplyRequest req = applyRequest("delete it", true, deleteChange("Orders", false));
+
+      // apply() re-resolves the plan first (still clean), then applyDelete re-checks right before
+      // the delete -- the dependent shows up in between
+      var dep = dependency("Examples/Orders Query");
+      dependencyToolStatic.when(() -> DependencyTool.getDependencies(
+         argThat(id -> id.contains("^101^") && id.contains("^Orders/LM2^"))))
+         .thenReturn(List.of())
+         .thenReturn(List.of(dep));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(dataSourceService, never()).deleteDataSource(any(), anyBoolean(), any());
+      assertNotNull(store.get("Orders"));
    }
 
    // The core regression proof for this bug: the audit record's task narrative comes from the
