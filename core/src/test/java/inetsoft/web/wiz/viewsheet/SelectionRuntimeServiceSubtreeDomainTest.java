@@ -1110,4 +1110,132 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       assertEquals(0, result.get("valuesSelected"));
       assertTrue(result.containsKey("scopedBySearchDropped"), result.toString());
    }
+
+   // ── single-select honours the search scope (bug-78785) ─────────────────────
+
+   /** Business and Games, nothing selected beyond what the caller passes. */
+   private static SelectionList categoryDomain(String selected) {
+      SelectionList domain = new SelectionList();
+
+      for(String name : new String[]{ "Business", "Educational", "Games" }) {
+         SelectionValue value = new SelectionValue(name, name);
+         value.setSelected(name.equals(selected));
+         domain.addSelectionValue(value);
+      }
+
+      return domain;
+   }
+
+   private static SelectionListVSAssembly singleList(SelectionList domain, String search) {
+      SelectionListVSAssembly assembly =
+         SelectionRuntimeServiceTest.list(0, true, search);
+      when(assembly.getSelectionList()).thenReturn(domain);
+      return assembly;
+   }
+
+   private static SelectionTreeVSAssembly singleTree(boolean idMode, SelectionList domain,
+                                                     String search)
+   {
+      SelectionTreeVSAssembly assembly = searchedTree(idMode, domain, search);
+      when(((SelectionTreeVSAssemblyInfo) assembly.getInfo()).isSingleSelection()).thenReturn(true);
+      return assembly;
+   }
+
+   @Test
+   void singleListDropsASearchMismatchedValueAndLeavesTheSelectionAlone() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(
+         singleList(categoryDomain("Educational"), "Ga"));
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "List1", List.of(List.of("Business")),
+         null, null, null, null, "");
+
+      verifyNoInteractions(h.selections());
+      assertEquals("Ga", result.get("scopedBySearch"));
+      assertEquals(List.of(List.of("Business")), result.get("scopedBySearchDropped"));
+      assertEquals(0, result.get("valuesSelected"));
+      assertFalse(result.containsKey("scopedBySearchRetained"), result.toString());
+      assertFalse(result.containsKey("reselectedBySingleSelect"), result.toString());
+   }
+
+   @Test
+   void singleListSelectsAValueTheSearchMatches() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(
+         singleList(categoryDomain(null), "Ga"));
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "List1", List.of(List.of("Games")), null,
+         null, null, null, "");
+
+      ArgumentCaptor<ApplySelectionListEvent> sent =
+         ArgumentCaptor.forClass(ApplySelectionListEvent.class);
+      verify(h.selections()).applySelection(anyString(), anyString(), sent.capture(),
+                                            any(Principal.class), any(), anyString());
+      assertEquals("Games", sent.getValue().getValues().get(0).getValue()[0]);
+      assertFalse(result.containsKey("scopedBySearchDropped"), result.toString());
+      assertEquals(1, result.get("valuesSelected"));
+   }
+
+   @Test
+   void singleListExplicitEmptyValuesStillClearsUnderASearch() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(
+         singleList(categoryDomain("Games"), "Ga"));
+
+      h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "List1", List.of(), null, null, null,
+         null, "");
+
+      ArgumentCaptor<ApplySelectionListEvent> sent =
+         ArgumentCaptor.forClass(ApplySelectionListEvent.class);
+      verify(h.selections()).applySelection(anyString(), anyString(), sent.capture(),
+                                            any(Principal.class), any(), anyString());
+      assertTrue(sent.getValue().getValues() == null || sent.getValue().getValues().isEmpty());
+   }
+
+   @Test
+   void singleTreeDropsASearchMismatchedPath() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(
+         singleTree(false, eastNyAndBeta(), "Beta"));
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", List.of(List.of("East", "NY")),
+         null, null, null, null, "");
+
+      verifyNoInteractions(h.selections());
+      assertEquals("Beta", result.get("scopedBySearch"));
+      assertEquals(List.of(List.of("East", "NY")), result.get("scopedBySearchDropped"));
+      assertFalse(result.containsKey("reselectedBySingleSelect"), result.toString());
+   }
+
+   @Test
+   void singleIdModeTreeDropsASearchMismatchedNode() throws Exception {
+      SelectionList domain = new SelectionList();
+      domain.addSelectionValue(new SelectionValue("Alpha", "Alpha"));
+      domain.addSelectionValue(new SelectionValue("Beta", "Beta"));
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(
+         singleTree(true, domain, "Beta"));
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", List.of(List.of("Alpha")), null,
+         null, null, null, "");
+
+      verifyNoInteractions(h.selections());
+      assertEquals(List.of(List.of("Alpha")), result.get("scopedBySearchDropped"));
+   }
+
+   /** Multi-select is unchanged: a fully dropped replace still goes through the diff path. */
+   @Test
+   void multiSelectStillAppliesWhenEveryValueIsDropped() throws Exception {
+      SelectionListVSAssembly assembly = SelectionRuntimeServiceTest.list(0, false, "Ga");
+      when(assembly.getSelectionList()).thenReturn(categoryDomain(null));
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "List1", List.of(List.of("Business")),
+         null, null, null, null, "");
+
+      verify(h.selections()).applySelection(anyString(), anyString(), any(),
+                                            any(Principal.class), any(), anyString());
+      assertEquals(List.of(List.of("Business")), result.get("scopedBySearchDropped"));
+   }
 }
