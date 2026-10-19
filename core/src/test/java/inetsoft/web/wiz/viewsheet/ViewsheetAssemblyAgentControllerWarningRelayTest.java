@@ -86,6 +86,38 @@ class ViewsheetAssemblyAgentControllerWarningRelayTest {
             "Chart1", "axis", "Region", false, false), "", principal()));
    }
 
+   /** Bug #78406 round 3: clear_date_comparison used to answer an empty 200 whatever happened. */
+   @Test
+   void clearDateComparisonRelaysTheWarnings() throws Exception {
+      DateComparisonService comparisons = mock(DateComparisonService.class);
+      when(comparisons.clear(eq("tok"), any(), eq("Xt1"), anyString())).thenReturn(WARNED);
+      ViewsheetAssemblyAgentController controller =
+         controller(DateComparisonService.class, comparisons);
+
+      assertEquals(Map.of("warnings", WARNED),
+                   controller.clearDateComparison("tok", dateComparisonRequest("Xt1"), "",
+                                                  principal()));
+   }
+
+   @Test
+   void clearDateComparisonAnswersAnEmptyBodyWhenClean() throws Exception {
+      DateComparisonService comparisons = mock(DateComparisonService.class);
+      when(comparisons.clear(eq("tok"), any(), eq("Xt1"), anyString())).thenReturn(List.of());
+      ViewsheetAssemblyAgentController controller =
+         controller(DateComparisonService.class, comparisons);
+
+      assertNull(controller.clearDateComparison("tok", dateComparisonRequest("Xt1"), "",
+                                                principal()));
+   }
+
+   private static ViewsheetAssemblyAgentController.DateComparisonRequest dateComparisonRequest(
+      String assembly)
+   {
+      return new ViewsheetAssemblyAgentController.DateComparisonRequest(
+         assembly, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null);
+   }
+
    @Test
    void gotoBookmarkRelaysTheWarnings() throws Exception {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);

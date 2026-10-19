@@ -324,7 +324,7 @@ public class DateComparisonService {
       requireEndAnchor(comparison);
       Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          DateComparisonPaneModel model =
             comparisonService.getDateComparison(runtimeId, assemblyName, user);
 
@@ -362,6 +362,7 @@ public class DateComparisonService {
          result.putAll(describeOnlyShowMostRecentDateDefaulted(model, comparison));
       });
 
+      ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
    }
 
@@ -1228,10 +1229,17 @@ public class DateComparisonService {
       return out;
    }
 
-   public void clear(String sessionToken, Principal user, String assemblyName, String linkUri)
+   /**
+    * Removes the comparison. Returns what {@link ViewsheetSessionService#mutate} captured -- the
+    * script failure of an assembly that cannot re-run once the comparison is gone -- rather than
+    * dropping it, so a caller (the controller, or a chart check that appends its own warning to the
+    * same list) can relay it.
+    */
+   public List<String> clear(String sessionToken, Principal user, String assemblyName,
+                             String linkUri)
       throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
          comparisonService.clearDateComparison(runtimeId, assemblyName, linkUri, user,
                                                dispatcher));
    }

@@ -18,7 +18,10 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.util.script.ScriptException;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.composer.vs.objects.controller.*;
@@ -300,6 +303,79 @@ class AssemblyConvertServiceTest {
          () -> h.service.convert("tok", principal(), "  ", "freehand_table", ""));
    }
 
+   // ── the unrendered-table refusal (bug #78406 round 3) ─────────────────────
+
+   /**
+    * A bound table whose script threw while it loaded has no lens, and converting it builds an empty
+    * 0x0 layout while the endpoint answers success. The first read after the failure rethrows the
+    * ScriptException; every later one returns null.
+    */
+   @Test
+   void refusesATableWhoseScriptFailedOnTheFirstRead() throws Exception {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getVSTableLens("Xt1", false))
+         .thenThrow(new RuntimeException(new ScriptException("undefinedFn is not defined")));
+      Harness h = harness(boundCrosstab("Xt1", false), "Xt1", box);
+
+      IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+         () -> h.service.convert("tok", principal(), "Xt1", "freehand_table", ""));
+
+      assertTrue(refused.getMessage().contains("did not render"), refused.getMessage());
+      assertTrue(refused.getMessage().contains("undefinedFn"), refused.getMessage());
+      verifyNoInteractions(h.table);
+   }
+
+   @Test
+   void refusesATableWhoseFailedLoadIsCachedAsNull() throws Exception {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getVSTableLens("Xt1", false)).thenReturn(null);
+      Harness h = harness(boundCrosstab("Xt1", false), "Xt1", box);
+
+      IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+         () -> h.service.convert("tok", principal(), "Xt1", "freehand_table", ""));
+
+      assertTrue(refused.getMessage().contains("did not render"), refused.getMessage());
+      verifyNoInteractions(h.table);
+   }
+
+   /** A table that rendered but holds no rows has a lens, so it still converts. */
+   @Test
+   void stillConvertsATableThatRenderedZeroRows() throws Exception {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getVSTableLens("Xt1", false)).thenReturn(mock(VSTableLens.class));
+      Harness h = harness(boundCrosstab("Xt1", false), "Xt1", box);
+
+      h.service.convert("tok", principal(), "Xt1", "freehand_table", "");
+
+      verify(h.table).convertToFreehandTable(
+         anyString(), any(ConvertToFreehandTableEvent.class), any(Principal.class), anyString(),
+         any());
+   }
+
+   /** A new crosstab with no binding has nothing to render; it converts as it did before. */
+   @Test
+   void stillConvertsAnUnboundCrosstabWithoutConsultingTheSandbox() throws Exception {
+      Harness h = harness(boundCrosstab("Xt1", true), "Xt1");
+
+      h.service.convert("tok", principal(), "Xt1", "freehand_table", "");
+
+      verify(h.table).convertToFreehandTable(
+         anyString(), any(ConvertToFreehandTableEvent.class), any(Principal.class), anyString(),
+         any());
+   }
+
+   /** Only the freehand conversion builds a layout from the result; the selection ones do not. */
+   @Test
+   void doesNotRequireARenderedTableForTheSelectionConversions() throws Exception {
+      Harness h = harness(selectionList(mock(CurrentSelectionVSAssembly.class), false), "Filter1");
+
+      h.service.convert("tok", principal(), "Filter1", "range_slider", "");
+
+      verify(h.selectionList).convertToRangeSlider(
+         anyString(), any(ConvertToRangeSliderEvent.class), any(Principal.class), any(),
+         anyString());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(AssemblyConvertService service, ViewsheetSessionService sessions,
@@ -342,7 +418,25 @@ class AssemblyConvertServiceTest {
       return assembly;
    }
 
+   /** A crosstab with a source ({@code unbound} false) or without one. */
+   private static CrosstabVSAssembly boundCrosstab(String name, boolean unbound) {
+      CrosstabVSAssembly crosstab = mock(CrosstabVSAssembly.class);
+      CrosstabVSAssemblyInfo info = mock(CrosstabVSAssemblyInfo.class);
+      SourceInfo source = mock(SourceInfo.class);
+      when(source.isEmpty()).thenReturn(unbound);
+      when(info.isEmbedded()).thenReturn(false);
+      when(info.getSourceInfo()).thenReturn(source);
+      doReturn(info).when(crosstab).getInfo();
+      when(crosstab.getCrosstabInfo()).thenReturn(info);
+      when(crosstab.getAbsoluteName()).thenReturn(name);
+      return crosstab;
+   }
+
    private static Harness harness(VSAssembly assembly, String name) {
+      return harness(assembly, name, null);
+   }
+
+   private static Harness harness(VSAssembly assembly, String name, ViewsheetSandbox box) {
       ViewsheetInfo vinfo = mock(ViewsheetInfo.class);
       when(vinfo.isMetadata()).thenReturn(false);
 
@@ -352,6 +446,7 @@ class AssemblyConvertServiceTest {
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.ofNullable(box));
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
