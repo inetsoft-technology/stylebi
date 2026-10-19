@@ -142,7 +142,8 @@ public class AuthenticationChain
       if(providers.size() == 1) {
          // the only provider, asking it directly is cheaper than building the user (as before)
          String[] emails = providers.get(0).getEmails(userIdentity);
-         return emails == null ? new String[0] : emails;
+         return emails == null ?
+            new String[0] : Arrays.stream(emails).distinct().toArray(String[]::new);
       }
 
       // Ask only the provider that owns the user (the first one that has it, as in getUser), like

@@ -166,7 +166,8 @@ class AuthenticationChainTest {
       AuthenticationProvider only = mock(AuthenticationProvider.class);
       AuthenticationChain chain = chainOf(only);
 
-      when(only.getEmails(USER_ID)).thenReturn(new String[] { "alice@x" });
+      // duplicates are removed, as the union did
+      when(only.getEmails(USER_ID)).thenReturn(new String[] { "alice@x", "alice@x" });
 
       assertArrayEquals(new String[] { "alice@x" }, chain.getEmails(USER_ID));
       verify(only, never()).getUser(any());
