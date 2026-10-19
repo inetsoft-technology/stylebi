@@ -91,6 +91,7 @@ import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
 import inetsoft.web.wiz.service.TabularQueryContractSupport;
 import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.viewsheet.SheetOpenService;
+import inetsoft.web.wiz.viewsheet.StaleViewsheetReloader;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import jakarta.servlet.http.HttpServletResponse;
@@ -2247,9 +2248,10 @@ public class WorksheetAgentController {
          // after every in-place save (SaveWorksheetService.saveWorksheet(), lines 84-90) that
          // rewrites any already-saved dependent asset's (e.g. a viewsheet's) stored binding to
          // match a renamed table/column. There is no human present in an MCP session to answer
-         // that dialog, so default to "yes, update" unconditionally. Run this before the PVA-002
-         // reset below so the reset picks up the just-rewritten dependent binding rather than a
-         // stale one.
+         // that dialog, so default to "yes, update" unconditionally. This only rewrites the
+         // STORED dependents: an already-open runtime keeps its in-memory binding, and
+         // resetRuntime() never re-reads storage (Bug #78662), so the loop below reloads clean
+         // saved runtimes from storage and reports the rest as stale.
          RenameDependencyInfo dinfo = DependencyTransformer.createRenameInfo(rws);
 
          if(!dinfo.getDependencyMap().isEmpty()) {
@@ -2275,9 +2277,8 @@ public class WorksheetAgentController {
          // that guard is VSBindingService.createSourceTables, a different code path with no
          // timestamp/cache mechanism this reset touches at all. PVA-009's pairing with PVA-002 is
          // unconfirmed; excluded from this fix pass.
-         for(RuntimeViewsheet connected : connectedViewsheets(entry, user)) {
-            connected.resetRuntime();
-         }
+         refreshConnectedViewsheets(connectedViewsheets(entry, user),
+                                    result.get("dependenciesUpdated") != null, result);
       }
 
       // Bug #78593: a confirmed Save-As onto a different EXISTING worksheet overwrites that
@@ -2287,10 +2288,10 @@ public class WorksheetAgentController {
       if(isSaveAs && isDuplicatedEntry) {
          List<RuntimeViewsheet> targetViewsheets = connectedViewsheets(entry, user);
          List<String> resetIds = connectedViewsheetIds(targetViewsheets);
-
-         for(RuntimeViewsheet connected : targetViewsheets) {
-            connected.resetRuntime();
-         }
+         // reload=false: the rename cascade is skipped here (see above), so no stored dependent
+         // was rewritten and there is no storage-vs-runtime divergence to repair; the warning
+         // below already says bindings are not rewritten.
+         refreshConnectedViewsheets(targetViewsheets, false, result);
 
          if(!resetIds.isEmpty()) {
             result.put("resetViewsheets", resetIds);
@@ -2362,11 +2363,104 @@ public class WorksheetAgentController {
       return connected;
    }
 
-   private static List<String> connectedViewsheetIds(List<RuntimeViewsheet> connected) {
-      List<String> ids = new ArrayList<>();
+   /**
+    * Brings the connected viewsheet runtimes in line with their base worksheet after a save
+    * (Bug #78662). Every cascade that rewrites a stored dependent while an agent holds it open
+    * (table rename, column rename, Save-As overwrite) leaves the runtime's in-memory sheet
+    * behind, because {@link RuntimeViewsheet#resetRuntime()} never re-reads storage.
+    *
+    * <p>When {@code reload} is set, a saved runtime with no unsaved edits is replaced from
+    * storage (same runtime id, undo history restarted, paired browser refreshed). A runtime with
+    * edits, or one that was never saved, is kept as is (it only gets the plain reset, which
+    * loses nothing) and reported under {@code staleViewsheets}. Otherwise every runtime just gets
+    * the plain reset (Bug PVA-002).
+    */
+   private void refreshConnectedViewsheets(List<RuntimeViewsheet> connected, boolean reload,
+                                           Map<String, Object> result)
+   {
+      List<Map<String, Object>> stale = new ArrayList<>();
+      List<String> reloaded = new ArrayList<>();
 
       for(RuntimeViewsheet rvs : connected) {
-         ids.add(rvs.getID());
+         // viewer / preview / binding-editor runtimes are not the agent's design session; they
+         // keep the plain reset and are never reloaded or reported
+         if(!reload || !StaleViewsheetReloader.isDesignSession(rvs)) {
+            rvs.resetRuntime();
+            continue;
+         }
+
+         String reason = null;
+
+         if(!StaleViewsheetReloader.isReloadable(rvs)) {
+            AssetEntry vsEntry = rvs.getEntry();
+            reason = vsEntry == null || vsEntry.getScope() == AssetRepository.TEMPORARY_SCOPE ?
+               "the viewsheet has never been saved" :
+               "the viewsheet has changes since its last save (a refresh, a failed edit or " +
+               "a script run also counts as a change)";
+         }
+         else {
+            try {
+               if(!StaleViewsheetReloader.reload(rvs, worksheetService.getAssetRepository())) {
+                  reason = "the viewsheet's layouts have edits that are not saved (a saved " +
+                     "layout is compared with the stored copy, so only unsaved edits count)";
+                  rvs.resetRuntime();
+                  Map<String, Object> item = new LinkedHashMap<>();
+                  item.put("runtimeId", rvs.getID());
+                  item.put("name", rvs.getEntry().toView());
+                  item.put("reason", reason);
+                  stale.add(item);
+                  continue;
+               }
+
+               reloaded.add(rvs.getID());
+
+               if(rvs.getSocketSessionId() != null) {
+                  broadcast.broadcastRefresh(
+                     rvs, SheetType.VIEWSHEET, rvs.getID(),
+                     rvs.getUser());
+               }
+
+               // The reload already reflects every rename; best effort only, since the
+               // pending infos are parked asynchronously and may arrive after this call.
+               worksheetService.clearRenameDep(rvs.getID());
+               continue;
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to reload viewsheet runtime {} after worksheet save",
+                        rvs.getID(), e);
+               reason = "reloading it from storage failed: " + e.getMessage();
+            }
+         }
+
+         rvs.resetRuntime();
+         Map<String, Object> item = new LinkedHashMap<>();
+         item.put("runtimeId", rvs.getID());
+         item.put("name", rvs.getEntry() == null ? null : rvs.getEntry().toView());
+         item.put("reason", reason);
+         stale.add(item);
+      }
+
+      if(!reloaded.isEmpty()) {
+         result.put("reloadedViewsheets", reloaded);
+      }
+
+      if(!stale.isEmpty()) {
+         result.put("staleViewsheets", stale);
+         result.put("warning", "Open viewsheet session(s) " + connectedViewsheetIds(stale) +
+            " still hold the previous in-memory sheet and were not reloaded, so their " +
+            "bindings may still use the old table/column names. Calling save_viewsheet on a " +
+            "saved one applies the pending rename and reloads it. An unsaved one has nothing in " +
+            "storage to reload and no pending rename: rebind it (set_chart_source / " +
+            "set_table_source) to the new name before saving.");
+      }
+   }
+
+   private static List<String> connectedViewsheetIds(List<?> connected) {
+      List<String> ids = new ArrayList<>();
+
+      for(Object o : connected) {
+         ids.add(o instanceof RuntimeViewsheet rvs ? rvs.getID() :
+            String.valueOf(((Map<?, ?>) o).get("runtimeId")));
       }
 
       return ids;

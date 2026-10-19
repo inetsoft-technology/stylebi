@@ -11617,6 +11617,240 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // Bug #78662 -- an open viewsheet runtime stays bound to the old table after the cascade
+   // ---------------------------------------------------------------------------
+
+   private static final class CascadeCase {
+      Map<String, Object> result;
+      RuntimeViewsheet rvs;
+      WorksheetService ws;
+      AssetRepository repo;
+      Viewsheet stored;
+   }
+
+   /**
+    * Runs an in-place save that triggers the rename cascade with one connected viewsheet runtime
+    * whose entry/save-point state the caller chooses.
+    */
+   private CascadeCase cascadeSave(AssetEntry vsEntry, int savePoint, int current,
+                                   boolean storedVsMissing) throws Exception {
+      return cascadeSave(vsEntry, savePoint, current, storedVsMissing, rvs -> { });
+   }
+
+   private CascadeCase cascadeSave(AssetEntry vsEntry, int savePoint, int current,
+                                   boolean storedVsMissing,
+                                   java.util.function.Consumer<RuntimeViewsheet> tweak)
+      throws Exception
+   {
+      return cascadeSave(vsEntry, savePoint, current, storedVsMissing, tweak, null);
+   }
+
+   private CascadeCase cascadeSave(AssetEntry vsEntry, int savePoint, int current,
+                                   boolean storedVsMissing,
+                                   java.util.function.Consumer<RuntimeViewsheet> tweak,
+                                   inetsoft.uql.viewsheet.vslayout.LayoutInfo storedLayout)
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetEntry wsEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+
+      Worksheet worksheet = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(worksheet, "T", "DISCOUNT");
+      worksheet.addAssembly(t);
+      ColumnRef discount = (ColumnRef) t.getColumnSelection(false).getAttribute("DISCOUNT");
+      discount.setOldName("DISCOUNT");
+      discount.setAlias("DISCOUNT_PCT");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(wsEntry);
+      when(rws.getWorksheet()).thenReturn(worksheet);
+      when(rws.getCurrent()).thenReturn(3);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-78662"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-78662"));
+
+      CascadeCase c = new CascadeCase();
+      c.stored = mock(Viewsheet.class);
+      when(c.stored.clone()).thenReturn(c.stored);
+      when(c.stored.getLayoutInfo()).thenReturn(storedLayout);
+      c.repo = mock(AssetRepository.class);
+
+      if(storedVsMissing) {
+         when(c.repo.getSheet(any(), any(), anyBoolean(), any()))
+            .thenThrow(new RuntimeException("storage unavailable"));
+      }
+      else {
+         when(c.repo.getSheet(any(), any(), anyBoolean(), any())).thenReturn(c.stored);
+      }
+
+      c.rvs = connectedVs(wsEntry, "rt-vs-78662", agent);
+      when(c.rvs.getEntry()).thenReturn(vsEntry);
+      when(c.rvs.getSavePoint()).thenReturn(savePoint);
+      when(c.rvs.getCurrent()).thenReturn(current);
+      tweak.accept(c.rvs);
+
+      c.ws = mock(WorksheetService.class);
+      when(c.ws.getRuntimeSheets(any())).thenReturn(new RuntimeSheet[]{ c.rvs });
+      when(c.ws.getAssetRepository()).thenReturn(c.repo);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, c.ws,
+         mock(RenameTransformHandler.class));
+
+      AssetEntry dependent = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Orders VS", null);
+
+      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class);
+          MockedStatic<inetsoft.analytic.composition.event.VSEventUtil> vsUtil =
+             mockStatic(inetsoft.analytic.composition.event.VSEventUtil.class))
+      {
+         dependencyTool.when(() -> DependencyTool.getDependencies(anyString()))
+            .thenReturn(List.of(dependent));
+         c.result = ctrl.save("TOK-78662", new WorksheetAgentController.SaveRequest(null, null),
+                              agent);
+      }
+
+      return c;
+   }
+
+   private static AssetEntry savedVsEntry() {
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                            "Orders VS", null);
+   }
+
+   /** A saved runtime with no edits since its last save follows the rename: reloaded from storage. */
+   @Test
+   void renameCascadeReloadsCleanSavedViewsheetRuntimeFromStorage78662() throws Exception {
+      CascadeCase c = cascadeSave(savedVsEntry(), 2, 2, false);
+
+      assertEquals(Boolean.TRUE, c.result.get("dependenciesUpdated"));
+      assertEquals(List.of("rt-vs-78662"), c.result.get("reloadedViewsheets"));
+      assertNull(c.result.get("staleViewsheets"));
+      assertNull(c.result.get("warning"));
+      verify(c.repo).getSheet(any(), any(), eq(false), eq(AssetContent.ALL));
+      verify(c.rvs).setViewsheet(any(Viewsheet.class));
+      verify(c.rvs).resetRuntime();
+      // undo/redo history restarts from the reloaded sheet, so undo cannot restore the stale one
+      verify(c.rvs, times(2)).resetCheckpoints(any());
+      // layout undo stack restarts too, and the write revision moves so a stale dialog is refused
+      verify(c.rvs).resetLayoutUndoRedo();
+      verify(c.rvs).bumpWriteRevision();
+      verify(c.ws).clearRenameDep("rt-vs-78662");
+   }
+
+   /** A runtime with unsaved edits is kept as is and named as stale; the edits are not discarded. */
+   @Test
+   void renameCascadeKeepsDirtyViewsheetRuntimeAndReportsItStale78662() throws Exception {
+      CascadeCase c = cascadeSave(savedVsEntry(), 2, 3, false);
+
+      verify(c.rvs, never()).setViewsheet(any());
+      verify(c.rvs, never()).resetCheckpoints(any());
+      verify(c.repo, never()).getSheet(any(), any(), anyBoolean(), any());
+      verify(c.rvs).resetRuntime();
+      assertNull(c.result.get("reloadedViewsheets"));
+      List<?> stale = (List<?>) c.result.get("staleViewsheets");
+      assertEquals(1, stale.size());
+      Map<?, ?> item = (Map<?, ?>) stale.get(0);
+      assertEquals("rt-vs-78662", item.get("runtimeId"));
+      assertEquals("Orders VS", item.get("name"));
+      assertTrue(item.get("reason").toString().contains("changes since its last save"));
+      String warning = (String) c.result.get("warning");
+      assertTrue(warning.contains("rt-vs-78662") && warning.contains("save_viewsheet"), warning);
+   }
+
+   /**
+    * Layout edits checkpoint a separate stack that is cleared on a layout switch, so dirtiness is
+    * judged by comparing the runtime's layouts with the stored copy: edit layout A, read layout B
+    * (stack cleared), cascade -> A's edit must survive (B-1).
+    */
+   @Test
+   void renameCascadeKeepsViewsheetRuntimeWithUnsavedLayoutEditsEvenAfterTheStackWasCleared78662()
+      throws Exception
+   {
+      inetsoft.uql.viewsheet.vslayout.LayoutInfo edited =
+         new inetsoft.uql.viewsheet.vslayout.LayoutInfo();
+      edited.setPrintLayout(new inetsoft.uql.viewsheet.vslayout.PrintLayout());
+
+      // layout stack size is 0 (as after a layout read-switch); only the definitions differ
+      CascadeCase c = cascadeSave(savedVsEntry(), 2, 2, false,
+         rvs -> when(rvs.getViewsheet().getLayoutInfo()).thenReturn(edited));
+
+      verify(c.rvs, never()).setViewsheet(any());
+      verify(c.rvs, never()).resetLayoutUndoRedo();
+      verify(c.rvs, never()).resetCheckpoints(any());
+      verify(c.rvs).resetRuntime();
+      List<?> stale = (List<?>) c.result.get("staleViewsheets");
+      assertEquals(1, stale.size());
+      assertTrue(((Map<?, ?>) stale.get(0)).get("reason").toString().contains("layouts"));
+   }
+
+   /** A layout edit that was SAVED equals the stored copy, so it is not stale and reloads normally. */
+   @Test
+   void renameCascadeReloadsViewsheetRuntimeWhoseLayoutsMatchTheStoredCopy78662() throws Exception {
+      inetsoft.uql.viewsheet.vslayout.LayoutInfo saved =
+         new inetsoft.uql.viewsheet.vslayout.LayoutInfo();
+      saved.setPrintLayout(new inetsoft.uql.viewsheet.vslayout.PrintLayout());
+      CascadeCase c = cascadeSave(savedVsEntry(), 2, 2, false, rvs -> {
+         when(rvs.getViewsheet().getLayoutInfo()).thenReturn(saved);
+         // layout stack is non-empty after the saved edit; that alone must not make it stale
+         when(rvs.getLayoutPointsSize()).thenReturn(2);
+      }, saved);
+
+      assertEquals(List.of("rt-vs-78662"), c.result.get("reloadedViewsheets"));
+      assertNull(c.result.get("staleViewsheets"));
+   }
+
+   /** Binding-editor / viewer / preview runtimes only get the plain reset: never reloaded, not reported (I-2). */
+   @Test
+   void renameCascadeNeverReloadsBindingViewerOrPreviewRuntimes78662() throws Exception {
+      List<java.util.function.Consumer<RuntimeViewsheet>> kinds = List.of(
+         rvs -> when(rvs.isBinding()).thenReturn(true),
+         rvs -> when(rvs.isViewer()).thenReturn(true),
+         rvs -> when(rvs.isPreview()).thenReturn(true),
+         rvs -> when(rvs.isRuntime()).thenReturn(true));
+
+      for(java.util.function.Consumer<RuntimeViewsheet> kind : kinds) {
+         CascadeCase c = cascadeSave(savedVsEntry(), 2, 2, false, kind);
+
+         verify(c.rvs, never()).setViewsheet(any());
+         verify(c.rvs, never()).resetCheckpoints(any());
+         verify(c.rvs).resetRuntime();
+         assertNull(c.result.get("staleViewsheets"));
+         assertNull(c.result.get("reloadedViewsheets"));
+      }
+   }
+
+   /** A never-saved (temporary) viewsheet looks clean by save point but has no stored copy. */
+   @Test
+   void renameCascadeTreatsUnsavedViewsheetRuntimeAsStale78662() throws Exception {
+      AssetEntry temp = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "__TEMPORARY__/vs-1", null);
+      CascadeCase c = cascadeSave(temp, 0, 0, false);
+
+      verify(c.rvs, never()).setViewsheet(any());
+      verify(c.repo, never()).getSheet(any(), any(), anyBoolean(), any());
+      List<?> stale = (List<?>) c.result.get("staleViewsheets");
+      assertEquals(1, stale.size());
+      assertTrue(((Map<?, ?>) stale.get(0)).get("reason").toString().contains("never been saved"));
+   }
+
+   /** A failed reload must not fail the worksheet save; it is reported stale with the cause. */
+   @Test
+   void renameCascadeReportsStaleWhenReloadFails78662() throws Exception {
+      CascadeCase c = cascadeSave(savedVsEntry(), 2, 2, true);
+
+      assertEquals(Boolean.TRUE, c.result.get("ok"));
+      verify(c.rvs, never()).resetCheckpoints(any());
+      List<?> stale = (List<?>) c.result.get("staleViewsheets");
+      assertEquals(1, stale.size());
+      assertTrue(((Map<?, ?>) stale.get(0)).get("reason").toString()
+                    .contains("storage unavailable"));
+      verify(c.rvs).resetRuntime();
+   }
+
+   // ---------------------------------------------------------------------------
    // Whole-branch review finding 2 (Important) -- the guard is 12 hand calls, not a chokepoint
    // ---------------------------------------------------------------------------
 
