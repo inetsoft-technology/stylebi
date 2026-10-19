@@ -62,6 +62,17 @@ public final class WorksheetMutationSupport {
     */
    static final String AGGREGATE_OUTPUT_ALIASES = "wiz.aggregate.output.aliases";
 
+   /**
+    * Table property recording the names of the secondary-aggregate expression columns
+    * (<code>&lt;col&gt;_&lt;n&gt;</code>) the LAST {@link #applyAggregateInfo} call generated
+    * (newline-separated; empty string when it generated none). Only a column named here may be
+    * reused by the next call (see {@link #takeReusableSecondary}), so a user-authored
+    * <code>field['qty']</code> expression column is never mistaken for a generated one. Absent
+    * on a table last aggregated before this property existed, which then regenerates its
+    * secondary columns once, exactly as before.
+    */
+   static final String SECONDARY_AGGREGATE_COLUMNS = "wiz.aggregate.secondary.columns";
+
    // =========================================================================
    // AggregateSpec record
    // =========================================================================
@@ -872,6 +883,7 @@ public final class WorksheetMutationSupport {
       // a rename_column alias on an aggregated column survives re-aggregation.
       t.setProperty(AGGREGATE_OUTPUT_ALIASES,
                     appliedAliases.isEmpty() ? "" : String.join("\n", appliedAliases));
+      t.setProperty(SECONDARY_AGGREGATE_COLUMNS, String.join("\n", prepared.secondaryColumns()));
       t.setAggregateInfo(ainfo);
       t.setAggregate(!ainfo.isEmpty());
 
@@ -907,6 +919,7 @@ public final class WorksheetMutationSupport {
    private record PreparedAggregateInfo(AggregateInfo ainfo,
                                         ColumnSelection pendingSecondaryColumnSelection,
                                         List<String> appliedAliases,
+                                        List<String> secondaryColumns,
                                         List<RankingRebind> rankingRebinds)
    {
    }
@@ -984,8 +997,16 @@ public final class WorksheetMutationSupport {
          }
       }
 
+      // The live columns this call's own group/aggregate specs resolve to: never offered for
+      // secondary-column reuse, whatever they are named.
+      Set<ColumnRef> callResolved = Collections.newSetFromMap(new IdentityHashMap<>());
+
       for(GroupSpec spec : groups) {
          ColumnRef resolved = availableColumns.get(spec.field());
+
+         if(resolved != null) {
+            callResolved.add(resolved);
+         }
 
          if(resolved == null) {
             // Fail loud: a silently invalid GroupRef would be dropped by the next
@@ -1192,6 +1213,7 @@ public final class WorksheetMutationSupport {
                "'. Available columns: " + availableColumns.keySet());
          }
 
+         callResolved.add(colRef);
          ColumnRef secondaryColRef = null;
 
          if(spec.secondaryColumn() != null && !spec.secondaryColumn().isBlank()) {
@@ -1202,6 +1224,8 @@ public final class WorksheetMutationSupport {
                   "Column not found for aggregate's secondary column: '" +
                   spec.secondaryColumn() + "'. Available columns: " + availableColumns.keySet());
             }
+
+            callResolved.add(secondaryColRef);
          }
 
          AggregateRef ar = new AggregateRef(colRef, formula);
@@ -1284,6 +1308,7 @@ public final class WorksheetMutationSupport {
       // listener -- so calling it here, before either guard has run, would leak that new
       // public selection to any other reader even when the call ends up refused.
       ColumnSelection pendingSecondaryColumnSelection = null;
+      List<String> secondaryColumns = new ArrayList<>();
 
       if(secondaryAggs.length > 0) {
          // Round-1-review finding: t.getColumnSelection() here is the SAME live private
@@ -1299,37 +1324,55 @@ public final class WorksheetMutationSupport {
          // this copy leaves the live table's own selection completely untouched until the
          // deferred commit below actually runs.
          ColumnSelection cs2 = t.getColumnSelection().clone(true);
+         List<ReusableSecondary> reusable = reusableSecondaries(
+            t, oaginfo, cs2, callResolved, originalAliases);
 
          for(AggregateRef sref : secondaryAggs) {
             ColumnRef cref = (ColumnRef) sref.getDataRef();
             String base = cref.getAttribute();
-
-            // Generate a unique column name (e.g. Amount_1, Amount_2).
-            // Must scan attributes AND aliases: cs2.getAttribute(name) resolves by the
-            // column's display name, which is the ALIAS when one is set — so a prior
-            // secondary column named Amount_1 with alias max_amount would not be found
-            // and the next secondary would collide on Amount_1 (third-aggregate bug).
-            int suffix = 1;
-            String exprName = base + "_1";
-
-            while(containsColumnNamed(cs2, exprName)) {
-               exprName = base + "_" + (++suffix);
-            }
-
-            // Create an expression column that references the original column.
-            ExpressionRef exp = new ExpressionRef(null, exprName);
             String fieldRef = cref.isEntityBlank() ? cref.getAttribute()
                : cref.getEntity() + "." + cref.getAttribute();
-            exp.setExpression("field['" + fieldRef + "']");
-            ColumnRef exprCol = new ColumnRef(exp);
-            exprCol.setDataType(cref.getDataType());
+            String expression = "field['" + fieldRef + "']";
 
-            // Carry over the alias from the secondary aggregate.
-            if(cref.getAlias() != null) {
+            // Bug #78790 (WBS-140): an unchanged secondary aggregate keeps its column. The
+            // name below is otherwise regenerated on every apply (the previous call's column
+            // is still in cs2, so Amount_1 becomes Amount_2, then Amount_3), which makes the
+            // downstream-loss guards see the column a dependent consumes as lost.
+            ColumnRef exprCol = takeReusableSecondary(reusable, sref, expression);
+
+            if(exprCol != null) {
+               // The LIVE selection object, never a copy (the identity invariant above): it
+               // is already in cs2 and keeps its type; only the alias follows this spec.
                exprCol.setAlias(cref.getAlias());
             }
+            else {
+               // Generate a unique column name (e.g. Amount_1, Amount_2).
+               // Must scan attributes AND aliases: cs2.getAttribute(name) resolves by the
+               // column's display name, which is the ALIAS when one is set — so a prior
+               // secondary column named Amount_1 with alias max_amount would not be found
+               // and the next secondary would collide on Amount_1 (third-aggregate bug).
+               int suffix = 1;
+               String exprName = base + "_1";
 
-            cs2.addAttribute(exprCol);
+               while(containsColumnNamed(cs2, exprName)) {
+                  exprName = base + "_" + (++suffix);
+               }
+
+               // Create an expression column that references the original column.
+               ExpressionRef exp = new ExpressionRef(null, exprName);
+               exp.setExpression(expression);
+               exprCol = new ColumnRef(exp);
+               exprCol.setDataType(cref.getDataType());
+
+               // Carry over the alias from the secondary aggregate.
+               if(cref.getAlias() != null) {
+                  exprCol.setAlias(cref.getAlias());
+               }
+
+               cs2.addAttribute(exprCol);
+            }
+
+            secondaryColumns.add(exprCol.getAttribute());
 
             // Create a new primary aggregate on the expression column. Carries over the
             // secondary column and percentage settings applied to `sref` above -- without
@@ -1498,7 +1541,7 @@ public final class WorksheetMutationSupport {
       List<RankingRebind> rankingRebinds = rankingRebinds(t, ainfo, originalAliases);
 
       return new PreparedAggregateInfo(ainfo, pendingSecondaryColumnSelection, appliedAliases,
-                                       rankingRebinds);
+                                       secondaryColumns, rankingRebinds);
    }
 
    /** A ranking whose {@code of} is re-pointed at a new aggregate once the call commits. */
@@ -2063,6 +2106,7 @@ public final class WorksheetMutationSupport {
          snapshot.sorts = snapshot.sortInfo == null ? null : snapshot.sortInfo.getSorts();
          snapshot.tempSort = snapshot.sortInfo != null && snapshot.sortInfo.isTempSort();
          snapshot.outputAliases = t.getProperty(AGGREGATE_OUTPUT_ALIASES);
+         snapshot.secondaryColumns = t.getProperty(SECONDARY_AGGREGATE_COLUMNS);
          return snapshot;
       }
 
@@ -2115,6 +2159,7 @@ public final class WorksheetMutationSupport {
          }
 
          t.setProperty(AGGREGATE_OUTPUT_ALIASES, outputAliases);
+         t.setProperty(SECONDARY_AGGREGATE_COLUMNS, secondaryColumns);
       }
 
       private static boolean sameRefs(SortRef[] a, SortRef[] b) {
@@ -2149,6 +2194,123 @@ public final class WorksheetMutationSupport {
       private SortRef[] sorts;
       private boolean tempSort;
       private String outputAliases;
+      private String secondaryColumns;
+   }
+
+   /**
+    * A secondary-aggregate expression column a previous {@link #applyAggregateInfo} call
+    * generated, still live in the private selection, with what that call used it for.
+    *
+    * @param column     the LIVE selection object (never the AggregateInfo's possibly cloned ref)
+    * @param aggregate  the previous AggregateInfo's aggregate over it
+    * @param priorAlias the column's alias before this call cleared it
+    */
+   private record ReusableSecondary(ColumnRef column, AggregateRef aggregate, String priorAlias) {
+   }
+
+   /**
+    * Bug #78790 (WBS-140): the generated secondary columns this call may reuse. A column
+    * qualifies only if all of these hold:
+    * <ul>
+    *   <li>its name is in the {@link #SECONDARY_AGGREGATE_COLUMNS} provenance record, so a
+    *       user-authored <code>field['qty']</code> column is never taken;</li>
+    *   <li>it is a pass-through <code>field['...']</code> expression column;</li>
+    *   <li>the previous AggregateInfo aggregates it (matched by NAME, not identity: a preview
+    *       installs a deep clone of the AggregateInfo, see {@link #clearAggregateAliases});</li>
+    *   <li>this call's own group/aggregate specs do not resolve to it.</li>
+    * </ul>
+    * The columns returned are the live objects of {@code cs2}, in the previous AggregateInfo's
+    * order.
+    */
+   private static List<ReusableSecondary> reusableSecondaries(
+      TableAssembly t, AggregateInfo oaginfo, ColumnSelection cs2, Set<ColumnRef> callResolved,
+      Map<ColumnRef, String> originalAliases)
+   {
+      String recorded = t.getProperty(SECONDARY_AGGREGATE_COLUMNS);
+      List<ReusableSecondary> result = new ArrayList<>();
+
+      if(recorded == null || recorded.isEmpty()) {
+         return result;
+      }
+
+      Set<String> generated = new HashSet<>(Arrays.asList(recorded.split("\n", -1)));
+
+      for(int i = 0; i < oaginfo.getAggregateCount(); i++) {
+         AggregateRef old = oaginfo.getAggregate(i);
+
+         if(!(old.getDataRef() instanceof ColumnRef oldCol) ||
+            !(oldCol.getDataRef() instanceof ExpressionRef) ||
+            !generated.contains(oldCol.getAttribute()))
+         {
+            continue;
+         }
+
+         for(int j = 0; j < cs2.getAttributeCount(); j++) {
+            if(cs2.getAttribute(j) instanceof ColumnRef live &&
+               live.getDataRef() instanceof ExpressionRef &&
+               Objects.equals(live.getAttribute(), oldCol.getAttribute()) &&
+               !callResolved.contains(live))
+            {
+               result.add(new ReusableSecondary(live, old, originalAliases.get(live)));
+               break;
+            }
+         }
+      }
+
+      return result;
+   }
+
+   /**
+    * Picks, and removes from {@code pool}, the column {@code sref} (an aggregate on a column
+    * that is already aggregated) should reuse, or {@code null} to generate a new one. The name
+    * of a secondary column is what a dependent consumes, so it must follow what the caller
+    * calls it:
+    * <ol>
+    *   <li>an aliased secondary reuses the column that carried the same alias;</li>
+    *   <li>an unaliased one reuses an unaliased column that held the same aggregate (formula,
+    *       n, percentage option and secondary column), so a resend in a different order does
+    *       not hand a dependent the other formula's values.</li>
+    * </ol>
+    * There is deliberately no positional fallback: a secondary whose identity changed gets a
+    * fresh column, and the downstream-loss guards refuse it if a dependent used the old one.
+    */
+   private static ColumnRef takeReusableSecondary(List<ReusableSecondary> pool, AggregateRef sref,
+                                                  String expression)
+   {
+      ColumnRef requested = (ColumnRef) sref.getDataRef();
+      String alias = requested.getAlias();
+
+      for(Iterator<ReusableSecondary> it = pool.iterator(); it.hasNext();) {
+         ReusableSecondary candidate = it.next();
+         ExpressionRef exp = (ExpressionRef) candidate.column().getDataRef();
+
+         if(!expression.equals(exp.getExpression())) {
+            continue;
+         }
+
+         boolean match = alias != null && !alias.isEmpty()
+            ? alias.equals(candidate.priorAlias())
+            : (candidate.priorAlias() == null || candidate.priorAlias().isEmpty()) &&
+              sameAggregate(candidate.aggregate(), sref);
+
+         if(match) {
+            it.remove();
+            return candidate.column();
+         }
+      }
+
+      return null;
+   }
+
+   /** Same formula, n, percentage option and secondary column; the input column is not compared. */
+   private static boolean sameAggregate(AggregateRef a, AggregateRef b) {
+      DataRef sa = a.getSecondaryColumn();
+      DataRef sb = b.getSecondaryColumn();
+
+      return a.getFormula() == b.getFormula() &&
+         (a.getFormula() == null || !a.getFormula().hasN() || a.getN() == b.getN()) &&
+         a.getPercentageOption() == b.getPercentageOption() &&
+         Objects.equals(sa == null ? null : sa.getName(), sb == null ? null : sb.getName());
    }
 
    /**
@@ -4440,6 +4602,35 @@ public final class WorksheetMutationSupport {
       if(changed) {
          t.setProperty(AGGREGATE_OUTPUT_ALIASES, String.join("\n", parts));
       }
+   }
+
+   /**
+    * Bug #78790: keeps {@link #SECONDARY_AGGREGATE_COLUMNS} naming the live column after a
+    * {@code rename_column} or {@code remove_column} on a generated secondary-aggregate column,
+    * so an identical resend afterwards still finds it. A {@code null} {@code newName} drops the
+    * entry.
+    */
+   static void renameSecondaryAggregateColumn(TableAssembly t, String oldName, String newName) {
+      String recorded = t.getProperty(SECONDARY_AGGREGATE_COLUMNS);
+
+      if(recorded == null || recorded.isEmpty() || oldName == null) {
+         return;
+      }
+
+      List<String> parts = new ArrayList<>(Arrays.asList(recorded.split("\n", -1)));
+
+      if(!parts.contains(oldName)) {
+         return;
+      }
+
+      if(newName == null) {
+         parts.removeIf(oldName::equals);
+      }
+      else {
+         parts.replaceAll(p -> p.equals(oldName) ? newName : p);
+      }
+
+      t.setProperty(SECONDARY_AGGREGATE_COLUMNS, String.join("\n", parts));
    }
 
    /**

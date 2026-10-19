@@ -553,6 +553,11 @@ public class WorksheetEditService {
 
          cs.removeAttribute(toRemove);
          t.setColumnSelection(cs);
+
+         if(toRemove instanceof ColumnRef removed) {
+            WorksheetMutationSupport.renameSecondaryAggregateColumn(
+               t, removed.getAttribute(), null);
+         }
       }
 
       private static List<String> dedupe(List<String> references) {
@@ -737,6 +742,7 @@ public class WorksheetEditService {
             // the SAME conflict (read-only, no mutation happens either way) so this can still
             // report a field-named PairingException instead of silently failing.
             String oldAlias = cr.getAlias();
+            String oldAttribute = cr.getAttribute();
             boolean failed = RenameColumnController.renameColumn(ws, null, t, cr, newName);
 
             if(failed) {
@@ -748,6 +754,8 @@ public class WorksheetEditService {
             }
 
             WorksheetMutationSupport.renameAggregateOutputAlias(t, col, newName);
+            WorksheetMutationSupport.renameSecondaryAggregateColumn(
+               t, oldAttribute, cr.getAttribute());
 
             if(oldAlias != null && !oldAlias.equals(col)) {
                WorksheetMutationSupport.renameAggregateOutputAlias(t, oldAlias, newName);
