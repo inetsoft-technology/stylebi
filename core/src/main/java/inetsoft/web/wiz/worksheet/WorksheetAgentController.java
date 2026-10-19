@@ -701,7 +701,115 @@ public class WorksheetAgentController {
          return;
       }
 
+      // Runtime variable values live in the sandbox's VariableTable, not on the variable
+      // assembly, so delete/rename/type-change must also sync that table (Bug #78822).
+      if("delete_variable".equals(req.op()) || "rename_variable".equals(req.op()) ||
+         "edit_variable".equals(req.op()))
+      {
+         editVariableAndSyncValues(sessionToken, req, user);
+         return;
+      }
+
       editService.apply(sessionToken, user, editor -> dispatch(editor, req));
+   }
+
+   /**
+    * Applies delete_variable / rename_variable / edit_variable and then reconciles the sandbox
+    * {@link inetsoft.uql.VariableTable} so a value set for a variable never outlives or
+    * mis-attaches to it. Only the affected key is touched (never {@code resetVariableTable()},
+    * which would wipe every variable's value), and only after the edit has succeeded, so a
+    * refused edit keeps the live value.
+    */
+   private void editVariableAndSyncValues(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String name = req.name();
+      boolean typeEdit = "edit_variable".equals(req.op()) && req.type() != null;
+      String oldType = null;
+
+      if(typeEdit) {
+         Assembly a = editService.resolve(sessionToken, user).getWorksheet().getAssembly(name);
+
+         if(a instanceof DefaultVariableAssembly va && va.getVariable() != null &&
+            va.getVariable().getTypeNode() != null)
+         {
+            oldType = va.getVariable().getTypeNode().getType();
+         }
+      }
+
+      editService.apply(sessionToken, user, editor -> dispatch(editor, req));
+
+      if("edit_variable".equals(req.op()) && (!typeEdit || oldType == null)) {
+         return;
+      }
+
+      String previousType = oldType;
+
+      editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
+         inetsoft.report.composition.execution.AssetQuerySandbox box =
+            rws.getAssetQuerySandbox();
+
+         if(box == null || box.getVariableTable() == null) {
+            return null;
+         }
+
+         inetsoft.uql.VariableTable vtable = box.getVariableTable();
+
+         switch(req.op()) {
+         case "delete_variable" -> removeVariableValue(vtable, name);
+         case "rename_variable" -> {
+            String newName = req.newName();
+            String oldKey = findVariableKey(vtable, name);
+
+            if(oldKey != null) {
+               Object value = vtable.get(oldKey);
+               boolean asIs = vtable.isAsIs(oldKey);
+               removeVariableValue(vtable, name);
+               removeVariableValue(vtable, newName);
+               vtable.setAsIs(newName, asIs);
+               vtable.put(newName, value);
+            }
+            else {
+               removeVariableValue(vtable, newName);
+            }
+         }
+         default -> {
+            Assembly a = rws.getWorksheet().getAssembly(name);
+            String newType = a instanceof DefaultVariableAssembly va &&
+               va.getVariable() != null && va.getVariable().getTypeNode() != null
+               ? va.getVariable().getTypeNode().getType() : null;
+
+            if(newType != null && !newType.equals(previousType)) {
+               removeVariableValue(vtable, name);
+            }
+         }
+         }
+
+         box.reset();
+         return null;
+      });
+   }
+
+   private static String findVariableKey(inetsoft.uql.VariableTable vtable, String name) {
+      java.util.Enumeration<String> keys = vtable.keys();
+
+      while(keys.hasMoreElements()) {
+         String key = keys.nextElement();
+
+         if(key.equalsIgnoreCase(name)) {
+            return key;
+         }
+      }
+
+      return null;
+   }
+
+   private static void removeVariableValue(inetsoft.uql.VariableTable vtable, String name) {
+      String key = findVariableKey(vtable, name);
+
+      if(key != null) {
+         vtable.remove(key);
+      }
    }
 
    /**

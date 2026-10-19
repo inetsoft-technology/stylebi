@@ -4831,6 +4831,112 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // Bug #78822 -- delete/rename/type-change must sync the sandbox VariableTable
+   // ---------------------------------------------------------------------------
+
+   private static EditRequest editVariableTypeRequest(String name, String type) {
+      return new EditRequest(
+         "edit_variable", null, null, name, type, null, null, null, null, null,
+         null, null, null, false, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null,
+         null, null,
+         null, null, null, null, null, null, null
+      );
+   }
+
+   private WorksheetAgentController variableSyncController(
+      String token, Worksheet ws, VariableTable vtable, AssetQuerySandbox box)
+      throws Exception
+   {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getVariableTable()).thenReturn(vtable);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq(token), any())).thenReturn(session(token));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         mock(InnerJoinService.class));
+
+      return controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), editSvc,
+         mock(WorksheetService.class));
+   }
+
+   @Test
+   void deleteVariableDropsOnlyThatVariablesRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = new VariableTable();
+      vtable.put("state", "MD");
+      vtable.put("other", "keep");
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-78822A", ws, vtable, box);
+
+      ctrl.edit("TOK-78822A", deleteVariableRequest("state"), agent);
+
+      assertFalse(vtable.contains("state"),
+         "a deleted variable's stale value must not survive to a re-created variable");
+      assertEquals("keep", vtable.get("other"), "other variables' values must be untouched");
+      verify(box).reset();
+   }
+
+   @Test
+   void refusedDeleteKeepsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      VariableTable vtable = new VariableTable();
+      vtable.put("ghost", "v");
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-78822B", ws, vtable, box);
+
+      assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-78822B", deleteVariableRequest("ghost"), agent));
+      assertTrue(vtable.contains("ghost"));
+   }
+
+   @Test
+   void renameVariableMovesRuntimeValueToNewName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      VariableTable vtable = new VariableTable();
+      vtable.put("state", "MD");
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-78822C", ws, vtable, box);
+
+      ctrl.edit("TOK-78822C", renameVariableRequest("state", "region"), agent);
+
+      assertFalse(vtable.contains("state"), "old name must not keep the value");
+      assertEquals("MD", vtable.get("region"), "value must follow the variable to its new name");
+   }
+
+   @Test
+   void typeChangeDropsStaleRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly va = addVariable(ws, "n");
+      va.getVariable().setTypeNode(XSchema.createPrimitiveType(XSchema.STRING));
+      VariableTable vtable = new VariableTable();
+      vtable.put("n", "MD");
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-78822D", ws, vtable, box);
+
+      ctrl.edit("TOK-78822D", editVariableTypeRequest("n", XSchema.INTEGER), agent);
+
+      assertFalse(vtable.contains("n"),
+         "a value of the old type must not survive a variable type change");
+   }
+
+   // ---------------------------------------------------------------------------
    // set_variable_values (L2-Group8)
    // ---------------------------------------------------------------------------
 
