@@ -26,8 +26,15 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XMetaInfo;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
+import inetsoft.uql.viewsheet.graph.Calculator;
+import inetsoft.uql.viewsheet.internal.*;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
@@ -195,6 +202,85 @@ class CrossTabFilterPercentCalcTotalTest {
       assertTrue(calcCells(f, false).stream().anyMatch(c -> c.value != null));
    }
 
+   /**
+    * Bug #78859's date comparison path: the calc that date comparison attaches to a crosstab
+    * aggregate (DateComparisonInfo.createComparisonCalc, as CrosstabDcProcessor uses it) is a
+    * percent ChangeColumn for "Percent Change" and "Value and Percent Change", so its totals
+    * are blank with the option off. "Change" stays an absolute change and keeps the plain
+    * aggregate on totals.
+    */
+   @Test
+   void dateComparisonPercentCalcTotalsAreBlank() {
+      for(int option : new int[] { DateComparisonInfo.PERCENT, DateComparisonInfo.PERCENT_VALUE,
+                                   DateComparisonInfo.CHANGE })
+      {
+         boolean percent = option != DateComparisonInfo.CHANGE;
+         Calculator calculator = dateComparison(option).createComparisonCalc(
+            yearDim(), true, new ArrayList<>());
+         ChangeCalc changeCalc = assertInstanceOf(ChangeCalc.class, calculator);
+         assertEquals(percent, changeCalc.isAsPercent(), "option " + option);
+
+         ChangeColumn column =
+            assertInstanceOf(ChangeColumn.class, changeCalc.createCalcColumn(SUM));
+         assertEquals(percent, column.isAsPercent(), "option " + option);
+
+         // the DC calc compares with the previous year of a date column; the test data has
+         // plain Year/Month numbers, so compare with the previous Month instead. The unit of
+         // the calc (isAsPercent) is what decides the total cells.
+         column.setChangeType(ValueOfCalc.PREVIOUS);
+         column.setDim("Month");
+         CrossTabFilter f = build("DC", column, false, true, true, false);
+         List<Cell> totals = calcCells(f, true);
+
+         assertFalse(totals.isEmpty());
+
+         for(Cell cell : totals) {
+            if(percent) {
+               assertNull(cell.value, "option " + option + " " + cell);
+            }
+            else {
+               assertEquals(cell.sum, cell.value, "option " + option + " " + cell);
+            }
+         }
+      }
+   }
+
+   /**
+    * The date comparison of the end-to-end test,
+    * DateComparisonCrosstabPercentTotalViewsheetTest: this year vs the previous year, by month.
+    */
+   private static DateComparisonInfo dateComparison(int option) {
+      DateComparisonInfo dcInfo = new DateComparisonInfo();
+      StandardPeriods periods = new StandardPeriods();
+      periods.setDateLevel(XConstants.YEAR_DATE_GROUP);
+      periods.setPreCount(1);
+      periods.setToDayAsEndDay(false);
+      periods.setEndDateValue("2025-12-31");
+      periods.setToDate(false);
+      periods.setInclusive(true);
+      dcInfo.setDateComparisonPeriods(periods);
+      DateComparisonInterval interval = new DateComparisonInterval();
+      interval.setGranularity(DateComparisonInfo.MONTH);
+      interval.setLevel(DateComparisonInfo.ALL);
+      interval.setContextLevel(XConstants.YEAR_DATE_GROUP);
+      dcInfo.setDateComparisonInterval(interval);
+      dcInfo.setComparisonOption(option);
+      return dcInfo;
+   }
+
+   private static VSDimensionRef yearDim() {
+      VSDimensionRef dim = new VSDimensionRef();
+      AttributeRef attr = new AttributeRef(null, "D");
+      attr.setDataType(XSchema.DATE);
+      ColumnRef column = new ColumnRef(attr);
+      column.setDataType(XSchema.DATE);
+      dim.setDataRef(column);
+      dim.setGroupColumnValue("D");
+      dim.setDataType(XSchema.DATE);
+      dim.setDateLevelValue(XConstants.YEAR_DATE_GROUP + "");
+      return dim;
+   }
+
    private static Stream<Arguments> layouts() {
       List<Arguments> list = new ArrayList<>();
 
@@ -325,6 +411,12 @@ class CrossTabFilterPercentCalcTotalTest {
    private static CrossTabFilter build(String kind, boolean calcTotal, boolean sideBySide,
                                        boolean byRow, boolean fillZero)
    {
+      return build(kind, calc(kind, byRow), calcTotal, sideBySide, byRow, fillZero);
+   }
+
+   private static CrossTabFilter build(String kind, CalcColumn calc, boolean calcTotal,
+                                       boolean sideBySide, boolean byRow, boolean fillZero)
+   {
       Object[][] data = {
          {"Year", "Month", "Cat", "Total"},
          {2022, 1, "A", 60.0}, {2022, 1, "B", 40.0}, {2022, 2, "A", 90.0}, {2022, 2, "B", 60.0},
@@ -356,7 +448,7 @@ class CrossTabFilterPercentCalcTotalTest {
                                         : XConstants.PERCENTAGE_BY_COL);
       }
 
-      return finish(f, calc(kind, byRow), calcTotal, sideBySide, fillZero);
+      return finish(f, calc, calcTotal, sideBySide, fillZero);
    }
 
    /**

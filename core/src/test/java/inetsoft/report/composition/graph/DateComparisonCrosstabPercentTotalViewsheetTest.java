@@ -114,6 +114,8 @@ class DateComparisonCrosstabPercentTotalViewsheetTest {
 
       assertEquals("321051", rowText(lens, "2024", "Total", null));
       assertEquals("332681", rowText(lens, "2025", "Total", null));
+      // a detail month keeps its computed change: Sum(wind) of Jan 2025 minus Jan 2024 in the
+      // EmbeddedVS1 fixture (113120 - 107155), not a total and not a percent
       assertEquals("5965", rowText(lens, "2025", "Jan", null));
    }
 
