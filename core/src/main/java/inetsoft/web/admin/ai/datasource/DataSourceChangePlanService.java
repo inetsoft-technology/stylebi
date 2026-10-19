@@ -35,6 +35,7 @@ import inetsoft.web.wiz.controller.WizDatasourceNames;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -544,20 +545,67 @@ public class DataSourceChangePlanService {
          label + ".spec.tableName: must be one of " + TABLE_NAME_OPTIONS + ", got " + raw);
    }
 
+   /**
+    * Resolves {@code spec.isolation} to an {@link JdbcDataSourceProperties.IsolationLevel}. The
+    * public form of the level is its JDBC {@code value} ({@code -1, 1, 2, 4, 8}), which is what the
+    * enum's {@code @JsonValue toString()} emits and what {@code get_data_source} returns (as the
+    * string {@code "-1"}), so a number or a numeric string is matched against {@code level.value}.
+    * The constant name ({@code TRANSACTION_READ_COMMITTED}, case-insensitive) is still accepted as
+    * an undocumented legacy alias. Anything else -- {@code null}, a non-integral or out-of-range
+    * number, an unknown value -- is refused rather than defaulted: a null level would NPE when
+    * persisted, and {@code IsolationLevel.fromValue} would silently map an unknown int to DEFAULT.
+    */
    private static JdbcDataSourceProperties.IsolationLevel resolveIsolation(String label, Object raw) {
-      String value = raw == null ? null : String.valueOf(raw).trim().toUpperCase();
+      BigDecimal number = isolationNumber(raw);
 
       for(JdbcDataSourceProperties.IsolationLevel level :
           JdbcDataSourceProperties.IsolationLevel.values())
       {
-         if(level.name().equals(value)) {
+         if(number != null ? number.compareTo(BigDecimal.valueOf(level.value)) == 0 :
+            raw instanceof String && level.name().equalsIgnoreCase(((String) raw).trim()))
+         {
             return level;
          }
       }
 
+      StringJoiner values = new StringJoiner(", ", "[", "]");
+
+      for(JdbcDataSourceProperties.IsolationLevel level :
+          JdbcDataSourceProperties.IsolationLevel.values())
+      {
+         values.add(String.valueOf(level.value));
+      }
+
       throw new IllegalArgumentException(
-         label + ".spec.isolation: must be one of " +
-         Arrays.toString(JdbcDataSourceProperties.IsolationLevel.values()) + ", got " + raw);
+         label + ".spec.isolation: must be one of " + values + " (JDBC isolation value, number " +
+         "or numeric string; -1 = driver default), got " + raw);
+   }
+
+   /**
+    * Returns the exact numeric value of an isolation input, or {@code null} when it is not a
+    * number or a short integer string. Numbers are compared exactly (no {@code intValue()} wrap,
+    * so an out-of-range Long/BigInteger never matches a level); a string is limited to 10 digits
+    * before parsing so an oversized digit string is refused without a big-number parse.
+    */
+   private static BigDecimal isolationNumber(Object raw) {
+      if(raw instanceof Number) {
+         try {
+            return raw instanceof BigDecimal ? (BigDecimal) raw : new BigDecimal(raw.toString());
+         }
+         catch(NumberFormatException e) {
+            return null; // NaN, Infinity
+         }
+      }
+
+      if(raw instanceof String) {
+         String value = ((String) raw).trim();
+
+         if(value.matches("-?\\d{1,10}")) {
+            return BigDecimal.valueOf(Long.parseLong(value));
+         }
+      }
+
+      return null;
    }
 
    private static boolean requireBoolean(String label, String field, Object raw) {
