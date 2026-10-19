@@ -18,6 +18,7 @@
 
 package inetsoft.sree.security.db;
 
+import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.jdbc.JDBCHandler;
@@ -28,7 +29,9 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
@@ -39,6 +42,7 @@ class ConnectionProvider implements AutoCloseable {
       this.provider = provider;
       this.connectionRetryInterval = Long.parseLong(SreeEnv.getProperty(
          "database.security.connection.retryInterval", "600000"));
+      this.retryInterval = connectionRetryInterval;
    }
 
    public Connection getConnection() throws Exception {
@@ -50,11 +54,17 @@ class ConnectionProvider implements AutoCloseable {
 
          if(connectionValid == null || shouldRetryConnection()) {
             try {
-               testConnection();
+               testConnectionBounded(getProbeTimeout());
                connectionValid = true;
+               lastGoodProperties = connectionProperties;
             }
             catch(Exception e) {
                connectionValid = false;
+               // A configuration that has connected before is a database outage, not a bad
+               // configuration. Re-test it after the short window, so that recovery is noticed
+               // quickly, also after the cache loader reset the connection (Bug #78800).
+               retryInterval = Objects.equals(connectionProperties, lastGoodProperties) ?
+                  getPoolFailureRetryInterval() : connectionRetryInterval;
                throw e;
             }
             finally {
@@ -90,7 +100,13 @@ class ConnectionProvider implements AutoCloseable {
                }
             }
 
-            connection = connectionPool.getConnection();
+            try {
+               connection = connectionPool.getConnection();
+            }
+            catch(SQLException e) {
+               handlePoolFailure(e);
+               throw e;
+            }
          }
       }
       finally {
@@ -105,10 +121,112 @@ class ConnectionProvider implements AutoCloseable {
       return connection;
    }
 
+   /**
+    * Called when the pool could not supply a connection (Hikari throws after its connection
+    * timeout, 30 s by default). That happens both when the database is unreachable and when the
+    * pool is exhausted by a healthy database, so probe the database directly and only remember
+    * the failure when the probe fails too. While the failure is remembered, calls fail fast
+    * instead of each waiting for the pool timeout again (Bug #78800).
+    */
+   private void handlePoolFailure(SQLException poolException) {
+      try {
+         testConnectionBounded(getProbeTimeout());
+         LOG.debug(
+            "Failed to get a connection from the pool for security provider \"{}\", " +
+            "but the database is reachable", provider.getProviderName(), poolException);
+      }
+      catch(Exception e) {
+         long interval = getPoolFailureRetryInterval();
+         connectionValid = false;
+         connectionLastTested = Instant.now();
+         retryInterval = interval;
+         LOG.warn(
+            "Database for security provider \"{}\" is unreachable, failing fast for {} ms: {}",
+            provider.getProviderName(), interval, e.getMessage());
+      }
+   }
+
+   /**
+    * Tests the connection like {@link #testConnection()}, but gives up after {@code timeout} ms.
+    * The driver's {@code connect} runs on a daemon thread, because it can block until the OS
+    * gives up on an unreachable host, and this is called while holding {@link #lock}. A timed out
+    * probe thread is interrupted, but it may linger until the driver returns.
+    */
+   private void testConnectionBounded(long timeout) throws Exception {
+      ConnectionProperties props = provider.getConnectionProperties();
+      checkConnectionProperties(props);
+      Driver driver = provider.getDriver(props.driverClass());
+      Properties properties = getDriverProperties(props);
+      ClassLoader loader = Thread.currentThread().getContextClassLoader();
+
+      Future<?> future = PROBE_EXECUTOR.submit(() -> {
+         Thread thread = Thread.currentThread();
+         thread.setContextClassLoader(loader);
+
+         try {
+            connect(driver, props.url(), properties);
+         }
+         finally {
+            thread.setContextClassLoader(null);
+         }
+
+         return null;
+      });
+
+      try {
+         future.get(timeout, TimeUnit.MILLISECONDS);
+      }
+      catch(TimeoutException e) {
+         future.cancel(true);
+         throw new SQLException("Connection test timed out after " + timeout + " ms", "08001");
+      }
+      catch(InterruptedException e) {
+         future.cancel(true);
+         Thread.currentThread().interrupt();
+         throw e;
+      }
+      catch(ExecutionException e) {
+         if(e.getCause() instanceof Exception cause) {
+            throw cause;
+         }
+
+         throw e;
+      }
+   }
+
+   private long getProbeTimeout() {
+      long timeout;
+
+      try {
+         // the pool's connection timeout, or the configured/default one before there is a pool
+         timeout = connectionPool != null ?
+            connectionPool.getConnectionTimeout() : new HikariConfig().getConnectionTimeout();
+      }
+      catch(RuntimeException e) {
+         timeout = MAX_PROBE_TIMEOUT;
+      }
+
+      return timeout > 0 ? Math.min(timeout, MAX_PROBE_TIMEOUT) : MAX_PROBE_TIMEOUT;
+   }
+
+   private static long getPoolFailureRetryInterval() {
+      try {
+         return Long.parseLong(SreeEnv.getProperty(
+            "database.security.connection.poolFailureRetryInterval", "30000"));
+      }
+      catch(NumberFormatException e) {
+         return 30000L;
+      }
+   }
+
    public void testConnection() throws Exception {
       ConnectionProperties props = provider.getConnectionProperties();
       checkConnectionProperties(props);
       Driver driver = provider.getDriver(props.driverClass());
+      connect(driver, props.url(), getDriverProperties(props));
+   }
+
+   private static Properties getDriverProperties(ConnectionProperties props) {
       Properties properties = new Properties();
 
       if(props.requiresLogin()) {
@@ -116,7 +234,11 @@ class ConnectionProvider implements AutoCloseable {
          properties.setProperty("password", props.password());
       }
 
-      try(Connection connection = driver.connect(props.url(), properties)) {
+      return properties;
+   }
+
+   private static void connect(Driver driver, String url, Properties properties) throws Exception {
+      try(Connection connection = driver.connect(url, properties)) {
          if(connection == null) {
             throw new MessageException(Catalog.getCatalog().getString("Connection failed"));
          }
@@ -157,7 +279,7 @@ class ConnectionProvider implements AutoCloseable {
 
    private boolean shouldRetryConnection() {
       return Boolean.FALSE.equals(connectionValid) &&
-         connectionLastTested.isBefore(Instant.now().minusMillis(connectionRetryInterval));
+         connectionLastTested.isBefore(Instant.now().minusMillis(retryInterval));
    }
 
    private void checkConnectionProperties(ConnectionProperties properties) throws SQLException {
@@ -183,7 +305,19 @@ class ConnectionProvider implements AutoCloseable {
    private final long connectionRetryInterval;
    private Boolean connectionValid;
    private Instant connectionLastTested = Instant.MAX;
+   // How long a failed connection is remembered: connectionRetryInterval for a configuration
+   // that never connected, the shorter pool failure interval for an outage of a working database.
+   private long retryInterval;
+   // the connection properties of the last successful connection test
+   private ConnectionProperties lastGoodProperties;
    private HikariDataSource connectionPool;
+
+   private static final long MAX_PROBE_TIMEOUT = 10000L;
+   private static final ExecutorService PROBE_EXECUTOR = Executors.newCachedThreadPool(r -> {
+      Thread thread = new Thread(r, "DatabaseSecurityConnectionProbe");
+      thread.setDaemon(true);
+      return thread;
+   });
 
    private static final Logger LOG = LoggerFactory.getLogger(ConnectionProvider.class);
 }

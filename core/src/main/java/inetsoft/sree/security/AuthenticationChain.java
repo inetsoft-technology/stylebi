@@ -137,10 +137,11 @@ public class AuthenticationChain
    @Override
    @Deprecated
    public String[] getEmails(IdentityID userIdentity) {
-      return stream()
-         .flatMap(p -> Arrays.stream(p.getEmails(userIdentity)))
-         .distinct()
-         .toArray(String[]::new);
+      // Ask only the provider that owns the user (the first one that has it, as in getUser), like
+      // SUtil.getEmails does, so the other providers aren't queried for a user they don't have.
+      User user = getUser(userIdentity);
+      String[] emails = user == null ? null : user.getEmails();
+      return emails == null ? new String[0] : emails;
    }
 
    @Override
