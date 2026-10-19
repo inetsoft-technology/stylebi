@@ -169,16 +169,17 @@ public class VSChartBindingScriptableTopNTypeTest {
 
    @Test
    void rankingWriteResetsTheChartDataAndGraphOnlyWhenItChanges() {
-      bindingInfo.setTopNReverse("STATE", false, 0);
-      bindingInfo.setTopN("STATE", 5, 0);
+      // the reset is made around the script function call, so call it as a script does
+      bind("setTopNReverse", "setTopN", "setTopNSummaryCol");
+      ctx.eval("js", "setTopNReverse('STATE', false); setTopN('STATE', 5);");
       verify(viewsheetSandbox, never()).resetDataMap(anyString());
       verify(viewsheetSandbox, never()).removeGraph(anyString());
 
-      bindingInfo.setTopNReverse("STATE", true, 0);
+      ctx.eval("js", "setTopNReverse('STATE', true);");
       verify(viewsheetSandbox, times(1)).resetDataMap("chart1");
       verify(viewsheetSandbox, times(1)).removeGraph("chart1");
 
-      bindingInfo.setTopNSummaryCol("STATE", "Sum(NUM)", 0);
+      ctx.eval("js", "setTopNSummaryCol('STATE', 'Sum(NUM)');");
       verify(viewsheetSandbox, times(2)).resetDataMap("chart1");
    }
 

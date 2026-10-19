@@ -38,10 +38,12 @@ import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.DrillFilterInfo;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JSObject;
+import inetsoft.util.script.graal.ScriptCallGuard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.function.Supplier;
 
 /**
  * This class represents an ChartInfo in viewsheet the Javascript environment.
@@ -49,7 +51,9 @@ import java.util.*;
  * @version 10.3
  * @author InetSoft Technology Corp
  */
-public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
+public class VSChartBindingScriptable extends AbstractChartBindingScriptable
+   implements ScriptCallGuard
+{
    /**
     * Create a javascript object represent chart binding infos.
     * @param script the parent scriptable
@@ -92,6 +96,28 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
          public AbstractChartInfo getInfo() {
             return VSChartBindingScriptable.this.getInfo();
          }
+      });
+   }
+
+   /**
+    * Run a function of the chart binding, and invalidate the chart's cached data and graph if
+    * it changed the binding, see {@link ChartVSAScriptable#guardInfoWrite}. This covers every
+    * function registered on the binding, without each one having to do so.
+    */
+   @Override
+   public Object guardCall(Supplier<Object> call) {
+      return script.guardInfoWrite(call);
+   }
+
+   /**
+    * Sets a binding property, e.g. {@code xFields}, and invalidates the chart's cached data
+    * and graph if it changed the binding.
+    */
+   @Override
+   public void putMember(String name, Object value) {
+      script.guardInfoWrite(() -> {
+         super.putMember(name, value);
+         return null;
       });
    }
 
@@ -604,7 +630,6 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
    protected void setTopN(XDimensionRef dim, int n) {
       if(dim instanceof VSDimensionRef) {
          VSDimensionRef dim2 = (VSDimensionRef) dim;
-         String oranking = rankingKey(dim2);
          dim2.setRankingNValue(n + "");
 
          if(n > 0) {
@@ -620,8 +645,6 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
                }
             }
          }
-
-         resetDataIfChanged(oranking, dim2);
       }
       else {
          LOG.warn("Dimension column not found: " + dim.getName());
@@ -662,9 +685,7 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
    @Override
    protected void setTopNSummaryCol(XDimensionRef dim, String sumfield) {
       if(dim instanceof VSDimensionRef) {
-         String oranking = rankingKey((VSDimensionRef) dim);
          ((VSDimensionRef) dim).setRankingColValue(sumfield);
-         resetDataIfChanged(oranking, (VSDimensionRef) dim);
       }
       else {
          LOG.warn("Dimension column not found: " + dim.getName());
@@ -695,38 +716,10 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
    protected void setTopNReverse(XDimensionRef dim, boolean reserve) {
       if(dim instanceof VSDimensionRef) {
          int op = reserve ? XCondition.BOTTOM_N : XCondition.TOP_N;
-         String oranking = rankingKey((VSDimensionRef) dim);
          ((VSDimensionRef) dim).setRankingOptionValue(op + "");
-         resetDataIfChanged(oranking, (VSDimensionRef) dim);
       }
       else {
          LOG.warn("Dimension column not found: " +  dim.getName());
-      }
-   }
-
-   /**
-    * The ranking settings of a dimension, to tell whether a write changed them.
-    */
-   private static String rankingKey(VSDimensionRef dim) {
-      return dim.getRankingOptionValue() + "|" + dim.getRankingNValue() + "|" +
-         dim.getRankingColValue();
-   }
-
-   /**
-    * A ranking write edits the chart info in place, which neither the sandbox's cached chart
-    * data nor its cached graph detects (both compare with the same live info), so the next
-    * read would return the data of the old ranking. Reset the chart's data and graph when the
-    * ranking changed, so the next read, in this script or after it, runs the query again
-    * (Bug #76862). An unchanged ranking, e.g. a script setting the same value on every
-    * refresh, keeps both.
-    */
-   private void resetDataIfChanged(String oranking, VSDimensionRef dim) {
-      ViewsheetSandbox box = getViewsheetSandbox();
-      String name = script.getAssembly();
-
-      if(box != null && name != null && !oranking.equals(rankingKey(dim))) {
-         box.resetDataMap(name);
-         box.removeGraph(name);
       }
    }
 

@@ -36,6 +36,7 @@ import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.log.LogManager;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.ScriptCallGuard;
 import inetsoft.util.script.graal.ScriptFunction;
 import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
@@ -44,6 +45,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * The chart assembly scriptable in viewsheet scope.
@@ -51,7 +53,9 @@ import java.util.List;
  * @version 10.3
  * @author InetSoft Technology Corp
  */
-public class ChartVSAScriptable extends VSAScriptable implements CommonChartScriptable {
+public class ChartVSAScriptable extends VSAScriptable
+   implements CommonChartScriptable, ScriptCallGuard
+{
    /**
     * Create a chart viewsheet assembly scriptable.
     */
@@ -156,6 +160,64 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
     */
    @Override
    public void putMember(String name, Object value) {
+      guardInfoWrite(() -> {
+         putMember0(name, value);
+         return null;
+      });
+   }
+
+   /**
+    * Run a script function call of this chart, or of its bindingInfo, so that an in-place
+    * edit of the chart's binding invalidates the sandbox's cached results.
+    */
+   @Override
+   public Object guardCall(Supplier<Object> call) {
+      return guardInfoWrite(call);
+   }
+
+   /**
+    * A script edits the chart's binding in place, which neither the sandbox's cached chart
+    * data nor its cached graph detects: both are keyed by the live chart info, so they always
+    * compare equal to it. Run the edit and compare the binding with a snapshot taken before
+    * it: a change to what produces the data resets the chart's data and graph, a change
+    * to how the chart is drawn resets the graph only, and an edit that leaves the binding as
+    * it was, e.g. a script writing the same value on every refresh, keeps both, so the next
+    * read, in this script or after it, re-queries only when it must (Bug #76862, #78759).
+    * The comparison runs even when the edit throws part way, as the part written stays.
+    */
+   <T> T guardInfoWrite(Supplier<T> write) {
+      VSChartInfo info = getChartInfo();
+      String name = getAssembly();
+
+      if(info == null || box == null || name == null) {
+         return write.get();
+      }
+
+      SourceInfo source = ((ChartVSAssemblyInfo) getVSAssemblyInfo()).getSourceInfo();
+      VSChartInfo before = info.clone();
+
+      try {
+         return write.get();
+      }
+      finally {
+         ChartInfoDiff.Change change = ChartInfoDiff.diff(before, getChartInfo());
+         SourceInfo nsource = ((ChartVSAssemblyInfo) getVSAssemblyInfo()).getSourceInfo();
+
+         if(!Tool.equals(source, nsource)) {
+            change = ChartInfoDiff.Change.DATA;
+         }
+
+         if(change == ChartInfoDiff.Change.DATA) {
+            box.resetDataMap(name);
+         }
+
+         if(change != ChartInfoDiff.Change.NONE) {
+            box.removeGraph(name);
+         }
+      }
+   }
+
+   private void putMember0(String name, Object value) {
       // graph/data/query are applied here; a value that was applied is kept in the var map like
       // the base class does, but is not reported as an unrecognized write (#78583)
       boolean applied = false;
