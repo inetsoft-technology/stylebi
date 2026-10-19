@@ -750,6 +750,164 @@ class DataSourceChangePlanServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // Bug #78819: a supplied password is a (hidden) planHash input
+   // -------------------------------------------------------------------------
+
+   @Test void hashDiffersBetweenAPasswordRotationAndANoOpUpdate() throws Exception {
+      stubLoginSource();
+
+      var rotation = resolveUpdate(passwordSpec("AlphaPass-1"));
+      var noOp = resolveUpdate(Map.of("ansiJoin", false));
+
+      assertNotEquals(rotation.planHash(), noOp.planHash());
+      assertNotEquals(rotation.changes().get(0).proposedValue(),
+                      noOp.changes().get(0).proposedValue());
+   }
+
+   @Test void hashDiffersForTwoDifferentPasswords() throws Exception {
+      stubLoginSource();
+
+      var alpha = resolveUpdate(passwordSpec("AlphaPass-1"));
+      var zulu = resolveUpdate(passwordSpec("ZuluPass-2"));
+
+      assertNotEquals(alpha.planHash(), zulu.planHash());
+   }
+
+   @Test void hashIsStableForTheSamePassword() throws Exception {
+      stubLoginSource();
+
+      var first = resolveUpdate(passwordSpec("AlphaPass-1"));
+      var second = resolveUpdate(passwordSpec("AlphaPass-1"));
+
+      assertEquals(first.planHash(), second.planHash());
+      assertEquals(first.taskToken(), second.taskToken());
+   }
+
+   @Test void hashDiffersBetweenNullPasswordAndTheStringNull() throws Exception {
+      stubLoginSource();
+
+      var cleared = resolveUpdate(passwordSpec(null));
+      var literal = resolveUpdate(passwordSpec("null"));
+
+      assertNotEquals(cleared.planHash(), literal.planHash());
+   }
+
+   // Pinned values computed on origin/stylebi-wiz-main-rebase 53e69703d8 BEFORE the fix: plans that
+   // do not supply a password (or whose password is never written) must keep their exact hash, so
+   // planHashes previewed before a deployment still apply after it.
+   private static final String PINNED_URL_UPDATE_HASH =
+      "fb09f601e6de45f8bf8be53a13231adaff649557f0f2e005c2252bbc4c4a6031";
+   private static final String PINNED_LOGIN_OFF_HASH =
+      "09ae2241dbbc6ee5900b1ed84c996f7b73d977f0b9c4e0157194e17c06ea85cc";
+   private static final String PINNED_DELETE_HASH =
+      "03562d80611956fa23cdd70320245a51f837acdd9ff7c475cea4cb3dca58b227";
+
+   @Test void hashOfAPlanWithoutAPasswordIsUnchangedByTheFix() throws Exception {
+      stubLoginSource();
+
+      assertEquals(PINNED_URL_UPDATE_HASH,
+                   resolveUpdate(Map.of("url", "jdbc:h2:mem:other")).planHash());
+      assertEquals(PINNED_LOGIN_OFF_HASH,
+                   resolveUpdate(passwordSpecWithLoginOff("ignored-pass")).planHash());
+      assertEquals(PINNED_DELETE_HASH,
+                   service.resolve(request("t", List.of(deleteChange("Orders"))), user).planHash());
+   }
+
+   @Test void omittedPasswordHashIgnoresTheStoredPassword() throws Exception {
+      stubLoginSource();
+      var before = resolveUpdate(Map.of("url", "jdbc:h2:mem:other"));
+
+      // An out-of-band rotation of the stored password is not plan drift.
+      when(dataSourceService.getCurrentPassword("id-1", user)).thenReturn("rotated-elsewhere");
+      var after = resolveUpdate(Map.of("url", "jdbc:h2:mem:other"));
+
+      assertEquals(before.planHash(), after.planHash());
+   }
+
+   @Test void suppliedPasswordIsMarkedInThePlanWithoutRevealingIt() throws Exception {
+      stubLoginSource();
+
+      var plan = resolveUpdate(passwordSpec("AlphaPass-1"));
+      var change = plan.changes().get(0);
+
+      assertTrue(change.proposedValue().contains(
+         ";password=" + DataSourceChangePlanService.PASSWORD_SUPPLIED_TOKEN + ";"));
+      assertTrue(change.description().endsWith("(new password supplied)"),
+                 change.description());
+      assertFalse(change.description().contains("changed"));
+      assertTrue(change.currentValue().contains(";password=" + Util.PLACEHOLDER_PASSWORD + ";"));
+
+      for(String text : List.of(change.proposedValue(), change.currentValue(),
+                                change.description(), plan.planHash()))
+      {
+         assertFalse(text.contains("AlphaPass-1"), text);
+         assertFalse(text.contains("OldPass-0"), text);
+      }
+   }
+
+   @Test void clearedPasswordIsMarkedAsCleared() throws Exception {
+      stubLoginSource();
+
+      var change = resolveUpdate(passwordSpec(null)).changes().get(0);
+
+      assertTrue(change.proposedValue().contains(
+         ";password=" + DataSourceChangePlanService.PASSWORD_CLEARED_TOKEN + ";"));
+      assertTrue(change.description().endsWith("(password cleared)"), change.description());
+      assertFalse(change.description().contains("supplied"));
+   }
+
+   @Test void planWithoutAPasswordIsNotMarked() throws Exception {
+      stubLoginSource();
+
+      var change = resolveUpdate(Map.of("url", "jdbc:h2:mem:other")).changes().get(0);
+
+      assertTrue(change.proposedValue().contains(";password=" + Util.PLACEHOLDER_PASSWORD + ";"));
+      assertEquals("update data source \"Orders\"", change.description());
+   }
+
+   @Test void renameWithASuppliedPasswordCarriesBothSuffixes() throws Exception {
+      stubLoginSource();
+      Map<String, Object> spec = new LinkedHashMap<>(passwordSpec("AlphaPass-1"));
+      spec.put("name", "Orders2");
+      DataSourceChangeRequest change = updateChange("Orders", spec);
+      change.setConfirmRename(true);
+
+      var description = service.resolve(request("t", List.of(change)), user)
+         .changes().get(0).description();
+
+      assertEquals("update data source \"Orders\" (renaming to \"Orders2\") " +
+                   "(new password supplied)", description);
+   }
+
+   private void stubLoginSource() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", true, "******"));
+      lenient().when(dataSourceService.getCurrentPassword("id-1", user)).thenReturn("OldPass-0");
+   }
+
+   private DataSourceChangePlanRequest updateRequest(Map<String, Object> spec) {
+      return request("t", List.of(updateChange("Orders", spec)));
+   }
+
+   private inetsoft.web.admin.ai.ResolvedPlan resolveUpdate(Map<String, Object> spec)
+      throws Exception
+   {
+      return service.resolve(updateRequest(spec), user);
+   }
+
+   private static Map<String, Object> passwordSpec(String password) {
+      Map<String, Object> spec = new LinkedHashMap<>();
+      spec.put("password", password);
+      return spec;
+   }
+
+   private static Map<String, Object> passwordSpecWithLoginOff(String password) {
+      Map<String, Object> spec = passwordSpec(password);
+      spec.put("requireLogin", false);
+      return spec;
+   }
+
+   // -------------------------------------------------------------------------
    // bug 76599, Gap 2a: bare folder create
    // -------------------------------------------------------------------------
 
