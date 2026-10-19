@@ -26,6 +26,7 @@ import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.ColumnOption;
 import inetsoft.uql.viewsheet.TimeInfo;
@@ -334,6 +335,12 @@ public class AssemblyPropertyService {
             model = requireKnownSingleSelectionLevels(model);
          }
 
+         if("selectiontree".equals(type) && resolved.values().stream().anyMatch(
+            path -> path.equalsIgnoreCase(SELECT_CHILDREN_PATH)))
+         {
+            requireApplicableSelectChildren(model);
+         }
+
          if("timeslider".equals(type)) {
             requireApplicableRangeSize(model, resolved.values());
          }
@@ -445,11 +452,30 @@ public class AssemblyPropertyService {
             "To use a single range, rebind the slider to one column with set_selection_source.");
       }
 
+      OutputColumnRefModel column = boundSliderColumn(model);
+      Map<Integer, String> legal = column == null ? null : legalRangeTypes(column);
+
+      if(rangeType && legal != null) {
+         int written = (Integer) PropertyPath.get(model, RANGE_SIZE_PANE + "rangeType");
+
+         if(!legal.containsKey(written)) {
+            throw new IllegalArgumentException(
+               "rangeType: '" + rangeTypeName(written) + "' does not fit the bound column " +
+               columnLabel(column) + " (" + column.getDataType() + "), so the slider would " +
+               "render empty. Legal rangeType values for this column: " +
+               String.join(", ", legal.values()) + ".");
+         }
+      }
+
       if(rangeSize && !number) {
+         boolean numericColumn = column == null || legal != null && legal.containsKey(TimeInfo.NUMBER);
+
          throw new IllegalArgumentException(
             "rangeSize: only a NUMBER range slider stores a range size, and this one is not " +
             "(rangeType is not NUMBER), so the write would report success and read back 0. " +
-            "Set rangeType:\"number\" in the same call, or use maxRangeSize.");
+            (numericColumn ? "Set rangeType:\"number\" in the same call, or use maxRangeSize." :
+             "The bound column " + columnLabel(column) + " is not numeric, so a NUMBER " +
+             "range type is not available for it; use maxRangeSize."));
       }
 
       if((rangeSize || maxRangeSize) && number && logScale) {
@@ -460,8 +486,106 @@ public class AssemblyPropertyService {
       }
    }
 
+   private static OutputColumnRefModel boundSliderColumn(Object model) {
+      OutputColumnRefModel[] columns = (OutputColumnRefModel[])
+         PropertyPath.get(model, "rangeSliderDataPaneModel.selectedColumns");
+      return columns == null || columns.length == 0 ? null : columns[0];
+   }
+
+   private static String columnLabel(OutputColumnRefModel column) {
+      String name = column.getAttribute() != null ? column.getAttribute() : column.getName();
+      return name == null ? "" : "'" + name + "'";
+   }
+
+   private static String rangeTypeName(int type) {
+      return switch(type) {
+         case TimeInfo.YEAR -> "year";
+         case TimeInfo.MONTH -> "month";
+         case TimeInfo.NUMBER -> "number";
+         case TimeInfo.MEMBER -> "member";
+         case TimeInfo.DAY -> "day";
+         case TimeInfo.HOUR -> "hour";
+         case TimeInfo.MINUTE -> "minute";
+         case TimeInfo.HOUR_OF_DAY -> "hour_of_day";
+         case TimeInfo.MINUTE_OF_DAY -> "minute_of_day";
+         default -> String.valueOf(type);
+      };
+   }
+
+   /**
+    * The rangeType values the Composer's range slider size pane offers for the bound column
+    * ({@code range-slider-size-pane.component.ts initRanges}); a type outside the set builds no
+    * buckets, and TimeSliderVSAQuery either throws "Numeric value is required!" (NUMBER on a
+    * date column) or silently renders empty (a date type on a numeric column). Null when the
+    * column type has no rule, so nothing is refused for it.
+    */
+   static Map<Integer, String> legalRangeTypes(OutputColumnRefModel column) {
+      String type = column.getDataType();
+      Map<Integer, String> legal = new LinkedHashMap<>();
+
+      if((column.getRefType() & DataRef.CUBE_DIMENSION) == DataRef.CUBE_DIMENSION) {
+         legal.put(TimeInfo.MEMBER, "member");
+      }
+      else if(XSchema.isNumericType(type)) {
+         legal.put(TimeInfo.NUMBER, "number");
+      }
+      else if(XSchema.TIME.equals(type)) {
+         legal.put(TimeInfo.HOUR_OF_DAY, "hour_of_day");
+         legal.put(TimeInfo.MINUTE_OF_DAY, "minute_of_day");
+      }
+      else if(XSchema.TIME_INSTANT.equals(type)) {
+         legal.put(TimeInfo.YEAR, "year");
+         legal.put(TimeInfo.MONTH, "month");
+         legal.put(TimeInfo.DAY, "day");
+         legal.put(TimeInfo.HOUR, "hour");
+         legal.put(TimeInfo.MINUTE, "minute");
+      }
+      else if(XSchema.DATE.equals(type)) {
+         legal.put(TimeInfo.YEAR, "year");
+         legal.put(TimeInfo.MONTH, "month");
+         legal.put(TimeInfo.DAY, "day");
+      }
+      else {
+         return null;
+      }
+
+      return legal;
+   }
+
    private static boolean writes(Collection<String> resolvedPaths, String leaf) {
       return resolvedPaths.stream().anyMatch(path -> path.equalsIgnoreCase(RANGE_SIZE_PANE + leaf));
+   }
+
+   private static final String SELECT_CHILDREN_PATH = "selectionTreePaneModel.selectChildren";
+
+   /**
+    * {@code SelectionTreePropertyDialogService.setAssemblyInfoDataRefs} stores selectChildren only
+    * for an ID-mode tree and resets it to false otherwise, and the Composer disables it for a
+    * single-select ID tree (selection-tree-id-pane), so {@code selectChildren:true} elsewhere
+    * reads back false or has no effect (bug-78717). Judged on the post-patch model, and only
+    * when the patch wrote selectChildren.
+    */
+   static void requireApplicableSelectChildren(Object model) {
+      if(!(Boolean) PropertyPath.get(model, SELECT_CHILDREN_PATH)) {
+         return;
+      }
+
+      if((Integer) PropertyPath.get(model, "selectionTreePaneModel.mode") !=
+         SelectionTreeVSAssemblyInfo.ID)
+      {
+         throw new IllegalArgumentException(
+            "selectChildren: only an ID-mode tree stores it; a column-mode tree resets it to " +
+            "false, so the write would report success and read back false. Set mode:\"id\" in " +
+            "the same call (a bound tree's mode cannot change; rebind with " +
+            "set_selection_source), or leave selectChildren false.");
+      }
+
+      if((Boolean) PropertyPath.get(model, "selectionGeneralPaneModel.singleSelection")) {
+         throw new IllegalArgumentException(
+            "selectChildren: a single-select ID tree selects one node at a time, so selecting " +
+            "children has no effect (the Composer disables it). Set singleSelection:false in " +
+            "the same call, or leave selectChildren false.");
+      }
    }
 
    private static final String SINGLE_SELECTION_LEVELS_PATH =

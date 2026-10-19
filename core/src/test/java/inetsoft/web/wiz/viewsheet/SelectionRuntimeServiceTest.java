@@ -348,7 +348,9 @@ class SelectionRuntimeServiceTest {
       h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
                              null, null, "");
 
-      verify(assembly, times(2)).getSelectionList();
+      // validation + domain read, plus the before/after snapshots of the single-select reselect
+      // report (bug-78717)
+      verify(assembly, times(4)).getSelectionList();
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
    }

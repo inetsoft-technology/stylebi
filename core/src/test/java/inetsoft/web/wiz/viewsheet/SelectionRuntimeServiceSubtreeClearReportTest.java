@@ -193,6 +193,53 @@ class SelectionRuntimeServiceSubtreeClearReportTest {
       assertFalse(result.containsKey("scopedBySearchRetained"));
    }
 
+   /** bug-78717: values:[] on a single-select list re-selects the first value and says so. */
+   @Test
+   void reportsTheValueASingleSelectListReselectsAfterEmptyValues() throws Exception {
+      inetsoft.uql.viewsheet.SelectionListVSAssembly assembly = SelectionRuntimeServiceTest.list(inetsoft.uql.XConstants.SORT_ASC, true, null);
+      SelectionList domain = new SelectionList();
+      SelectionValue ca = new SelectionValue("CA", "CA");
+      SelectionValue tx = new SelectionValue("TX", "TX");
+      tx.setSelected(true);
+      domain.addSelectionValue(ca);
+      domain.addSelectionValue(tx);
+      when(assembly.getSelectionList()).thenReturn(domain);
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+      doAnswer(inv -> {
+         tx.setSelected(false);
+         ca.setSelected(true);
+         return null;
+      }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                           any(Principal.class), any(), anyString());
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Filter1", List.of(), null, null, null, null, "");
+
+      assertEquals(List.of(List.of("CA")), result.get("reselectedBySingleSelect"));
+      assertEquals(1, result.get("selectedTotal"));
+   }
+
+   /** bug-78717: a single-select tree re-selects West/CA inside the cleared subtree. */
+   @Test
+   void singleSelectClearThatReselectsInsideTheSubtreeReportsItByValue() throws Exception {
+      SelectionList domain =
+         domain(branch("West", true, leaf("CA", 1, false), leaf("WA", 1, true)));
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, true);
+      when(assembly.isIDMode()).thenReturn(false);
+      when(assembly.getSelectionList()).thenReturn(domain);
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+      onApply(h, () -> {
+         CompositeSelectionValue west = (CompositeSelectionValue) domain.getSelectionValue(0);
+         west.getSelectionList().getSelectionValue(1).setSelected(false);
+         west.getSelectionList().getSelectionValue(0).setSelected(true);
+      });
+
+      Map<String, Object> result = clear(h, "West");
+
+      assertEquals(1, result.get("clearedCount"), "WA is gone even though the count is unchanged");
+      assertEquals(List.of(List.of("West", "CA")), result.get("reselectedBySingleSelect"));
+   }
+
    @Test
    void selectModeResultIsUnchanged() throws Exception {
       SelectionRuntimeServiceTest.Harness h =

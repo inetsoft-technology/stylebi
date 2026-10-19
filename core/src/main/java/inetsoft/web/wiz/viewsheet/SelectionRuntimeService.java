@@ -319,6 +319,16 @@ public class SelectionRuntimeService {
          // deselect (bug-78216), collected from whichever branches below run.
          final List<List<String>> retained = new ArrayList<>();
 
+         // Snapshot for the single-select reselect report below: a single-select assembly cannot
+         // stay empty, so the post-apply refresh re-selects its first value (bug-78717).
+         final boolean trackReselect = (values != null || hasDeselect) && isValueMatchable(assembly) &&
+            (singleSelect != null ? singleSelect : info.isSingleSelection());
+         final boolean unitIsId = assembly instanceof SelectionTreeVSAssembly idTree &&
+            idTree.isIDMode();
+         final List<List<String>> beforeSelected = !trackReselect ? List.of() :
+            unitIsId ? selectedNodeIds(assembly) : selectedPaths(assembly);
+         final List<List<String>> requestedValues = new ArrayList<>();
+
          if(values != null) {
             String activeSearch = searchString(info);
             List<List<String>> effectiveValues = values;
@@ -411,6 +421,7 @@ public class SelectionRuntimeService {
             }
 
             result.put("valuesSelected", effectiveValues.size());
+            requestedValues.addAll(effectiveValues);
 
             // A replace under an active search cannot clear a selected value the search hides:
             // VSSelectionService.applySelection adds every selected-but-filtered-out value back
@@ -485,6 +496,18 @@ public class SelectionRuntimeService {
             if(!retained.isEmpty()) {
                result.putIfAbsent("scopedBySearch", searchString(info));
                result.put("scopedBySearchRetained", retained);
+            }
+         }
+
+         if(trackReselect) {
+            List<List<String>> reselected = reselectedBySetSelection(
+               beforeSelected, unitIsId ? selectedNodeIds(assembly) : selectedPaths(assembly),
+               requestedValues, deselect == null ? List.of() : deselect, values != null,
+               unitIsId);
+            reselected = reselected.stream().filter(p -> !retained.contains(p)).toList();
+
+            if(!reselected.isEmpty()) {
+               result.put("reselectedBySingleSelect", reselected);
             }
          }
       });
@@ -661,6 +684,64 @@ public class SelectionRuntimeService {
    }
 
    /**
+    * The values selected after a set_selection on a single-select assembly that the caller did not
+    * ask for. A single-select assembly cannot stay empty, so removing its only value (values:[]
+    * or deselect) makes the refresh select the first value instead -- which can be the very
+    * value that was just deselected (bug-78717). Compared by value, not by count: an unrequested
+    * after-value is reported when it is new, when {@code replaced} (a values list replaces the
+    * whole selection), or when a deselect names it.
+    *
+    * @param requested the values the apply selected (empty for values:[] or deselect only).
+    * @param idMode    {@code before}/{@code after} hold single node ids, and a requested or
+    *                  deselected entry matches when it contains that id.
+    */
+   static List<List<String>> reselectedBySetSelection(List<List<String>> before,
+                                                      List<List<String>> after,
+                                                      List<List<String>> requested,
+                                                      List<List<String>> deselected,
+                                                      boolean replaced, boolean idMode)
+   {
+      List<List<String>> reselected = new ArrayList<>();
+
+      for(List<String> path : after) {
+         if(covers(requested, path, idMode)) {
+            continue;
+         }
+
+         if(replaced || !before.contains(path) || covers(deselected, path, idMode)) {
+            reselected.add(path);
+         }
+      }
+
+      return reselected;
+   }
+
+   private static boolean covers(List<List<String>> entries, List<String> path, boolean idMode) {
+      return entries.stream().anyMatch(e -> idMode ? e.contains(path.get(0)) :
+                                          startsWithPath(path, e));
+   }
+
+   /**
+    * What a single-select tree selected in place of the values a subtree clear removed. Judged on
+    * the whole tree, because the refresh can land outside the cleared subtree; with the same
+    * "first value was already the selection" fallback {@link #reportRetainedAfterClear} has.
+    */
+   static List<List<String>> reselectedAfterSubtreeClear(List<List<String>> wholeBefore,
+                                                         List<List<String>> wholeAfter,
+                                                         List<List<String>> subtreeBefore,
+                                                         List<List<String>> subtreeAfter,
+                                                         boolean searching)
+   {
+      List<List<String>> reselected = reselectedAfterClear(wholeBefore, wholeAfter);
+
+      if(reselected.isEmpty() && !searching && !subtreeBefore.isEmpty()) {
+         reselected = subtreeAfter;
+      }
+
+      return reselected;
+   }
+
+   /**
     * Re-states a subtree clear from the post-apply state, scoped to the subtree. With an active
     * search, {@code VSSelectionService.selectSubtree} merges back every selected value the search
     * hides, so a clear can leave values behind (bug-78349); a branch with nothing selected clears
@@ -670,12 +751,27 @@ public class SelectionRuntimeService {
     */
    private static void reportSubtreeClear(Map<String, Object> result,
                                           SelectionVSAssembly assembly, List<String> path,
-                                          List<List<String>> before, boolean idMode)
+                                          List<List<String>> before,
+                                          List<List<String>> wholeBefore, boolean idMode)
    {
       List<List<String>> after = selectedUnderSubtree(selectionListOf(assembly), path, idMode);
-      result.put("clearedCount", Math.max(0, before.size() - after.size()));
+      // By identity, not count: a single-select tree re-selects a value inside the same subtree
+      // after the clear, which a count reads as "nothing cleared" (bug-78717).
+      result.put("clearedCount", clearedCount(before, after));
       result.put("remainingUnderSubtree", after.size());
-      String search = searchString((SelectionVSAssemblyInfo) assembly.getInfo());
+      SelectionVSAssemblyInfo info = (SelectionVSAssemblyInfo) assembly.getInfo();
+      String search = searchString(info);
+
+      if(info.isSingleSelection()) {
+         List<List<String>> wholeAfter =
+            idMode ? selectedNodeIds(assembly) : selectedPaths(assembly);
+         List<List<String>> reselected = reselectedAfterSubtreeClear(
+            wholeBefore, wholeAfter, before, after, search != null && !search.isBlank());
+
+         if(!reselected.isEmpty()) {
+            result.put("reselectedBySingleSelect", reselected);
+         }
+      }
 
       if(!after.isEmpty() && search != null && !search.isBlank()) {
          result.put("scopedBySearch", search);
@@ -803,11 +899,14 @@ public class SelectionRuntimeService {
          List<List<String>> before = select ? List.of() :
             selectedUnderSubtree(selectionListOf(assembly), path, tree.isIDMode());
 
+         List<List<String>> wholeBefore = select ? List.of() :
+            tree.isIDMode() ? selectedNodeIds(assembly) : selectedPaths(assembly);
+
          // selectSubtree NPEs on an unknown name and CCEs on a non-tree; both are refused above.
          selections.selectSubtree(runtimeId, assemblyName, event, user, dispatcher, linkUri);
 
          if(!select) {
-            reportSubtreeClear(result, assembly, path, before, tree.isIDMode());
+            reportSubtreeClear(result, assembly, path, before, wholeBefore, tree.isIDMode());
          }
       });
       ViewsheetSessionService.relayWarnings(result, warnings);
