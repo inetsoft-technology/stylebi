@@ -33,6 +33,7 @@ import inetsoft.web.viewsheet.service.VSInputService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -81,9 +82,9 @@ public class ColumnOptionService {
     * behavior, not something reimplemented here -- so {@code inputControl}/{@code editor} are
     * unused in that case.
     */
-   public void set(String sessionToken, Principal user, String assemblyName, Object col,
-                   boolean enableColumnEditing, String inputControl, EditorModel editor,
-                   String linkUri) throws Exception
+   public List<String> set(String sessionToken, Principal user, String assemblyName, Object col,
+                           boolean enableColumnEditing, String inputControl, EditorModel editor,
+                           String linkUri) throws Exception
    {
       if(enableColumnEditing && (inputControl == null || inputControl.isBlank())) {
          throw new IllegalArgumentException(
@@ -107,7 +108,7 @@ public class ColumnOptionService {
       model.setInputControl(inputControl);
       model.setEditor(editor);
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          TableVSAssemblyInfo info = requireFormTable(rvs, assemblyName);
          int index = resolveColumn(info, col, "set_column_options");
 
