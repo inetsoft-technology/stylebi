@@ -51,22 +51,60 @@ public class ConcatenatedTableAssembly extends CompositeTableAssembly {
    }
 
    /**
-    * Remove a sub-table.
+    * Remove a sub-table, keeping every remaining table's own operator.
+    *
+    * <p>A concatenation is evaluated as a left fold, {@code (A op1 B) op2 C}, so the operator of
+    * the pair {@code (k-1, k)} is the instruction for how table {@code k} enters the result: it
+    * belongs to its RIGHT-hand table, which is also the table native Composer labels with it.
+    * Removing table {@code k} therefore drops only operator {@code max(k-1, 0)} -- for the first
+    * table, the operator that joined the new base table -- and every other pair keeps its own
+    * operator object, by position. {@code A UNION B MINUS C} without {@code B} is
+    * {@code A MINUS C}: {@code C} is still subtracted.</p>
+    *
+    * <p>The operators are read against the CURRENT order before calling super, because super
+    * (through {@link #removeOperator}) re-sets {@code tnames} while it removes the pairs. The map
+    * is then rebuilt rather than patched, as in {@link #reorderTableAssemblies}; a pair that had
+    * no operator stays empty.</p>
+    *
     * @param subtable the specified sub-table.
     * @return true if this table is no longer valid and should be removed.
     */
    @Override
    public boolean removeTable(String subtable) {
-      TableAssemblyOperator op = getOperator(0);
+      int removed = Arrays.asList(tnames).indexOf(subtable);
 
-      boolean rmAll = super.removeTable(subtable);
-
-      // make sure the operators are valid after a table is removed
-      for(int i = 0; i < tnames.length - 1; i++) {
-         setOperator(tnames[i], tnames[i + 1], op);
+      // Not a subtable: nothing is removed, so no operator may change either.
+      if(removed < 0) {
+         return super.removeTable(subtable);
       }
 
-      return rmAll;
+      // Read against the CURRENT order, before super swaps tnames underneath.
+      TableAssemblyOperator[] ops = new TableAssemblyOperator[tnames.length - 1];
+
+      for(int i = 0; i < ops.length; i++) {
+         ops[i] = getOperator(i);
+      }
+
+      if(super.removeTable(subtable)) {
+         return true;
+      }
+
+      int dropped = Math.max(removed - 1, 0);
+      getCompositeTableInfo().clearOperators();
+
+      for(int i = 0, j = 0; i < ops.length; i++) {
+         if(i == dropped) {
+            continue;
+         }
+
+         if(ops[i] != null) {
+            setOperator(tnames[j], tnames[j + 1], ops[i]);
+         }
+
+         j++;
+      }
+
+      return false;
    }
 
    /**
