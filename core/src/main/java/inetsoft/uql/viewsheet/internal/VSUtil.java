@@ -3653,7 +3653,7 @@ public final class VSUtil {
 
    private static boolean isDateMember(VSDimensionMember member) {
       DataRef ref = member.getDataRef();
-      return ref != null && AssetUtil.isDateType(ref.getDataType());
+      return ref != null && XSchema.isDateType(ref.getDataType());
    }
 
    /**

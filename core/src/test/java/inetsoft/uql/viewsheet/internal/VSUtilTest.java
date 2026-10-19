@@ -161,6 +161,26 @@ public class VSUtilTest {
       assertNull(VSUtil.getCubeNextLevelRef(month, cube));
    }
 
+   // Bug #78684: a TIME column repeated at hour and minute is a date member too, so the
+   // runtime ref level has to pick the member (the bare name alone matches both).
+   @Test
+   void timeMemberRepeatedAtHourAndMinuteKeepsExactLevel() {
+      VSDimension dimension = new VSDimension();
+      dimension.setName("TimeHierarchy");
+
+      for(int option : new int[] { DateRangeRef.HOUR_INTERVAL, DateRangeRef.MINUTE_INTERVAL }) {
+         AttributeRef attr = new AttributeRef("StartTime");
+         attr.setDataType(XSchema.TIME);
+         VSDimensionMember member = new VSDimensionMember();
+         member.setDataRef(attr);
+         member.setDateOption(option);
+         dimension.addLevel(member);
+      }
+
+      assertEquals(0, VSUtil.getScope("StartTime", dimension, DateRangeRef.HOUR_INTERVAL));
+      assertEquals(1, VSUtil.getScope("StartTime", dimension, DateRangeRef.MINUTE_INTERVAL));
+   }
+
    private VSCube regionCityCube(String dataType, int option) {
       VSDimension dimension = new VSDimension();
       dimension.setName("RegionCityHierarchy");
