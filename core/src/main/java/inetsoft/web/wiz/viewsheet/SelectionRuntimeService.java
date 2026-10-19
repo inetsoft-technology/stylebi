@@ -1122,13 +1122,16 @@ public class SelectionRuntimeService {
     * {@code SelectionVSAssemblyInfo.getSingleSelectionLevels()} does -- stored levels, or every
     * level when none are stored and they were not edited level by level -- but without that
     * getter's write, and also while the flag is still off (bug-78795). Sorted and distinct; the
-    * stored order is not trusted. Empty means the tree is single-select as a whole.
+    * stored order is not trusted. A stored index outside {@code [0, depth)} is dropped: levels go
+    * stale when the tree is rebound to fewer columns, and one past the tree would let
+    * {@link #keepAutoExtended} keep branches it should not. Empty means the tree is single-select
+    * as a whole.
     */
    static List<Integer> effectiveSingleLevels(List<Integer> stored, boolean mixed, int depth) {
       TreeSet<Integer> levels = new TreeSet<>();
 
       if(stored != null && !stored.isEmpty()) {
-         stored.stream().filter(Objects::nonNull).forEach(levels::add);
+         stored.stream().filter(l -> l != null && l >= 0 && l < depth).forEach(levels::add);
       }
       else if(!mixed) {
          for(int i = 0; i < depth; i++) {
@@ -1192,8 +1195,8 @@ public class SelectionRuntimeService {
                "value per parent, but " + a + " and " + b + " pick two '" + level + "' values " +
                parent + ". Keep one of them, or change which levels are single-select with " +
                "set_assembly_properties singleSelectionLevels. singleSelect=false in the same " +
-               "call also allows both, but makes the whole tree multi-select and drops its " +
-               "single-select levels.");
+               "call also allows both, but makes the whole tree multi-select and turns its " +
+               "single-select levels off (they stay stored and return with singleSelect=true).");
          }
       }
    }

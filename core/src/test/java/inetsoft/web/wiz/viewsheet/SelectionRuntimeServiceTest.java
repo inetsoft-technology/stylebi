@@ -189,7 +189,7 @@ class SelectionRuntimeServiceTest {
       assertTrue(e.getMessage().contains("under USA East"), e.getMessage());
       assertTrue(e.getMessage().contains("set_assembly_properties singleSelectionLevels"),
                  e.getMessage());
-      assertTrue(e.getMessage().contains("drops its single-select levels"), e.getMessage());
+      assertTrue(e.getMessage().contains("turns its single-select levels off"), e.getMessage());
       assertFalse(e.getMessage().contains("cannot hold"), e.getMessage());
    }
 
@@ -259,6 +259,13 @@ class SelectionRuntimeServiceTest {
    void effectiveSingleLevelsSortsTheStoredLevels() {
       assertEquals(List.of(1, 2),
                    SelectionRuntimeService.effectiveSingleLevels(List.of(2, 1, 2), true, 3));
+   }
+
+   /** Stale levels left by a rebind to fewer columns are ignored (review m4). */
+   @Test
+   void effectiveSingleLevelsDropsLevelsPastTheTree() {
+      assertEquals(List.of(1),
+                   SelectionRuntimeService.effectiveSingleLevels(List.of(1, 2, 4), true, 2));
    }
 
    /**
