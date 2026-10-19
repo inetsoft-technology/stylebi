@@ -733,6 +733,46 @@ class CalcTableServiceTest {
    }
 
    @Test
+   void inlineNamedGroupOthersWithSurroundingWhitespaceIsInterpretedAsTyped() throws Exception {
+      for(String others : List.of("leave ", " LEAVE")) {
+         Harness h = harness(3, 3);
+
+         h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+            spec("content", "column", "grouping", "group", "expand", "vertical",
+                 "field", spec("column", "REGION", "type", "dimension",
+                               "namedGroup", spec(
+                                  "groups", List.of(spec("name", "West",
+                                     "conditions", List.of(spec("operator", "one_of",
+                                                                "values", List.of("CA"))))),
+                                  "others", others))));
+
+         ArgumentCaptor<SetCellBindingEvent> captor =
+            ArgumentCaptor.forClass(SetCellBindingEvent.class);
+         verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+         assertFalse(captor.getValue().getBinding().getOrder().isOthers(), others);
+      }
+   }
+
+   @Test
+   void refusesAMisspelledInlineNamedGroupOthersInsteadOfSilentlyGrouping() throws Exception {
+      Harness h = harness(3, 3);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+            spec("content", "column", "grouping", "group", "expand", "vertical",
+                 "field", spec("column", "REGION", "type", "dimension",
+                               "namedGroup", spec(
+                                  "groups", List.of(spec("name", "West",
+                                     "conditions", List.of(spec("operator", "one_of",
+                                                                "values", List.of("CA"))))),
+                                  "others", "levae")))));
+
+      assertTrue(thrown.getMessage().contains("'field.namedGroup.others'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'levae'"), thrown.getMessage());
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class), any());
+   }
+
+   @Test
    void inlineNamedGroupOthersOmittedDefaultsToGroupingThemTogether() throws Exception {
       Harness h = harness(3, 3);
 
@@ -944,7 +984,8 @@ class CalcTableServiceTest {
          namedGroupCellOf(List.of(
             spec("operator", "one_of", "values", List.of("CA"), "junction", "and"),
             spec("operator", "one_of", "values", List.of("OR")))),
-         "'field.namedGroup.groups[0]'", "joined with 'and'");
+         "'field.namedGroup.groups[0].conditions[0].junction' 'and'",
+         "is not supported in a calc-table named group");
    }
 
    /** One non-simple group disables bucketing for every group on the cell, so name the right one. */

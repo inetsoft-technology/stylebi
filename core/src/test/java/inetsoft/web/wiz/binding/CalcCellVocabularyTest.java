@@ -613,6 +613,72 @@ class CalcCellVocabularyTest {
    }
 
    @Test
+   void refusesAnInlineNamedGroupOthersThatIsNeitherGroupNorLeave() {
+      for(Object others : List.of("levae", "leave x", "", 5, List.of("leave"))) {
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> CalcCellVocabulary.validate(cellWithNamedGroup(
+               spec("groups", List.of(groupOf(clause())), "others", others))));
+
+         assertTrue(thrown.getMessage().contains("'field.namedGroup.others'"),
+                    thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("got '" + others + "'"), thrown.getMessage());
+         assertTrue(thrown.getMessage().endsWith("Nothing was changed."), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void acceptsEveryInlineNamedGroupOthersSpellingAndResolvesItTheSameWay() {
+      Map<Object, Boolean> expected = new LinkedHashMap<>();
+      expected.put("group", true);
+      expected.put("Group", true);
+      expected.put(" group ", true);
+      expected.put("leave", false);
+      expected.put("Leave", false);
+      expected.put("leave ", false);
+      expected.put(true, true);
+      expected.put(false, false);
+      expected.put(null, true);
+
+      expected.forEach((others, group) -> {
+         assertDoesNotThrow(() -> CalcCellVocabulary.validate(cellWithNamedGroup(
+            spec("groups", List.of(groupOf(clause())), "others", others))));
+         assertEquals(group, CalcCellVocabulary.groupOthers(others), String.valueOf(others));
+      });
+   }
+
+   @Test
+   void refusesAnInlineNamedGroupJunctionOtherThanOrNamingTheConditionPath() {
+      for(Object junction : List.of("and", "AND", "xor", "||", "&&", true)) {
+         Map<String, Object> first = clause();
+         first.put("junction", junction);
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> CalcCellVocabulary.validate(cellWithNamedGroup(
+               spec("groups", List.of(spec("name", "West", "conditions", List.of(
+                  first, spec("operator", "equals", "values", List.of("WA")))))))));
+
+         assertTrue(thrown.getMessage().contains(
+            "'field.namedGroup.groups[0].conditions[0].junction' '" + junction + "'"),
+            thrown.getMessage());
+         assertTrue(thrown.getMessage().endsWith("Nothing was changed."), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void acceptsAnInlineNamedGroupJunctionOfOrInAnySpellingOrBlankOrAbsent() {
+      for(Object junction : java.util.Arrays.asList("or", "OR", " Or ", "", "  ", null)) {
+         Map<String, Object> first = clause();
+         first.put("junction", junction);
+
+         assertDoesNotThrow(() -> CalcCellVocabulary.validate(cellWithNamedGroup(
+            spec("groups", List.of(spec("name", "West", "conditions", List.of(
+               first, spec("operator", "equals", "values", List.of("WA")))))))),
+            String.valueOf(junction));
+      }
+   }
+
+   @Test
    void acceptsAnInlineNamedGroupUsingEveryRecognizedKey() {
       Map<String, Object> first = spec("field", "Region", "operator", "one_of",
                                        "values", List.of("CA"), "junction", "or",
