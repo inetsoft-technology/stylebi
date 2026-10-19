@@ -4460,6 +4460,8 @@ public class WorksheetAgentController {
             throw new PairingException("Not a mirror assembly: " + req.table());
          }
 
+         MirrorResyncGuard.requireResyncKeepsDependents(
+            ws, req.table(), mirror, assetRepository, user, Boolean.TRUE.equals(req.confirmed()));
          mirror.updateMirror(assetRepository, user);
          return null;
       });
