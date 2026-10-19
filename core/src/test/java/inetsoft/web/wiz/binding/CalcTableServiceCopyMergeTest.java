@@ -406,6 +406,59 @@ class CalcTableServiceCopyMergeTest {
    }
 
    @Test
+   void refusesARemoveRectPartlyCoveringAMergeNamingTheAnchor() {
+      text(0, 0, "ANCHOR");
+      text(0, 2, "C2");
+      merge(0, 0, 1, 2);
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class, () -> remove(0, 1, 1, 2));
+
+      assertTrue(thrown.getMessage().contains("[0,0]"), thrown.getMessage());
+      assertEquals("ANCHOR", value(0, 0));
+      assertEquals("C2", value(0, 2));
+      assertEquals(new Dimension(2, 1), layout().getSpan(0, 0));
+      verifyNoInteractions(layoutService);
+   }
+
+   @Test
+   void refusesARemoveAtASwallowedCellOfAVerticalMerge() {
+      text(0, 0, "ANCHOR");
+      merge(0, 0, 2, 1);
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class, () -> remove(1, 0, 1, 1));
+
+      assertTrue(thrown.getMessage().contains("[0,0]"), thrown.getMessage());
+      assertEquals("ANCHOR", value(0, 0));
+      assertEquals(new Dimension(1, 2), layout().getSpan(0, 0));
+      verifyNoInteractions(layoutService);
+   }
+
+   @Test
+   void refusesARemoveRectPartlyCoveringATwoDimensionalMerge() {
+      text(0, 0, "ANCHOR");
+      merge(0, 0, 2, 2);
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class, () -> remove(1, 1, 2, 2));
+
+      assertTrue(thrown.getMessage().contains("[0,0]"), thrown.getMessage());
+      assertEquals("ANCHOR", value(0, 0));
+      assertEquals(new Dimension(2, 2), layout().getSpan(0, 0));
+      verifyNoInteractions(layoutService);
+   }
+
+   @Test
+   void refusesAHugeColsWithoutOverflowingTheFarCornerCheck() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> remove(0, 1, 1, Integer.MAX_VALUE));
+      assertThrows(IllegalArgumentException.class,
+                   () -> copy("copy", 1, 0, Integer.MAX_VALUE, 1, 0, 0));
+      verifyNoInteractions(layoutService);
+   }
+
+   @Test
    void allowsARemoveAtTheAnchorOrCoveringIt() throws Exception {
       text(0, 0, "ANCHOR");
       merge(0, 0, 1, 2);

@@ -1050,8 +1050,7 @@ public class CalcTableService {
          if("remove".equals(resolved)) {
             requireRemoveKeepsMergeIntact(layout, source);
          }
-
-         if(!"remove".equals(resolved)) {
+         else {
             requirePasteKeepsContent(assembly, layout, resolved, source, target);
          }
 
@@ -1068,6 +1067,50 @@ public class CalcTableService {
       updated.put("note", "Coordinates read before this operation are stale — use this layout.");
       ViewsheetSessionService.relayWarnings(updated, warnings);
       return updated;
+   }
+
+   /**
+    * Refuses a source range that is empty or whose far corner lies past the grid. The layout
+    * handler trusts the rectangle: past the edge a copy/cut throws an unhandled exception and
+    * a remove silently clips, and a remove with no rows/columns clears the whole grid.
+    */
+   private static void requireSourceRangeInGrid(TableLayout layout, Rectangle source) {
+      if(source.width < 1 || source.height < 1) {
+         throw new IllegalArgumentException(
+            "'rows' and 'cols' must each be at least 1, got rows:" + source.height + " cols:" +
+            source.width + ". Nothing was changed.");
+      }
+
+      int rowCount = layout.getRowCount();
+      int colCount = layout.getColCount();
+
+      if(source.height > rowCount - source.y || source.width > colCount - source.x) {
+         throw new IllegalArgumentException(
+            "Range [" + source.y + "," + source.x + "] rows:" + source.height + " cols:" +
+            source.width + " extends past the grid, which is " + rowCount + " row(s) by " +
+            colCount + " column(s). Reduce rows/cols or add rows/columns. Nothing was changed.");
+      }
+   }
+
+   /**
+    * Refuses a remove that reaches a cell swallowed by a merge whose anchor is outside the
+    * range: the handler widens the range to the whole merge and clears the anchor too.
+    */
+   private static void requireRemoveKeepsMergeIntact(TableLayout layout, Rectangle source) {
+      for(Map.Entry<String, MergeAnchor> e : mergedIntoMap(layout).entrySet()) {
+         String[] rc = e.getKey().split(",");
+         int row = Integer.parseInt(rc[0]);
+         int col = Integer.parseInt(rc[1]);
+         MergeAnchor anchor = e.getValue();
+
+         if(source.contains(col, row) && !source.contains(anchor.col(), anchor.row())) {
+            throw new IllegalArgumentException(
+               "Cell [" + row + "," + col + "] is merged into [" + anchor.row() + "," +
+               anchor.col() + "]; remove [" + anchor.row() + "," + anchor.col() +
+               "] instead (this clears the whole merge), or splitCells first. " +
+               "Nothing was changed.");
+         }
+      }
    }
 
    /**
@@ -1545,50 +1588,6 @@ public class CalcTableService {
             "Cell [" + row + "," + col + "] is merged into [" + anchor.row() + "," +
             anchor.col() + "]; bind [" + anchor.row() + "," + anchor.col() +
             "] instead, or splitCells first.");
-      }
-   }
-
-   /**
-    * Refuses a source range that is empty or whose far corner lies past the grid. The layout
-    * handler trusts the rectangle: past the edge a copy/cut throws an unhandled exception and
-    * a remove silently clips, and a remove with no rows/columns clears the whole grid.
-    */
-   private static void requireSourceRangeInGrid(TableLayout layout, Rectangle source) {
-      if(source.width < 1 || source.height < 1) {
-         throw new IllegalArgumentException(
-            "'rows' and 'cols' must each be at least 1, got rows:" + source.height + " cols:" +
-            source.width + ". Nothing was changed.");
-      }
-
-      int rowCount = layout.getRowCount();
-      int colCount = layout.getColCount();
-
-      if(source.y + source.height > rowCount || source.x + source.width > colCount) {
-         throw new IllegalArgumentException(
-            "Range [" + source.y + "," + source.x + "] rows:" + source.height + " cols:" +
-            source.width + " extends past the grid, which is " + rowCount + " row(s) by " +
-            colCount + " column(s). Reduce rows/cols or add rows/columns. Nothing was changed.");
-      }
-   }
-
-   /**
-    * Refuses a remove that reaches a cell swallowed by a merge whose anchor is outside the
-    * range: the handler widens the range to the whole merge and clears the anchor too.
-    */
-   private static void requireRemoveKeepsMergeIntact(TableLayout layout, Rectangle source) {
-      for(Map.Entry<String, MergeAnchor> e : mergedIntoMap(layout).entrySet()) {
-         String[] rc = e.getKey().split(",");
-         int row = Integer.parseInt(rc[0]);
-         int col = Integer.parseInt(rc[1]);
-         MergeAnchor anchor = e.getValue();
-
-         if(source.contains(col, row) && !source.contains(anchor.col(), anchor.row())) {
-            throw new IllegalArgumentException(
-               "Cell [" + row + "," + col + "] is merged into [" + anchor.row() + "," +
-               anchor.col() + "]; remove [" + anchor.row() + "," + anchor.col() +
-               "] instead (this clears the whole merge), or splitCells first. " +
-               "Nothing was changed.");
-         }
       }
    }
 
