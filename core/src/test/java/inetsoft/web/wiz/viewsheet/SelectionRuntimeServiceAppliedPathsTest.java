@@ -141,6 +141,11 @@ class SelectionRuntimeServiceAppliedPathsTest {
    }
 
    @Test
+   void diffReportsNothingWhenBeforeSnapshotIsUnknown() {
+      assertTrue(SelectionRuntimeService.diffOthers(snap(), snap("State", CA_NY)).isEmpty());
+   }
+
+   @Test
    void diffSkipsAssemblyMissingAfterAndKeepsAbsoluteNamesApart() {
       assertTrue(SelectionRuntimeService.diffOthers(snap("State", CA_NY), snap()).isEmpty());
 

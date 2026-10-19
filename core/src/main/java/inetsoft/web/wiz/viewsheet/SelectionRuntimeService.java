@@ -28,6 +28,8 @@ import inetsoft.web.viewsheet.controller.VSCalendarService;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import inetsoft.web.viewsheet.event.SortSelectionListEvent;
 import inetsoft.web.viewsheet.service.VSSelectionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -91,6 +93,8 @@ import java.util.*;
  */
 @Service
 public class SelectionRuntimeService {
+   private static final Logger LOG = LoggerFactory.getLogger(SelectionRuntimeService.class);
+
    public SelectionRuntimeService(ViewsheetSessionService sessions, VSSelectionService selections,
                                   VSCalendarService calendars)
    {
@@ -1305,27 +1309,41 @@ public class SelectionRuntimeService {
                                                              SelectionVSAssembly target)
    {
       Map<String, OtherSelection> snapshot = new LinkedHashMap<>();
+      Viewsheet viewsheet = rvs.getViewsheet();
+      Assembly[] assemblies = viewsheet == null ? null : viewsheet.getAssemblies(true);
 
-      try {
-         Set<String> skip = new HashSet<>();
-         skip.add(target.getAbsoluteName());
-         SelectionVSUtil.getAssociatedSelectionCluster(target)
-            .forEach(a -> skip.add(a.getAbsoluteName()));
-         Assembly[] assemblies = rvs.getViewsheet().getAssemblies(true);
+      // An empty snapshot means "unknown -> report nothing": diffOthers iterates only the keys of
+      // the "before" snapshot and skips any key missing from "after".
+      if(assemblies == null) {
+         return snapshot;
+      }
 
-         if(assemblies == null) {
+      Set<String> skip = new HashSet<>();
+      skip.add(target.getAbsoluteName());
+
+      if(target.getViewsheet() != null) {
+         try {
+            SelectionVSUtil.getAssociatedSelectionCluster(target)
+               .forEach(a -> skip.add(a.getAbsoluteName()));
+         }
+         catch(RuntimeException ex) {
+            LOG.warn("Could not resolve the selection cluster of {}; other selections will not " +
+                     "be reported", target.getAbsoluteName(), ex);
             return snapshot;
          }
+      }
 
-         for(Assembly other : assemblies) {
-            if(other == null || skip.contains(other.getAbsoluteName()) ||
-               !(other instanceof SelectionListVSAssembly ||
-                 other instanceof SelectionTreeVSAssembly))
-            {
-               continue;
-            }
+      for(Assembly other : assemblies) {
+         if(other == null || skip.contains(other.getAbsoluteName()) ||
+            !(other instanceof SelectionListVSAssembly ||
+              other instanceof SelectionTreeVSAssembly))
+         {
+            continue;
+         }
 
-            SelectionVSAssembly selection = (SelectionVSAssembly) other;
+         SelectionVSAssembly selection = (SelectionVSAssembly) other;
+
+         try {
             SelectionList list = selectionListOf(selection);
 
             if(list != null) {
@@ -1334,9 +1352,10 @@ public class SelectionRuntimeService {
                   describe(selection), selectedPaths(list.getSelectionValues(), multi)));
             }
          }
-      }
-      catch(RuntimeException ex) {
-         return new LinkedHashMap<>();
+         catch(RuntimeException ex) {
+            LOG.warn("Could not snapshot selection {} while writing {}; it will not be reported",
+                     selection.getAbsoluteName(), target.getAbsoluteName(), ex);
+         }
       }
 
       return snapshot;
