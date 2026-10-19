@@ -24,6 +24,9 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
@@ -37,6 +40,8 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 import java.io.ByteArrayInputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -94,23 +99,30 @@ class AssetScriptDependencyTransformerRenameTest {
                    Tool.getValue(DependencyTransformer.getChildNodes(doc, "//script").item(0)));
    }
 
+   /** Serialize a column the way StyleBI does, so the fixture carries the real attributes. */
+   private static String serialize(ColumnRef column, String script) {
+      ExpressionRef expr = new ExpressionRef(null, "c");
+      expr.setExpression(script);
+      column.setDataRef(expr);
+      StringWriter out = new StringWriter();
+      column.writeXML(new PrintWriter(out));
+      return out.toString();
+   }
+
    @Test
-   void calcFieldAndExpressionColumnAreRewritten() throws Exception {
-      Element doc = parse("<viewsheet>" +
-         "<dataRef class=\"inetsoft.uql.viewsheet.CalculateRef\">" +
-         "<dataRef class=\"inetsoft.uql.erm.ExpressionRef\"><![CDATA[ab(1) + abX(2)]]></dataRef>" +
-         "</dataRef>" +
-         "<dataRef class=\"inetsoft.uql.asset.ColumnRef\" sql=\"false\">" +
-         "<dataRef class=\"inetsoft.uql.erm.ExpressionRef\"><![CDATA[ab(field['x'])]]></dataRef>" +
-         "</dataRef>" +
-         "<dataRef class=\"inetsoft.uql.asset.ColumnRef\" sql=\"true\">" +
-         "<dataRef class=\"inetsoft.uql.erm.ExpressionRef\"><![CDATA[ab(col)]]></dataRef>" +
-         "</dataRef></viewsheet>");
+   void calcFieldAndScriptExpressionColumnAreRewrittenButSqlColumnIsNot() throws Exception {
+      ColumnRef scriptColumn = new ColumnRef();
+      scriptColumn.setSQL(false);
+      String xml = serialize(new CalculateRef(), "ab(1) + abX(2)") +
+         serialize(scriptColumn, "ab(field['x'])") +
+         serialize(new ColumnRef(), "ab(col)");
+      Element doc = parse("<viewsheet>" + xml + "</viewsheet>");
 
       new AssetScriptDependencyTransformer(null).renameScript(doc, info());
 
       var refs = DependencyTransformer.getChildNodes(
          doc, ".//dataRef[@class='inetsoft.uql.erm.ExpressionRef']");
+      assertEquals(3, refs.getLength());
       assertEquals("cd(1) + abX(2)", Tool.getValue(refs.item(0)));
       assertEquals("cd(field['x'])", Tool.getValue(refs.item(1)));
       assertEquals("ab(col)", Tool.getValue(refs.item(2)));

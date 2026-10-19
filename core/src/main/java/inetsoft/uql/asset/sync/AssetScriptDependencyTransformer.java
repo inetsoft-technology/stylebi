@@ -20,6 +20,7 @@ package inetsoft.uql.asset.sync;
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,9 +90,15 @@ public class AssetScriptDependencyTransformer extends AssetDependencyTransformer
       }
    }
 
+   /**
+    * Whether the expression is a SQL expression. ColumnRef writes the sql attribute only when it
+    * is false and reads a missing one as true, so a worksheet column is script only when it says
+    * sql="false". A viewsheet calc field is always script.
+    */
    private boolean isSqlColumn(Element expr) {
       return expr.getParentNode() instanceof Element parent &&
-         "true".equals(parent.getAttribute("sql"));
+         !CalculateRef.class.getName().equals(parent.getAttribute("class")) &&
+         !"false".equals(parent.getAttribute("sql"));
    }
 
    private void renameScriptText(Element scriptEle, RenameInfo info) {
