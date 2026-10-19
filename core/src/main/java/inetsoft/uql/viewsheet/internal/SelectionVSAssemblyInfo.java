@@ -664,6 +664,37 @@ public abstract class SelectionVSAssemblyInfo extends VSAssemblyInfo {
       return this.singleSelectionLevels;
    }
 
+   /**
+    * The single-selection levels as stored, without the all-levels fallback and without the
+    * write that {@link #getSingleSelectionLevels()} performs. Unlike that getter it also returns
+    * the stored levels while single-selection is off.
+    */
+   public List<Integer> getStoredSingleSelectionLevels() {
+      return singleSelectionLevels == null ? new ArrayList<>() : new ArrayList<>(singleSelectionLevels);
+   }
+
+   /**
+    * Whether the levels were edited level by level, in which case an empty level list does not
+    * fall back to "every level".
+    */
+   public boolean isMixedSingleSelection() {
+      return mixedSingleSelection;
+   }
+
+   /**
+    * The level names of the bound columns, in level order (the names
+    * {@link #getSingleSelectionLevelNames()} uses).
+    */
+   public List<String> getLevelNames() {
+      DataRef[] refs = getDataRefs();
+
+      if(refs == null) {
+         return new ArrayList<>();
+      }
+
+      return Arrays.stream(refs).map(this::getLevelName).collect(Collectors.toList());
+   }
+
    public boolean containsLevel(Integer level) {
       return getSingleSelectionLevels().contains(level);
    }
