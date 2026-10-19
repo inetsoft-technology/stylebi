@@ -1008,8 +1008,15 @@ public class SelectionRuntimeService {
          }
 
          if(select) {
-            result.put("selectedCount",
-               selectedUnderSubtree(selectionListOf(assembly), path, tree.isIDMode()).size());
+            List<List<String>> selectedUnder =
+               selectedUnderSubtree(selectionListOf(assembly), path, tree.isIDMode());
+            result.put("selectedCount", selectedUnder.size());
+
+            if(!tree.isIDMode()) {
+               // Only after the apply: the selection has changed by now, so the refusal says so.
+               requirePathSelected(assemblyName, path, selectionListOf(assembly));
+               result.put("selectedUnderSubtree", selectedUnder);
+            }
          }
          else {
             reportSubtreeClear(result, assembly, path, before, wholeBefore, tree.isIDMode());
@@ -1019,6 +1026,62 @@ public class SelectionRuntimeService {
 
       result.put("persistsOnSave", true);
       return result;
+   }
+
+   /**
+    * The first node on {@code path} that is missing or not selected, as the path down to it, or
+    * {@code null} when every node on {@code path} is selected. The path resolves positionally from
+    * the top, as {@code VSSelectionService.findSubtreeRoot} does, so this is for a fixed-hierarchy
+    * tree only. An ID-mode tree never marks ancestors on a select, so its path nodes say nothing.
+    * Only the path's own nodes are judged: a descendant can legitimately stay unselected (excluded
+    * by an association, hidden by a search) after a valid subtree select.
+    */
+   static List<String> firstUnselectedOnPath(SelectionValue[] values, List<String> path) {
+      SelectionValue[] level = values;
+
+      for(int i = 0; i < path.size(); i++) {
+         SelectionValue match = null;
+
+         for(SelectionValue candidate : level == null ? new SelectionValue[0] : level) {
+            if(candidate != null && Objects.equals(candidate.getValue(), path.get(i))) {
+               match = candidate;
+               break;
+            }
+         }
+
+         if(match == null || !match.isSelected()) {
+            return path.subList(0, i + 1);
+         }
+
+         SelectionList children = match instanceof CompositeSelectionValue composite ?
+            composite.getSelectionList() : null;
+         level = children == null ? null : children.getSelectionValues();
+      }
+
+      return null;
+   }
+
+   /**
+    * Refuses a subtree select whose own path is not selected after the apply, rather than
+    * reporting the different selection the single-select refresh left as ok:true. Re-selecting an
+    * already selected path passes.
+    */
+   private static void requirePathSelected(String assemblyName, List<String> path,
+                                           SelectionList list)
+   {
+      if(list == null) {
+         return;
+      }
+
+      List<String> unselected = firstUnselectedOnPath(list.getSelectionValues(), path);
+
+      if(unselected != null) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' did not keep " + String.join(" > ", unselected) +
+            " selected after selecting the subtree at " + String.join(" > ", path) +
+            ", and the selection has already changed. Read it with get_selection_state and set " +
+            "the selection you want with set_selection values:[[...]].");
+      }
    }
 
    /**
@@ -1177,7 +1240,7 @@ public class SelectionRuntimeService {
                                                    List<String> path)
    {
       if(path.size() >= treeDepth) {
-         return; // path already names a leaf -- always exactly one, safe under any selection style.
+         return; // a leaf path names exactly one node; the apply clears the single levels first.
       }
 
       throw new IllegalArgumentException(

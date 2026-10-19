@@ -125,17 +125,14 @@ public class VSSelectionService {
          SelectionTreeVSAssemblyInfo treeInfo = assembly.getSelectionTreeInfo();
          final boolean isIDTree = assembly.isIDMode();
          final boolean requireReset = event.isToggle() || event.isToggleAll();
-         final SelectionValue subtreeRoot = !isIDTree ?
-            findSubtreeRoot(eventValue.getValue(), eventValue.isSelected(), 0, selectionList, requireReset) :
-            findIDSubtreeRoot(eventValue.getValue(), eventValue.isSelected(), 0, selectionList);
-
-         if(subtreeRoot == null) {
-            return null;
-         }
-
+         // the subtree root is resolved from the requested path, not from the path extended below
+         final String[] subtreePath = eventValue.getValue();
          final Map<List<String>, Set<List<String>>> oldConditions = findConditionPaths(assembly);
          List<Integer> singleLevels = treeInfo.getSingleSelectionLevels();
 
+         // Clear the single-select levels before selecting the path, as doApplySelection does.
+         // Clearing afterwards would unselect a requested leaf on a single-select level, since
+         // only a composite match is kept.
          if(!isIDTree && !CollectionUtils.isEmpty(singleLevels)) {
             for(ApplySelectionListEvent.Value value : event.getValues()) {
                String[] selectionValues = value.getValue();
@@ -149,6 +146,14 @@ public class VSSelectionService {
                clearSingleSelectionValues(selectionList, singleLevels,
                                           selectionValues, value.isSelected());
             }
+         }
+
+         final SelectionValue subtreeRoot = !isIDTree ?
+            findSubtreeRoot(subtreePath, eventValue.isSelected(), 0, selectionList, requireReset) :
+            findIDSubtreeRoot(subtreePath, eventValue.isSelected(), 0, selectionList);
+
+         if(subtreeRoot == null) {
+            return null;
          }
 
          // Apply the state to the subtree
