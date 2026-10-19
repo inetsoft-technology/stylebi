@@ -296,6 +296,20 @@ class UserTreeServiceIdentityRenameOrgTest {
       assertEquals(ORG_A, orgManager.getCurrentOrgID(), "the org scope must be restored");
    }
 
+   // Bug #78775: a data cycle store failure must not skip the remaining migration steps
+   @Test
+   void migrateUserRename_failedCycleUpdateDoesNotSkipRemainingMigrations() throws Exception {
+      IdentityID oldUser = new IdentityID("bob", ORG_B);
+      IdentityID newUser = new IdentityID("bob2", ORG_B);
+      doThrow(new java.io.IOException("disk full")).when(cycleManager)
+         .updateCycleInfoNotify(anyString(), anyString(), anyBoolean());
+
+      assertDoesNotThrow(() -> service.migrateUserRename(oldUser, newUser));
+
+      verify(dependencyStorageService).migrateStorageData(oldUser, newUser);
+      verify(recycleBin).renameUser(oldUser, newUser);
+   }
+
    // Bug #78101: the viewsheets of the dashboard creates refused while the user was renamed are
    // removed once the user's assets are moved, in the user's org, not while they are moved
    @Test

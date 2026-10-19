@@ -173,6 +173,7 @@ class ScheduleCycleServiceTest {
 
       assertEquals("disk full", e.getMessage());
       verify(dataCycleManager, never()).removeDataCycle(anyString(), anyString());
+      // any() also matches the null Permission that removeCyclePermission() writes
       verify(securityEngine, never()).setPermission(
          eq(ResourceType.SCHEDULE_CYCLE), anyString(), any());
       verify(dataCycleManager, never()).save();

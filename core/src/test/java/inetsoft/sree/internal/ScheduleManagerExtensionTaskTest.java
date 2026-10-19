@@ -195,6 +195,34 @@ class ScheduleManagerExtensionTaskTest {
       assertTrue(live.isEnabled(), "the cached extension task must not be mutated");
    }
 
+   // Bug #78775: a failed data cycle store must not be reported as a successful toggle
+   @Test
+   void toggleOfDataCycleTaskThrowsWhenCycleStoreFails() throws Exception {
+      IndexedStorage failing = mock(IndexedStorage.class);
+      doThrow(new java.io.IOException("disk full"))
+         .when(failing).putXMLSerializable(anyString(), any());
+      when(failing.contains(anyString(), eq(ORG))).thenReturn(true);
+      DataCycleManager.DataCycleAsset asset = new DataCycleManager.DataCycleAsset();
+      asset.setEnabled(true);
+      when(failing.getXMLSerializable(anyString(), any(), eq(ORG))).thenReturn(asset);
+      DataCycleManager cycles = spy(new DataCycleManager(
+         mock(ScheduleManager.class), failing, null, null, null, null, null));
+      ScheduleTask live = createCycleTask(true);
+      doReturn(List.of(live)).when(cycles).getTasks(ORG);
+      doReturn(true).when(cycles).containsTask(TASK_ID, ORG);
+
+      ScheduleManager manager = new ScheduleManager(
+         securityEngine, cluster, mock(ScheduleClient.class), mock(DependencyHandler.class));
+      manager.addScheduleExt(cycles);
+      manager.reloadExtensions(ORG);
+
+      ScheduleTask task = manager.getScheduleTask(TASK_ID, ORG).clone();
+      task.setEnabled(false);
+
+      assertThrows(java.io.IOException.class,
+                   () -> manager.setScheduleTask(TASK_ID, task, null, admin));
+   }
+
    @Test
    void saveOfOrdinaryTaskDoesNotCallIntoExtensions() throws Exception {
       ScheduleExt ext = mock(ScheduleExt.class);
