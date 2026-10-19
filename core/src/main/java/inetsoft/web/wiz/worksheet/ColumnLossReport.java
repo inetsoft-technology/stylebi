@@ -95,6 +95,14 @@ final class ColumnLossReport {
        * refused by the caller's own checks; an aggregate stays accept-and-warn (WSQ-009).
        */
       static final Scope QUERY_EDIT = new Scope(false, false, false, true);
+
+      /**
+       * edit_unpivot shrinking the header columns: the melted column's name leaves the table, so
+       * downstream references and aggregates, the table's own conditions and sort, and its own
+       * expression and range columns all break. Join keys are refused first by the caller, never
+       * confirmable.
+       */
+      static final Scope UNPIVOT_EDIT = new Scope(false, true, true, true);
    }
 
    /**
