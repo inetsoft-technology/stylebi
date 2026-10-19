@@ -3043,7 +3043,8 @@ class AssemblyPropertyServiceTest {
 
       service.set("tok", principal(), "Table1", Map.of(TABLE_STYLE_PATH, "Default Style"), "");
 
-      assertEquals("Default Style", model.getTableViewGeneralPaneModel()
+      // Canonicalized to the id, which is what the Composer UI stores.
+      assertEquals("4611686018437387905", model.getTableViewGeneralPaneModel()
          .getTableStylePaneModel().getTableStyle());
    }
 
@@ -3063,6 +3064,101 @@ class AssemblyPropertyServiceTest {
 
       assertEquals("4611686018437387905", model.getTableViewGeneralPaneModel()
          .getTableStylePaneModel().getTableStyle());
+   }
+
+
+   private static TreeNodeModel styleLeaf(String label, String id) {
+      return TreeNodeModel.builder().label(label).data(id).type("style").leaf(true).build();
+   }
+
+   private static TreeNodeModel treeOf(TreeNodeModel... leaves) {
+      return TreeNodeModel.builder().children(java.util.List.of(
+         TreeNodeModel.builder().label("Styles").type("folder").leaf(false)
+            .children(java.util.List.of(leaves)).build())).build();
+   }
+
+   /** The built-in's label does not resolve at render, so it must be stored as the class name. */
+   @Test
+   void canonicalizesTheBuiltInCrosstabStyleLabelToItsClassNameOnACalcTable() throws Exception {
+      CalcTablePropertyDialogModel model = new CalcTablePropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel().setStyleTree(
+         treeOf(styleLeaf("Default Style", "100"),
+                styleLeaf("Crosstab Style", "inetsoft.report.style.CrosstabStyle")));
+      AssemblyPropertyService service =
+         serviceWithCalcTable(mock(CalcTableVSAssembly.class), model);
+
+      service.set("tok", principal(), "CalcTable1", Map.of(TABLE_STYLE_PATH, "Crosstab Style"), "");
+
+      assertEquals("inetsoft.report.style.CrosstabStyle", model.getTableViewGeneralPaneModel()
+         .getTableStylePaneModel().getTableStyle());
+   }
+
+   @Test
+   void refusesTheBuiltInStyleOnATableThatDoesNotOfferItWithATypeSpecificMessage() {
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(sampleStyleTree());
+      AssemblyPropertyService service = serviceWithTable(mock(TableVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Table1",
+            Map.of(TABLE_STYLE_PATH, "inetsoft.report.style.CrosstabStyle"), ""));
+
+      assertTrue(thrown.getMessage().contains("built-in"), thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("does not match any table style"),
+                  "must not claim the style is unknown: " + thrown.getMessage());
+   }
+
+   @Test
+   void refusesAnAmbiguousStyleLabelListingTheIds() {
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(treeOf(styleLeaf("Bands", "1"), styleLeaf("Bands", "2")));
+      AssemblyPropertyService service = serviceWithTable(mock(TableVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Table1", Map.of(TABLE_STYLE_PATH, "Bands"), ""));
+
+      assertTrue(thrown.getMessage().contains("1") && thrown.getMessage().contains("2"),
+                 thrown.getMessage());
+   }
+
+   @Test
+   void unknownStyleMessagePointsAtBuiltInStylesAndTheAssemblyOptions() {
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(sampleStyleTree());
+      AssemblyPropertyService service = serviceWithTable(mock(TableVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Table1", Map.of(TABLE_STYLE_PATH, "Nope"), ""));
+
+      assertTrue(thrown.getMessage().contains("builtInStyles"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("list_assembly_properties"), thrown.getMessage());
+   }
+
+   @Test
+   void listExposesTheAssemblysOwnTableStyleOptions() throws Exception {
+      CalcTablePropertyDialogModel model = new CalcTablePropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel().setStyleTree(
+         treeOf(styleLeaf("Default Style", "100"),
+                styleLeaf("Crosstab Style", "inetsoft.report.style.CrosstabStyle")));
+      AssemblyPropertyService service =
+         serviceWithCalcTable(mock(CalcTableVSAssembly.class), model);
+
+      @SuppressWarnings("unchecked")
+      java.util.List<Map<String, Object>> properties =
+         (java.util.List<Map<String, Object>>) service.list("tok", principal(), "CalcTable1")
+            .get("properties");
+      Map<String, Object> tableStyle = properties.stream()
+         .filter(p -> TABLE_STYLE_PATH.equals(p.get("path"))).findFirst().orElseThrow();
+
+      @SuppressWarnings("unchecked")
+      java.util.List<Map<String, Object>> options =
+         (java.util.List<Map<String, Object>>) tableStyle.get("options");
+      assertEquals(2, options.size());
+      assertEquals("100", options.get(0).get("value"));
+      assertEquals(Boolean.TRUE, options.get(1).get("builtIn"));
    }
 
    /** Clearing the style (empty string) is a legitimate "no style" request, not a dangling name. */

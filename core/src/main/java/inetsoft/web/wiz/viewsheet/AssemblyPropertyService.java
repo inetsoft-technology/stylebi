@@ -52,6 +52,7 @@ import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.wiz.binding.OutputAggregateResolver;
 import inetsoft.web.wiz.binding.SelectionFormulaResolver;
 import inetsoft.web.wiz.binding.SelectionMeasureResolver;
+import inetsoft.web.viewsheet.service.VSDialogService;
 import inetsoft.web.viewsheet.service.VSInputService;
 import inetsoft.web.viewsheet.service.VSOutputService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -222,6 +223,15 @@ public class AssemblyPropertyService {
          // VTB-017) -- e.g. "primary" -> "Visible in External Viewsheets". Null, like every other
          // alias, when PropertyAliases has no better name to offer than the alias itself.
          property.put("label", PropertyAliases.labelFor(alias.getKey()));
+
+         if(alias.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
+            List<Map<String, Object>> options = tableStyleOptions(model, alias.getValue());
+
+            if(options != null) {
+               property.put("options", options);
+            }
+         }
+
          properties.add(property);
       }
 
@@ -299,7 +309,7 @@ public class AssemblyPropertyService {
             Object value = canonicalIntEnum(type, entry.getValue(), patch.get(entry.getKey()));
 
             if(entry.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
-               requireKnownTableStyle(model, entry.getValue(), value);
+               value = requireKnownTableStyle(model, entry.getValue(), value);
             }
 
             if(entry.getValue().endsWith(".imagePreviewPaneModel.selectedImage")) {
@@ -1491,8 +1501,9 @@ public class AssemblyPropertyService {
    }
 
    /**
-    * Refuses a {@code tableStyle} write that does not match any real table style (bug
-    * #76764/VTS-003). {@code PropertyPath}'s {@code CONSTRAINED_STRINGS} gate does not cover
+    * Refuses a {@code tableStyle} write that does not match any real table style, and returns the
+    * canonical value to store: the style's id, which is what the Composer UI itself stores.
+    * Added in bug #76764/VTS-003: {@code PropertyPath}'s {@code CONSTRAINED_STRINGS} gate does not cover
     * {@code tableStyle} -- its domain is dynamic and per-organization, unlike the closed enums
     * that gate handles -- so an unresolvable name/ID was written through unchanged. At render
     * time, {@code DataVSAQuery}/{@code VSUtil.getTableStyle} resolve that to {@code null} and
@@ -1512,48 +1523,112 @@ public class AssemblyPropertyService {
     * TableStylePaneModel} is a plain mutable POJO, so this reference is guaranteed unchanged
     * regardless of what else in the same patch has already been applied.
     */
-   private void requireKnownTableStyle(Object model, String path, Object value) {
+   private Object requireKnownTableStyle(Object model, String path, Object value) {
       if(value == null) {
-         return;
+         return null;
       }
 
       String text = String.valueOf(value).trim();
 
       if(text.isEmpty()) {
-         return;
+         return value;
       }
 
       String panePath = path.substring(0, path.length() - ".tableStyle".length());
       Object pane = PropertyPath.get(model, panePath);
 
       if(!(pane instanceof TableStylePaneModel styleModel) || styleModel.getStyleTree() == null) {
-         return;
+         return value;
       }
 
-      if(!styleTreeHasStyle(styleModel.getStyleTree(), text)) {
-         throw new IllegalArgumentException(
-            "'" + path + "' ('" + text + "') does not match any table style's id or name. " +
-            "StyleBI resolves an unrecognised tableStyle to no style at render time with no " +
-            "error -- the table just renders unstyled -- so this write would report success " +
-            "and leave the table unchanged. Use a value from list_table_styles, or this " +
-            "assembly's own current 'tableStyle' read via get_assembly_properties(raw:true).");
-      }
-   }
+      List<TreeNodeModel> leaves = new ArrayList<>();
+      collectStyleLeaves(styleModel.getStyleTree(), leaves);
 
-   private static boolean styleTreeHasStyle(TreeNodeModel node, String value) {
-      if(node.leaf() &&
-         (value.equals(String.valueOf(node.data())) || value.equals(node.label())))
-      {
-         return true;
-      }
-
-      for(TreeNodeModel child : node.children()) {
-         if(styleTreeHasStyle(child, value)) {
-            return true;
+      // The id is what the Composer UI itself stores (node.data), so an id is kept as is and a
+      // display name is canonicalized to it: a built-in's name does not resolve at render.
+      for(TreeNodeModel leaf : leaves) {
+         if(text.equals(String.valueOf(leaf.data()))) {
+            return text;
          }
       }
 
-      return false;
+      Set<String> ids = new LinkedHashSet<>();
+
+      for(TreeNodeModel leaf : leaves) {
+         if(text.equals(leaf.label())) {
+            ids.add(String.valueOf(leaf.data()));
+         }
+      }
+
+      if(ids.size() == 1) {
+         return ids.iterator().next();
+      }
+
+      if(ids.size() > 1) {
+         throw new IllegalArgumentException(
+            "'" + path + "' ('" + text + "') names more than one table style (ids " + ids +
+            "). Write the styleId of the one you mean, from list_table_styles.");
+      }
+
+      if(text.equals(VSDialogService.CROSSTAB_STYLE_ID) ||
+         text.equals(VSDialogService.CROSSTAB_STYLE_LABEL))
+      {
+         throw new IllegalArgumentException(
+            "'" + path + "' ('" + text + "') is a built-in table style that this assembly type " +
+            "does not offer. Only an assembly whose 'tableStyle' options (list_assembly_" +
+            "properties) include it accepts it -- built-in styles apply to freehand tables. Use " +
+            "a library styleId or name from list_table_styles instead.");
+      }
+
+      throw new IllegalArgumentException(
+         "'" + path + "' ('" + text + "') does not match any table style's id or name. " +
+         "StyleBI resolves an unrecognised tableStyle to no style at render time with no " +
+         "error -- the table just renders unstyled -- so this write would report success " +
+         "and leave the table unchanged. Use a styleId or name from list_table_styles (library " +
+         "styles) or its 'builtInStyles', this assembly's 'tableStyle' options in " +
+         "list_assembly_properties, or its own current 'tableStyle' read via " +
+         "get_assembly_properties(raw:true).");
+   }
+
+   /**
+    * The table styles this assembly's own style tree offers, as {@code {value, label}} where
+    * {@code value} is what to write to {@code tableStyle}; a built-in is marked. Null when the
+    * model carries no tree.
+    */
+   private static List<Map<String, Object>> tableStyleOptions(Object model, String path) {
+      Object pane = PropertyPath.get(model, path.substring(0, path.length() - ".tableStyle".length()));
+
+      if(!(pane instanceof TableStylePaneModel styleModel) || styleModel.getStyleTree() == null) {
+         return null;
+      }
+
+      List<TreeNodeModel> leaves = new ArrayList<>();
+      collectStyleLeaves(styleModel.getStyleTree(), leaves);
+      List<Map<String, Object>> options = new ArrayList<>();
+
+      for(TreeNodeModel leaf : leaves) {
+         Map<String, Object> option = new LinkedHashMap<>();
+         option.put("value", String.valueOf(leaf.data()));
+         option.put("label", leaf.label());
+
+         if(VSDialogService.CROSSTAB_STYLE_ID.equals(leaf.data())) {
+            option.put("builtIn", true);
+         }
+
+         options.add(option);
+      }
+
+      return options;
+   }
+
+   private static void collectStyleLeaves(TreeNodeModel node, List<TreeNodeModel> out) {
+      if(node.leaf()) {
+         out.add(node);
+      }
+
+      for(TreeNodeModel child : node.children()) {
+         collectStyleLeaves(child, out);
+      }
    }
 
    /**

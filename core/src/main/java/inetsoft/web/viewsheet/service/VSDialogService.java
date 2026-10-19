@@ -41,6 +41,14 @@ import java.util.List;
 
 @Service
 public class VSDialogService {
+   /**
+    * The one built-in table style the style tree offers (freehand tables only), which is not a
+    * library style. The id is the class name, which is what the Composer stores and what
+    * {@code VSUtil.getTableStyle} resolves; the label alone does not resolve at render.
+    */
+   public static final String CROSSTAB_STYLE_ID = "inetsoft.report.style.CrosstabStyle";
+   public static final String CROSSTAB_STYLE_LABEL = "Crosstab Style";
+
    public VSDialogService(SecurityEngine securityEngine,
                           LibManagerProvider libManagerProvider)
    {
@@ -264,8 +272,8 @@ public class VSDialogService {
 
       if(freehand) {
          children.add(TreeNodeModel.builder()
-                         .label("Crosstab Style")
-                         .data("inetsoft.report.style.CrosstabStyle")
+                         .label(CROSSTAB_STYLE_LABEL)
+                         .data(CROSSTAB_STYLE_ID)
                          .icon("fa fa-table")
                          .type("style")
                          .leaf(true)
