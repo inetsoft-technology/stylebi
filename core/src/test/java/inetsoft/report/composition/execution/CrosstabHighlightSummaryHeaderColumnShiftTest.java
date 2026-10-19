@@ -191,4 +191,18 @@ class CrosstabHighlightSummaryHeaderColumnShiftTest {
       assertTrue(fields.stream().anyMatch(n -> n.contains("DISCOUNT")), "missing DISCOUNT: " + fields);
       assertTrue(fields.stream().anyMatch(n -> n.contains("ORDER_ID")), "missing ORDER_ID: " + fields);
    }
+
+   /**
+    * Bug #78758 item 4 relies on this: a header cell's path lists the header's own name, so the
+    * date comparison classifier sees the name the hyperlink path is keyed by.
+    */
+   @Test
+   void headerCellFieldsIncludeTheHeadersOwnName() throws Exception {
+      CrossTabFilter table = run("DISCOUNT");
+      TableDataPath dpath = table.getDescriptor().getCellDataPath(1, 0);
+
+      assertEquals(TableDataPath.GROUP_HEADER, dpath.getType());
+      assertEquals("STATE", dpath.getPath()[dpath.getPath().length - 1]);
+      assertTrue(fieldNamesAt(table, 1, 0).contains("STATE"), fieldNamesAt(table, 1, 0).toString());
+   }
 }

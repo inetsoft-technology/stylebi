@@ -120,6 +120,11 @@ public class HyperlinkDialogService {
       else if(assembly instanceof ChartVSAssembly) {
          ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
          VSChartInfo chartInfo = info.getVSChartInfo();
+
+         if(!titleLink && !emptyPlotLink) {
+            colName = resolveChartColName(info, chartInfo, colName, isAxis, isText, false);
+         }
+
          ChartRef ref = getMeasure(chartInfo, colName, true, isAxis, isText);
 
          if(chartInfo instanceof MergedVSChartInfo &&
@@ -261,6 +266,13 @@ public class HyperlinkDialogService {
             VSTableLens lens = box.get().getVSTableLens(objectId, false);
             TableDataPath dataPath = lens.getTableDataPath(model.getRow(), model.getCol());
 
+            if(model.isRejectDerivedMeasure() && model.getLinkType() != NONE &&
+               assembly instanceof CrosstabVSAssembly)
+            {
+               requireNoDateComparisonOnlyHeader(
+                  dataPath, highlightService.getDateComparisonFields(rvs, assembly, dataPath));
+            }
+
             if(info.getHyperlinkAttr() == null) {
                info.setHyperlinkAttr(new TableHyperlinkAttr());
             }
@@ -281,6 +293,15 @@ public class HyperlinkDialogService {
       else if(assembly instanceof ChartVSAssembly) {
          ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) Tool.clone(assembly.getVSAssemblyInfo());
          VSChartInfo chartInfo = info.getVSChartInfo();
+
+         // Before every lookup below: they all match the name exactly, and a name that matches
+         // no field lands the link nowhere while the call still reports success.
+         if(!model.isTitleLink() && !model.isEmptyPlotLink()) {
+            model.setColName(resolveChartColName(info, chartInfo, model.getColName(),
+                                                 model.isAxis(), model.isText(),
+                                                 model.isRejectDerivedMeasure()));
+         }
+
          ChartRef ref = getMeasure(chartInfo, model.getColName(), true, model.isAxis(), model.isText());
          DataRef dcRef = info.getDCBIndingRef(model.getColName());
          ChartRef[] chartRefs = chartInfo.getFields(model.getColName(), dcRef != null);
@@ -384,6 +405,98 @@ public class HyperlinkDialogService {
       }
 
       return null;
+   }
+
+   /**
+    * A crosstab header the active date comparison adds (a re-leveled or inserted period
+    * dimension) has no design-time field behind it: its cell path is keyed by that runtime name,
+    * and the key is re-matched by position on the next binding apply, so the link is lost or
+    * lands on another header. The product's own dialog accepts it and loses it the same way; the
+    * wiz path refuses it up front. Only header cells are guarded, since only their loss is shown.
+    */
+   static void requireNoDateComparisonOnlyHeader(
+      TableDataPath dataPath, HighlightService.DateComparisonFields fields)
+   {
+      String[] path = dataPath == null ? null : dataPath.getPath();
+
+      if(path == null || path.length == 0 || dataPath.getType() != TableDataPath.GROUP_HEADER) {
+         return;
+      }
+
+      String header = path[path.length - 1];
+
+      if(fields.isDerived(header) || fields.isAmbiguous(header)) {
+         throw new IllegalArgumentException(
+            "'" + header + "' exists only while the active date comparison is on and has no " +
+            "design-time field behind it, so a link set on this header would be lost or moved " +
+            "to another header as soon as the comparison changes or is cleared. Set the link " +
+            "on a header of the base field instead, or clear the date comparison first.");
+      }
+   }
+
+   /**
+    * Resolves a chart region's colName to the name the write path actually matches. A name the
+    * lookups find is returned as is. Otherwise the one bound field that differs from it only by
+    * case is returned. With {@code refuse}, a name that still lands nowhere (no match, or
+    * several fields differing only by case) throws, naming it and the bound fields; without it
+    * the name is returned unchanged.
+    */
+   private static String resolveChartColName(ChartVSAssemblyInfo info, VSChartInfo chartInfo,
+                                             String colName, boolean isAxis, boolean isText,
+                                             boolean refuse)
+   {
+      if(colName == null || colName.isBlank() ||
+         landsOnField(info, chartInfo, colName, isAxis, isText))
+      {
+         return colName;
+      }
+
+      Set<String> bound = new LinkedHashSet<>();
+      Set<String> names = new LinkedHashSet<>();
+      List<ChartRef> refs = new ArrayList<>(Arrays.asList(chartInfo.getRuntimeDateComparisonRefs()));
+      refs.addAll(Arrays.asList(chartInfo.getBindingRefs(false)));
+      refs.addAll(Arrays.asList(chartInfo.getBindingRefs(true)));
+
+      for(VSDataRef field : chartInfo.getFields()) {
+         if(field instanceof ChartRef) {
+            refs.add((ChartRef) field);
+         }
+      }
+
+      for(ChartRef field : refs) {
+         if(field != null) {
+            bound.add(field.getFullName());
+            names.add(field.getFullName());
+            names.add(field.getName());
+         }
+      }
+
+      List<String> matches = names.stream().filter(colName::equalsIgnoreCase)
+         .collect(Collectors.toList());
+
+      if(matches.size() == 1 && landsOnField(info, chartInfo, matches.get(0), isAxis, isText)) {
+         return matches.get(0);
+      }
+
+      if(!refuse) {
+         return colName;
+      }
+
+      throw new IllegalArgumentException(
+         matches.size() > 1 ?
+            "'colName' '" + colName + "' matches several fields that differ only by case (" +
+            String.join(", ", matches) + "). Pass the exact name." :
+            "'colName' '" + colName + "' is not a field bound on this chart, so a link set on it " +
+            "would be stored nowhere. The chart's fields are: " + String.join(", ", bound) + ".");
+   }
+
+   /** Whether a write for {@code colName} finds a field to store the link on. */
+   private static boolean landsOnField(ChartVSAssemblyInfo info, VSChartInfo chartInfo,
+                                       String colName, boolean isAxis, boolean isText)
+   {
+      return getMeasure(chartInfo, colName, true, isAxis, isText) != null ||
+         info.getDCBIndingRef(colName) != null ||
+         chartInfo.getFields(colName, false).length > 0;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
