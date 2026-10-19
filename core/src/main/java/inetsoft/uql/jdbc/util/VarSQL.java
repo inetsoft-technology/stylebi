@@ -88,6 +88,37 @@ public class VarSQL {
    public enum TemplateBackslash { LEGACY, LITERAL_ESCAPE, PLAIN }
 
    /**
+    * The comment syntax of the template's language. Quotes and placeholders
+    * inside a comment are ignored, so the lexer must know where comments are
+    * or an apostrophe in a comment (e.g. {@code # don't ...}) is taken as the
+    * start of a literal and a later quoted placeholder is spliced outside its
+    * literal (Bug #78757).
+    * <ul>
+    *   <li>{@link #SQL} (default): {@code --} to end of line and
+    *   <code>/* ... *&#47;</code>.</li>
+    *   <li>{@link #HASH}: {@code #} to end of line only (R).</li>
+    *   <li>{@link #C_STYLE}: {@code //} to end of line and
+    *   <code>/* ... *&#47;</code> (JavaScript); {@code --} is an operator.</li>
+    * </ul>
+    */
+   public enum CommentSyntax {
+      SQL("--"), HASH("#"), C_STYLE("//");
+
+      CommentSyntax(String lineCommentPrefix) {
+         this.lineCommentPrefix = lineCommentPrefix;
+      }
+
+      /**
+       * The token that starts a comment running to the end of the line.
+       */
+      public String getLineCommentPrefix() {
+         return lineCommentPrefix;
+      }
+
+      private final String lineCommentPrefix;
+   }
+
+   /**
     * Set the SQL string type.
     */
    public void setSQLType(SQLType type) {
@@ -130,6 +161,14 @@ public class VarSQL {
    public void setTemplateBackslash(TemplateBackslash templateBackslash) {
       this.templateBackslash = templateBackslash == null ?
          TemplateBackslash.LEGACY : templateBackslash;
+   }
+
+   /**
+    * Set the comment syntax of the template's language, see
+    * {@link CommentSyntax}. Defaults to {@link CommentSyntax#SQL}.
+    */
+   public void setCommentSyntax(CommentSyntax commentSyntax) {
+      this.commentSyntax = commentSyntax == null ? CommentSyntax.SQL : commentSyntax;
    }
 
    /**
@@ -180,6 +219,12 @@ public class VarSQL {
          int inQuote = 0; // ' or " if inside quote
          boolean inSingleLineComment = false; // true if inside single line comment
          boolean inMultiLineComment = false; // true if inside multi line comment
+         // the SQL syntax keeps its long-standing scanning exactly; the others
+         // also ignore a comment opener inside the other kind of comment and
+         // treat the "/" of a closing "*/" as part of the comment (Bug #78757)
+         boolean sqlComments = commentSyntax == CommentSyntax.SQL;
+         int commentStart = -1; // index of the "/" opening the block comment
+         int commentClose = -1; // index of the "/" closing the block comment
          char[] carr = sqlstr.toCharArray();
          int length = carr.length;
 
@@ -192,13 +237,18 @@ public class VarSQL {
             // this is the start/end of a multi line SQL comment.
             if(inMultiLineComment) {
                // signals the end of the multi line comment
-               if(ch == '*' && nch == '/') {
+               if(ch == '*' && nch == '/' && (sqlComments || i > commentStart + 1)) {
                   inMultiLineComment = false;
+                  commentClose = i + 1;
                }
             }
             // signals the start of a multi line comment
-            else if(ch == '/' && nch == '*' && inQuote == 0) {
+            else if(ch == '/' && nch == '*' && inQuote == 0 &&
+                    commentSyntax != CommentSyntax.HASH &&
+                    (sqlComments || !inSingleLineComment && i != commentClose))
+            {
                inMultiLineComment = true;
+               commentStart = i;
             }
 
             // @by stephenwebster, For bug1425596520995
@@ -211,7 +261,9 @@ public class VarSQL {
                }
             }
             // signals the start of a single line comment
-            else if(ch == '-' && nch == '-' && inQuote == 0) {
+            else if(inQuote == 0 && isLineCommentStart(ch, nch) &&
+                    (sqlComments || !inMultiLineComment && i != commentClose))
+            {
                inSingleLineComment = true;
             }
 
@@ -428,6 +480,21 @@ public class VarSQL {
       }
 
       return sqlstr;
+   }
+
+   /**
+    * True if the characters start a line comment in the template's
+    * {@link CommentSyntax}.
+    */
+   private boolean isLineCommentStart(char ch, char nch) {
+      switch(commentSyntax) {
+      case HASH:
+         return ch == '#';
+      case C_STYLE:
+         return ch == '/' && nch == '/';
+      default:
+         return ch == '-' && nch == '-';
+      }
    }
 
    /**
@@ -681,6 +748,7 @@ public class VarSQL {
    private LiteralEscapeStyle literalEscapeStyle = LiteralEscapeStyle.SQL;
    private TemplateBackslash templateBackslash = TemplateBackslash.LEGACY;
    private boolean backtickIdentifiers = false;
+   private CommentSyntax commentSyntax = CommentSyntax.SQL;
    private boolean rawNumericStrings = false;
 
    /**

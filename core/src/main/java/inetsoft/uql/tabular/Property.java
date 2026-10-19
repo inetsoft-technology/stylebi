@@ -119,6 +119,32 @@ public @interface Property {
    boolean backtickIdentifiers() default false;
 
    /**
+    * The comment syntax of the language of a {@link #sql()} property, so
+    * quotes and placeholders inside comments are ignored: {@code SQL}
+    * ({@code --} and <code>/* *&#47;</code>, the default), {@code HASH}
+    * ({@code #}, R) or {@code C_STYLE} ({@code //} and <code>/* *&#47;</code>,
+    * JavaScript). It must match the language, or an apostrophe in a comment
+    * can put a later quoted placeholder outside its literal. Lines that start
+    * with the line comment token are also skipped when the property's
+    * variables are listed. Ignored unless {@link #sql()} is true
+    * (Bug #78757).
+    */
+   VarSQL.CommentSyntax commentSyntax() default VarSQL.CommentSyntax.SQL;
+
+   /**
+    * With the default JSON {@link #literalEscapeStyle()}, copy backslashes in
+    * the template text as written instead of dropping them; inside a
+    * {@code '...'} or {@code "..."} literal a backslash still escapes the next
+    * character for quote tracking ({@code VarSQL.TemplateBackslash#LITERAL_ESCAPE}).
+    * Set it for JavaScript text, where escapes in string and regex literals
+    * (a backslash-n, a backslash-quote, a backslash-d in a regex) must reach
+    * the engine unchanged. The other styles always
+    * keep template backslashes. The MongoDB query keeps the default, which
+    * drops them (Bug #78757).
+    */
+   boolean keepTemplateBackslashes() default false;
+
+   /**
     * True if replacing date variable using javascript date (timestamp) format.
     */
    boolean jsDateFormat() default false;

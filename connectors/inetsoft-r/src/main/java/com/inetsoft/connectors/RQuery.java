@@ -17,6 +17,7 @@
  */
 package com.inetsoft.connectors;
 
+import inetsoft.uql.jdbc.util.VarSQL;
 import inetsoft.uql.tabular.ScriptedQuery;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
@@ -41,7 +42,13 @@ public class RQuery extends TabularQuery implements ScriptedQuery {
       super(TYPE);
    }
 
-   @Property(label = "Script")
+   // R string literals use backslash escapes in '...' and "...", '' is not an
+   // escaped quote, backtick-quoted names are identifiers and comments run
+   // from # to the end of the line (Bug #78757)
+   @Property(label = "Script", sql = true,
+             literalEscapeStyle = VarSQL.LiteralEscapeStyle.BACKSLASH,
+             backtickIdentifiers = true,
+             commentSyntax = VarSQL.CommentSyntax.HASH)
    @PropertyEditor(rows = 15, columns = 40)
    public String getScript() {
       return script;
@@ -51,7 +58,14 @@ public class RQuery extends TabularQuery implements ScriptedQuery {
       this.script = script;
    }
 
-   @Property(label = "Pre-execution JavaScript")
+   // JavaScript: the default JSON style writes quotes, $, braces and other
+   // punctuation as unicode escapes, which stay inside '...', "..." and
+   // template literals; BACKSLASH would leave ${...} live in a template
+   // literal. The script's own backslashes are kept as written and comments
+   // are // and /* */ (Bug #78757)
+   @Property(label = "Pre-execution JavaScript", sql = true,
+             keepTemplateBackslashes = true,
+             commentSyntax = VarSQL.CommentSyntax.C_STYLE)
    @PropertyEditor(rows = 15, columns = 40)
    public String getPreExecute() {
       return preExecute;
@@ -61,7 +75,10 @@ public class RQuery extends TabularQuery implements ScriptedQuery {
       this.preExecute = preExecute;
    }
 
-   @Property(label = "Post-execution JavaScript")
+   // JavaScript, as for preExecute (Bug #78757)
+   @Property(label = "Post-execution JavaScript", sql = true,
+             keepTemplateBackslashes = true,
+             commentSyntax = VarSQL.CommentSyntax.C_STYLE)
    @PropertyEditor(rows = 15, columns = 40)
    public String getPostExecute() {
       return postExecute;
