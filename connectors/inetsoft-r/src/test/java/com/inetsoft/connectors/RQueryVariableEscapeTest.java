@@ -22,6 +22,8 @@ import inetsoft.uql.tabular.TabularUtil;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -119,6 +121,69 @@ class RQueryVariableEscapeTest {
    void preAndPost_numberValue_staysANumber() {
       assertEquals("var n =  5 ;", pre("var n = $(p);", 5));
       assertEquals("var n =  5 ;", post("var n = $(p);", 5));
+   }
+
+   // ---- comments and template backslashes (review round 1) -------------------
+
+   @Test
+   void script_apostropheInHashComment_payloadStaysInsideLiteral() {
+      String value = ";system(intToUtf8(c(105,100)));y<-";
+
+      assertEquals("# don't filter blanks\ndf <- subset(d, name == '" + value + "'); df",
+                   script("# don't filter blanks\ndf <- subset(d, name == '$(p)'); df", value));
+      assertEquals("# don't filter blanks\ndf <- subset(d, name == 'a b'); df",
+                   script("# don't filter blanks\ndf <- subset(d, name == '$(p)'); df", "a b"));
+   }
+
+   @Test
+   void script_doubleMinus_isNotAComment() {
+      assertEquals("x <- 5 --1; y <- 'v'", script("x <- 5 --1; y <- '$(p)'", "v"));
+   }
+
+   @Test
+   void script_placeholderInHashComment_isNotReplacedOrListed() {
+      assertEquals("# old: $(q)\ny <- 'v'", script("# old: $(q)\ny <- '$(p)'", "v"));
+
+      RQuery query = new RQuery();
+      query.setScript("# $(q)\ny <- '$(p)'");
+      query.setPreExecute("// $(r)\nvar n = '$(s)';");
+      List<String> names = new ArrayList<>();
+      TabularUtil.findVariables(query).forEach(v -> names.add(v.getName()));
+      assertTrue(names.contains("p"), names.toString());
+      assertTrue(names.contains("s"), names.toString());
+      assertFalse(names.contains("q"), names.toString());
+      assertFalse(names.contains("r"), names.toString());
+   }
+
+   @Test
+   void script_rStringWithBackslashesAndRegex_isUnchanged() {
+      String template = "x <- 'a\\nb'; y <- gsub('\\\\.', '', z)";
+      assertEquals(template, script(template, "v"));
+   }
+
+   @Test
+   void preAndPost_backslashes_arePreservedByteForByte() {
+      String noVar = "var s = 'a\\nb'; var r = /\\d+/; var t = 'it\\'s';";
+      assertEquals(noVar, pre(noVar, "v"));
+      assertEquals(noVar, post(noVar, "v"));
+
+      String path = "var s = 'C:\\\\temp\\\\' + '$(p)';";
+      assertEquals("var s = 'C:\\\\temp\\\\' + '\\u0076';", pre(path, "v"));
+      assertEquals("var s = 'C:\\\\temp\\\\' + '\\u0076';", post(path, "v"));
+   }
+
+   @Test
+   void preAndPost_apostropheInComments_keepsValueInsideLiteral() {
+      for(String comment : new String[] { "// don't do this\n", "/* don't do this */ " }) {
+         String expected = comment + "var n = '\\u0061 b';";
+         assertEquals(expected, pre(comment + "var n = '$(p)';", "a b"));
+         assertEquals(expected, post(comment + "var n = '$(p)';", "a b"));
+      }
+   }
+
+   @Test
+   void preAndPost_decrementBeforePlaceholder_isReplaced() {
+      assertEquals("while(i--) n = '\\u0076';", pre("while(i--) n = '$(p)';", "v"));
    }
 
    private static String script(String template, Object value) {

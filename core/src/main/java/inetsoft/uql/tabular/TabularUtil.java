@@ -78,8 +78,11 @@ public class TabularUtil {
             if(val != null) {
                if(val instanceof String) {
                   if(prop.getProperty().sql()) {
+                     String commentPrefix =
+                        prop.getProperty().commentSyntax().getLineCommentPrefix();
+
                      for(String line : ((String) val).split("\n")) {
-                        if(!line.trim().startsWith("--")) {
+                        if(!line.trim().startsWith(commentPrefix)) {
                            vars.addAll(XUtil.findVariables(line));
                         }
                      }
@@ -256,6 +259,18 @@ public class TabularUtil {
                      // the SQL-like connectors (Bug #78594)
                      varsql.setLiteralEscapeStyle(style);
                      varsql.setBackslashIsEscapeChar(annotation.backslashIsEscapeChar());
+                     // comments follow the property's language, so a quote
+                     // in an R or JavaScript comment is not taken as a
+                     // literal (Bug #78757)
+                     varsql.setCommentSyntax(annotation.commentSyntax());
+
+                     if(style == VarSQL.LiteralEscapeStyle.JSON &&
+                        annotation.keepTemplateBackslashes())
+                     {
+                        // JavaScript text: backslashes are part of the code
+                        // and must not be dropped (Bug #78757)
+                        varsql.setTemplateBackslash(VarSQL.TemplateBackslash.LITERAL_ESCAPE);
+                     }
 
                      if(style != VarSQL.LiteralEscapeStyle.JSON) {
                         // keep the designer's text as written: a template
