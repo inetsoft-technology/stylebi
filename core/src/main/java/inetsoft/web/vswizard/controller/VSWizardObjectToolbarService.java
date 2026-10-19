@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.io.Serializable;
 import java.security.Principal;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -143,7 +144,8 @@ public class VSWizardObjectToolbarService {
 
    /**
     * Gets the client object type of an assembly the recommender creates, or {@code null} for
-    * any other assembly.
+    * any other assembly. The names must match the {@code @JsonSubTypes} names in
+    * {@link inetsoft.web.viewsheet.model.VSObjectModel}.
     */
    private static String getObjectType(Assembly assembly) {
       if(assembly instanceof ChartVSAssembly) {
@@ -179,11 +181,61 @@ public class VSWizardObjectToolbarService {
 
    /**
     * The assembly the full editor opens. It is returned through the cluster proxy, so it must
-    * be serializable.
+    * be serializable by Ignite's BinaryMarshaller. Do not make it a record: the marshaller
+    * cannot set the final fields of a record when it reads the result on the calling node.
     */
-   public record FullEditorAssembly(String absoluteName, String objectType)
-      implements Serializable
-   {
+   public static class FullEditorAssembly implements Serializable {
+      public FullEditorAssembly() {
+      }
+
+      public FullEditorAssembly(String absoluteName, String objectType) {
+         this.absoluteName = absoluteName;
+         this.objectType = objectType;
+      }
+
+      public String getAbsoluteName() {
+         return absoluteName;
+      }
+
+      public void setAbsoluteName(String absoluteName) {
+         this.absoluteName = absoluteName;
+      }
+
+      public String getObjectType() {
+         return objectType;
+      }
+
+      public void setObjectType(String objectType) {
+         this.objectType = objectType;
+      }
+
+      @Override
+      public boolean equals(Object o) {
+         if(this == o) {
+            return true;
+         }
+
+         if(!(o instanceof FullEditorAssembly that)) {
+            return false;
+         }
+
+         return Objects.equals(absoluteName, that.absoluteName) &&
+            Objects.equals(objectType, that.objectType);
+      }
+
+      @Override
+      public int hashCode() {
+         return Objects.hash(absoluteName, objectType);
+      }
+
+      @Override
+      public String toString() {
+         return "FullEditorAssembly{absoluteName='" + absoluteName + "', objectType='" +
+            objectType + "'}";
+      }
+
+      private String absoluteName;
+      private String objectType;
    }
 
    private final VSWizardTemporaryInfoService temporaryInfoService;

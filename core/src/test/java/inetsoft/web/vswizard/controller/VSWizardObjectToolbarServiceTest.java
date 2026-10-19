@@ -52,7 +52,8 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = BaseTestConfiguration.class,
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+// 8-17 s on a developer machine, almost all of it the Spring context, so not "core"
+@Tag("slow")
 class VSWizardObjectToolbarServiceTest {
    private static final String ID = "rvs-78734";
    private static final String ORIGINAL = "Chart1";
@@ -171,7 +172,8 @@ class VSWizardObjectToolbarServiceTest {
       assertNull(service.gotoFullEditor("other", null, principal));
    }
 
-   // the result crosses the cluster through the generated proxy
+   // the result crosses the cluster through the generated proxy; the Ignite BinaryMarshaller
+   // round trip is in VSWizardFullEditorAssemblyIgniteMarshalTest
    @Test
    void theResultIsSerializable() throws Exception {
       FullEditorAssembly result = new FullEditorAssembly(TEMP, "VSChart");
