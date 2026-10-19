@@ -343,6 +343,84 @@ class ChartScriptWriteDataCacheTest {
       assertNull(graphCache().get(CHART), "graph cache");
    }
 
+   /**
+    * The chart query reads rankPerGroup and sortOthersLast from the runtime descriptor, which
+    * the binding snapshot does not hold, so a script write to either drops the cached data and
+    * graph.
+    */
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(strings = { "rankPerGroup", "sortOthersLast" })
+   void descriptorQueryPropertyWriteDropsCachedData(String property) throws Exception {
+      Object before = vbox.getData(CHART);
+      cacheGraph();
+      ChartDescriptor desc = ((ChartVSAScriptable) vbox.getScope().getVSAScriptable(CHART))
+         .getRTChartDescriptor();
+      assertNotNull(desc, "runtime descriptor");
+      boolean current = property.equals("rankPerGroup") ? desc.isRankPerGroup() :
+         desc.isSortOthersLast();
+
+      vbox.getScope().execute(CHART + "." + property + " = " + !current + ";", TEXT);
+
+      assertNotSame(before, vbox.getData(CHART), "data cache");
+      assertNull(graphCache().get(CHART), "graph cache");
+   }
+
+   /**
+    * Writing the descriptor property's current value keeps both caches.
+    */
+   @Test
+   void unchangedDescriptorWriteKeepsDataAndGraph() throws Exception {
+      Object before = vbox.getData(CHART);
+      VGraphPair pair = cacheGraph();
+      ChartDescriptor desc = ((ChartVSAScriptable) vbox.getScope().getVSAScriptable(CHART))
+         .getRTChartDescriptor();
+      assertNotNull(desc, "runtime descriptor");
+
+      vbox.getScope().execute(CHART + ".rankPerGroup = " + desc.isRankPerGroup() + ";", TEXT);
+
+      assertSame(before, vbox.getData(CHART), "data cache");
+      assertSame(pair, graphCache().get(CHART), "graph cache");
+   }
+
+   /**
+    * A getter is not a writer: it runs through the script function without a snapshot, so
+    * whatever it touches is left alone, while any other function name is guarded.
+    */
+   @Test
+   void getterCallIsNotGuarded() throws Exception {
+      Object before = vbox.getData(CHART);
+      ChartVSAScriptable scriptable = (ChartVSAScriptable) vbox.getScope().getVSAScriptable(CHART);
+      VSAggregateRef agg = (VSAggregateRef) chart.getVSChartInfo().getYFields()[0];
+
+      scriptable.guardCall("getFormula", () -> {
+         agg.setFormulaValue("Max");
+         return null;
+      });
+      assertSame(before, vbox.getData(CHART), "a getter call must not snapshot or reset");
+
+      scriptable.guardCall("setFormula", () -> {
+         agg.setFormulaValue("Min");
+         return null;
+      });
+      assertNotSame(before, vbox.getData(CHART), "a writer call is guarded");
+   }
+
+   /**
+    * Reading through the bindingInfo getters leaves both caches as they were.
+    */
+   @Test
+   void getterScriptKeepsDataAndGraph() throws Exception {
+      Object before = vbox.getData(CHART);
+      VGraphPair pair = cacheGraph();
+
+      vbox.getScope().execute(
+         CHART + ".bindingInfo.getFormula('NUM', Chart.BINDING_FIELD);" +
+         CHART + ".bindingInfo.isTopNReverse('" + STATE + "', Chart.BINDING_FIELD);", TEXT);
+
+      assertSame(before, vbox.getData(CHART), "data cache");
+      assertSame(pair, graphCache().get(CHART), "graph cache");
+   }
+
    private VGraphPair cacheGraph() throws Exception {
       VGraphPair pair = mock(VGraphPair.class);
       graphCache().put(CHART, pair);

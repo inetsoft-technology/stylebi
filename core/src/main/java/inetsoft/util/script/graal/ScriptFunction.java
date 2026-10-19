@@ -121,7 +121,7 @@ public class ScriptFunction implements ProxyExecutable {
    @Override
    public Object execute(Value... arguments) {
       if(target instanceof ScriptCallGuard) {
-         return ((ScriptCallGuard) target).guardCall(() -> invoke(arguments));
+         return ((ScriptCallGuard) target).guardCall(name, () -> invoke(arguments));
       }
 
       return invoke(arguments);

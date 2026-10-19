@@ -105,8 +105,8 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable
     * function registered on the binding, without each one having to do so.
     */
    @Override
-   public Object guardCall(Supplier<Object> call) {
-      return script.guardInfoWrite(call);
+   public Object guardCall(String function, Supplier<Object> call) {
+      return script.guardCall(function, call);
    }
 
    /**

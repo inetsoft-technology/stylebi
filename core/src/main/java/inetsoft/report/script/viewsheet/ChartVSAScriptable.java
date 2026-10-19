@@ -44,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -168,11 +169,19 @@ public class ChartVSAScriptable extends VSAScriptable
 
    /**
     * Run a script function call of this chart, or of its bindingInfo, so that an in-place
-    * edit of the chart's binding invalidates the sandbox's cached results.
+    * edit of the chart's binding invalidates the sandbox's cached results. A getter, named
+    * {@code get*}, {@code is*} or {@code has*} by the convention of every function registered
+    * on the chart and its bindingInfo, does not edit anything and runs unguarded, so reading
+    * costs no more than before; every other function is treated as a writer.
     */
    @Override
-   public Object guardCall(Supplier<Object> call) {
-      return guardInfoWrite(call);
+   public Object guardCall(String function, Supplier<Object> call) {
+      return isGetter(function) ? call.get() : guardInfoWrite(call);
+   }
+
+   private static boolean isGetter(String function) {
+      return function != null &&
+         (function.startsWith("get") || function.startsWith("is") || function.startsWith("has"));
    }
 
    /**
@@ -195,25 +204,54 @@ public class ChartVSAScriptable extends VSAScriptable
 
       SourceInfo source = ((ChartVSAssemblyInfo) getVSAssemblyInfo()).getSourceInfo();
       VSChartInfo before = info.clone();
+      boolean[] ranking = queryRanking();
+      T result;
 
       try {
-         return write.get();
+         result = write.get();
       }
-      finally {
-         ChartInfoDiff.Change change = ChartInfoDiff.diff(before, getChartInfo());
-         SourceInfo nsource = ((ChartVSAssemblyInfo) getVSAssemblyInfo()).getSourceInfo();
-
-         if(!Tool.equals(source, nsource)) {
-            change = ChartInfoDiff.Change.DATA;
+      catch(RuntimeException | Error ex) {
+         try {
+            invalidateIfChanged(name, source, before, ranking);
+         }
+         catch(RuntimeException | Error ex2) {
+            // keep the writer's own failure as the one that surfaces
+            ex.addSuppressed(ex2);
          }
 
-         if(change == ChartInfoDiff.Change.DATA) {
-            box.resetDataMap(name);
-         }
+         throw ex;
+      }
 
-         if(change != ChartInfoDiff.Change.NONE) {
-            box.removeGraph(name);
-         }
+      invalidateIfChanged(name, source, before, ranking);
+      return result;
+   }
+
+   /**
+    * Get the descriptor properties the chart query reads, {@code rankPerGroup} and
+    * {@code sortOthersLast} (see ChartVSAQuery), which a script writes on the runtime
+    * descriptor and which the binding snapshot does not contain.
+    */
+   private boolean[] queryRanking() {
+      ChartDescriptor desc = getRTChartDescriptor();
+      return desc == null ? null : new boolean[] { desc.isRankPerGroup(), desc.isSortOthersLast() };
+   }
+
+   private void invalidateIfChanged(String name, SourceInfo source, VSChartInfo before,
+                                    boolean[] ranking)
+   {
+      ChartInfoDiff.Change change = ChartInfoDiff.diff(before, getChartInfo());
+      SourceInfo nsource = ((ChartVSAssemblyInfo) getVSAssemblyInfo()).getSourceInfo();
+
+      if(!Tool.equals(source, nsource) || !Arrays.equals(ranking, queryRanking())) {
+         change = ChartInfoDiff.Change.DATA;
+      }
+
+      if(change == ChartInfoDiff.Change.DATA) {
+         box.resetDataMap(name);
+      }
+
+      if(change != ChartInfoDiff.Change.NONE) {
+         box.removeGraph(name);
       }
    }
 

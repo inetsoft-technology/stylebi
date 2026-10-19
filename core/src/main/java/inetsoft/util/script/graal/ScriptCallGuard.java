@@ -29,9 +29,10 @@ public interface ScriptCallGuard {
    /**
     * Run a script function call.
     *
+    * @param function the name of the called function.
     * @param call performs the call and returns its result.
     *
     * @return the result of the call.
     */
-   Object guardCall(Supplier<Object> call);
+   Object guardCall(String function, Supplier<Object> call);
 }

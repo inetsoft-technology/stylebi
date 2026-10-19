@@ -18,8 +18,11 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.test.*;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,6 +68,47 @@ class ChartInfoDiffTest {
       info.setTooltipVisible(!info.isTooltipVisible());
 
       assertEquals(Change.GRAPH, ChartInfoDiff.diff(before, info));
+   }
+
+   @Test
+   void aestheticRefChangeIsData() {
+      VSChartInfo before = info.clone();
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(dimension("STATE"));
+      color.setVisualFrameWrapper(new CategoricalColorFrameWrapper());
+      info.setColorField(color);
+
+      assertEquals(Change.DATA, ChartInfoDiff.diff(before, info));
+   }
+
+   @Test
+   void aggregateInfoChangeIsData() {
+      VSChartInfo before = info.clone();
+      info.getAggregateInfo().addAggregate(
+         new AggregateRef(new ColumnRef(new AttributeRef("NUM")), AggregateFormula.SUM));
+
+      assertEquals(Change.DATA, ChartInfoDiff.diff(before, info));
+   }
+
+   @Test
+   void geoFieldChangeIsData() {
+      VSMapInfo map = new VSMapInfo();
+      VSChartInfo before = map.clone();
+      map.addGeoField(new VSChartGeoRef(dimension("STATE")));
+
+      assertEquals(Change.DATA, ChartInfoDiff.diff(before, map));
+   }
+
+   @Test
+   void chartTypeChangeIsData() {
+      VSChartInfo before = info.clone();
+      info.setChartType(GraphTypes.CHART_LINE);
+
+      assertEquals(Change.DATA, ChartInfoDiff.diff(before, info));
+   }
+
+   private static VSChartDimensionRef dimension(String column) {
+      return new VSChartDimensionRef(new ColumnRef(new AttributeRef(null, column)));
    }
 
    private final VSChartInfo info = createInfo();
