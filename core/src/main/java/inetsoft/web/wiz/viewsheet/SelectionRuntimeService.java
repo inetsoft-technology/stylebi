@@ -221,17 +221,76 @@ public class SelectionRuntimeService {
          result.put("assembly", assemblyName);
          result.put("type", describe(assembly));
 
+         // Every refusal that can be decided from the request and the current state is made here,
+         // before the first write below (search string, selection style, sort, applies), so a
+         // refused call leaves the assembly untouched (bug-78718). The relative order of the
+         // checks, and their messages, are the same as when they ran interleaved with the writes.
+         if(search != null && !(info instanceof SelectionBaseVSAssemblyInfo)) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is " + describe(assembly) + ", which has no search box — " +
+               "only a selection list or tree can be scoped by search. Drop 'search'.");
+         }
+
+         // Sort lives on SelectionBaseVSAssemblyInfo, which a range slider's info is not — a
+         // slider orders by its underlying range, so there is nothing to sort.
+         if(targetSort != null && !(info instanceof SelectionBaseVSAssemblyInfo)) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is " + describe(assembly) + ", which has no sort order — " +
+               "it follows its range. Drop 'sortOrder'.");
+         }
+
+         final boolean single = singleSelect != null ? singleSelect : info.isSingleSelection();
+         final boolean idMode = assembly instanceof SelectionTreeVSAssembly tree && tree.isIDMode();
+         int[] sliderRange = null;
+         SelectionList domain = null;
+         final List<Map<String, Object>> clamped = new ArrayList<>();
+
+         if(values != null) {
+            if(single && values.size() > 1) {
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' is single-select, so it cannot hold " + values.size() +
+                  " values. Select one value, or pass singleSelect=false in the same call to make " +
+                  "it multi-select first.");
+            }
+
+            domain = isValueMatchable(assembly) ? selectionListOf(assembly) : null;
+
+            if(isValueMatchable(assembly)) {
+               // doApplySelection matches each requested value against the live domain and
+               // silently drops anything that doesn't resolve -- no exception, no counter,
+               // nothing the caller could observe. Refuse a typo'd value by name, atomically,
+               // before applying anything, rather than reporting an inflated count for a
+               // partially-applied result. A null domain (never rendered) cannot be checked, as
+               // before; it is read once here and reused for the search filter below.
+               requireResolvable(assemblyName, domain, values, idMode, "selecting");
+            }
+
+            if(assembly instanceof TimeSliderVSAssembly slider) {
+               // Pure: depends only on the slider's own buckets and the requested values.
+               sliderRange = sliderBucketRange(assemblyName, bucketsOf(slider), values, clamped);
+            }
+         }
+
+         if(hasDeselect) {
+            if(!isPathDiffable(assembly)) {
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' is " + describe(assembly) + " -- 'deselect' only works " +
+                  "on a selection list or a non-ID-mode selection tree. Use clear_selection to " +
+                  "remove everything, or set_selection's plain 'values' for a range slider.");
+            }
+
+            // Against the whole live domain, not the selected paths: a real but unselected value
+            // stays a legal no-op, while a fabricated or over-long path is refused by name instead
+            // of silently touching nothing. Unscoped by search, like the deselect itself.
+            requireResolvable(assemblyName, selectionListOf(assembly), deselect, false,
+                              "deselecting");
+         }
+
          // Search first, same reasoning as selection style below: it changes how a values apply
          // is scoped (see scopedBySearch further down), so it has to be in place before that apply
          // runs, not after.
          if(search != null) {
-            if(!(info instanceof SelectionBaseVSAssemblyInfo searchable)) {
-               throw new IllegalArgumentException(
-                  "'" + assemblyName + "' is " + describe(assembly) + ", which has no search box — " +
-                  "only a selection list or tree can be scoped by search. Drop 'search'.");
-            }
-
-            searchable.setSearchString(search);
+            ((SelectionBaseVSAssemblyInfo) info).setSearchString(search);
             result.put("searchSet", search);
          }
 
@@ -244,14 +303,7 @@ public class SelectionRuntimeService {
          }
 
          if(targetSort != null) {
-            // Sort lives on SelectionBaseVSAssemblyInfo, which a range slider's info is not — a
-            // slider orders by its underlying range, so there is nothing to sort.
-            if(!(info instanceof SelectionBaseVSAssemblyInfo sortable)) {
-               throw new IllegalArgumentException(
-                  "'" + assemblyName + "' is " + describe(assembly) + ", which has no sort order — " +
-                  "it follows its range. Drop 'sortOrder'.");
-            }
-
+            SelectionBaseVSAssemblyInfo sortable = (SelectionBaseVSAssemblyInfo) info;
             int cycles = sortCycles(sortable.getSortTypeValue(), targetSort);
 
             for(int i = 0; i < cycles; i++) {
@@ -268,27 +320,6 @@ public class SelectionRuntimeService {
          final List<List<String>> retained = new ArrayList<>();
 
          if(values != null) {
-            boolean single = singleSelect != null ? singleSelect : info.isSingleSelection();
-
-            if(single && values.size() > 1) {
-               throw new IllegalArgumentException(
-                  "'" + assemblyName + "' is single-select, so it cannot hold " + values.size() +
-                  " values. Select one value, or pass singleSelect=false in the same call to make " +
-                  "it multi-select first.");
-            }
-
-            boolean idMode = assembly instanceof SelectionTreeVSAssembly tree && tree.isIDMode();
-            SelectionList domain = isValueMatchable(assembly) ? selectionListOf(assembly) : null;
-
-            if(isValueMatchable(assembly)) {
-               // doApplySelection matches each requested value against the live domain and
-               // silently drops anything that doesn't resolve -- no exception, no counter,
-               // nothing the caller could observe. Refuse a typo'd value by name, atomically,
-               // before applying anything, rather than reporting an inflated count for a
-               // partially-applied result.
-               requireResolvable(assemblyName, domain, values, idMode, "selecting");
-            }
-
             String activeSearch = searchString(info);
             List<List<String>> effectiveValues = values;
 
@@ -337,8 +368,7 @@ public class SelectionRuntimeService {
                // no-op here, silently: no exception, and the response still claims success.
                SelectionValue[] buckets = bucketsOf(slider);
                boolean rangeWasFull = isFullRangeSelected(buckets);
-               List<Map<String, Object>> clamped = new ArrayList<>();
-               int[] range = sliderBucketRange(assemblyName, buckets, values, clamped);
+               int[] range = sliderRange;
                ApplySelectionListEvent event = new ApplySelectionListEvent();
                event.setType(ApplySelectionListEvent.Type.APPLY);
                event.setSelectStart(range[0]);
@@ -372,7 +402,10 @@ public class SelectionRuntimeService {
                                      effectiveValues),
                   user, dispatcher, linkUri);
             }
-            else {
+            else if(!(Boolean.TRUE.equals(additive) && effectiveValues.isEmpty())) {
+               // An empty APPLY is doApplySelection's clear-everything signal, so an additive call
+               // that has nothing to add (values:[], or every value dropped by the search) must not
+               // send one: "only add" is a no-op then, never a clear (bug-78718).
                selections.applySelection(runtimeId, assemblyName, applyEvent(effectiveValues), user,
                                          dispatcher, linkUri);
             }
@@ -400,19 +433,7 @@ public class SelectionRuntimeService {
             // "deselect a value the search box currently hides" is a plausible, useful call
             // (clearing a selection made before the caller searched), not obviously a mistake to
             // refuse. Left as its own, narrower-scoped follow-up rather than folded in here.
-            if(!isPathDiffable(assembly)) {
-               throw new IllegalArgumentException(
-                  "'" + assemblyName + "' is " + describe(assembly) + " -- 'deselect' only works " +
-                  "on a selection list or a non-ID-mode selection tree. Use clear_selection to " +
-                  "remove everything, or set_selection's plain 'values' for a range slider.");
-            }
-
-            // Against the whole live domain, not the selected paths: a real but unselected value
-            // stays a legal no-op, while a fabricated or over-long path is refused by name instead
-            // of silently touching nothing. Unscoped by search, like the deselect itself.
-            requireResolvable(assemblyName, selectionListOf(assembly), deselect, false,
-                              "deselecting");
-
+            // The path-diffable and resolvable refusals ran up front (bug-78718).
             List<List<String>> currentPaths = selectedPaths(assembly);
             List<List<String>> targets = deselectTargets(currentPaths, deselect);
 
