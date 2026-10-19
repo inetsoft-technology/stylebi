@@ -1191,6 +1191,8 @@ public class WorksheetTableService {
          throw new IllegalArgumentException("tableType is required");
       }
 
+      String kind = tableKind(tableType);
+
       // Verify READ permission on the datasource before resolving/using it. physicalSource covers
       // physical table and sql query table bind one through physicalSource; tabular table binds one
       // through tabularSource. Read here rather than inside each builder for the same reason the
@@ -1230,6 +1232,17 @@ public class WorksheetTableService {
             "composer.authorization.permissionDenied"));
       }
 
+      // Refused before a builder runs the SQL or requests the endpoint for a table it could not
+      // add. addTable stays the authoritative check.
+      String tableName = request.getTableName();
+      Assembly taken = worksheet.getAssembly(tableName);
+
+      if(tableName == null || tableName.isBlank() ||
+         taken != null && !(taken instanceof TableAssembly))
+      {
+         throw new IllegalArgumentException(addRefusal(worksheet, kind, tableName));
+      }
+
       AbstractTableAssembly table = switch(tableType) {
          case "physical table"        -> buildPhysicalTable(worksheet, request, user);
          case "mirror table"          -> buildMirrorTable(worksheet, request);
@@ -1240,6 +1253,43 @@ public class WorksheetTableService {
       };
 
       return table;
+   }
+
+   /** How a refusal names a table of this tableType. */
+   private static String tableKind(String tableType) {
+      return switch(tableType) {
+         case "physical table"        -> "Physical table";
+         case "mirror table"          -> "Mirror table";
+         case "relational join table" -> "Relational join table";
+         case "sql query table"       -> "SQL query table";
+         case "tabular table"         -> "Tabular table";
+         default -> throw new IllegalArgumentException("Unknown tableType: " + tableType);
+      };
+   }
+
+   /**
+    * Add a built table to the worksheet. addAssembly replaces a table of the same name, but refuses
+    * a blank name or one already taken by another kind of assembly (a variable, a named group, ...)
+    * and adds nothing; that refusal fails the table here, before anything else changes the
+    * worksheet.
+    */
+   private static void addTable(Worksheet worksheet, AbstractTableAssembly table,
+                                WorksheetTable request)
+   {
+      if(!worksheet.addAssembly(table)) {
+         throw new IllegalArgumentException(
+            addRefusal(worksheet, tableKind(request.getTableType()), request.getTableName()));
+      }
+   }
+
+   private static String addRefusal(Worksheet worksheet, String kind, String tableName) {
+      Assembly taken = worksheet.getAssembly(tableName);
+
+      return taken != null
+         ? kind + " '" + tableName + "' cannot be added: '" + tableName + "' already names a " +
+           WorksheetEditService.Editor.kindOf(taken) + " in this worksheet. Choose a different " +
+           "tableName."
+         : kind + " '" + tableName + "' could not be added to the worksheet.";
    }
 
    private AbstractTableAssembly buildPhysicalTable(Worksheet worksheet,
@@ -1304,7 +1354,7 @@ public class WorksheetTableService {
       applyExpressionColumns(table, request.getExpressionColumns());
       applyWindowColumns(table, request.getWindowColumns());
 
-      worksheet.addAssembly(table);
+      addTable(worksheet, table, request);
       return table;
    }
 
@@ -1401,7 +1451,7 @@ public class WorksheetTableService {
       table.setColumnSelection(columns);
       table.setAdvancedEditing(true);
 
-      worksheet.addAssembly(table);
+      addTable(worksheet, table, request);
       return table;
    }
 
@@ -1580,7 +1630,7 @@ public class WorksheetTableService {
          throw new IllegalArgumentException(emptyColumnsMessage(query, dsName, probeDesc));
       }
 
-      worksheet.addAssembly(table);
+      addTable(worksheet, table, request);
       return table;
    }
 
@@ -1853,18 +1903,7 @@ public class WorksheetTableService {
          applyWindowColumns(mirror, request.getWindowColumns());
       }
 
-      // addAssembly refuses a name already taken by another kind of assembly.
-      if(!worksheet.addAssembly(mirror)) {
-         Assembly taken = worksheet.getAssembly(request.getTableName());
-
-         throw new IllegalArgumentException(taken != null
-            ? "Mirror table '" + request.getTableName() + "' cannot be added: '" +
-              request.getTableName() + "' already names a " +
-              WorksheetEditService.Editor.kindOf(taken) + " in this worksheet. Choose a " +
-              "different tableName."
-            : "Mirror table '" + request.getTableName() + "' could not be added to the worksheet.");
-      }
-
+      addTable(worksheet, mirror, request);
       return mirror;
    }
 
@@ -1948,7 +1987,9 @@ public class WorksheetTableService {
          tableSet.toArray(new TableAssembly[0]),
          new TableAssemblyOperator[0]);
 
-      worksheet.addAssembly(joinTable);
+      // Before editExistingJoinTable: it removes the join by name and adds it back, which would
+      // delete whatever assembly holds the name when addAssembly refused it.
+      addTable(worksheet, joinTable, request);
       innerJoinService.editExistingJoinTable(worksheet, joinTable, noperator, true);
       WsServiceHelper.initCompositeColumnSelection(joinTable);
 
