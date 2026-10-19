@@ -5128,6 +5128,161 @@ class WorksheetEditServiceMutatorsTest {
       assertSameAggregateState(before, u, "096f");
    }
 
+   // =========================================================================
+   // Bug #78839 (WBS-143) -- set_group_aggregate must refuse, not silently collapse, two
+   // groups entries on the same column at the same level. AggregateInfo.addGroup replaces
+   // an equal GroupRef in place and GroupRef equality is the column name only, so the
+   // later entry used to overwrite the earlier one while the call reported success.
+   // =========================================================================
+
+   private static WorksheetMutationSupport.GroupSpec ng(String field, String namedGroup) {
+      return new WorksheetMutationSupport.GroupSpec(field, null, null, namedGroup);
+   }
+
+   /** {@code T(state, company, amount, od)} with named groups NG and NG2 on state. */
+   private static EmbeddedTableAssembly duplicateGroupTable(Worksheet ws,
+                                                            WorksheetEditService svc,
+                                                            Principal agent)
+      throws Exception
+   {
+      EmbeddedTableAssembly t =
+         TestWorksheets.tableWithColumns(ws, "T", "state", "company", "amount", "od");
+      ws.addAssembly(t);
+      ((ColumnRef) t.getColumnSelection(false).getAttribute("od")).setDataType(XSchema.DATE);
+      svc.apply("TOK", agent, ed -> ed.addNamedGroup("NG", "T", "state", null, List.of(
+         new WorksheetMutationSupport.GroupMapping("East", List.of("NY", "NJ"))), true));
+      svc.apply("TOK", agent, ed -> ed.addNamedGroup("NG2", "T", "state", null, List.of(
+         new WorksheetMutationSupport.GroupMapping("West", List.of("CA"))), true));
+      return t;
+   }
+
+   private static void assertDuplicateGroupRefusal(PairingException ex) {
+      String msg = ex.getMessage();
+      assertTrue(msg.contains("'state'"), msg);
+      assertTrue(msg.contains("same level"), msg);
+      assertTrue(msg.contains("add_expression_column"), msg);
+      assertTrue(msg.contains("field['state']"), msg);
+      assertTrue(msg.contains("Nothing was changed"), msg);
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   void setGroupAggregateRefusesNamedGroupAndPlainOnSameColumnInEitherOrder(boolean crosstab)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      EmbeddedTableAssembly t = duplicateGroupTable(ws, svc, agent);
+      AggregateTableState before = aggregateState(t);
+      List<WorksheetMutationSupport.AggregateSpec> count = List.of(
+         new WorksheetMutationSupport.AggregateSpec("amount", "COUNT", null));
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("T", List.of(ng("state", "NG"),
+            new WorksheetMutationSupport.GroupSpec("state"),
+            new WorksheetMutationSupport.GroupSpec("company")), count, crosstab)));
+      assertDuplicateGroupRefusal(ex);
+      assertTrue(ex.getMessage().contains("namedGroup:'NG'"), ex.getMessage());
+      assertSameAggregateState(before, t, "NG then plain");
+
+      ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("T", List.of(
+            new WorksheetMutationSupport.GroupSpec("state"), ng("state", "NG"),
+            new WorksheetMutationSupport.GroupSpec("company")), count, crosstab)));
+      assertDuplicateGroupRefusal(ex);
+      assertSameAggregateState(before, t, "plain then NG");
+   }
+
+   @Test
+   void setGroupAggregateRefusesTwoNamedGroupsOnSameColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      EmbeddedTableAssembly t = duplicateGroupTable(ws, svc, agent);
+      AggregateTableState before = aggregateState(t);
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("T", List.of(ng("state", "NG"), ng("state", "NG2")),
+            List.of())));
+      assertDuplicateGroupRefusal(ex);
+      assertTrue(ex.getMessage().contains("namedGroup:'NG'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("namedGroup:'NG2'"), ex.getMessage());
+      assertSameAggregateState(before, t, "NG + NG2");
+   }
+
+   @Test
+   void setGroupAggregateRefusesSameDateLevelTwiceEvenWithDifferentTimeSeries()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      EmbeddedTableAssembly t = duplicateGroupTable(ws, svc, agent);
+      AggregateTableState before = aggregateState(t);
+
+      // The later {od, MONTH} used to silently drop the earlier entry's timeSeries flag.
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("T", List.of(
+            new WorksheetMutationSupport.GroupSpec("od", "MONTH", true),
+            new WorksheetMutationSupport.GroupSpec("od", "MONTH")), List.of())));
+      String msg = ex.getMessage();
+      assertTrue(msg.contains("'od'"), msg);
+      assertTrue(msg.contains("dateLevel:'MONTH', timeSeries:true"), msg);
+      assertTrue(msg.contains("one grouping per column per date level"), msg);
+      assertSameAggregateState(before, t, "MONTH ts + MONTH");
+   }
+
+   @Test
+   void setGroupAggregateStillAcceptsDifferentDateLevelsOnOneColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      EmbeddedTableAssembly t = duplicateGroupTable(ws, svc, agent);
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of(
+         new WorksheetMutationSupport.GroupSpec("od", "YEAR"),
+         new WorksheetMutationSupport.GroupSpec("od", "MONTH"),
+         ng("state", "NG")), List.of()));
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(3, ai.getGroupCount(), String.valueOf(ai));
+      assertEquals(DateRangeRef.getName("od", DateRangeRef.YEAR_DATE_GROUP),
+                   ai.getGroup(0).getName());
+      assertEquals(DateRangeRef.getName("od", DateRangeRef.MONTH_DATE_GROUP),
+                   ai.getGroup(1).getName());
+      assertEquals("NG", ai.getGroup(2).getNamedGroupAssembly());
+   }
+
+   @Test
+   void setGroupAggregateDuplicateGroupRefusalLeavesGroupedSortedTableUnchanged()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      EmbeddedTableAssembly t = duplicateGroupTable(ws, svc, agent);
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("T", List.of(
+         new WorksheetMutationSupport.GroupSpec("od", "QUARTER"),
+         new WorksheetMutationSupport.GroupSpec("company")), List.of(sum("amount", "total"))));
+      svc.apply("TOK", agent, ed -> ed.setSort("T", "company", "asc"));
+      AggregateTableState before = aggregateState(t);
+      assertEquals(1, before.sorts().size(), "sanity: T sorts on company");
+      assertEquals(2, before.info().getGroupCount(), "sanity: T is grouped");
+
+      // Before the duplicate is reached, this call inserts Month(od) into the selection,
+      // drops company's sort (timeSeries) and clears the total alias.
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("T", List.of(
+            new WorksheetMutationSupport.GroupSpec("od", "MONTH"),
+            new WorksheetMutationSupport.GroupSpec("company", null, true),
+            ng("state", "NG"),
+            new WorksheetMutationSupport.GroupSpec("state")), List.of(sum("amount", null)))));
+      assertDuplicateGroupRefusal(ex);
+      assertSameAggregateState(before, t, "duplicate after other changes");
+   }
+
    @Test
    void setGroupAggregateValidationRefusalDoesNotEmptyADownstreamAggregateOnTheNextRefresh()
       throws Exception

@@ -925,6 +925,29 @@ public final class WorksheetMutationSupport {
    }
 
    /**
+    * Describes one group entry for a duplicate-group refusal (Bug #78839), e.g.
+    * {@code {field:'STATE', namedGroup:'NG'}} or {@code {field:'od', dateLevel:'MONTH',
+    * timeSeries:true}}.
+    */
+   private static String describeGroupSpec(GroupSpec spec) {
+      StringBuilder sb = new StringBuilder("{field:'").append(spec.field()).append("'");
+
+      if(spec.namedGroup() != null) {
+         sb.append(", namedGroup:'").append(spec.namedGroup()).append("'");
+      }
+
+      if(spec.dateLevel() != null) {
+         sb.append(", dateLevel:'").append(spec.dateLevel()).append("'");
+      }
+
+      if(spec.timeSeries() != null) {
+         sb.append(", timeSeries:").append(spec.timeSeries());
+      }
+
+      return sb.append("}").toString();
+   }
+
+   /**
     * Builds the new {@link AggregateInfo} and runs every validation and downstream-loss guard,
     * up to (not including) the commit point. May mutate the live table on the way (see
     * {@link AggregateCallSnapshot}); the caller restores it if this throws.
@@ -1000,6 +1023,11 @@ public final class WorksheetMutationSupport {
       // The live columns this call's own group/aggregate specs resolve to: never offered for
       // secondary-column reuse, whatever they are named.
       Set<ColumnRef> callResolved = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      // This call's groups and the specs they came from, in the same order, so a
+      // duplicate (Bug #78839) can name the earlier entry it collides with.
+      List<GroupRef> addedGroupRefs = new ArrayList<>();
+      List<GroupSpec> addedGroupSpecs = new ArrayList<>();
 
       for(GroupSpec spec : groups) {
          ColumnRef resolved = availableColumns.get(spec.field());
@@ -1130,7 +1158,31 @@ public final class WorksheetMutationSupport {
             }
          }
 
+         // Bug #78839: AggregateInfo.addGroup(GroupRef) replaces an EQUAL group in place, and
+         // GroupRef equality is the group column's name only (AbstractDataRef.equals) --
+         // not its namedGroup, dateGroup or timeSeries. A second entry for the same column
+         // at the same level (plain + namedGroup, two named groups, the same dateLevel
+         // twice) would therefore silently overwrite the earlier one and the call would
+         // still report success. A flat worksheet group-by can't hold two group columns
+         // with one name, so refuse loudly instead (the native Group and Aggregate dialog
+         // rejects the same pairs). Different date levels on one column wrap distinct
+         // DateRangeRef columns (Year(d), Month(d)) and never reach this. Thrown inside
+         // the caller's snapshot scope, so every change made above is rolled back.
+         if(ainfo.containsGroup(gr)) {
+            GroupSpec earlier = addedGroupSpecs.get(addedGroupRefs.indexOf(gr));
+            throw new inetsoft.web.wiz.pairing.PairingException(
+               "groups lists column '" + spec.field() + "' twice at the same level (" +
+               describeGroupSpec(earlier) + " and " + describeGroupSpec(spec) +
+               "). A worksheet group-by holds one grouping per column per date level, so " +
+               "the later entry would silently replace the earlier one. Remove one of " +
+               "them. To group the same column two ways (e.g. raw and by a named group), " +
+               "first add a copy column with add_expression_column (expression " +
+               "field['" + spec.field() + "']) and group the copy. Nothing was changed.");
+         }
+
          ainfo.addGroup(gr);
+         addedGroupRefs.add(gr);
+         addedGroupSpecs.add(spec);
          activeGroupColumns.add(gr.getDataRef());
       }
 
