@@ -4629,13 +4629,25 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
+         // Worksheet.addAssembly replaces a same-kind assembly of this name and refuses another
+         // kind, so the name is checked here, before the source worksheet's copies are added.
+         WorksheetEditService.Editor.requireNoNameCollision(name, ws);
          WSAssembly[] created = AssetUtil.copyOuterAssemblies(
             assetRepository, entry, user, ws, new Point(25, 25));
          WSAssembly source = created[created.length - 1];
          WSAssembly mirror = AssetEventUtil.createMirrorAssembly(rws, source, name, entry);
          mirror.setPixelOffset(new Point(25, 25));
          AssetEventUtil.adjustAssemblyPosition(mirror, ws);
-         ws.addAssembly(mirror);
+
+         if(!ws.addAssembly(mirror)) {
+            for(WSAssembly copy : created) {
+               ws.removeAssembly(copy.getName());
+            }
+
+            throw new PairingException(
+               "The mirror \"" + name + "\" could not be added to the worksheet.");
+         }
+
          return null;
       });
    }
