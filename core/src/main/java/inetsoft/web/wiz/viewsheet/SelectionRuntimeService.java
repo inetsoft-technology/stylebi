@@ -75,12 +75,13 @@ import java.util.*;
  * {@code olist.findAll(search, true)} call runs afterwards, from {@code afterSelectionListUpdate},
  * and merges previously-selected-but-now-hidden values back in rather than filtering the new
  * request. So this class does the filtering itself, before ever calling {@code applySelection}:
- * when a search is active and the assembly is not single-select, {@link #setSelection(String,
+ * when a search is active, {@link #setSelection(String,
  * Principal, String, List, List, String, Boolean, Boolean, String, String) setSelection} drops any
- * requested value the search would hide (the same case-insensitive substring match
- * {@code SelectionValue.match}/{@code CompositeSelectionValue.match} give the widget's own search
- * box) and discloses exactly what was dropped, rather than a bare, unconditional claim that
- * scoping happened (bug-76854). {@code setSelection}'s {@code search} parameter can set the search
+ * requested value the search would hide (resolved in the same {@code findAll(search, false)} tree
+ * the widget renders, bug-78786) and discloses exactly what was dropped, rather than a bare,
+ * unconditional claim that scoping happened (bug-76854). Single-select assemblies, whole-tree or
+ * per level, are scoped too, and a single-select request the search empties changes nothing
+ * (bug-78785, bug-78795). {@code setSelection}'s {@code search} parameter can set the search
  * string before that same apply runs, the same as typing into the widget's own search box
  * (bug-76758). Either way, {@code setSearchString} writes both {@code search} and {@code search2},
  * only {@code search2} is persisted, and <b>nothing in the repository ever parses {@code search2}
@@ -340,6 +341,7 @@ public class SelectionRuntimeService {
          // What the search-merge in VSSelectionService.applySelection put back after a replace or
          // deselect (bug-78216), collected from whichever branches below run.
          final List<List<String>> retained = new ArrayList<>();
+         boolean applySkipped = false;
 
          // Snapshot for the single-select reselect report below: a single-select assembly cannot
          // stay empty, so the post-apply refresh re-selects its first value (bug-78717).
@@ -356,7 +358,7 @@ public class SelectionRuntimeService {
             String activeSearch = searchString(info);
             List<List<String>> effectiveValues = requested;
 
-            if(activeSearch != null && !activeSearch.isBlank() && !wholeTreeSingle) {
+            if(activeSearch != null && !activeSearch.isBlank()) {
                // Not a refusal: the apply is legitimate for whatever still matches, but
                // doApplySelection itself has no search-awareness at all -- it would otherwise
                // apply every requested value regardless of the active search (bug-76854). Filter
@@ -375,7 +377,20 @@ public class SelectionRuntimeService {
                }
             }
 
-            if(!wholeTreeSingle && isPathDiffable(assembly) && !Boolean.TRUE.equals(additive)) {
+            // A single-select request the search dropped entirely leaves the selection untouched:
+            // an empty APPLY is the clear-all signal, after which single-select re-selects its
+            // first value -- possibly the very value the search just dropped (bug-78785). An
+            // explicit values:[] is a real clear and is not skipped.
+            // Keyed on single, not wholeTreeSingle: a tree with single-select levels (which every
+            // non-ID single tree now is, the legacy all-levels one included) is no more able to
+            // pick a hidden value than a whole-tree single one, so a request the search empties is
+            // a no-op there too -- neither the replace-diff deselect below nor the apply runs
+            // (bug-78795).
+            final boolean skipApply = single && !values.isEmpty() && effectiveValues.isEmpty();
+
+            if(!skipApply && !wholeTreeSingle && isPathDiffable(assembly) &&
+               !Boolean.TRUE.equals(additive))
+            {
                // Multi-select apply is a delta patch -- doApplySelection only ever turns matched
                // values on, so anything currently selected but missing from the new values has to
                // be turned off explicitly, or it stays selected alongside them. Whole-tree
@@ -439,7 +454,7 @@ public class SelectionRuntimeService {
                                      effectiveValues),
                   user, dispatcher, linkUri);
             }
-            else if(!(Boolean.TRUE.equals(additive) && effectiveValues.isEmpty())) {
+            else if(!skipApply && !(Boolean.TRUE.equals(additive) && effectiveValues.isEmpty())) {
                // An empty APPLY is doApplySelection's clear-everything signal, so an additive call
                // that has nothing to add (values:[], or every value dropped by the search) must not
                // send one: "only add" is a no-op then, never a clear (bug-78718).
@@ -456,12 +471,13 @@ public class SelectionRuntimeService {
                result.put("prefixPathsCollapsed", collapsed);
             }
             requestedValues.addAll(effectiveValues);
+            applySkipped = skipApply;
 
             // A replace under an active search cannot clear a selected value the search hides:
             // VSSelectionService.applySelection adds every selected-but-filtered-out value back
             // (the filtered UI only sends the visible state). Measure what is left selected
             // after the apply rather than trusting the request (bug-78216).
-            if(isValueMatchable(assembly) && !Boolean.TRUE.equals(additive) &&
+            if(!skipApply && isValueMatchable(assembly) && !Boolean.TRUE.equals(additive) &&
                activeSearch != null && !activeSearch.isBlank())
             {
                SelectionList after = selectionListOf(assembly);
@@ -533,7 +549,7 @@ public class SelectionRuntimeService {
             }
          }
 
-         if(trackReselect) {
+         if(trackReselect && !applySkipped) {
             List<List<String>> reselected = reselectedBySetSelection(
                beforeSelected, unitIsId ? selectedNodeIds(assembly) : selectedPaths(assembly),
                requestedValues, deselect == null ? List.of() : deselect, values != null,
@@ -1824,25 +1840,36 @@ public class SelectionRuntimeService {
 
       return filterBySearch(domain.getSelectionValues(), paths, idMode, search);
    }
-
    /**
     * Split out from its {@code SelectionList} container so it is testable, the same reason
-    * {@link #findUnmatchedPaths(SelectionValue[], List, boolean)} is. Reuses that method's own
-    * path-resolution walk ({@link #matchesSearchPath}/{@link #matchesSearchAnywhere} mirror
-    * {@link #matchesPath}/{@link #missingIds}, substituting a search-match test for an
-    * existence test at the point a path resolves to a value) so the two checks -- does this value
-    * exist at all, does it match the active search -- stay in lockstep as the domain-walking logic
-    * evolves.
+    * {@link #findUnmatchedPaths(SelectionValue[], List, boolean)} is. A path is kept iff the
+    * widget would show it: the tree widget renders {@code findAll(search, false)}
+    * ({@code VSSelectionTreeModel}), where a node whose own label matches is shown with its whole
+    * subtree and any other node only through a matching descendant. So visibility is decided by
+    * resolving the path in that filtered tree with the same walks the existence check uses -- a
+    * non-ID path must resolve segment by segment, an ID-mode path must have every id present
+    * (bug-78786).
     */
    static List<List<String>> filterBySearch(SelectionValue[] domain, List<List<String>> paths,
                                             boolean idMode, String search)
    {
+      SelectionList all = new SelectionList();
+
+      if(domain != null) {
+         for(SelectionValue value : domain) {
+            if(value != null) {
+               all.addSelectionValue(value);
+            }
+         }
+      }
+
+      SelectionValue[] visible = all.findAll(search, false).getSelectionValues();
       List<List<String>> matching = new ArrayList<>();
 
       for(List<String> path : paths) {
          String[] segments = path.toArray(new String[0]);
-         boolean matches = idMode ? matchesSearchAnywhere(domain, segments, search)
-                                   : matchesSearchPath(domain, segments, 0, search);
+         boolean matches = segments.length > 0 &&
+            (idMode ? missingIds(visible, segments).isEmpty() : matchesPath(visible, segments, 0));
 
          if(matches) {
             matching.add(path);
@@ -1850,70 +1877,6 @@ public class SelectionRuntimeService {
       }
 
       return matching;
-   }
-
-   /**
-    * {@link #matchesPath} with a search-match test in place of the found/not-found test at the
-    * point a path resolves to a value -- {@code recursive=true} on that final
-    * {@code SelectionValue.match} call is what lets a whole parent node selected as a composite
-    * match via a matching descendant, the same recursive semantics
-    * {@code CompositeSelectionValue.match} gives the widget's own search box.
-    */
-   private static boolean matchesSearchPath(SelectionValue[] level, String[] path, int index,
-                                            String search)
-   {
-      if(level == null || index >= path.length) {
-         return false;
-      }
-
-      SelectionValue value = findByValue(level, path[index]);
-
-      if(value == null) {
-         return false;
-      }
-
-      if(index < path.length - 1) {
-         if(!(value instanceof CompositeSelectionValue composite)) {
-            return false;
-         }
-
-         SelectionList childList = composite.getSelectionList();
-         return matchesSearchPath(childList == null ? null : childList.getSelectionValues(), path,
-                                  index + 1, search);
-      }
-
-      return value.match(search, true);
-   }
-
-   /** The ID-mode set scan with a search-match test alongside the existence test. */
-   private static boolean matchesSearchAnywhere(SelectionValue[] level, String[] path,
-                                                String search)
-   {
-      if(level == null) {
-         return false;
-      }
-
-      for(SelectionValue value : level) {
-         if(value == null) {
-            continue;
-         }
-
-         if(Tool.contains(path, value.getValue(), true, true, true) && value.match(search, true)) {
-            return true;
-         }
-
-         if(value instanceof CompositeSelectionValue composite) {
-            SelectionList childList = composite.getSelectionList();
-
-            if(matchesSearchAnywhere(childList == null ? null : childList.getSelectionValues(),
-                                     path, search))
-            {
-               return true;
-            }
-         }
-      }
-
-      return false;
    }
 
    /**

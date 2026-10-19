@@ -26,13 +26,19 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.web.composer.tablestyle.TableStyleFormatModel;
 import inetsoft.web.composer.tablestyle.service.TableStyleService;
+import inetsoft.web.viewsheet.service.VSDialogService;
+import inetsoft.web.wiz.service.WizTableStylePreviewRenderer;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.ByteArrayInputStream;
+import java.awt.image.BufferedImage;
 import java.security.Principal;
+import java.util.Base64;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import javax.imageio.ImageIO;
 
 /**
  * Wraps StyleBI's Table Style asset (LibManager, AssetEntry.Type.TABLE_STYLE) -- a reusable,
@@ -67,11 +73,13 @@ import java.util.Objects;
 public class WizTableStyleController {
    public WizTableStyleController(LibManagerProvider libManagerProvider,
                                TableStyleService tableStyleService,
-                               SecurityEngine securityEngine)
+                               SecurityEngine securityEngine,
+                               WizTableStylePreviewRenderer previewRenderer)
    {
       this.libManagerProvider = libManagerProvider;
       this.tableStyleService = tableStyleService;
       this.securityEngine = securityEngine;
+      this.previewRenderer = previewRenderer;
    }
 
    public record TableStyleSummary(String styleId, String name, String folder) {}
@@ -89,6 +97,16 @@ public class WizTableStyleController {
 
    public record UpdateTableStyleRequest(String name, String folder, TableStyleFormatModel format,
                                          Boolean createFolders) {}
+
+   /**
+    * @param styleId a saved style to render; mutually exclusive with {@code format}.
+    * @param format  a COMPLETE unsaved format draft to render; mutually exclusive with
+    *                {@code styleId}.
+    */
+   public record PreviewTableStyleRequest(String styleId, TableStyleFormatModel format) {}
+
+   /** @param image the PNG, base64-encoded. */
+   public record TablePreview(String image, int width, int height) {}
 
    @GetMapping
    public List<TableStyleSummary> list(Principal principal) {
@@ -163,6 +181,44 @@ public class WizTableStyleController {
       tableStyleService.initTableStyle(style);
 
       return toDetail(style);
+   }
+
+   /**
+    * {@code preview_table_style}. Renders a saved style or an unsaved format draft over the same
+    * sample table the Composer's style editor uses, and persists nothing.
+    */
+   @PostMapping("/preview")
+   public TablePreview preview(@RequestBody PreviewTableStyleRequest request, Principal principal)
+      throws Exception
+   {
+      boolean hasId = request.styleId() != null && !request.styleId().isBlank();
+
+      if(hasId == (request.format() != null)) {
+         throw new IllegalArgumentException(
+            "preview_table_style requires exactly one of 'styleId' or 'format'.");
+      }
+
+      XTableStyle style;
+
+      if(hasId) {
+         LibManager lib = libManagerProvider.getManager(principal);
+         XTableStyle saved = requireExists(lib, request.styleId());
+         requirePermission(principal, saved.getName(), ResourceAction.READ);
+         style = saved.clone();
+         style.setTable(tableStyleService.getTableModel());
+         tableStyleService.initTableStyle(style);
+      }
+      else {
+         requireCompleteFormat(request.format());
+         style = new XTableStyle(tableStyleService.getTableModel());
+         tableStyleService.initTableStyle(style);
+         request.format().updateTableStyle(style);
+      }
+
+      byte[] png = previewRenderer.renderPng(style);
+      BufferedImage img = ImageIO.read(new ByteArrayInputStream(png));
+      return new TablePreview(Base64.getEncoder().encodeToString(png),
+                              img.getWidth(), img.getHeight());
    }
 
    @PostMapping
@@ -442,6 +498,13 @@ public class WizTableStyleController {
       XTableStyle style = lib.getTableStyle(styleId);
 
       if(style == null) {
+         if(VSDialogService.CROSSTAB_STYLE_ID.equals(styleId)) {
+            throw new IllegalArgumentException(
+               "'" + styleId + "' is a built-in table style, not a library style, so it cannot be " +
+               "read, edited, previewed or deleted. Apply it by writing it to an assembly's " +
+               "'tableStyle'.");
+         }
+
          throw new IllegalArgumentException(
             "No table style with styleId '" + styleId + "'. list_table_styles reports what exists.");
       }
@@ -475,7 +538,7 @@ public class WizTableStyleController {
     * and refused, so it can never be stored as an unlistable {@code "Bands~"}-style parent or
     * registered as an empty-named folder.
     */
-   private static String normalizeFolder(String folder) {
+   static String normalizeFolder(String folder) {
       String f = folder.trim();
 
       if(f.endsWith("/")) {
@@ -497,7 +560,7 @@ public class WizTableStyleController {
    }
 
    /** {@code null}/blank means the library root, {@code LibManager}'s own root sentinel. */
-   private static String toInternalFolder(String displayFolder) {
+   static String toInternalFolder(String displayFolder) {
       if(displayFolder == null || displayFolder.isBlank()) {
          return null;
       }
@@ -505,7 +568,7 @@ public class WizTableStyleController {
       return displayFolder.replace("/", LibManager.SEPARATOR);
    }
 
-   private static String toDisplayFolder(String internalFolder) {
+   static String toDisplayFolder(String internalFolder) {
       return internalFolder == null ? "" : internalFolder.replace(LibManager.SEPARATOR, "/");
    }
 
@@ -552,4 +615,5 @@ public class WizTableStyleController {
    private final LibManagerProvider libManagerProvider;
    private final TableStyleService tableStyleService;
    private final SecurityEngine securityEngine;
+   private final WizTableStylePreviewRenderer previewRenderer;
 }

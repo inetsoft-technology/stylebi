@@ -18,7 +18,10 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
+import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleManager;
@@ -46,10 +49,12 @@ import org.mockito.MockedStatic;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
@@ -272,6 +277,29 @@ class FolderNameSeparatorTest {
 
       assertInvalidName(result);
       verifyNoInteractions(libs);
+   }
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void composerRenameTableStyleFolderRenamesItsStylesAndSaves() throws Exception {
+      AssetEntry folder = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.TABLE_STYLE_FOLDER, "Table Style/S78794a", null, orgId);
+      folder.setProperty("folder", "S78794a");
+      XTableStyle style = new XTableStyle(new DefaultTableLens());
+      style.setID("78794");
+      style.setName("S78794a~Bands");
+      LibManager lib = mock(LibManager.class);
+      when(lib.getTableStyles("S78794a")).thenReturn(new XTableStyle[] { style });
+      when(lib.getTableStyleFolders("S78794a")).thenReturn(new String[0]);
+      LibManagerProvider libs = mock(LibManagerProvider.class);
+      when(libs.getManager(any(Principal.class))).thenReturn(lib);
+
+      allowAll(() -> renameController(mock(AssetRepository.class), libs)
+         .renameAsset(renameAssetEvent(folder, "R78794a"), admin()));
+
+      verify(lib).renameTableStyle("S78794a~Bands", "R78794a~Bands", "78794");
+      verify(lib).renameTableStyleFolder("S78794a", "R78794a");
+      verify(lib).save();
    }
 
    @Test

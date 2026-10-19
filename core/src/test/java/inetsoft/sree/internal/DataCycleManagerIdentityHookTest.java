@@ -290,7 +290,9 @@ class DataCycleManagerIdentityHookTest {
       builder = b.setup();
    }
 
-   private void seed(String org, String cycle, String list, boolean notify) {
+   private void seed(String org, String cycle, String list, boolean notify)
+      throws Exception
+   {
       DataCycleManager.CycleInfo info = new DataCycleManager.CycleInfo(cycle, org);
       info.setStartNotify(notify);
       info.setStartEmail(list);

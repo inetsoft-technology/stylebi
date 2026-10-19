@@ -2158,7 +2158,15 @@ public class UserTreeService {
             storage.migrateStorageData(oldID, newID, Identity.USER);
             mvManager.migrateUserAssetsMV(oldID, newID);
             mvManager.updateMVUser(oldID, newID);
-            cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
+            // the user is already renamed, so a data cycle store failure must not skip the
+            // remaining migration steps
+            try {
+               cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
+            }
+            catch(Exception e) {
+               LOG.error("Failed to update data cycle notification for renamed user {}", oldID, e);
+            }
+
             this.dependencyStorageService.migrateStorageData(oldID, newID);
             recycleBin.renameUser(oldID, newID);
             return null;

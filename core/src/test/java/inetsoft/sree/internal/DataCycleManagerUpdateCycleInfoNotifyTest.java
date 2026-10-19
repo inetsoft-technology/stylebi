@@ -196,7 +196,7 @@ class DataCycleManagerUpdateCycleInfoNotifyTest {
       verify(spy, times(1)).save();
    }
 
-   private void seed(String orgId, DataCycleManager.CycleInfo info) {
+   private void seed(String orgId, DataCycleManager.CycleInfo info) throws Exception {
       dataCycleManager.addCondition(info.getName(), orgId, TimeCondition.at(1, 0, 0));
       dataCycleManager.setCycleInfo(info.getName(), orgId, info);
    }

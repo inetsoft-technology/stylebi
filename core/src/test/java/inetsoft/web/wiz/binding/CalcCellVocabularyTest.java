@@ -383,6 +383,84 @@ class CalcCellVocabularyTest {
       assertTrue(thrown.getMessage().contains("column"));
    }
 
+   // ── unknown keys inside field / sort / topn / rankBy ─────────────────────────
+
+   private static Map<String, Object> rankBy() {
+      return spec("column", "Revenue", "formula", "Sum");
+   }
+
+   private static void assertRefusesNestedKey(String path, String key, Map<String, Object> cell) {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> CalcCellVocabulary.validate(cell));
+      assertTrue(e.getMessage().contains("'" + path + "' carries '" + key + "'"), e.getMessage());
+      assertTrue(e.getMessage().contains("Recognized keys:"), e.getMessage());
+      assertTrue(e.getMessage().contains("Nothing was changed."), e.getMessage());
+   }
+
+   @Test
+   void refusesAnUnknownKeyInsideField() {
+      assertRefusesNestedKey("field", "dateLevle", spec(
+         "content", "column", "field", spec("column", "Region", "type", "string", "dateLevle", "Month")));
+   }
+
+   @Test
+   void refusesAnUnknownKeyInsideSort() {
+      assertRefusesNestedKey("sort", "manualOrdr", spec(
+         "content", "text", "value", "x", "sort", spec("direction", "asc", "manualOrdr", List.of("a"))));
+   }
+
+   @Test
+   void refusesAnUnknownKeyInsideTopn() {
+      assertRefusesNestedKey("topn", "count", spec(
+         "content", "text", "value", "x", "topn", spec("mode", "top", "count", 5)));
+   }
+
+   @Test
+   void refusesAnUnknownKeyInsideSortRankBy() {
+      Map<String, Object> rank = rankBy();
+      rank.put("bogus", 1);
+      assertRefusesNestedKey("sort.rankBy", "bogus", spec(
+         "content", "text", "value", "x", "sort", spec("direction", "value_desc", "rankBy", rank)));
+   }
+
+   @Test
+   void refusesAnUnknownKeyInsideTopnRankBy() {
+      Map<String, Object> rank = rankBy();
+      rank.put("bogus", 1);
+      assertRefusesNestedKey("topn.rankBy", "bogus", spec(
+         "content", "text", "value", "x", "topn", spec("mode", "top", "n", 3, "rankBy", rank)));
+   }
+
+   @Test
+   void acceptsEveryRecognizedFieldKey() {
+      assertDoesNotThrow(() -> CalcCellVocabulary.validate(spec(
+         "content", "column",
+         "field", spec("column", "Date", "type", "date", "dateLevel", "Month",
+                       "dateInterval", 1, "namedGroup", "MyGroup"))));
+   }
+
+   @Test
+   void acceptsTheSortAndTopnShapesDescribeReadsBack() {
+      // value_desc with rankBy, manual order, topn none, topn top with rankBy
+      for(Map<String, Object> sort : List.of(
+         spec("direction", "value_desc", "rankBy", rankBy()),
+         spec("direction", "manual", "manualOrder", List.of("a", "b")),
+         spec("direction", "asc")))
+      {
+         assertDoesNotThrow(() -> CalcCellVocabulary.validate(
+            spec("content", "text", "value", "x", "sort", sort)), sort.toString());
+      }
+
+      for(Map<String, Object> topn : List.of(
+         spec("mode", "none"),
+         spec("mode", "top", "n", 5, "rankBy", rankBy()),
+         spec("mode", "bottom", "n", 5, "rankBy", rankBy())))
+      {
+         assertDoesNotThrow(() -> CalcCellVocabulary.validate(
+            spec("content", "text", "value", "x", "topn", topn)), topn.toString());
+      }
+   }
+
    // ── field.namedGroup inline ('Customize') shape ──────────────────────────────
    //
    // Checked eagerly in validate() (before sessions.mutate opens a checkpoint the caller then

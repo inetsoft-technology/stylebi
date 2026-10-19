@@ -42,11 +42,13 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -103,9 +105,17 @@ class SelectionRuntimeServicePerLevelReplaceTest {
 
    /** Single-select on, only State (level 1) stored as single, levels edited one by one. */
    private static SelectionRuntimeServiceTest.Harness stateSingle(SelectionList domain) {
+      return stateSingle(domain, null);
+   }
+
+   /** {@link #stateSingle(SelectionList)} with {@code search} already in the search box. */
+   private static SelectionRuntimeServiceTest.Harness stateSingle(SelectionList domain,
+                                                                  String search)
+   {
       SelectionTreeVSAssembly assembly =
          SelectionRuntimeServiceTest.tree(XConstants.SORT_ASC, true);
       SelectionTreeVSAssemblyInfo info = assembly.getSelectionTreeInfo();
+      when(info.getSearchString()).thenReturn(search);
       when(info.getStoredSingleSelectionLevels()).thenReturn(List.of(1));
       when(info.isMixedSingleSelection()).thenReturn(true);
       when(info.getLevelNames()).thenReturn(List.of("Region", "State", "City"));
@@ -195,5 +205,76 @@ class SelectionRuntimeServicePerLevelReplaceTest {
       List<ApplySelectionListEvent> events = sent(h);
       assertEquals(List.of(List.of("USA East", "NY")),
                    paths(events.get(events.size() - 1), true));
+   }
+
+   // ── per-level tree under an active search (bug-78795 x bug-78785 / bug-78786) ──
+
+   /**
+    * (d) A request the search hides entirely changes nothing on a per-level tree either: no
+    * replace-diff deselect and no (clear-all) empty apply, the bug-78785 guarantee for
+    * single-select, which a tree with single-select levels still is.
+    */
+   @Test
+   void searchThatHidesEveryRequestedPathLeavesAPerLevelTreeUntouched() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = stateSingle(geo(false), "Boston");
+
+      Map<String, Object> result = set(h, List.of(List.of("USA West", "CA")));
+
+      verifyNoInteractions(h.selections());
+      assertEquals("Boston", result.get("scopedBySearch"));
+      assertEquals(List.of(List.of("USA West", "CA")), result.get("scopedBySearchDropped"));
+      assertEquals(0, result.get("valuesSelected"));
+      assertFalse(result.containsKey("reselectedBySingleSelect"), result.toString());
+   }
+
+   /** (e) A partly hidden request applies what the search shows and still replaces. */
+   @Test
+   void searchDropsTheHiddenPathAndAppliesTheVisibleOne() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = stateSingle(geo(false), "MA");
+
+      Map<String, Object> result =
+         set(h, List.of(List.of("USA East", "MA"), List.of("USA West", "CA")));
+
+      assertEquals(List.of(List.of("USA West", "CA")), result.get("scopedBySearchDropped"));
+      assertEquals(1, result.get("valuesSelected"));
+      List<ApplySelectionListEvent> events = sent(h);
+      assertEquals(2, events.size(), "a deselect, then the apply");
+      assertTrue(covers(paths(events.get(0), false), List.of("USA East", "NY")));
+      assertEquals(List.of(List.of("USA East", "MA")), paths(events.get(1), true));
+   }
+
+   /**
+    * (f) bug-78786's ancestor rule holds on a per-level tree: "East" matches the Region, so the
+    * widget shows its whole subtree and East/NY is selectable.
+    */
+   @Test
+   void pathUnderAMatchingRegionIsKept() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = stateSingle(geo(false), "East");
+
+      Map<String, Object> result = set(h, List.of(List.of("USA East", "NY")));
+
+      assertFalse(result.containsKey("scopedBySearchDropped"), result.toString());
+      assertEquals(1, result.get("valuesSelected"));
+      List<ApplySelectionListEvent> events = sent(h);
+      assertEquals(List.of(List.of("USA East", "NY")),
+                   paths(events.get(events.size() - 1), true));
+   }
+
+   /**
+    * (g) The prefix is folded before the search runs: [USA East] means East > NY here, which "MA"
+    * hides, so both go and nothing is written. Applying [USA East] alone instead would let the
+    * runtime extend it into a State the search hides (review m5).
+    */
+   @Test
+   void collapsedPrefixFollowsItsLongerPathOutOfTheSearch() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = stateSingle(geo(false), "MA");
+
+      Map<String, Object> result =
+         set(h, List.of(List.of("USA East"), List.of("USA East", "NY")));
+
+      verifyNoInteractions(h.selections());
+      assertEquals(List.of(List.of("USA East")), result.get("prefixPathsCollapsed"));
+      assertEquals(List.of(List.of("USA East", "NY")), result.get("scopedBySearchDropped"));
+      assertEquals(0, result.get("valuesSelected"));
    }
 }
