@@ -26,6 +26,7 @@ import inetsoft.util.db.DBConnectionPool;
 import java.sql.*;
 import java.util.*;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Shared set-up of the database provider cache tests: an in-memory Derby database read through
@@ -105,10 +106,10 @@ public final class DatabaseCacheTestSupport {
       try {
          SecurityProvider root = SecurityEngine.getSecurity().getSecurityProvider();
 
+         // also stops the chain listening to authc-chain.json, so that the next test's writes
+         // don't reload it while the next engine init tears it down
          if(root != null && root.getAuthenticationProvider() instanceof AuthenticationChain chain) {
-            for(AuthenticationProvider p : chain.getProviders()) {
-               p.tearDown();
-            }
+            chain.tearDown();
          }
       }
       catch(Exception ignore) {
@@ -168,6 +169,18 @@ public final class DatabaseCacheTestSupport {
     * Creates a provider over the test database.
     */
    public DatabaseAuthenticationProvider provider(String name, String userListQuery) {
+      return provider(name, userListQuery, p -> { });
+   }
+
+   /**
+    * Creates a provider over the test database.
+    *
+    * @param configure changes the configuration before the provider is named, as the EM does:
+    *                  a named provider refreshes its cache on every setter.
+    */
+   public DatabaseAuthenticationProvider provider(String name, String userListQuery,
+                                                  Consumer<DatabaseAuthenticationProvider> configure)
+   {
       DatabaseAuthenticationProvider p = new SeamProvider();
       p.setDriver(DRIVER);
       p.setUrl(url);
@@ -181,10 +194,15 @@ public final class DatabaseCacheTestSupport {
       p.setGroupListQuery("SELECT GROUP_NAME FROM G");
       p.setGroupUsersQuery("SELECT USER_NAME FROM GU WHERE GROUP_NAME = ?");
       p.setSystemAdministratorRoles(new String[0]);
+      configure.accept(p);
       p.setProviderName(name);
       created.add(p);
       names.add(name);
       return p;
+   }
+
+   public String getUrl() {
+      return url;
    }
 
    public void exec(String... sql) throws Exception {

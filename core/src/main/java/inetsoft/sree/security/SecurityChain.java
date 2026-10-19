@@ -161,6 +161,8 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
       String configFile = getConfigFile();
       boolean exists = dataSpace.exists(null, configFile);
       long now = exists ? dataSpace.getLastModified(null, configFile) : 1;
+      Map<String, String> reloadedFrom = null;
+      List<T> reloaded = null;
 
       if(timestamp < now) {
          lock.lock();
@@ -254,9 +256,18 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
                                  failureCount, list.size() + failureCount, configFile);
                            }
 
+                           // the first load on this node replaces nothing, so it is not a reload
+                           boolean initial = timestamp == 0L;
                            timestamp = dataSpace.getLastModified(null, configFile);
+                           Map<String, String> before =
+                              initial ? null : describeProviders(getProviderList());
                            clear();
                            setProviderList(list);
+
+                           if(!initial) {
+                              reloadedFrom = before;
+                              reloaded = list;
+                           }
                         }
                      }
                   }
@@ -266,7 +277,39 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
          finally {
             lock.unlock();
          }
+
+         if(reloaded != null) {
+            try {
+               providersReloaded(reloadedFrom, reloaded);
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to handle the reloaded security providers", e);
+            }
+         }
       }
+   }
+
+   /**
+    * Describes the providers that a reload of the configuration file is about to replace, for
+    * {@link #providersReloaded(Map, List)}.
+    *
+    * @param list the current providers.
+    *
+    * @return the names of the providers mapped to a description of their configuration.
+    */
+   Map<String, String> describeProviders(List<T> list) {
+      return Collections.emptyMap();
+   }
+
+   /**
+    * Called after this node replaced its providers with the ones in a configuration file that
+    * another node changed, outside the configuration lock. It is not called on the initial load
+    * or for a change saved by this chain.
+    *
+    * @param before the description of the replaced providers.
+    * @param list   the new providers.
+    */
+   void providersReloaded(Map<String, String> before, List<T> list) {
    }
 
    /**

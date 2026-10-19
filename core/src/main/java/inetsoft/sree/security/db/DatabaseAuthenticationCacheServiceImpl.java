@@ -74,6 +74,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
       this.executor = Executors.newScheduledThreadPool(2, r ->
          new Thread(r, "DatabaseAuthenticationCache"));
       this.zeroSince = cluster.getLong(prefix + ".zeroSince");
+      this.refreshSeq = cluster.getLong(prefix + ".refreshSeq");
 
       // Schedule periodic cleanup check
       executor.scheduleAtFixedRate(
@@ -193,6 +194,9 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
    }
 
    public void refresh() {
+      // a load that is running when this is called may have resolved an older provider, so it
+      // sees the change and loads once more when it ends
+      refreshSeq.incrementAndGet();
       executor.submit(() -> loadInternal(false));
    }
 
@@ -304,6 +308,10 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          if(clientCount != null) {
             cluster.destroyLong(prefix + ".clientCount");
          }
+
+         if(refreshSeq != null) {
+            cluster.destroyLong(prefix + ".refreshSeq");
+         }
       }
    }
 
@@ -320,6 +328,8 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          return;
       }
 
+      // read before the provider is resolved: a refresh requested after this point is run again
+      long seqAtStart = refreshSeq.get();
       DatabaseAuthenticationProvider current = null;
 
       try {
@@ -463,6 +473,17 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
       finally {
          // the periodic reload is rescheduled by scheduledReload(), whatever happened here
          loadingCount.set(0);
+
+         // A refresh that arrived while this load ran lost the load lock, and this load may have
+         // used the configuration from before it: load once more.
+         if(!cancelled.get() && refreshSeq.get() != seqAtStart) {
+            try {
+               executor.submit(() -> loadInternal(false));
+            }
+            catch(RejectedExecutionException ignore) {
+               // cancelled
+            }
+         }
       }
    }
 
@@ -618,6 +639,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
    private transient AtomicBoolean cancelled;
    private transient DistributedLong clientCount;
    private transient DistributedLong zeroSince;
+   private transient DistributedLong refreshSeq;
    private transient ScheduledExecutorService executor;
 
    private static final Logger LOG =

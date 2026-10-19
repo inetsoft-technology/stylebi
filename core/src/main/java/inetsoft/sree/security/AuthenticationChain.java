@@ -17,8 +17,11 @@
  */
 package inetsoft.sree.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.uql.util.Identity;
 import inetsoft.web.admin.security.AuthenticationProvidersChanged;
 import org.slf4j.Logger;
@@ -362,6 +365,84 @@ public class AuthenticationChain
    @Override
    void dispose(AuthenticationProvider provider) {
       provider.tearDown();
+   }
+
+   @Override
+   Map<String, String> describeProviders(List<AuthenticationProvider> list) {
+      Map<String, String> result = new HashMap<>();
+
+      for(AuthenticationProvider provider : list) {
+         if(provider instanceof DatabaseAuthenticationProvider db) {
+            result.put(db.getProviderName(), describeCacheConfiguration(db));
+         }
+      }
+
+      return result;
+   }
+
+   /**
+    * Refreshes the cluster cache of each Database provider whose configuration the reload
+    * added or changed. The cache state of a provider name outlives a removed provider, and on
+    * the singleton host this refresh is the first one that runs after the host's chain has the
+    * new configuration, so it loads that configuration (Bug #78793).
+    */
+   @Override
+   void providersReloaded(Map<String, String> before, List<AuthenticationProvider> list) {
+      for(AuthenticationProvider provider : list) {
+         if(provider instanceof DatabaseAuthenticationProvider db && db.isCacheEnabled()) {
+            String old = before.get(db.getProviderName());
+
+            if(old == null || !old.equals(describeCacheConfiguration(db))) {
+               try {
+                  db.clearCache();
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to refresh the cache of security provider {}",
+                           db.getProviderName(), e);
+               }
+            }
+         }
+      }
+   }
+
+   /**
+    * Describes the configuration that a Database provider loads its cache with, for comparing
+    * the same provider name before and after a reload on this node. The encrypted credential is
+    * replaced by its non-secret part: it is encrypted with a random IV, so it differs on every
+    * write, and a password change doesn't change the data the cache loads. Null values are
+    * written as empty strings, as a provider read from the file has them.
+    *
+    * @return the description, or {@code null} if the configuration could not be written.
+    */
+   private static String describeCacheConfiguration(DatabaseAuthenticationProvider provider) {
+      try {
+         ObjectNode config = (ObjectNode) provider.writeConfiguration(new ObjectMapper());
+         String login = "";
+
+         if(provider.isRequiresLogin()) {
+            login = provider.isUseCredential() ?
+               "secret:" + provider.getSecretId() :
+               "user:" + Objects.toString(provider.getDbUser(), "");
+         }
+
+         config.put("credential", login);
+         List<String> nulls = new ArrayList<>();
+         config.fields().forEachRemaining(e -> {
+            if(e.getValue().isNull()) {
+               nulls.add(e.getKey());
+            }
+         });
+
+         for(String field : nulls) {
+            config.put(field, "");
+         }
+
+         return provider.getClass().getName() + ":" + config;
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to describe security provider {}", provider.getProviderName(), e);
+         return null;
+      }
    }
 
    @Override

@@ -128,6 +128,94 @@ class DatabaseAuthenticationCacheIgniteTest {
       assertSame(CHAINS.get(survivor.name()).get(), boundProvider(redeployed));
    }
 
+   /**
+    * Bug #78793: the provider is removed and added again on a node that is not the host, while
+    * the host's chain still lacks it. The refresh the host issues after its own chain reload
+    * loads the new configuration. The reload hook is emulated on each node by the calls it
+    * makes: the new instance's cache connects, then refreshes.
+    */
+   @Test
+   void reAddOnANonHostNodeIsLoadedByTheHostsRefresh(@TempDir Path dir) throws Exception {
+      String name = "ignite78793a";
+      Ignite a = startNode(dir, "a", 0);
+      Ignite b = startNode(dir, "b", 1);
+      setChain(a, support.provider(name, NO_ALICE));
+      setChain(b, support.provider(name, NO_ALICE));
+      deploy(a, name);
+      Ignite host = host(name, a, b);
+      Ignite saver = host == a ? b : a;
+      DatabaseAuthenticationCacheService saverProxy = proxy(saver, name);
+      DatabaseAuthenticationCacheService hostProxy = proxy(host, name);
+      saverProxy.connect();
+      hostProxy.connect();
+      saverProxy.load();
+      assertTrue(await(saverProxy::isInitialized, 10_000));
+      assertFalse(cachedAlice(name));
+
+      // removed on every node
+      setChain(saver, null);
+      saverProxy.disconnect();
+      setChain(host, null);
+      hostProxy.disconnect();
+
+      // added again on the saving node; the host's chain lags, so the connect fails there
+      setChain(saver, support.provider(name, ALL_USERS));
+      assertThrows(Exception.class, saverProxy::connect);
+      long loaded = clusterLong(name, "lastLoadTime");
+      Thread.sleep(1_000);
+      assertFalse(cachedAlice(name));
+      assertEquals(loaded, clusterLong(name, "lastLoadTime"));
+
+      // the host reloads last: its chain gets the provider, then the hook refreshes
+      setChain(host, support.provider(name, ALL_USERS));
+      hostProxy.connect();
+      hostProxy.refresh();
+      assertTrue(await(() -> cachedAlice(name), 10_000), "the new configuration was not loaded");
+
+      // the saving node's backoff retry connects and finds the cache loaded
+      saverProxy.connect();
+      assertTrue(saverProxy.isInitialized());
+      long converged = clusterLong(name, "lastLoadTime");
+      Thread.sleep(2_000);
+      assertEquals(converged, clusterLong(name, "lastLoadTime"), "loads after convergence");
+      assertEquals(0L, clusterLong(name, "loadingCount"));
+   }
+
+   /**
+    * Bug #78793: an edit saved on a node that is not the host. The saving node's refresh loads
+    * the host's old instance (slowly), and the host's own refresh arrives during that load; the
+    * re-run after the stale load loads the new configuration.
+    */
+   @Test
+   void editOnANonHostNodeWithAStaleLoadInFlight(@TempDir Path dir) throws Exception {
+      String name = "ignite78793b";
+      Ignite a = startNode(dir, "a", 0);
+      Ignite b = startNode(dir, "b", 1);
+      setChain(a, support.provider(name, NO_ALICE_SLOW));
+      setChain(b, support.provider(name, NO_ALICE_SLOW));
+      deploy(a, name);
+      Ignite host = host(name, a, b);
+      Ignite saver = host == a ? b : a;
+      DatabaseAuthenticationCacheService saverProxy = proxy(saver, name);
+      DatabaseAuthenticationCacheService hostProxy = proxy(host, name);
+      saverProxy.connect();
+      hostProxy.connect();
+      saverProxy.load();
+      assertTrue(await(saverProxy::isInitialized, 10_000));
+
+      // the saving node's edit refreshes while the host still has the old, slow instance
+      setChain(saver, support.provider(name, ALL_USERS));
+      slowLoad = true;
+      saverProxy.refresh();
+      assertTrue(await(() -> clusterLong(name, "loadingCount") == 1L, 5_000));
+
+      // the host reloads its chain and refreshes during the stale load
+      setChain(host, support.provider(name, ALL_USERS));
+      hostProxy.refresh();
+      assertEquals(1L, clusterLong(name, "loadingCount"), "the stale load is still running");
+      assertTrue(await(() -> cachedAlice(name), 10_000), "the new configuration was not loaded");
+   }
+
    private void deploy(Ignite node, String name) {
       bare(node).getSingletonService("DatabaseSecurity:" + name,
                                      DatabaseAuthenticationCacheService.class,
