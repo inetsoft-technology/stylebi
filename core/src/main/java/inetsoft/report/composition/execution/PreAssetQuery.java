@@ -3694,7 +3694,8 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          formula == AggregateFormula.NTH_LARGEST ||
          formula == AggregateFormula.NTH_SMALLEST ||
          formula == AggregateFormula.NTH_MOST_FREQUENT ||
-         formula == AggregateFormula.PTH_PERCENTILE)
+         formula == AggregateFormula.PTH_PERCENTILE ||
+         formula.isTwoColumns())
       {
          return false;
       }
