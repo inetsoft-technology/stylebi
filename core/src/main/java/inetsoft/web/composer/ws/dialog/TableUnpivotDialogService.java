@@ -115,7 +115,9 @@ public class TableUnpivotDialogService extends WorksheetControllerService {
       }
 
       TableAssembly src = table.getTableAssembly();
-      int colCount = src == null ? 0 : src.getColumnSelection(false).getAttributeCount();
+      // The melt runs over the source's visible columns, a hidden one never reaches it.
+      ColumnSelection melted = src == null ? new ColumnSelection() : src.getColumnSelection(true);
+      int colCount = melted.getAttributeCount();
 
       // Same bound check as the agent API's editUnpivot (bug 76517/WBS-036). Unlike editUnpivot,
       // this Composer UI call site had no validation on the level value it receives from
@@ -132,9 +134,12 @@ public class TableUnpivotDialogService extends WorksheetControllerService {
       // column count moves a column into the melted range, and AssetUtil.unpivot has no way to
       // reject an incompatible move -- it silently coerces the melted column to STRING and
       // injects one phantom "column name as data" row per source row.
-      if(newHeaderColumns < oldHeaderColumns && src != null) {
+      // The runtime clamps the stored header count to the visible columns (AssetUtil.unpivot).
+      int effectiveOld = Math.min(oldHeaderColumns, colCount - 1);
+
+      if(newHeaderColumns < effectiveOld && src != null) {
          String conflict = AssetUtil.checkUnpivotShrinkTypeConflict(
-            src.getColumnSelection(false), oldHeaderColumns, newHeaderColumns);
+            melted, effectiveOld, newHeaderColumns);
 
          if(conflict != null) {
             throw new MessageException(conflict);
