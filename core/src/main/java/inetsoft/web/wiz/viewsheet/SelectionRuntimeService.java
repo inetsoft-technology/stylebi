@@ -664,9 +664,14 @@ public class SelectionRuntimeService {
                // value back with selected=false. There is no single clear endpoint for one
                // assembly. Cleared via deselectTargets (not the leaf paths directly) for the
                // same reason set_selection's own diff-deselect does -- see that javadoc.
-               selections.applySelection(runtimeId, assemblyName,
-                                         deselectEvent(deselectTargets(current, current)), user,
-                                         dispatcher, linkUri);
+               List<List<String>> targets = deselectTargets(current,
+                  visibleWhenSearching(assembly, current));
+
+               if(!targets.isEmpty()) {
+                  selections.applySelection(runtimeId, assemblyName, deselectEvent(targets), user,
+                                            dispatcher, linkUri);
+               }
+
                reportRetainedAfterClear(result, assembly, current, selectedPaths(assembly), false);
             }
          }
@@ -717,6 +722,26 @@ public class SelectionRuntimeService {
                     retainedSelection(live == null ? null : live.getSelectionValues(),
                                       List.of(), idMode));
       }
+   }
+
+   /**
+    * The {@code selected} paths of a non-ID selection tree that its active search still shows, so
+    * a clear removes what the widget shows and leaves the search-hidden selection alone
+    * (bug-78787). Resolved against the same {@code findAll(search,false)} tree as
+    * {@link #filterBySearch}. Every other assembly, or no search, returns {@code selected}.
+    */
+   private static List<List<String>> visibleWhenSearching(SelectionVSAssembly assembly,
+                                                          List<List<String>> selected)
+   {
+      String search = searchString((SelectionVSAssemblyInfo) assembly.getInfo());
+
+      if(!(assembly instanceof SelectionTreeVSAssembly tree) || tree.isIDMode() ||
+         search == null || search.isBlank())
+      {
+         return selected;
+      }
+
+      return filterBySearch(selectionListOf(assembly), selected, false, search);
    }
 
    /** How many of the {@code before} values are no longer selected, by identity. */
@@ -952,8 +977,24 @@ public class SelectionRuntimeService {
          List<List<String>> wholeBefore = select ? List.of() :
             tree.isIDMode() ? selectedNodeIds(assembly) : selectedPaths(assembly);
 
-         // selectSubtree NPEs on an unknown name and CCEs on a non-tree; both are refused above.
-         selections.selectSubtree(runtimeId, assemblyName, event, user, dispatcher, linkUri);
+         String subtreeSearch = searchString((SelectionVSAssemblyInfo) tree.getInfo());
+
+         if(!select && !tree.isIDMode() && subtreeSearch != null && !subtreeSearch.isBlank()) {
+            // selectSubtree clears the whole subtree, hidden nodes included, and then relies on a
+            // merge-back that loses a search-hidden selection sharing a top-level ancestor with a
+            // visible match (bug-78787). Like the widget, send only the visible selected values.
+            List<List<String>> targets = deselectTargets(wholeBefore,
+                                                         visibleWhenSearching(assembly, before));
+
+            if(!targets.isEmpty()) {
+               selections.applySelection(runtimeId, assemblyName, deselectEvent(targets), user,
+                                         dispatcher, linkUri);
+            }
+         }
+         else {
+            // selectSubtree NPEs on an unknown name and CCEs on a non-tree; both are refused above.
+            selections.selectSubtree(runtimeId, assemblyName, event, user, dispatcher, linkUri);
+         }
 
          if(!select) {
             reportSubtreeClear(result, assembly, path, before, wholeBefore, tree.isIDMode());

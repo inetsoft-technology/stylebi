@@ -178,6 +178,24 @@ class VSSelectionServiceTreeClearTest {
       assertEquals(Set.of(year2), selected("ST1"));
    }
 
+   /**
+    * Bug #78787: with a search showing only name1a, deselecting just that visible leaf (what the
+    * wiz clear now sends) keeps the search-hidden name1b selected.
+    */
+   @Test
+   void deselectingTheVisibleLeafUnderASearchKeepsTheHiddenSibling() throws Exception {
+      init("ST1");
+      Assumptions.assumeFalse(name1b.toLowerCase().contains(name1a.toLowerCase()));
+
+      apply("ST1", true, path(year1, name1a), path(year1, name1b));
+      ((SelectionTreeVSAssembly) vs.getAssembly("ST1")).getSelectionTreeInfo()
+         .setSearchString(name1a);
+
+      apply("ST1", false, path(year1, name1a));
+
+      assertEquals(Set.of(year1, year1 + "/" + name1b), selected("ST1"));
+   }
+
    private void init(String... trees) throws Exception {
       RuntimeViewsheet rvs = vsResource.getRuntimeViewsheet();
       ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
