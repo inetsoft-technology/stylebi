@@ -41,6 +41,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Resolves a requested list of data-source changes into a {@link ResolvedPlan} and hashes it --
@@ -664,10 +665,15 @@ public class DataSourceChangePlanService {
    }
 
    private static void requireNotMaskingLiteral(String field, String value) {
-      if(WRAPPED_API_MASK.equals(value) || Util.PLACEHOLDER_PASSWORD.equals(value)) {
+      // Bug #78818: an agent echoing a mask may pad it or miscount the asterisks, so refuse any
+      // value made only of asterisks once surrounding whitespace/format characters are ignored.
+      // The pattern is only a test -- the caller stores the raw value unchanged.
+      if(value != null && MASK_LIKE_PASSWORD.matcher(value).matches()) {
          throw new IllegalArgumentException(
             field + ": looks like a masked placeholder, not a real value -- omit this field to " +
-            "leave the password unchanged, or supply the real new password to rotate it");
+            "leave the password unchanged, or supply the real new password to rotate it. A value " +
+            "made only of asterisks (ignoring surrounding whitespace) is treated as a mask and " +
+            "refused here; set such a password in Enterprise Manager");
       }
    }
 
@@ -902,6 +908,13 @@ public class DataSourceChangePlanService {
    /** The wrapped Public API's own masking literal (section 0.1/9) -- six characters, distinct
     * from {@link Util#PLACEHOLDER_PASSWORD}'s ten. Refused as input the same as the latter. */
    private static final String WRAPPED_API_MASK = "******";
+   /** Matches {@link #WRAPPED_API_MASK}, {@link Util#PLACEHOLDER_PASSWORD}, and any other run of
+    * asterisks with only leading/trailing whitespace or format characters around it. Java's
+    * {@code \s} is ASCII-only, so {@code \p{Z}} (NBSP and other Unicode spaces) and {@code \p{Cf}}
+    * (U+FEFF, zero-width characters) are listed explicitly; this is the same character set as the
+    * stylebi-wiz plugin's {@code /[\s\p{Cf}]/u}. */
+   private static final Pattern MASK_LIKE_PASSWORD =
+      Pattern.compile("^[\\s\\p{Z}\\p{Cf}]*\\*+[\\s\\p{Z}\\p{Cf}]*$");
    private static final List<String> TABLE_NAME_OPTIONS = List.of(
       JdbcDataSourceProperties.CATALOG_SCHEMA_OPTION, JdbcDataSourceProperties.SCHEMA_OPTION,
       JdbcDataSourceProperties.TABLE_OPTION, JdbcDataSourceProperties.DEFAULT_OPTION);
