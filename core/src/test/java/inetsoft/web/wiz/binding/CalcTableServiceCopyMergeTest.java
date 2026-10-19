@@ -326,6 +326,111 @@ class CalcTableServiceCopyMergeTest {
       verifyNoInteractions(layoutService);
    }
 
+   // ── source range guards (Redmine #78685) ──────────────────────────────────
+
+   @Test
+   void refusesACopyOrCutWhoseSourceRunsPastTheGrid() {
+      text(1, 3, "EDGE");
+
+      for(String op : new String[]{ "copy", "cut" }) {
+         IllegalArgumentException cols = assertThrows(
+            IllegalArgumentException.class, () -> copy(op, 1, 3, 1, 2, 0, 0));
+         assertTrue(cols.getMessage().contains("extends past the grid"), cols.getMessage());
+         assertTrue(cols.getMessage().contains("4 row(s) by 4 column(s)"), cols.getMessage());
+         assertTrue(cols.getMessage().contains("Nothing was changed"));
+
+         IllegalArgumentException rows = assertThrows(
+            IllegalArgumentException.class, () -> copy(op, 0, 0, 5, 1, 0, 1));
+         assertTrue(rows.getMessage().contains("extends past the grid"), rows.getMessage());
+      }
+
+      assertEquals("EDGE", value(1, 3));
+      verifyNoInteractions(layoutService);
+   }
+
+   @Test
+   void refusesABlankSourceThatRunsPastTheGrid() {
+      for(String op : new String[]{ "copy", "cut" }) {
+         assertThrows(IllegalArgumentException.class, () -> copy(op, 2, 3, 1, 2, 0, 0));
+      }
+
+      verifyNoInteractions(layoutService);
+   }
+
+   @Test
+   void stillCutsAnOnGridSourceAtTheEdge() throws Exception {
+      text(1, 3, "A");
+
+      copy("cut", 1, 3, 2, 1, 3, 0);
+
+      assertEquals("A", value(3, 0));
+      assertNull(value(1, 3));
+   }
+
+   @Test
+   void refusesARemoveWithNoRowsOrColumnsInsteadOfWipingTheGrid() {
+      text(2, 2, "Z");
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class, () -> remove(0, 0, 0, 0));
+
+      assertTrue(thrown.getMessage().contains("at least 1"), thrown.getMessage());
+      assertEquals("Z", value(2, 2));
+      verifyNoInteractions(layoutService);
+   }
+
+   @Test
+   void refusesARemoveRunningPastTheGrid() {
+      text(1, 3, "EDGE");
+
+      assertThrows(IllegalArgumentException.class, () -> remove(1, 3, 1, 2));
+
+      assertEquals("EDGE", value(1, 3));
+      verifyNoInteractions(layoutService);
+   }
+
+   @Test
+   void refusesARemoveAtASwallowedCellNamingTheAnchor() {
+      text(0, 0, "ANCHOR");
+      merge(0, 0, 1, 2);
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class, () -> remove(0, 1, 1, 1));
+
+      assertTrue(thrown.getMessage().contains("Cell [0,1] is merged into [0,0]; remove [0,0]"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Nothing was changed"));
+      assertEquals("ANCHOR", value(0, 0));
+      assertEquals(new Dimension(2, 1), layout().getSpan(0, 0));
+      verifyNoInteractions(layoutService);
+   }
+
+   @Test
+   void allowsARemoveAtTheAnchorOrCoveringIt() throws Exception {
+      text(0, 0, "ANCHOR");
+      merge(0, 0, 1, 2);
+      remove(0, 0, 1, 1);
+      assertNull(value(0, 0));
+      assertNull(layout().getSpan(0, 0));
+
+      text(0, 0, "ANCHOR");
+      merge(0, 0, 1, 2);
+      remove(0, 0, 1, 2);
+      assertNull(value(0, 0));
+      assertNull(layout().getSpan(0, 0));
+   }
+
+   @Test
+   void stillCutsFromASwallowedCellMovingTheWholeMerge() throws Exception {
+      text(0, 0, "ANCHOR");
+      merge(0, 0, 1, 2);
+
+      copy("cut", 0, 1, 1, 1, 2, 2);
+
+      assertEquals("ANCHOR", value(2, 2));
+      assertNull(value(0, 0));
+   }
+
    // ── helpers ───────────────────────────────────────────────────────────────
 
    private TableLayout layout() {
@@ -352,6 +457,11 @@ class CalcTableServiceCopyMergeTest {
       service.copyCells("tok", principal(), "Calc1", op,
                         new Rectangle(scol, srow, cols, rows),
                         new Rectangle(tcol, trow, cols, rows));
+   }
+
+   private void remove(int srow, int scol, int rows, int cols) throws Exception {
+      service.copyCells("tok", principal(), "Calc1", "remove",
+                        new Rectangle(scol, srow, cols, rows), null);
    }
 
    private static Principal principal() {
