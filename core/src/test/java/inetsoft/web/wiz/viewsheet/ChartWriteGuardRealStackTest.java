@@ -209,6 +209,58 @@ class ChartWriteGuardRealStackTest {
                                                        any(), any());
    }
 
+   /** get_hyperlink on a table that did not render dereferenced a null lens (an NPE, a 500). */
+   @Test
+   void getHyperlinkOnATableThatDidNotRenderIsANamedRefusal() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addFailingCrosstab(rvs);
+      HyperlinkDialogService dialogs = mock(HyperlinkDialogService.class);
+      AssemblyHyperlinkService service = new AssemblyHyperlinkService(seam(rvs), dialogs);
+
+      for(int i = 0; i < 2; i++) {
+         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, () ->
+            service.read("tok", principal(), CROSSTAB, null));
+
+         assertTrue(refused.getMessage().contains("did not render"), refused.getMessage());
+      }
+
+      verifyNoInteractions(dialogs);
+   }
+
+   /** The out-of-range refusal (#78719) is not masked by the render guard on a healthy table. */
+   @Test
+   void anOutOfRangeCellOnAHealthyTableIsStillRefusedByItsOwnMessage() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addHealthyCrosstab(rvs);
+      HyperlinkDialogService dialogs = mock(HyperlinkDialogService.class);
+      AssemblyHyperlinkService service = new AssemblyHyperlinkService(seam(rvs), dialogs);
+      AssemblyHyperlinkService.Region far =
+         new AssemblyHyperlinkService.Region(999, 0, null, false, false, false, false);
+
+      IllegalArgumentException read = assertThrows(IllegalArgumentException.class, () ->
+         service.read("tok", principal(), CROSSTAB, far));
+      IllegalArgumentException set = assertThrows(IllegalArgumentException.class, () ->
+         service.set("tok", principal(), CROSSTAB, far,
+                     Map.of("linkType", "web", "webLink", "https://example.com"), ""));
+
+      assertTrue(read.getMessage().contains("is outside"), read.getMessage());
+      assertTrue(set.getMessage().contains("is outside"), set.getMessage());
+   }
+
+   /** A chart has no per-cell address, so a stray row never turns the chart warning into a refusal. */
+   @Test
+   void aRowOnABrokenChartStillGetsTheWarningNotARefusal() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true, false);
+      arm(rvs);
+      AssemblyHyperlinkService.Region far =
+         new AssemblyHyperlinkService.Region(999, 0, "type", false, false, false, false);
+
+      assertWarned(hyperlink(rvs).set("tok", principal(), CHART, far,
+                                      Map.of("linkType", "web", "webLink", "https://example.com"),
+                                      ""));
+   }
+
    // ── hierarchy ────────────────────────────────────────────────────────────
 
    @Test
@@ -599,6 +651,14 @@ class ChartWriteGuardRealStackTest {
       ConditionList list = new ConditionList();
       list.append(new ConditionItem(type, cond, 0));
       return list;
+   }
+
+   private static void addHealthyCrosstab(RuntimeViewsheet rvs) {
+      addFailingCrosstab(rvs);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+      ((CrosstabVSAssembly) box.getViewsheet().getAssembly(CROSSTAB))
+         .setPreConditionList(new ConditionList());
+      box.resetDataMap(CROSSTAB);
    }
 
    private static void addFailingCrosstab(RuntimeViewsheet rvs) {
