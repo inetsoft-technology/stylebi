@@ -22,6 +22,7 @@ import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.BindingFieldShelfException;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.UndefinedNameException;
 import inetsoft.util.script.graal.pool.WsExecContext;
 import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapReadInterruptedException;
@@ -2749,6 +2750,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             BindingFieldShelfException shelfFailure = ex.isHostException() ?
                BindingFieldShelfException.find(ex.asHostException()) : null;
 
+            // and a guest ReferenceError, kept as a marker cause so a strict calc table range
+            // condition can name the missing name (Bug #78685)
+            String undefinedName = undefinedName(ex);
+
             // FIX B: increment per-Source error count and warn when limit first crossed
             int limit = maxErrors();
 
@@ -2782,6 +2787,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                shelfFailure != null ?
                new ScriptException(ex.getMessage() + loc,
                   new BindingFieldShelfException(shelfFailure.getMessage())) :
+               undefinedName != null ?
+               new ScriptException(ex.getMessage() + loc,
+                  new UndefinedNameException(undefinedName)) :
                new ScriptException(ex.getMessage() + loc);
             se.setStackTrace(ex.getStackTrace());
             // what the dropped cause said: stopped by a timeout or cancel, not failed. Also
@@ -4486,4 +4494,29 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(GraalJavaScriptEngine.class);
+
+   /**
+    * The name a guest ReferenceError says is not defined, or null if {@code ex} is any other
+    * error (a temporal-dead-zone ReferenceError, which names a declared variable, included).
+    */
+   private static String undefinedName(PolyglotException ex) {
+      try {
+         Value guest = ex.isGuestException() ? ex.getGuestObject() : null;
+
+         if(guest == null || !guest.hasMembers() || !guest.hasMember("name") ||
+            !"ReferenceError".equals(guest.getMember("name").asString()))
+         {
+            return null;
+         }
+
+         java.util.regex.Matcher m = UNDEFINED_NAME.matcher(String.valueOf(ex.getMessage()));
+         return m.find() ? m.group(1) : null;
+      }
+      catch(RuntimeException ignored) {
+         return null;
+      }
+   }
+
+   private static final java.util.regex.Pattern UNDEFINED_NAME =
+      java.util.regex.Pattern.compile("^(?:ReferenceError: )?(\\S+) is not defined");
 }

@@ -19,6 +19,8 @@ package inetsoft.report.script;
 
 import inetsoft.report.filter.CalcFilter;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.util.script.FormulaContext;
+import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.ScriptUtil;
@@ -268,6 +270,82 @@ class TableArrayTest {
          ScriptException ex = assertThrows(ScriptException.class, () -> arr.getMember(id), id);
          assertTrue(ex.getMessage().contains(id.replaceAll("[@?].*", "")), ex.getMessage());
          assertTrue(ex.getMessage().contains("not found"), ex.getMessage());
+      }
+   }
+
+   private static void assertNamesMissing(TableArray arr, String id, String name) {
+      ScriptException ex = assertThrows(ScriptException.class, () -> arr.getMember(id), id);
+      assertTrue(ex.getMessage().contains(name + "\" is not defined"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("column \"" + name + "\" not found"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(id.substring(id.indexOf('?') + 1)), ex.getMessage());
+   }
+
+   /**
+    * Bug #78685: a name the condition of data['col?cond'] cannot resolve must fail with a
+    * named error, not leave every row selected (the unfiltered range).
+    */
+   @Test
+   void strictConditionWithUndefinedNameThrowsNamedError() {
+      TableArray arr = strictArray();
+
+      assertNamesMissing(arr, "col2?NOPE > 1", "NOPE");
+      assertNamesMissing(arr, "col2?col1 == NOPE", "NOPE");
+      assertNamesMissing(arr, "col2?undefinedFn(col2) > 1", "undefinedFn");
+   }
+
+   /**
+    * Bug #78685 scope guard: conditions that resolve, or that probe for an undefined name,
+    * keep filtering as before in strict mode.
+    */
+   @Test
+   void strictConditionKeepsResolvableConditions() {
+      TableArray arr = strictArray();
+
+      assertArrayEquals(new Object[] { 3, 1 }, (Object[]) arr.getMember("col2?col2 != 1 || col1 == 'c'"));
+      assertArrayEquals(new Object[] { 3 }, (Object[]) arr.getMember("col2?Math.abs(col2) > 2"));
+      assertArrayEquals(new Object[] { 1, 3, 1 }, (Object[]) arr.getMember("col2?parseInt('1') == 1"));
+      assertArrayEquals(new Object[] { 1, 3, 1 },
+                        (Object[]) arr.getMember("col2?typeof NOPE == 'undefined'"));
+   }
+
+   /**
+    * Bug #78685: a name provided by the surrounding (viewsheet-like) scope resolves, so it is
+    * not reported as missing.
+    */
+   @Test
+   void strictConditionResolvesNamesFromParentScope() {
+      java.util.Map<String, Object> vars = new java.util.HashMap<>();
+      vars.put("limit", 2);
+      ScriptScope parent = new ScriptScope() {
+         public Object getMember(String name) { return vars.get(name); }
+         public boolean hasMember(String name) { return vars.containsKey(name); }
+         public void putMember(String name, Object value) { vars.put(name, value); }
+         public boolean removeMember(String name) { return vars.remove(name) != null; }
+         public Object[] getMemberKeys() { return vars.keySet().toArray(); }
+      };
+
+      FormulaContext.pushScope(parent);
+
+      try {
+         TableArray arr = strictArray();
+         assertArrayEquals(new Object[] { 3 }, (Object[]) arr.getMember("col2?col2 > limit"));
+      }
+      finally {
+         FormulaContext.popScope();
+      }
+   }
+
+   /**
+    * Bug #78685 scope guard: outside a strict array an undefined name in a condition keeps
+    * its old behaviour (logged, rows kept).
+    */
+   @Test
+   void nonStrictConditionWithUndefinedNameStaysSilent() {
+      for(boolean calc : new boolean[] { false, true }) {
+         TableArray arr = new TableArray(table());
+         arr.setCalcArray(calc);
+
+         assertArrayEquals(new Object[] { 1, 3, 1 }, (Object[]) arr.getMember("col2?NOPE > 1"));
       }
    }
 

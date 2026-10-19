@@ -257,4 +257,34 @@ public class CalcTableLensTest {
       calc = boundGroupLens("sum(data[\"amt\"])");
       Assertions.assertEquals(60.0, ((Number) calc.getObject(1, 1)).doubleValue());
    }
+
+   /**
+    * Bug #78685: a condition of data["amt?cond"] that names something undefined must be a
+    * named error on every instance, not the unfiltered total; resolvable conditions keep
+    * filtering.
+    */
+   @Test
+   public void testDataMissConditionNameFailsLoud() {
+      for(String cond : new String[] { "NOPE > 1", "id == NOPE", "field['NOPE'] > 1" }) {
+         RuntimeCalcTableLens calc = boundGroupLens("sum(data[\"amt?" + cond + "\"])");
+
+         for(int r = 1; r <= 3; r++) {
+            Object value = calc.getObject(r, 1);
+            Assertions.assertTrue(value instanceof String && ((String) value).startsWith("ERROR"),
+               cond + " row " + r + " should be an error, got: " + value);
+            Assertions.assertTrue(((String) value).contains("NOPE\" not found"),
+               "error should name NOPE: " + value);
+         }
+      }
+
+      String[][] controls = {
+         { "amt?id > 1", "50.0" }, { "amt?Math.abs(id) > 1", "50.0" },
+         { "amt?parseInt('1') == 1", "60.0" }, { "amt?typeof NOPE == 'undefined'", "60.0" } };
+
+      for(String[] control : controls) {
+         RuntimeCalcTableLens calc = boundGroupLens("sum(data[\"" + control[0] + "\"])");
+         Assertions.assertEquals(Double.parseDouble(control[1]),
+            ((Number) calc.getObject(1, 1)).doubleValue(), control[0]);
+      }
+   }
 }
