@@ -20,6 +20,8 @@ package inetsoft.report.composition.execution;
 import inetsoft.graph.data.DataSet;
 import inetsoft.mv.MVManager;
 import inetsoft.report.XSessionManager;
+import inetsoft.report.composition.graph.VGraphPair;
+import inetsoft.report.script.viewsheet.ChartVSAScriptable;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.OrganizationManager;
@@ -56,6 +58,7 @@ import java.lang.reflect.*;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.*;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -241,6 +244,208 @@ class ChartScriptWriteDataCacheTest {
       assertEquals(XCondition.BOTTOM_N, rtRanking(), "runtime ref after the re-query");
    }
 
+   /**
+    * Bug #78759: a script in another assembly writes the chart's aggregate formula through a
+    * bindingInfo function other than the ranking ones, and reads the data in the same run. The
+    * query must be run again for the new formula.
+    */
+   @Test
+   void formulaWriteFromTextScriptIsReflectedInNextGetData() throws Exception {
+      assertTrue(headers(vbox.getData(CHART)).contains("Sum(NUM)"), "cache warm-up");
+
+      vbox.getScope().execute(FORMULA_SCRIPT, TEXT);
+
+      List<String> headers = headers(vbox.getData(CHART));
+      assertTrue(headers.contains("Max(NUM)"), "headers after setFormula: " + headers);
+      assertFalse(headers.contains("Sum(NUM)"), "headers after setFormula: " + headers);
+   }
+
+   /**
+    * A property assignment on bindingInfo reaches the live info through putMember, not a
+    * function call, and must invalidate the same way.
+    */
+   @Test
+   void propertyAssignmentIsReflectedInNextGetData() throws Exception {
+      assertTrue(headers(vbox.getData(CHART)).contains(STATE), "cache warm-up");
+
+      vbox.getScope().execute(CHART + ".bindingInfo.xFields = [];", TEXT);
+
+      List<String> headers = headers(vbox.getData(CHART));
+      assertFalse(headers.contains(STATE), "headers after xFields = []: " + headers);
+   }
+
+   /**
+    * A script that writes the value the binding already has, e.g. on every refresh, keeps both
+    * the cached data and the cached graph (Bug #76862).
+    */
+   @Test
+   void unchangedWriteKeepsDataAndGraph() throws Exception {
+      Object before = vbox.getData(CHART);
+      VGraphPair pair = cacheGraph();
+
+      vbox.getScope().execute(
+         CHART + ".bindingInfo.setFormula('NUM', 'Sum', Chart.BINDING_FIELD);" +
+         CHART + ".bindingInfo.setTopNReverse('" + STATE + "', false, Chart.BINDING_FIELD);", TEXT);
+
+      assertSame(before, vbox.getData(CHART), "data cache");
+      assertSame(pair, graphCache().get(CHART), "graph cache");
+   }
+
+   /**
+    * A changed data binding drops the cached graph together with the data.
+    */
+   @Test
+   void dataWriteDropsCachedGraph() throws Exception {
+      vbox.getData(CHART);
+      cacheGraph();
+
+      vbox.getScope().execute(FORMULA_SCRIPT, TEXT);
+
+      assertNull(graphCache().get(CHART), "graph cache");
+   }
+
+   /**
+    * A writer that throws after it changed the binding leaves that change in the info, so the
+    * caches must be invalidated anyway.
+    */
+   @Test
+   void throwingWriterAfterPartialWriteStillInvalidates() throws Exception {
+      Object before = vbox.getData(CHART);
+      VGraphPair pair = cacheGraph();
+      ChartVSAScriptable scriptable = (ChartVSAScriptable) vbox.getScope().getVSAScriptable(CHART);
+      Method guard = ChartVSAScriptable.class.getDeclaredMethod("guardInfoWrite", Supplier.class);
+      guard.setAccessible(true);
+
+      InvocationTargetException ex = assertThrows(InvocationTargetException.class,
+         () -> guard.invoke(scriptable, (Supplier<Object>) () -> {
+            ((VSAggregateRef) chart.getVSChartInfo().getYFields()[0]).setFormulaValue("Max");
+            throw new IllegalStateException("fails after the write");
+         }));
+
+      assertInstanceOf(IllegalStateException.class, ex.getCause());
+      assertNotSame(before, vbox.getData(CHART), "data cache");
+      assertNull(graphCache().get(CHART), "graph cache");
+      assertNotSame(pair, graphCache().get(CHART));
+   }
+
+   /**
+    * Chart.query replaces the chart's source and fields, which is not a bindingInfo write but is
+    * as invisible to the caches.
+    */
+   @Test
+   void queryAssignmentDropsCachedData() throws Exception {
+      Object before = vbox.getData(CHART);
+      cacheGraph();
+
+      vbox.getScope().execute(CHART + ".query = 'T1';", TEXT);
+
+      assertNotSame(before, vbox.getData(CHART), "data cache");
+      assertNull(graphCache().get(CHART), "graph cache");
+   }
+
+   /**
+    * The chart query reads rankPerGroup and sortOthersLast from the runtime descriptor, which
+    * the binding snapshot does not hold, so a script write to either drops the cached data and
+    * graph.
+    */
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(strings = { "rankPerGroup", "sortOthersLast" })
+   void descriptorQueryPropertyWriteDropsCachedData(String property) throws Exception {
+      Object before = vbox.getData(CHART);
+      cacheGraph();
+      ChartDescriptor desc = ((ChartVSAScriptable) vbox.getScope().getVSAScriptable(CHART))
+         .getRTChartDescriptor();
+      assertNotNull(desc, "runtime descriptor");
+      boolean current = property.equals("rankPerGroup") ? desc.isRankPerGroup() :
+         desc.isSortOthersLast();
+
+      vbox.getScope().execute(CHART + "." + property + " = " + !current + ";", TEXT);
+
+      assertNotSame(before, vbox.getData(CHART), "data cache");
+      assertNull(graphCache().get(CHART), "graph cache");
+   }
+
+   /**
+    * Writing the descriptor property's current value keeps both caches.
+    */
+   @Test
+   void unchangedDescriptorWriteKeepsDataAndGraph() throws Exception {
+      Object before = vbox.getData(CHART);
+      VGraphPair pair = cacheGraph();
+      ChartDescriptor desc = ((ChartVSAScriptable) vbox.getScope().getVSAScriptable(CHART))
+         .getRTChartDescriptor();
+      assertNotNull(desc, "runtime descriptor");
+
+      vbox.getScope().execute(CHART + ".rankPerGroup = " + desc.isRankPerGroup() + ";", TEXT);
+
+      assertSame(before, vbox.getData(CHART), "data cache");
+      assertSame(pair, graphCache().get(CHART), "graph cache");
+   }
+
+   /**
+    * A getter is not a writer: it runs through the script function without a snapshot, so
+    * whatever it touches is left alone, while any other function name is guarded.
+    */
+   @Test
+   void getterCallIsNotGuarded() throws Exception {
+      Object before = vbox.getData(CHART);
+      ChartVSAScriptable scriptable = (ChartVSAScriptable) vbox.getScope().getVSAScriptable(CHART);
+      VSAggregateRef agg = (VSAggregateRef) chart.getVSChartInfo().getYFields()[0];
+
+      scriptable.guardCall("getFormula", () -> {
+         agg.setFormulaValue("Max");
+         return null;
+      });
+      assertSame(before, vbox.getData(CHART), "a getter call must not snapshot or reset");
+
+      scriptable.guardCall("setFormula", () -> {
+         agg.setFormulaValue("Min");
+         return null;
+      });
+      assertNotSame(before, vbox.getData(CHART), "a writer call is guarded");
+   }
+
+   /**
+    * Reading through the bindingInfo getters leaves both caches as they were.
+    */
+   @Test
+   void getterScriptKeepsDataAndGraph() throws Exception {
+      Object before = vbox.getData(CHART);
+      VGraphPair pair = cacheGraph();
+
+      vbox.getScope().execute(
+         CHART + ".bindingInfo.getFormula('NUM', Chart.BINDING_FIELD);" +
+         CHART + ".bindingInfo.isTopNReverse('" + STATE + "', Chart.BINDING_FIELD);", TEXT);
+
+      assertSame(before, vbox.getData(CHART), "data cache");
+      assertSame(pair, graphCache().get(CHART), "graph cache");
+   }
+
+   private VGraphPair cacheGraph() throws Exception {
+      VGraphPair pair = mock(VGraphPair.class);
+      graphCache().put(CHART, pair);
+      return pair;
+   }
+
+   @SuppressWarnings("unchecked")
+   private Map<String, VGraphPair> graphCache() throws Exception {
+      Field field = ViewsheetSandbox.class.getDeclaredField("pairs");
+      field.setAccessible(true);
+      return (Map<String, VGraphPair>) field.get(vbox);
+   }
+
+   private static List<String> headers(Object obj) {
+      assertInstanceOf(DataSet.class, obj, "chart data");
+      DataSet data = (DataSet) obj;
+      List<String> headers = new ArrayList<>();
+
+      for(int c = 0; c < data.getColCount(); c++) {
+         headers.add(data.getHeader(c));
+      }
+
+      return headers;
+   }
+
    private String cacheState() throws Exception {
       Field field = ViewsheetSandbox.class.getDeclaredField("dKeyMap");
       field.setAccessible(true);
@@ -351,6 +556,8 @@ class ChartScriptWriteDataCacheTest {
    private static final String STATE = "STATE";
    private static final String SCRIPT =
       CHART + ".bindingInfo.setTopNReverse('" + STATE + "', true, Chart.BINDING_FIELD);";
+   private static final String FORMULA_SCRIPT =
+      CHART + ".bindingInfo.setFormula('NUM', 'Max', Chart.BINDING_FIELD);";
    private static final List<String> TOP3 = List.of("CA", "NY", "TX");
    private static final List<String> BOTTOM3 = List.of("AZ", "CO", "MA");
    private ViewsheetSandbox vbox;
