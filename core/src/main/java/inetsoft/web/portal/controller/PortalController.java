@@ -217,7 +217,8 @@ public class PortalController {
          .anonymous(principal == null || pId.name.equals(XPrincipal.ANONYMOUS))
          .name(principal == null ? new IdentityID(XPrincipal.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID()) : pId)
          .alias(alias)
-         .email(securityEngine.getEmails(pId))
+         // a null principal reaches here on SSO sites (no @Secured); the providers can't look up a null id
+         .email(pId == null ? new String[0] : securityEngine.getEmails(pId))
          .isSysAdmin(principal != null && OrganizationManager.getInstance().isSiteAdmin(principal))
          .localeLanguage(localeLanguage)
          .localeCountry(localeCountry)
