@@ -2677,6 +2677,26 @@ class AssemblyPropertyServiceTest {
    }
 
    /**
+    * Bug #78440 round 2: a path whose first letter is U+017F resolves to the same setter as the
+    * ASCII spelling, so it must hit the same out-of-domain guard.
+    */
+   @Test
+   void refusesAnOutOfDomainSortTypeThroughNonAsciiInitialPaths() {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      for(String path : new String[] { "selectionGeneralPaneModel.sortType",
+                                       "selectionGeneralPaneModel.ſortType",
+                                       "ſelectionGeneralPaneModel.sortType" })
+      {
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Selection1", Map.of(path, 999), ""), path);
+         assertTrue(thrown.getMessage().contains("999"), thrown.getMessage());
+      }
+   }
+
+   /**
     * {@code SORT_ASC|SORT_DESC} combined (3) is syntactically a valid int but is not a value
     * this dialog/script surface ever produces either -- it must be refused the same as 999, not
     * accepted just because it happens to be a combination of two in-domain bits.

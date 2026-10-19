@@ -782,6 +782,18 @@ public final class PropertyPath {
          : Character.toUpperCase(value.charAt(0)) + value.substring(1);
    }
 
+   /**
+    * The canonical lower-case spelling of a segment's first character, folded the way the
+    * setter resolves it: {@link #capitalize} upper-cases the initial, so every spelling that
+    * upper-cases to the same letter reaches the same accessor. Plain {@code toLowerCase} misses
+    * U+017F (upper-cases to S, lower-cases to itself) and U+0131 (upper-cases to I, lower-cases
+    * to itself), which would resolve to a guarded setter while keying past every guard. For
+    * ASCII input this equals {@code Character.toLowerCase}.
+    */
+   static char canonicalInitial(char c) {
+      return Character.toLowerCase(Character.toUpperCase(c));
+   }
+
    private static String decapitalize(String value) {
       return value.isEmpty() ? value
          : Character.toLowerCase(value.charAt(0)) + value.substring(1);
