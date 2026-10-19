@@ -32,6 +32,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
@@ -57,18 +58,23 @@ class ConnectionProvider implements AutoCloseable {
                testConnectionBounded(getProbeTimeout());
                connectionValid = true;
                lastGoodProperties = connectionProperties;
+               connectionLastTested = Instant.now();
             }
             catch(Exception e) {
+               if(isInterruption(e)) {
+                  // the caller was interrupted, that says nothing about the database: keep the
+                  // state as it was, so the next call tests again
+                  throw e;
+               }
+
                connectionValid = false;
                // A configuration that has connected before is a database outage, not a bad
                // configuration. Re-test it after the short window, so that recovery is noticed
                // quickly, also after the cache loader reset the connection (Bug #78800).
                retryInterval = Objects.equals(connectionProperties, lastGoodProperties) ?
                   getPoolFailureRetryInterval() : connectionRetryInterval;
-               throw e;
-            }
-            finally {
                connectionLastTested = Instant.now();
+               throw e;
             }
          }
 
@@ -129,6 +135,11 @@ class ConnectionProvider implements AutoCloseable {
     * instead of each waiting for the pool timeout again (Bug #78800).
     */
    private void handlePoolFailure(SQLException poolException) {
+      if(isInterruption(poolException)) {
+         // the caller was interrupted while waiting for the pool, not a database failure
+         return;
+      }
+
       try {
          testConnectionBounded(getProbeTimeout());
          LOG.debug(
@@ -136,30 +147,72 @@ class ConnectionProvider implements AutoCloseable {
             "but the database is reachable", provider.getProviderName(), poolException);
       }
       catch(Exception e) {
+         if(isInterruption(e)) {
+            return;
+         }
+
          long interval = getPoolFailureRetryInterval();
          connectionValid = false;
          connectionLastTested = Instant.now();
          retryInterval = interval;
          LOG.warn(
             "Database for security provider \"{}\" is unreachable, failing fast for {} ms: {}",
-            provider.getProviderName(), interval, e.getMessage());
+            provider.getProviderName(), interval, String.valueOf(e));
       }
+   }
+
+   /**
+    * Checks if a failure is caused by interrupting the calling thread. Hikari wraps an
+    * interrupt during connection acquisition in an {@code SQLException} and keeps the thread's
+    * interrupt flag set.
+    */
+   private static boolean isInterruption(Throwable e) {
+      if(Thread.currentThread().isInterrupted()) {
+         return true;
+      }
+
+      for(Throwable t = e; t != null; t = t.getCause()) {
+         if(t instanceof InterruptedException) {
+            return true;
+         }
+
+         if(t.getCause() == t) {
+            break;
+         }
+      }
+
+      return false;
    }
 
    /**
     * Tests the connection like {@link #testConnection()}, but gives up after {@code timeout} ms.
     * The driver's {@code connect} runs on a daemon thread, because it can block until the OS
     * gives up on an unreachable host, and this is called while holding {@link #lock}. A timed out
-    * probe thread is interrupted, but it may linger until the driver returns.
+    * probe thread is interrupted, but it may linger until the driver returns. While it does,
+    * another test fails at once instead of starting a second probe, so a hanging database costs
+    * at most one probe thread per provider (one per {@link #MAX_PROBE_AGE} if it never returns)
+    * and doesn't stall the callers again on every re-test.
     */
    private void testConnectionBounded(long timeout) throws Exception {
       ConnectionProperties props = provider.getConnectionProperties();
       checkConnectionProperties(props);
+
+      if(pendingProbe != null && !pendingProbe.isDone() &&
+         System.currentTimeMillis() - pendingProbeStarted < MAX_PROBE_AGE)
+      {
+         throw new SQLException("The previous connection test has not finished", "08001");
+      }
+
+      pendingProbe = null;
       Driver driver = provider.getDriver(props.driverClass());
       Properties properties = getDriverProperties(props);
       ClassLoader loader = Thread.currentThread().getContextClassLoader();
+      CompletableFuture<Void> probeDone = new CompletableFuture<>();
+      AtomicBoolean running = new AtomicBoolean();
+      long started = System.currentTimeMillis();
 
       Future<?> future = PROBE_EXECUTOR.submit(() -> {
+         running.set(true);
          Thread thread = Thread.currentThread();
          thread.setContextClassLoader(loader);
 
@@ -168,6 +221,7 @@ class ConnectionProvider implements AutoCloseable {
          }
          finally {
             thread.setContextClassLoader(null);
+            probeDone.complete(null);
          }
 
          return null;
@@ -177,10 +231,11 @@ class ConnectionProvider implements AutoCloseable {
          future.get(timeout, TimeUnit.MILLISECONDS);
       }
       catch(TimeoutException e) {
-         future.cancel(true);
+         abandonProbe(future, running, probeDone, started);
          throw new SQLException("Connection test timed out after " + timeout + " ms", "08001");
       }
       catch(InterruptedException e) {
+         // not a sign of a hanging database, so this probe doesn't block the next one
          future.cancel(true);
          Thread.currentThread().interrupt();
          throw e;
@@ -191,6 +246,18 @@ class ConnectionProvider implements AutoCloseable {
          }
 
          throw e;
+      }
+   }
+
+   private void abandonProbe(Future<?> future, AtomicBoolean running,
+                             CompletableFuture<Void> probeDone, long started)
+   {
+      future.cancel(true);
+
+      if(running.get()) {
+         // cancel() marks the future done at once, so track the probe's own completion
+         pendingProbe = probeDone;
+         pendingProbeStarted = started;
       }
    }
 
@@ -206,7 +273,9 @@ class ConnectionProvider implements AutoCloseable {
          timeout = MAX_PROBE_TIMEOUT;
       }
 
-      return timeout > 0 ? Math.min(timeout, MAX_PROBE_TIMEOUT) : MAX_PROBE_TIMEOUT;
+      // not below MIN_PROBE_TIMEOUT, so a slow (TLS) connect isn't taken for an outage
+      return timeout > 0 ?
+         Math.max(MIN_PROBE_TIMEOUT, Math.min(timeout, MAX_PROBE_TIMEOUT)) : MAX_PROBE_TIMEOUT;
    }
 
    private static long getPoolFailureRetryInterval() {
@@ -312,7 +381,14 @@ class ConnectionProvider implements AutoCloseable {
    private ConnectionProperties lastGoodProperties;
    private HikariDataSource connectionPool;
 
+   // a probe that timed out and whose thread hasn't returned yet, and when it started
+   private Future<?> pendingProbe;
+   private long pendingProbeStarted;
+
+   private static final long MIN_PROBE_TIMEOUT = 2000L;
    private static final long MAX_PROBE_TIMEOUT = 10000L;
+   // a timed out probe still running after this long is abandoned and no longer blocks a new one
+   private static final long MAX_PROBE_AGE = 300000L;
    private static final ExecutorService PROBE_EXECUTOR = Executors.newCachedThreadPool(r -> {
       Thread thread = new Thread(r, "DatabaseSecurityConnectionProbe");
       thread.setDaemon(true);

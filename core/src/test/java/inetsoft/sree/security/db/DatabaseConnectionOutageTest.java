@@ -97,10 +97,17 @@ class DatabaseConnectionOutageTest {
       }
 
       // let a timed out probe finish before the context closes
-      long end = System.currentTimeMillis() + 15000;
+      waitForProbes();
 
-      while(countProbeThreadsConnecting() > 0 && System.currentTimeMillis() < end) {
-         Thread.sleep(100);
+      if(dbName != null) {
+         try {
+            DriverManager.getConnection("jdbc:derby:memory:" + dbName + ";drop=true");
+         }
+         catch(SQLException expected) {
+            // drop always throws
+         }
+
+         dbName = null;
       }
 
       ThreadContext.setContextPrincipal(principal);
@@ -266,10 +273,80 @@ class DatabaseConnectionOutageTest {
       long next = time(() -> engine.getEmails(dbUser));
       assertTrue(next < 500, "later lookups fail fast: " + next);
 
-      // after a reset, the connection test from scratch is bounded as well
+      // after a reset, the connection test from scratch is bounded as well (once the hanging
+      // probe returned, otherwise the test fails at once, see hangingDatabase_onlyOneProbeThread)
+      waitForProbes();
       dbProvider.getConnectionProvider().resetConnection();
       long cold = time(() -> engine.getEmails(dbUser));
       assertTrue(cold < POOL_TIMEOUT + 1500, "connection test is bounded: " + cold);
+   }
+
+   @Test
+   void hangingDatabase_onlyOneProbeThreadAndNoStallWhileItHangs() throws Exception {
+      SreeEnv.setProperty("database.security.connection.poolFailureRetryInterval", "1500");
+      setUp(false);
+      assertArrayEquals(new String[] { "db@x" }, engine.getEmails(dbUser));
+      takeDown();
+      hangMillis = 8000;
+      engine.getEmails(dbUser);
+      assertEquals(1, countProbeThreadsConnecting());
+
+      // the window expired, but the first probe still hangs: no second probe, no stall
+      Thread.sleep(1700);
+      long next = time(() -> engine.getEmails(dbUser));
+      assertTrue(next < 500, "re-test while the probe hangs fails fast: " + next);
+      assertEquals(1, countProbeThreadsConnecting());
+
+      // once the probe returned, the next re-test probes again and the database is back
+      hangMillis = 0;
+      down = false;
+      waitForProbes();
+      createTables();
+      assertTrue(waitForLogin(10000), "database users can log in after the probe returned");
+   }
+
+   @Test
+   void interruptedCaller_doesNotRememberFailureOfHealthyDatabase() throws Exception {
+      setUp(false);
+      assertArrayEquals(new String[] { "db@x" }, engine.getEmails(dbUser));
+      // the next lookup tests the connection from scratch, on an interrupted thread
+      dbProvider.getConnectionProvider().resetConnection();
+      Thread.currentThread().interrupt();
+
+      try {
+         engine.getEmails(dbUser);
+      }
+      finally {
+         Thread.interrupted();
+      }
+
+      assertArrayEquals(new String[] { "db@x" }, engine.getEmails(dbUser));
+      assertTrue(chain().authenticate(dbUser, new DefaultTicket(dbUser, "pw")));
+   }
+
+   @Test
+   void callerInterruptedWhileWaitingForPool_doesNotRememberFailure() throws Exception {
+      setUp(false);
+      assertArrayEquals(new String[] { "db@x" }, engine.getEmails(dbUser));
+      ConnectionProvider connectionProvider = dbProvider.getConnectionProvider();
+      Connection c1 = connectionProvider.getConnection();
+      Connection c2 = connectionProvider.getConnection();
+
+      try {
+         Thread waiter = new Thread(() -> engine.getEmails(dbUser), "outage78800-waiter");
+         waiter.start();
+         Thread.sleep(500);
+         waiter.interrupt();
+         waiter.join(10000);
+         assertFalse(waiter.isAlive());
+      }
+      finally {
+         c1.close();
+         c2.close();
+      }
+
+      assertArrayEquals(new String[] { "db@x" }, engine.getEmails(dbUser));
+      assertTrue(chain().authenticate(dbUser, new DefaultTicket(dbUser, "pw")));
    }
 
    @Test
@@ -407,6 +484,14 @@ class DatabaseConnectionOutageTest {
          for(int i = 1; i < sql.length; i++) {
             statement.execute(sql[i]);
          }
+      }
+   }
+
+   private static void waitForProbes() throws InterruptedException {
+      long end = System.currentTimeMillis() + 15000;
+
+      while(countProbeThreadsConnecting() > 0 && System.currentTimeMillis() < end) {
+         Thread.sleep(100);
       }
    }
 

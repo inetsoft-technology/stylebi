@@ -137,6 +137,14 @@ public class AuthenticationChain
    @Override
    @Deprecated
    public String[] getEmails(IdentityID userIdentity) {
+      List<AuthenticationProvider> providers = getProviders();
+
+      if(providers.size() == 1) {
+         // the only provider, asking it directly is cheaper than building the user (as before)
+         String[] emails = providers.get(0).getEmails(userIdentity);
+         return emails == null ? new String[0] : emails;
+      }
+
       // Ask only the provider that owns the user (the first one that has it, as in getUser), like
       // SUtil.getEmails does, so the other providers aren't queried for a user they don't have.
       User user = getUser(userIdentity);

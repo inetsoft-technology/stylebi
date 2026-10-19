@@ -142,6 +142,36 @@ class AuthenticationChainTest {
       assertFalse(chain.authenticate(USER_ID, "secret"));
    }
 
+   // [Scenario: emails, Bug #78800] only the provider that owns the user is asked
+   @Test
+   @SuppressWarnings("deprecation")
+   void getEmails_multipleProviders_asksOnlyTheOwner() {
+      AuthenticationProvider first = mock(AuthenticationProvider.class);
+      AuthenticationProvider second = mock(AuthenticationProvider.class);
+      AuthenticationChain chain = chainOf(first, second);
+
+      when(first.getUser(USER_ID)).thenReturn(
+         new User(USER_ID, new String[] { "alice@x" }, new String[0], new IdentityID[0], "", ""));
+      when(second.getEmails(USER_ID)).thenReturn(new String[] { "other@x" });
+
+      assertArrayEquals(new String[] { "alice@x" }, chain.getEmails(USER_ID));
+      verify(second, never()).getUser(any());
+      verify(second, never()).getEmails(any());
+   }
+
+   // [Scenario: emails, single provider] the only provider is asked directly, as before
+   @Test
+   @SuppressWarnings("deprecation")
+   void getEmails_singleProvider_asksProviderDirectly() {
+      AuthenticationProvider only = mock(AuthenticationProvider.class);
+      AuthenticationChain chain = chainOf(only);
+
+      when(only.getEmails(USER_ID)).thenReturn(new String[] { "alice@x" });
+
+      assertArrayEquals(new String[] { "alice@x" }, chain.getEmails(USER_ID));
+      verify(only, never()).getUser(any());
+   }
+
    private static AuthenticationChain chainOf(AuthenticationProvider... providers) {
       AuthenticationChain chain = new TestAuthenticationChain();
       chain.getProviderList().addAll(List.of(providers));
