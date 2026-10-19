@@ -428,19 +428,14 @@ public class DataCycleManager
     * Enable/Disable a given task.
     */
    @Override
-   public boolean setEnable(String name, String orgId, boolean enable) {
+   public boolean setEnable(String name, String orgId, boolean enable) throws Exception {
       IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(getCycleName(name, orgId), orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
-         try {
-            DataCycleAsset asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
-            asset.setEnabled(enable);
-            storage.putXMLSerializable(entry, asset);
-         }
-         catch(Exception e) {
-            LOG.error("Failed to set enabled state", e);
-         }
+         DataCycleAsset asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
+         asset.setEnabled(enable);
+         storage.putXMLSerializable(entry, asset);
       }
 
       return false;
@@ -642,69 +637,65 @@ public class DataCycleManager
    /**
     * Add condition to specified data cycle.
     */
-   public void addCondition(String name, String orgId, ScheduleCondition sc) {
+   public void addCondition(String name, String orgId, ScheduleCondition sc) throws Exception {
       IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
       DataCycleAsset asset;
 
-      try {
-         if(storage.contains(entry, orgId)) {
-            asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
-         }
-         else {
-            asset = new DataCycleAsset();
-            asset.setName(name);
-            asset.setOrgId(orgId);
-            asset.setEnabled(true);
-         }
-
-         if(asset.getConditions() == null) {
-            asset.setConditions(new ArrayList<>());
-         }
-
-         asset.getConditions().add(sc);
-         storage.putXMLSerializable(entry, asset);
+      if(storage.contains(entry, orgId)) {
+         asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
       }
-      catch(Exception e) {
-         LOG.error("Failed to add condition", e);
+      else {
+         asset = new DataCycleAsset();
+         asset.setName(name);
+         asset.setOrgId(orgId);
+         asset.setEnabled(true);
       }
+
+      if(asset.getConditions() == null) {
+         asset.setConditions(new ArrayList<>());
+      }
+
+      asset.getConditions().add(sc);
+      storage.putXMLSerializable(entry, asset);
    }
 
-   public void setConditions(String name, String orgId, List<ScheduleCondition> conditions) {
+   public void setConditions(String name, String orgId, List<ScheduleCondition> conditions)
+      throws Exception
+   {
       Vector<ScheduleCondition> conditionVector = new Vector<>(conditions);
       setConditions(name, orgId, conditionVector);
    }
    /**
     * Set conditions to specified data cycle.
     */
-   public void setConditions(String name, String orgId, Vector<ScheduleCondition> conds) {
+   public void setConditions(String name, String orgId, Vector<ScheduleCondition> conds)
+      throws Exception
+   {
       IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
       DataCycleAsset asset;
 
-      try {
-         if(storage.contains(entry, orgId)) {
-            asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
-         }
-         else {
-            asset = new DataCycleAsset();
-            asset.setName(name);
-            asset.setOrgId(orgId);
-            asset.setEnabled(true);
-         }
+      if(storage.contains(entry, orgId)) {
+         asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
+      }
+      else {
+         asset = new DataCycleAsset();
+         asset.setName(name);
+         asset.setOrgId(orgId);
+         asset.setEnabled(true);
+      }
 
-         asset.setConditions(new ArrayList<>(conds));
-         storage.putXMLSerializable(entry, asset);
-      }
-      catch(Exception e) {
-         LOG.error("Failed to set conditions", e);
-      }
+      asset.setConditions(new ArrayList<>(conds));
+      storage.putXMLSerializable(entry, asset);
    }
 
    /**
     * Set a condition to specified data cycle.
     */
-   public void setCondition(String name, String orgId, ScheduleCondition cond, int index) {
+   public void setCondition(String name, String orgId, ScheduleCondition cond, int index)
+      throws Exception
+   {
       Vector<ScheduleCondition> conditions =  getConditions(name, orgId);
       conditions.setElementAt(cond, index);
       setConditions(name, orgId, conditions);
@@ -713,17 +704,14 @@ public class DataCycleManager
    /**
     * Remove the data cycle with specified name from the data cycle map.
     */
-   public void removeDataCycle(String name, String orgId) {
+   public void removeDataCycle(String name, String orgId) throws Exception {
       IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
-      if(storage.contains(entry, orgId)) {
-         try {
-            storage.remove(entry);
-         }
-         catch(Exception e) {
-            LOG.error("Failed to remove data cycle", e);
-         }
+      if(storage.contains(entry, orgId) && !storage.remove(entry) &&
+         storage.contains(entry, orgId))
+      {
+         throw new IOException("Failed to remove data cycle: " + name);
       }
    }
 
@@ -814,7 +802,7 @@ public class DataCycleManager
             }
          }
          catch(Exception e) {
-            LOG.error("Failed to set conditions", e);
+            LOG.error("Failed to get conditions", e);
          }
       }
 
@@ -838,7 +826,7 @@ public class DataCycleManager
    /**
     * Remove the specified condition.
     */
-   public void removeCondition(String name, String orgId, int index) {
+   public void removeCondition(String name, String orgId, int index) throws Exception {
       Vector<ScheduleCondition> conditions =  getConditions(name, orgId);
       conditions.removeElementAt(index);
       setConditions(name, orgId, conditions);
@@ -875,29 +863,23 @@ public class DataCycleManager
    /**
     * Set cycle info for a cycle.
     */
-   public void setCycleInfo(String name, String orgId, CycleInfo cycleInfo) {
+   public void setCycleInfo(String name, String orgId, CycleInfo cycleInfo) throws Exception {
       IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
+      DataCycleAsset asset;
 
-      try {
-         DataCycleAsset asset;
-
-         if(storage.contains(entry, orgId)) {
-            asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
-         }
-         else {
-            asset = new DataCycleAsset();
-            asset.setName(name);
-            asset.setOrgId(orgId);
-            asset.setEnabled(true);
-         }
-
-         asset.setInfo(cycleInfo);
-         storage.putXMLSerializable(entry, asset);
+      if(storage.contains(entry, orgId)) {
+         asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
       }
-      catch(Exception e) {
-         LOG.error("Failed to set cycle info", e);
+      else {
+         asset = new DataCycleAsset();
+         asset.setName(name);
+         asset.setOrgId(orgId);
+         asset.setEnabled(true);
       }
+
+      asset.setInfo(cycleInfo);
+      storage.putXMLSerializable(entry, asset);
    }
 
    /**

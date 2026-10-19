@@ -428,7 +428,14 @@ public class ScheduleManager {
     */
    private boolean updateExtensionEnabled(ScheduleExt ext, ScheduleTask task, String orgId) {
       if(ext.isEnable(task.getTaskId(), orgId) != task.isEnabled()) {
-         ext.setEnable(task.getTaskId(), orgId, task.isEnabled());
+         try {
+            ext.setEnable(task.getTaskId(), orgId, task.isEnabled());
+         }
+         catch(Exception e) {
+            LOG.error("Failed to set enabled state of task {}", task.getTaskId(), e);
+            return false;
+         }
+
          return true;
       }
 

@@ -229,6 +229,7 @@ public class ScheduleCycleService {
       try {
          String oldName = model.name();
          String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         Permission oldPermission = null;
 
          if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
                getCyclePermissionID(oldName, orgId), ResourceAction.ACCESS))
@@ -262,21 +263,18 @@ public class ScheduleCycleService {
                }
             }
 
-            // Copy old permission to the new name before removing it, so that the renamed
-            // cycle retains its original permissions. Non-admin users are filtered out of the
-            // permission model returned to the client, so relying solely on the submitted model
-            // would lose their access grants.
-            Permission oldPermission =
+            // Read the old permission now and copy it to the new name once the renamed cycle
+            // is stored, so that it retains its original permissions. Non-admin users are
+            // filtered out of the permission model returned to the client, so relying solely
+            // on the submitted model would lose their access grants.
+            oldPermission =
                securityEngine.getPermission(ResourceType.SCHEDULE_CYCLE, getCyclePermissionID(oldName, orgId));
-            securityEngine.setPermission(ResourceType.SCHEDULE_CYCLE, getCyclePermissionID(newName, orgId), oldPermission);
-            removeCyclePermission(oldName, orgId);
          }
          else if(newName == null || "".equals(newName)) {
             throw new Exception(catalog.getString("em.scheduler.emptyCycleName"));
          }
 
          boolean enabled = dataCycleManager.isEnable(oldName, orgId);
-         dataCycleManager.removeDataCycle(oldName, orgId);
          dataCycleManager.setConditions(newName, orgId, getCycleConditions(model.conditionPaneModel().conditions()));
          dataCycleManager.setEnable(newName, orgId, enabled);
          DataCycleManager.CycleInfo cycleInfo = model.cycleInfo();
@@ -296,6 +294,16 @@ public class ScheduleCycleService {
          }
 
          dataCycleManager.setCycleInfo(newName, orgId, cycleInfo);
+
+         // Remove the old cycle only after the new one is stored, so a storage failure
+         // never loses the cycle or its permissions.
+         if(!newName.equals(oldName)) {
+            securityEngine.setPermission(ResourceType.SCHEDULE_CYCLE,
+                                         getCyclePermissionID(newName, orgId), oldPermission);
+            dataCycleManager.removeDataCycle(oldName, orgId);
+            removeCyclePermission(oldName, orgId);
+         }
+
          dataCycleManager.save();
 
          if(model.permissionModel() != null && model.permissionModel().changed()) {

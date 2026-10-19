@@ -21,14 +21,18 @@ import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
-import inetsoft.web.admin.schedule.model.DataCycleListModel;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
+import inetsoft.web.admin.security.ResourcePermissionModel;
+import inetsoft.web.admin.schedule.model.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.security.Principal;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -49,6 +53,7 @@ class ScheduleCycleServiceTest {
    private ScheduleCycleService service;
    private MockedStatic<SUtil> sutilStatic;
    private MockedStatic<OrganizationManager> organizationManagerStatic;
+   private MockedStatic<Audit> auditStatic;
 
    @BeforeEach
    void setUp() {
@@ -66,6 +71,10 @@ class ScheduleCycleServiceTest {
 
    @AfterEach
    void tearDown() {
+      if(auditStatic != null) {
+         auditStatic.close();
+      }
+
       organizationManagerStatic.close();
       sutilStatic.close();
    }
@@ -151,5 +160,80 @@ class ScheduleCycleServiceTest {
 
       assertEquals(List.of(cycle), result.cycles());
       verifyNoInteractions(securityProvider);
+   }
+
+   @Test
+   void editCycle_failedStoreOfRenamedCycleKeepsOldCycleAndPermissions() throws Exception {
+      stubEditCycle();
+      doThrow(new IOException("disk full")).when(dataCycleManager)
+         .setConditions(eq("NewName"), eq("host-org"), anyList());
+
+      IOException e = assertThrows(
+         IOException.class, () -> service.editCycle(renameModel("OldName", "NewName"), principal));
+
+      assertEquals("disk full", e.getMessage());
+      verify(dataCycleManager, never()).removeDataCycle(anyString(), anyString());
+      verify(securityEngine, never()).setPermission(
+         eq(ResourceType.SCHEDULE_CYCLE), anyString(), any());
+      verify(dataCycleManager, never()).save();
+   }
+
+   @Test
+   void editCycle_renameRemovesOldCycleOnlyAfterNewCycleIsStored() throws Exception {
+      stubEditCycle();
+      Permission permission = mock(Permission.class);
+      when(securityEngine.getPermission(
+         ResourceType.SCHEDULE_CYCLE,
+         ScheduleCycleService.getCyclePermissionID("OldName", "host-org")))
+         .thenReturn(permission);
+
+      service.editCycle(renameModel("OldName", "NewName"), principal);
+
+      InOrder order = inOrder(dataCycleManager, securityEngine);
+      order.verify(dataCycleManager).setCycleInfo(eq("NewName"), eq("host-org"), any());
+      order.verify(securityEngine).setPermission(
+         ResourceType.SCHEDULE_CYCLE,
+         ScheduleCycleService.getCyclePermissionID("NewName", "host-org"), permission);
+      order.verify(dataCycleManager).removeDataCycle("OldName", "host-org");
+      order.verify(dataCycleManager).save();
+   }
+
+   @Test
+   void editCycle_sameNameNeverRemovesTheCycle() throws Exception {
+      stubEditCycle();
+
+      service.editCycle(renameModel("Cycle1", "Cycle1"), principal);
+
+      verify(dataCycleManager).setCycleInfo(eq("Cycle1"), eq("host-org"), any());
+      verify(dataCycleManager, never()).removeDataCycle(anyString(), anyString());
+      verify(dataCycleManager).save();
+   }
+
+   private void stubEditCycle() throws Exception {
+      sutilStatic.when(() -> SUtil.getActionRecord(any(Principal.class), anyString(), any(), anyString()))
+         .thenAnswer(inv -> new ActionRecord());
+      auditStatic = mockStatic(Audit.class, withSettings().lenient());
+      auditStatic.when(Audit::getInstance).thenReturn(mock(Audit.class));
+      lenient().when(principal.getName()).thenReturn("admin");
+      lenient().when(securityEngine.checkPermission(
+         eq(principal), eq(ResourceType.SCHEDULE_CYCLE), anyString(), any(ResourceAction.class)))
+         .thenReturn(true);
+      lenient().doReturn(Collections.emptyEnumeration()).when(dataCycleManager)
+         .getDataCycles("host-org");
+   }
+
+   private ScheduleCycleDialogModel renameModel(String name, String label) {
+      return ScheduleCycleDialogModel.builder()
+         .name(name)
+         .label(label)
+         .timeZone("UTC")
+         .taskDefaultTime(false)
+         .conditionPaneModel(TaskConditionPaneModel.builder()
+                                .twelveHourSystem(false)
+                                .build())
+         .cycleInfo(new DataCycleManager.CycleInfo(name, "host-org"))
+         .permissionModel(mock(ResourcePermissionModel.class))
+         .startTimeEnabled(false)
+         .build();
    }
 }

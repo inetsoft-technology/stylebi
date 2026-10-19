@@ -151,7 +151,7 @@ class ScheduleManagerExtensionTaskTest {
    }
 
    @Test
-   void enableByTaskIdResolvesTheDataCycle() {
+   void enableByTaskIdResolvesTheDataCycle() throws Exception {
       // no generated task (no cycle info to look up), the name is parsed from the task id
       dataCycleManager.setEnable(STAGE2_ID, ORG, false);
       assertFalse(dataCycleManager.isEnable(CYCLE, ORG), "stage 2 task id maps to the cycle");
