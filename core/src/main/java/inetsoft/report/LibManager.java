@@ -394,6 +394,32 @@ public class LibManager implements AutoCloseable {
          return text;
       }
 
+      return renameReferences(oldName, newName, text, code);
+   }
+
+   /**
+    * Rename every identifier-exact reference to a library function in script text that does not
+    * declare it, such as a caller. Only code is touched: a string literal, template text,
+    * comment, regex literal, property access ({@code x.<oldName>}) or longer identifier that
+    * merely contains the old name is left alone.
+    * @param oldName old name of the script function.
+    * @param newName new name of the script function.
+    * @param text the script text of the caller.
+    * @return the text with the references renamed.
+    */
+   public static String renameFunctionReferences(String oldName, String newName, String text) {
+      if(text == null || oldName == null || newName == null || oldName.isEmpty()) {
+         return text;
+      }
+
+      final boolean[] code = new boolean[text.length()];
+      scanCode(text, code, new int[text.length()]);
+      return renameReferences(oldName, newName, text, code);
+   }
+
+   private static String renameReferences(String oldName, String newName, String text,
+                                          boolean[] code)
+   {
       final Matcher ref = Pattern.compile("(?<![\\w$])" + Pattern.quote(oldName) + "(?![\\w$])")
          .matcher(text);
       final StringBuilder result = new StringBuilder();

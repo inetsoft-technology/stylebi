@@ -404,6 +404,11 @@ public class AssetDependencyTransformer extends DependencyTransformer {
 
             return new ArrayList<>();
          }
+         else if(info.isScriptFunction()) {
+            renameScript(doc, info);
+
+            return new ArrayList<>();
+         }
       }
 
       // rename by assembly/dateref only for column/entity.
