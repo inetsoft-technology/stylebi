@@ -548,6 +548,102 @@ class CalcCellVocabularyTest {
                                           "others", "leave")))));
    }
 
+   private static Map<String, Object> cellWithNamedGroup(Map<String, Object> namedGroup) {
+      return spec("content", "column", "grouping", "group", "expand", "vertical",
+                  "field", spec("column", "Region", "type", "dimension",
+                                "namedGroup", namedGroup));
+   }
+
+   private static Map<String, Object> groupOf(Map<String, Object> condition) {
+      return spec("name", "West", "conditions", List.of(condition));
+   }
+
+   private static Map<String, Object> clause() {
+      return spec("operator", "one_of", "values", List.of("CA"));
+   }
+
+   private static void assertRefusesNamingKeyAndPath(
+      Map<String, Object> namedGroup, String key, String path)
+   {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> CalcCellVocabulary.validate(cellWithNamedGroup(namedGroup)));
+
+      assertTrue(thrown.getMessage().contains("'" + key + "'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'" + path + "'"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesAnUnknownKeyOnTheInlineNamedGroup() {
+      assertRefusesNamingKeyAndPath(
+         spec("groups", List.of(groupOf(clause())), "other", "leave"),
+         "other", "field.namedGroup");
+   }
+
+   @Test
+   void refusesAnUnknownKeyOnAnInlineNamedGroupGroup() {
+      assertRefusesNamingKeyAndPath(
+         spec("groups", List.of(spec("name", "West", "conditions", List.of(clause()),
+                                     "label", "x"))),
+         "label", "field.namedGroup.groups[0]");
+   }
+
+   @Test
+   void refusesAnUnknownKeyOnAnInlineNamedGroupCondition() {
+      Map<String, Object> condition = spec("operator", "one_of", "values", List.of("CA"));
+      condition.put("value", "CA");
+      assertRefusesNamingKeyAndPath(spec("groups", List.of(groupOf(condition))),
+                                    "value", "field.namedGroup.groups[0].conditions[0]");
+   }
+
+   @Test
+   void refusesLevelAndJunctionLevelOnAnInlineNamedGroupConditionWithANestingHint() {
+      for(String key : List.of("level", "junctionLevel")) {
+         Map<String, Object> condition = spec("operator", "one_of", "values", List.of("CA"));
+         condition.put(key, 0);
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> CalcCellVocabulary.validate(
+               cellWithNamedGroup(spec("groups", List.of(groupOf(condition))))));
+
+         assertTrue(thrown.getMessage().contains("'" + key + "'"), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("no nesting"), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("conditions[0]"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void acceptsAnInlineNamedGroupUsingEveryRecognizedKey() {
+      Map<String, Object> first = spec("field", "Region", "operator", "one_of",
+                                       "values", List.of("CA"), "junction", "or",
+                                       "negated", false, "equal", true);
+      Map<String, Object> second = spec("operator", "equals", "values", List.of("WA"));
+
+      for(String others : List.of("leave", "group")) {
+         assertDoesNotThrow(() -> CalcCellVocabulary.validate(cellWithNamedGroup(
+            spec("groups", List.of(spec("name", "West", "conditions", List.of(first, second))),
+                 "others", others))));
+      }
+   }
+
+   @Test
+   void acceptsTheShapeDescribeReadsBackForAnInlineNamedGroup() {
+      NamedGroupInfoModel info = new NamedGroupInfoModel();
+      info.setType(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO);
+      info.setName("Custom");
+      info.addCondition(expression("West", new ConditionVocabulary.Clause(
+         "Region", "one_of", List.of("CA", "OR"), "or", false, true, 0),
+         new ConditionVocabulary.Clause(
+            "Region", "equals", List.of("WA"), null, true, false, 0)));
+
+      Map<String, Object> described = CalcCellVocabulary.describe(groupCell(info, true));
+
+      // describe() reports the named group on the cell; a write carries it under the cell's field.
+      Map<String, Object> namedGroup = (Map<String, Object>) described.get("namedGroup");
+
+      assertDoesNotThrow(() -> CalcCellVocabulary.validate(cellWithNamedGroup(namedGroup)));
+   }
+
    @Test
    void ignoresByNameNamedGroupStringsEntirely() {
       // The by-name form ("a predefined group's name") needs runtime session state to resolve --
