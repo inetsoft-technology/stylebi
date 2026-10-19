@@ -428,6 +428,21 @@ public class TableVSAQuery extends DataVSAQuery {
    }
 
    /**
+    * Check whether the bound table selects at least one visible column.
+    */
+   static boolean hasVisibleColumn(TableAssembly table) {
+      ColumnSelection columns = table.getColumnSelection(false);
+
+      for(int i = 0; columns != null && i < columns.getAttributeCount(); i++) {
+         if(((ColumnRef) columns.getAttribute(i)).isVisible()) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * Get the table.
     * @return the table of the query.
     */
@@ -440,6 +455,12 @@ public class TableVSAQuery extends DataVSAQuery {
          TableAssembly table = getTableAssembly(false);
 
          if(table == null) {
+            return null;
+         }
+
+         // a table with a source but no bound column (or hidden parameter/form column) renders
+         // nothing; skip the data query, which otherwise runs the unpruned base query (#78805)
+         if(!hasVisibleColumn(table)) {
             return null;
          }
 
