@@ -268,7 +268,9 @@ public class EmbeddedTableAssembly extends AbstractTableAssembly {
          }
       }
 
-      setEmbeddedData(data);
+      // with delayed parsing, data is only a placeholder; defaulting the column selection from
+      // it would add a phantom column. loadOnDemand() sets the real data and fills the selection.
+      setEmbeddedData(data, encodedFragments == null);
    }
 
    // Load data from cached data

@@ -1340,6 +1340,10 @@ public class WorksheetEditService {
          }
 
          EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, name);
+         // the default data is seeded with a "col1" header that refreshColumnSelection would
+         // turn into a visible column 0; use a header row plus one blank row, no columns
+         Object[][] rows = { new Object[0], new Object[0] };
+         t.setEmbeddedData(new XEmbeddedTable(new String[0], rows));
          ColumnSelection cs = new ColumnSelection();
 
          for(String col : columns) {

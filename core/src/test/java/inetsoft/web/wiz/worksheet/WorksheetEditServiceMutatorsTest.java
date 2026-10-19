@@ -6875,6 +6875,61 @@ class WorksheetEditServiceMutatorsTest {
       assertNotNull(t.getColumnSelection(false).getAttribute("col2"));
    }
 
+   @Test
+   void addTableBlankHasNoSeededColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addTable("T"));
+
+      EmbeddedTableAssembly t = (EmbeddedTableAssembly) ws.getAssembly("T");
+      assertEquals(0, t.getColumnSelection(false).getAttributeCount());
+      assertEquals(0, t.getEmbeddedData().getColCount());
+      assertEquals(0, t.getOriginalEmbeddedData().getColCount());
+      assertEquals(1, t.getEmbeddedData().getRowCount() - 1);
+   }
+
+   @Test
+   void addTableThenAddColumnMakesFirstUserColumnIndexZero() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addTable("T"));
+      svc.apply("TOK", agent, ed -> ed.addColumn("T", "MONTH_NUM", null));
+      svc.apply("TOK", agent, ed -> ed.editCell("T", 0, 0, "1"));
+
+      EmbeddedTableAssembly t = (EmbeddedTableAssembly) ws.getAssembly("T");
+      assertEquals(1, t.getColumnSelection(false).getAttributeCount());
+      assertEquals("MONTH_NUM", t.getColumnSelection(false).getAttribute(0).getName());
+      assertEquals(1, t.getEmbeddedData().getColCount());
+      assertEquals("1", String.valueOf(t.getEmbeddedData().getObject(1, 0)));
+   }
+
+   @Test
+   void addTableZeroColumnTableSurvivesXmlRoundTrip() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addTable("T"));
+      EmbeddedTableAssembly t = (EmbeddedTableAssembly) ws.getAssembly("T");
+
+      java.io.StringWriter sw = new java.io.StringWriter();
+      java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+      t.writeXML(pw);
+      pw.flush();
+
+      org.w3c.dom.Document doc = inetsoft.util.Tool.parseXML(
+         new java.io.StringReader(sw.toString()));
+      EmbeddedTableAssembly t2 = new EmbeddedTableAssembly();
+      t2.parseXML(doc.getDocumentElement());
+
+      assertEquals(0, t2.getEmbeddedData().getColCount());
+      assertEquals(0, t2.getColumnSelection(false).getAttributeCount());
+   }
+
    // =========================================================================
    // Permission gate tests — addCrossJoin / addExpressionColumn / editExpression
    // =========================================================================
