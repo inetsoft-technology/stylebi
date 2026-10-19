@@ -37,6 +37,7 @@ import inetsoft.web.wiz.script.model.ScriptError;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -103,14 +104,18 @@ public class ScriptExecuteService {
    // declared locals out of unrecognizedProperties here fixes the false positive without touching
    // that shared scope-emulation code (which every script kind in the product depends on).
    private static final Pattern DECLARATION_KEYWORD = Pattern.compile("\\b(?:var|let|const)\\b");
-   private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_$][\\w$]*");
+   // JS identifiers may be Unicode, and Script Library entry names are not restricted to ASCII.
+   private static final String ID = "[\\p{L}_$][\\p{L}\\p{M}\\p{N}_$]*";
+   private static final Pattern IDENTIFIER = Pattern.compile(ID);
+   private static final Pattern GLOBAL_QUALIFIER =
+      Pattern.compile("(?:this|globalThis|window|self)\\s*\\.$");
 
    // Bug #78812: ways a Script Library entry can declare a callable global function.
    private static final List<Pattern> FUNCTION_DECLARATIONS = List.of(
-      Pattern.compile("\\bfunction\\s*\\*?\\s*([A-Za-z_$][\\w$]*)\\s*\\("),
-      Pattern.compile("([A-Za-z_$][\\w$]*)\\s*=\\s*(?:async\\s+)?function\\b"),
-      Pattern.compile("([A-Za-z_$][\\w$]*)\\s*=\\s*(?:async\\s*)?" +
-                      "(?:\\([^)]*\\)|[A-Za-z_$][\\w$]*)\\s*=>")
+      Pattern.compile("\\bfunction\\s*\\*?\\s*(" + ID + ")\\s*\\("),
+      Pattern.compile("(" + ID + ")\\s*=\\s*(?:async\\s+)?function\\b"),
+      Pattern.compile("(" + ID + ")\\s*=\\s*(?:async\\s*)?" +
+                      "(?:\\([^)]*\\)|" + ID + ")\\s*=>")
    );
 
    private static final Logger LOG = LoggerFactory.getLogger(ScriptExecuteService.class);
@@ -650,6 +655,15 @@ public class ScriptExecuteService {
     * desync this, a limitation shared with any non-parser-based scan of script text.
     */
    private static String stripCommentsAndStrings(String text) {
+      return stripCommentsAndStrings(text, false);
+   }
+
+   /**
+    * @param keepTemplateExpressions keep the bodies of template-literal {@code ${...}}
+    *                                interpolations (they are executable code), dropping only the
+    *                                literal text.
+    */
+   private static String stripCommentsAndStrings(String text, boolean keepTemplateExpressions) {
       StringBuilder out = new StringBuilder(text.length());
       int i = 0;
       int n = text.length();
@@ -678,6 +692,27 @@ public class ScriptExecuteService {
             while(i < n && text.charAt(i) != quote) {
                if(text.charAt(i) == '\\' && i + 1 < n) {
                   i++;
+               }
+               else if(keepTemplateExpressions && quote == '`' && text.charAt(i) == '$' &&
+                  i + 1 < n && text.charAt(i + 1) == '{')
+               {
+                  int depth = 1;
+                  out.append(' ');
+                  i += 2;
+
+                  while(i < n && depth > 0) {
+                     char d = text.charAt(i);
+                     depth += d == '{' ? 1 : d == '}' ? -1 : 0;
+
+                     if(depth > 0) {
+                        out.append(d);
+                     }
+
+                     i++;
+                  }
+
+                  out.append(' ');
+                  continue;
                }
 
                i++;
@@ -730,7 +765,7 @@ public class ScriptExecuteService {
          }
       }
 
-      Deque<String> work = new ArrayDeque<>(identifiers(stripCommentsAndStrings(scriptText), true));
+      Deque<String> work = new ArrayDeque<>(identifiers(stripCommentsAndStrings(scriptText, true), true));
       Set<String> visited = new HashSet<>();
 
       while(!work.isEmpty()) {
@@ -766,16 +801,20 @@ public class ScriptExecuteService {
     * scan applies. Package-private so tests can supply a library.
     */
    Map<String, String> libraryScripts(Principal user) {
-      LibManager mgr;
+      LibManagerProvider provider;
 
       try {
-         LibManagerProvider provider = LibManagerProvider.getInstance();
-         mgr = user instanceof XPrincipal ? provider.getManager(user) : provider.getManager();
+         provider = LibManagerProvider.getInstance();
       }
-      catch(RuntimeException ex) {
-         LOG.debug("Script Library unavailable; scanning the script text only", ex);
+      catch(NoSuchBeanDefinitionException ex) {
+         LOG.debug("No Script Library provider; scanning the script text only", ex);
          return null;
       }
+
+      // any other failure (storage, cluster, org lookup) propagates instead of silently
+      // degrading to the direct-only scan, which would re-open the bug
+      LibManager mgr =
+         user instanceof XPrincipal ? provider.getManager(user) : provider.getManager();
 
       Map<String, String> sources = new LinkedHashMap<>();
       Enumeration<String> names = mgr.getScripts();
@@ -811,7 +850,7 @@ public class ScriptExecuteService {
       Matcher m = IDENTIFIER.matcher(text);
 
       while(m.find()) {
-         if(skipMembers && m.start() > 0 && text.charAt(m.start() - 1) == '.') {
+         if(skipMembers && isPlainMember(text, m.start())) {
             continue;
          }
 
@@ -819,6 +858,21 @@ public class ScriptExecuteService {
       }
 
       return tokens;
+   }
+
+   /** True for {@code obj.name}; false for {@code this.name}/{@code globalThis.name} etc. */
+   private static boolean isPlainMember(String text, int start) {
+      int p = start - 1;
+
+      while(p >= 0 && Character.isWhitespace(text.charAt(p))) {
+         p--;
+      }
+
+      if(p < 0 || text.charAt(p) != '.') {
+         return false;
+      }
+
+      return !GLOBAL_QUALIFIER.matcher(text.substring(Math.max(0, p - 20), p + 1)).find();
    }
 
    private record DestructiveRef(String global, String function, String entry) {

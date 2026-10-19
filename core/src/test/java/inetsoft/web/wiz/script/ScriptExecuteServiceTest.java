@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.script;
 
+import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.script.viewsheet.VSAScriptable;
@@ -36,6 +38,7 @@ import inetsoft.web.wiz.script.model.ScriptExecResult;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -618,6 +621,121 @@ class ScriptExecuteServiceTest {
 
       ScriptExecResult direct = runLiveWithLibrary("runQuery('q')", null, false, scope);
       assertTrue(direct.requiresConfirmation());
+   }
+
+   @Test
+   void templateLiteralInterpolationIsScanned() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      Map<String, String> lib = Map.of("getOrderCount",
+         "function getOrderCount() { return runQuery('q'); }");
+
+      ScriptExecResult result =
+         runLiveWithLibrary("`Total ${getOrderCount()}`", lib, false, scope);
+
+      assertTrue(result.requiresConfirmation());
+      assertTrue(result.confirmationReason().contains("\"getOrderCount\""));
+      verify(scope, never()).execute(anyString(), nullable(String.class));
+   }
+
+   @Test
+   void templateLiteralTextOutsideInterpolationIsNotScanned() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+      Map<String, String> lib = Map.of("getOrderCount",
+         "function getOrderCount() { return runQuery('q'); }");
+
+      assertTrue(runLiveWithLibrary("`getOrderCount ${1 + 1}`", lib, false, scope).ok());
+   }
+
+   @Test
+   void globalQualifiedLibraryCallIsStillScanned() throws Exception {
+      Map<String, String> lib = Map.of("getOrderCount",
+         "function getOrderCount() { return runQuery('q'); }");
+
+      for(String qualifier : List.of("this", "globalThis", "window", "self", "this .")) {
+         ViewsheetScope scope = mock(ViewsheetScope.class);
+         String call = qualifier.endsWith(".") ? qualifier + " getOrderCount()" :
+            qualifier + ".getOrderCount()";
+         ScriptExecResult result = runLiveWithLibrary("'T: ' + " + call, lib, false, scope);
+
+         assertTrue(result.requiresConfirmation(), call);
+      }
+   }
+
+   @Test
+   void unicodeLibraryFunctionNameIsScanned() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      Map<String, String> lib = Map.of("获取订单数",
+         "function 获取订单数() { return runQuery('q'); }");
+
+      ScriptExecResult result = runLiveWithLibrary("获取订单数()", lib, false, scope);
+
+      assertTrue(result.requiresConfirmation());
+      assertTrue(result.confirmationReason().contains("获取订单数"));
+   }
+
+   @Test
+   void unicodeDeclaredNameDiffersFromEntryName() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      Map<String, String> lib = Map.of("entry",
+         "var 订单 = function() { return runQuery('q'); };");
+
+      assertTrue(runLiveWithLibrary("订单()", lib, false, scope).requiresConfirmation());
+   }
+
+   @Test
+   void absentLibraryProviderBeanFallsBackToDirectScan() {
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      try(MockedStatic<LibManagerProvider> provider = mockStatic(LibManagerProvider.class)) {
+         provider.when(LibManagerProvider::getInstance)
+            .thenThrow(new NoSuchBeanDefinitionException(LibManagerProvider.class));
+
+         assertNull(svc.libraryScripts(new XPrincipal(new IdentityID("u", "org"))));
+      }
+   }
+
+   @Test
+   void libraryFailureOtherThanAbsentBeanPropagates() {
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+      LibManagerProvider mgrProvider = mock(LibManagerProvider.class);
+      when(mgrProvider.getManager(any(java.security.Principal.class)))
+         .thenThrow(new IllegalStateException("storage down"));
+
+      try(MockedStatic<LibManagerProvider> provider = mockStatic(LibManagerProvider.class)) {
+         provider.when(LibManagerProvider::getInstance).thenReturn(mgrProvider);
+
+         assertThrows(IllegalStateException.class,
+                      () -> svc.libraryScripts(new XPrincipal(new IdentityID("u", "org"))));
+      }
+   }
+
+   @Test
+   void realLibraryPathUsesRuntimeUsersManagerAndSkipsNullSources() throws Exception {
+      XPrincipal user = new XPrincipal(new IdentityID("u", "org"));
+      LibManager mgr = mock(LibManager.class);
+      when(mgr.getScripts()).thenReturn(
+         java.util.Collections.enumeration(List.of("getOrderCount", "empty")));
+      when(mgr.getScript("getOrderCount"))
+         .thenReturn("function getOrderCount() { return runQuery('q'); }");
+      when(mgr.getScript("empty")).thenReturn(null);
+      LibManagerProvider mgrProvider = mock(LibManagerProvider.class);
+      when(mgrProvider.getManager(user)).thenReturn(mgr);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      RuntimeViewsheet rvs = viewsheetWithScript("getOrderCount()", scope);
+      when(rvs.getUser()).thenReturn(user);
+
+      try(MockedStatic<LibManagerProvider> provider = mockStatic(LibManagerProvider.class)) {
+         provider.when(LibManagerProvider::getInstance).thenReturn(mgrProvider);
+
+         ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), false);
+
+         assertTrue(result.requiresConfirmation());
+      }
+
+      verify(mgrProvider).getManager(user);
+      verify(mgrProvider, never()).getManager();
    }
 
    /** Bug #78662: a script run changes the live runtime, so it must read as changed since the last save. */
