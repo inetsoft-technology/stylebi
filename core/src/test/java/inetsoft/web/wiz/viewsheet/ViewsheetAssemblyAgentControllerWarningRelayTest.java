@@ -110,6 +110,37 @@ class ViewsheetAssemblyAgentControllerWarningRelayTest {
                                                 principal()));
    }
 
+   /** Bug #78406 round 4: set_column_options used to answer an empty 200 whatever happened. */
+   @Test
+   void setColumnOptionsRelaysTheWarnings() throws Exception {
+      ColumnOptionService options = mock(ColumnOptionService.class);
+      when(options.set(eq("tok"), any(), eq("Form1"), eq(0), eq(false), any(), any(),
+                       anyString())).thenReturn(WARNED);
+      ViewsheetAssemblyAgentController controller =
+         controller(ColumnOptionService.class, options);
+
+      assertEquals(Map.of("warnings", WARNED),
+                   controller.setColumnOptions("tok", columnOptionsRequest(), "", principal()));
+   }
+
+   @Test
+   void setColumnOptionsAnswersAnEmptyBodyWhenClean() throws Exception {
+      ColumnOptionService options = mock(ColumnOptionService.class);
+      when(options.set(eq("tok"), any(), eq("Form1"), eq(0), eq(false), any(), any(),
+                       anyString())).thenReturn(List.of());
+      ViewsheetAssemblyAgentController controller =
+         controller(ColumnOptionService.class, options);
+
+      assertNull(controller.setColumnOptions("tok", columnOptionsRequest(), "", principal()));
+   }
+
+   private static ViewsheetAssemblyAgentController.ColumnOptionsPatchRequest
+      columnOptionsRequest()
+   {
+      return new ViewsheetAssemblyAgentController.ColumnOptionsPatchRequest(
+         "Form1", 0, false, null, null);
+   }
+
    private static ViewsheetAssemblyAgentController.DateComparisonRequest dateComparisonRequest(
       String assembly)
    {

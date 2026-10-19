@@ -1809,16 +1809,18 @@ public class ViewsheetAssemblyAgentController {
 
    /** {@code set_column_options}. */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/column-options")
-   public void setColumnOptions(@PathVariable String sessionToken,
-                                @RequestBody ColumnOptionsPatchRequest request,
-                                @RequestParam(required = false, defaultValue = "") String linkUri,
-                                Principal user)
+   public Map<String, Object> setColumnOptions(
+      @PathVariable String sessionToken,
+      @RequestBody ColumnOptionsPatchRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user)
       throws Exception
    {
       requireEnabled();
-      columnOptionService.set(sessionToken, user, request.assembly(), request.col(),
-                              request.enableColumnEditing(), request.inputControl(),
-                              request.editor(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         columnOptionService.set(sessionToken, user, request.assembly(), request.col(),
+                                 request.enableColumnEditing(), request.inputControl(),
+                                 request.editor(), linkUri));
    }
 
    public record SetParametersRequest(Map<String, List<Object>> values) {}
