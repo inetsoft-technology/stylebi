@@ -120,11 +120,8 @@ public class SheetPropertyService {
       // Resolved whole before anything is written, exactly as the assembly path is: a bad or
       // refused key anywhere in the patch must not leave the properties before it applied,
       // which would be a partial edit the caller has no way to detect from the error alone.
-      Map<String, String> resolved = new LinkedHashMap<>();
-
-      for(String key : patch.keySet()) {
-         resolved.put(key, PropertyAliases.resolveForWrite(SHEET_TYPE, key));
-      }
+      Map<String, String> resolved =
+         PropertyAliases.resolvePatchForWrite(SHEET_TYPE, patch.keySet());
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);

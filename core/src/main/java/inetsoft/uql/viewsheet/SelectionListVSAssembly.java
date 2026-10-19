@@ -596,6 +596,8 @@ public class SelectionListVSAssembly extends AbstractSelectionVSAssembly
       if(dref != null && Tool.equals(oname, dref.getName())) {
          VSUtil.renameDataRef(dref, nname);
       }
+
+      getSelectionListInfo().renameMeasure(oname, nname);
    }
 
    /**
