@@ -116,16 +116,21 @@ Widening a text input or combo box is the common edit and says nothing about its
 hook, `VSAssemblyInfo.densitySizeIsHeightOnly()`, false by default and true on the six types,
 drives four sites:
 
-1. **`VSAssemblyInfo.isAuthorSizeChange(before, after)`**, new and final: `before.height !=
-   after.height` for a height-only type, `!before.equals(after)` otherwise. It replaces the equality
-   test at `ComposerObjectService:148` and the width-or-height test in `recordAuthorSize`.
+1. **`VSAssemblyInfo.isAuthorSizeChange(before, after)`**: `before.height != after.height` for a
+   height-only type, `!before.equals(after)` otherwise. It replaces the equality test at
+   `ComposerObjectService:148` and the width-or-height test in `recordAuthorSize`.
+   *(Amended 2026-10-19: #6832 added the same method first, overridable, and narrowed it to the
+   height in `SelectionBaseVSAssemblyInfo`. This design's body is the default, and the method is
+   not final, so that override stands.)*
 2. **`applyDensitySize`** copies only the height back into the model for a height-only type, so a
    width typed into the dialog in the same apply survives.
 3. **`readSizeFollowsDensity`** also writes `SizePositionPaneModel.densityHeightOnly`.
 4. **The pane** keeps Width enabled while the size checkbox is ticked when `densityHeightOnly` is
    true.
 
-Lists, trees, the container and the calendar return false and keep #6390's behaviour exactly.
+Lists, trees, the container and the calendar return false. The container and the calendar keep
+#6390's behaviour exactly; lists and trees keep #6832's height-only authorship from their own
+override.
 
 ### D3 — Checkbox and radio button join the title lane
 
