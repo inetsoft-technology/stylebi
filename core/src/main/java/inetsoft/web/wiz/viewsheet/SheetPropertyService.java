@@ -122,6 +122,7 @@ public class SheetPropertyService {
       // which would be a partial edit the caller has no way to detect from the error alone.
       Map<String, String> resolved =
          PropertyAliases.resolvePatchForWrite(SHEET_TYPE, patch.keySet());
+      requireOptionRanges(resolved, patch);
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
@@ -142,6 +143,51 @@ public class SheetPropertyService {
          reconcileParameterLists(model, resolved);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
       });
+   }
+
+   /**
+    * Mirrors the Composer options dialog's validators for the numeric Viewsheet Options fields.
+    * Checked only for keys present in the patch, on the resolved path (so the raw
+    * {@code vsOptionsPane.*} spelling is covered too), and deliberately not in the shared
+    * {@link ViewsheetPropertyDialogService}: {@code set} re-submits the whole model, and a legacy
+    * sheet already storing an out-of-range value must still accept an unrelated edit.
+    *
+    * <p>{@code touchInterval} must be 0..86400; 0 is accepted because the native validator skips
+    * falsy values and clients treat 0 as "use the default" (60 seconds). {@code maxRows} must be
+    * >= 0. Non-numeric values are left for {@link PropertyPath#set} to refuse.
+    */
+   private static void requireOptionRanges(Map<String, String> resolved, Map<String, Object> patch) {
+      for(Map.Entry<String, String> entry : resolved.entrySet()) {
+         String path = entry.getValue();
+         boolean touch = "vsOptionsPane.touchInterval".equals(path);
+         boolean rows = "vsOptionsPane.maxRows".equals(path);
+
+         if(!touch && !rows) {
+            continue;
+         }
+
+         Object value = patch.get(entry.getKey());
+         double number;
+
+         try {
+            number = value instanceof Number ? ((Number) value).doubleValue() :
+               Double.parseDouble(String.valueOf(value).trim());
+         }
+         catch(NumberFormatException e) {
+            continue;
+         }
+
+         if(touch && (number < 0 || number > 86400)) {
+            throw new IllegalArgumentException(
+               "'touchInterval' must be a whole number of seconds between 0 and 86400 (0 means " +
+               "the default, 60 seconds); " + value + " is not.");
+         }
+
+         if(rows && number < 0) {
+            throw new IllegalArgumentException(
+               "'maxRows' must be 0 or greater; " + value + " is not.");
+         }
+      }
    }
 
    /**
