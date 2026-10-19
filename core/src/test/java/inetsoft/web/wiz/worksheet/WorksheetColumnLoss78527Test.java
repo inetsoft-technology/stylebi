@@ -192,22 +192,79 @@ class WorksheetColumnLoss78527Test {
       assertSqlEdit(ws, q, newColumns("ORDER_ID", "ORDER_TOTAL"));
    }
 
-   @Test
-   void sqlEditDroppingAJoinKeyKeepsTheExistingMessage() throws Exception {
-      Worksheet ws = new Worksheet();
-      WorksheetEditService svc = service(ws);
+   private TableAssembly queryWithJoin(Worksheet ws, WorksheetEditService svc) throws Exception {
       TableAssembly q = queryWithMirror(ws, svc);
       EmbeddedTableAssembly r = TestWorksheets.tableWithColumns(ws, "R", "k");
       setType(r, "k", XSchema.INTEGER);
       ws.addAssembly(r);
       svc.apply("TOK", agent, ed -> ed.addJoin(
          "J", "Q", "CUSTOMER_ID", "R", "k", "INNER", null, null));
+      return q;
+   }
+
+   /** Bug #78811: the join key refusal names the join, not just the column. */
+   @Test
+   void sqlEditDroppingAJoinKeyIsRefusedNamingTheJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetEditService svc = service(ws);
+      TableAssembly q = queryWithJoin(ws, svc);
 
       PairingException ex = assertThrows(PairingException.class,
          () -> assertSqlEdit(ws, q, newColumns("ORDER_ID", "ORDER_TOTAL")));
 
-      assertEquals(Catalog.getCatalog().getString("common.columnDependency", "CUSTOMER_ID"),
-                   ex.getMessage());
+      assertTrue(ex.getMessage().contains("'J'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("join key on \"CUSTOMER_ID\""), ex.getMessage());
+      assertFalse(ex.getMessage().contains(
+         Catalog.getCatalog().getString("common.columnDependency", "CUSTOMER_ID")),
+                  ex.getMessage());
+   }
+
+   @Test
+   void sqlEditRenamingAJoinKeyIsRefusedNamingTheJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetEditService svc = service(ws);
+      TableAssembly q = queryWithJoin(ws, svc);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> assertSqlEdit(ws, q, newColumns("ORDER_ID", "CUST_ID", "ORDER_TOTAL")));
+
+      assertTrue(ex.getMessage().contains("'J'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("join key on \"CUSTOMER_ID\""), ex.getMessage());
+   }
+
+   @Test
+   void sqlEditDroppingAKeyAlsoReadByAConditionListsBothDependents() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetEditService svc = service(ws);
+      TableAssembly q = queryWithJoin(ws, svc);
+      svc.apply("TOK", agent, ed -> ed.addFilter("M", "CUSTOMER_ID", "=", "1"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> assertSqlEdit(ws, q, newColumns("ORDER_ID", "ORDER_TOTAL")));
+
+      assertTrue(ex.getMessage().contains("'J' (join key"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("'M' (pre-condition)"), ex.getMessage());
+   }
+
+   @Test
+   void sqlEditDroppingAKeyOfAJoinOverACrossJoinNamesTheJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetEditService svc = service(ws);
+      TableAssembly q = queryWithMirror(ws, svc);
+      EmbeddedTableAssembly s = TestWorksheets.tableWithColumns(ws, "S", "k");
+      setType(s, "k", XSchema.INTEGER);
+      ws.addAssembly(s);
+      svc.apply("TOK", agent, ed -> ed.addCrossJoin("X", "Q", "S"));
+      EmbeddedTableAssembly r = TestWorksheets.tableWithColumns(ws, "R", "k");
+      setType(r, "k", XSchema.INTEGER);
+      ws.addAssembly(r);
+      svc.apply("TOK", agent, ed -> ed.addJoin(
+         "JX", "X", "CUSTOMER_ID", "R", "k", "INNER", null, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> assertSqlEdit(ws, q, newColumns("ORDER_ID", "ORDER_TOTAL")));
+
+      assertTrue(ex.getMessage().contains("'JX'"), ex.getMessage());
    }
 
    // ------------------------------------------------------------------- Bug #78681: own derived columns

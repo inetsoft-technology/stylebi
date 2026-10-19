@@ -4477,9 +4477,9 @@ public class WorksheetAgentController {
     * human-driven SQL Query dialog, translated into a thrown {@link PairingException} instead
     * of a reverted {@code MessageCommand} -- the wiz plugin has no dialog to revert back into.
     *
-    * <p>Bug #78527: unlike the dialog, also refuses dropping a column a downstream condition,
-    * ranking, expression or range column still reads (e.g. a mirror's {@code field['X']}),
-    * naming each dependent. A column counts as dropped when no new column has its output name,
+    * <p>Bug #78527/#78811: unlike the dialog, names each dependent: a join or composite table
+    * keyed on the column, or a downstream condition, ranking, expression or range column that
+    * still reads it (e.g. a mirror's {@code field['X']}). A column counts as dropped when no new column has its output name,
     * since that is what a downstream reference resolves by. Aggregates are left to the plugin's
     * accept-and-warn diff (WSQ-009), and the table's own conditions and sort are not checked
     * here. Its own expression and range columns are kept by both edits (Bug #78681), so the
@@ -4491,9 +4491,8 @@ public class WorksheetAgentController {
     * @param newColumns the column selection the new SQL would produce
     * @param lossLead   what the edit is, as the subject of "... would drop column(s) ..."
     * @param lossRemedy what the caller can do instead, ending the dropped-column refusal
-    * @throws PairingException naming the first old column that is both absent from
-    *                          {@code newColumns} and still used by a dependent join, or every
-    *                          dropped column a downstream reference still reads
+    * @throws PairingException naming every dependent (join key, condition, ranking, expression
+    *                          or range column) of a column absent from {@code newColumns}
     */
    static void assertSqlEditAllowsColumnRemoval(
       Worksheet ws, TableAssembly assembly, ColumnSelection oldColumns,
@@ -4507,17 +4506,6 @@ public class WorksheetAgentController {
       }
 
       ColumnSelection safeNewColumns = newColumns != null ? newColumns : new ColumnSelection();
-
-      for(int i = 0; i < oldColumns.getAttributeCount(); i++) {
-         ColumnRef attribute = (ColumnRef) oldColumns.getAttribute(i);
-
-         if(!safeNewColumns.containsAttribute(attribute) &&
-            !WorksheetControllerService.allowsDeletion(ws, assembly, attribute))
-         {
-            throw new PairingException(Catalog.getCatalog().getString(
-               "common.columnDependency", attribute.getAttribute()));
-         }
-      }
 
       // Bug #78346: a surviving join key whose type changes is as broken as a removed one.
       List<JoinKeyTypeGuard.Break> breaks =
