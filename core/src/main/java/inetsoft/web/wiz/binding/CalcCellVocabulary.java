@@ -129,6 +129,19 @@ public final class CalcCellVocabulary {
    /** The keys {@code CalcTableService} reads from a {@code rankBy} inside sort or topn. */
    private static final List<String> RANK_BY_KEYS = List.of("column", "formula");
 
+   /** The keys {@code CalcTableService} reads from an inline {@code field.namedGroup}. */
+   private static final List<String> NAMED_GROUP_KEYS = List.of("groups", "others");
+
+   /** The keys {@code CalcTableService} reads from one group of an inline named group. */
+   private static final List<String> NAMED_GROUP_GROUP_KEYS = List.of("name", "conditions");
+
+   /**
+    * The keys {@code CalcTableService.clausesOf} reads from one condition of an inline named
+    * group. There is no nesting level: a calc-table named group's conditions are one flat list.
+    */
+   private static final List<String> NAMED_GROUP_CONDITION_KEYS = List.of(
+      "field", "operator", "values", "junction", "negated", "equal");
+
    /**
     * Keys {@link #describe} emits that a read-modify-write round trip sends straight back. They
     * carry no write of their own and are ignored, so they are tolerated rather than refused.
@@ -569,6 +582,7 @@ public final class CalcCellVocabulary {
       }
 
       Map<String, Object> spec = (Map<String, Object>) namedGroup;
+      requireKnownKeys(spec, "field.namedGroup", NAMED_GROUP_KEYS);
       Object rawGroups = spec.get("groups");
 
       if(!(rawGroups instanceof List<?> groups) || groups.isEmpty()) {
@@ -587,6 +601,8 @@ public final class CalcCellVocabulary {
                "'field.namedGroup.groups[" + i + "]' must be an object.");
          }
 
+         requireKnownKeys(groupSpec, "field.namedGroup.groups[" + i + "]",
+                          NAMED_GROUP_GROUP_KEYS);
          Object name = groupSpec.get("name");
 
          if(!(name instanceof String text) || text.isBlank()) {
@@ -610,6 +626,9 @@ public final class CalcCellVocabulary {
                   "such as {operator: \"one_of\", values: [...]}, got " + condition + ".");
             }
 
+            String conditionPath = "field.namedGroup.groups[" + i + "].conditions[" + c + "]";
+            requireNoNesting(clause, conditionPath);
+            requireKnownKeys(clause, conditionPath, NAMED_GROUP_CONDITION_KEYS);
             Object conditionField = clause.get("field");
 
             if(conditionField != null && column != null && !column.equals(String.valueOf(conditionField)) &&
@@ -652,6 +671,18 @@ public final class CalcCellVocabulary {
                "'" + path + "' carries '" + key + "', which this write does not recognize and " +
                "would otherwise drop silently. Recognized keys: " + String.join(", ", recognized) +
                ". Nothing was changed.");
+         }
+      }
+   }
+
+   /** A calc-table named group has no condition nesting, so say that instead of just "unknown". */
+   private static void requireNoNesting(Map<?, ?> clause, String path) {
+      for(String key : List.of("level", "junctionLevel")) {
+         if(clause.containsKey(key)) {
+            throw new IllegalArgumentException(
+               "'" + path + "' carries '" + key + "', but a calc-table named group has no " +
+               "nesting: its conditions are one flat list joined by 'junction'. Drop '" + key +
+               "'. Nothing was changed.");
          }
       }
    }
