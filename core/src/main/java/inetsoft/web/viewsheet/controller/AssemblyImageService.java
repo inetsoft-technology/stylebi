@@ -46,8 +46,10 @@ import inetsoft.report.io.viewsheet.excel.CSVWSExporter;
 import inetsoft.report.io.viewsheet.excel.WSExporter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.MaxRowsTableLens;
+import inetsoft.mv.MVManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.SRPrincipal;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.AttributeRef;
@@ -721,7 +723,14 @@ public class AssemblyImageService {
                   if(pair == null || !pair.isCompleted() || pair.isCancelled() ||
                      !pair.isPlotted())
                   {
-                     return new ImageRenderResult(1);
+                     // A completed, uncancelled, unfailed pair that never plotted will not plot
+                     // on a later attempt (null data, or an empty graph). The browser keeps
+                     // retrying via retryAfter regardless; the flag is for the wiz caller,
+                     // which would otherwise be told to wait forever. A pending MV is the one
+                     // completed-but-unplotted state that does resolve itself.
+                     int terminal = terminalReason(pair, isMVPending(box.get(), principal));
+
+                     return new ImageRenderResult(1, terminal);
                   }
 
                   // pair.isCompleted()/isPlotted() report a normal successful render even when
@@ -1323,6 +1332,26 @@ public class AssemblyImageService {
    private final BinaryTransferService binaryTransferService;
    private static final Logger LOG = LoggerFactory.getLogger(AssemblyImageService.class);
 
+   /**
+    * Classifies a graph pair that did not plot: terminal (waiting cannot help) or not. Only a
+    * completed, uncancelled, unfailed pair that is not waiting on a materialized view is terminal.
+    */
+   static int terminalReason(VGraphPair pair, boolean mvPending) {
+      if(pair == null || !pair.isCompleted() || pair.isCancelled() || pair.isFailed() ||
+         pair.isPlotted() || mvPending)
+      {
+         return ImageRenderResult.NOT_TERMINAL;
+      }
+
+      return pair.getData() == null ? ImageRenderResult.TERMINAL_NO_GRAPH :
+         ImageRenderResult.TERMINAL_NO_DATA;
+   }
+
+   private static boolean isMVPending(ViewsheetSandbox box, Principal principal) {
+      return principal instanceof XPrincipal xp &&
+         MVManager.getManager().isPending(box.getAssetEntry(), xp);
+   }
+
    public static final class ImageRenderResult implements Serializable {
       @Serial
       private static final long serialVersionUID = 1L;
@@ -1331,6 +1360,14 @@ public class AssemblyImageService {
       private final int width;
       private final int height;
       private final int retryAfter;
+      private final int terminalReason;
+
+      /** Not terminal: still computing, cancelled, or waiting on a materialized view. */
+      public static final int NOT_TERMINAL = 0;
+      /** The graph finished with no data object at all (e.g. the bound table is gone). */
+      public static final int TERMINAL_NO_GRAPH = 1;
+      /** The graph finished over a real data set but has nothing to draw. */
+      public static final int TERMINAL_NO_DATA = 2;
 
       public ImageRenderResult(boolean isPng, BinaryTransfer imageData, int width, int height) {
          this.isPng = isPng;
@@ -1338,14 +1375,32 @@ public class AssemblyImageService {
          this.width = width;
          this.height = height;
          this.retryAfter = 0;
+         this.terminalReason = NOT_TERMINAL;
       }
 
       public ImageRenderResult(int retryAfter) {
+         this(retryAfter, NOT_TERMINAL);
+      }
+
+      public ImageRenderResult(int retryAfter, int terminalReason) {
          this.retryAfter = retryAfter;
+         this.terminalReason = terminalReason;
          this.isPng = false;
          this.imageData = null;
          this.width = 0;
          this.height = 0;
+      }
+
+      /**
+       * Whether the graph can never become ready by waiting (see the TERMINAL_* constants).
+       * {@code retryAfter} is still set for such a result so the browser path is unchanged.
+       */
+      public boolean isTerminal() {
+         return terminalReason != NOT_TERMINAL;
+      }
+
+      public int getTerminalReason() {
+         return terminalReason;
       }
 
       public boolean isPng() {

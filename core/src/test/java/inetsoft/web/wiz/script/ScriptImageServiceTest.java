@@ -18,7 +18,9 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
@@ -1143,6 +1145,226 @@ class ScriptImageServiceTest {
       }
 
       assertEquals(200, svc.getViewsheetImage(rvs, null, null, user).width());
+   }
+
+   /** Bug #78662 (P-B): a spy viewsheet whose base is a worksheet that has no table. */
+   private RuntimeViewsheet viewsheetOnWorksheetWithChart(String chartName, boolean withField) {
+      Viewsheet vs = spy(new Viewsheet());
+      ChartVSAssembly chart = new ChartVSAssembly(vs, chartName);
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+
+      if(withField) {
+         chart.getVSChartInfo().addXField(new VSChartDimensionRef(new AttributeRef("EMPLOYEE_ID")));
+      }
+
+      vs.addAssembly(chart);
+      AssetEntry base = mock(AssetEntry.class);
+      when(base.isWorksheet()).thenReturn(true);
+      doReturn(base).when(vs).getBaseEntry();
+      doReturn(new Worksheet()).when(vs).getBaseWorksheet();
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   private AssemblyImageService imageServiceReturning(RuntimeViewsheet rvs,
+                                                      AssemblyImageService.ImageRenderResult r)
+      throws Exception
+   {
+      AssemblyImageService imageService = mock(AssemblyImageService.class);
+      when(imageService.processGetAssemblyImage(
+         eq(rvs), anyString(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+         isNull(), eq(0), eq(0), eq(0), any(), eq(false), eq(true)))
+         .thenReturn(r);
+      return imageService;
+   }
+
+   private PairingException renderExpectingRefusal(RuntimeViewsheet rvs,
+                                                   AssemblyImageService imageService)
+   {
+      ScriptImageService svc = new ScriptImageService(
+         imageService, mock(BinaryTransferService.class), mock(VSExportService.class));
+      return assertThrows(PairingException.class, () -> svc.getAssemblyImage(
+         rvs, "Chart1", null, null, TestPrincipals.user("alice", "host-org")));
+   }
+
+   @Test
+   void terminalNoGraphNamesTheMissingTableAndDoesNotRetry() throws Exception {
+      RuntimeViewsheet rvs = viewsheetOnWorksheetWithChart("Chart1", true);
+      AssemblyImageService imageService = imageServiceReturning(rvs,
+         new AssemblyImageService.ImageRenderResult(1,
+            AssemblyImageService.ImageRenderResult.TERMINAL_NO_GRAPH));
+
+      PairingException ex = renderExpectingRefusal(rvs, imageService);
+
+      assertTrue(ex.getMessage().contains("Chart1") && ex.getMessage().contains("'ORDERS'") &&
+                 ex.getMessage().contains("no longer exists in its base worksheet"),
+                 "got: [" + ex.getMessage() + "]");
+      verify(imageService, times(1)).processGetAssemblyImage(
+         eq(rvs), anyString(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+         isNull(), eq(0), eq(0), eq(0), any(), eq(false), eq(true));
+   }
+
+   @Test
+   void terminalNoGraphWithoutAWorksheetBaseIsGenericNotAMissingTableClaim() throws Exception {
+      // viewsheetWithChart has no base worksheet (logical-model/query/embedded style source)
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      AssemblyImageService imageService = imageServiceReturning(rvs,
+         new AssemblyImageService.ImageRenderResult(1,
+            AssemblyImageService.ImageRenderResult.TERMINAL_NO_GRAPH));
+
+      PairingException ex = renderExpectingRefusal(rvs, imageService);
+
+      assertFalse(ex.getMessage().contains("no longer exists"), "got: [" + ex.getMessage() + "]");
+      assertTrue(ex.getMessage().contains("Chart1"), "got: [" + ex.getMessage() + "]");
+      assertFalse(ex.getMessage().contains("retry"), "got: [" + ex.getMessage() + "]");
+   }
+
+   @Test
+   void terminalNoDataOverABoundChartReportsNoData() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      ChartVSAssembly chart = (ChartVSAssembly) rvs.getViewsheet().getAssembly("Chart1");
+      chart.getVSChartInfo().addXField(new VSChartDimensionRef(new AttributeRef("EMPLOYEE_ID")));
+      AssemblyImageService imageService = imageServiceReturning(rvs,
+         new AssemblyImageService.ImageRenderResult(1,
+            AssemblyImageService.ImageRenderResult.TERMINAL_NO_DATA));
+
+      PairingException ex = renderExpectingRefusal(rvs, imageService);
+
+      assertTrue(ex.getMessage().toLowerCase().contains("no data"), "got: [" + ex.getMessage() + "]");
+   }
+
+   @Test
+   void terminalWithNoFieldsBoundSaysSoInsteadOfNoData() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      AssemblyImageService imageService = imageServiceReturning(rvs,
+         new AssemblyImageService.ImageRenderResult(1,
+            AssemblyImageService.ImageRenderResult.TERMINAL_NO_DATA));
+
+      PairingException ex = renderExpectingRefusal(rvs, imageService);
+
+      assertTrue(ex.getMessage().contains("no x/y/group fields"), "got: [" + ex.getMessage() + "]");
+   }
+
+   @Test
+   void nonTerminalNotReadyStillRetriesThenThrowsRenderNotReady() throws Exception {
+      // in-progress and MV-pending both come back as a plain retryAfter result
+      RuntimeViewsheet rvs = viewsheetOnWorksheetWithChart("Chart1", true);
+      AssemblyImageService imageService = imageServiceReturning(rvs,
+         new AssemblyImageService.ImageRenderResult(1,
+            AssemblyImageService.ImageRenderResult.NOT_TERMINAL));
+      ScriptImageService svc = new ScriptImageService(
+         imageService, mock(BinaryTransferService.class), mock(VSExportService.class));
+
+      assertThrows(RenderNotReadyException.class, () -> svc.getAssemblyImage(
+         rvs, "Chart1", null, null, TestPrincipals.user("alice", "host-org")));
+      verify(imageService, times(4)).processGetAssemblyImage(
+         eq(rvs), anyString(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+         isNull(), eq(0), eq(0), eq(0), any(), eq(false), eq(true));
+   }
+
+   @Test
+   void terminalFlagKeepsRetryAfterSoTheBrowserPathIsUnchanged() {
+      AssemblyImageService.ImageRenderResult r = new AssemblyImageService.ImageRenderResult(1,
+         AssemblyImageService.ImageRenderResult.TERMINAL_NO_GRAPH);
+
+      assertEquals(1, r.getRetryAfter());
+      assertTrue(r.isTerminal());
+      assertFalse(new AssemblyImageService.ImageRenderResult(1).isTerminal());
+   }
+
+   @Test
+   void embeddedChartIsCheckedAgainstItsOwnViewsheetBaseNotTheTopLevelOne() throws Exception {
+      // top-level base lacks SALES; the embedded chart's owning viewsheet's base has it
+      Viewsheet top = spy(new Viewsheet());
+      AssetEntry topBase = mock(AssetEntry.class);
+      when(topBase.isWorksheet()).thenReturn(true);
+      doReturn(topBase).when(top).getBaseEntry();
+      doReturn(new Worksheet()).when(top).getBaseWorksheet();
+
+      Viewsheet owner = spy(new Viewsheet());
+      Worksheet ownerWs = mock(Worksheet.class);
+      when(ownerWs.getAssembly("SALES")).thenReturn(mock(inetsoft.uql.asset.Assembly.class));
+      AssetEntry ownerBase = mock(AssetEntry.class);
+      when(ownerBase.isWorksheet()).thenReturn(true);
+      doReturn(ownerBase).when(owner).getBaseEntry();
+      doReturn(ownerWs).when(owner).getBaseWorksheet();
+
+      ChartVSAssembly chart = new ChartVSAssembly(owner, "Emb.Chart1");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "SALES"));
+      doReturn(chart).when(top).getAssembly("Emb.Chart1");
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(top);
+
+      AssemblyImageService imageService = mock(AssemblyImageService.class);
+      when(imageService.processGetAssemblyImage(
+         eq(rvs), anyString(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+         isNull(), eq(0), eq(0), eq(0), any(), eq(false), eq(true)))
+         .thenReturn(new AssemblyImageService.ImageRenderResult(1,
+            AssemblyImageService.ImageRenderResult.TERMINAL_NO_GRAPH));
+      ScriptImageService svc = new ScriptImageService(
+         imageService, mock(BinaryTransferService.class), mock(VSExportService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.getAssemblyImage(
+         rvs, "Emb.Chart1", null, null, TestPrincipals.user("alice", "host-org")));
+      assertFalse(ex.getMessage().contains("no longer exists"), "got: [" + ex.getMessage() + "]");
+   }
+
+   @Test
+   void noDataWhoseBoundTableIsMissingFromTheBaseWorksheetStillNamesTheTable() throws Exception {
+      // live: a dangling-table chart's pair carries a non-null data set, so it is NO_DATA
+      RuntimeViewsheet rvs = viewsheetOnWorksheetWithChart("Chart1", true);
+      AssemblyImageService imageService = imageServiceReturning(rvs,
+         new AssemblyImageService.ImageRenderResult(1,
+            AssemblyImageService.ImageRenderResult.TERMINAL_NO_DATA));
+
+      PairingException ex = renderExpectingRefusal(rvs, imageService);
+
+      assertTrue(ex.getMessage().contains("'ORDERS'") &&
+                 ex.getMessage().contains("no longer exists in its base worksheet"),
+                 "got: [" + ex.getMessage() + "]");
+   }
+
+   @Test
+   void noDataOverAViewsheetAssemblySourceDoesNotClaimTheTableIsGone() throws Exception {
+      // a VS_ASSEMBLY source names a viewsheet assembly, which a worksheet lookup can never find
+      RuntimeViewsheet rvs = viewsheetOnWorksheetWithChart("Chart1", true);
+      ((ChartVSAssembly) rvs.getViewsheet().getAssembly("Chart1")).setSourceInfo(
+         new SourceInfo(SourceInfo.VS_ASSEMBLY, null, "Table1"));
+      AssemblyImageService imageService = imageServiceReturning(rvs,
+         new AssemblyImageService.ImageRenderResult(1,
+            AssemblyImageService.ImageRenderResult.TERMINAL_NO_DATA));
+
+      PairingException ex = renderExpectingRefusal(rvs, imageService);
+
+      assertFalse(ex.getMessage().contains("no longer exists"), "got: [" + ex.getMessage() + "]");
+      assertTrue(ex.getMessage().toLowerCase().contains("no data"), "got: [" + ex.getMessage() + "]");
+   }
+
+   @Test
+   void noDataWhoseTableExistsInTheBaseWorksheetReportsNoData() throws Exception {
+      Viewsheet vs = spy(new Viewsheet());
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      chart.getVSChartInfo().addXField(new VSChartDimensionRef(new AttributeRef("EMPLOYEE_ID")));
+      vs.addAssembly(chart);
+      AssetEntry base = mock(AssetEntry.class);
+      when(base.isWorksheet()).thenReturn(true);
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssembly("ORDERS")).thenReturn(mock(inetsoft.uql.asset.Assembly.class));
+      doReturn(base).when(vs).getBaseEntry();
+      doReturn(ws).when(vs).getBaseWorksheet();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      AssemblyImageService imageService = imageServiceReturning(rvs,
+         new AssemblyImageService.ImageRenderResult(1,
+            AssemblyImageService.ImageRenderResult.TERMINAL_NO_DATA));
+
+      PairingException ex = renderExpectingRefusal(rvs, imageService);
+
+      assertFalse(ex.getMessage().contains("no longer exists"), "got: [" + ex.getMessage() + "]");
+      assertTrue(ex.getMessage().toLowerCase().contains("no data"), "got: [" + ex.getMessage() + "]");
    }
 
    /** Like {@link #viewsheetWithChart}, but with the real export claim of a RuntimeViewsheet. */
