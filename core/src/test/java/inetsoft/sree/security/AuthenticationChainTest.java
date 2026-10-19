@@ -151,7 +151,8 @@ class AuthenticationChainTest {
       AuthenticationChain chain = chainOf(first, second);
 
       when(first.getUser(USER_ID)).thenReturn(
-         new User(USER_ID, new String[] { "alice@x" }, new String[0], new IdentityID[0], "", ""));
+         new User(USER_ID, new String[] { "alice@x", "alice@x" }, new String[0],
+                  new IdentityID[0], "", ""));
       when(second.getEmails(USER_ID)).thenReturn(new String[] { "other@x" });
 
       assertArrayEquals(new String[] { "alice@x" }, chain.getEmails(USER_ID));

@@ -150,7 +150,8 @@ public class AuthenticationChain
       // SUtil.getEmails does, so the other providers aren't queried for a user they don't have.
       User user = getUser(userIdentity);
       String[] emails = user == null ? null : user.getEmails();
-      return emails == null ? new String[0] : emails;
+      return emails == null ?
+         new String[0] : Arrays.stream(emails).distinct().toArray(String[]::new);
    }
 
    @Override
