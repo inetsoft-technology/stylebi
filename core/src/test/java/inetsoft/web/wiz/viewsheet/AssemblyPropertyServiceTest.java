@@ -2119,6 +2119,34 @@ class AssemblyPropertyServiceTest {
    }
 
    @Test
+   void refusesAnAliasAndItsRawSpellingInOnePatchInEitherOrderAndWritesNothing() {
+      String raw = "dataOutputPaneModel.aggregate";
+
+      for(Map<String, Object> patch : List.of(orderedPatch("aggregate", "Sum", raw, "Count"),
+                                              orderedPatch(raw, "Count", "aggregate", "Sum"),
+                                              orderedPatch("aggregate", "Sum", raw, "Sum")))
+      {
+         GaugePropertyDialogModel model = boundGauge("Sum");
+         AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Gauge1", patch, ""));
+
+         assertTrue(e.getMessage().contains("'aggregate'"), e.getMessage());
+         assertTrue(e.getMessage().contains("'" + raw + "'"), e.getMessage());
+         assertTrue(e.getMessage().contains("Nothing was changed"), e.getMessage());
+         assertNothingWrittenBy(lastDialogServices);
+      }
+   }
+
+   private static Map<String, Object> orderedPatch(String k1, Object v1, String k2, Object v2) {
+      Map<String, Object> patch = new java.util.LinkedHashMap<>();
+      patch.put(k1, v1);
+      patch.put(k2, v2);
+      return patch;
+   }
+
+   @Test
    void refusesAnUnknownTextAndImageAggregate() {
       TextPropertyDialogModel text = new TextPropertyDialogModel();
       AssemblyPropertyService textService = serviceWith(mock(TextVSAssembly.class), text);

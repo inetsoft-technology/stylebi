@@ -122,6 +122,35 @@ class SheetPropertyServiceTest {
       verify(sessions, times(1)).mutate(anyString(), any(Principal.class), any());
    }
 
+   @Test
+   void refusesAnAliasAndItsRawSpellingInOnePatchInEitherOrderAndWritesNothing() throws Exception {
+      for(Map<String, Object> patch : List.of(patchOf("maxRows", 1111, "vsOptionsPane.maxRows", 2222),
+                                              patchOf("vsOptionsPane.maxRows", 2222, "maxRows", 1111),
+                                              patchOf("maxRows", 1111, "vsOptionsPane.maxRows", 1111)))
+      {
+         ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+         when(dialog.getViewsheetInfo(anyString(), any(Principal.class)))
+            .thenReturn(modelWith(20, "old"));
+         SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), patch, ""));
+
+         assertTrue(thrown.getMessage().contains("'maxRows'"), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("'vsOptionsPane.maxRows'"), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("Nothing was changed"), thrown.getMessage());
+         verify(dialog, never()).setViewsheetInfo(anyString(), any(), any(Principal.class), any(),
+                                                  anyString(), any());
+      }
+   }
+
+   private static Map<String, Object> patchOf(String k1, Object v1, String k2, Object v2) {
+      Map<String, Object> patch = new java.util.LinkedHashMap<>();
+      patch.put(k1, v1);
+      patch.put(k2, v2);
+      return patch;
+   }
+
    /**
     * Regression for bug #77041: {@code maxRows: 5000.7} used to be silently truncated onto
     * {@code 5000} through PropertyPath.coerce's int branch, reporting success for a value the

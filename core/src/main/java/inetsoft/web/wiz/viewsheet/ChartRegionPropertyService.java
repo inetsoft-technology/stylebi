@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.AxisDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.TitleDescriptor;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -487,6 +488,37 @@ public class ChartRegionPropertyService {
          .toArray(ChartRef[]::new);
    }
 
+   /**
+    * Mirrors {@code GraphGenerator.isXConsumed/isYConsumed}: a shelf's last dimension becomes the
+    * inner scale (the only one that receives {@code increment}) only when that dimension is the
+    * last field of its shelf, the shelf has no measure, and the other shelf has one -- and the
+    * chart is neither polar nor a map. Any other time-series dimension is a facet-outer axis,
+    * whose scale is categorical and never receives the increment.
+    *
+    * <p>Not shared with {@code ChartTimeSeriesGuard.isOuter}: that one runs over the binding
+    * model, on shelves that may still be mid-edit, and deliberately ignores the other shelf in
+    * its lenient mode (the other shelf's write may follow); this one judges the settled
+    * viewsheet state the renderer will read.
+    */
+   private static boolean isInnermostConsumed(ChartRef[] shelf, ChartRef[] other, ChartRef ref,
+                                              int chartType)
+   {
+      if(GraphTypes.isPolar(chartType) || GraphTypes.isMap(chartType)) {
+         return false;
+      }
+
+      if(shelf.length == 0 || shelf[shelf.length - 1] != ref) {
+         return false;
+      }
+
+      return Arrays.stream(shelf).noneMatch(ChartRegionPropertyService::isTrueMeasure) &&
+         Arrays.stream(other).anyMatch(ChartRegionPropertyService::isTrueMeasure);
+   }
+
+   private static boolean isTrueMeasure(ChartRef ref) {
+      return ref instanceof ChartAggregateRef a && !a.isDiscrete();
+   }
+
    /** {@code increment} does not fit the plain linear/non-linear split {@link #LINEAR_ONLY_AXIS_KEYS}
     * checks -- see {@link #requireLinearOrTimeSeriesAxisForIncrement}. */
    private static final Set<String> LINEAR_OR_TIME_SERIES_AXIS_KEYS = Set.of("increment");
@@ -507,16 +539,9 @@ public class ChartRegionPropertyService {
     * #requireLinearAxisForLinearOnlyKeys} does (via {@link #computeTrueAxisKind}). {@code
     * timeSeries} is re-derived the same way {@code AxisPropertyDialogModel}'s own constructor
     * defines it ({@code ref instanceof XDimensionRef && ref.isTimeSeries() &&
-    * GraphUtil.isTimeSeriesVisible(...)}) -- <b>except</b> for the {@code !outer} factor, which is
-    * deliberately left out: {@code outer} is derived the very same area-index-0-dependent way
-    * {@code linear} itself needed correcting, and re-deriving it independently for a faceted or
-    * scatter-matrix chart (where more than one dimension-label area can legitimately exist at
-    * different indices) needs closer study than an 8-item audit's fix pass covers. Omitting it
-    * only makes this guard <em>more permissive</em> than the real UI's own condition -- it may
-    * allow an {@code increment} write on an inner-facet time-series axis the UI hides the control
-    * for, which the underlying {@code AxisDescriptor.setIncrement} tolerates without corrupting
-    * anything -- never less safe, since a genuinely non-time-series, non-linear axis is still
-    * refused exactly as before.
+    * GraphUtil.isTimeSeriesVisible(...)}). {@code outer} is re-derived from the shelves, not from
+    * the dialog model (which always reports {@code false} for a field-addressed write), by
+    * {@link #isInnermostConsumed}.
     */
    private void requireLinearOrTimeSeriesAxisForIncrement(
       String sessionToken, Principal user, String assembly, String axisTarget, String field,
@@ -548,25 +573,15 @@ public class ChartRegionPropertyService {
             String canonical = ChartRegionResolver.canonical(axisTarget);
             boolean onYShelf = "y".equals(canonical) || "y2".equals(canonical);
             ChartRef[] shelf = onYShelf ? info.getYFields() : info.getXFields();
-
-            if(Arrays.stream(shelf).anyMatch(ref -> ref instanceof ChartAggregateRef)) {
-               return false;
-            }
-
-            for(int i = 0; i < shelf.length - 1; i++) {
-               if(shelf[i] == kind.matchedRef()) {
-                  return true;
-               }
-            }
-
-            return false;
+            ChartRef[] other = onYShelf ? info.getXFields() : info.getYFields();
+            return !isInnermostConsumed(shelf, other, kind.matchedRef(), info.getChartType());
          });
 
       if(outer) {
          throw new IllegalArgumentException(
             "'increment' only applies to the innermost time-series axis; '" + axisTarget + "'" +
             (field != null && !field.isBlank() ? " ('" + field + "')" : "") +
-            " is an outer axis here (another dimension follows it on the shelf), so this would " +
+            " is an outer axis here (it is not the axis the chart draws its measures against), so this would " +
             "be silently ignored. Omit it.");
       }
 

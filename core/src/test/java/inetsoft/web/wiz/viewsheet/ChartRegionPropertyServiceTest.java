@@ -2196,6 +2196,60 @@ class ChartRegionPropertyServiceTest {
       verifyNoInteractions(h.regions);
    }
 
+   @Test
+   void refusesIncrementOnADateDimensionFollowedByAMeasureOnTheSameShelf() {
+      Harness h = harness(withRuntimeFields(
+         mixedShelfViewsheet(new ChartRef[] { dateDim(), measureRef() })));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", "Year(ORDER_DATE)",
+                             Map.of("increment", "3"), ""));
+
+      assertTrue(thrown.getMessage().contains("increment"), thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void refusesIncrementOnADateDimensionOnAYShelfFollowedByAMeasure() {
+      Harness h = harness(withRuntimeFields(
+         withShelves(mixedShelfViewsheet(new ChartRef[0]),
+                     new ChartRef[0], new ChartRef[] { dateDim(), measureRef() })));
+
+      assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", "Year(ORDER_DATE)",
+                             Map.of("increment", "3"), ""));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** The last date dimension of a shelf is outer too when no measure sits on the other shelf. */
+   @Test
+   void refusesIncrementOnTheLastDateDimensionWhenNeitherShelfHasAMeasure() {
+      Harness h = harness(withRuntimeFields(
+         withShelves(mixedShelfViewsheet(new ChartRef[0]),
+                     new ChartRef[] { categoryDim(), dateDim() }, new ChartRef[0])));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", "Year(ORDER_DATE)",
+                             Map.of("increment", "3"), ""));
+
+      assertTrue(thrown.getMessage().contains("increment"), thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   private static VSChartAggregateRef measureRef() {
+      VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
+      when(measure.isDiscrete()).thenReturn(false);
+      when(measure.getFullName()).thenReturn("Sum(Total)");
+      return measure;
+   }
+
+   private static Viewsheet withShelves(Viewsheet vs, ChartRef[] x, ChartRef[] y) {
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("Chart1")).getVSChartInfo();
+      when(info.getXFields()).thenReturn(x);
+      when(info.getYFields()).thenReturn(y);
+      return vs;
+   }
+
    @ParameterizedTest
    @ValueSource(strings = { "minimum", "maximum", "increment", "minorIncrement" })
    void refusesANonNumericRangeValueNamingTheKeyAndWritesNothing(String key) {

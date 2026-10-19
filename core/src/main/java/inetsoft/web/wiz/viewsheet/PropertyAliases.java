@@ -371,6 +371,37 @@ public final class PropertyAliases {
    }
 
    /**
+    * Resolves a whole patch for a write: each key through {@link #resolveForWrite}, then refuses
+    * a patch in which two keys resolve to the same path -- an alias beside the raw spelling of
+    * the same property, say -- since applying both would silently keep whichever came last.
+    * Paths are compared exactly, so two properties that differ only in later-letter case stay
+    * distinct. Refused regardless of the values, so nothing is written for an ambiguous patch.
+    *
+    * @return input key to resolved path, in patch order.
+    */
+   public static Map<String, String> resolvePatchForWrite(String assemblyType,
+                                                          Collection<String> keys)
+   {
+      Map<String, String> resolved = new LinkedHashMap<>();
+      Map<String, String> keyByPath = new HashMap<>();
+
+      for(String key : keys) {
+         String path = resolveForWrite(assemblyType, key);
+         String first = keyByPath.putIfAbsent(path, key);
+
+         if(first != null) {
+            throw new IllegalArgumentException(
+               "'" + first + "' and '" + key + "' both set '" + path + "'. Send each " +
+               "property once. Nothing was changed.");
+         }
+
+         resolved.put(key, path);
+      }
+
+      return resolved;
+   }
+
+   /**
     * Every write refusal, checked against both the input key and the resolved path so the
     * raw-dotted-path escape hatch cannot reach a refused field under a different spelling.
     */
