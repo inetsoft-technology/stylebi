@@ -198,6 +198,21 @@ class WorksheetTableServiceNameTaken78892Test {
       assertInstanceOf(RelationalJoinTableAssembly.class, ws.getAssembly("J1"));
    }
 
+   // ─── the add itself ───────────────────────────────────────────────────────────────────────
+
+   // buildTable's early guard sees every name addAssembly refuses, so the cases above never reach
+   // the add. A worksheet that refuses the built table shows the add itself is checked too.
+
+   @Test
+   void aPhysicalTableTheWorksheetRefusesFails() throws Exception {
+      assertAddRefused(physical("R1"), "Physical table");
+   }
+
+   @Test
+   void aJoinTheWorksheetRefusesFailsBeforeItIsJoined() throws Exception {
+      assertAddRefused(join("R1"), "Relational join table");
+   }
+
    // ─── helpers ──────────────────────────────────────────────────────────────────────────────
 
    private void assertRefused(String tableJson, String kind, String name, String holderKind,
@@ -225,6 +240,23 @@ class WorksheetTableServiceNameTaken78892Test {
 
       assertFalse(result.isSuccess(), "a " + kind + " with a blank name was reported added");
       assertEquals(kind + " '' could not be added to the worksheet.", result.getErrorMessage());
+      assertEquals(count, ws.getAssemblies().length);
+   }
+
+   private void assertAddRefused(String tableJson, String kind) throws Exception {
+      Worksheet ws = worksheet(new Worksheet() {
+         @Override
+         public boolean addAssembly(WSAssembly assembly) {
+            return !"R1".equals(assembly.getName()) && super.addAssembly(assembly);
+         }
+      });
+      int count = ws.getAssemblies().length;
+
+      WorksheetTableResponse result = create(ws, tableJson);
+
+      assertFalse(result.isSuccess(), "a " + kind + " the worksheet refused was reported added");
+      assertEquals(kind + " 'R1' could not be added to the worksheet.", result.getErrorMessage());
+      assertNull(ws.getAssembly("R1"));
       assertEquals(count, ws.getAssemblies().length);
    }
 
@@ -261,7 +293,10 @@ class WorksheetTableServiceNameTaken78892Test {
 
    /** A worksheet holding tables T1 and T2, a variable V1 and a named group NG1. */
    private static Worksheet worksheet() {
-      Worksheet ws = new Worksheet();
+      return worksheet(new Worksheet());
+   }
+
+   private static Worksheet worksheet(Worksheet ws) {
       ws.addAssembly(table(ws, "T1", "ID", "NAME"));
       ws.addAssembly(table(ws, "T2", "ID", "AMOUNT"));
       DefaultVariableAssembly variable = new DefaultVariableAssembly(ws, "V1");
