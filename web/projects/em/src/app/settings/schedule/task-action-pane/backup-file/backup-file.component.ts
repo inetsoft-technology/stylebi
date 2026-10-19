@@ -202,9 +202,19 @@ export class BackupFileComponent implements OnDestroy {
    public selectNode(evt: FlatTreeSelectNodeEvent) {
       const node = <RepositoryFlatNode>evt.node;
 
-      if(evt.event.ctrlKey && this.service.selectedNodes.length > 0) {
+      // Bug #78732, Cmd is the toggle modifier on a Mac, and a second click on a selected node
+      // removes it instead of adding a duplicate
+      if((evt.event.ctrlKey || evt.event.metaKey) && this.service.selectedNodes.length > 0) {
          const selectedNodes = this.service.selectedNodes;
-         selectedNodes.push(node);
+         const index = selectedNodes.findIndex(n => n.equals(node));
+
+         if(index >= 0) {
+            selectedNodes.splice(index, 1);
+         }
+         else {
+            selectedNodes.push(node);
+         }
+
          this.service.selectedNodes = selectedNodes;
       }
       else {
@@ -430,8 +440,17 @@ export class BackupFileComponent implements OnDestroy {
    }
 
    selectEntity(entity: SelectedAssetModel, event: MouseEvent) {
-      if(event.ctrlKey) {
-         this.entitySelection.push(entity);
+      // Bug #78732, Cmd is the toggle modifier on a Mac, and a second click on a selected entity
+      // removes it instead of adding a duplicate
+      if(event.ctrlKey || event.metaKey) {
+         const index = this.entitySelection.indexOf(entity);
+
+         if(index >= 0) {
+            this.entitySelection.splice(index, 1);
+         }
+         else {
+            this.entitySelection.push(entity);
+         }
       }
       else {
          this.entitySelection = [entity];

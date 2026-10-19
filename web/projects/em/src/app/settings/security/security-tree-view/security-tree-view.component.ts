@@ -196,7 +196,7 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
             }
          }
       }
-      else if(event.ctrlKey) {
+      else if(event.ctrlKey || event.metaKey) {
          const index = this.selectedNodes.findIndex(selectedNode =>
             this.isSameNode(selectedNode, nodeData));
 
