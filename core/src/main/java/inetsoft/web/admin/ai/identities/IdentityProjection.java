@@ -213,16 +213,18 @@ final class IdentityProjection {
    }
 
    private static void appendSortedIds(StringBuilder sb, String field, List<IdentityID> ids) {
-      // Sorted by the raw key, as before, so ordinary names keep their order and bytes.
-      TreeMap<String, String> sorted = new TreeMap<>();
+      // Sorted and de-duplicated by the escaped key. It equals the raw key for ordinary names, so
+      // their order and bytes are unchanged, but two distinct ids whose raw keys collide (a
+      // "~;~" inside a name or org) stay distinct.
+      TreeSet<String> sorted = new TreeSet<>();
 
       if(ids != null) {
          for(IdentityID id : ids) {
-            sorted.put(id == null ? "" : id.convertToKey(), escapedIdKey(id));
+            sorted.add(escapedIdKey(id));
          }
       }
 
-      sb.append(field).append('=').append(String.join(",", sorted.values())).append(';');
+      sb.append(field).append('=').append(String.join(",", sorted)).append(';');
    }
 
    /** {@link IdentityID#convertToKey()} with the name and organization escaped separately

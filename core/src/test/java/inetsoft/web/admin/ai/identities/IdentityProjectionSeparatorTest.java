@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.identities;
 
 import inetsoft.sree.security.*;
 import inetsoft.util.Tool;
+import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
@@ -265,6 +266,97 @@ class IdentityProjectionSeparatorTest {
       assertTrue(e.getMessage().contains("changes[0].spec.emails[1]"), e.getMessage());
    }
 
+   @Test void blankMixedWithValuesIsRefusedOnUpdate() throws Exception {
+      IdentityID id = new IdentityID("Analysts", "host-org");
+      lenient().when(securityService.getGroup(eq(id), eq(user))).thenReturn(liveGroup(id));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setParentGroups(Arrays.asList("GA", ""));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> planService.resolve(planRequest(change("update", "group", "Analysts", spec)), user));
+      assertTrue(e.getMessage().contains("changes[0].spec.parentGroups[1]"), e.getMessage());
+      assertTrue(e.getMessage().contains("send [] for an empty list"), e.getMessage());
+   }
+
+   @Test void singleBlankIsStillRefusedOnCreate() throws Exception {
+      IdentityID id = new IdentityID("g", "host-org");
+      lenient().when(securityService.getGroup(eq(id), eq(user)))
+         .thenThrow(new MissingResourceException("no such group"));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setName("g");
+      spec.setMemberUsers(List.of(""));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> planService.resolve(planRequest(change("create", "group", null, spec)), user));
+      assertTrue(e.getMessage().contains("changes[0].spec.memberUsers[0]"), e.getMessage());
+      assertTrue(e.getMessage().contains("send [] for an empty list"), e.getMessage());
+   }
+
+   // -------------------------------------------------------------------------
+   // update: [""] (the plugin's wrapping of a documented "" clear) clears the list
+   // -------------------------------------------------------------------------
+
+   @Test void updateWithSingleBlankClearsTheListAndHashesLikeEmpty() throws Exception {
+      IdentityID id = new IdentityID("Analysts", "host-org");
+      lenient().when(securityService.getGroup(eq(id), eq(user))).thenReturn(liveGroup(id));
+
+      ResolvedPlan blank = planService.resolve(
+         planRequest(change("update", "group", "Analysts", memberUsersSpec(""))), user);
+      ResolvedPlan empty = planService.resolve(
+         planRequest(change("update", "group", "Analysts", memberUsersSpec())), user);
+
+      String proposed = blank.changes().get(0).proposedValue();
+      assertTrue(proposed.contains("memberUsers=;"), proposed);
+      assertTrue(blank.changes().get(0).currentValue().contains("memberUsers=alice,bob;"),
+                 blank.changes().get(0).currentValue());
+      assertEquals(empty.changes().get(0).proposedValue(), proposed);
+      assertEquals(empty.planHash(), blank.planHash());
+   }
+
+   @Test void updateWithSingleBlankClearsEveryListField() throws Exception {
+      IdentityID bob = new IdentityID("bob", "host-org");
+      lenient().when(securityService.getUser(eq(bob), eq(user))).thenReturn(liveUser(bob));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setEmails(List.of(""));
+      spec.setGroups(List.of(" "));
+      spec.setRoles(List.of(""));
+
+      String proposed = planService.resolve(
+         planRequest(change("update", "user", "bob", spec)), user).changes().get(0).proposedValue();
+      assertTrue(proposed.contains("emails=;"), proposed);
+      assertTrue(proposed.contains("groups=;"), proposed);
+      assertTrue(proposed.contains("roles=;"), proposed);
+   }
+
+   @Test void applyUpdateWithSingleBlankClearsAndVerifies() throws Exception {
+      IdentityID id = new IdentityID("Analysts", "host-org");
+      lenient().when(securityService.getGroup(eq(id), eq(user))).thenReturn(liveGroup(id));
+
+      ResolvedPlan preview = planService.resolve(
+         planRequest(change("update", "group", "Analysts", memberUsersSpec(""))), user);
+      IdentityApplyRequest req = new IdentityApplyRequest();
+      req.setTask("task");
+      req.setChanges(List.of(change("update", "group", "Analysts", memberUsersSpec(""))));
+      req.setPlanHash(preview.planHash());
+      req.setTaskToken(preview.taskToken());
+      req.setReviewOutcome("approved by test");
+
+      IdentityApplyResult result = applyService.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, result.results().get(0).status());
+      verify(securityService).updateGroup(eq(id), argThat(g ->
+         g.getMemberUsers() != null && g.getMemberUsers().isEmpty() &&
+         List.of("SubGroup").equals(g.getMemberGroups())), eq(user));
+   }
+
+   @Test void idsWhoseRawKeysCollideStayDistinct() {
+      SecurityGroup g = new SecurityGroup();
+      g.setRoles(List.of(new IdentityID("a~;~b", "c"), new IdentityID("a", "b~;~c")));
+      String p = IdentityProjection.projectGroup(g, new IdentityID("g", "host-org"));
+      assertTrue(p.contains("roles=a~;~b~\\;~c,a~\\;~b~;~c;"), p);
+   }
+
    // -------------------------------------------------------------------------
    // end to end: preview one form, apply the other -> plan-hash mismatch (409)
    // -------------------------------------------------------------------------
@@ -315,6 +407,12 @@ class IdentityProjectionSeparatorTest {
       IdentitySpec spec = new IdentitySpec();
       spec.setParentGroups(List.of(parents));
       return IdentityProjection.projectGroupSpec(id, spec);
+   }
+
+   private static IdentitySpec memberUsersSpec(String... members) {
+      IdentitySpec spec = new IdentitySpec();
+      spec.setMemberUsers(new ArrayList<>(List.of(members)));
+      return spec;
    }
 
    private static IdentityChangePlanRequest planRequest(IdentityChangeRequest... changes) {

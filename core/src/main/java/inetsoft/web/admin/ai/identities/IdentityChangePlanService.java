@@ -282,6 +282,7 @@ public class IdentityChangePlanService {
                                     Set<String> seenKeys)
       throws Exception
    {
+      clearSingleBlankLists(spec);
       requireLegalFieldsForUpdate(label, unitType, spec);
 
       switch(unitType) {
@@ -553,9 +554,35 @@ public class IdentityChangePlanService {
 
          if(value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException(label + ".spec." + fieldName + "[" + i +
-               "]: must not be blank; remove the empty entry");
+               "]: must not be blank; remove the empty entry (send [] for an empty list)");
          }
       }
+   }
+
+   /** On update, a list that is exactly one blank string is the documented {@code ""} "clear
+    * this field" signal (the plugin wraps a bare {@code ""} into {@code [""]}), so it is replaced
+    * with {@code []} before validation, projection, hashing and apply (Bug #78854). A blank
+    * element mixed with other values is still refused by {@link #requireNoBlankElements}. */
+   private static void clearSingleBlankLists(IdentitySpec spec) {
+      spec.setEmails(clearIfSingleBlank(spec.getEmails()));
+      spec.setGroups(clearIfSingleBlank(spec.getGroups()));
+      spec.setRoles(clearIfSingleBlank(spec.getRoles()));
+      spec.setParentGroups(clearIfSingleBlank(spec.getParentGroups()));
+      spec.setMemberUsers(clearIfSingleBlank(spec.getMemberUsers()));
+      spec.setMemberGroups(clearIfSingleBlank(spec.getMemberGroups()));
+      spec.setInheritedRoles(clearIfSingleBlank(spec.getInheritedRoles()));
+      spec.setAssignedUsers(clearIfSingleBlank(spec.getAssignedUsers()));
+      spec.setAssignedGroups(clearIfSingleBlank(spec.getAssignedGroups()));
+   }
+
+   private static List<String> clearIfSingleBlank(List<String> values) {
+      if(values != null && values.size() == 1 && values.get(0) != null &&
+         values.get(0).trim().isEmpty())
+      {
+         return new ArrayList<>();
+      }
+
+      return values;
    }
 
    private static void checkField(String label, String fieldName, Object value, boolean legal,
