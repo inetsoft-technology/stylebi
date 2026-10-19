@@ -239,16 +239,16 @@ class DataSourceChangePlanServiceTest {
       assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
    }
 
-   // Bug 76457: for a data source under a non-root folder, the list-resolved identity
-   // ("Examples/Orders") is folder-qualified while the get-by-id DTO's own name
-   // (JdbcDataSourceProperties, mirroring the wrapped API's own documented bare-name quirk) is
-   // bare ("Orders"). A field-only update with no spec.name must not be misread as a rename just
-   // because those two representations differ.
+   // Bug 76457: for a data source under a non-root folder, the list-resolved identity is
+   // folder-qualified ("Examples/Orders"). A field-only update with no spec.name must not be
+   // misread as a rename. Bug 78817: the get-by-id DTO (JdbcDataSourceProperties) now carries the
+   // same full name as the list, so these stubs use it too (a bare "Orders" stub encoded the old
+   // defect).
    @Test void resolveUpdateDoesNotRequireConfirmRenameForFolderQualifiedNameWithFieldOnlySpec()
       throws Exception
    {
       stubList("Examples/Orders", "id-1", "jdbc");
-      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      stubGet("id-1", jdbc("id-1", "Examples/Orders", false, null));
       DataSourceChangeRequest change =
          updateChange("Examples/Orders", Map.of("ansiJoin", true));
 
@@ -261,7 +261,7 @@ class DataSourceChangePlanServiceTest {
       throws Exception
    {
       stubList("Examples/Orders", "id-1", "jdbc");
-      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      stubGet("id-1", jdbc("id-1", "Examples/Orders", false, null));
       DataSourceChangeRequest change =
          updateChange("Examples/Orders", Map.of("tableName", JdbcDataSourceProperties.DEFAULT_OPTION));
 
@@ -274,7 +274,7 @@ class DataSourceChangePlanServiceTest {
       throws Exception
    {
       stubList("Examples/Orders", "id-1", "jdbc");
-      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      stubGet("id-1", jdbc("id-1", "Examples/Orders", false, null));
       DataSourceChangeRequest change =
          updateChange("Examples/Orders", Map.of("name", "Examples/Orders2"));
 
@@ -286,7 +286,7 @@ class DataSourceChangePlanServiceTest {
    @Test void buildProposedJdbcDefaultsNameToTheResolvedFolderQualifiedNameWhenSpecOmitsIt()
       throws Exception
    {
-      JdbcDataSourceProperties current = jdbc("id-1", "Orders", false, null);
+      JdbcDataSourceProperties current = jdbc("id-1", "Examples/Orders", false, null);
 
       JdbcDataSourceProperties proposed = service.buildProposedJdbc(
          "changes[0]", "id-1", "Examples/Orders", current, Map.of("ansiJoin", true), user);
