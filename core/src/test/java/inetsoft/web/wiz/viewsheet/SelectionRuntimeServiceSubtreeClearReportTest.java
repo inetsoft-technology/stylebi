@@ -256,8 +256,9 @@ class SelectionRuntimeServiceSubtreeClearReportTest {
 
    @Test
    void selectModeResultIsUnchanged() throws Exception {
-      SelectionRuntimeServiceTest.Harness h =
-         harness(false, eastWest(false, false, false), null);
+      SelectionList domain = eastWest(false, false, false);
+      SelectionRuntimeServiceTest.Harness h = harness(false, domain, null);
+      onApply(h, () -> domain.getSelectionValue(0).setSelected(true));
 
       Map<String, Object> result = h.service().selectSubtree(
          "tok", SelectionRuntimeServiceTest.principal(), "Tree1", List.of("East"), "select", "");

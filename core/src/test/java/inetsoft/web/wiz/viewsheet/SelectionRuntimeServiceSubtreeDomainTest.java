@@ -177,15 +177,41 @@ class SelectionRuntimeServiceSubtreeDomainTest {
    @Test
    void selectAllowsAValidPrefixPathAndReachesTheApply() throws Exception {
       SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
-      when(assembly.getSelectionList()).thenReturn(plainDomain());
+      SelectionList domain = plainDomain();
+      when(assembly.getSelectionList()).thenReturn(domain);
       SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
       Principal user = SelectionRuntimeServiceTest.principal();
+      doAnswer(inv -> {
+         domain.getSelectionValue(0).setSelected(true);
+         return null;
+      }).when(h.selections()).selectSubtree(anyString(), anyString(), any(), any(Principal.class),
+                                            any(), anyString());
 
       assertDoesNotThrow(() -> h.service().selectSubtree(
          "tok", user, "Tree1", List.of("East"), "select", ""));
 
       verify(h.selections()).selectSubtree(anyString(), anyString(), any(), any(Principal.class),
                                            any(), anyString());
+   }
+
+   /**
+    * Bug #78821: a select whose own path is not selected after the apply fails loud instead of
+    * reporting ok:true, and says the selection has already changed.
+    */
+   @Test
+   void selectFailsWhenThePathIsNotSelectedAfterTheApply() {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.getSelectionList()).thenReturn(plainDomain());
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+      Principal user = SelectionRuntimeServiceTest.principal();
+
+      Exception e = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service().selectSubtree("tok", user, "Tree1", List.of("East", "CT"), "select", ""));
+
+      assertTrue(e.getMessage().contains("East > CT"));
+      assertTrue(e.getMessage().contains("already changed"));
+      assertTrue(e.getMessage().contains("set_selection"));
    }
 
    // ── select on an ID-mode tree (bug-78788) ───────────────────────────────────
