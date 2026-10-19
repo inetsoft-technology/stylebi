@@ -973,6 +973,21 @@ public class WorksheetControllerService {
    }
 
    /**
+    * The condition lists of {@code table} (pre, post, ranking, the four MV lists) that reference
+    * its own column {@code ref}: {@link #findOwnColumnReferences} without the sort, for a caller
+    * whose sort follows the column by name.
+    */
+   public static List<String> findOwnConditionReferences(TableAssembly table, ColumnRef ref) {
+      List<String> found = new ArrayList<>();
+
+      if(table != null && ref != null) {
+         collectTableConditionReferences(table, ref, found);
+      }
+
+      return found;
+   }
+
+   /**
     * The {@code table}'s OWN expression and range columns that read its own column {@code ref}
     * (Bug #78527): a replace-import keeps those derived columns, so dropping an input one of them
     * reads must be refused. {@link #findOwnColumnReferences} covers only conditions and sort.
@@ -995,6 +1010,13 @@ public class WorksheetControllerService {
    private static void collectTableStateReferences(
       TableAssembly table, ColumnRef ref, List<String> found)
    {
+      collectTableConditionReferences(table, ref, found);
+      collectSortReferences(table.getSortInfo(), ref, found);
+   }
+
+   private static void collectTableConditionReferences(
+      TableAssembly table, ColumnRef ref, List<String> found)
+   {
       collectConditionReferences(table.getPreConditionList(), ref, "pre-condition", found);
       collectConditionReferences(table.getPostConditionList(), ref, "post-condition", found);
       collectConditionReferences(
@@ -1008,7 +1030,6 @@ public class WorksheetControllerService {
          table.getMVDeletePreConditionList(), ref, "MV delete pre-condition", found);
       collectConditionReferences(
          table.getMVDeletePostConditionList(), ref, "MV delete post-condition", found);
-      collectSortReferences(table.getSortInfo(), ref, found);
    }
 
    /**

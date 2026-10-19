@@ -20,6 +20,7 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.wiz.pairing.PairingException;
@@ -32,9 +33,10 @@ import static inetsoft.web.wiz.worksheet.MirrorResyncGuard.refuse;
  * Bug #78846: what reordering the subtables of a concatenation would break. A concatenation takes
  * its column names, and the table every column is attributed to, from its FIRST subtable, so a
  * reorder that changes the first subtable re-points every column of the concatenation, and the
- * refresh that follows silently drops the conditions, rankings, sort, aggregates, expression and
- * range columns, aliases and hidden flags the concatenation holds on them, and what its
- * dependents hold on a column whose name changes. It is checked before anything is mutated.
+ * refresh that follows silently drops the conditions, rankings, aliases and hidden flags the
+ * concatenation holds on them, and what it and its dependents hold on a column whose name
+ * changes. Its sort, aggregate, expression and range columns follow a column by name, so they
+ * are lost only with the name. It is checked before anything is mutated.
  *
  * <p>A reorder that keeps the first subtable loses no column state. Join keys, a key whose type
  * changes and a concatenation fed by a changed column list are never confirmable; the other
@@ -206,7 +208,7 @@ final class ConcatReorderGuard {
          refuse(confirmable, () -> ColumnLossReport.requireNoDependentLoss(
             ws, table, name, oldColumns, keptNames, ColumnLossReport.Scope.RESYNC, lead,
             CONFIRM));
-         refuse(confirmable, () -> requireOwnStateKept(table, oldColumns, keptNames, lead));
+         refuse(confirmable, () -> requireOwnStateKept(table, oldColumns, keptNames, freshNames, lead));
       }
 
       if(!confirmable.isEmpty()) {
@@ -232,21 +234,22 @@ final class ConcatReorderGuard {
 
    /**
     * The table's own state the reorder drops without a dependent noticing: on a column whose name
-    * survives, a condition, ranking or sort, a range or expression column built on it (the column
-    * is still there but attributed to the new first subtable); on any column, its alias and its
-    * hidden flag; and the aggregate. (State on a column whose name leaves is reported with the
-    * dependents.)
+    * survives, a condition or ranking (the column is still there but attributed to the new first
+    * subtable); on any column, its alias and its hidden flag; and an aggregate or group column
+    * the new first subtable does not have. (Sort, expression and range columns, and an aggregate
+    * on a surviving name, follow the column by name; state on a column whose name leaves is
+    * reported with the dependents.)
     */
    private static void requireOwnStateKept(ConcatenatedTableAssembly table,
                                            List<ColumnRef> oldColumns, Set<String> keptNames,
-                                           String lead) throws PairingException
+                                           Set<String> freshNames, String lead)
+      throws PairingException
    {
       Set<String> lost = new LinkedHashSet<>();
 
       for(ColumnRef column : oldColumns) {
          if(keptNames.contains(column.getName())) {
-            lost.addAll(WorksheetControllerService.findOwnColumnReferences(table, column));
-            lost.addAll(WorksheetControllerService.findOwnDerivedColumnReferences(table, column));
+            lost.addAll(WorksheetControllerService.findOwnConditionReferences(table, column));
          }
 
          if(column.getAlias() != null && !column.getAlias().isEmpty()) {
@@ -258,9 +261,7 @@ final class ConcatReorderGuard {
          }
       }
 
-      AggregateInfo aggregate = table.getAggregateInfo();
-
-      if(aggregate != null && !aggregate.isEmpty()) {
+      if(aggregateLosesColumn(table.getAggregateInfo(), freshNames)) {
          lost.add("aggregate/group-by");
       }
 
@@ -269,5 +270,58 @@ final class ConcatReorderGuard {
             lead + " changes the source its columns come from, so table '" + table.getName() +
             "' itself would lose " + String.join(", ", lost) + ". " + CONFIRM);
       }
+   }
+
+   /**
+    * Whether a group column, an aggregate input or the secondary column of a two-column formula
+    * is on a column the new first subtable does not have. {@code AggregateInfo.validate}
+    * re-points the others by name and drops only these.
+    */
+   private static boolean aggregateLosesColumn(AggregateInfo aggregate, Set<String> freshNames) {
+      if(aggregate == null) {
+         return false;
+      }
+
+      for(GroupRef group : aggregate.getGroups()) {
+         if(isLeaving(group.getDataRef(), freshNames)) {
+            return true;
+         }
+      }
+
+      for(AggregateRef ref : aggregate.getAggregates()) {
+         // validate() skips a composite aggregate
+         if(ref instanceof CompositeAggregateRef) {
+            continue;
+         }
+
+         if(isLeaving(ref.getDataRef(), freshNames) ||
+            ref.getFormula() != null && ref.getFormula().isTwoColumns() &&
+            isLeaving(ref.getSecondaryColumn(), freshNames))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Whether the column {@code ref} reads is not among {@code freshNames}, compared by bare
+    * attribute name. A date-level group reads its base column, whose name is what must survive.
+    */
+   private static boolean isLeaving(DataRef ref, Set<String> freshNames) {
+      if(ref == null) {
+         return false;
+      }
+
+      DataRef base = ref;
+
+      if(ref instanceof ColumnRef column && column.getDataRef() instanceof DateRangeRef range &&
+         range.getDataRef() != null)
+      {
+         base = range.getDataRef();
+      }
+
+      return !freshNames.contains(base.getAttribute());
    }
 }

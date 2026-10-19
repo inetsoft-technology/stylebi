@@ -160,8 +160,8 @@ class ConcatReorderGuard78846Test {
    }
 
    @Test
-   void theTablesOwnAggregateIsAStateTheReorderLoses() throws Exception {
-      Worksheet ws = worksheet(new String[][] { { "k", "v" }, { "k", "v" } });
+   void anAggregateOnAColumnThatLeavesIsAStateTheReorderLoses() throws Exception {
+      Worksheet ws = worksheet(new String[][] { { "k", "v" }, { "k", "w" } });
       concat(ws, "C", "A", "B");
       service(ws).apply("TOK", agent, ed -> {
          ed.setGroupAggregate(
