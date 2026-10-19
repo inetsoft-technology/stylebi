@@ -4036,7 +4036,8 @@ public class WorksheetAgentController {
          case "add_concat_subtable" ->
             editor.addConcatSubtable(req.table(), req.name());
          case "remove_concat_subtable" ->
-            editor.removeConcatSubtable(req.table(), req.name());
+            editor.removeConcatSubtable(
+               req.table(), req.name(), Boolean.TRUE.equals(req.confirmed()));
          case "edit_concatenation" ->
             editor.editConcatenation(req.table(), req.concatType(), req.concatDistinct());
          case "add_named_group" ->

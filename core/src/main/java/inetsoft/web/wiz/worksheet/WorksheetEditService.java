@@ -3397,9 +3397,12 @@ public class WorksheetEditService {
        *
        * @param concatName the concatenation assembly name
        * @param tableName  the table to remove
-       * @throws PairingException if the concat is not found
+       * @param confirmed  whether the caller confirmed the state lost when the first subtable
+       *                   is removed (Bug #78879)
+       * @throws PairingException if the concat is not found, the table is not one of its
+       *                          subtables, or the removal would lose state
        */
-      public void removeConcatSubtable(String concatName, String tableName)
+      public void removeConcatSubtable(String concatName, String tableName, boolean confirmed)
          throws PairingException
       {
          Assembly a = ws.getAssembly(concatName);
@@ -3408,14 +3411,24 @@ public class WorksheetEditService {
             throw new PairingException("Concatenation not found: " + concatName);
          }
 
+         // Bug #78879: removeTable ignores a name that is not a subtable, which would report a
+         // removal that never happened
+         List<String> current = Arrays.asList(ctbl.getTableNames());
+
+         if(!current.contains(tableName)) {
+            throw new PairingException(
+               "\"" + tableName + "\" is not a subtable of \"" + concatName + "\". Its " +
+               "subtables are " + String.join(", ", current) + ". Nothing was changed.");
+         }
+
          // Fewer than 2 remaining sources deletes the concatenation itself (removeTable returns
          // true without touching it); ws.removeAssembly does not clean up assemblies built on it,
          // so refuse the same way deleteTable does. With 2 or more remaining it survives in place.
-         long remaining = Arrays.stream(ctbl.getTableAssemblies())
+         TableAssembly[] remaining = Arrays.stream(ctbl.getTableAssemblies())
             .filter(t -> !t.getName().equals(tableName))
-            .count();
+            .toArray(TableAssembly[]::new);
 
-         if(remaining < 2) {
+         if(remaining.length < 2) {
             List<String> dependents = dependentNames(ctbl);
 
             if(!dependents.isEmpty()) {
@@ -3426,6 +3439,11 @@ public class WorksheetEditService {
                   "them referencing a table that no longer exists. Delete or repoint those " +
                   "assemblies first.");
             }
+         }
+         else {
+            // Bug #78879: the next subtable becomes first and supplies every column, as in a
+            // reorder (ConcatReorderGuard)
+            ConcatReorderGuard.requireRemovalKeepsState(ws, ctbl, tableName, remaining, confirmed);
          }
 
          boolean invalid = ctbl.removeTable(tableName);
