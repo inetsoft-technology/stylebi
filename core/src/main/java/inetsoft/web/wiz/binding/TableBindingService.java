@@ -126,8 +126,9 @@ public class TableBindingService {
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          relayNotes(assemblyName, dispatcher);
 
+         Map<String, ColumnOption> formOptions = captureFormOptions(assembly);
          applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
-         restoreFormRefInvariant(assembly, shelf);
+         restoreFormRefInvariant(assembly, shelf, formOptions);
       });
    }
 
@@ -155,7 +156,9 @@ public class TableBindingService {
     * before or after fields are bound), the same way the two native paths above hold it
     * regardless of which one a human happens to use.
     */
-   private static void restoreFormRefInvariant(VSAssembly assembly, String shelf) {
+   static void restoreFormRefInvariant(VSAssembly assembly, String shelf,
+                                       Map<String, ColumnOption> formOptions)
+   {
       String normalizedShelf = shelf == null ? "" : shelf.trim().toLowerCase();
 
       if(!"details".equals(normalizedShelf) && !"detail".equals(normalizedShelf)) {
@@ -173,14 +176,68 @@ public class TableBindingService {
       }
 
       ColumnSelection cols = info.getColumnSelection();
+      List<DataRef> refs = new ArrayList<>();
+      boolean plain = false;
 
       for(int i = 0; i < cols.getAttributeCount(); i++) {
          DataRef ref = cols.getAttribute(i);
+         refs.add(ref);
+         plain = plain || ref != null && !(ref instanceof FormRef);
+      }
 
-         if(ref != null && !(ref instanceof FormRef)) {
-            cols.setAttribute(i, FormRef.toFormRef(ref));
+      if(!plain) {
+         return;
+      }
+
+      // ColumnSelection.setAttribute is a silent no-op when a same-named ref is already present
+      // (equality is name-based, class-agnostic), so a ColumnRef can only become a FormRef by
+      // rebuilding the selection, as TableViewPropertyDialogService does.
+      cols.clear();
+
+      for(int i = 0; i < refs.size(); i++) {
+         DataRef ref = refs.get(i);
+
+         if(ref == null) {
+            continue;
+         }
+
+         if(!(ref instanceof FormRef)) {
+            FormRef fref = FormRef.toFormRef(ref);
+            ColumnOption saved = formOptions == null ? null : formOptions.get(fref.getName());
+
+            if(saved != null) {
+               fref.setOption(saved);
+            }
+
+            ref = fref;
+         }
+
+         cols.addAttribute(i, ref);
+      }
+   }
+
+   /**
+    * The {@link ColumnOption} of each {@link FormRef} column of a Form-enabled Table, by column
+    * name, so a details re-set can carry them across as
+    * {@code VSTableBindingFactory.updateTableAssembly} does for the native Composer.
+    */
+   static Map<String, ColumnOption> captureFormOptions(VSAssembly assembly) {
+      Map<String, ColumnOption> options = new HashMap<>();
+
+      if(assembly instanceof TableVSAssembly &&
+         ((TableVSAssemblyInfo) assembly.getVSAssemblyInfo()).isForm())
+      {
+         ColumnSelection cols =
+            ((TableVSAssemblyInfo) assembly.getVSAssemblyInfo()).getColumnSelection();
+
+         for(int i = 0; i < cols.getAttributeCount(); i++) {
+            if(cols.getAttribute(i) instanceof FormRef fref && fref.getOption() != null) {
+               options.put(fref.getName(), fref.getOption());
+            }
          }
       }
+
+      return options;
    }
 
    /**
@@ -1785,13 +1842,14 @@ public class TableBindingService {
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          relayNotes(assemblyName, dispatcher);
 
+         Map<String, ColumnOption> formOptions = captureFormOptions(assembly);
          applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
          // See restoreFormRefInvariant's own doc -- addField is the other wiz entry point
          // (besides setShelf) that can introduce a brand-new column onto a Table's details
          // shelf, so it needs the same safety net. removeField/moveField never introduce a new
          // column, but passing their shelf through too is cheap and keeps all three callers of
          // this shared method uniform.
-         restoreFormRefInvariant(assembly, shelf);
+         restoreFormRefInvariant(assembly, shelf, formOptions);
       });
    }
 

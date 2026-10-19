@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.FormRef;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -120,7 +121,24 @@ public class ColumnOptionService {
 
          inputs.setColumnOptionDialogModel(runtimeId, assemblyName, index, model, user, dispatcher,
                                            linkUri);
+         requireStoredAsFormRef(requireFormTable(rvs, assemblyName), index, col);
       });
+   }
+
+   /**
+    * {@code VSInputService.setColumnOptionDialogModel} sets the option on a new {@code FormRef}
+    * and swaps it in with {@code ColumnSelection.setAttribute}, which is a silent no-op when the
+    * column is still a plain {@code ColumnRef}. Refuse rather than report an option that was
+    * never stored.
+    */
+   private static void requireStoredAsFormRef(TableVSAssemblyInfo info, int index, Object col) {
+      ColumnSelection visible = info.getVisibleColumns();
+
+      if(index >= visible.getAttributeCount() || !(visible.getAttribute(index) instanceof FormRef)) {
+         throw new IllegalStateException(
+            "set_column_options: the option for column '" + col + "' was not stored -- the " +
+            "column is not a Form column. Toggle the table's Form option off and on, then retry.");
+      }
    }
 
    private static TableVSAssemblyInfo requireTable(RuntimeViewsheet rvs, String assemblyName) {

@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.viewsheet.FormRef;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -502,11 +503,25 @@ class ColumnOptionServiceTest {
                           VSColumnHandler vsColumnHandler, CapturingCommandDispatcher dispatcher,
                           Principal user) {}
 
+   /** Bug #78823: a write that leaves the column a plain ColumnRef is refused, not reported ok. */
+   @Test
+   void refusesAWriteThatLeftTheColumnAPlainRef() throws Exception {
+      ColumnSelection plain = new ColumnSelection();
+      plain.addAttribute(new ColumnRef(new AttributeRef(null, "STATE")));
+      Harness h = harnessWith(plain);
+      TextEditorModel editor = new TextEditorModel();
+
+      IllegalStateException e = assertThrows(IllegalStateException.class,
+         () -> h.service.set("tok", h.user, "Table1", "STATE", true, "Text", editor, ""));
+
+      assertTrue(e.getMessage().contains("was not stored"), e.getMessage());
+   }
+
    private static ColumnSelection columns(String... names) {
       ColumnSelection selection = new ColumnSelection();
 
       for(String name : names) {
-         selection.addAttribute(new ColumnRef(new AttributeRef(null, name)));
+         selection.addAttribute(FormRef.toFormRef(new ColumnRef(new AttributeRef(null, name))));
       }
 
       return selection;
