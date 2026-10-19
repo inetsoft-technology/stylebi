@@ -396,4 +396,30 @@ class VSUtilRenameCalcFieldReferenceTest {
       assertTrue(refsVat("/'/.test(field['ORDER_ID']) ? field['Vat'] : 0"));
       assertTrue(refsVat("`unclosed ${field['Vat']}"));
    }
+
+   // Bug #78690: a literal holding `field[` + the accessor's quote must not hide the real read
+   private static void assertRealReadRenamed(String expression, String expected) {
+      assertTrue(VSUtil.referencesCalcField(expression, "A", List.of()), expression);
+      assertEquals(expected, VSUtil.renameCalcFieldReference(expression, "A", "A2"));
+   }
+
+   @Test
+   void literalFieldBracketDoesNotHideTheRealRead() {
+      assertRealReadRenamed("'field[\"' + field[\"A\"]", "'field[\"' + field[\"A2\"]");
+      assertRealReadRenamed("\"field['\" + field['A']", "\"field['\" + field['A2']");
+      assertRealReadRenamed("/* field[\" */ field[\"A\"]", "/* field[\" */ field[\"A2\"]");
+      assertRealReadRenamed("'field[\"' + 1 + field[\"A\"] + 'x\"]'",
+                            "'field[\"' + 1 + field[\"A2\"] + 'x\"]'");
+      assertRealReadRenamed("'field[\"' + field[\"A\"] / 2", "'field[\"' + field[\"A2\"] / 2");
+      assertRealReadRenamed("'field[\"' + field[\"A\"].replace(/x/g, '')",
+                            "'field[\"' + field[\"A2\"].replace(/x/g, '')");
+   }
+
+   @Test
+   void literalFieldBracketControls() {
+      assertFalse(VSUtil.referencesCalcField("'field[\"A\"]'", "A", List.of()));
+      assertRealReadRenamed("field['O\'Brien'] + field['A']", "field['O\'Brien'] + field['A2']");
+      assertRealReadRenamed("field['B'] + 'x' + field['A']", "field['B'] + 'x' + field['A2']");
+      assertRealReadRenamed("'field[\"' + field['A']", "'field[\"' + field['A2']");
+   }
 }

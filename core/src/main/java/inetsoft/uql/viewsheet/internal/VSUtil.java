@@ -4387,7 +4387,13 @@ public final class VSUtil {
       boolean[] code = codeMask(expression);
       Matcher matcher = FIELD_ACCESSOR_PATTERN.matcher(expression);
 
-      while(matcher.find()) {
+      int from = 0;
+
+      // the lazy content can run across a literal's quote into the real accessor, so a skipped
+      // or unmatched match resumes one past its start rather than at its end
+      while(from <= expression.length() && matcher.find(from)) {
+         from = matcher.start() + 1;
+
          if(!code[matcher.start()]) {
             continue;
          }
@@ -4415,6 +4421,7 @@ public final class VSUtil {
          if(!ncontent.equals(content)) {
             spans.add(new int[] { matcher.start(2), matcher.end(2) });
             texts.add(ncontent);
+            from = matcher.end();
          }
       }
 
