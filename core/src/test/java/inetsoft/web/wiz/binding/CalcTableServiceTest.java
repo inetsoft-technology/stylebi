@@ -749,6 +749,35 @@ class CalcTableServiceTest {
       assertTrue(captor.getValue().getBinding().getOrder().isOthers());
    }
 
+   @Test
+   void verify78685_inlineNamedGroupConditionFieldIsMatchedIgnoringCaseAndStoredCanonical()
+      throws Exception
+   {
+      for(String typed : List.of("REGION", "region", "Region", " region ")) {
+         Harness h = harness(3, 3);
+
+         h.service.setCellBinding("tok", principal(), "Calc1", 0, 0, namedGroupCell(
+            spec("field", typed, "operator", "one_of", "values", List.of("CA"))));
+
+         ArgumentCaptor<SetCellBindingEvent> captor =
+            ArgumentCaptor.forClass(SetCellBindingEvent.class);
+         verify(h.layoutService).setCellBinding(
+            eq("rt1"), captor.capture(), any(Principal.class), any());
+      }
+   }
+
+   @Test
+   void verify78685_inlineNamedGroupConditionOnADifferentColumnIsStillRefused() throws Exception {
+      Harness h = harness(3, 3);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         h.service.setCellBinding("tok", principal(), "Calc1", 0, 0, namedGroupCell(
+            spec("field", "STATE", "operator", "one_of", "values", List.of("CA")))));
+
+      assertTrue(thrown.getMessage().contains("only conditions on the column it is grouping"),
+                 thrown.getMessage());
+   }
+
    // ── bug #78400: booleans in the untyped set_cell_binding map ────────────────
 
    private static Map<String, Object> namedGroupCell(Map<String, Object> condition) {
