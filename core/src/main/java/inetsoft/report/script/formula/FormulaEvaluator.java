@@ -44,6 +44,21 @@ public class FormulaEvaluator {
     */
    public static Object exec(String expr, ScriptScope scope,
                              String subname, ScriptScope subscope) {
+      return exec(expr, scope, subname, subscope, false);
+   }
+
+   /**
+    * Same as {@link #exec(String, ScriptScope, String, ScriptScope)}, but a script error is
+    * thrown instead of logged and turned into a null result (Bug #78685). Only for a caller
+    * that has to tell a failed script from one that returned null.
+    */
+   public static Object execStrict(String expr, ScriptScope scope,
+                                   String subname, ScriptScope subscope) {
+      return exec(expr, scope, subname, subscope, true);
+   }
+
+   private static Object exec(String expr, ScriptScope scope, String subname,
+                              ScriptScope subscope, boolean strict) {
       if(scope == null) {
          scope = FormulaContext.getScope();
       }
@@ -60,7 +75,7 @@ public class FormulaEvaluator {
             execScope = tableRowScope;
          }
 
-         return exec(expr, execScope);
+         return exec(expr, execScope, strict);
       }
 
       Object ofield = scope.getMember(subname);
@@ -80,7 +95,7 @@ public class FormulaEvaluator {
             ((TableRowScope) execScope).setParentScope(scope);
          }
 
-         return exec(expr, execScope);
+         return exec(expr, execScope, strict);
       }
       finally {
          if(hadField) {
@@ -97,6 +112,10 @@ public class FormulaEvaluator {
     * current formula scope is used.
     */
    public static Object exec(String expr, ScriptScope scope) {
+      return exec(expr, scope, false);
+   }
+
+   private static Object exec(String expr, ScriptScope scope, boolean strict) {
       if(scope == null) {
          scope = FormulaContext.getScope();
       }
@@ -184,6 +203,11 @@ public class FormulaEvaluator {
          // nor has a table that failed to load for a reader that has to fail, e.g. a
          // scheduled run (#78083)
          TableLoadException.rethrow(ex);
+
+         if(strict) {
+            throw ex instanceof RuntimeException ? (RuntimeException) ex :
+               new RuntimeException(ex.getMessage(), ex);
+         }
 
          LOG.error("Failed to execute formula script: " + expr, ex);
       }

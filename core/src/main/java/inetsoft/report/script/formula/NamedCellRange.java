@@ -382,6 +382,7 @@ public class NamedCellRange extends CellRange {
       }
 
       TableRangeProcessor proc = new TableRangeProcessor(table, FormulaContext.getScope());
+      proc.setStrictCondition(strictCondition());
 
       proc.selectCells(cells, colexpr, expression, startRow, endRow, 1,
                        selector, condition, position);
@@ -416,6 +417,7 @@ public class NamedCellRange extends CellRange {
       RangeSelector selector = CrosstabGroupSelector.getSelector(
               Tool.replaceAll(colexpr, LayoutTool.SCRIPT_ESCAPED_COLON, ":"), table, specs);
       CrosstabRangeProcessor proc = new CrosstabRangeProcessor(table, FormulaContext.getScope());
+      proc.setStrictCondition(strictCondition());
       proc.setProcessCalc(processCalc);
       proc.selectCells(cells, selector, condition, position);
 
@@ -491,6 +493,7 @@ public class NamedCellRange extends CellRange {
       Map<String, GroupSpec> specs = getRuntimeGroups();
       RangeSelector selector = new CalcGroupSelector(table, specs);
       CalcRangeProcessor proc = new CalcRangeProcessor(table, FormulaContext.getScope());
+      proc.setStrictCondition(strictCondition());
 
       // if it's a calc cell reference, the colexpr is always an named cell
       // since $name notation does not allow expression to be used
@@ -540,6 +543,7 @@ public class NamedCellRange extends CellRange {
 
             TableRangeProcessor proc = new TableRangeProcessor(
                table, FormulaContext.getScope());
+            proc.setStrictCondition(strictCondition());
 
             proc.selectCells(cells, colexpr, expression, startrow, endrow, 1,
                              selector, condition, position);
@@ -552,6 +556,14 @@ public class NamedCellRange extends CellRange {
       }
 
       return cells;
+   }
+
+   /**
+    * Whether a condition that names something undefined should fail loud: only for a strict
+    * reference, and only when there is a condition (Bug #78685).
+    */
+   private boolean strictCondition() {
+      return strictMissing && condition != null && condition.length() > 0;
    }
 
    /**

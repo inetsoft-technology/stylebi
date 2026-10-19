@@ -19,6 +19,8 @@ package inetsoft.report.script.formula;
 
 import inetsoft.uql.XTable;
 import inetsoft.uql.util.TableLoadException;
+import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.UndefinedNameException;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
@@ -27,6 +29,8 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.util.Collection;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * RangeProcessor provides the implementation for cell selection based on
@@ -101,7 +105,9 @@ public abstract class RangeProcessor {
          if(cond != null && cond.length() > 0) {
             try {
                ScriptScope tableRow = range.getScope();
-               Object rc = FormulaEvaluator.exec(cond, scope, "rowValue", tableRow);
+               Object rc = strictCondition ?
+                  FormulaEvaluator.execStrict(cond, scope, "rowValue", tableRow) :
+                  FormulaEvaluator.exec(cond, scope, "rowValue", tableRow);
 
                if(rc instanceof Boolean && !((Boolean) rc).booleanValue()) {
                   if(breakAfter) {
@@ -121,6 +127,16 @@ public abstract class RangeProcessor {
                // scheduled run (#78083)
                TableLoadException.rethrow(ex);
 
+               if(strictCondition) {
+                  String missing = missingName(ex);
+
+                  if(missing != null) {
+                     throw new NamedCellRange.MissingColumnException("Name \"" + missing +
+                        "\" is not defined: column \"" + missing + "\" not found in " +
+                        "condition '" + cond + "'");
+                  }
+               }
+
                LOG.error("Error occurred when finding rows matching condition: " +
                   cond, ex);
             }
@@ -136,14 +152,53 @@ public abstract class RangeProcessor {
       }
    }
 
+   /**
+    * Set whether a condition that names something that is not defined, e.g. a column the
+    * table does not have, throws a {@link NamedCellRange.MissingColumnException} instead of
+    * being logged and leaving the row selected. Default is off (Bug #78685).
+    */
+   public void setStrictCondition(boolean strictCondition) {
+      this.strictCondition = strictCondition;
+   }
+
+   /**
+    * The name a condition failure says is missing: a guest ReferenceError, or a row
+    * field the table does not have. Null for any other failure.
+    */
+   private static String missingName(Throwable ex) {
+      UndefinedNameException undefined = UndefinedNameException.find(ex);
+
+      if(undefined != null) {
+         return undefined.getName();
+      }
+
+      for(Throwable t = ex; t != null; t = t.getCause()) {
+         if(t instanceof ScriptException && t.getMessage() != null) {
+            Matcher m = MISSING_FIELD.matcher(t.getMessage());
+
+            if(m.find()) {
+               return m.group(1);
+            }
+         }
+
+         if(t.getCause() == t) {
+            break;
+         }
+      }
+
+      return null;
+   }
+
    public void setProcessCalc(boolean calc) {
       this.processCalc = calc;
    }
 
    protected boolean processCalc = false;
+   private boolean strictCondition = false;
    protected XTable table;
    protected ScriptScope scope;
 
+   private static final Pattern MISSING_FIELD = Pattern.compile("^Field \"(.+?)\" not found in table");
    private static final Logger LOG =
       LoggerFactory.getLogger(RangeProcessor.class);
 }
