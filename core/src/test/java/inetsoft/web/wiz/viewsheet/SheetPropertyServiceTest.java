@@ -748,6 +748,57 @@ class SheetPropertyServiceTest {
       return sessions;
    }
 
+   @Test
+   void refusesOutOfRangeTouchIntervalAndMaxRowsAndWritesNothing() throws Exception {
+      for(Map<String, Object> patch : List.of(
+         Map.<String, Object>of("touchInterval", -5), Map.<String, Object>of("touchInterval", 100001),
+         Map.<String, Object>of("vsOptionsPane.touchInterval", 86401),
+         Map.<String, Object>of("maxRows", -1), Map.<String, Object>of("vsOptionsPane.maxRows", -5)))
+      {
+         ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+         when(dialog.getViewsheetInfo(anyString(), any(Principal.class)))
+            .thenReturn(modelWith(20, "old"));
+         SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), patch, ""));
+
+         String name = patch.keySet().iterator().next().contains("touch") ? "touchInterval" : "maxRows";
+         assertTrue(thrown.getMessage().contains("'" + name + "'"), thrown.getMessage());
+         verify(dialog, never()).setViewsheetInfo(any(), any(), any(), any(), any(), any());
+      }
+   }
+
+   @Test
+   void acceptsBoundaryTouchIntervalAndMaxRows() throws Exception {
+      for(Map<String, Object> patch : List.of(
+         Map.<String, Object>of("touchInterval", 0), Map.<String, Object>of("touchInterval", 1),
+         Map.<String, Object>of("touchInterval", 86400), Map.<String, Object>of("maxRows", 0)))
+      {
+         ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+         when(dialog.getViewsheetInfo(anyString(), any(Principal.class)))
+            .thenReturn(modelWith(20, "old"));
+         SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+         service.set("tok", principal(), patch, "");
+
+         verify(dialog).setViewsheetInfo(any(), any(), any(), any(), any(), any());
+      }
+   }
+
+   @Test
+   void unrelatedEditOnLegacySheetStoringOutOfRangeValuesStillSucceeds() throws Exception {
+      ViewsheetPropertyDialogModel model = modelWith(-3, "old");
+      model.vsOptionsPane().setTouchInterval(100000);
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      service.set("tok", principal(), Map.of("desc", "new"), "");
+
+      verify(dialog).setViewsheetInfo(any(), any(), any(), any(), any(), any());
+   }
+
    private static ViewsheetPropertyDialogModel modelWith(int maxRows, String desc) {
       VSOptionsPaneModel options = new VSOptionsPaneModel();
       options.setMaxRows(maxRows);
