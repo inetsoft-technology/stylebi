@@ -23,6 +23,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.audit.AdminChangeRecord;
+import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
@@ -162,12 +163,12 @@ public class DashboardChangePlanService {
       }
 
       String unitType = requireUnitType(label, change.getUnitType());
-
-      if(DashboardChangeRequest.UNIT_DASHBOARD.equals(unitType)) {
-         return resolveDashboard(label, change, user, seenKeys);
-      }
-
-      return resolveDashboardFolder(label, change, user, seenKeys);
+      PlanChange resolved = DashboardChangeRequest.UNIT_DASHBOARD.equals(unitType)
+         ? resolveDashboard(label, change, user, seenKeys)
+         : resolveDashboardFolder(label, change, user, seenKeys);
+      // Bug #78866: an owner the provider does not know is accepted, with an advisory
+      String warning = AdminIdentityRefs.missingOwnerWarning(parseOwner(change.getOwner()));
+      return warning == null ? resolved : AdminIdentityRefs.withWarning(resolved, warning);
    }
 
    // ---------------------------------------------------------------- dashboard
@@ -386,23 +387,12 @@ public class DashboardChangePlanService {
                            : dashboardRegistryManager.getRegistry();
    }
 
-   /** Same wire format as the viewsheet/folder area's own {@code owner} field: a bare identity name
-    * or a {@code name:orgId}-shaped key -- duplicated here rather than shared across areas, per this
-    * repo's own established per-area convention (see {@code ViewsheetFolderService#parseOwner}). */
+   /** Same forms and policy as the viewsheet/folder area's own {@code owner} field (bare name,
+    * {@code name:orgId}, {@code name~;~orgId}, {@code name^orgId}; blank is the global scope; an
+    * explicit org must exist) -- one shared parser, {@code AdminIdentityRefs}, since Bug #78866;
+    * see {@code AdminIdentityRefs#parseOwner}. */
    static IdentityID parseOwner(String ownerRaw) {
-      String trimmed = ownerRaw == null ? null : ownerRaw.trim();
-
-      if(trimmed == null || trimmed.isEmpty()) {
-         return null;
-      }
-
-      int delim = trimmed.indexOf(':');
-
-      if(delim < 0) {
-         return new IdentityID(trimmed, OrganizationManager.getInstance().getCurrentOrgID());
-      }
-
-      return new IdentityID(trimmed.substring(0, delim), trimmed.substring(delim + 1));
+      return AdminIdentityRefs.parseOwner(ownerRaw);
    }
 
    /** Same as {@code RepositoryDashboardService#fixDashboardName}: a global dashboard's registry

@@ -21,6 +21,7 @@ import inetsoft.web.admin.security.*;
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
+import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.ai.SecurityProviderGuard;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -70,7 +71,10 @@ public class AdminIdentityController {
    public SecurityUser getUser(@PathVariable("id") String id, Principal user) throws Exception {
       requireSiteAdmin(user);
       return securityService.getUser(
-         IdentityChangePlanService.parseIdentityId("id", id, currentOrgId()), user);
+         IdentityChangePlanService.parseIdentityId(
+            "id", id, currentOrgId(), IdentityUnitType.USER,
+            AdminIdentityRefs.fromSecurityEngine()),
+         user);
    }
 
    @Secured(@RequiredPermission(
@@ -89,7 +93,10 @@ public class AdminIdentityController {
    public SecurityGroup getGroup(@PathVariable("id") String id, Principal user) throws Exception {
       requireSiteAdmin(user);
       return securityService.getGroup(
-         IdentityChangePlanService.parseIdentityId("id", id, currentOrgId()), user);
+         IdentityChangePlanService.parseIdentityId(
+            "id", id, currentOrgId(), IdentityUnitType.GROUP,
+            AdminIdentityRefs.fromSecurityEngine()),
+         user);
    }
 
    @Secured(@RequiredPermission(
@@ -108,7 +115,10 @@ public class AdminIdentityController {
    public SecurityRole getRole(@PathVariable("id") String id, Principal user) throws Exception {
       requireSiteAdmin(user);
       return securityService.getRole(
-         IdentityChangePlanService.parseIdentityId("id", id, currentOrgId()), user);
+         IdentityChangePlanService.parseIdentityId(
+            "id", id, currentOrgId(), IdentityUnitType.ROLE,
+            AdminIdentityRefs.fromSecurityEngine()),
+         user);
    }
 
    @Secured(@RequiredPermission(

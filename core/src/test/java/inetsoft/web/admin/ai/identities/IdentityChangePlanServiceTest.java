@@ -25,6 +25,8 @@ import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.security.auth.MissingResourceException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -849,6 +851,98 @@ class IdentityChangePlanServiceTest {
    // -------------------------------------------------------------------------
    // fixtures
    // -------------------------------------------------------------------------
+
+   // -------------------------------------------------------------------------
+   // Bug #78857: identity reference forms and reference-separator names
+   // -------------------------------------------------------------------------
+
+   @ParameterizedTest
+   @ValueSource(strings = { "bob", "bob:host-org", "bob~;~host-org", "bob^host-org" })
+   void resolveDeleteAndUpdateAcceptEveryReferenceForm(String ref) throws Exception {
+      IdentityID id = new IdentityID("bob", "host-org");
+      lenient().when(securityService.getUser(eq(id), eq(user))).thenReturn(existingUser(id));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setAlias("New Alias");
+
+      ResolvedPlan delete = service.resolve(request("task", List.of(deleteUser(ref))), user);
+      ResolvedPlan update = service.resolve(request("task", List.of(updateUser(ref, spec))), user);
+
+      assertEquals("USER|bob~;~host-org", delete.changes().get(0).property());
+      assertEquals("USER|bob~;~host-org", update.changes().get(0).property());
+   }
+
+   @Test void resolveAcceptsAnotherExistingOrgAndRefusesAnUnknownOne() throws Exception {
+      IdentityID id = new IdentityID("bob", "other-org");
+      when(editableAuthentication.getOrganization("other-org")).thenReturn(mock(Organization.class));
+      when(securityService.getUser(eq(id), eq(user))).thenReturn(existingUser(id));
+
+      ResolvedPlan plan =
+         service.resolve(request("task", List.of(deleteUser("bob^other-org"))), user);
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(deleteUser("bob~;~nope-org"))), user));
+
+      assertEquals("USER|bob~;~other-org", plan.changes().get(0).property());
+      assertTrue(ex.getMessage().contains("organization \"nope-org\" does not exist"),
+                 ex.getMessage());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "Everyone^__GLOBAL__", "Everyone~;~__GLOBAL__", "Everyone:__GLOBAL__" })
+   void resolveRefusesAGlobalIdentity(String ref) {
+      IdentityChangeRequest change = deleteUser(ref);
+      change.setUnitType("role");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("global"), ex.getMessage());
+   }
+
+   @Test void resolveRefusesACaretReferenceWithAnUnknownOrg() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(deleteUser("bob^SELF"))), user));
+      assertTrue(ex.getMessage().contains("no organization \"SELF\""), ex.getMessage());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "a:b", "a^b", "a~;~b" })
+   void resolveCreateRefusesANameHoldingAReferenceSeparator(String name) {
+      for(IdentityChangeRequest change :
+         List.of(createUser(name), createGroup(name), createRole(name)))
+      {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("task", List.of(change)), user));
+         assertTrue(ex.getMessage().contains("spec.name: must not contain"), ex.getMessage());
+      }
+   }
+
+   @Test void resolveUpdateRefusesARenameToANameHoldingAReferenceSeparator() {
+      IdentitySpec spec = new IdentitySpec();
+      spec.setName("bob^host-org2");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateUser("bob", spec))), user));
+      assertTrue(ex.getMessage().contains("spec.name: must not contain"), ex.getMessage());
+   }
+
+   /** An existing external name holding a separator stays updatable, and can be renamed away. */
+   @Test void resolveUpdateOfAnExistingCaretNameIsAllowed() throws Exception {
+      IdentityID id = new IdentityID("j^smith", "host-org");
+      when(editableAuthentication.getUser(eq(id))).thenReturn(mock(User.class));
+      when(securityService.getUser(eq(id), eq(user))).thenReturn(existingUser(id));
+      IdentitySpec alias = new IdentitySpec();
+      alias.setAlias("J");
+      IdentitySpec rename = new IdentitySpec();
+      rename.setName("jsmith");
+      IdentitySpec sameName = new IdentitySpec();
+      sameName.setName("j^smith");
+      sameName.setAlias("J");
+
+      for(IdentitySpec spec : List.of(alias, rename, sameName)) {
+         ResolvedPlan plan =
+            service.resolve(request("task", List.of(updateUser("j^smith", spec))), user);
+         assertEquals("USER|j^smith~;~host-org", plan.changes().get(0).property());
+      }
+   }
 
    private static IdentityChangePlanRequest request(String task, List<IdentityChangeRequest> changes) {
       IdentityChangePlanRequest req = new IdentityChangePlanRequest();
