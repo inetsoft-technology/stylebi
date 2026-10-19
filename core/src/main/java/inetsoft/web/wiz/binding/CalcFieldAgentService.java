@@ -33,6 +33,7 @@ import inetsoft.web.binding.event.ImmutableModifyCalculateFieldEvent;
 import inetsoft.web.binding.model.ExpressionRefModel;
 import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
+import inetsoft.web.wiz.viewsheet.ChartRenderCheck;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -275,6 +276,12 @@ public class CalcFieldAgentService {
 
          modifyCalculateFieldService.modifyCalculateField(
             runtimeId, event, agent, dispatcher, linkUri);
+
+         // Not a chart write: a create re-executes nothing and edit/remove swallow a script
+         // failure, so the named chart (only) is checked to keep a clean ok honest.
+         if(req.assembly() != null) {
+            ChartRenderCheck.warnIfChartScriptFails(rvs, req.assembly(), dispatcher);
+         }
       });
 
       if(!aggregateWarnings.isEmpty()) {

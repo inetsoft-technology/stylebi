@@ -621,7 +621,10 @@ public class ViewsheetEditService {
          ChangeVSObjectTextEvent event = new ChangeVSObjectTextEvent();
          event.setName(request.assembly());
          event.setText(request.title());
-         objects.changeTitle(runtimeId, event, user, dispatcher);
+         // changeTitle builds nothing, so a chart whose script fails would read as a clean
+         // success; guarded() reports it as the named warning (a non-chart is untouched).
+         ChartRenderCheck.guarded(rvs, request.assembly(), dispatcher,
+                                  () -> objects.changeTitle(runtimeId, event, user, dispatcher));
       });
    }
 
@@ -786,6 +789,10 @@ public class ViewsheetEditService {
                                 String linkUri)
       throws Exception
    {
+      // Only set_title and refresh are chart-checked: refresh is an explicit "recompute this
+      // chart", where a clean ok is most misleading. refresh_viewsheet names no chart, and
+      // move/resize/rename/paste/group ops do not change what the chart reads, so they are left
+      // out to avoid a graph build per layout call.
       requireAssembly(request);
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
@@ -794,7 +801,9 @@ public class ViewsheetEditService {
             .vsRuntimeId(runtimeId)
             .assemblyName(request.assembly())
             .build();
-         refreshService.refreshVsAssembly(runtimeId, event, dispatcher, linkUri, user);
+         ChartRenderCheck.guarded(
+            rvs, request.assembly(), dispatcher,
+            () -> refreshService.refreshVsAssembly(runtimeId, event, dispatcher, linkUri, user));
       });
    }
 
