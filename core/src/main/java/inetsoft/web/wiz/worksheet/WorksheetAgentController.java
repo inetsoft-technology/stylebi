@@ -3964,7 +3964,8 @@ public class WorksheetAgentController {
             editor.setTableMode(req.table(), req.mode() != null ? req.mode() : "default");
          case "edit_unpivot" ->
             editor.editUnpivot(req.table(),
-                               req.headerColumns() != null ? req.headerColumns() : 1);
+                               req.headerColumns() != null ? req.headerColumns() : 1,
+                               Boolean.TRUE.equals(req.confirmed()));
          default ->
             throw new PairingException("Unknown op: " + req.op());
       }

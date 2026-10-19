@@ -4138,6 +4138,17 @@ public class WorksheetEditService {
        *                          injected one phantom row per source row)
        */
       public void editUnpivot(String tableName, int headerColumns) throws PairingException {
+         editUnpivot(tableName, headerColumns, false);
+      }
+
+      /**
+       * As {@link #editUnpivot(String, int)}, and shrinking also refuses to drop a column that
+       * another table, or this table's own condition or sort, still uses, unless
+       * {@code confirmed}. A join key is never confirmable.
+       */
+      public void editUnpivot(String tableName, int headerColumns, boolean confirmed)
+         throws PairingException
+      {
          Assembly a = ws.getAssembly(tableName);
 
          if(!(a instanceof UnpivotTableAssembly table)) {
@@ -4151,7 +4162,9 @@ public class WorksheetEditService {
          }
 
          TableAssembly src = table.getTableAssembly();
-         int colCount = src == null ? 0 : src.getColumnSelection(false).getAttributeCount();
+         // The melt runs over the source's visible columns, a hidden one never reaches it.
+         ColumnSelection melted = src == null ? new ColumnSelection() : src.getColumnSelection(true);
+         int colCount = melted.getAttributeCount();
 
          if(headerColumns < 0 || headerColumns >= colCount) {
             throw new PairingException(
@@ -4159,16 +4172,119 @@ public class WorksheetEditService {
                (colCount - 1) + " (table has " + colCount + " columns).");
          }
 
-         if(headerColumns < oldHeaderColumns) {
+         // The runtime clamps the stored header count to the visible columns (AssetUtil.unpivot),
+         // and a hidden column or addUnpivot's looser bound can leave it beyond them.
+         int effectiveOld = Math.min(oldHeaderColumns, colCount - 1);
+
+         if(headerColumns < effectiveOld) {
             String conflict = AssetUtil.checkUnpivotShrinkTypeConflict(
-               src.getColumnSelection(false), oldHeaderColumns, headerColumns);
+               melted, effectiveOld, headerColumns);
 
             if(conflict != null) {
                throw new PairingException(conflict);
             }
+
+            requireShrinkKeepsReferencedColumns(
+               table, tableName, melted, headerColumns, effectiveOld, confirmed);
          }
 
          table.setHeaderColumns(headerColumns);
+      }
+
+      /**
+       * Refuses an unpivot shrink that would melt a column something still uses: columns
+       * {@code [newHeader, oldHeader)} of the source's visible selection leave the table's
+       * output under their own name. The departing columns come from the source, not from the
+       * table's own selection, whose order is not the melt order (reorder_columns, and a grown
+       * column is appended). Nothing has been mutated when this runs.
+       */
+      private void requireShrinkKeepsReferencedColumns(
+         UnpivotTableAssembly table, String tableName, ColumnSelection melted, int newHeader,
+         int oldHeader, boolean confirmed) throws PairingException
+      {
+         ColumnSelection own = table.getColumnSelection(false);
+
+         // never refreshed: no column exists for anything to reference
+         if(own.getAttributeCount() == 0) {
+            return;
+         }
+
+         String source = table.getTableAssemblyName();
+         List<ColumnRef> departing = new ArrayList<>();
+
+         for(int i = newHeader; i < oldHeader; i++) {
+            String name = melted.getAttribute(i).getName();
+            List<ColumnRef> outputs = findUnpivotOutputs(own, source, melted.getAttribute(i));
+
+            if(outputs.isEmpty()) {
+               throw new PairingException(
+                  "Cannot check what uses column \"" + name + "\" of '" + tableName +
+                  "' before it is melted: it is not in the table's current columns. Refresh " +
+                  "the table and retry. Nothing was changed.");
+            }
+
+            if(outputs.size() > 1) {
+               throw new PairingException(
+                  "Cannot check what uses column \"" + name + "\" of '" + tableName +
+                  "' before it is melted: it matches more than one of the table's columns, so " +
+                  "its dependents cannot be told apart. Rename or remove the duplicate column " +
+                  "first. Nothing was changed.");
+            }
+
+            departing.add(outputs.get(0));
+         }
+
+         Set<String> kept = new LinkedHashSet<>();
+
+         for(int i = 0; i < own.getAttributeCount(); i++) {
+            if(!departing.contains(own.getAttribute(i))) {
+               kept.add(own.getAttribute(i).getName());
+            }
+         }
+
+         for(ColumnRef ref : departing) {
+            ColumnLossReport.requireNotJoinKey(
+               ws, table, ref, "edit_unpivot would melt column \"" + ref.getName() + "\"",
+               "Keep it in headerColumns, or remove that join first. Nothing was changed.");
+         }
+
+         if(!confirmed) {
+            ColumnLossReport.requireNoDependentLoss(
+               ws, table, tableName, departing, kept, ColumnLossReport.Scope.UNPIVOT_EDIT,
+               "edit_unpivot to headerColumns " + newHeader,
+               "Confirm with the user before retrying with confirmed:true -- this changes what " +
+               "those OTHER tables show, not just this one. Nothing was changed.");
+         }
+      }
+
+      /**
+       * The columns of the unpivot table's own selection that the melt's input column
+       * {@code input} comes out as: the header is the alias, else the attribute, and the entity
+       * is the source assembly's name (or whatever an earlier refresh already gave it). Those
+       * whose entity is the source's name when there are any, else every attribute match. One
+       * element is a clean resolution; none or several is for the caller to refuse.
+       */
+      private static List<ColumnRef> findUnpivotOutputs(ColumnSelection own, String source,
+                                                        DataRef input)
+      {
+         List<ColumnRef> byEntity = new ArrayList<>();
+         List<ColumnRef> byHeader = new ArrayList<>();
+
+         if(input instanceof ColumnRef in) {
+            String header = in.getAlias() != null ? in.getAlias() : in.getAttribute();
+
+            for(int i = 0; i < own.getAttributeCount(); i++) {
+               if(own.getAttribute(i) instanceof ColumnRef c && header.equals(c.getAttribute())) {
+                  byHeader.add(c);
+
+                  if(source.equals(c.getEntity())) {
+                     byEntity.add(c);
+                  }
+               }
+            }
+         }
+
+         return byEntity.isEmpty() ? byHeader : byEntity;
       }
 
       // -----------------------------------------------------------------------

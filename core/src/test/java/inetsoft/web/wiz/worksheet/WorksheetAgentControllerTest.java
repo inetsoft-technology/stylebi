@@ -2896,6 +2896,38 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #78790 item 2: {@code edit_unpivot}'s {@code confirmed} reaches
+    * {@link WorksheetEditService.Editor#editUnpivot(String, int, boolean)} through the
+    * dispatch switch, and an absent {@code confirmed} reaches it as false.
+    */
+   @Test
+   void editDispatchesEditUnpivotConfirmed() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      when(sessions.resolve(eq("TOK-UP"), any())).thenReturn(session("TOK-UP"));
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      WorksheetEditService.Editor editor = mock(WorksheetEditService.Editor.class);
+      doAnswer(inv -> {
+         inv.<ThrowingConsumer<WorksheetEditService.Editor>>getArgument(2).accept(editor);
+         return null;
+      }).when(editSvc).apply(eq("TOK-UP"), any(), any());
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         sessions, mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+      ObjectMapper mapper = new WebConfig().objectMapper();
+
+      ctrl.edit("TOK-UP", mapper.readValue(
+         "{\"op\":\"edit_unpivot\",\"table\":\"UP\",\"headerColumns\":1,\"confirmed\":true}",
+         EditRequest.class), agent);
+      verify(editor).editUnpivot("UP", 1, true);
+
+      ctrl.edit("TOK-UP", mapper.readValue(
+         "{\"op\":\"edit_unpivot\",\"table\":\"UP\",\"headerColumns\":1}",
+         EditRequest.class), agent);
+      verify(editor).editUnpivot("UP", 1, false);
+   }
+
+   /**
     * The snapshot guard for {@code insert_column}, pinned here rather than in
     * {@code WorksheetEditServiceMutatorsTest} because this op is the one that does not live in
     * the {@code Editor}: it manipulates {@link inetsoft.uql.util.XEmbeddedTable} directly from
