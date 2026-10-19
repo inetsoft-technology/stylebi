@@ -116,6 +116,19 @@ public final class CalcCellVocabulary {
       "content", "grouping", "expand", "field", "formula", "value", "mergeCells", "name", "sort",
       "topn", "rowGroup", "colGroup", "mergeRowGroup", "mergeColGroup", "timeSeries");
 
+   /** The keys {@code CalcTableService} reads from a cell's {@code field}. */
+   private static final List<String> FIELD_KEYS = List.of(
+      "column", "type", "namedGroup", "dateLevel", "dateInterval");
+
+   /** The keys {@code CalcTableService} reads from a cell's {@code sort}. */
+   private static final List<String> SORT_KEYS = List.of("direction", "manualOrder", "rankBy");
+
+   /** The keys {@code CalcTableService} reads from a cell's {@code topn}. */
+   private static final List<String> TOPN_KEYS = List.of("mode", "n", "rankBy");
+
+   /** The keys {@code CalcTableService} reads from a {@code rankBy} inside sort or topn. */
+   private static final List<String> RANK_BY_KEYS = List.of("column", "formula");
+
    /**
     * Keys {@link #describe} emits that a read-modify-write round trip sends straight back. They
     * carry no write of their own and are ignored, so they are tolerated rather than refused.
@@ -409,6 +422,10 @@ public final class CalcCellVocabulary {
             "nothing renders blank, which reads as missing data rather than a binding error.");
       }
 
+      if(cell.get("field") instanceof Map<?, ?> fieldMap) {
+         requireKnownKeys(fieldMap, "field", FIELD_KEYS);
+      }
+
       if(type == CellBinding.BIND_COLUMN && cell.get("field") instanceof Map<?, ?> fieldMap) {
          validateInlineNamedGroup(fieldMap);
       }
@@ -473,6 +490,8 @@ public final class CalcCellVocabulary {
          return;
       }
 
+      requireKnownKeys(sort, "sort", SORT_KEYS);
+      requireKnownKeys(sort.get("rankBy"), "sort.rankBy", RANK_BY_KEYS);
       String direction = str(sort, "direction");
 
       if(direction == null) {
@@ -510,6 +529,8 @@ public final class CalcCellVocabulary {
          return;
       }
 
+      requireKnownKeys(topn, "topn", TOPN_KEYS);
+      requireKnownKeys(topn.get("rankBy"), "topn.rankBy", RANK_BY_KEYS);
       String mode = str(topn, "mode");
 
       if(mode == null) {
@@ -611,6 +632,26 @@ public final class CalcCellVocabulary {
                      "' must be true or false, got '" + value + "'.");
                }
             }
+         }
+      }
+   }
+
+   /**
+    * Refuses a key of a nested binding object ({@code field}, {@code sort}, {@code topn},
+    * {@code rankBy}) that {@code CalcTableService} does not read, which would otherwise be
+    * dropped silently. A value that is not an object is left to the caller's own shape check.
+    */
+   private static void requireKnownKeys(Object object, String path, List<String> recognized) {
+      if(!(object instanceof Map<?, ?> map)) {
+         return;
+      }
+
+      for(Object key : map.keySet()) {
+         if(!recognized.contains(key)) {
+            throw new IllegalArgumentException(
+               "'" + path + "' carries '" + key + "', which this write does not recognize and " +
+               "would otherwise drop silently. Recognized keys: " + String.join(", ", recognized) +
+               ". Nothing was changed.");
          }
       }
    }
