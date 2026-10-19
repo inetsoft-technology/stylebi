@@ -24,6 +24,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.Util;
+import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.ResourceAction;
@@ -89,10 +90,15 @@ public class RawDataService {
       TableLens lens;
 
       try {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
          lens = box.getTableLens(targetTable.getAbsoluteName(), AssetQuerySandbox.RUNTIME_MODE);
 
          if(lens == null) {
-            throw new RuntimeException("Table " + tableName + " produced no data.");
+            String cause = XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get();
+            XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
+
+            throw new RuntimeException("Table " + tableName + " produced no data" +
+                                       (cause == null || cause.isBlank() ? "." : ": " + cause));
          }
 
          // a failed query degrades to sample rows (999/XXX); fail like worksheet preview does
@@ -143,10 +149,15 @@ public class RawDataService {
       TableLens lens;
 
       try {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
          lens = box.getTableLens(targetTable.getAbsoluteName(), AssetQuerySandbox.RUNTIME_MODE);
 
          if(lens == null) {
-            throw new RuntimeException("Table " + tableName + " produced no data.");
+            String cause = XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get();
+            XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
+
+            throw new RuntimeException("Table " + tableName + " produced no data" +
+                                       (cause == null || cause.isBlank() ? "." : ": " + cause));
          }
 
          // a failed query degrades to sample rows (999/XXX); fail like worksheet preview does
