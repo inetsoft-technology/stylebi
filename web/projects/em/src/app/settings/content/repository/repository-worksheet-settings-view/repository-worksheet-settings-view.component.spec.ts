@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { HttpClientTestingModule } from "@angular/common/http/testing";
+import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -32,8 +32,10 @@ import { MatTableModule } from "@angular/material/table";
 import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
+import { Subject } from "rxjs";
 import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
 import { TableView } from "../../../../common/util/table/table-view.component";
+import { OrganizationDropdownService } from "../../../../navbar/organization-dropdown.service";
 import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
 import { AnalyzeMvPageComponent } from "../analyze-mv-page/analyze-mv-page.component";
 import { RepositorySheetSettingsViewComponent } from "../repository-sheet-settings-view/repository-sheet-settings-view.component";
@@ -64,5 +66,93 @@ describe("RepositoryWorksheetSettingsViewComponent", () => {
 
    it("should create", () => {
       expect(component).toBeTruthy();
+   });
+});
+
+// Bug #78724: the real view with its real sheet settings view and permission view
+describe("RepositoryWorksheetSettingsViewComponent reset", () => {
+   let fixture: ComponentFixture<RepositoryWorksheetSettingsViewComponent>;
+   let http: HttpTestingController;
+
+   const sheetModel = (): any => ({
+      name: "Orders", oname: "Orders", alias: "", description: "", created: "admin",
+      modified: "admin", mvEnabled: false, corrupt: false,
+      permissionTableModel: {
+         permissions: null, displayActions: [], hasOrgEdited: false, securityEnabled: true,
+         requiresBoth: false, derivePermissionLabel: "Use Parent", grantReadToAllVisible: false,
+         changed: false
+      }
+   });
+
+   const el = (): HTMLElement => fixture.nativeElement;
+   const button = (label: string) => Array.from(el().querySelectorAll(".editor-panel-actions button"))
+      .find(b => b.textContent.trim() === label) as HTMLButtonElement;
+   const apply = () => button("_#(js:Apply)");
+   const detect = () => fixture.componentRef.changeDetectorRef.detectChanges();
+   const stable = async () => {
+      detect();
+      await fixture.whenStable();
+      detect();
+   };
+   // the sheet settings view subscribes to its form changes after a delay
+   const settle = async () => {
+      await new Promise(r => setTimeout(r, 250));
+      await stable();
+   };
+   // requests made by the permission view that these tests don't depend on
+   const flushOther = () => http.match(() => true).forEach(r => r.flush(false));
+   const selectTab = async (label: string) => {
+      const tab = Array.from(el().querySelectorAll("[role=tab]"))
+         .find(t => t.textContent.trim() === label) as HTMLElement;
+      tab.click();
+      await settle();
+      flushOther();
+      await settle();
+   };
+   const nameInput = () => el().querySelector(`input[placeholder="_#(Name)"]`) as HTMLInputElement;
+   const typeName = async (value: string) => {
+      const i = nameInput();
+      i.value = value;
+      i.dispatchEvent(new Event("input"));
+      await stable();
+   };
+
+   beforeEach(async () => {
+      TestBed.configureTestingModule({
+         imports: [RepositoryWorksheetSettingsViewComponent, HttpClientTestingModule, NoopAnimationsModule],
+         providers: [{
+            provide: OrganizationDropdownService,
+            useValue: { onRefresh: new Subject(), onOrgChange: new Subject(), getProvider: () => "provider" }
+         }]
+      });
+      fixture = TestBed.createComponent(RepositoryWorksheetSettingsViewComponent);
+      http = TestBed.inject(HttpTestingController);
+      fixture.componentRef.setInput("sheetModel", sheetModel());
+      fixture.componentRef.setInput("hasMVPermission", false);
+      fixture.componentRef.setInput("smallDevice", false);
+      await settle();
+      flushOther();
+      await settle();
+   });
+
+   it("should enable Apply for a permission edit after an invalid name was reset", async () => {
+      await typeName("Orders/2026");
+      expect(apply().disabled).toBe(true);
+
+      await selectTab("_#(Security)");
+      button("_#(js:Reset)").click();
+      await settle();
+
+      // uncheck "Use Parent"
+      (el().querySelector("mat-checkbox input[type=checkbox]") as HTMLInputElement).click();
+      await stable();
+      expect(apply().disabled).toBe(false);
+
+      await selectTab("_#(Worksheet)");
+      expect(nameInput().value).toBe("Orders");
+
+      // a new invalid value still disables Apply
+      await typeName("Orders/x");
+      expect(apply().disabled).toBe(true);
    });
 });

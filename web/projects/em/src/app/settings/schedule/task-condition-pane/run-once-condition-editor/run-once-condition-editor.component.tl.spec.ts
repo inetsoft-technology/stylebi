@@ -41,8 +41,11 @@
 
 import { Component, forwardRef, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR, ReactiveFormsModule } from "@angular/forms";
+import { MatDatepicker } from "@angular/material/datepicker";
+import { By } from "@angular/platform-browser";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { render } from "@testing-library/angular";
+import dayjs from "dayjs";
 
 import { RunOnceConditionEditorComponent } from "./run-once-condition-editor.component";
 import { DateTimeService } from "../date-time.service";
@@ -359,6 +362,137 @@ describe("RunOnceConditionEditorComponent — Bug #78045: opens and saves a zone
 
       expect(comp.dateValue.getDate()).toBe(20);
       expect(comp.form.get("startTime").value).toBe("09:30:00");
+   });
+
+});
+
+// ---------------------------------------------------------------------------
+// Group 5 [Risk 3] — Bug #78728: valid is read fresh inside a control's valueChanges
+// ---------------------------------------------------------------------------
+
+describe("RunOnceConditionEditorComponent — Bug #78728: emitted valid matches the edited form", () => {
+
+   // fireModelChanged runs inside the datepicker's date control valueChanges (dateValue) or the
+   // startTime valueChanges. Angular emits a control's valueChanges before its parent groups
+   // recompute their status, so form.valid used to be the status from before the edit: false
+   // after typing into an empty or incomplete date, true after the time was cleared.
+   async function renderWithDate() {
+      const result = await renderComponent({
+         condition: makeCondition({ date: Date.UTC(2026, 9, 7, 9, 30) }),
+      });
+
+      const emitted: TaskConditionChanges[] = [];
+      result.comp.modelChanged.subscribe(e => emitted.push(e));
+      const input = result.container.querySelector("input.date-picker-input") as HTMLInputElement;
+
+      const type = (text: string) => {
+         input.value = text;
+         input.dispatchEvent(new Event("input"));
+         result.fixture.detectChanges();
+      };
+
+      const pick = (date: string) => {
+         const picker = result.fixture.debugElement.query(By.directive(MatDatepicker))
+            .injector.get(MatDatepicker) as MatDatepicker<dayjs.Dayjs>;
+         picker.select(dayjs(date, "YYYY-MM-DD"));
+         result.fixture.detectChanges();
+      };
+
+      return { ...result, emitted, input, type, pick };
+   }
+
+   function storedDate(e: TaskConditionChanges): string {
+      return new Date((e.model as TimeConditionModel).date).toISOString();
+   }
+
+   it("emits valid=true after typing a full date character by character", async () => {
+      const { comp, emitted, type } = await renderWithDate();
+      const text = "2026-10-20";
+
+      for(let i = 1; i <= text.length; i++) {
+         type(text.substring(0, i));
+      }
+
+      expect(emitted.length).toBe(1);
+      expect(emitted[0].valid).toBe(true);
+      expect(storedDate(emitted[0])).toBe("2026-10-20T09:30:00.000Z");
+      expect(comp.form.valid).toBe(true);
+   });
+
+   it("emits valid=true after clearing the date and pasting a new one", async () => {
+      const { emitted, type } = await renderWithDate();
+
+      type("");
+      type("2026-10-22");
+
+      expect(emitted.length).toBe(1);
+      expect(emitted[0].valid).toBe(true);
+      expect(storedDate(emitted[0])).toBe("2026-10-22T09:30:00.000Z");
+   });
+
+   it("emits valid=true after clearing the date and picking one from the calendar", async () => {
+      const { emitted, type, pick } = await renderWithDate();
+
+      type("");
+      pick("2026-10-25");
+
+      expect(emitted.length).toBe(1);
+      expect(emitted[0].valid).toBe(true);
+      expect(storedDate(emitted[0])).toBe("2026-10-25T09:30:00.000Z");
+   });
+
+   it("still emits valid=true when a date is picked into a filled field", async () => {
+      const { emitted, pick } = await renderWithDate();
+
+      pick("2026-10-25");
+
+      expect(emitted.length).toBe(1);
+      expect(emitted[0].valid).toBe(true);
+      expect(storedDate(emitted[0])).toBe("2026-10-25T09:30:00.000Z");
+   });
+
+   it("emits valid=true after deleting the last digit and typing a new one", async () => {
+      const { emitted, type } = await renderWithDate();
+
+      type("2026-10-0");
+      type("2026-10-09");
+
+      expect(emitted.length).toBe(1);
+      expect(emitted[0].valid).toBe(true);
+      expect(storedDate(emitted[0])).toBe("2026-10-09T09:30:00.000Z");
+   });
+
+   it("still emits valid=true when the date is overtyped in one edit of a filled field", async () => {
+      const { emitted, type } = await renderWithDate();
+
+      type("2026-10-08");
+
+      expect(emitted.length).toBe(1);
+      expect(emitted[0].valid).toBe(true);
+      expect(storedDate(emitted[0])).toBe("2026-10-08T09:30:00.000Z");
+   });
+
+   it("emits nothing for an incomplete date, so no false valid=true is reported", async () => {
+      const { comp, emitted, type } = await renderWithDate();
+
+      type("2026-10-");
+
+      expect(emitted.length).toBe(0);
+      expect(comp.form.get("date").invalid).toBe(true);
+   });
+
+   it("emits valid=false when the start time is cleared after a valid date edit", async () => {
+      const { comp, emitted, type } = await renderWithDate();
+
+      type("2026-10-08");
+      expect(emitted.at(-1).valid).toBe(true);
+
+      // What em-time-picker does when its hour box is emptied: onChange(null).
+      comp.form.get("startTime").setValue(null);
+
+      expect(emitted.length).toBe(2);
+      expect(emitted[1].valid).toBe(false);
+      expect(comp.form.valid).toBe(false);
    });
 
 });

@@ -76,6 +76,7 @@ import { VSLoadingDisplay } from "../../../vsobjects/objects/vs-loading-display/
 
 import { WizardVisualizationPane } from "./wizard-visualization-pane.component";
 import { VSWizardAggregatePane } from "./wizard-aggregate-pane.component";
+import { SecondColumnEdit } from "./wizard-aggregate-item.component";
 import { WizardBindingTree } from "./wizard-binding-tree.component";
 import { ObjectWizardToolBarComponent } from "../object-wizard-tool-bar.component";
 
@@ -454,7 +455,9 @@ export class ObjectWizardPane extends CommandProcessor implements OnInit, OnDest
       }
    }
 
-   onEditSecondColumn(idx: number) {
+   onEditSecondColumn(edit: SecondColumnEdit) {
+      let measure: ChartAggregateRef = this.measures != null && edit.index < this.measures.length ?
+         <ChartAggregateRef> this.measures[edit.index] : null;
       let entries: AssetEntry[] = this.bindingTreeService.selectedNodes
          .filter(node => !!node && !!node.data)
          .map((node) => node.data);
@@ -475,15 +478,23 @@ export class ObjectWizardPane extends CommandProcessor implements OnInit, OnDest
                      }));
          }
 
+         // Bug #78716, the trap check did not apply the new column on the server, so Undo and a
+         // dismissed question (Escape) both put the previous column back
+         const restore = () => {
+            if(measure != null) {
+               measure.secondaryColumn = edit.oldColumn;
+               measure.secondaryColumnValue = edit.oldValue;
+            }
+         };
+
          promise.then((confirmed) => {
             if(confirmed) {
                this.sendRefreshWizardBindingEvent();
             }
-            else if(this.measures != null && idx < this.measures.length) {
-               (<ChartAggregateRef> this.measures[idx]).secondaryColumn = null;
-               (<ChartAggregateRef> this.measures[idx]).secondaryColumnValue = null;
+            else {
+               restore();
             }
-         });
+         }, restore);
       });
    }
 

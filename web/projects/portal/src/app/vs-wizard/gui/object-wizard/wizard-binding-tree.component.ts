@@ -212,9 +212,16 @@ export class WizardBindingTree extends CommandProcessor implements OnInit, OnDes
                }
             }
             else {
-               this.bindingTreeService.selectedNodes.pop();
+               this.dropLastSelectedNode();
             }
-      });
+      }, () => this.dropLastSelectedNode());
+   }
+
+   // Bug #78715, the server didn't bind the newly ticked column, so untick it on No/Cancel and
+   // on dismissal (Escape). Assign through the setter so the service's selectedPaths drop it too,
+   // otherwise a tree reload ticks it again.
+   private dropLastSelectedNode(): void {
+      this.selectedNodes = this.selectedNodes.slice(0, -1);
    }
 
    private noNeedReloadTree() {
@@ -402,11 +409,11 @@ export class WizardBindingTree extends CommandProcessor implements OnInit, OnDes
                this.refreshBindingFields();
             }
             else {
-               this.selectedNodes.pop();
+               this.dropLastSelectedNode();
             }
 
             return val;
-         });
+         }, () => this.dropLastSelectedNode());
    }
 
    private refreshBindingFields(): void {

@@ -24,8 +24,9 @@ import { RepositoryEntryType } from "../../../../../../../../shared/data/reposit
 import { SelectAssetFolderDataSource } from "./select-asset-folder-data-source.service";
 import { ContentRepositoryService } from "../../content-repository-page/content-repository.service";
 import { InputNameDialogComponent } from "../input-name-dialog/input-name-dialog.component";
+import { onDialogEscape } from "../../../../../common/util/dialog-escape";
 import { catchError, map, takeUntil } from "rxjs/operators";
-import { Observable, Subject } from "rxjs";
+import { Observable, Subject, Subscription } from "rxjs";
 import { Tool } from "../../../../../../../../shared/util/tool";
 import { TreeSelectionEvent } from "../../content-repository-page/content-repository-page.component";
 import { MatButton } from "@angular/material/button";
@@ -48,6 +49,7 @@ export class SelectAssetFolderDialogComponent implements OnDestroy {
    private _loading = false;
    private inited: boolean = false;
    private destroy$ = new Subject<void>();
+   private escapeSubscription: Subscription;
    private afterLoadingRefreshData: TreeSelectionEvent;
 
    constructor(private dialog: MatDialog, private dialogRef: MatDialogRef<SelectAssetFolderDialogComponent>,
@@ -78,9 +80,11 @@ export class SelectAssetFolderDialogComponent implements OnDestroy {
 
 
       this.dataSource.repositoryChanged.pipe(takeUntil(this.destroy$)).subscribe(() => this.refreshTree());
+      this.escapeSubscription = onDialogEscape(dialogRef, () => this.cancel());
    }
 
    ngOnDestroy(): void {
+      this.escapeSubscription.unsubscribe();
       this.destroy$.next();
    }
 

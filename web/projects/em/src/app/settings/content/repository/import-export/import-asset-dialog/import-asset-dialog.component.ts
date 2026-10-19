@@ -16,14 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
-import { Component, HostBinding, HostListener, Inject, OnDestroy, ViewEncapsulation } from "@angular/core";
+import { Component, HostBinding, Inject, OnDestroy, ViewEncapsulation } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
-import { Observable, Subject, of, throwError, timer } from "rxjs";
+import { Observable, Subject, Subscription, of, throwError, timer } from "rxjs";
 import { catchError, filter, switchMap, take, timeout } from "rxjs/operators";
 import { DateTypeFormatter } from "../../../../../../../../shared/util/date-type-formatter";
 import { RepositoryEntryType } from "../../../../../../../../shared/data/repository-entry-type.enum";
 import { Tool } from "../../../../../../../../shared/util/tool";
+import { onDialogEscape } from "../../../../../common/util/dialog-escape";
 import { MessageDialog, MessageDialogType } from "../../../../../common/util/message-dialog";
 import { convertToKey } from "../../../../security/users/identity-id";
 import { ImportAssetResponse } from "../../model/import-asset-response";
@@ -173,9 +174,12 @@ export class ImportAssetDialogComponent implements OnDestroy {
 
    private _model: ExportedAssetsModel;
 
+   private escapeSubscription: Subscription;
+
    constructor(private http: HttpClient, private dialog: MatDialog,
       private dialogRef: MatDialogRef<ImportAssetDialogComponent>,
       @Inject(MAT_DIALOG_DATA) data: any, fb: UntypedFormBuilder) {
+      this.escapeSubscription = onDialogEscape(dialogRef, () => this.cancel());
       this.uploadForm = fb.group({
          file: [null, Validators.required]
       });
@@ -218,6 +222,7 @@ export class ImportAssetDialogComponent implements OnDestroy {
    }
 
    ngOnDestroy() {
+      this.escapeSubscription.unsubscribe();
       this.conflictsRefresh$.complete();
       this.clearImportCache();
    }
@@ -377,11 +382,6 @@ export class ImportAssetDialogComponent implements OnDestroy {
 
       this.conflictsLoading = true;
       this.conflictsRefresh$.next(params);
-   }
-
-   @HostListener("window:keyup.esc", [])
-   onKeyUp(): void {
-      this.cancel();
    }
 
    cancel(): void {
