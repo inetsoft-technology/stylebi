@@ -120,6 +120,20 @@ class SelectionRuntimeServiceSubtreeClearReportTest {
       }
    }
 
+   /** Simulates the apply the service now sends under a search (visible values only). */
+   private static void onApplySelection(SelectionRuntimeServiceTest.Harness h, Runnable apply) {
+      try {
+         doAnswer(inv -> {
+            apply.run();
+            return null;
+         }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                              any(Principal.class), any(), anyString());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
    private static void deselect(SelectionList domain, int top, int... children) {
       CompositeSelectionValue parent = (CompositeSelectionValue) domain.getSelectionValue(top);
 
@@ -135,26 +149,26 @@ class SelectionRuntimeServiceSubtreeClearReportTest {
                                        List.of(path), "clear", "");
    }
 
-   /** (a) NY is hidden by the search and put back; West/CA (outside East) is not reported. */
+   /** (a) MA is hidden by the search and so kept; only the visible NY is cleared (bug-78787). */
    @Test
    void clearUnderASearchReportsClearedAndRetainedScopedToTheSubtree() throws Exception {
       SelectionList domain = eastWest(true, true, true);
       SelectionRuntimeServiceTest.Harness h = harness(false, domain, "NY");
-      onApply(h, () -> deselect(domain, 0, 1));
+      onApplySelection(h, () -> deselect(domain, 0, 0));
 
       Map<String, Object> result = clear(h, "East");
 
-      assertEquals(1, result.get("clearedCount"), "MA cleared");
+      assertEquals(1, result.get("clearedCount"), "NY cleared");
       assertEquals(1, result.get("remainingUnderSubtree"));
       assertEquals("NY", result.get("scopedBySearch"));
-      assertEquals(List.of(List.of("East", "NY")), result.get("scopedBySearchRetained"));
+      assertEquals(List.of(List.of("East", "MA")), result.get("scopedBySearchRetained"));
    }
 
    /** (b) The search hides everything selected under East: nothing cleared, retained named. */
    @Test
    void clearWhereTheSearchHidesEverythingReportsZeroClearedWithRetained() throws Exception {
       SelectionRuntimeServiceTest.Harness h =
-         harness(false, eastWest(true, false, true), "NY");
+         harness(false, eastWest(true, false, true), "MA");
 
       Map<String, Object> result = clear(h, "East");
 
