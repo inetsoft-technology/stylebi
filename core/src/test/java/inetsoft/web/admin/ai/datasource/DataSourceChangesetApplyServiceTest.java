@@ -31,6 +31,9 @@ import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.security.auth.MissingResourceException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -39,11 +42,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.quality.Strictness;
 
 import java.security.Principal;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -568,6 +573,68 @@ class DataSourceChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(store.get("Orders"));
       verify(dataSourceService, never()).updateDataSource(eq("id-orders"), any(), any());
+   }
+
+   // -------------------------------------------------------------------------
+   // spec.isolation through apply (Bug #78820)
+   // -------------------------------------------------------------------------
+
+   // Bug #78820: apply re-resolves the change and rebuilds the proposed DTO through the same
+   // buildProposedJdbc as preview, then persists it and verifies the read-back projection. The
+   // numeric form -- including the string "-1" that get_data_source emits -- must reach storage
+   // as the matching level and verify.
+   @ParameterizedTest
+   @MethodSource("acceptedIsolationInputs")
+   void appliesAnUpdateWithANumericIsolation(Object input,
+                                             JdbcDataSourceProperties.IsolationLevel expected)
+      throws Exception
+   {
+      store.get("Orders").setIsolation(JdbcDataSourceProperties.IsolationLevel.TRANSACTION_SERIALIZABLE);
+      DataSourceApplyRequest req = applyRequest("set isolation",
+         false, updateChange("Orders", Map.of("isolation", input)));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals(expected, store.get("Orders").getIsolation());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, result.results().get(0).status());
+      assertTrue(result.results().get(0).before().contains("isolation=8"));
+      assertTrue(result.results().get(0).after().contains("isolation=" + expected.value),
+                 result.results().get(0).after());
+   }
+
+   static Stream<Arguments> acceptedIsolationInputs() {
+      return Stream.of(
+         Arguments.of(2, JdbcDataSourceProperties.IsolationLevel.TRANSACTION_READ_COMMITTED),
+         Arguments.of("2", JdbcDataSourceProperties.IsolationLevel.TRANSACTION_READ_COMMITTED),
+         Arguments.of(-1, JdbcDataSourceProperties.IsolationLevel.DEFAULT),
+         Arguments.of("-1", JdbcDataSourceProperties.IsolationLevel.DEFAULT));
+   }
+
+   // Bug #78820: an unknown or null isolation is refused at apply before any mutation -- never
+   // defaulted, and never a null level reaching DataSourceService (which dereferences it).
+   @ParameterizedTest
+   @MethodSource("refusedIsolationInputs")
+   void applyRefusesAnInvalidIsolationBeforeMutating(Object input) throws Exception {
+      Map<String, Object> spec = new HashMap<>();
+      spec.put("isolation", input);
+      DataSourceApplyRequest req = new DataSourceApplyRequest();
+      req.setTask("set isolation");
+      req.setChanges(List.of(updateChange("Orders", spec)));
+      req.setPlanHash("any");
+      req.setReviewOutcome("approved");
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+      assertTrue(ex.getMessage().contains("spec.isolation: must be one of [-1, 1, 2, 4, 8]"),
+                 ex.getMessage());
+      verify(dataSourceService, never()).updateDataSource(any(), any(), any());
+      assertEquals(JdbcDataSourceProperties.IsolationLevel.DEFAULT,
+                   store.get("Orders").getIsolation());
+   }
+
+   static Stream<Arguments> refusedIsolationInputs() {
+      return Stream.of(Arguments.of(3), Arguments.of("3"), Arguments.of((Object) null));
    }
 
    // -------------------------------------------------------------------------
