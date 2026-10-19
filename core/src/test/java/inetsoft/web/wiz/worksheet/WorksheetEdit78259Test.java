@@ -118,7 +118,7 @@ class WorksheetEdit78259Test {
       build(svc, agent, ws, 2, true);
 
       PairingException ex = assertThrows(PairingException.class,
-         () -> svc.apply("TOK", agent, ed -> ed.removeConcatSubtable("CC", "M2")));
+         () -> svc.apply("TOK", agent, ed -> ed.removeConcatSubtable("CC", "M2", false)));
 
       assertTrue(ex.getMessage().contains("CCM"), ex.getMessage());
       assertNotNull(ws.getAssembly("CC"));
@@ -133,7 +133,7 @@ class WorksheetEdit78259Test {
       WorksheetEditService svc = service(ws, agent);
       build(svc, agent, ws, 3, true);
 
-      svc.apply("TOK", agent, ed -> ed.removeConcatSubtable("CC", "M3"));
+      svc.apply("TOK", agent, ed -> ed.removeConcatSubtable("CC", "M3", false));
 
       assertEquals(2, ((ConcatenatedTableAssembly) ws.getAssembly("CC")).getTableAssemblies().length);
       assertNotNull(ws.getAssembly("CCM"));
@@ -146,7 +146,7 @@ class WorksheetEdit78259Test {
       WorksheetEditService svc = service(ws, agent);
       build(svc, agent, ws, 2, false);
 
-      svc.apply("TOK", agent, ed -> ed.removeConcatSubtable("CC", "M2"));
+      svc.apply("TOK", agent, ed -> ed.removeConcatSubtable("CC", "M2", false));
 
       assertNull(ws.getAssembly("CC"));
    }

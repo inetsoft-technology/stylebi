@@ -41,6 +41,9 @@ import static inetsoft.web.wiz.worksheet.MirrorResyncGuard.refuse;
  * losses are refused unless {@code confirmed}, as {@code remove_column} does. Operators are
  * carried by position, so a mixed UNION/MINUS/INTERSECT concatenation changes which rows survive
  * whatever the first subtable is; no column check sees that.</p>
+ *
+ * <p>Bug #78879: removing the first subtable makes the next one first, with the same effect, so
+ * {@code remove_concat_subtable} runs the same check against the subtables that remain.</p>
  */
 final class ConcatReorderGuard {
    private static final String CONFIRM =
@@ -101,16 +104,43 @@ final class ConcatReorderGuard {
                                         TableAssembly[] reordered, boolean confirmed)
       throws PairingException
    {
+      requireFirstKeepsState(
+         ws, table, reordered,
+         "Putting '" + reordered[0].getName() + "' first in '" + table.getName() + "'",
+         "keep the current first subtable", confirmed);
+   }
+
+   /**
+    * Removing {@code removed} from {@code table} leaves {@code remaining}, in order, which is
+    * checked the same way as a reorder to that list. Only called when at least 2 subtables remain
+    * (with fewer the concatenation itself is deleted).
+    */
+   static void requireRemovalKeepsState(Worksheet ws, ConcatenatedTableAssembly table,
+                                        String removed, TableAssembly[] remaining,
+                                        boolean confirmed) throws PairingException
+   {
+      requireFirstKeepsState(
+         ws, table, remaining,
+         "Removing '" + removed + "' from '" + table.getName() + "' (which makes '" +
+         remaining[0].getName() + "' its first subtable)",
+         "remove a subtable other than the first", confirmed);
+   }
+
+   private static void requireFirstKeepsState(Worksheet ws, ConcatenatedTableAssembly table,
+                                              TableAssembly[] subtables, String lead,
+                                              String alternative, boolean confirmed)
+      throws PairingException
+   {
       String[] current = table.getTableNames();
 
       // the entity every column is attributed to comes from the first subtable only
-      if(current.length == 0 || Tool.equals(current[0], reordered[0].getName())) {
+      if(current.length == 0 || Tool.equals(current[0], subtables[0].getName())) {
          return;
       }
 
       String name = table.getName();
       List<ColumnRef> oldColumns = MirrorResyncGuard.sourceColumns(table.getColumnSelection());
-      ColumnSelection fresh = ConcatenatedTableAssembly.getDefaultColumnSelection(reordered);
+      ColumnSelection fresh = ConcatenatedTableAssembly.getDefaultColumnSelection(subtables);
       Set<String> freshNames = new HashSet<>();
       ColumnSelection before = new ColumnSelection();
       ColumnSelection after = new ColumnSelection();
@@ -147,7 +177,7 @@ final class ConcatReorderGuard {
          }
       }
 
-      String lead = "Putting '" + reordered[0].getName() + "' first in '" + name + "'";
+      String remedy = "Remove or edit the join first, or " + alternative + ". Nothing was changed.";
       List<String> never = new ArrayList<>();
       List<String> confirmable = new ArrayList<>();
 
@@ -155,16 +185,14 @@ final class ConcatReorderGuard {
          if(!keptNames.contains(column.getName())) {
             refuse(never, () -> ColumnLossReport.requireNotJoinKey(
                ws, table, column, lead + " would drop \"" + column.getDisplayName() + "\"",
-               "Remove or edit the join first, or keep the current first subtable. " +
-               "Nothing was changed."));
+               remedy));
          }
       }
 
       refuse(never, () -> JoinKeyTypeGuard.throwIfAny(
          JoinKeyTypeGuard.findSelectionBreaks(ws, table, before, after), name,
          lead + " would change the type of",
-         "Remove or edit the join first, or keep the current first subtable. " +
-         "Nothing was changed."));
+         remedy));
 
       if(!sameNames(oldColumns, fresh)) {
          refuse(never, () -> MirrorResyncGuard.requireNoConcatenationFed(ws, table, lead));
