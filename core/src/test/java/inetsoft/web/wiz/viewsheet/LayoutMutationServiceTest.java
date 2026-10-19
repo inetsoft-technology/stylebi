@@ -1005,6 +1005,69 @@ class LayoutMutationServiceTest {
          .openTemporaryViewsheet(anyString(), any(AssetEntry.class), eq(AGENT));
    }
 
+   // ── Bug 78834: print-layout add/move_resize reflows objects around page breaks ──
+
+   private static int pageHeight(Fixture fx) {
+      return VSLayoutService.getPrintPageSize(fx.masterVs.getLayoutInfo().getPrintLayout()).height;
+   }
+
+   private static void addPageBreak(Fixture fx, String name, int y) throws Exception {
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", name, "type", "pagebreak", "x", 0, "y", y)), false);
+   }
+
+   @Test
+   void addingAPageBreakAboveAnObjectPushesItToALaterPage() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      addPageBreak(fx, "Break1", 300);
+
+      assertTrue(fx.printLayoutObject("Table1").getPosition().y >= pageHeight(fx),
+                 "Table1 (y=400) sits below the break and must move to a later page");
+      assertEquals(200, fx.printLayoutObject("Text1").getPosition().y,
+                   "an object above the break must not move");
+   }
+
+   @Test
+   void anObjectAddedInsideAnExistingBreaksBlankRegionIsPushedDown() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      addPageBreak(fx, "Break1", 500);
+      assertEquals(400, fx.printLayoutObject("Table1").getPosition().y);
+      fx.masterVs.addAssembly(new TableVSAssembly(fx.masterVs, "Table2"));
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table2", "x", 0, "y", 600)), false);
+
+      assertTrue(fx.printLayoutObject("Table2").getPosition().y >= pageHeight(fx));
+   }
+
+   @Test
+   void movingAPageBreakAboveAnObjectReflowsIt() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      addPageBreak(fx, "Break1", pageHeight(fx) - 20);
+      assertEquals(400, fx.printLayoutObject("Table1").getPosition().y);
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Break1", "x", 0, "y", 300)), false);
+
+      assertTrue(fx.printLayoutObject("Table1").getPosition().y >= pageHeight(fx));
+   }
+
+   @Test
+   void moveResizeOnADeviceLayoutIsNotReflowed() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installDeviceLayout();
+      fx.service.editObjects("tok1", AGENT, DEVICE_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 0, "y", 0)), false);
+      fx.service.editObjects("tok1", AGENT, DEVICE_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 3, "y", 4000)), false);
+
+      assertEquals(new Point(3, 4000), fx.deviceLayoutObjects().get(0).getPosition());
+   }
+
    /**
     * Wires one {@code LayoutMutationService} against a REAL {@code LayoutSessionService}/
     * {@code VSLayoutService} (mocked only at the {@code ViewsheetSessionService}/
