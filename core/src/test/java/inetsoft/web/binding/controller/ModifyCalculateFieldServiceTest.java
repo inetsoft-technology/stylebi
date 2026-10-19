@@ -47,6 +47,7 @@ import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.OutputVSAssembly;
 import inetsoft.uql.viewsheet.ScalarBindingInfo;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
+import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.CalculateRef;
@@ -643,6 +644,55 @@ class ModifyCalculateFieldServiceTest {
       modify78682(vs, "Orders", "VCF20X", null);
 
       assertNull(list.getTableName());
+   }
+
+   /** Bug #78758: a rename must carry a SelectionList's and SelectionTree's measure along. */
+   @Test
+   void renameCalcFieldUsedAsSelectionMeasureMovesTheMeasureOfListAndTree() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("VCF26X", "field['Total'] * 2", true));
+      SelectionListVSAssembly list = selectionList(vs, "SelectionList1", "Orders", "State");
+      list.getSelectionListInfo().setMeasure("VCF26X");
+      list.getSelectionListInfo().setMeasureValue("VCF26X");
+      SelectionTreeVSAssembly tree = selectionTree(vs, "SelectionTree1", "Orders", "State");
+      tree.getSelectionTreeInfo().setMeasure("VCF26X");
+      tree.getSelectionTreeInfo().setMeasureValue("VCF26X");
+
+      modify78682(vs, "Orders", "VCF26X", calc("VCF26Y", "field['Total'] * 2", true));
+
+      assertEquals("VCF26Y", list.getMeasure());
+      assertEquals("VCF26Y", list.getSelectionListInfo().getMeasureValue());
+      assertEquals("VCF26Y", tree.getMeasure());
+      assertEquals("VCF26Y", tree.getSelectionTreeInfo().getMeasureValue());
+   }
+
+   @Test
+   void renameUnrelatedCalcFieldLeavesSelectionMeasuresAlone() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("VCF26X", "field['Total'] * 2", true));
+      SelectionListVSAssembly list = selectionList(vs, "SelectionList1", "Orders", "State");
+      list.getSelectionListInfo().setMeasure("Total");
+      list.getSelectionListInfo().setMeasureValue("Total");
+      SelectionTreeVSAssembly tree = selectionTree(vs, "SelectionTree1", "Orders", "State");
+      tree.getSelectionTreeInfo().setMeasure("Total");
+      tree.getSelectionTreeInfo().setMeasureValue("Total");
+
+      modify78682(vs, "Orders", "VCF26X", calc("VCF26Y", "field['Total'] * 2", true));
+
+      assertEquals("Total", list.getMeasure());
+      assertEquals("Total", list.getSelectionListInfo().getMeasureValue());
+      assertEquals("Total", tree.getMeasure());
+      assertEquals("Total", tree.getSelectionTreeInfo().getMeasureValue());
+   }
+
+   private static SelectionTreeVSAssembly selectionTree(Viewsheet vs, String name, String table,
+                                                        String column)
+   {
+      SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly(vs, name);
+      tree.setTableName(table);
+      tree.getSelectionTreeInfo().setDataRefs(new DataRef[] {new AttributeRef(null, column)});
+      vs.addAssembly(tree);
+      return tree;
    }
 
    private static SelectionListVSAssembly selectionList(Viewsheet vs, String name, String table,

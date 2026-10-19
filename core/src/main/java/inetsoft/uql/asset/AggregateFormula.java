@@ -255,7 +255,10 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
 
       if(name2.endsWith(")")) {
          int idx = name2.indexOf("(");
-         name2 = name2.substring(0, idx);
+
+         if(idx >= 0) {
+            name2 = name2.substring(0, idx);
+         }
       }
 
       return fmap.get(name2);

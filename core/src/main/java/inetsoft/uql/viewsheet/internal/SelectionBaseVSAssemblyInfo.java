@@ -435,6 +435,20 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    }
 
    /**
+    * Follow a renamed column in the measure, design and runtime value each against the
+    * old name.
+    */
+   public void renameMeasure(String oname, String nname) {
+      if(Tool.equals(getMeasureValue(), oname)) {
+         setMeasureValue(nname);
+      }
+
+      if(Tool.equals(getMeasure(), oname)) {
+         setMeasure(nname);
+      }
+   }
+
+   /**
     * Get the formula for aggregating the measure column.
     */
    public String getFormula() {

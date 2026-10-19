@@ -2104,15 +2104,17 @@ class AssemblyPropertyServiceTest {
    @Test
    void refusesAnUnknownGaugeAggregateOnTheAliasAndTheRawPath() {
       for(String key : new String[] {"aggregate", "dataOutputPaneModel.aggregate"}) {
-         GaugePropertyDialogModel model = boundGauge("Sum");
-         AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+         for(String bad : new String[] {"Foo", "Foo)"}) {
+            GaugePropertyDialogModel model = boundGauge("Sum");
+            AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
 
-         Exception e = assertThrows(IllegalArgumentException.class,
-            () -> service.set("tok", principal(), "Gauge1", Map.of(key, "Foo"), ""));
+            Exception e = assertThrows(IllegalArgumentException.class,
+               () -> service.set("tok", principal(), "Gauge1", Map.of(key, bad), ""));
 
-         assertTrue(e.getMessage().contains("Foo"), e.getMessage());
-         assertTrue(e.getMessage().contains("Sum"), e.getMessage());
-         assertNothingWrittenBy(lastDialogServices);
+            assertTrue(e.getMessage().contains(bad), e.getMessage());
+            assertTrue(e.getMessage().contains("Sum"), e.getMessage());
+            assertNothingWrittenBy(lastDialogServices);
+         }
       }
    }
 
@@ -2122,6 +2124,8 @@ class AssemblyPropertyServiceTest {
       AssemblyPropertyService textService = serviceWith(mock(TextVSAssembly.class), text);
       assertThrows(IllegalArgumentException.class,
          () -> textService.set("tok", principal(), "Text1", Map.of("aggregate", "Foo"), ""));
+      assertThrows(IllegalArgumentException.class,
+         () -> textService.set("tok", principal(), "Text1", Map.of("aggregate", "Foo)"), ""));
 
       ImagePropertyDialogService imageDialog = mock(ImagePropertyDialogService.class);
       AssemblyPropertyService imageService = serviceWithImage(
@@ -2173,6 +2177,19 @@ class AssemblyPropertyServiceTest {
          () -> setList(model, Map.of("formula", "Foo")));
 
       assertTrue(thrown.getMessage().contains("Foo"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Count, Sum, Max, Min"), thrown.getMessage());
+      verifyNothingWritten();
+   }
+
+   @Test
+   void refusesAnUnbalancedSelectionListFormulaLikeAnUnknownOne() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+      model.getSelectionListPaneModel().getSelectionMeasurePaneModel().setFormula("Sum");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> setList(model, Map.of("formula", "Foo)")));
+
+      assertTrue(thrown.getMessage().contains("Foo)"), thrown.getMessage());
       assertTrue(thrown.getMessage().contains("Count, Sum, Max, Min"), thrown.getMessage());
       verifyNothingWritten();
    }

@@ -1278,6 +1278,8 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
             }
          }
       }
+
+      getSelectionTreeInfo().renameMeasure(oname, nname);
    }
 
    public boolean isIDMode() {
