@@ -4634,18 +4634,34 @@ public class WorksheetAgentController {
          WorksheetEditService.Editor.requireNoNameCollision(name, ws);
          WSAssembly[] created = AssetUtil.copyOuterAssemblies(
             assetRepository, entry, user, ws, new Point(25, 25));
-         WSAssembly source = created[created.length - 1];
-         WSAssembly mirror = AssetEventUtil.createMirrorAssembly(rws, source, name, entry);
-         mirror.setPixelOffset(new Point(25, 25));
-         AssetEventUtil.adjustAssemblyPosition(mirror, ws);
 
-         if(!ws.addAssembly(mirror)) {
+         // Any failure from here on removes the copies, so a refused call adds nothing.
+         try {
+            // The copies are named createPrefix(entry) + n without regard to the mirror's name,
+            // so one of them can take it. Registering the mirror would then replace that copy
+            // and leave the mirror resolving its source to itself.
+            if(ws.getAssembly(name) != null) {
+               throw new PairingException(
+                  "\"" + name + "\" is the name this add_mirror gives to its copy of a table " +
+                  "from '" + path + "'. Choose a different name for the mirror.");
+            }
+
+            WSAssembly source = created[created.length - 1];
+            WSAssembly mirror = AssetEventUtil.createMirrorAssembly(rws, source, name, entry);
+            mirror.setPixelOffset(new Point(25, 25));
+            AssetEventUtil.adjustAssemblyPosition(mirror, ws);
+
+            if(!ws.addAssembly(mirror)) {
+               throw new PairingException(
+                  "The mirror \"" + name + "\" could not be added to the worksheet.");
+            }
+         }
+         catch(Exception e) {
             for(WSAssembly copy : created) {
                ws.removeAssembly(copy.getName());
             }
 
-            throw new PairingException(
-               "The mirror \"" + name + "\" could not be added to the worksheet.");
+            throw e;
          }
 
          return null;

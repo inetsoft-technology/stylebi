@@ -2118,7 +2118,7 @@ public class WorksheetEditService {
       }
 
       /** The kind of a non-table worksheet assembly, as a refusal names it. */
-      private static String kindOf(Assembly assembly) {
+      public static String kindOf(Assembly assembly) {
          return switch(assembly.getAssemblyType()) {
             case AbstractSheet.VARIABLE_ASSET -> "variable";
             case AbstractSheet.NAMED_GROUP_ASSET -> "named group";

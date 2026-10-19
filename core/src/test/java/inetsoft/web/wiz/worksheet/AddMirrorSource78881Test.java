@@ -168,6 +168,22 @@ class AddMirrorSource78881Test {
    }
 
    @Test
+   void aCrossWorksheetMirrorNamedLikeItsOwnSourceCopyIsRefused() throws Exception {
+      saveSource("am78881_copy");
+      Worksheet ws = new Worksheet();
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                        "am78881_copy", null);
+      // the name copyOuterAssemblies gives its copy of the source's primary table
+      String copyName = AssetUtil.createPrefix(entry) + "0";
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> addWorksheetMirror(ws, copyName, "am78881_copy"));
+
+      assertTrue(ex.getMessage().contains("\"" + copyName + "\""), ex.getMessage());
+      assertEquals(List.of(), names(ws), "the refusal left source copies behind");
+   }
+
+   @Test
    void aCrossWorksheetMirrorUnderAFreeNameIsCreated() throws Exception {
       saveSource("am78881_free");
       Worksheet ws = new Worksheet();

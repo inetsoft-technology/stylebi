@@ -62,6 +62,7 @@ import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.*;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
+import inetsoft.web.wiz.worksheet.WorksheetEditService;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -174,12 +175,18 @@ public class WorksheetTableService {
             continue;
          }
 
+         // An existing worksheet may already hold an assembly of this name that addAssembly
+         // refused to replace (another kind); the rollback below must leave that one in place.
+         Assembly prior = worksheet.getAssembly(table.getTableName());
+
          try {
             results.add(addOneTable(worksheet, table, user));
          }
          catch(Exception e) {
             // Roll back any half-built assembly so the persisted worksheet stays clean.
-            if(worksheet.getAssembly(table.getTableName()) != null) {
+            Assembly built = worksheet.getAssembly(table.getTableName());
+
+            if(built != null && built != prior) {
                worksheet.removeAssembly(table.getTableName());
             }
 
@@ -1797,15 +1804,23 @@ public class WorksheetTableService {
       }
 
       String baseTableName = bases.get(0);
-      WSAssembly baseAssembly = (WSAssembly) worksheet.getAssembly(baseTableName);
+      Assembly baseAssembly = worksheet.getAssembly(baseTableName);
 
       if(baseAssembly == null) {
          throw new IllegalArgumentException(
             "Base table '" + baseTableName + "' not found in worksheet");
       }
 
+      // An existing worksheet may also hold variables, named groups and the like.
+      if(!(baseAssembly instanceof TableAssembly baseTable)) {
+         throw new IllegalArgumentException(
+            "Base table '" + baseTableName + "' is a " +
+            WorksheetEditService.Editor.kindOf(baseAssembly) + ", not a table. A mirror table " +
+            "can only mirror a table assembly.");
+      }
+
       MirrorTableAssembly mirror =
-         new MirrorTableAssembly(worksheet, request.getTableName(), baseAssembly);
+         new MirrorTableAssembly(worksheet, request.getTableName(), baseTable);
 
       // Deriving and aggregating are mutually exclusive on ONE assembly: once groups/aggregates
       // are applied, the row-level column selection an expression evaluates against is gone. So
@@ -1821,7 +1836,18 @@ public class WorksheetTableService {
          applyWindowColumns(mirror, request.getWindowColumns());
       }
 
-      worksheet.addAssembly(mirror);
+      // addAssembly refuses a name already taken by another kind of assembly.
+      if(!worksheet.addAssembly(mirror)) {
+         Assembly taken = worksheet.getAssembly(request.getTableName());
+
+         throw new IllegalArgumentException(taken != null
+            ? "Mirror table '" + request.getTableName() + "' cannot be added: '" +
+              request.getTableName() + "' already names a " +
+              WorksheetEditService.Editor.kindOf(taken) + " in this worksheet. Choose a " +
+              "different tableName."
+            : "Mirror table '" + request.getTableName() + "' could not be added to the worksheet.");
+      }
+
       return mirror;
    }
 
