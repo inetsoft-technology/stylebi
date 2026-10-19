@@ -36,12 +36,14 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.awt.Insets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * What a reader sees is the density matrix - 28/24/20 for data rows and 30/26/22 for headers -
  * whatever padding the table carries. A table stores the rendered height less its seeded cell
  * padding and render adds the padding back, so the sum holds even when the padding was seeded
- * under a tier other than the one in force: an org density change reseeds nothing.
+ * under a tier other than the one in force: an org density change reseeds nothing. An author
+ * padding adds to this tier's content box, not to a box sized for the tier that seeded it.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -93,6 +95,118 @@ class DensityRowHeightInvariantTest {
       assertEquals(36, renderedDataRow(info, "compact"));
    }
 
+   @Test
+   void anAuthorPaddingRendersTheTierInForceWhateverTierSeededIt() {
+      // no reseed between seed and render: the org-density path. 10/6/10/6 adds 20 to each tier's
+      // content box
+      assertAuthorRendered("compact", "comfortable", 36, 38);
+      assertAuthorRendered("comfortable", "dense", 34, 36);
+      assertAuthorRendered("dense", "compact", 36, 38);
+   }
+
+   @Test
+   void aSmallAuthorPaddingIsNotClippedByAShrinkingTier() {
+      TableVSAssemblyInfo info = seededAt("comfortable");
+      info.setCellPadding(new Insets(1, 1, 1, 1), CompositeValue.Type.USER);
+
+      assertEquals(16, renderedDataRow(info, "dense"));
+   }
+
+   @Test
+   void anAuthorPaddingSurvivesADashboardReseedOnTheTier() {
+      // a dashboard density change re-runs the seed, which leaves the DEFAULT tier alone under an
+      // author value - the row must not depend on it
+      TableVSAssemblyInfo info = seededAt("compact");
+      info.setCellPadding(new Insets(10, 6, 10, 6), CompositeValue.Type.USER);
+      info.seedChromeDefaults(contextAt("comfortable"));
+
+      assertEquals(new Insets(4, 6, 4, 6), info.getDefaultCellPadding(), "precondition: DEFAULT kept");
+      assertEquals(36, renderedDataRow(info, "comfortable"));
+      assertEquals(38, renderedHeaderRow(info, "comfortable"));
+   }
+
+   @Test
+   void anAuthorPaddingSetBeforeModernizeRendersTheTier() {
+      // set while unmarked, so Modernize's seed skips it and no DEFAULT tier is ever written
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      info.setCellPadding(new Insets(4, 6, 4, 6), CompositeValue.Type.USER);
+      info.seedChromeDefaults(contextAt("compact"));
+
+      assertNull(info.getDefaultCellPadding(), "precondition: no DEFAULT tier was written");
+      assertEquals(24, renderedDataRow(info, "compact"));
+      assertEquals(26, renderedHeaderRow(info, "compact"));
+      assertEquals(22, renderedDataRow(info, "dense"));
+      assertEquals(24, renderedDataRow(info, "comfortable"));
+   }
+
+   @Test
+   void anAuthorPaddingEqualToTheTierRendersTheTier() {
+      TableVSAssemblyInfo info = seededAt("dense");
+      info.setCellPadding(new Insets(6, 8, 6, 8), CompositeValue.Type.USER);
+
+      assertEquals(28, renderedDataRow(info, "comfortable"));
+      assertEquals(30, renderedHeaderRow(info, "comfortable"));
+   }
+
+   @Test
+   void onlyTheVerticalSidesOfAnAuthorPaddingReachTheRow() {
+      // 10 on top alone: comfortable's content box 16 plus 10
+      TableVSAssemblyInfo info = seededAt("compact");
+      info.setCellPadding(new Insets(10, 0, 0, 0), CompositeValue.Type.USER);
+
+      assertEquals(26, renderedDataRow(info, "comfortable"));
+   }
+
+   @Test
+   void crosstabAndCalcTableTakeTheSameRule() {
+      TableDataVSAssemblyInfo[] infos = { new CrosstabVSAssemblyInfo(), new CalcTableVSAssemblyInfo() };
+
+      for(TableDataVSAssemblyInfo info : infos) {
+         String label = info.getClass().getSimpleName();
+         info.seedChromeDefaults(contextAt("compact"));
+         info.setCellPadding(new Insets(10, 6, 10, 6), CompositeValue.Type.USER);
+
+         assertEquals(36, renderedDataRow(info, "comfortable"), label + " data row");
+         assertEquals(38, renderedHeaderRow(info, "comfortable"), label + " header row");
+      }
+   }
+
+   @Test
+   void aTableTheDensityOwnsStillLeavesOutItsSeed() {
+      // with no author value the cell draws the DEFAULT tier, so that is what the stored height
+      // leaves out, whatever tier is in force
+      TableVSAssemblyInfo info = seededAt("compact");
+      VizContext ctx = contextAt("comfortable");
+
+      assertEquals(8, VSDensityDefaults.excludedCellPaddingHeight(ctx, info));
+      assertEquals(20, VSDensityDefaults.rowHeight(ctx, info));
+      assertEquals(28, renderedDataRow(info, "comfortable"));
+   }
+
+   @Test
+   void anUnmarkedContextLeavesNothingOut() {
+      TableVSAssemblyInfo info = seededAt("compact");
+      info.setCellPadding(new Insets(10, 6, 10, 6), CompositeValue.Type.USER);
+
+      assertEquals(0, VSDensityDefaults.excludedCellPaddingHeight(VizContext.of((VizMark) null), info));
+   }
+
+   private void assertAuthorRendered(String seedMode, String renderMode, int data, int header) {
+      TableVSAssemblyInfo info = seededAt(seedMode);
+      info.setCellPadding(new Insets(10, 6, 10, 6), CompositeValue.Type.USER);
+      String label = "author padding, " + seedMode + " seeded, " + renderMode + " rendered";
+
+      assertEquals(data, renderedDataRow(info, renderMode), label + " data row");
+      assertEquals(header, renderedHeaderRow(info, renderMode), label + " header row");
+   }
+
+   private int renderedHeaderRow(TableDataVSAssemblyInfo info, String renderMode) {
+      VizContext ctx = contextAt(renderMode);
+      VSTableLens lens = new VSTableLens(XTableUtil.getDefaultTableLens());
+      return VSDensityDefaults.headerRowHeight(ctx, info) + lens.getRowPadding(0, info);
+   }
+
    private void assertRendered(String seedMode, String renderMode, int data, int header) {
       TableVSAssemblyInfo info = seededAt(seedMode);
       VizContext ctx = contextAt(renderMode);
@@ -106,7 +220,7 @@ class DensityRowHeightInvariantTest {
                    label + " header row");
    }
 
-   private int renderedDataRow(TableVSAssemblyInfo info, String renderMode) {
+   private int renderedDataRow(TableDataVSAssemblyInfo info, String renderMode) {
       VizContext ctx = contextAt(renderMode);
       VSTableLens lens = new VSTableLens(XTableUtil.getDefaultTableLens());
       return VSDensityDefaults.rowHeight(ctx, info) + lens.getRowPadding(1, info);

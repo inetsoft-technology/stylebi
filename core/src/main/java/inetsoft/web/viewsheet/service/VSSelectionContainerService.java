@@ -180,7 +180,7 @@ public class VSSelectionContainerService {
             ((SelectionListVSAssemblyInfo) targetAssemblyInfo).getShowTypeValue() ==
                SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE)
          {
-            // the body it opens to; a marked list's rows follow its density
+            // the body of the box it opens to
             SelectionListVSAssemblyInfo targetListInfo =
                (SelectionListVSAssemblyInfo) targetAssemblyInfo;
             totalHeight += targetListInfo.getContainedListHeight() - targetListInfo.getTitleHeight();

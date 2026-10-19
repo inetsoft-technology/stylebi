@@ -29,12 +29,15 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
+import inetsoft.web.composer.model.vs.SizePositionPaneModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.annotation.DirtiesContext;
@@ -45,14 +48,16 @@ import java.awt.*;
 import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 /**
- * Switching a selection tree from dropdown to list grows its box to fit the list rows. A marked
- * tree's rows and title lane follow the density and its rows sit inside the card inset, so the
- * box has to make room for all three; an unmarked tree keeps the legacy 20px arithmetic.
+ * Switching a selection tree from dropdown to list rebuilds its box. A marked tree the author
+ * never sized takes its tier's density box; one the author sized makes room for its rows, title
+ * lane and card inset at its density; an unmarked tree keeps the legacy 20px arithmetic.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -74,15 +79,53 @@ class SelectionTreeShowTypeSizeTest {
       SreeEnv.setProperty("viewsheet.density", null);
    }
 
-   // comfortable: six 28px rows, a 30px lane and 16 + 16 of inset
-   @Test
-   void switchingAMarkedTreeToListMakesRoomForItsRowsAndInset() throws Exception {
-      SreeEnv.setProperty("viewsheet.density", "comfortable");
-      SelectionTreeVSAssemblyInfo info = new SelectionTreeVSAssemblyInfo();
-      info.setVizMark(VizMark.MODERN_LIGHT);
-      VizModernizeUtil.reseedAfterRestore(info);
+   // never sized: the List box is the tier box, and the dropdown keeps its own six rows
+   @ParameterizedTest
+   @CsvSource({ "comfortable, 202", "compact, 170", "dense, 136" })
+   void aFreshMarkedTreeSwitchedToListTakesItsTierBox(String density, int height)
+      throws Exception
+   {
+      SelectionTreeVSAssemblyInfo saved = switchedToList(seededTree(density));
 
-      assertEquals(6 * 28 + 30 + 32, switchedToList(info).getPixelSize().height);
+      assertEquals(height, saved.getPixelSize().height);
+      assertEquals(6, saved.getListHeight());
+   }
+
+   // title hidden: the tier box already holds the lane, so the box does not come back a lane
+   // short; and the dropdown's eight rows do not size it
+   @ParameterizedTest
+   @CsvSource({ "comfortable, 202", "compact, 170", "dense, 136" })
+   void aMarkedTreeWithAHiddenTitleSwitchedToListTakesItsTierBox(String density, int height)
+      throws Exception
+   {
+      SelectionTreeVSAssemblyInfo info = seededTree(density);
+      info.setTitleVisibleValue(false);
+      info.setListHeight(8);
+
+      assertEquals(height, switchedToList(info).getPixelSize().height);
+   }
+
+   // the author's box, holding six rows: lane 30 + 6 x 28 + 16 + 16
+   @Test
+   void anAuthorSizedMarkedTreeSwitchedToListKeepsItsBox() throws Exception {
+      SelectionTreeVSAssemblyInfo info = seededTree("comfortable");
+      info.setPixelSize(new Dimension(132, 230));
+      info.setUserSize(true);
+      info.setListHeight(6);
+
+      assertEquals(230, switchedToList(info).getPixelSize().height);
+   }
+
+   // title hidden: the rebuild still counts the title lane, as a list's does, so the author's box
+   // does not come back a lane short
+   @Test
+   void anAuthorSizedMarkedTreeWithAHiddenTitleKeepsTheTitleLane() throws Exception {
+      SelectionTreeVSAssemblyInfo info = seededTree("comfortable");
+      info.setTitleVisibleValue(false);
+      info.setUserSize(true);
+      info.setListHeight(6);
+
+      assertEquals(30 + 6 * 28 + 32, switchedToList(info).getPixelSize().height);
    }
 
    // unmarked: six 20px rows and a 20px cell for the title, exactly as before
@@ -93,19 +136,85 @@ class SelectionTreeShowTypeSizeTest {
       assertEquals(6 * 20 + 20, switchedToList(info).getPixelSize().height);
    }
 
-   // a dropdown with six list rows switched to a list. The real getPixelSize hands back the info's
-   // own size, which is what the show-type transition resizes in place
+   // dragged to 342, then Follow the default density ticked: the box goes back to 202 and the
+   // dropdown's ten rows stay
+   @Test
+   void followingTheDensitySizeLeavesATreesRowsAlone() throws Exception {
+      SelectionTreeVSAssemblyInfo info = seededTree("comfortable");
+      info.setPixelSize(new Dimension(132, 342));
+      info.setUserSize(true);
+      info.setListHeight(10);
+      wire(info);
+
+      SelectionTreePropertyDialogModel model =
+         service.getSelectionTreePropertyModel("Viewsheet1", "SelectionTree1", null);
+      model.getSelectionGeneralPaneModel().getSizePositionPaneModel().setSizeFollowsDensity(true);
+      SelectionTreeVSAssemblyInfo saved = submit(model);
+
+      assertEquals(new Dimension(132, 202), saved.getPixelSize());
+      assertEquals(10, saved.getListHeight());
+   }
+
+   // a typed height refits the rows as a list's does: 300 - 30 - 32 holds eight whole 28px rows,
+   // so the box comes back from Dropdown at 30 + 8 x 28 + 32 = 286, not the 300 typed
+   @Test
+   void aHeightTypedInSizeAndPositionRefitsATreesRows() throws Exception {
+      SelectionTreeVSAssemblyInfo info = seededTree("comfortable");
+      wire(info);
+      lenient().when(dialogService.getAssemblySize(any(), any()))
+         .thenAnswer(inv -> ((AssemblyInfo) inv.getArgument(0)).getPixelSize());
+      lenient().doAnswer(inv -> {
+         SizePositionPaneModel typed = inv.getArgument(1);
+         ((VSAssemblyInfo) inv.getArgument(0))
+            .setPixelSize(new Dimension(typed.getWidth(), typed.getHeight()));
+         return null;
+      }).when(dialogService).setAssemblySize(any(VSAssemblyInfo.class), any(SizePositionPaneModel.class));
+      SelectionTreePropertyDialogModel model =
+         service.getSelectionTreePropertyModel("Viewsheet1", "SelectionTree1", null);
+      SizePositionPaneModel size = model.getSelectionGeneralPaneModel().getSizePositionPaneModel();
+      size.setSizeFollowsDensity(false);
+      size.setHeight(300);
+
+      SelectionTreeVSAssemblyInfo saved = submit(model);
+
+      assertTrue(saved.isUserSize());
+      assertEquals(new Dimension(132, 300), saved.getPixelSize());
+      assertEquals(8, saved.getListHeight());
+
+      Mockito.reset(dialogService, viewsheet);
+      clearInvocations(vsObjectPropertyService);
+      SelectionTreeVSAssemblyInfo listed = switchedToList(saved);
+
+      assertEquals(286, listed.getPixelSize().height);
+      assertEquals(8, listed.getListHeight());
+   }
+
+   private SelectionTreeVSAssemblyInfo seededTree(String density) {
+      SreeEnv.setProperty("viewsheet.density", density);
+      SelectionTreeVSAssemblyInfo info = new SelectionTreeVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      VizModernizeUtil.reseedAfterRestore(info);
+      return info;
+   }
+
+   // a dropdown, its box its title lane, switched to a list with the rows it has. The real
+   // getPixelSize hands back the info's own size, which is what the show-type transition resizes
+   // in place
    private SelectionTreeVSAssemblyInfo switchedToList(SelectionTreeVSAssemblyInfo info)
       throws Exception
    {
       info.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
-      info.setListHeight(6);
-      info.setPixelSize(new Dimension(info.getPixelSize().width, 30));
+      info.setPixelSize(new Dimension(info.getPixelSize().width, info.getTitleHeight()));
       wire(info);
       SelectionTreePropertyDialogModel model =
          service.getSelectionTreePropertyModel("Viewsheet1", "SelectionTree1", null);
       model.getSelectionGeneralPaneModel().setShowType(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
-      model.getSelectionGeneralPaneModel().setListHeight(6);
+      return submit(model);
+   }
+
+   private SelectionTreeVSAssemblyInfo submit(SelectionTreePropertyDialogModel model)
+      throws Exception
+   {
       model.getSelectionGeneralPaneModel().getGeneralPropPaneModel().getBasicGeneralPaneModel()
          .setName("SelectionTree1");
       service.setSelectionTreePropertyModel("Viewsheet1", "SelectionTree1", model, "", null,

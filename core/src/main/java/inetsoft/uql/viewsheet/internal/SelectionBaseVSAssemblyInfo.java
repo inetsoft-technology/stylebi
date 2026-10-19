@@ -154,12 +154,47 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    }
 
    /**
-    * The height a selection container gives this list when it is open. Marked, it fits its rows
-    * at its own density; unmarked keeps the legacy defh rows exactly.
+    * The height this list's box is rebuilt to when it opens as a list. Marked: the tier box until
+    * the author sizes it, then its rows inside its card inset. Unmarked: the legacy defh rows.
     */
    public int getContainedListHeight() {
-      return getVizMark() != null ? getTitleHeight() + getListBodyHeight() :
-         getListHeight() * AssetUtil.defh + getTitleHeight();
+      if(getVizMark() == null) {
+         return getListHeight() * AssetUtil.defh + getTitleHeight();
+      }
+
+      if(!isUserSize()) {
+         return VSDensityDefaults.selectionSize(VizContext.of(this)).height;
+      }
+
+      return getTitleHeight() + getListBodyHeight();
+   }
+
+   /**
+    * The rows a box of this height holds, the inverse of the rows an author-sized box is rebuilt
+    * from. Marked, whole rows at its own density inside its card inset and never fewer than one;
+    * unmarked keeps the legacy defh rows exactly.
+    */
+   public int getFittingListHeight(int height) {
+      if(getVizMark() == null) {
+         return (height - getTitleHeight()) / AssetUtil.defh;
+      }
+
+      Insets inset = getPadding();
+      int body = height - getTitleHeight() - (inset == null ? 0 : inset.top + inset.bottom);
+      return Math.max(1, body / Math.max(1, getEffectiveCellHeight()));
+   }
+
+   /**
+    * Store the rows this list's box holds, so an author-sized box comes back as sized from a
+    * dropdown or a container expand. A dropdown's box is its title lane and its rows are the
+    * author's.
+    */
+   public void fitListHeightToBox() {
+      Dimension size = getPixelSize();
+
+      if(size != null && getShowTypeValue() != DROPDOWN_SHOW_TYPE) {
+         setListHeight(getFittingListHeight(size.height));
+      }
    }
 
    /**
@@ -1027,6 +1062,22 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    @Override
    public boolean followsDensitySize() {
       return !isUserSize() && VSDensityDefaults.isSeededSelectionSize(getPixelSize());
+   }
+
+   /**
+    * Only a new height, the one the rows follow.
+    */
+   @Override
+   public boolean isAuthorSizeChange(Dimension before, Dimension after) {
+      return before.height != after.height;
+   }
+
+   /**
+    * A list or tree widened only stays never-sized, so its untick is kept only while it follows.
+    */
+   @Override
+   public boolean isUntickClaimOnlyWhileFollowing() {
+      return true;
    }
 
    @Override

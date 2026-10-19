@@ -201,17 +201,24 @@ class GroupingServiceTest {
       assertEquals(250, after.height, "height must match child extent after layout");
    }
 
+   // nobody sized the box, so it is the tier box
    @Test
-   void aMarkedListDroppedIntoAContainerFitsItsRows() throws Exception {
-      assertEquals(230, droppedHeight(VizMark.MODERN_LIGHT));
+   void aNeverSizedMarkedListDroppedIntoAContainerTakesItsTierBox() throws Exception {
+      assertEquals(202, droppedHeight(VizMark.MODERN_LIGHT, false));
+   }
+
+   // lane 30 + 6 rows of 28 + inset 16 + 16
+   @Test
+   void anAuthorSizedMarkedListDroppedIntoAContainerFitsItsRows() throws Exception {
+      assertEquals(230, droppedHeight(VizMark.MODERN_LIGHT, true));
    }
 
    @Test
    void anUnmarkedListDroppedIntoAContainerKeepsTheLegacyHeight() throws Exception {
-      assertEquals(140, droppedHeight(null));
+      assertEquals(140, droppedHeight(null, false));
    }
 
-   private int droppedHeight(VizMark mark) throws Exception {
+   private int droppedHeight(VizMark mark, boolean userSize) throws Exception {
       when(rvs.getViewsheet()).thenReturn(parentVS);
       parentVS.getViewsheetInfo().setVizDensity("comfortable");
 
@@ -227,6 +234,7 @@ class GroupingServiceTest {
       list.getSelectionListInfo().setVizMark(mark);
       list.getSelectionListInfo().initDefaultFormat();
       list.getSelectionListInfo().setListHeight(6);
+      list.getSelectionListInfo().setUserSize(userSize);
 
       service.groupComponents(rvs, container, list, true, "", dispatcher);
 

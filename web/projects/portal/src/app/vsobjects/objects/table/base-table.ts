@@ -270,6 +270,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
    protected scrollLeftSubscription = Subscription.EMPTY;
    private destroyed = false;
    private pendingHeightUpdate = false;
+   private pendingTopShift: number = null;
    private _selected: boolean;
    preserveSelection: boolean = false;
    private resizingRowHeight: number;
@@ -1757,14 +1758,18 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
    }
 
    /**
-    * Calculates the object top with the shrink to fit option in mind, shifting
-    * a shrunk table down so its bottom stays flush with a bottom-tabs tab strip.
+    * Calculates the object top with the shrink to fit option in mind, shifting a shrunk table
+    * down so its bottom stays flush with a bottom-tabs tab strip.
     */
    public getObjectTop(): number {
-      const top = this.model.objectFormat.top;
+      const shift = this.getCardTopShift();
+      this.publishCardTopShift(shift);
+      return this.model.objectFormat.top + shift;
+   }
 
+   private getCardTopShift(): number {
       if(!this.viewer || !this.model.shrink || this.model.maxMode) {
-         return top;
+         return 0;
       }
 
       if(this.model.containerType === "VSTab" && this.vsInfo) {
@@ -1773,11 +1778,38 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
 
          if(parent && parent.bottomTabs) {
             // a card-edge measurement: the assembly's own bottom is what stays flush with the strip
-            return top + this.model.objectFormat.height - this.getCardHeight();
+            return this.model.objectFormat.height - this.getCardHeight();
          }
       }
 
-      return top;
+      return 0;
+   }
+
+   /**
+    * Hands the shift to vs-object-container for the strip and focus outline; deferred as in
+    * getCardHeight(), and the latest value wins.
+    */
+   private publishCardTopShift(shift: number): void {
+      if(this.pendingTopShift == null && (this.model.cardTopShift ?? 0) === shift) {
+         return;
+      }
+
+      const scheduled = this.pendingTopShift != null;
+      this.pendingTopShift = shift;
+
+      if(scheduled) {
+         return;
+      }
+
+      Promise.resolve().then(() => {
+         const latest = this.pendingTopShift;
+         this.pendingTopShift = null;
+
+         if(!this.destroyed && (this.model.cardTopShift ?? 0) !== latest) {
+            this.model.cardTopShift = latest;
+            this.changeDetectorRef.markForCheck();
+         }
+      });
    }
 
    /**

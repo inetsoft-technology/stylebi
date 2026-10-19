@@ -249,7 +249,8 @@ public class SelectionListPropertyDialogService {
          new Dimension(dialogService.getAssemblySize(selectionListAssemblyInfo, rvs.getViewsheet()));
       VSDialogService.applyDensitySize(selectionListAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblySize(selectionListAssemblyInfo, sizePositionPaneModel);
-      VSDialogService.recordAuthorSize(selectionListAssemblyInfo, sizePositionPaneModel, shownSize);
+      boolean authorResized = VSDialogService.recordAuthorSize(
+         selectionListAssemblyInfo, sizePositionPaneModel, shownSize);
       dialogService.setAssemblyPosition(selectionListAssemblyInfo, sizePositionPaneModel);
 
       Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
@@ -301,10 +302,12 @@ public class SelectionListPropertyDialogService {
          size.height = selectionListAssemblyInfo.getTitleHeight();
       }
       else if(showType != oldShowType) {
-         // the rows a marked list draws follow the density and sit inside its card inset; both
-         // reduce to the stored cell height and zero for an unmarked list
-         size.height = selectionListAssemblyInfo.getTitleHeight() +
-            selectionListAssemblyInfo.getListBodyHeight();
+         // marked, the box a container expand rebuilds too; unmarked, its rows at the stored cell
+         // height
+         size.height = selectionListAssemblyInfo.getVizMark() != null ?
+            selectionListAssemblyInfo.getContainedListHeight() :
+            selectionListAssemblyInfo.getTitleHeight() +
+               selectionListAssemblyInfo.getListBodyHeight();
       }
 
       VSAssembly container = selectionListAssembly.getContainer();
@@ -378,6 +381,11 @@ public class SelectionListPropertyDialogService {
       }
       else {
          selectionListAssemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
+      }
+
+      // a typed height refits the rows as a drag does; last, after the rows, lane, inset and mode
+      if(authorResized && selectionListAssemblyInfo.getVizMark() != null) {
+         selectionListAssemblyInfo.fitListHeightToBox();
       }
 
       setAssemblyInfoTables(selectionListAssemblyInfo, selectionListPaneModel, principal);

@@ -287,6 +287,47 @@ class TableCellPaddingCssCoverageTest {
       return info;
    }
 
+   @Test
+   void anAuthorPaddingUnderFullCoverageFloorsAtTheTierInForce() {
+      // the stylesheet displaces the author value on every column, so the row is the tier's. The
+      // floor gives back what the stored height left out, which under an author value is the tier
+      // in force
+      TableVSAssemblyInfo info = markedTable("compact");
+      info.setCellPadding(new Insets(10, 6, 10, 6), CompositeValue.Type.USER);
+      VizContext ctx = context("comfortable");
+
+      assertEquals(28, VSDensityDefaults.rowHeight(ctx, info) + lens(bodyPadded(1)).getRowPadding(1, info),
+                   "data row");
+      assertEquals(30,
+                   VSDensityDefaults.headerRowHeight(ctx, info) + lens(headerPadded(1)).getRowPadding(0, info),
+                   "header row");
+   }
+
+   @Test
+   void aLargerCssPaddingOverAnAuthorPaddingGrowsFromTheTierInForce() {
+      // 28 - 12 + 20
+      TableVSAssemblyInfo info = markedTable("compact");
+      info.setCellPadding(new Insets(10, 6, 10, 6), CompositeValue.Type.USER);
+      VizContext ctx = context("comfortable");
+
+      assertEquals(36, VSDensityDefaults.rowHeight(ctx, info) + lens(bodyPadded(10)).getRowPadding(1, info));
+   }
+
+   @Test
+   void aDraggedRowRoundTripsUnderAnAuthorPadding() {
+      // the floor reads the tier for an author padding; store and render must still agree
+      VSTableLens lens = lens(bodyPadded(1));
+      TableVSAssemblyInfo info = markedTable("comfortable");
+      info.setCellPadding(new Insets(10, 6, 10, 6), CompositeValue.Type.USER);
+      int row = lens.getHeaderRowCount();
+
+      int stored = Math.max(0, 40 - lens.getRowPadding(row, info));
+      info.setDataRowHeight(stored);
+      info.setUserDataRowHeight(true);
+
+      assertEquals(40, stored + lens.getRowPadding(row, info));
+   }
+
    private VizContext context(String density) {
       SreeEnv.setProperty("viewsheet.density", density);
       return VizContext.of(VizMark.MODERN_LIGHT);
