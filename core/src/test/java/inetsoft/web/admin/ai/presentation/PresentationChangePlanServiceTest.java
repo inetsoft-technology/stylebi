@@ -193,7 +193,8 @@ class PresentationChangePlanServiceTest {
       case LOOK_AND_FEEL -> spec.put("expand", true);
       case WELCOME_PAGE -> spec.put("type", 1);
       case LOGIN_BANNER -> spec.put("bannerType", "1");
-      case PORTAL_INTEGRATION -> spec.put("help", false);
+      // not a button: the buttons are global-only and refused at organization scope (Bug #78867)
+      case PORTAL_INTEGRATION -> spec.put("customLoadingText", "Loading");
       case PDF_GENERATION -> spec.put("compressText", false);
       case EXPORT_MENU -> spec.put("vsEnabled", true);
       case FONT_MAPPING -> spec.putArray("fontMappings");
@@ -475,6 +476,214 @@ class PresentationChangePlanServiceTest {
 
       var plan = service.resolve(req, PRINCIPAL);
       assertEquals(1, plan.changes().size());
+   }
+
+   // ---------------------------------------------------------------- Bug #78867: tabs keyed by originalIndex
+
+   /** The reporter's live list: four built-in tabs, plus one editable custom tab where a test needs it. */
+   private static PortalIntegrationSettingsModel portal(boolean withCustomTab) {
+      List<PortalTabModel> tabs = new java.util.ArrayList<>(List.of(
+         builtInTab("Dashboard", "/dashboard", 0),
+         builtInTab("Report", "/report", 1),
+         builtInTab("Schedule", "/schedule", 2),
+         builtInTab("Data", "/data", 3)));
+
+      if(withCustomTab) {
+         tabs.add(PortalTabModel.builder().name("Custom").label("Custom").uri("https://example.com")
+                     .visible(true).editable(true).originalIndex(4).build());
+      }
+
+      return PortalIntegrationSettingsModel.builder()
+         .tabs(tabs)
+         .help(true).preference(true).logout(true).search(true).dashboardAvailable(true)
+         .home(true).customLoadingText("").homeLink("").emHomeLink("").build();
+   }
+
+   private static PortalTabModel builtInTab(String name, String uri, int originalIndex) {
+      return PortalTabModel.builder().name(name).label(name).uri(uri)
+         .visible(true).editable(false).originalIndex(originalIndex).build();
+   }
+
+   /** The live tab list exactly as the read projection returns it, which is how callers echo it. */
+   private static ArrayNode liveTabs(PortalIntegrationSettingsModel model) {
+      return (ArrayNode) PresentationJson.toNode(model).get("tabs").deepCopy();
+   }
+
+   private static ObjectNode tabsSpec(ArrayNode tabs) {
+      ObjectNode spec = obj();
+      spec.set("tabs", tabs);
+      return spec;
+   }
+
+   private IllegalArgumentException refusedTabs(String scope, ArrayNode tabs) {
+      PresentationChangePlanRequest req =
+         request("t", change("portalIntegration", scope, tabsSpec(tabs)));
+      return assertThrows(IllegalArgumentException.class, () -> service.resolve(req, PRINCIPAL));
+   }
+
+   private void acceptedTabs(String scope, ArrayNode tabs) throws Exception {
+      PresentationChangePlanRequest req =
+         request("t", change("portalIntegration", scope, tabsSpec(tabs)));
+      assertEquals(1, service.resolve(req, PRINCIPAL).changes().size());
+   }
+
+   @Test
+   void reportersDuplicateTabInPlaceOfDataIsRefusedNamingTheDeletedTab() throws Exception {
+      PortalIntegrationSettingsModel live = portal(false);
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+      ArrayNode tabs = liveTabs(live);
+      tabs.set(3, tabs.get(2).deepCopy()); // [Dashboard, Report, Schedule, Schedule(oi=2)]
+
+      IllegalArgumentException ex = refusedTabs("global", tabs);
+
+      assertTrue(ex.getMessage().contains("originalIndex [2] appears more than once"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("3 (\"Data\")"), ex.getMessage());
+   }
+
+   @Test
+   void duplicateTabWithTheMissingTabsOwnNameIsStillRefused() throws Exception {
+      PortalIntegrationSettingsModel live = portal(false);
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+      ArrayNode tabs = liveTabs(live);
+      // name "Schedule" carrying Data's originalIndex: the built-in name check names it
+      ((ObjectNode) tabs.get(3)).put("name", "Schedule");
+
+      IllegalArgumentException ex = refusedTabs("global", tabs);
+
+      assertTrue(ex.getMessage().contains("tabs[3].name"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("built-in tab \"Data\""), ex.getMessage());
+   }
+
+   @Test
+   void tabEntryWithoutOriginalIndexIsRefusedPointingToEnterpriseManager() throws Exception {
+      PortalIntegrationSettingsModel live = portal(false);
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+      ArrayNode tabs = liveTabs(live);
+      ((ObjectNode) tabs.get(3)).remove("originalIndex");
+
+      IllegalArgumentException ex = refusedTabs("global", tabs);
+
+      assertTrue(ex.getMessage().contains("tabs[3].originalIndex: required"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Enterprise Manager"), ex.getMessage());
+   }
+
+   @Test
+   void outOfRangeAndNonIntegerOriginalIndexAreRefused() throws Exception {
+      PortalIntegrationSettingsModel live = portal(false);
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+
+      ArrayNode outOfRange = liveTabs(live);
+      ((ObjectNode) outOfRange.get(3)).put("originalIndex", 4);
+      assertTrue(refusedTabs("global", outOfRange).getMessage()
+                    .contains("tabs[3].originalIndex: 4 is not the originalIndex of a current tab"));
+
+      ArrayNode fractional = liveTabs(live);
+      ((ObjectNode) fractional.get(3)).put("originalIndex", 2.5);
+      assertTrue(refusedTabs("global", fractional).getMessage().contains("tabs[3].originalIndex"));
+
+      ArrayNode text = liveTabs(live);
+      ((ObjectNode) text.get(3)).put("originalIndex", "3");
+      assertTrue(refusedTabs("global", text).getMessage().contains("tabs[3].originalIndex"));
+   }
+
+   @Test
+   void builtInTabRenameIsRefusedIncludingACaseVariant() throws Exception {
+      PortalIntegrationSettingsModel live = portal(false);
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+
+      ArrayNode renamed = liveTabs(live);
+      ((ObjectNode) renamed.get(3)).put("name", "Datasets");
+      assertTrue(refusedTabs("global", renamed).getMessage().contains("cannot be renamed"));
+
+      ArrayNode caseVariant = liveTabs(live);
+      ((ObjectNode) caseVariant.get(3)).put("name", "data");
+      IllegalArgumentException ex = refusedTabs("global", caseVariant);
+      assertTrue(ex.getMessage().contains("must be exactly \"Data\" (case-sensitive)"), ex.getMessage());
+   }
+
+   @Test
+   void editableTabRenameIsAccepted() throws Exception {
+      PortalIntegrationSettingsModel live = portal(true);
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+      ArrayNode tabs = liveTabs(live);
+      ((ObjectNode) tabs.get(4)).put("name", "Renamed").put("label", "Renamed");
+
+      acceptedTabs("global", tabs);
+   }
+
+   @Test
+   void tabReorderIsAccepted() throws Exception {
+      PortalIntegrationSettingsModel live = portal(true);
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+      ArrayNode tabs = liveTabs(live);
+      ArrayNode reordered = MAPPER.createArrayNode();
+      reordered.add(tabs.get(1)).add(tabs.get(0)).add(tabs.get(3)).add(tabs.get(2)).add(tabs.get(4));
+
+      acceptedTabs("global", reordered);
+   }
+
+   @Test
+   void longerAndShorterTabListsAreRefused() throws Exception {
+      PortalIntegrationSettingsModel live = portal(false);
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+
+      ArrayNode longer = liveTabs(live);
+      longer.addObject().put("name", "New").put("label", "New").put("uri", "https://example.com")
+         .put("visible", true).put("editable", true);
+      IllegalArgumentException ex = refusedTabs("global", longer);
+      assertTrue(ex.getMessage().contains("must include every current tab (4)"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("got 5 entries"), ex.getMessage());
+
+      ArrayNode shorter = liveTabs(live);
+      shorter.remove(3);
+      assertTrue(refusedTabs("global", shorter).getMessage().contains("got 3 entries"));
+   }
+
+   @Test
+   void organizationScopeTabChangeIsRefusedButAnUnchangedResupplyIsAccepted() throws Exception {
+      PortalIntegrationSettingsModel live = portal(true);
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+
+      ArrayNode renamed = liveTabs(live);
+      ((ObjectNode) renamed.get(4)).put("name", "Renamed").put("label", "Renamed");
+      IllegalArgumentException ex = refusedTabs("organization", renamed);
+      assertTrue(ex.getMessage().contains("spec.tabs: portalIntegration.tabs is global-only"),
+                 ex.getMessage());
+      assertTrue(ex.getMessage().contains("Use scope \"global\""), ex.getMessage());
+
+      // the identity rules still run first at organization scope
+      ArrayNode duplicate = liveTabs(live);
+      duplicate.set(3, duplicate.get(2).deepCopy());
+      assertTrue(refusedTabs("organization", duplicate).getMessage().contains("more than once"));
+
+      acceptedTabs("organization", liveTabs(live));
+   }
+
+   @Test
+   void organizationScopePortalButtonChangeIsRefusedButNotOtherFields() throws Exception {
+      stub(PresentationSubModel.PORTAL_INTEGRATION, portal(false));
+
+      PresentationChangePlanRequest help =
+         request("t", change("portalIntegration", "organization", obj().put("help", false)));
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(help, PRINCIPAL));
+      assertTrue(ex.getMessage().contains("spec.help: portalIntegration.help is global-only"),
+                 ex.getMessage());
+
+      // a string the backend coerces to the live value is unchanged, so it is accepted
+      PresentationChangePlanRequest same =
+         request("t", change("portalIntegration", "organization", obj().put("home", "true")));
+      assertEquals(1, service.resolve(same, PRINCIPAL).changes().size());
+
+      // customLoadingText has an organization layer and stays writable there
+      PresentationChangePlanRequest text = request("t",
+         change("portalIntegration", "organization", obj().put("customLoadingText", "Loading")));
+      assertEquals(1, service.resolve(text, PRINCIPAL).changes().size());
+
+      // and the button is writable at global scope
+      PresentationChangePlanRequest global =
+         request("t", change("portalIntegration", "global", obj().put("help", false)));
+      assertEquals(1, service.resolve(global, PRINCIPAL).changes().size());
    }
 
    // ---------------------------------------------------------------- section 9: webMap secrets

@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai.presentation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
@@ -30,6 +31,8 @@ import inetsoft.web.admin.model.FileData;
 import inetsoft.web.admin.presentation.model.LookAndFeelSettingsModel;
 import inetsoft.web.admin.presentation.model.PresentationDashboardSettingsModel;
 import inetsoft.web.admin.presentation.model.PresentationFormatsSettingsModel;
+import inetsoft.web.admin.presentation.model.PortalIntegrationSettingsModel;
+import inetsoft.web.admin.presentation.model.PortalTabModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Answers;
@@ -352,6 +355,69 @@ class PresentationChangesetApplyServiceTest {
       var result = service.apply(req, user);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+   }
+
+   // ---------------------------------------------------------------- Bug #78867: portalIntegration.tabs identity
+
+   private static PortalIntegrationSettingsModel portal() {
+      return PortalIntegrationSettingsModel.builder()
+         .tabs(List.of(
+            tab("Dashboard", false, 0), tab("Report", false, 1), tab("Schedule", false, 2),
+            tab("Data", false, 3), tab("Custom", true, 4)))
+         .help(true).preference(true).logout(true).search(true).dashboardAvailable(true)
+         .home(true).customLoadingText("").homeLink("").emHomeLink("").build();
+   }
+
+   private static PortalTabModel tab(String name, boolean editable, int originalIndex) {
+      return PortalTabModel.builder().name(name).label(name).uri("/" + name.toLowerCase())
+         .visible(true).editable(editable).originalIndex(originalIndex).build();
+   }
+
+   private static ObjectNode liveTabsSpec(PortalIntegrationSettingsModel model) {
+      ObjectNode spec = obj();
+      spec.set("tabs", MAPPER.valueToTree(model).get("tabs").deepCopy());
+      return spec;
+   }
+
+   @Test
+   void applyRefusesADuplicateTabBeforeAnyBackupOrWrite() throws Exception {
+      seed(PresentationSubModel.PORTAL_INTEGRATION, true, portal());
+      ObjectNode spec = liveTabsSpec(portal());
+      ArrayNode tabs = (ArrayNode) spec.get("tabs");
+      tabs.set(3, tabs.get(2).deepCopy());
+
+      // a hand-built apply request: the preview would refuse this spec, so there is no plan hash
+      PresentationApplyRequest req = new PresentationApplyRequest();
+      req.setTask("t");
+      req.setChanges(List.of(change("portalIntegration", "global", spec)));
+      req.setPlanHash("0".repeat(64));
+      req.setTaskToken("token");
+      req.setReviewOutcome("ok");
+      req.setAcknowledgeIrreversibleUpdate(true);
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+      assertTrue(ex.getMessage().contains("3 (\"Data\")"), ex.getMessage());
+      verify(backupService, never()).backup(anyString());
+      verify(access, never()).write(any(), any(), any(), anyBoolean());
+      assertEquals(portal(), state.get(stateKey(PresentationSubModel.PORTAL_INTEGRATION, true)));
+   }
+
+   @Test
+   void applyWritesAnEditableTabRenameAndItVerifies() throws Exception {
+      seed(PresentationSubModel.PORTAL_INTEGRATION, true, portal());
+      ObjectNode spec = liveTabsSpec(portal());
+      ((ObjectNode) spec.get("tabs").get(4)).put("name", "Renamed").put("label", "Renamed");
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("portalIntegration", "global", spec));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals("verified", result.results().get(0).status());
+      PortalIntegrationSettingsModel after = (PortalIntegrationSettingsModel)
+         state.get(stateKey(PresentationSubModel.PORTAL_INTEGRATION, true));
+      assertEquals("Renamed", after.tabs().get(4).name());
    }
 
    // ---------------------------------------------------------------- lookAndFeel FileData read-back (bug #76729)
