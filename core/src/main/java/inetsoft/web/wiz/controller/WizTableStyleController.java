@@ -530,7 +530,7 @@ public class WizTableStyleController {
     * and refused, so it can never be stored as an unlistable {@code "Bands~"}-style parent or
     * registered as an empty-named folder.
     */
-   private static String normalizeFolder(String folder) {
+   static String normalizeFolder(String folder) {
       String f = folder.trim();
 
       if(f.endsWith("/")) {
@@ -552,7 +552,7 @@ public class WizTableStyleController {
    }
 
    /** {@code null}/blank means the library root, {@code LibManager}'s own root sentinel. */
-   private static String toInternalFolder(String displayFolder) {
+   static String toInternalFolder(String displayFolder) {
       if(displayFolder == null || displayFolder.isBlank()) {
          return null;
       }
@@ -560,7 +560,7 @@ public class WizTableStyleController {
       return displayFolder.replace("/", LibManager.SEPARATOR);
    }
 
-   private static String toDisplayFolder(String internalFolder) {
+   static String toDisplayFolder(String internalFolder) {
       return internalFolder == null ? "" : internalFolder.replace(LibManager.SEPARATOR, "/");
    }
 

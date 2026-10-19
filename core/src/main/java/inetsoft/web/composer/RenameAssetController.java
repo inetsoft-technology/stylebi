@@ -212,7 +212,7 @@ public class RenameAssetController {
             String oname = entry.getProperty("folder");
             String pname = StyleTreeModel.getParentPath(oname);
             String newPath = pname == null ? nentry.getName() : pname + StyleTreeModel.SEPARATOR + nentry.getName();
-            renameTableStyleFolder(oname, newPath, manager);
+            AssetEventUtil.renameTableStyleFolder(oname, newPath, manager);
             manager.save();
          }
          else if(entry.isRepositoryFolder()) {
@@ -325,29 +325,6 @@ public class RenameAssetController {
       }
 
       return null;
-   }
-
-   private void renameTableStyleFolder(String oname, String nname, LibManager manager) {
-      XTableStyle[] tstyles = manager.getTableStyles(oname);
-
-      for(XTableStyle tstyle : tstyles) {
-         String tstyleName = tstyle.getName();
-         int idx = tstyleName.lastIndexOf(LibManager.SEPARATOR);
-         tstyleName = idx < 0 ? tstyleName : tstyleName.substring(idx + 1);
-         manager.renameTableStyle(
-            tstyle.getName(), nname + LibManager.SEPARATOR + tstyleName, tstyle.getID());
-      }
-
-      manager.renameTableStyleFolder(oname, nname);
-
-      String[] folders = manager.getTableStyleFolders(oname);
-
-      for(String folder : folders) {
-         String subName = folder;
-         int idx = folder.lastIndexOf(LibManager.SEPARATOR);
-         subName = idx < 0 ? subName : subName.substring(idx + 1);
-         renameTableStyleFolder(folder, nname + LibManager.SEPARATOR + subName, manager);
-      }
    }
 
    /**

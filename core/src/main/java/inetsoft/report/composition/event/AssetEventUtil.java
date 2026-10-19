@@ -1490,6 +1490,35 @@ public class AssetEventUtil {
       }
    }
 
+   /**
+    * Renames a table style folder, and recursively every style and subfolder under it, to
+    * {@code nname}. The target is a full path, so a move to another parent is the same call.
+    * Styles go through {@link LibManager#renameTableStyle} to keep the reference rewrite and the
+    * permission move.
+    */
+   public static void renameTableStyleFolder(String oname, String nname, LibManager manager) {
+      XTableStyle[] tstyles = manager.getTableStyles(oname);
+
+      for(XTableStyle tstyle : tstyles) {
+         String tstyleName = tstyle.getName();
+         int idx = tstyleName.lastIndexOf(LibManager.SEPARATOR);
+         tstyleName = idx < 0 ? tstyleName : tstyleName.substring(idx + 1);
+         manager.renameTableStyle(
+            tstyle.getName(), nname + LibManager.SEPARATOR + tstyleName, tstyle.getID());
+      }
+
+      manager.renameTableStyleFolder(oname, nname);
+
+      String[] folders = manager.getTableStyleFolders(oname);
+
+      for(String folder : folders) {
+         String subName = folder;
+         int idx = folder.lastIndexOf(LibManager.SEPARATOR);
+         subName = idx < 0 ? subName : subName.substring(idx + 1);
+         renameTableStyleFolder(folder, nname + LibManager.SEPARATOR + subName, manager);
+      }
+   }
+
    public static void changeTableStyleFolder(String pfolder, String ofolder, LibManager manager) {
       int idx = ofolder.lastIndexOf(LibManager.SEPARATOR);
       String name = idx == -1 ? ofolder : ofolder.substring(idx + 1);
