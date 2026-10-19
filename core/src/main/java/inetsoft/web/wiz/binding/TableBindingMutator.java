@@ -1046,9 +1046,12 @@ public final class TableBindingMutator {
                                                        RuntimeViewsheet rvs, SourceInfo source)
    {
       List<BAggregateRefModel> out = new ArrayList<>();
+      // Every ref is built, and defaulted, before any identity lookup: an omitted 'aggregate' is
+      // the default formula, so matching must compare that effective formula, not the raw
+      // (null) one (bug #78688).
+      List<BAggregateRefModel> refs = new ArrayList<>();
 
-      for(int i = 0; i < fields.size(); i++) {
-         FieldRef field = fields.get(i);
+      for(FieldRef field : fields) {
          BAggregateRefModel ref = new BAggregateRefModel();
          ref.setName(field.column());
          ref.setColumnValue(field.column());
@@ -1066,6 +1069,13 @@ public final class TableBindingMutator {
             ref.setSecondaryColumnValue(field.secondaryColumn());
          }
 
+         refs.add(ref);
+      }
+
+      for(int i = 0; i < fields.size(); i++) {
+         FieldRef field = fields.get(i);
+         BAggregateRefModel ref = refs.get(i);
+
          // Matched by (column, formula, k-th occurrence), not by absolute index, so an add/remove
          // that shifts the aggregate still finds its own previous state (bug #77025 P3).
          // An add/remove/move names exactly which entry is new, so the carried list decides and
@@ -1073,7 +1083,7 @@ public final class TableBindingMutator {
          // replace has no identity to go by.
          BAggregateRefModel match = carried != null
             ? (i < carried.size() ? carried.get(i) : null)
-            : previousOccurrence(previous, fields, i);
+            : previousOccurrence(previous, refs, i);
 
          if(match != null) {
             // FieldRef has no slot for any of these, so an untouched aggregate must keep them
@@ -1098,20 +1108,20 @@ public final class TableBindingMutator {
    }
 
    /** Whether {@code previous} is the same occurrence of the same measure as {@code field}. */
-   private static boolean matches(BAggregateRefModel previous, FieldRef field) {
-      if(previous == null || field.column() == null) {
+   private static boolean matches(BAggregateRefModel previous, BAggregateRefModel incoming) {
+      if(previous == null || incoming.getColumnValue() == null) {
          return false;
       }
 
       String previousColumn = previous.getColumnValue() == null
          ? previous.getName() : previous.getColumnValue();
 
-      if(previousColumn == null || !previousColumn.equalsIgnoreCase(field.column())) {
+      if(previousColumn == null || !previousColumn.equalsIgnoreCase(incoming.getColumnValue())) {
          return false;
       }
 
       String previousFormula = previous.getFormula();
-      String incomingFormula = field.aggregate();
+      String incomingFormula = incoming.getFormula();
 
       return previousFormula == null
          ? incomingFormula == null : previousFormula.equalsIgnoreCase(incomingFormula);
@@ -1185,17 +1195,18 @@ public final class TableBindingMutator {
    }
 
    /**
-    * The previous aggregate that is the same occurrence as {@code fields.get(index)}: same column
-    * and formula (case-insensitive), and the same k-th duplicate of that pair.
+    * The previous aggregate that is the same occurrence as {@code incoming.get(index)}: same
+    * column and effective formula (case-insensitive), and the same k-th duplicate of that pair.
     */
    private static BAggregateRefModel previousOccurrence(List<BAggregateRefModel> previous,
-                                                        List<FieldRef> fields, int index)
+                                                        List<BAggregateRefModel> incoming,
+                                                        int index)
    {
-      FieldRef field = fields.get(index);
+      BAggregateRefModel field = incoming.get(index);
       int occurrence = 0;
 
       for(int i = 0; i < index; i++) {
-         if(sameMeasure(fields.get(i), field)) {
+         if(sameMeasure(incoming.get(i), field)) {
             occurrence++;
          }
       }
@@ -1209,9 +1220,10 @@ public final class TableBindingMutator {
       return null;
    }
 
-   private static boolean sameMeasure(FieldRef a, FieldRef b) {
-      return a.column() != null && a.column().equalsIgnoreCase(b.column()) &&
-         (a.aggregate() == null ? b.aggregate() == null : a.aggregate().equalsIgnoreCase(b.aggregate()));
+   private static boolean sameMeasure(BAggregateRefModel a, BAggregateRefModel b) {
+      return a.getColumnValue() != null && a.getColumnValue().equalsIgnoreCase(b.getColumnValue()) &&
+         (a.getFormula() == null ? b.getFormula() == null
+            : a.getFormula().equalsIgnoreCase(b.getFormula()));
    }
 
    /**

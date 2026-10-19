@@ -1198,6 +1198,102 @@ class TableBindingMutatorTest {
       assertEquals("Sum", ((RunningTotalCalcInfo) sales.getCalculateInfo()).getAggregate());
    }
 
+   // ── bug #78688: an omitted 'aggregate' is the default formula, so it is the same measure ──
+
+   @Test
+   void resubmittingANumericMeasureWithOmittedAggregateKeepsCalculateInfo() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Total", "double")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Total", "Sum", runningTotal("Sum"))));
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Total", null)));
+
+      BAggregateRefModel total = model.getAggregates().get(0);
+      assertEquals("Sum", total.getFormula());
+      assertNotNull(total.getCalculateInfo(),
+         "omitting aggregate means the default Sum, the same measure, so the calculator stays");
+   }
+
+   @Test
+   void resubmittingANonNumericMeasureWithOmittedAggregateKeepsCalculateInfo() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Region", "string")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Region", "Count", runningTotal("Sum"))));
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Region", null)));
+
+      BAggregateRefModel region = model.getAggregates().get(0);
+      assertEquals("Count", region.getFormula());
+      assertNotNull(region.getCalculateInfo());
+   }
+
+   @Test
+   void resubmittingWithOmittedAggregateKeepsTheCaption() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Total", "double")));
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Total", "Sum")));
+      model.getAggregates().get(0).setCaption("Cap");
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Total", null)));
+
+      assertEquals("Cap", model.getAggregates().get(0).getCaption());
+   }
+
+   @Test
+   void resubmittingAnAggregateCalcFieldWithOmittedAggregateKeepsCalculateInfo()
+      throws Exception
+   {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      RuntimeViewsheet rvs = rvsWithCalcField("Orders", "Discount Share", false);
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(measureWithCalc("Discount Share", null,
+                                                           runningTotal("Sum"))),
+                                   rvs, ORDERS_SOURCE, refModelService());
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Discount Share", null)),
+                                   rvs, ORDERS_SOURCE, refModelService());
+
+      BAggregateRefModel ref = model.getAggregates().get(0);
+      assertEquals("None", ref.getFormula());
+      assertNotNull(ref.getCalculateInfo());
+   }
+
+   @Test
+   void omittedAggregateOccurrenceCountingKeepsTheCalculatorOnTheFirstOccurrence() {
+      for(boolean omitFirst : new boolean[] { true, false }) {
+         CrosstabBindingModel model = new CrosstabBindingModel();
+         model.setTables(List.of(sourceTable("Orders", "Total", "double")));
+         TableBindingMutator.setShelf(model, "aggregates",
+            List.of(measureWithCalc("Total", "Sum", runningTotal("Sum")),
+                    measure("Total", "Sum")));
+
+         TableBindingMutator.setShelf(model, "aggregates",
+            omitFirst ? List.of(measure("Total", null), measure("Total", "Sum"))
+                      : List.of(measure("Total", "Sum"), measure("Total", null)));
+
+         assertNotNull(model.getAggregates().get(0).getCalculateInfo(),
+            "calculator stays on occurrence #0 (omitFirst=" + omitFirst + ")");
+         assertNull(model.getAggregates().get(1).getCalculateInfo(),
+            "occurrence #1 must not also receive it (omitFirst=" + omitFirst + ")");
+      }
+   }
+
+   /** Formula is part of an aggregate's identity: a changed formula is a different measure. */
+   @Test
+   void omittedAggregateOverADifferentPreviousFormulaDoesNotCarryTheCalculator() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Total", "double")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Total", "Average", runningTotal("Sum"))));
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Total", null)));
+
+      assertEquals("Sum", model.getAggregates().get(0).getFormula());
+      assertNull(model.getAggregates().get(0).getCalculateInfo());
+   }
+
    @Test
    void resubmittingAnAggregateWithANewCalculateInfoOverridesThePreservedOne() {
       CrosstabBindingModel model = new CrosstabBindingModel();
