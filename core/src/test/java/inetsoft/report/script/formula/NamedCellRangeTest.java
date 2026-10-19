@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
@@ -135,6 +135,32 @@ public class NamedCellRangeTest {
 
       assertEquals(Arrays.asList(5.0, 5.0, 10.0), new ArrayList<>(flatCells));
       assertNotEquals(new ArrayList<>(flatCells), new ArrayList<>(summaryCells));
+   }
+
+   /**
+    * Bug #78685: the grouped-table branch of getCells must also fail loud for a strict range
+    * whose condition names an undefined column, and still filter on a valid condition.
+    */
+   @Test
+   void testStrictConditionOnGroupedTable() throws Exception {
+      Object[][] data = {
+         { "col1", "col2", "col3" },
+         { "a", 1, 5.0 },
+         { "b", 3, 10.0 },
+         { "c", 1, 2.5 }
+      };
+      TableLens grouped = new SummaryFilter(
+         new DefaultTableLens(data), new int[] { 0 }, new int[] { 2 }, new SumFormula(), null);
+      assertTrue(grouped instanceof GroupedTable);
+
+      NamedCellRange bad = new NamedCellRange("col3?NOPE > 1");
+      bad.setStrictMissing(true);
+      Exception ex = assertThrows(Exception.class, () -> bad.getCells(grouped, false));
+      assertTrue(ex.getMessage().contains("NOPE"), ex.getMessage());
+
+      NamedCellRange good = new NamedCellRange("col3?col1 == 'b'");
+      good.setStrictMissing(true);
+      assertEquals(List.of(10.0), new ArrayList<>(good.getCells(grouped, false)));
    }
 
    /**

@@ -559,10 +559,6 @@ public class NamedCellRange extends CellRange {
    }
 
    /**
-    * Set whether a reference to a column that is not in a plain (non-grouped) table
-    * should throw instead of returning an empty range. Default is off.
-    */
-   /**
     * Whether a condition that names something undefined should fail loud: only for a strict
     * reference, and only when there is a condition (Bug #78685).
     */
@@ -570,6 +566,10 @@ public class NamedCellRange extends CellRange {
       return strictMissing && condition != null && condition.length() > 0;
    }
 
+   /**
+    * Set whether a reference to a column that is not in a plain (non-grouped) table
+    * should throw instead of returning an empty range. Default is off.
+    */
    public void setStrictMissing(boolean strictMissing) {
       this.strictMissing = strictMissing;
    }

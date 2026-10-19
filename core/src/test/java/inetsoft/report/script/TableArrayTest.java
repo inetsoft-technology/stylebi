@@ -19,11 +19,11 @@ package inetsoft.report.script;
 
 import inetsoft.report.filter.CalcFilter;
 import inetsoft.report.lens.DefaultTableLens;
-import inetsoft.util.script.FormulaContext;
-import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptUtil;
+import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.LostSwapFile;
 import inetsoft.util.swap.SwapFileReadException;
