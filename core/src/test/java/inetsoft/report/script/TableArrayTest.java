@@ -363,6 +363,43 @@ class TableArrayTest {
       assertFalse(arr.hasMember("0"));
    }
 
+   /**
+    * Bug #78829: a group-spec column that does not exist (single, second of several, and
+    * combined with a condition) must fail with a named error, not select an empty range.
+    */
+   @Test
+   void strictMissingGroupSpecColumnThrowsNamedError() {
+      TableArray arr = strictArray();
+
+      for(String id : new String[] { "col3@NOPE:a", "col3@col1:a;NOPE:1", "col3@NOPE:a?col2=1" }) {
+         ScriptException ex = assertThrows(ScriptException.class, () -> arr.getMember(id), id);
+         assertTrue(ex.getMessage().contains("Column \"NOPE\" not found"), ex.getMessage());
+      }
+   }
+
+   /**
+    * Bug #78829 scope guard: group-spec columns that exist (including by case-insensitive
+    * match and '=expr' groups) keep selecting as before, and non-strict arrays stay silent.
+    */
+   @Test
+   void groupSpecKeepsWorkingForExistingColumnsAndNonStrict() {
+      TableArray arr = strictArray();
+      TableArray plain = new TableArray(table());
+      plain.setCalcArray(true);
+
+      for(String id : new String[] { "col3@col1:a", "col3@col2:1", "col3@col1:b;col2:3" }) {
+         assertArrayEquals((Object[]) plain.getMember(id), (Object[]) arr.getMember(id), id);
+      }
+
+      assertArrayEquals(new Object[] { 5.0 }, (Object[]) arr.getMember("col3@col1:a"));
+
+      for(boolean calc : new boolean[] { false, true }) {
+         TableArray lenient = new TableArray(table());
+         lenient.setCalcArray(calc);
+         assertDoesNotThrow(() -> lenient.getMember("col3@NOPE:a"));
+      }
+   }
+
    @Test
    void strictSkipsEmptyAndHeaderlessTables() {
       TableArray empty = new TableArray(new DefaultTableLens(0, 0));

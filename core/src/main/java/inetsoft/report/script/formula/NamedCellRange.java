@@ -537,6 +537,18 @@ public class NamedCellRange extends CellRange {
                // optimization
                selector = CachedRowSelector.getSelector(table, specs);
                selector.prepare(specs);
+
+               // the selector treats an unresolved group column as an empty range
+               String missingGroup = selector.getMissingColumn();
+
+               if(strictMissing && missingGroup != null && table.getHeaderRowCount() > 0 &&
+                  table.moreRows(0))
+               {
+                  throw new MissingColumnException("Column \"" + missingGroup +
+                     "\" not found in the data table (" + table.getClass().getName() +
+                     "). Check the group column name in data['" + range + "'].");
+               }
+
                startrow = Math.max(startrow, selector.getStartRow());
                endrow = Math.min(endrow, selector.getEndRow() + 1);
             }
