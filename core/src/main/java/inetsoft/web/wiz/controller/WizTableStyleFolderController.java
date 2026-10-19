@@ -34,6 +34,7 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Table Style folder management (list, create, rename/move, delete) under wiz's JWT-authenticated
@@ -162,7 +163,7 @@ public class WizTableStyleFolderController {
          requireAll(principal, style.getName(), ResourceAction.DELETE, ResourceAction.WRITE);
       }
 
-      if(!java.util.Objects.equals(newParent, oldParent)) {
+      if(!Objects.equals(newParent, oldParent)) {
          requireFolderWritePermission(principal, newParent);
       }
 

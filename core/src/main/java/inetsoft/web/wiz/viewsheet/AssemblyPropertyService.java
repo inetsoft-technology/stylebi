@@ -1502,8 +1502,8 @@ public class AssemblyPropertyService {
 
    /**
     * Refuses a {@code tableStyle} write that does not match any real table style, and returns the
-    * canonical value to store: the style's id (see below). (bug
-    * #76764/VTS-003). {@code PropertyPath}'s {@code CONSTRAINED_STRINGS} gate does not cover
+    * canonical value to store: the style's id, which is what the Composer UI itself stores.
+    * Added in bug #76764/VTS-003: {@code PropertyPath}'s {@code CONSTRAINED_STRINGS} gate does not cover
     * {@code tableStyle} -- its domain is dynamic and per-organization, unlike the closed enums
     * that gate handles -- so an unresolvable name/ID was written through unchanged. At render
     * time, {@code DataVSAQuery}/{@code VSUtil.getTableStyle} resolve that to {@code null} and
