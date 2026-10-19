@@ -1409,7 +1409,9 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
          vars2.put(XQuery.HINT_PREVIEW, isLiveMode(mode) + "");
          base = cacheNormalizer.transformTableLens(query.getTableLens(vars2));
 
-         if(table.isLiveData()) {
+         // base is null when the query failed in RUNTIME_MODE (the cause is left in
+         // XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE); callers report it from there
+         if(base != null && table.isLiveData()) {
             base = getColumnLimitTableLens(base, table instanceof UnpivotTableAssembly);
          }
 

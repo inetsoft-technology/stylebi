@@ -126,11 +126,12 @@ class WorksheetPreviewServiceTest {
    // live JDBC datasource whose driver rejects a specific SQL construct.
    @Test
    void surfacesCapturedQueryFailureCauseInsteadOfGenericMessage() throws Exception {
-      XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set(
-         "[Vendor] window functions are not supported by this driver");
-
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
-      when(box.getTableLens(eq("T"), anyInt())).thenReturn(null);
+      when(box.getTableLens(eq("T"), anyInt())).thenAnswer(inv -> {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set(
+            "[Vendor] window functions are not supported by this driver");
+         return null;
+      });
 
       PairingException ex = assertThrows(PairingException.class,
                                           () -> service.preview(rws(box), "T", 0, 10));
@@ -141,15 +142,78 @@ class WorksheetPreviewServiceTest {
 
    @Test
    void consumesAndClearsCapturedQueryFailureCauseAfterSurfacingIt() throws Exception {
-      XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set("driver says no");
-
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
-      when(box.getTableLens(eq("T"), anyInt())).thenReturn(null);
+      when(box.getTableLens(eq("T"), anyInt())).thenAnswer(inv -> {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set("driver says no");
+         return null;
+      });
 
       assertThrows(PairingException.class, () -> service.preview(rws(box), "T", 0, 10));
       assertNull(XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get(),
                  "captured cause must be consumed (removed) once surfaced, matching " +
                  "AssetQuery.getDesignTableLens's existing consume-and-clear reader");
+   }
+
+   // Bug #78797: a stale cause left on this pooled thread by an earlier request must not be
+   // reported as the cause of a call that ran no failing query.
+   @Test
+   void ignoresStaleCapturedCauseFromAnEarlierRequest() throws Exception {
+      XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set("stale cause of another request");
+
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(null);
+
+      PairingException ex = assertThrows(PairingException.class,
+                                          () -> service.preview(rws(box), "T", 0, 10));
+      assertEquals("Table not found or produced no data: T", ex.getMessage());
+      assertNull(XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get());
+   }
+
+   @Test
+   void clearsCapturedCauseWhenQueryExecutionThrows() throws Exception {
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenAnswer(inv -> {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set("driver says no");
+         throw new RuntimeException("wrapper");
+      });
+
+      PairingException ex = assertThrows(PairingException.class,
+                                          () -> service.preview(rws(box), "T", 0, 10));
+      assertEquals("Failed to execute worksheet query for 'T': driver says no",
+                   ex.getMessage(), "the real cause wins over the wrapper's text");
+      assertNull(XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get(),
+                 "the cause must not leak into the next request on this thread");
+   }
+
+   @Test
+   void nullPointerWithoutCauseNeverForwardsRawNpeText() throws Exception {
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenThrow(new NullPointerException(
+         "Cannot invoke \"inetsoft.report.TableLens.getColCount()\" because \"table\" is null"));
+
+      PairingException ex = assertThrows(PairingException.class,
+                                          () -> service.preview(rws(box), "T", 0, 10));
+      assertFalse(ex.getMessage().contains("Cannot invoke"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("is null"), ex.getMessage());
+      assertTrue(ex.getMessage().startsWith("Failed to execute worksheet query for 'T': "),
+                 ex.getMessage());
+      assertTrue(ex.getMessage().contains("internal error"), ex.getMessage());
+   }
+
+   @Test
+   void nullPointerWithCapturedCauseReportsTheCause() throws Exception {
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenAnswer(inv -> {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set(
+            "Multiple DISTINCT aggregates are not supported at this time.");
+         throw new NullPointerException("Cannot invoke \"x\" because \"table\" is null");
+      });
+
+      PairingException ex = assertThrows(PairingException.class,
+                                          () -> service.preview(rws(box), "T", 0, 10));
+      assertEquals("Failed to execute worksheet query for 'T': " +
+                   "Multiple DISTINCT aggregates are not supported at this time.",
+                   ex.getMessage());
    }
 
    @Test

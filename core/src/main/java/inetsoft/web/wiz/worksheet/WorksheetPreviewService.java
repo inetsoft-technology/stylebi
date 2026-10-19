@@ -28,6 +28,8 @@ import inetsoft.util.CoreTool;
 import inetsoft.util.UserMessage;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.service.WizVsService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -47,6 +49,7 @@ import java.util.*;
  */
 @Service
 public class WorksheetPreviewService {
+   private static final Logger LOG = LoggerFactory.getLogger(WorksheetPreviewService.class);
 
    /**
     * Query up to {@code limit} rows from the named table in the live worksheet, starting
@@ -70,6 +73,22 @@ public class WorksheetPreviewService {
                                  String tableName,
                                  int offset,
                                  int limit)
+      throws PairingException
+   {
+      // The failed-query cause is a thread-local that only a new SQL execution overwrites, so a
+      // value left by an earlier request on this pooled thread must not be reported as this
+      // call's cause, and this call's own must not leak into the next one.
+      XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
+
+      try {
+         return preview0(rws, tableName, offset, limit);
+      }
+      finally {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
+      }
+   }
+
+   private PreviewResult preview0(RuntimeWorksheet rws, String tableName, int offset, int limit)
       throws PairingException
    {
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
@@ -98,6 +117,21 @@ public class WorksheetPreviewService {
          lens = box.getTableLens(tableName, AssetQuerySandbox.RUNTIME_MODE);
       }
       catch(Exception e) {
+         String cause = XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get();
+
+         if(cause != null && !cause.isBlank()) {
+            throw new PairingException("Failed to execute worksheet query for '"
+                                       + tableName + "': " + cause);
+         }
+
+         if(e instanceof NullPointerException) {
+            // Raw NPE text names internal classes and says nothing the caller can act on.
+            LOG.error("Unexpected NullPointerException executing worksheet table '{}'",
+                      tableName, e);
+            throw new PairingException("Failed to execute worksheet query for '" + tableName
+                                       + "': internal error while executing the table (logged)");
+         }
+
          throw new PairingException("Failed to execute worksheet query for '"
                                     + tableName + "': " + e.getMessage());
       }

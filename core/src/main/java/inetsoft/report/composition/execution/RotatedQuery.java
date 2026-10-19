@@ -79,6 +79,12 @@ public class RotatedQuery extends AssetQuery {
    {
       query.setSubQuery(false);
       TableLens table = query.getTableLens(vars);
+
+      // the source query failed in RUNTIME_MODE; its cause is already recorded
+      if(table == null) {
+         return null;
+      }
+
       // clear the alert message
       // Tool.getUserMessage();
       table = AssetQuery.shuckOffFormat(table);

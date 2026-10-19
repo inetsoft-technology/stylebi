@@ -81,6 +81,12 @@ public class UnpivotQuery extends AssetQuery {
    protected TableLens getPostBaseTableLens(VariableTable vars) throws Exception {
       query.setSubQuery(false);
       TableLens lens = query.getTableLens(vars);
+
+      // the source query failed in RUNTIME_MODE; its cause is already recorded
+      if(lens == null) {
+         return null;
+      }
+
       lens = AssetQuery.shuckOffFormat(lens);
       int hcol = table.getHeaderColumns();
       XSwappableTable data = AssetUtil.unpivot(lens, hcol);
