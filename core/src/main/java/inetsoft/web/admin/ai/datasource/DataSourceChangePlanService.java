@@ -50,9 +50,9 @@ import java.util.*;
  * {@link DataSourceService} does not provide at all (01-spec.md section 0): the password-merge
  * mechanism (section 0.1, {@link #buildProposedJdbc}/{@link #buildBeforeJdbc}, using {@link
  * DataSourceApiService#getCurrentPassword}) and the dependency preflight for delete (section 0.2,
- * {@link #findDependencies}, so a delete with dependents is refused at preview, before signoff,
- * naming them -- {@code deleteDataSource} refuses a {@code force=false} delete with dependents
- * too, but only at apply time, after the mutation has started).
+ * {@link #findDependencies}, which runs {@link DataSourceService#getDeleteDependencies} -- the rule
+ * {@code deleteDataSource} itself enforces -- at preview, so a delete with dependents is refused
+ * before signoff, naming them, rather than only at apply time after the mutation has started).
  *
  * <p><b>No org-targeting parameter is exposed at this tier</b> -- every {@code
  * DataSourceApiService} call this class makes passes {@code organizationid: null} ("the caller's

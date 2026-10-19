@@ -338,7 +338,8 @@ public class DataSourceService {
     * Deletes a data source.
     *
     * @param id    the unique identifier of the report.
-    * @param force {@code true} to delete the data source even if it is used by a query
+    * @param force {@code true} to delete the data source even if assets are recorded as depending
+    *              on it (see {@link #getDeleteDependencies}); {@code false} to refuse then.
     * @param user  a principal that identifies the remote user.
     */
    public void deleteDataSource(String id, boolean force, Principal user) throws Exception {
