@@ -1188,6 +1188,88 @@ class CalcTableServiceTest {
       assertNull(bound.getColGroup());
    }
 
+   // ── #78829 item 2: list_named_groups canonicalizes the column ──────────────
+
+   @Test
+   void verify78829_namedGroupsResolvesAMisCasedColumnAndEchoesTheRealSpelling()
+      throws Exception
+   {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+      java.util.List<String> askedFor = new ArrayList<>();
+      GetPredefinedNamedGroupCommand command =
+         new GetPredefinedNamedGroupCommand(new AssetNamedGroupInfo[0]);
+      command.setNamedGroups(new String[]{ "Regions" });
+      doAnswer(invocation -> {
+         GetPredefinedNamedGroupEvent event = invocation.getArgument(1);
+         askedFor.add(event.getColumn());
+         CommandDispatcher dispatcher = invocation.getArgument(3);
+         dispatcher.sendCommand("Calc1", command);
+         return null;
+      }).when(h.layoutService).getNamedGroup(anyString(), any(GetPredefinedNamedGroupEvent.class),
+                                             any(Principal.class), any());
+
+      Map<String, Object> read =
+         h.service.namedGroups("tok", principal(), "Calc1", "customer:state");
+
+      assertEquals(List.of("Customer:State"), askedFor);
+      assertEquals("Customer:State", read.get("column"));
+      assertEquals(List.of("Regions"), read.get("namedGroups"));
+   }
+
+   @Test
+   void verify78829_namedGroupsRefusesAnUnknownColumnInsteadOfAnEmptyList() throws Exception {
+      Harness h = harness(3, 3);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(orderTables());
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.namedGroups("tok", principal(), "Calc1", "NoSuchColumn"));
+
+      assertTrue(thrown.getMessage().contains("NoSuchColumn"), thrown.getMessage());
+   }
+
+   // ── #78829 item 5: an unknown formula name is refused on any column cell ────
+
+   @Test
+   void verify78829_refusesAnUnknownFormulaOnAGroupCell() {
+      Harness h = harness(3, 3);
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.setCellBinding(
+            "tok", principal(), "Calc1", 1, 1,
+            spec("content", "column", "grouping", "group", "expand", "vertical",
+                 "formula", "Avrage", "field", Map.of("column", "REGION", "type", "dimension"))));
+
+      assertTrue(thrown.getMessage().contains("Avrage"), thrown.getMessage());
+      verifyNoInteractions(h.layoutService);
+   }
+
+   @Test
+   void verify78829_refusesAnUnknownFormulaWhenGroupingIsOmitted() {
+      Harness h = harness(3, 3);
+
+      assertThrows(IllegalArgumentException.class, () -> h.service.setCellBinding(
+         "tok", principal(), "Calc1", 1, 1,
+         spec("content", "column", "formula", "Avrage",
+              "field", Map.of("column", "REGION", "type", "dimension"))));
+   }
+
+   @Test
+   void verify78829_stillAcceptsAValidFormulaReadBackOnAGroupCell() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding(
+         "tok", principal(), "Calc1", 1, 1,
+         spec("content", "column", "grouping", "group", "expand", "vertical", "formula", "Sum",
+              "field", Map.of("column", "REGION", "type", "dimension")));
+
+      verify(h.layoutService).setCellBinding(eq("rt1"), any(), any(Principal.class), any());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(CalcTableService service, ViewsheetSessionService sessions,
@@ -1527,6 +1609,9 @@ class CalcTableServiceTest {
       CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
       when(assembly.getSourceInfo()).thenReturn(new SourceInfo(SourceInfo.ASSET, null, "Customer1"));
       Harness h = harnessFor(assembly, 0, 0);
+      when(h.fieldsService().list(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(List.of(new BindableTable("Query1", true, List.of(
+            new BindableField("State", "string", "dimension")))));
 
       SourceInfo modelSource = new SourceInfo(SourceInfo.MODEL, "ds", "Order Model");
       DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);

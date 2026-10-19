@@ -250,6 +250,15 @@ public final class CalcCellVocabulary {
     * as no second column.
     */
    private static void validateSummaryFormula(String formula) {
+      validateSummaryFormula(formula, false);
+   }
+
+   /**
+    * @param nameOnly check only that the name is a recognized, runnable aggregate -- the part that
+    *                 applies to a non-summary column cell too -- and skip the second-column and
+    *                 operand checks a summary needs.
+    */
+   private static void validateSummaryFormula(String formula, boolean nameOnly) {
       String text = PERCENT_SEGMENT.matcher(formula).replaceAll("").trim();
       int open = text.indexOf('(');
       int close = text.lastIndexOf(')');
@@ -272,6 +281,10 @@ public final class CalcCellVocabulary {
             "formula '" + formula + "' is not a recognized aggregate formula for a calc-table " +
             "summary cell: '" + name.trim() + "' is not supported (it fails when the table " +
             "renders). list_cell_vocabulary's 'aggregateFormulas' lists the accepted names.");
+      }
+
+      if(nameOnly) {
+         return;
       }
 
       String display = TWO_COLUMN_FORMULAS.get(normalized);
@@ -443,10 +456,11 @@ public final class CalcCellVocabulary {
          validateInlineNamedGroup(fieldMap);
       }
 
-      if(type == CellBinding.BIND_COLUMN && str(cell, "formula") != null &&
-         "summary".equalsIgnoreCase(str(cell, "grouping")))
-      {
-         validateSummaryFormula(str(cell, "formula"));
+      // Any column cell, not just a summary: a group cell (or one with 'grouping' omitted)
+      // storing an unknown name would otherwise round-trip it through describe() unchallenged.
+      if(type == CellBinding.BIND_COLUMN && str(cell, "formula") != null) {
+         validateSummaryFormula(str(cell, "formula"),
+                                !"summary".equalsIgnoreCase(str(cell, "grouping")));
       }
 
       if(type == CellBinding.BIND_FORMULA && str(cell, "formula") == null &&
