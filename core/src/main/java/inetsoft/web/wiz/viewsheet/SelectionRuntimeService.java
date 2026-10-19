@@ -127,7 +127,9 @@ public class SelectionRuntimeService {
     * @param singleSelect whether the assembly should accept one value only, or null to leave it.
     * @param additive    when true, {@code values} only adds — the automatic replace-diff (deselect
     *                    anything current but unmentioned) is skipped. Ignored where that diff
-    *                    never ran anyway (single-select, a range slider, calendar).
+    *                    never ran anyway (a list or tree that is single-select as a whole, a range
+    *                    slider, calendar). A tree with single-select levels is diffed like a
+    *                    multi-select one (bug-78795).
     *
     * <p>The result also carries {@code selectedTotal}, the true post-apply selected count of a
     * list or tree (unlike {@code valuesSelected}, which is the request size). With an active
@@ -241,12 +243,25 @@ public class SelectionRuntimeService {
 
          final boolean single = singleSelect != null ? singleSelect : info.isSingleSelection();
          final boolean idMode = assembly instanceof SelectionTreeVSAssembly tree && tree.isIDMode();
+         // On a non-ID tree with single-select levels, doApplySelection keeps one value per single
+         // level per parent and leaves the other levels multi (bug-78795); only a list, an ID-mode
+         // tree, or a tree without effective levels is single as a whole. Read from the stored
+         // levels, so it neither writes the info (getSingleSelectionLevels() does) nor misses
+         // levels hidden while singleSelect:true is still to be switched on below.
+         final List<Integer> singleLevels = single && !idMode &&
+            assembly instanceof SelectionTreeVSAssembly ?
+            effectiveSingleLevels(info.getStoredSingleSelectionLevels(),
+                                  info.isMixedSingleSelection(), info.getLevelNames().size()) :
+            List.of();
+         final boolean wholeTreeSingle = single && singleLevels.isEmpty();
+         final List<List<String>> requested = singleLevels.isEmpty() || values == null ? values :
+            dropPrefixPaths(values);
          int[] sliderRange = null;
          SelectionList domain = null;
          final List<Map<String, Object>> clamped = new ArrayList<>();
 
          if(values != null) {
-            if(single && values.size() > 1) {
+            if(wholeTreeSingle && values.size() > 1) {
                throw new IllegalArgumentException(
                   "'" + assemblyName + "' is single-select, so it cannot hold " + values.size() +
                   " values. Select one value, or pass singleSelect=false in the same call to make " +
@@ -263,6 +278,13 @@ public class SelectionRuntimeService {
                // partially-applied result. A null domain (never rendered) cannot be checked, as
                // before; it is read once here and reused for the search filter below.
                requireResolvable(assemblyName, domain, values, idMode, "selecting");
+            }
+
+            if(!singleLevels.isEmpty()) {
+               // After the resolvability check, so a typo'd value is named as such rather than
+               // reported as a collision with its correctly spelled sibling.
+               refuseSingleLevelCollision(assemblyName, requested, singleLevels,
+                                          info.getLevelNames());
             }
 
             if(assembly instanceof TimeSliderVSAssembly slider) {
@@ -321,8 +343,9 @@ public class SelectionRuntimeService {
 
          // Snapshot for the single-select reselect report below: a single-select assembly cannot
          // stay empty, so the post-apply refresh re-selects its first value (bug-78717).
+         // A tree with single-select levels may stay empty, so it only applies to whole-tree single.
          final boolean trackReselect = (values != null || hasDeselect) && isValueMatchable(assembly) &&
-            (singleSelect != null ? singleSelect : info.isSingleSelection());
+            wholeTreeSingle;
          final boolean unitIsId = assembly instanceof SelectionTreeVSAssembly idTree &&
             idTree.isIDMode();
          final List<List<String>> beforeSelected = !trackReselect ? List.of() :
@@ -331,9 +354,9 @@ public class SelectionRuntimeService {
 
          if(values != null) {
             String activeSearch = searchString(info);
-            List<List<String>> effectiveValues = values;
+            List<List<String>> effectiveValues = requested;
 
-            if(activeSearch != null && !activeSearch.isBlank() && !single) {
+            if(activeSearch != null && !activeSearch.isBlank() && !wholeTreeSingle) {
                // Not a refusal: the apply is legitimate for whatever still matches, but
                // doApplySelection itself has no search-awareness at all -- it would otherwise
                // apply every requested value regardless of the active search (bug-76854). Filter
@@ -341,8 +364,8 @@ public class SelectionRuntimeService {
                // rule the widget's own search box narrows by) would still show, and disclose
                // exactly what got dropped rather than a bare, unconditional echo of the search
                // string.
-               List<List<String>> matching = filterBySearch(domain, values, idMode, activeSearch);
-               List<List<String>> dropped = new ArrayList<>(values);
+               List<List<String>> matching = filterBySearch(domain, requested, idMode, activeSearch);
+               List<List<String>> dropped = new ArrayList<>(requested);
                dropped.removeAll(matching);
 
                if(!dropped.isEmpty()) {
@@ -352,17 +375,21 @@ public class SelectionRuntimeService {
                }
             }
 
-            if(!single && isPathDiffable(assembly) && !Boolean.TRUE.equals(additive)) {
+            if(!wholeTreeSingle && isPathDiffable(assembly) && !Boolean.TRUE.equals(additive)) {
                // Multi-select apply is a delta patch -- doApplySelection only ever turns matched
                // values on, so anything currently selected but missing from the new values has to
-               // be turned off explicitly, or it stays selected alongside them. Single-select
-               // already gets a full reset for free via unselectChildren. additive:true is the
-               // caller explicitly opting out of this replace behaviour -- see the javadoc above.
+               // be turned off explicitly, or it stays selected alongside them. Whole-tree
+               // single-select already gets a full reset for free via unselectChildren; a tree with
+               // single-select levels does not (doApplySelection only clears siblings on those
+               // levels under the requested parents), so it is diffed too (bug-78795).
+               // additive:true is the caller explicitly opting out of this replace behaviour --
+               // see the javadoc above.
                // Diffs against effectiveValues (the post-search-filter set), not the raw request,
                // so a value the search dropped is not treated as "kept" and excluded from the
                // deselect it would otherwise need.
                List<List<String>> currentPaths = selectedPaths(assembly);
-               List<List<String>> toRemove = toDeselect(currentPaths, effectiveValues);
+               List<List<String>> toRemove = keepAutoExtended(
+                  toDeselect(currentPaths, effectiveValues), effectiveValues, singleLevels);
 
                if(!toRemove.isEmpty()) {
                   selections.applySelection(runtimeId, assemblyName,
@@ -401,7 +428,7 @@ public class SelectionRuntimeService {
                   result.put("clampedBounds", clamped);
                }
             }
-            else if(idMode && !single && !Boolean.TRUE.equals(additive)) {
+            else if(idMode && !wholeTreeSingle && !Boolean.TRUE.equals(additive)) {
                // An ID-mode tree has no path diff (see isPathDiffable), so replace by node id: the
                // leftovers ride in the same apply as selected=false, which doApplySelection honors
                // per value -- no transient empty state and a single refresh.
@@ -421,6 +448,13 @@ public class SelectionRuntimeService {
             }
 
             result.put("valuesSelected", effectiveValues.size());
+
+            if(requested.size() < values.size()) {
+               // Folded into the longer requested path that continues them (bug-78795).
+               List<List<String>> collapsed = new ArrayList<>(values);
+               collapsed.removeAll(requested);
+               result.put("prefixPathsCollapsed", collapsed);
+            }
             requestedValues.addAll(effectiveValues);
 
             // A replace under an active search cannot clear a selected value the search hides:
@@ -1080,6 +1114,112 @@ public class SelectionRuntimeService {
          "leaf -- could silently collapse to just one descendant instead of the whole branch. " +
          "Name a full path down to a leaf instead, or pass singleSelect:false on set_selection " +
          "first to widen it.");
+   }
+
+   /**
+    * The levels {@code doApplySelection} will treat as single-select on a non-ID tree once the
+    * tree is single-select, computed from the stored levels the way
+    * {@code SelectionVSAssemblyInfo.getSingleSelectionLevels()} does -- stored levels, or every
+    * level when none are stored and they were not edited level by level -- but without that
+    * getter's write, and also while the flag is still off (bug-78795). Sorted and distinct; the
+    * stored order is not trusted. Empty means the tree is single-select as a whole.
+    */
+   static List<Integer> effectiveSingleLevels(List<Integer> stored, boolean mixed, int depth) {
+      TreeSet<Integer> levels = new TreeSet<>();
+
+      if(stored != null && !stored.isEmpty()) {
+         stored.stream().filter(Objects::nonNull).forEach(levels::add);
+      }
+      else if(!mixed) {
+         for(int i = 0; i < depth; i++) {
+            levels.add(i);
+         }
+      }
+
+      return new ArrayList<>(levels);
+   }
+
+   /**
+    * Drops every requested path that is a strict prefix of another requested path. On a tree with
+    * single-select levels the runtime would extend such a path to the deepest single level with a
+    * child of its own choosing, which can collide with the longer path; the longer path already
+    * selects the shorter one's nodes (bug-78795). Order-preserving.
+    */
+   static List<List<String>> dropPrefixPaths(List<List<String>> paths) {
+      return paths.stream()
+         .filter(p -> paths.stream().noneMatch(q -> q.size() > p.size() && startsWithPath(q, p)))
+         .toList();
+   }
+
+   /**
+    * Refuses two requested paths that pick different values on a single-select level under the
+    * same parent: they share {@code p[0..d-1]} and differ at index {@code d}, a single level. That
+    * is the only thing per-level single selection forbids -- a single level holds one value per
+    * parent, and the other levels stay multi-select (bug-78795). doApplySelection clears siblings
+    * per requested value before applying them all, so two such values in one call would both end
+    * up selected; this check is the only protection.
+    *
+    * @param paths        the requested paths, already past {@link #dropPrefixPaths}.
+    * @param singleLevels the single-select level indexes, from {@link #effectiveSingleLevels}.
+    * @param levelNames   the tree's level names, for the message.
+    */
+   static void refuseSingleLevelCollision(String assemblyName, List<List<String>> paths,
+                                          Collection<Integer> singleLevels,
+                                          List<String> levelNames)
+   {
+      for(int i = 0; i < paths.size(); i++) {
+         for(int j = i + 1; j < paths.size(); j++) {
+            List<String> a = paths.get(i);
+            List<String> b = paths.get(j);
+            int n = Math.min(a.size(), b.size());
+            int d = 0;
+
+            while(d < n && Objects.equals(a.get(d), b.get(d))) {
+               d++;
+            }
+
+            if(d == n || !singleLevels.contains(d)) {
+               continue; // one continues the other, or they part on a multi-select level
+            }
+
+            String level = levelNames != null && d < levelNames.size() ?
+               levelNames.get(d) : "level " + (d + 1);
+            String parent = d == 0 ? "at the top level" :
+               "under " + String.join(" > ", a.subList(0, d));
+
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "': level '" + level + "' is single-select, so it holds one " +
+               "value per parent, but " + a + " and " + b + " pick two '" + level + "' values " +
+               parent + ". Keep one of them, or change which levels are single-select with " +
+               "set_assembly_properties singleSelectionLevels. singleSelect=false in the same " +
+               "call also allows both, but makes the whole tree multi-select and drops its " +
+               "single-select levels.");
+         }
+      }
+   }
+
+   /**
+    * On a tree with single-select levels, a requested path that stops above the deepest single
+    * level is extended by the runtime into the currently selected child (the selection list
+    * holds selected children first), so the currently selected paths it prefixes must not be
+    * deselected by the replace-diff -- otherwise {@code [[East]]} with East > NY selected would
+    * clear East's branch and the extension would land on another child (bug-78795). A no-op
+    * without single levels, where replacing {@code [East]} legitimately drops East's children.
+    */
+   static List<List<String>> keepAutoExtended(List<List<String>> toRemove,
+                                              List<List<String>> requested,
+                                              Collection<Integer> singleLevels)
+   {
+      if(singleLevels.isEmpty() || toRemove.isEmpty()) {
+         return toRemove;
+      }
+
+      int deepest = Collections.max(singleLevels);
+
+      return toRemove.stream()
+         .filter(p -> requested.stream().noneMatch(
+            r -> r.size() <= deepest && p.size() > r.size() && startsWithPath(p, r)))
+         .toList();
    }
 
    private static int requireSortOrder(String sortOrder) {

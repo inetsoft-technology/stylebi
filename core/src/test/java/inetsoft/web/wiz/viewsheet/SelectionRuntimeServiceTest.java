@@ -155,6 +155,237 @@ class SelectionRuntimeServiceTest {
                                                     any(Principal.class), any(), anyString());
    }
 
+   // ── bug-78795: per-level single selection on a tree ───────────────────────
+
+   private static final List<String> GEO_LEVELS = List.of("Region", "State", "City");
+   private static final List<Integer> STATE_ONLY = List.of(1);
+
+   private static IllegalArgumentException collision(List<List<String>> paths,
+                                                     List<Integer> levels)
+   {
+      return assertThrows(IllegalArgumentException.class,
+         () -> SelectionRuntimeService.refuseSingleLevelCollision(
+            "T", SelectionRuntimeService.dropPrefixPaths(paths), levels, GEO_LEVELS));
+   }
+
+   private static void noCollision(List<List<String>> paths, List<Integer> levels) {
+      assertDoesNotThrow(() -> SelectionRuntimeService.refuseSingleLevelCollision(
+         "T", SelectionRuntimeService.dropPrefixPaths(paths), levels, GEO_LEVELS));
+   }
+
+   /** Region is not a single level, so two Regions are two checkboxes (the reporter's step 5). */
+   @Test
+   void perLevelTreeAllowsTwoValuesOnAMultiSelectLevel() {
+      noCollision(List.of(List.of("USA East"), List.of("USA West")), STATE_ONLY);
+   }
+
+   /** Two States under one Region is the one thing State-single forbids; the message says so. */
+   @Test
+   void perLevelTreeRefusesTwoValuesOnASingleLevelUnderOneParent() {
+      IllegalArgumentException e = collision(
+         List.of(List.of("USA East", "NY"), List.of("USA East", "MA")), STATE_ONLY);
+
+      assertTrue(e.getMessage().contains("level 'State' is single-select"), e.getMessage());
+      assertTrue(e.getMessage().contains("under USA East"), e.getMessage());
+      assertTrue(e.getMessage().contains("set_assembly_properties singleSelectionLevels"),
+                 e.getMessage());
+      assertTrue(e.getMessage().contains("drops its single-select levels"), e.getMessage());
+      assertFalse(e.getMessage().contains("cannot hold"), e.getMessage());
+   }
+
+   /** Single per parent, not per tree: one State under each Region is fine. */
+   @Test
+   void perLevelTreeAllowsOneSingleLevelValuePerParent() {
+      noCollision(List.of(List.of("USA East", "NY"), List.of("USA West", "CA")), STATE_ONLY);
+   }
+
+   /**
+    * City is multi, so two Cities only collide through their States: E4a picks two States under USA
+    * East, E4b two States under different Regions, E4c one State.
+    */
+   @Test
+   void perLevelTreeJudgesLeafPathsAtTheLevelTheyPartOn() {
+      IllegalArgumentException e4a = collision(
+         List.of(List.of("USA East", "NY", "Buffalo"), List.of("USA East", "MA", "Boston")),
+         STATE_ONLY);
+      assertTrue(e4a.getMessage().contains("'State'"), e4a.getMessage());
+
+      noCollision(List.of(List.of("USA East", "NY", "Buffalo"),
+                          List.of("USA West", "CA", "Los Angeles")), STATE_ONLY);
+      noCollision(List.of(List.of("USA East", "NY", "Buffalo"),
+                          List.of("USA East", "NY", "New York")), STATE_ONLY);
+   }
+
+   /**
+    * A path that a longer requested path continues is dropped rather than left for the runtime to
+    * extend into a child of its own choosing (refute amendment 1).
+    */
+   @Test
+   void perLevelTreeCollapsesARequestedPrefixIntoTheLongerPath() {
+      assertEquals(List.of(List.of("USA East", "NY")),
+                   SelectionRuntimeService.dropPrefixPaths(
+                      List.of(List.of("USA East"), List.of("USA East", "NY"))));
+      noCollision(List.of(List.of("USA East"), List.of("USA East", "NY")), STATE_ONLY);
+      // Different lengths that part on the single level still collide.
+      collision(List.of(List.of("USA East", "NY"), List.of("USA East", "MA", "Boston")), STATE_ONLY);
+      // The same path twice is one value.
+      noCollision(List.of(List.of("USA East", "NY"), List.of("USA East", "NY")), STATE_ONLY);
+   }
+
+   /**
+    * Flag on with no stored levels and not mixed is the legacy all-levels tree, which
+    * doApplySelection treats per level with every level single: any two distinct paths that are
+    * not one inside the other collide; mixed with no levels is whole-tree (amendment 3).
+    */
+   @Test
+   void legacyAllLevelsTreeRefusesDistinctPathsAndMixedEmptyIsWholeTree() {
+      List<Integer> all = SelectionRuntimeService.effectiveSingleLevels(List.of(), false, 3);
+      assertEquals(List.of(0, 1, 2), all);
+
+      IllegalArgumentException e = collision(
+         List.of(List.of("USA East"), List.of("USA West")), all);
+      assertTrue(e.getMessage().contains("level 'Region'"), e.getMessage());
+      assertTrue(e.getMessage().contains("at the top level"), e.getMessage());
+      collision(List.of(List.of("USA East", "NY", "Buffalo"),
+                        List.of("USA East", "NY", "New York")), all);
+      noCollision(List.of(List.of("USA East"), List.of("USA East", "NY")), all);
+
+      assertEquals(List.of(), SelectionRuntimeService.effectiveSingleLevels(List.of(), true, 3));
+      assertEquals(List.of(), SelectionRuntimeService.effectiveSingleLevels(null, true, 3));
+   }
+
+   /** The stored order is not trusted (refute R2): levels come back sorted and distinct. */
+   @Test
+   void effectiveSingleLevelsSortsTheStoredLevels() {
+      assertEquals(List.of(1, 2),
+                   SelectionRuntimeService.effectiveSingleLevels(List.of(2, 1, 2), true, 3));
+   }
+
+   /**
+    * A replace naming an ancestor above the deepest single level keeps the selected branch it
+    * prefixes, since the runtime extends the request into it (refute amendment 2); judged on
+    * max(levels), not the last element.
+    */
+   @Test
+   void replaceKeepsTheBranchARequestAboveTheDeepestSingleLevelExtendsInto() {
+      List<List<String>> current = List.of(List.of("USA East", "NY", "Buffalo"),
+                                           List.of("USA West", "CA"));
+      List<List<String>> requested = List.of(List.of("USA East"));
+      List<List<String>> toRemove = SelectionRuntimeService.toDeselect(current, requested);
+
+      assertEquals(List.of(List.of("USA West", "CA")),
+                   SelectionRuntimeService.keepAutoExtended(toRemove, requested, List.of(2, 1)));
+      // No single levels: replacing [USA East] drops East's children as before.
+      assertEquals(toRemove, SelectionRuntimeService.keepAutoExtended(toRemove, requested,
+                                                                       List.of()));
+      // A request reaching the deepest single level replaces under it normally.
+      List<List<String>> deep = List.of(List.of("USA East", "MA"));
+      assertEquals(SelectionRuntimeService.toDeselect(current, deep),
+                   SelectionRuntimeService.keepAutoExtended(
+                      SelectionRuntimeService.toDeselect(current, deep), deep, STATE_ONLY));
+   }
+
+   /** A Region/State/City tree with only State single, as the Composer pane produces it. */
+   private static SelectionTreeVSAssembly perLevelTree(boolean single, List<Integer> stored,
+                                                       boolean mixed)
+   {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, single);
+      SelectionTreeVSAssemblyInfo info = assembly.getSelectionTreeInfo();
+      when(info.getStoredSingleSelectionLevels()).thenReturn(stored);
+      when(info.isMixedSingleSelection()).thenReturn(mixed);
+      when(info.getLevelNames()).thenReturn(GEO_LEVELS);
+      return assembly;
+   }
+
+   /** The reporter's step 5: two Regions on a State-single tree apply. */
+   @Test
+   void setSelectionAppliesTwoRegionsOnAStateSingleTree() throws Exception {
+      SelectionTreeVSAssembly assembly = perLevelTree(true, STATE_ONLY, true);
+      Harness h = harness(assembly);
+
+      Map<String, Object> result = h.service.setSelection(
+         "tok", principal(), "T", List.of(List.of("USA East"), List.of("USA West")), null, null,
+         null, null, "");
+
+      assertEquals(2, result.get("valuesSelected"));
+      verify(h.selections, atLeastOnce()).applySelection(anyString(), anyString(), any(),
+                                                         any(Principal.class), any(), anyString());
+      // getSingleSelectionLevels() writes the levels into the info (refute R5f).
+      verify(assembly.getSelectionTreeInfo(), never()).getSingleSelectionLevels();
+   }
+
+   /** Refused before any write, naming the level (bug-78718's atomicity). */
+   @Test
+   void setSelectionRefusesTwoStatesUnderOneRegionWithoutWriting() throws Exception {
+      SelectionTreeVSAssembly assembly = perLevelTree(true, STATE_ONLY, true);
+      Harness h = harness(assembly);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection(
+            "tok", principal(), "T", List.of(List.of("USA East", "NY"), List.of("USA East", "MA")),
+            null, null, null, null, ""));
+
+      assertTrue(e.getMessage().contains("level 'State'"), e.getMessage());
+      verify(h.selections, never()).applySelection(anyString(), anyString(), any(),
+                                                   any(Principal.class), any(), anyString());
+      verify(assembly.getSelectionTreeInfo(), never()).getSingleSelectionLevels();
+   }
+
+   /**
+    * singleSelect:true while the flag is off judges by the stored levels, which both public
+    * getters hide while it is off (refute amendment 4) -- and refuses before the toggle.
+    */
+   @Test
+   void singleSelectTrueWhileOffJudgesByTheStoredLevels() throws Exception {
+      SelectionTreeVSAssembly assembly = perLevelTree(false, STATE_ONLY, false);
+      Harness h = harness(assembly);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection(
+            "tok", principal(), "T", List.of(List.of("USA East", "NY"), List.of("USA East", "MA")),
+            null, null, true, null, ""));
+
+      assertTrue(e.getMessage().contains("level 'State'"), e.getMessage());
+      verify(h.selections, never()).toggleSelectionStyle(anyString(), anyString(),
+                                                         any(Principal.class), any(), anyString());
+
+      Harness ok = harness(perLevelTree(false, STATE_ONLY, false));
+      ok.service.setSelection("tok", principal(), "T",
+                              List.of(List.of("USA East"), List.of("USA West")), null, null, true,
+                              null, "");
+      verify(ok.selections, times(1)).toggleSelectionStyle(anyString(), anyString(),
+                                                           any(Principal.class), any(),
+                                                           anyString());
+   }
+
+   /** doApplySelection ignores levels on an ID-mode tree, so it stays single as a whole. */
+   @Test
+   void idModeTreeKeepsTheWholeTreeRefusal() {
+      SelectionTreeVSAssembly assembly = perLevelTree(true, STATE_ONLY, true);
+      when(assembly.isIDMode()).thenReturn(true);
+      Harness h = harness(assembly);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "T",
+                                      List.of(List.of("USA East"), List.of("USA West")), null,
+                                      null, null, null, ""));
+
+      assertTrue(e.getMessage().contains("cannot hold 2 values"), e.getMessage());
+   }
+
+   /** Flag on, mixed, no levels: doApplySelection resets the whole tree, so the count guard stays. */
+   @Test
+   void mixedTreeWithNoLevelsKeepsTheWholeTreeRefusal() {
+      Harness h = harness(perLevelTree(true, List.of(), true));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "T",
+                                      List.of(List.of("USA East"), List.of("USA West")), null,
+                                      null, null, null, ""));
+
+      assertTrue(e.getMessage().contains("cannot hold 2 values"), e.getMessage());
+   }
+
    // ── the value apply ───────────────────────────────────────────────────────
 
    /**
