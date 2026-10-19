@@ -474,8 +474,8 @@ public class AssemblyPropertyService {
             "rangeSize: only a NUMBER range slider stores a range size, and this one is not " +
             "(rangeType is not NUMBER), so the write would report success and read back 0. " +
             (numericColumn ? "Set rangeType:\"number\" in the same call, or use maxRangeSize." :
-             "The bound column " + columnLabel(column) + " is not numeric, so rangeType " +
-             "\"number\" is not available for it; use maxRangeSize."));
+             "The bound column " + columnLabel(column) + " is not numeric, so a NUMBER " +
+             "range type is not available for it; use maxRangeSize."));
       }
 
       if((rangeSize || maxRangeSize) && number && logScale) {
