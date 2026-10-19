@@ -103,6 +103,14 @@ final class ColumnLossReport {
        * confirmable.
        */
       static final Scope UNPIVOT_EDIT = new Scope(false, true, true, true);
+
+      /**
+       * update_mirror re-syncing an outer mirror with its source (Bug #78814): the columns the
+       * source no longer has leave the mirror, so downstream references and aggregates and the
+       * mirror's own conditions, sort, expression and range columns break. Join keys are refused
+       * first by the caller, never confirmable.
+       */
+      static final Scope RESYNC = new Scope(false, true, true, true);
    }
 
    /**
