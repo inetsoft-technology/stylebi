@@ -109,6 +109,21 @@ public final class CalcCellVocabulary {
       "role", "content' or 'grouping");
 
    /**
+    * The keys a cell binding may write, i.e. every key {@code CalcTableService} reads from it.
+    * Any other key would be dropped silently, so {@link #validate} refuses it by name.
+    */
+   private static final List<String> RECOGNIZED_KEYS = List.of(
+      "content", "grouping", "expand", "field", "formula", "value", "mergeCells", "name", "sort",
+      "topn", "rowGroup", "colGroup", "mergeRowGroup", "mergeColGroup", "timeSeries");
+
+   /**
+    * Keys {@link #describe} emits that a read-modify-write round trip sends straight back. They
+    * carry no write of their own and are ignored, so they are tolerated rather than refused.
+    */
+   private static final Set<String> ECHO_ONLY_KEYS = Set.of(
+      "runtimeName", "dateLevel", "dateInterval", "namedGroup");
+
+   /**
     * Formulas that take a second column, written {@code Name(Column)}, keyed by canonical
     * normalized name (see {@link #normalizeFormulaName}) to the display name used in messages.
     */
@@ -215,6 +230,16 @@ public final class CalcCellVocabulary {
       String name = open >= 0 ? text.substring(0, open) : text;
       String arg = open >= 0 && close > open ? text.substring(open + 1, close).trim() : "";
       String normalized = normalizeFormulaName(name);
+
+      if(!UNSUPPORTED_CALC_FORMULAS.contains(normalized) &&
+         !CANONICAL_FORMULAS.containsKey(normalized))
+      {
+         throw new IllegalArgumentException(
+            "formula '" + formula + "' is not a recognized aggregate formula: '" + name.trim() +
+            "' is not a name list_cell_vocabulary advertises. Use one of: " +
+            String.join(", ", new TreeSet<>(CANONICAL_FORMULAS.values())) +
+            ". Nothing was changed.");
+      }
 
       if(UNSUPPORTED_CALC_FORMULAS.contains(normalized)) {
          throw new IllegalArgumentException(
@@ -347,8 +372,17 @@ public final class CalcCellVocabulary {
             throw new IllegalArgumentException(
                "'" + rejected.getKey() + "' is not a calc-table cell key — it means something " +
                "else elsewhere in this plugin, which is exactly why it is refused here. Use '" +
-               rejected.getValue() + "'. Cell keys are: content, grouping, expand, field, " +
-               "value, formula, name.");
+               rejected.getValue() + "'. Cell keys are: " + String.join(", ", RECOGNIZED_KEYS) +
+               ".");
+         }
+      }
+
+      for(String key : cell.keySet()) {
+         if(!RECOGNIZED_KEYS.contains(key) && !ECHO_ONLY_KEYS.contains(key)) {
+            throw new IllegalArgumentException(
+               "'binding' carries '" + key + "', which this write does not recognize and would " +
+               "otherwise drop silently. Recognized keys: " + String.join(", ", RECOGNIZED_KEYS) +
+               ". Nothing was changed.");
          }
       }
 

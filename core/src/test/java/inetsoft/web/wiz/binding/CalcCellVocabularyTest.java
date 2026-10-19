@@ -556,9 +556,94 @@ class CalcCellVocabularyTest {
       "NthLargest(3)", "NthLargest", "PthPercentile(90)", "Sum", "Sum<-1>", "Average",
       "SumSQFormula", "SumSQ", "AVG", "avg(Order:Total)", "WeightedAvg(Order:Quantity)",
       "Weighted_Average(Order:Quantity)", "FirstFormula(Order:Date)",
-      "CorrelationFormula(Order:Discount)", "Formula"})
+      "CorrelationFormula(Order:Discount)", "None", "COUNT ALL", "Count_Distinct"})
    void acceptsWellFormedSummaryFormulas(String formula) {
       assertDoesNotThrow(() -> CalcCellVocabulary.validate(summary(formula)));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "Avrage", "Summ", "Foo(Bar)", "Std Deviation", "Formula", "(Sum)", "Sum<abc>",
+      "Mystery(Order:Date)", "Sumary<-1>"})
+   void refusesAnUnknownSummaryFormulaNamingIt(String formula) {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> CalcCellVocabulary.validate(summary(formula)));
+      assertTrue(e.getMessage().contains("not a recognized aggregate formula"), e.getMessage());
+      assertTrue(e.getMessage().contains("'" + formula + "'"), e.getMessage());
+      assertTrue(e.getMessage().contains("Use one of: "), e.getMessage());
+      assertTrue(e.getMessage().contains("Nothing was changed."), e.getMessage());
+   }
+
+   // The names list_cell_vocabulary advertises (AggregateFormula.getFormulaName() and getName()
+   // values, minus the unsupported ones). AggregateFormula.getFormulas() needs SreeEnv, so the list
+   // is spelled out here; every name must still pass the membership rule.
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "None", "Average", "Count", "DistinctCount", "Max", "Min", "Sum", "Median", "Mode",
+      "Correlation", "Covariance", "Variance", "StandardDeviation", "PopulationVariance",
+      "PopulationStandardDeviation", "SumSQFormula", "WeightedAverage", "First", "Last", "Product",
+      "Concat", "NthLargest", "NthSmallest", "NthMostFrequent", "PthPercentile", "AVG",
+      "COUNT ALL", "COUNT DISTINCT", "STANDARD DEVIATION", "POPULATION STANDARD DEVIATION",
+      "WEIGHTED AVG", "SUMSQ"})
+   void everyAdvertisedFormulaNamePassesTheMembershipRule(String formula) {
+      try {
+         CalcCellVocabulary.validate(summary(formula));
+      }
+      catch(IllegalArgumentException e) {
+         // a second-column formula without its column is refused for that reason, not membership
+         assertFalse(e.getMessage().contains("not a recognized aggregate formula"),
+                     e.getMessage());
+      }
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {"aggregate", "type", "fieldType", "formulaName", "Content", "rankBy"})
+   void refusesAnUnknownBindingKeyNamingIt(String key) {
+      Map<String, Object> cell = spec("content", "text", "value", "Total");
+      cell.put(key, "x");
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> CalcCellVocabulary.validate(cell));
+      assertTrue(e.getMessage().contains("'" + key + "'"), e.getMessage());
+   }
+
+   @Test
+   void refusesAnUnknownBindingKeyBeforeTheContentChecks() {
+      // no 'content' at all: the stray key is still what gets reported
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> CalcCellVocabulary.validate(spec("aggregate", "Sum")));
+      assertTrue(e.getMessage().contains("'aggregate'"), e.getMessage());
+      assertTrue(e.getMessage().contains("Recognized keys: content, grouping"), e.getMessage());
+   }
+
+   @Test
+   void toleratesTheKeysDescribeEchoes() {
+      Map<String, Object> cell = spec("content", "text", "value", "Total", "runtimeName", "c1",
+                                      "dateLevel", "month", "dateInterval", 1, "namedGroup", "g");
+
+      assertDoesNotThrow(() -> CalcCellVocabulary.validate(cell));
+   }
+
+   @Test
+   void everyKeyDescribeEmitsIsWritableOrATolerableEcho() {
+      CellBindingInfo info = new CellBindingInfo();
+      info.setType(CellBinding.BIND_COLUMN);
+      info.setBtype(CellBinding.GROUP);
+      info.setValue("PAID");
+      info.getOrder().setType(XConstants.SORT_ASC);
+
+      Map<String, Object> described = CalcCellVocabulary.describe(info);
+      Map<String, Object> echoed = new LinkedHashMap<>(described);
+      echoed.values().removeIf(java.util.Objects::isNull);
+
+      // A get -> set round trip must not trip the unknown-key refusal.
+      try {
+         CalcCellVocabulary.validate(echoed);
+      }
+      catch(IllegalArgumentException e) {
+         assertFalse(e.getMessage().contains("does not recognize"), e.getMessage());
+      }
    }
 
    @ParameterizedTest
