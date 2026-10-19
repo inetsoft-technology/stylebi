@@ -1017,12 +1017,12 @@ public class CalcTableService {
          remapRankings(rvs, assembly, rankings, rankWarnings);
       });
 
-      warnings = withRankWarnings(warnings, rankWarnings);
 
       // Returned rather than left to the caller: coordinates read before this call are stale.
       Map<String, Object> updated = readLayout(sessionToken, user, assemblyName);
       updated.put("note", "Coordinates read before this operation are stale — use this layout.");
       ViewsheetSessionService.relayWarnings(updated, warnings);
+      relayRankingNotes(updated, rankWarnings);
       return updated;
    }
 
@@ -1079,10 +1079,10 @@ public class CalcTableService {
          remapRankings(rvs, assembly, rankings, rankWarnings);
       });
 
-      warnings = withRankWarnings(warnings, rankWarnings);
       Map<String, Object> updated = readLayout(sessionToken, user, assemblyName);
       updated.put("note", "Coordinates read before this operation are stale — use this layout.");
       ViewsheetSessionService.relayWarnings(updated, warnings);
+      relayRankingNotes(updated, rankWarnings);
       return updated;
    }
 
@@ -1247,14 +1247,14 @@ public class CalcTableService {
       return out;
    }
 
-   private static List<String> withRankWarnings(List<String> warnings, List<String> extra) {
-      if(extra.isEmpty()) {
-         return warnings;
+   /**
+    * Ranking resets are not script failures, so they travel under their own key rather than in
+    * {@code warnings}, which callers report as a failed assembly script.
+    */
+   private static void relayRankingNotes(Map<String, Object> response, List<String> notes) {
+      if(!notes.isEmpty()) {
+         response.put("rankingNotes", notes);
       }
-
-      List<String> all = new ArrayList<>(warnings == null ? List.of() : warnings);
-      all.addAll(extra);
-      return all;
    }
 
    /**

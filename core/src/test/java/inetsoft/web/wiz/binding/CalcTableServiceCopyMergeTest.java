@@ -596,7 +596,8 @@ class CalcTableServiceCopyMergeTest {
       TableCellBinding group = (TableCellBinding) layout().getCellBinding(0, 0);
       assertFalse(group.getOrderInfo(false).isSortByVal(), "sort must not follow Sum(Price)");
       assertEquals(0, group.getTopN(false).getTopN());
-      String warnings = String.valueOf(result.get("warnings"));
+      String warnings = String.valueOf(result.get("rankingNotes"));
+      assertNull(result.get("warnings"), "a ranking reset is not a script failure");
       assertTrue(warnings.contains("Sum(Total)"), warnings);
       assertTrue(warnings.contains("[0,0]"), warnings);
    }
@@ -614,7 +615,7 @@ class CalcTableServiceCopyMergeTest {
 
       assertEquals(1, sortCol());
       assertEquals(1, topnCol());
-      assertNull(result.get("warnings"));
+      assertNull(result.get("rankingNotes"));
    }
 
    @Test
@@ -632,7 +633,7 @@ class CalcTableServiceCopyMergeTest {
 
       assertEquals(1, sortCol());
       assertEquals(1, topnCol());
-      assertNull(result.get("warnings"));
+      assertNull(result.get("rankingNotes"));
    }
 
    @Test
@@ -650,7 +651,7 @@ class CalcTableServiceCopyMergeTest {
       assertEquals(0, topnCol());
       assertTrue(((TableCellBinding) layout().getCellBinding(0, 0)).getOrderInfo(false)
                     .isSortByValDesc());
-      assertNull(result.get("warnings"));
+      assertNull(result.get("rankingNotes"));
    }
 
    @Test
