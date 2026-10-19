@@ -1972,6 +1972,48 @@ class DateComparisonServiceTest {
                                                 any(Principal.class), any());
    }
 
+   private static VSAssembly sharing(String name, String shareFrom) {
+      VSAssembly assembly = mock(VSAssembly.class);
+      ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      when(assembly.getName()).thenReturn(name);
+      when(assembly.getInfo()).thenReturn(info);
+      when(info.getComparisonShareFrom()).thenReturn(shareFrom);
+      return assembly;
+   }
+
+   @Test
+   void clearBodyNamesEveryAssemblyThatSharedFromTheClearedSource() throws Exception {
+      Harness h = harness(model());
+      inetsoft.uql.asset.Assembly[] all = new inetsoft.uql.asset.Assembly[] {
+         sharing("Src", null), sharing("ShareA", "Src"), sharing("ShareB", "Src"),
+         sharing("Other", "Elsewhere")};
+      when(h.vs.getAssemblies()).thenReturn(all);
+
+      Map<String, Object> body = h.service.clearBody("tok", principal(), "Src", "");
+
+      assertEquals(java.util.List.of("ShareA", "ShareB"), body.get("sharersCleared"));
+   }
+
+   @Test
+   void clearBodyOnASharerNamesNoOne() throws Exception {
+      Harness h = harness(model());
+      inetsoft.uql.asset.Assembly[] all = new inetsoft.uql.asset.Assembly[] {
+         sharing("Src", null), sharing("ShareA", "Src")};
+      when(h.vs.getAssemblies()).thenReturn(all);
+
+      assertNull(h.service.clearBody("tok", principal(), "ShareA", ""));
+   }
+
+   @Test
+   void clearBodyWithNoSharersIsUnchanged() throws Exception {
+      Harness h = harness(model());
+      inetsoft.uql.asset.Assembly[] all = new inetsoft.uql.asset.Assembly[] {
+         sharing("Src", null)};
+      when(h.vs.getAssemblies()).thenReturn(all);
+
+      assertNull(h.service.clearBody("tok", principal(), "Src", ""));
+   }
+
    // ── the read side ─────────────────────────────────────────────────────────
 
    @Test

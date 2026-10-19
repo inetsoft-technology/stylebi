@@ -2324,8 +2324,7 @@ public class ViewsheetAssemblyAgentController {
       Principal user) throws Exception
    {
       requireEnabled();
-      return ViewsheetSessionService.warningsBody(
-         comparisonService.clear(sessionToken, user, request.assembly(), linkUri));
+      return comparisonService.clearBody(sessionToken, user, request.assembly(), linkUri);
    }
 
    // ── Layout: list_layouts, get_layout, set_print_layout, manage_device_layout, ──────────

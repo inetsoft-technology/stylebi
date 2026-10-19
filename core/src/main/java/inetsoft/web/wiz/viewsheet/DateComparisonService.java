@@ -1243,10 +1243,72 @@ public class DateComparisonService {
                              String linkUri)
       throws Exception
    {
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+      return clear(sessionToken, user, assemblyName, linkUri, new ArrayList<>());
+   }
+
+   /**
+    * Removes the comparison and builds the response body. Clearing the source of a shared
+    * comparison natively also drops the share of every assembly that shared from it (the same as
+    * the Composer's own dialog), so those assemblies are named under {@code sharersCleared}; the
+    * key is absent when nobody shared, and {@code warnings} is relayed as before. Null when there
+    * is nothing to report.
+    */
+   public Map<String, Object> clearBody(String sessionToken, Principal user, String assemblyName,
+                                        String linkUri)
+      throws Exception
+   {
+      List<String> sharers = new ArrayList<>();
+      List<String> warnings = clear(sessionToken, user, assemblyName, linkUri, sharers);
+      Map<String, Object> body = new LinkedHashMap<>();
+
+      if(warnings != null && !warnings.isEmpty()) {
+         body.put("warnings", warnings);
+      }
+
+      if(!sharers.isEmpty()) {
+         body.put("sharersCleared", sharers);
+      }
+
+      return body.isEmpty() ? null : body;
+   }
+
+   private List<String> clear(String sessionToken, Principal user, String assemblyName,
+                              String linkUri, List<String> sharersOut)
+      throws Exception
+   {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         sharersOut.addAll(sharersOf(rvs.getViewsheet(), assemblyName));
+
          ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
             comparisonService.clearDateComparison(runtimeId, assemblyName, linkUri, user,
-                                                  dispatcher)));
+                                                  dispatcher));
+      });
+   }
+
+   /** Names of the other assemblies currently sharing their comparison from {@code source}. */
+   private static List<String> sharersOf(Viewsheet vs, String source) {
+      List<String> names = new ArrayList<>();
+
+      if(vs == null || source == null) {
+         return names;
+      }
+
+      Assembly[] assemblies = vs.getAssemblies();
+
+      if(assemblies == null) {
+         return names;
+      }
+
+      for(Assembly assembly : assemblies) {
+         if(assembly.getInfo() instanceof DateCompareAbleAssemblyInfo info &&
+            !source.equals(assembly.getName()) &&
+            Objects.equals(source, info.getComparisonShareFrom()))
+         {
+            names.add(assembly.getName());
+         }
+      }
+
+      return names;
    }
 
    // ── the end-date guard ────────────────────────────────────────────────────
