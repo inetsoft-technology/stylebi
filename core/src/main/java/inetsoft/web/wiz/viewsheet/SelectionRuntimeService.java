@@ -950,12 +950,23 @@ public class SelectionRuntimeService {
                " -- confirm the exact spelling via browse_condition_values before selecting it.");
          }
 
-         // Not extended to an ID-mode tree: findIDSubtreeRoot is positional (see above), not an
-         // anywhere-in-the-tree scan, so this exclusion is no longer justified by path.size()
-         // being meaningless for an ID-mode tree the way the depth heuristic below assumes -- it
-         // is simply still tracked separately as an open gap (VFL-004), not fixed here. An ID-mode
-         // single-select tree's own version of that bug is therefore still open; see
-         // treatsAnIdModeSingleSelectTreeAsUnguarded in the test.
+         // The native UI hides Select Subtree on a single-select ID-hierarchy tree
+         // (selection-tree-actions.ts), and the engine cannot apply it there: setSubtree stops at
+         // the first unselected node, and the single-select query keeps only the first selected
+         // node of whatever is written. Every such select is a silent no-op, at any path depth.
+         if(select && tree.isIDMode()
+            && ((SelectionVSAssemblyInfo) tree.getInfo()).isSingleSelection())
+         {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is a single-select ID-hierarchy tree, which has no subtree " +
+               "select (the native UI hides Select Subtree for it), so selecting the subtree at " +
+               String.join(" > ", path) + " cannot apply. Use set_selection with values:[<id>] to " +
+               "select one node, or pass singleSelect:false on set_selection first to select " +
+               "several.");
+         }
+
+         // A multi-select ID-mode tree needs no depth guard: path.size() does not track levels
+         // there, and a subtree select selects every descendant.
          if(select && !tree.isIDMode()) {
             refuseAmbiguousSingleSelectSubtree(tree, assemblyName, path);
          }
@@ -996,7 +1007,11 @@ public class SelectionRuntimeService {
             selections.selectSubtree(runtimeId, assemblyName, event, user, dispatcher, linkUri);
          }
 
-         if(!select) {
+         if(select) {
+            result.put("selectedCount",
+               selectedUnderSubtree(selectionListOf(assembly), path, tree.isIDMode()).size());
+         }
+         else {
             reportSubtreeClear(result, assembly, path, before, wholeBefore, tree.isIDMode());
          }
       });
@@ -1137,8 +1152,8 @@ public class SelectionRuntimeService {
     * actually ambiguous -- is rare enough, and cheap enough to work around (name the leaf path
     * directly), to accept for a low-priority guard.
     *
-    * <p><b>Not called at all for an ID-mode tree</b> -- see the caller's comment. This guard does
-    * not close VFL-004 for that case.
+    * <p><b>Not called at all for an ID-mode tree</b> -- an ID-mode single-select tree is refused
+    * outright by the caller, and a multi-select one needs no depth guard.
     */
    private static void refuseAmbiguousSingleSelectSubtree(SelectionTreeVSAssembly tree,
                                                           String assemblyName, List<String> path)
