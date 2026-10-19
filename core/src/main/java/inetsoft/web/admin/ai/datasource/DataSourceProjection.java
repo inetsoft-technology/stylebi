@@ -45,6 +45,19 @@ final class DataSourceProjection {
    }
 
    static String projectJdbc(JdbcDataSourceProperties p) {
+      // Never the real value or either wrapped-API masking literal -- always this one constant,
+      // regardless of what p.getPassword() actually returns (see class javadoc).
+      return projectJdbc(p, p.isRequireLogin() ? Util.PLACEHOLDER_PASSWORD : "(none)");
+   }
+
+   /**
+    * Bug 78819: the same projection with a caller-chosen {@code password=} token in place of the
+    * placeholder -- used only for a plan's displayed proposed value, to mark that the spec supplies
+    * (or clears) a password. The token is a fixed marker, never the value. Apply verify, rollback
+    * verify and audit keep using {@link #projectJdbc(JdbcDataSourceProperties)}, whose output is
+    * unchanged.
+    */
+   static String projectJdbc(JdbcDataSourceProperties p, String passwordToken) {
       StringBuilder sb = new StringBuilder();
       sb.append("type=jdbc")
          .append(";id=").append(canonical(p.getId()))
@@ -57,9 +70,7 @@ final class DataSourceProjection {
          .append(";ansiJoin=").append(p.isAnsiJoin())
          .append(";requireLogin=").append(p.isRequireLogin())
          .append(";user=").append(canonical(p.getUser()))
-         // Never the real value or either wrapped-API masking literal -- always this one constant,
-         // regardless of what p.getPassword() actually returns (see class javadoc).
-         .append(";password=").append(p.isRequireLogin() ? Util.PLACEHOLDER_PASSWORD : "(none)")
+         .append(";password=").append(passwordToken)
          .append(";useCredentialId=").append(p.isUseCredentialId())
          .append(";credentialID=").append(canonical(p.getCredentialID()));
       return sb.toString();

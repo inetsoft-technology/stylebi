@@ -99,23 +99,27 @@ public class DataSourceChangePlanService {
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seenNames = new HashSet<>();
       Map<String, String> dependencyProjections = new LinkedHashMap<>();
+      // Bug 78819: hidden per-change hash input for a supplied JDBC password (see hash()).
+      Map<String, String> passwordHashInputs = new LinkedHashMap<>();
       int index = 0;
 
       for(DataSourceChangeRequest change : req.getChanges()) {
          String label = "changes[" + index++ + "]";
-         changes.add(resolveOne(label, change, user, seenNames, dependencyProjections));
+         changes.add(resolveOne(label, change, user, seenNames, dependencyProjections,
+                                passwordHashInputs));
       }
 
       String task = req.getTask().trim();
       // Both verbs are risk:high, snapshotScope:storage, unconditionally (section 4/7) -- no
       // "recognized" axis the way an uncatalogued property has one.
-      String planHash = hash(changes, dependencyProjections);
+      String planHash = hash(changes, dependencyProjections, passwordHashInputs);
       return new ResolvedPlan(task, Collections.unmodifiableList(changes), true, true,
                               planHash, TaskAuditToken.issue(planHash, task));
    }
 
    private PlanChange resolveOne(String label, DataSourceChangeRequest change, Principal user,
-                                 Set<String> seenNames, Map<String, String> dependencyProjections)
+                                 Set<String> seenNames, Map<String, String> dependencyProjections,
+                                 Map<String, String> passwordHashInputs)
       throws Exception
    {
       if(change == null) {
@@ -138,7 +142,7 @@ public class DataSourceChangePlanService {
       }
 
       if(DataSourceChangeRequest.VERB_UPDATE.equals(verb)) {
-         return resolveUpdate(label, name, change, user);
+         return resolveUpdate(label, name, change, user, passwordHashInputs);
       }
 
       return resolveDelete(label, name, change, user, dependencyProjections);
@@ -328,7 +332,7 @@ public class DataSourceChangePlanService {
    // ---------------------------------------------------------------- update
 
    private PlanChange resolveUpdate(String label, String name, DataSourceChangeRequest change,
-                                    Principal user)
+                                    Principal user, Map<String, String> passwordHashInputs)
       throws Exception
    {
       if(change.getForce() != null) {
@@ -383,6 +387,25 @@ public class DataSourceChangePlanService {
       String description = proposedName != null && !proposedName.equals(name)
          ? "update data source \"" + name + "\" (renaming to \"" + proposedName + "\")"
          : "update data source \"" + name + "\"";
+
+      // Bug 78819: the shared projection masks the password, so without this a plan that supplies
+      // password A hashed the same as one supplying B, or as a no-op, and apply accepted a
+      // different password than the one reviewed. When (and only when) the spec supplies a
+      // password that will actually be written, fold a digest of it into the hash as a hidden
+      // input and mark the plan text. The shared project()/projectJdbc(p) stays unchanged: apply
+      // verify, rollback verify and audit compare it. An omitted password contributes nothing, so
+      // no-password plans hash exactly as before (and an out-of-band rotation of the stored
+      // password is not plan drift).
+      if(proposed instanceof JdbcDataSourceProperties proposedJdbc &&
+         spec.containsKey("password") && proposedJdbc.isRequireLogin())
+      {
+         boolean cleared = proposedJdbc.getPassword() == null;
+         passwordHashInputs.put(name, passwordHashInput(proposedJdbc.getPassword()));
+         proposedProjection = DataSourceProjection.projectJdbc(
+            proposedJdbc, cleared ? PASSWORD_CLEARED_TOKEN : PASSWORD_SUPPLIED_TOKEN);
+         description += cleared ? " (password cleared)" : " (new password supplied)";
+      }
+
       return new PlanChange(name, orgId, beforeProjection, proposedProjection,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             description);
@@ -747,7 +770,8 @@ public class DataSourceChangePlanService {
     * no bearing on what is actually mutated or verified, and the caller is never required to
     * replay it byte-for-byte between preview and apply. */
    private static String hash(List<PlanChange> changes,
-                              Map<String, String> dependencyProjections)
+                              Map<String, String> dependencyProjections,
+                              Map<String, String> passwordHashInputs)
    {
       StringBuilder canonical = new StringBuilder();
 
@@ -762,11 +786,45 @@ public class DataSourceChangePlanService {
          if(depProjection != null) {
             canonical.append("deps:").append(depProjection).append(SEP);
          }
+
+         // Bug 78819: appended only when the spec supplied a password, so every other plan's
+         // canonical string (and hash) is byte-identical to what it was before this input existed.
+         String passwordInput = passwordHashInputs.get(change.property());
+
+         if(passwordInput != null) {
+            canonical.append("pw:").append(passwordInput).append(SEP);
+         }
       }
 
+      return sha256Hex(canonical.toString());
+   }
+
+   /**
+    * Bug 78819: the hidden plan-hash input for a supplied password -- {@code "none"} for an
+    * explicit {@code null} (stored as no password), otherwise the hex SHA-256 of a domain prefix
+    * plus the value. The two can never collide ({@code "none"} is not 64 hex digits), so
+    * {@code null} and the string {@code "null"} hash differently.
+    *
+    * <p>Plain (unkeyed) SHA-256 on purpose: preview and apply are separate requests that may land
+    * on different cluster nodes or straddle a restart, so the input must be deterministic
+    * everywhere without shared key state. The digest is never displayed, and the planHash it is
+    * folded into goes only back to the caller that sent the plaintext in the same request (preview
+    * response, 409 body, the encrypted task token); it is not logged or audited. If plans or
+    * planHashes are ever persisted, logged, or shown to a party that does not already hold the
+    * password, switch this to a keyed digest (HMAC with a cluster-stable secret).
+    */
+   private static String passwordHashInput(String password) {
+      if(password == null) {
+         return "none";
+      }
+
+      return sha256Hex(PASSWORD_DIGEST_DOMAIN + password);
+   }
+
+   private static String sha256Hex(String value) {
       try {
          byte[] digest = MessageDigest.getInstance("SHA-256")
-            .digest(canonical.toString().getBytes(StandardCharsets.UTF_8));
+            .digest(value.getBytes(StandardCharsets.UTF_8));
          StringBuilder hex = new StringBuilder(digest.length * 2);
 
          for(byte b : digest) {
@@ -786,6 +844,13 @@ public class DataSourceChangePlanService {
 
    private static final char SEP = (char) 0x1f;
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
+   private static final String PASSWORD_DIGEST_DOMAIN =
+      "inetsoft.admin.ai.datasource.password\u0000";
+   /** Bug 78819: shown in a plan's proposed value in place of the masked password when the spec
+    * supplies one. "supplied", not "changed": the value may equal the current password. */
+   static final String PASSWORD_SUPPLIED_TOKEN = "(new value supplied)";
+   /** Bug 78819: shown when the spec supplies {@code password: null} with login still required. */
+   static final String PASSWORD_CLEARED_TOKEN = "(cleared)";
    /** The wrapped Public API's own masking literal (section 0.1/9) -- six characters, distinct
     * from {@link Util#PLACEHOLDER_PASSWORD}'s ten. Refused as input the same as the latter. */
    private static final String WRAPPED_API_MASK = "******";

@@ -400,6 +400,91 @@ class DataSourceChangesetApplyServiceTest {
       verify(dataSourceService, never()).updateDataSource(any(), any(), any());
    }
 
+   // -------------------------------------------------------------------------
+   // Bug #78819: the previewed password is bound to the planHash
+   // -------------------------------------------------------------------------
+
+   @Test void applyWithADifferentPasswordThanPreviewedIsAPlanHashConflict() throws Exception {
+      store.put("Orders", jdbc("id-orders", "Orders", true, "******"));
+      ResolvedPlan alpha = planService.resolve(
+         planRequest("rotate password", List.of(updateChange("Orders", passwordSpec("AlphaPass-1")))),
+         user);
+      DataSourceApplyRequest req = applyRequestWith(alpha, "rotate password",
+         updateChange("Orders", passwordSpec("ZuluPass-2")));
+
+      assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
+                  () -> service.apply(req, user));
+      verify(dataSourceService, never()).updateDataSource(any(), any(), any());
+      verify(audit, never()).auditAdminChange(any(), any());
+      assertEquals("******", store.get("Orders").getPassword());
+   }
+
+   @Test void applyWithAPasswordUnderANoOpPlansHashIsAPlanHashConflict() throws Exception {
+      store.put("Orders", jdbc("id-orders", "Orders", true, "******"));
+      ResolvedPlan noOp = planService.resolve(
+         planRequest("no-op", List.of(updateChange("Orders", Map.of("ansiJoin", false)))), user);
+      DataSourceApplyRequest req = applyRequestWith(noOp, "no-op",
+         updateChange("Orders", passwordSpec("Mallory-3")));
+
+      assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
+                  () -> service.apply(req, user));
+      verify(dataSourceService, never()).updateDataSource(any(), any(), any());
+   }
+
+   @Test void applyWithThePreviewedPasswordIsAppliedAndVerified() throws Exception {
+      store.put("Orders", jdbc("id-orders", "Orders", true, "******"));
+      DataSourceApplyRequest req = applyRequest("rotate password", false,
+         updateChange("Orders", passwordSpec("AlphaPass-1")));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, result.results().get(0).status());
+      assertEquals("AlphaPass-1", store.get("Orders").getPassword());
+      assertFalse(result.results().get(0).before().contains("AlphaPass-1"));
+      assertFalse(result.results().get(0).after().contains("AlphaPass-1"));
+   }
+
+   @Test void rollbackOfAPasswordRotationRestoresTheBeforeValue() throws Exception {
+      store.put("Orders", jdbc("id-orders", "Orders", true, "******"));
+      store.put("Reports", jdbc("id-reports", "Reports", false, null));
+      doAnswer(inv -> null).when(dataSourceService)
+         .updateDataSource(eq("id-reports"), any(), eq(user));
+
+      DataSourceChangeRequest ordersUpdate = updateChange("Orders", passwordSpec("AlphaPass-1"));
+      DataSourceChangeRequest reportsUpdate =
+         updateChange("Reports", Map.of("url", "jdbc:h2:mem:new2"));
+      ResolvedPlan resolved = planService.resolve(
+         planRequest("rotate then fail", List.of(ordersUpdate, reportsUpdate)), user);
+      DataSourceApplyRequest req =
+         applyRequestWith(resolved, "rotate then fail", ordersUpdate, reportsUpdate);
+
+      var result = service.apply(req, user);
+
+      // Rollback re-verifies with the shared (unmarked) projection, so it still reports a clean
+      // rolled-back, never rollback-failed, and the real stored password is back.
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals(REAL_PASSWORD, store.get("Orders").getPassword());
+   }
+
+   private static DataSourceApplyRequest applyRequestWith(ResolvedPlan preview, String task,
+                                                          DataSourceChangeRequest... changes)
+   {
+      DataSourceApplyRequest req = new DataSourceApplyRequest();
+      req.setTask(task);
+      req.setChanges(List.of(changes));
+      req.setPlanHash(preview.planHash());
+      req.setTaskToken(preview.taskToken());
+      req.setReviewOutcome("approved");
+      return req;
+   }
+
+   private static Map<String, Object> passwordSpec(String password) {
+      Map<String, Object> spec = new LinkedHashMap<>();
+      spec.put("password", password);
+      return spec;
+   }
+
    @Test void applyThrowsWhenReviewOutcomeMissing() throws Exception {
       DataSourceApplyRequest req = applyRequest("update url",
          false, updateChange("Orders", Map.of("url", "jdbc:h2:mem:test2")));
