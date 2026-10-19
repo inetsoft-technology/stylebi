@@ -282,9 +282,13 @@ public class ScriptImageService {
       AssetEntry base = owner.getBaseEntry();
       Worksheet ws = owner.getBaseWorksheet();
 
-      if(reason == AssemblyImageService.ImageRenderResult.TERMINAL_NO_GRAPH &&
-         table != null && !table.isBlank() && base != null && base.isWorksheet() && ws != null &&
-         ws.getAssembly(table) == null)
+      // only an ASSET source names a worksheet table; a VS_ASSEMBLY source names a viewsheet
+      // assembly, which is never in the worksheet even when the data is fine
+      boolean worksheetTable = assembly instanceof ChartVSAssembly c && c.getSourceInfo() != null &&
+         c.getSourceInfo().getType() == inetsoft.uql.asset.SourceInfo.ASSET;
+
+      if(worksheetTable && table != null && !table.isBlank() && base != null &&
+         base.isWorksheet() && ws != null && ws.getAssembly(table) == null)
       {
          return new PairingException(
             "\"" + assemblyName + "\" is bound to table '" + table + "', which no longer exists " +

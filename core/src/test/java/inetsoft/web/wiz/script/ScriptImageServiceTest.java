@@ -1200,8 +1200,51 @@ class ScriptImageServiceTest {
    }
 
    @Test
-   void noDataOverAnUnresolvableTableNameDoesNotClaimTheTableIsGone() throws Exception {
+   void noDataWhoseBoundTableIsMissingFromTheBaseWorksheetStillNamesTheTable() throws Exception {
+      // live: a dangling-table chart's pair carries a non-null data set, so it is NO_DATA
       RuntimeViewsheet rvs = viewsheetOnWorksheetWithChart("Chart1", true);
+      AssemblyImageService imageService = imageServiceReturning(rvs,
+         new AssemblyImageService.ImageRenderResult(1,
+            AssemblyImageService.ImageRenderResult.TERMINAL_NO_DATA));
+
+      PairingException ex = renderExpectingRefusal(rvs, imageService);
+
+      assertTrue(ex.getMessage().contains("'ORDERS'") &&
+                 ex.getMessage().contains("no longer exists in its base worksheet"),
+                 "got: [" + ex.getMessage() + "]");
+   }
+
+   @Test
+   void noDataOverAViewsheetAssemblySourceDoesNotClaimTheTableIsGone() throws Exception {
+      // a VS_ASSEMBLY source names a viewsheet assembly, which a worksheet lookup can never find
+      RuntimeViewsheet rvs = viewsheetOnWorksheetWithChart("Chart1", true);
+      ((ChartVSAssembly) rvs.getViewsheet().getAssembly("Chart1")).setSourceInfo(
+         new SourceInfo(SourceInfo.VS_ASSEMBLY, null, "Table1"));
+      AssemblyImageService imageService = imageServiceReturning(rvs,
+         new AssemblyImageService.ImageRenderResult(1,
+            AssemblyImageService.ImageRenderResult.TERMINAL_NO_DATA));
+
+      PairingException ex = renderExpectingRefusal(rvs, imageService);
+
+      assertFalse(ex.getMessage().contains("no longer exists"), "got: [" + ex.getMessage() + "]");
+      assertTrue(ex.getMessage().toLowerCase().contains("no data"), "got: [" + ex.getMessage() + "]");
+   }
+
+   @Test
+   void noDataWhoseTableExistsInTheBaseWorksheetReportsNoData() throws Exception {
+      Viewsheet vs = spy(new Viewsheet());
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      chart.getVSChartInfo().addXField(new VSChartDimensionRef(new AttributeRef("EMPLOYEE_ID")));
+      vs.addAssembly(chart);
+      AssetEntry base = mock(AssetEntry.class);
+      when(base.isWorksheet()).thenReturn(true);
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssembly("ORDERS")).thenReturn(mock(inetsoft.uql.asset.Assembly.class));
+      doReturn(base).when(vs).getBaseEntry();
+      doReturn(ws).when(vs).getBaseWorksheet();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
       AssemblyImageService imageService = imageServiceReturning(rvs,
          new AssemblyImageService.ImageRenderResult(1,
             AssemblyImageService.ImageRenderResult.TERMINAL_NO_DATA));
