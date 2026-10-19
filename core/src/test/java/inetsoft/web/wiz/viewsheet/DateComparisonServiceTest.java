@@ -3032,6 +3032,63 @@ class DateComparisonServiceTest {
       assertEquals("week", result.get("intervalContextLevelBefore"));
    }
 
+   /** Bug #78804: the fresh-comparison default (0 = ALL) is no context level for a non-all interval. */
+   @ParameterizedTest
+   @CsvSource({
+      "year, yearToDate, 5, year",
+      "year, quarterToDate, 5, year",
+      "quarter, quarterToDate, 4, quarter",
+      "month, monthToDate, 3, month",
+      "week, weekToDate, 2, week",
+      "year, sameQuarter, 5, year",
+      "quarter, sameMonth, 4, quarter",
+      "month, sameWeek, 3, month",
+      "week, sameDay, 2, week"
+   })
+   void anUnsetContextLevelIsDefaultedForEveryNonAllInterval(String level, String interval,
+                                                             String code, String word)
+      throws Exception
+   {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Chart1", dyn("3", level, interval, null, null), "");
+
+      assertDynamic(model.getIntervalPaneModel().getContextLevel(), code, DynamicValueModel.VALUE);
+      assertEquals(Boolean.TRUE, result.get("intervalContextLevelAdjusted"));
+      assertEquals("unset", result.get("intervalContextLevelBefore"));
+      assertEquals(word, result.get("intervalContextLevelAfter"));
+      assertEquals(word, readInterval(h).get("contextLevel"));
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "quarter, sameQuarter",
+      "month, sameMonth",
+      "week, sameWeek",
+      "day, sameDay"
+   })
+   void aSameLevelIntervalWithNoContextLevelToPairIsRefusedNamingInterval(String level,
+                                                                         String interval)
+   {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(model()).service.set("tok", principal(), "Chart1",
+                                            dyn("3", level, interval, null, null), ""));
+
+      assertTrue(thrown.getMessage().startsWith("'interval'"), thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("intervalContextLevel"), thrown.getMessage());
+   }
+
+   @Test
+   void anAllIntervalKeepsAnUnsetContextLevelAndReportsNothing() throws Exception {
+      Map<String, Object> result = harness(model()).service.set(
+         "tok", principal(), "Chart1", dyn("3", "quarter", "all", null, null), "");
+
+      assertFalse(result.containsKey("intervalContextLevelAdjusted"));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(DateComparisonService service, ViewsheetSessionService sessions,

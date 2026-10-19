@@ -1668,7 +1668,6 @@ public class DateComparisonService {
       Integer context = parseLevel(interval.getContextLevel());
 
       if(comparison.intervalContextLevel() == null && context != null &&
-         context != DateComparisonInfo.ALL &&
          !contextLevelAllowed(context, periodLevel, intervalLevel))
       {
          int replacement = DateComparisonInfo.ALL;
@@ -1682,11 +1681,23 @@ public class DateComparisonService {
             }
          }
 
+         if(replacement == DateComparisonInfo.ALL) {
+            if(periodLevel != null && isCoarser(intervalLevel, periodLevel)) {
+               return out;
+            }
+
+            throw new IllegalArgumentException(
+               "'interval' (" + intervalWord(intervalLevel) + ") is not offered at 'level' (" +
+               (periodLevel == null ? "dynamic" : levelWord(periodLevel)) + ") - the dialog " +
+               "has no context level to pair with it. Use a finer 'level' or a different " +
+               "'interval'.");
+         }
+
          setDynamic(interval.getContextLevel(), String.valueOf(replacement));
          out.put("intervalContextLevelAdjusted", true);
-         out.put("intervalContextLevelBefore", contextLevelWord(context));
-         out.put("intervalContextLevelAfter",
-                 replacement == DateComparisonInfo.ALL ? null : contextLevelWord(replacement));
+         out.put("intervalContextLevelBefore",
+                 context == DateComparisonInfo.ALL ? "unset" : contextLevelWord(context));
+         out.put("intervalContextLevelAfter", contextLevelWord(replacement));
       }
 
       return out;
