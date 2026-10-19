@@ -32,10 +32,13 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.sql.Driver;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static inetsoft.sree.security.db.DatabaseCacheTestSupport.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -67,6 +70,7 @@ class DatabaseAuthenticationCacheReloadHookTest {
    @AfterEach
    void tearDown() {
       BlockingProvider.gate = null;
+      SlowTearDownProvider.inTearDown = null;
 
       if(writer != null) {
          writer.tearDown();
@@ -202,6 +206,61 @@ class DatabaseAuthenticationCacheReloadHookTest {
       // w's queued refresh runs on w's current instance
       assertTrue(await(() -> cachedAlice("w78793"), 5_000), "w's refresh was lost");
       BlockingProvider.gate = null;
+   }
+
+   @Test
+   void queuedRefreshRunningDuringASecondReloadIsNotLost() throws Exception {
+      AuthenticationChain host = support.initEngine(List.of(
+         support.provider("x78793", NO_ALICE), support.slowTearDownProvider("y78793", ALL_USERS)));
+      DataSpace.getDataSpace().removeChangeListener(null, "authc-chain.json", host);
+      load(host, "x78793");
+      writer = new AuthenticationChain();
+      // hold the refresh thread so that x's refresh is queued
+      CountDownLatch busy = new CountDownLatch(1);
+      refreshExecutor().execute(() -> {
+         try {
+            busy.await(20, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+         }
+      });
+      Thread reload2 = null;
+
+      try {
+         // reload 1 changes x: its refresh is queued
+         save(support.provider("x78793", ALL_USERS), support.slowTearDownProvider("y78793", ALL_USERS));
+         reload(host);
+         // reload 2 changes only y, and its slow dispose holds it between clearing the list and
+         // setting the new one
+         save(support.provider("x78793", ALL_USERS), support.slowTearDownProvider("y78793", NO_ALICE));
+         SlowTearDownProvider.inTearDown = new CountDownLatch(1);
+         reload2 = new Thread(() -> {
+            try {
+               reload(host);
+            }
+            catch(Exception e) {
+               throw new RuntimeException(e);
+            }
+         }, "reload2");
+         reload2.start();
+         assertTrue(SlowTearDownProvider.inTearDown.await(5, TimeUnit.SECONDS));
+         assertTrue(host.getProviders().isEmpty(), "reload 2 is between clear and set");
+      }
+      finally {
+         // x's queued refresh runs now, inside reload 2's dispose window
+         busy.countDown();
+      }
+
+      reload2.join(10_000);
+      SlowTearDownProvider.inTearDown = null;
+      assertTrue(await(() -> cachedAlice("x78793"), 5_000), "x's refresh was lost");
+   }
+
+   private static ExecutorService refreshExecutor() throws Exception {
+      Field field = AuthenticationChain.class.getDeclaredField("RELOAD_EXECUTOR");
+      field.setAccessible(true);
+      return (ExecutorService) field.get(null);
    }
 
    @Test

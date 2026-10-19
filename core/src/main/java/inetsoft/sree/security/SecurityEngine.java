@@ -1174,6 +1174,21 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
    }
 
    /**
+    * Gets the <code>SecurityProvider</code> object used by this system without taking the
+    * engine's init lock. The engine holds that lock while it tears providers down, and tearing
+    * down a Database provider takes its cache locks, so code that looks a provider up while
+    * holding those locks (the Database cache service) must use this method. It may return a
+    * provider that an init in progress is about to replace.
+    *
+    * @return a <code>SecurityProvider</code> instance or <code>null</code>
+    *         if no security provided is defined
+    */
+   public SecurityProvider peekSecurityProvider() {
+      SecurityProvider p = provider;
+      return isSecurityEnabled() && p != null ? p : vprovider;
+   }
+
+   /**
     * Get the <code>SecurityProvider</code> object used by this system.
     *
     * @return a <code>SecurityProvider</code> instance or <code>null</code>
@@ -1855,8 +1870,8 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
    private static final Lock touchLock = new ReentrantLock();
    private static final int MAX_PROVIDER_RETRIES = 5;
    private static final long INITIAL_RETRY_DELAY_MS = 1000L;
-   private SecurityProvider provider = null;
-   private SecurityProvider vprovider = null;
+   private volatile SecurityProvider provider = null;
+   private volatile SecurityProvider vprovider = null;
    private SecurityProvider vpm_provider = null;
    private Map<ClientInfo, SRPrincipal> users;
    private final Set<LoginListener> loginListeners = new LinkedHashSet<>();

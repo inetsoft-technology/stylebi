@@ -413,8 +413,9 @@ public class AuthenticationChain
 
    private void refreshReloaded(List<DatabaseAuthenticationProvider> providers) {
       for(DatabaseAuthenticationProvider changed : providers) {
-         // a later reload may have replaced it: refresh the current provider of that name
-         DatabaseAuthenticationProvider db = getProviderList().stream()
+         // A later reload may have replaced it: refresh the current provider of that name. A
+         // reload in progress empties the list before it sets the new one, so wait for it.
+         DatabaseAuthenticationProvider db = getProvidersAfterReload().stream()
             .filter(p -> p instanceof DatabaseAuthenticationProvider &&
                          Objects.equals(p.getProviderName(), changed.getProviderName()))
             .map(DatabaseAuthenticationProvider.class::cast)

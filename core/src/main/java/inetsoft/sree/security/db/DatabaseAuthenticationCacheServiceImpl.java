@@ -523,7 +523,9 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
    }
 
    private static DatabaseAuthenticationProvider getProvider(String providerName) {
-      SecurityProvider root = SecurityEngine.getSecurity().getSecurityProvider();
+      // Without the engine's init lock: the callers may hold the provider's cache locks, which
+      // the engine takes while it holds the init lock to tear the providers down.
+      SecurityProvider root = SecurityEngine.getSecurity().peekSecurityProvider();
 
       if(root == null) {
          throw new IllegalStateException("Security not configured");

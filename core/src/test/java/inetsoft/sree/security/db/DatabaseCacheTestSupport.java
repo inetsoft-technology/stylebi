@@ -80,6 +80,33 @@ public final class DatabaseCacheTestSupport {
    }
 
    /**
+    * A provider whose tear-down signals {@link #inTearDown} and then takes 800 ms while the
+    * latch is set, to hold a chain reload between clearing the provider list and setting the
+    * new one.
+    */
+   public static class SlowTearDownProvider extends SeamProvider {
+      @Override
+      public void tearDown() {
+         CountDownLatch latch = inTearDown;
+
+         if(latch != null && getProviderName() != null) {
+            latch.countDown();
+
+            try {
+               Thread.sleep(800);
+            }
+            catch(InterruptedException e) {
+               Thread.currentThread().interrupt();
+            }
+         }
+
+         super.tearDown();
+      }
+
+      public static volatile CountDownLatch inTearDown;
+   }
+
+   /**
     * Called by the slow query: sleeps once when {@link #slowLoad} is armed.
     */
    public static int sleepMs(int ms) {
@@ -219,6 +246,13 @@ public final class DatabaseCacheTestSupport {
     */
    public DatabaseAuthenticationProvider blockingProvider(String name, String userListQuery) {
       return provider(new BlockingProvider(), name, userListQuery, p -> { });
+   }
+
+   /**
+    * Creates a {@link SlowTearDownProvider} over the test database.
+    */
+   public DatabaseAuthenticationProvider slowTearDownProvider(String name, String userListQuery) {
+      return provider(new SlowTearDownProvider(), name, userListQuery, p -> { });
    }
 
    private DatabaseAuthenticationProvider provider(DatabaseAuthenticationProvider p, String name,

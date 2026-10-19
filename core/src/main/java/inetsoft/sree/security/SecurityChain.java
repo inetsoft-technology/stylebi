@@ -290,6 +290,23 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
    }
 
    /**
+    * Gets the providers, waiting for a reload of the configuration file that is replacing them
+    * to finish. During a reload the list is empty from {@link #clear()} until the new list is set.
+    *
+    * @return the security providers.
+    */
+   List<T> getProvidersAfterReload() {
+      lock.lock();
+
+      try {
+         return new ArrayList<>(getProviderList());
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
     * Describes the providers that a reload of the configuration file is about to replace, for
     * {@link #providersReloaded(Map, List)}.
     *
