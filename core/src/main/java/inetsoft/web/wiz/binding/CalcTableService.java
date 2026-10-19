@@ -905,7 +905,10 @@ public class CalcTableService {
          Map<String, Object> clause = (Map<String, Object>) c;
          Object field = clause.get("field");
 
-         if(field != null && !column.equals(String.valueOf(field))) {
+         // the column is the canonical spelling; a caller may have typed the field in another case
+         if(field != null && !column.equals(String.valueOf(field)) &&
+            !column.equalsIgnoreCase(String.valueOf(field).trim()))
+         {
             throw new IllegalArgumentException(
                "A named-group condition's 'field' must be the column being grouped ('" + column +
                "'), got '" + field + "'. Omit 'field' or set it to '" + column + "'.");

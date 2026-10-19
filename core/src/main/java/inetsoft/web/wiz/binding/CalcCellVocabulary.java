@@ -557,7 +557,9 @@ public final class CalcCellVocabulary {
 
             Object conditionField = clause.get("field");
 
-            if(conditionField != null && column != null && !column.equals(String.valueOf(conditionField))) {
+            if(conditionField != null && column != null && !column.equals(String.valueOf(conditionField)) &&
+               !column.equalsIgnoreCase(String.valueOf(conditionField).trim()))
+            {
                throw new IllegalArgumentException(
                   "'field.namedGroup.groups[" + i + "].conditions[" + c + "]' names field '" +
                   conditionField + "', but a named group only conditions on the column it is " +
