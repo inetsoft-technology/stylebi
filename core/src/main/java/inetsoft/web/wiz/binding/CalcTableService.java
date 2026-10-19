@@ -24,6 +24,8 @@ import inetsoft.report.LayoutTool;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.binding.ExpertNamedGroupInfo;
+import inetsoft.report.internal.binding.OrderInfo;
+import inetsoft.report.internal.binding.TopNInfo;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.XConstants;
@@ -293,10 +295,10 @@ public class CalcTableService {
     * dispatching a {@code GetPredefinedNamedGroupCommand}.
     */
    public Map<String, Object> namedGroups(String sessionToken, Principal user,
-                                          String assemblyName, String column)
+                                          String assemblyName, String rawColumn)
       throws Exception
    {
-      if(column == null || column.isBlank()) {
+      if(rawColumn == null || rawColumn.isBlank()) {
          throw new IllegalArgumentException(
             "list_named_groups requires 'column' — named groups are defined per column. " +
             "get_calc_layout reports which columns a cell is bound to.");
@@ -304,6 +306,9 @@ public class CalcTableService {
 
       return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          DataVSAssembly assembly = requireDataAssembly(rvs, assemblyName);
+         // Both lookups below match the column exactly, so a mis-cased name would answer [] and
+         // read as "this column has no named groups". Resolve it the way set_cell_binding does.
+         String column = requireBindableColumn(runtimeId, user, assemblyName, rawColumn);
 
          // The command carries the group NAMES only — its constructor takes
          // AssetNamedGroupInfo[] but keeps just getName() from each. The members are not on
@@ -986,10 +991,12 @@ public class CalcTableService {
             "'cols'. Merging a single cell does nothing and would report success.");
       }
 
+      List<String> rankWarnings = new ArrayList<>();
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          TableLayout layout = layoutOf(assembly);
          requireInGrid(layout, row, col);
+         Map<TableCellBinding, RankSnapshot> rankings = snapshotRankings(rvs, assembly);
 
          if("splitCells".equals(resolved)) {
             Dimension span = layout.getSpan(row, col);
@@ -1007,7 +1014,10 @@ public class CalcTableService {
          event.setNum(count);
          event.setSelection(new Rectangle(col, row, spanCols, spanRows));
          layoutService.modifyLayout(runtimeId, event, user, dispatcher);
+         remapRankings(rvs, assembly, rankings, rankWarnings);
       });
+
+      warnings = withRankWarnings(warnings, rankWarnings);
 
       // Returned rather than left to the caller: coordinates read before this call are stale.
       Map<String, Object> updated = readLayout(sessionToken, user, assemblyName);
@@ -1039,6 +1049,7 @@ public class CalcTableService {
             "is nowhere to paste and the operation would do nothing.");
       }
 
+      List<String> rankWarnings = new ArrayList<>();
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          TableLayout layout = layoutOf(assembly);
@@ -1049,6 +1060,7 @@ public class CalcTableService {
          }
 
          requireSourceRangeInGrid(layout, source);
+         Map<TableCellBinding, RankSnapshot> rankings = snapshotRankings(rvs, assembly);
 
          if("remove".equals(resolved)) {
             requireRemoveKeepsMergeIntact(layout, source);
@@ -1064,12 +1076,186 @@ public class CalcTableService {
                                 ? new Rectangle[]{ source, source }
                                 : new Rectangle[]{ source, target });
          layoutService.copyCut(runtimeId, event, user, dispatcher);
+         remapRankings(rvs, assembly, rankings, rankWarnings);
       });
 
+      warnings = withRankWarnings(warnings, rankWarnings);
       Map<String, Object> updated = readLayout(sessionToken, user, assemblyName);
       updated.put("note", "Coordinates read before this operation are stale — use this layout.");
       ViewsheetSessionService.relayWarnings(updated, warnings);
       return updated;
+   }
+
+   /**
+    * The summary cell a group cell's sort-by-value or top-N ranks by, kept by column+formula
+    * identity rather than by the list index the binding stores. Removing or shifting summary
+    * cells re-indexes {@link #aggregatesOf}, so an index left alone silently names a different
+    * summary afterwards. (Native only resets an index that falls out of range; one still in
+    * range follows the shifted position.)
+    */
+   private record RankTarget(String column, String formula) {
+      static RankTarget of(AggregateRef[] aggs, int index) {
+         if(aggs == null || index < 0 || index >= aggs.length) {
+            return null;
+         }
+
+         AggregateRef agg = aggs[index];
+         return new RankTarget(agg.getDataRef() == null ? null : agg.getDataRef().getName(),
+                               agg.getFormulaName());
+      }
+
+      int indexIn(AggregateRef[] aggs) {
+         for(int i = 0; i < aggs.length; i++) {
+            if(of(aggs, i).equals(this)) {
+               return i;
+            }
+         }
+
+         return -1;
+      }
+
+      @Override
+      public String toString() {
+         return formula + "(" + column + ")";
+      }
+   }
+
+   private record RankSnapshot(RankTarget sort, RankTarget topn) {}
+
+   private static boolean ranksBySummary(OrderInfo order) {
+      return order != null && (order.isSortByValAsc() || order.isSortByValDesc());
+   }
+
+   private static boolean ranksBySummary(TopNInfo topn) {
+      return topn != null && topn.getTopN() != 0 && topn.getTopNSummaryCol() >= 0;
+   }
+
+   /**
+    * Records, per group cell that ranks by a summary, which summary that is. Empty (and
+    * {@link #aggregatesOf} never called) when no cell ranks by one.
+    */
+   private Map<TableCellBinding, RankSnapshot> snapshotRankings(RuntimeViewsheet rvs,
+                                                                CalcTableVSAssembly assembly)
+      throws Exception
+   {
+      Map<TableCellBinding, RankSnapshot> out = new IdentityHashMap<>();
+      List<TableCellBinding> ranked = new ArrayList<>();
+
+      for(TableCellBinding cell : groupCellsOf(layoutOf(assembly))) {
+         if(ranksBySummary(cell.getOrderInfo(false)) || ranksBySummary(cell.getTopN(false))) {
+            ranked.add(cell);
+         }
+      }
+
+      if(ranked.isEmpty()) {
+         return out;
+      }
+
+      AggregateRef[] aggs = aggregatesOf(rvs, assembly);
+
+      for(TableCellBinding cell : ranked) {
+         OrderInfo order = cell.getOrderInfo(false);
+         TopNInfo topn = cell.getTopN(false);
+         out.put(cell, new RankSnapshot(
+            ranksBySummary(order) ? RankTarget.of(aggs, order.getSortByCol()) : null,
+            ranksBySummary(topn) ? RankTarget.of(aggs, topn.getTopNSummaryCol()) : null));
+      }
+
+      return out;
+   }
+
+   /**
+    * Points each snapshotted ranking at the same summary's new index. A ranking whose summary no
+    * longer exists is cleared (sort reset to plain ascending/descending, top-N off) and
+    * disclosed, rather than left on whichever summary now holds its old index.
+    */
+   private void remapRankings(RuntimeViewsheet rvs, CalcTableVSAssembly assembly,
+                              Map<TableCellBinding, RankSnapshot> snapshot, List<String> warnings)
+      throws Exception
+   {
+      if(snapshot.isEmpty()) {
+         return;
+      }
+
+      TableLayout layout = layoutOf(assembly);
+      AggregateRef[] aggs = aggregatesOf(rvs, assembly);
+
+      for(int r = 0; r < layout.getRowCount(); r++) {
+         for(int c = 0; c < layout.getColCount(); c++) {
+            if(!(layout.getCellBinding(r, c) instanceof TableCellBinding cell)) {
+               continue;
+            }
+
+            RankSnapshot before = snapshot.get(cell);
+
+            if(before == null) {
+               continue;
+            }
+
+            String where = "[" + r + "," + c + "]";
+
+            if(before.sort() != null) {
+               OrderInfo order = cell.getOrderInfo(false);
+               int index = before.sort().indexIn(aggs);
+
+               if(index >= 0) {
+                  order.setSortByCol(index);
+               }
+               else {
+                  order.setSortByCol(0);
+                  order.setOrder(order.isSortByValAsc() ? OrderInfo.SORT_ASC :
+                                    OrderInfo.SORT_DESC);
+                  warnings.add("Group cell " + where + " sorted by " + before.sort() +
+                               ", which this operation removed; its sort was reset to plain " +
+                               "ascending/descending by label.");
+               }
+            }
+
+            if(before.topn() != null) {
+               TopNInfo topn = cell.getTopN(false);
+               int index = before.topn().indexIn(aggs);
+
+               if(index >= 0) {
+                  topn.setTopNSummaryCol(index);
+               }
+               else {
+                  topn.setTopN(0);
+                  topn.setTopNSummaryCol(-1);
+                  topn.setTopNReverse(false);
+                  warnings.add("Group cell " + where + " ranked its top/bottom-N by " +
+                               before.topn() + ", which this operation removed; its top-N was " +
+                               "cleared.");
+               }
+            }
+         }
+      }
+   }
+
+   private static List<TableCellBinding> groupCellsOf(TableLayout layout) {
+      List<TableCellBinding> out = new ArrayList<>();
+
+      for(int r = 0; r < layout.getRowCount(); r++) {
+         for(int c = 0; c < layout.getColCount(); c++) {
+            if(layout.getCellBinding(r, c) instanceof TableCellBinding cell &&
+               cell.getType() == CellBinding.BIND_COLUMN &&
+               cell.getBType() == TableCellBinding.GROUP)
+            {
+               out.add(cell);
+            }
+         }
+      }
+
+      return out;
+   }
+
+   private static List<String> withRankWarnings(List<String> warnings, List<String> extra) {
+      if(extra.isEmpty()) {
+         return warnings;
+      }
+
+      List<String> all = new ArrayList<>(warnings == null ? List.of() : warnings);
+      all.addAll(extra);
+      return all;
    }
 
    /**

@@ -841,6 +841,32 @@ class CalcCellVocabularyTest {
               "field", Map.of("column", "Order:Total", "type", "measure"), "formula", "First")));
    }
 
+   @ParameterizedTest
+   @ValueSource(strings = {"group", "detail"})
+   void verify78829_refusesAnUnknownFormulaNameOnANonSummaryColumnCell(String grouping) {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> CalcCellVocabulary.validate(
+            spec("content", "column", "grouping", grouping,
+                 "field", Map.of("column", "Order:Region", "type", "dimension"),
+                 "formula", "Avrage")));
+      assertTrue(e.getMessage().contains("Avrage"), e.getMessage());
+   }
+
+   @Test
+   void verify78829_refusesAnUnknownFormulaNameWhenGroupingIsOmitted() {
+      assertThrows(IllegalArgumentException.class, () -> CalcCellVocabulary.validate(
+         spec("content", "column", "field", Map.of("column", "Order:Region", "type", "dimension"),
+              "formula", "Avrage")));
+   }
+
+   @Test
+   void verify78829_aValidNameReadBackOnAGroupCellStillPasses() {
+      assertDoesNotThrow(() -> CalcCellVocabulary.validate(
+         spec("content", "column", "grouping", "group",
+              "field", Map.of("column", "Order:Region", "type", "dimension"),
+              "formula", "Sum")));
+   }
+
    @Test
    void advertisedFormulasDropsTheUnsupportedAndKeepsSumSQ() {
       List<String> out = CalcCellVocabulary.advertisedFormulas(List.of(

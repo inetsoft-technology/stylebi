@@ -22,12 +22,16 @@ import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.CalcAggregate;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.web.binding.controller.VSTableLayoutService;
 import inetsoft.web.binding.event.CopyCutCalcCellEvent;
+import inetsoft.web.binding.event.ModifyTableLayoutEvent;
 import inetsoft.web.binding.handler.TableLayoutHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
@@ -65,6 +69,7 @@ class CalcTableServiceCopyMergeTest {
    private CalcTableVSAssemblyInfo info;
    private VSTableLayoutService layoutService;
    private CalcTableService service;
+   private ViewsheetSessionService sessions;
 
    /** A 4x4 calc grid whose copyCut runs the real copy operation on the live info. */
    @BeforeEach
@@ -86,7 +91,7 @@ class CalcTableServiceCopyMergeTest {
       when(vs.getAssembly(anyString())).thenReturn(assembly);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
-      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      sessions = mock(ViewsheetSessionService.class);
       doAnswer(invocation -> {
          ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
          return CapturingCommandDispatcher.withCapturingDispatcher(
@@ -101,6 +106,12 @@ class CalcTableServiceCopyMergeTest {
          handler.copyOperation(info, event.getOp(), selections[0], selections[1]);
          return null;
       }).when(layoutService).copyCut(anyString(), any(), any(), any());
+
+      doAnswer(invocation -> {
+         ModifyTableLayoutEvent event = invocation.getArgument(1);
+         handler.doOperation(info, event.getOp(), event.getSelection(), event.getNum());
+         return null;
+      }).when(layoutService).modifyLayout(anyString(), any(), any(), any());
 
       TableLayoutHandler serviceHandler = spy(handler);
       doReturn(new CalcAggregate[0]).when(serviceHandler).getCalcAggregateFields(any(), any());
@@ -514,6 +525,146 @@ class CalcTableServiceCopyMergeTest {
 
       assertEquals("ANCHOR", value(2, 2));
       assertNull(value(0, 0));
+   }
+
+   // ── #78829 item 4: removing a summary must not re-target a group cell's ranking ───────────
+
+   private void group(int row, int col, int sortByCol, int topnCol) {
+      TableCellBinding group = TableCellBinding.getGroupBinding("Region");
+      group.getOrderInfo(true).setOrder(XConstants.SORT_VALUE_DESC);
+      group.getOrderInfo(true).setSortByCol(sortByCol);
+      group.getTopN(true).setTopN(3);
+      group.getTopN(true).setTopNSummaryCol(topnCol);
+      layout().setCellBinding(row, col, group);
+   }
+
+   private void summary(int row, int col, String column, String formula) {
+      TableCellBinding summary = TableCellBinding.getSummaryBinding(column);
+      summary.setFormula(formula);
+      layout().setCellBinding(row, col, summary);
+   }
+
+   /** A service whose summary list is derived from the real layout, as production does. */
+   private CalcTableService rankingService() throws Exception {
+      ColumnSelection columns = new ColumnSelection();
+      columns.addAttribute(new AttributeRef(null, "Total"));
+      columns.addAttribute(new AttributeRef(null, "Price"));
+      columns.addAttribute(new AttributeRef(null, "Qty"));
+      VSColumnHandler columnsHandler = mock(VSColumnHandler.class);
+      when(columnsHandler.getColumnSelection(any(), any(), any(), any(), anyBoolean(),
+                                             anyBoolean(), anyBoolean(), anyBoolean(),
+                                             anyBoolean(), anyBoolean()))
+         .thenReturn(columns);
+      return new CalcTableService(sessions, layoutService, mock(DataRefModelFactoryService.class),
+                                  mock(BindableFieldsService.class), columnsHandler, handler);
+   }
+
+   private int topnCol() {
+      return ((TableCellBinding) layout().getCellBinding(0, 0)).getTopN(false)
+         .getTopNSummaryCol();
+   }
+
+   private int sortCol() {
+      return ((TableCellBinding) layout().getCellBinding(0, 0)).getOrderInfo(false)
+         .getSortByCol();
+   }
+
+   @Test
+   void removingAnEarlierSummaryRemapsARankingToTheSameSummaryAtItsNewIndex() throws Exception {
+      summary(0, 1, "Total", "Sum");
+      summary(0, 2, "Price", "Sum");
+      summary(0, 3, "Qty", "Average");
+      group(0, 0, 2, 2);
+      service = rankingService();
+
+      remove(0, 1, 1, 1);
+
+      assertEquals(1, sortCol());
+      assertEquals(1, topnCol());
+   }
+
+   @Test
+   void removingTheRankedSummaryClearsTheRankingAndDisclosesIt() throws Exception {
+      summary(0, 1, "Total", "Sum");
+      summary(0, 2, "Price", "Sum");
+      group(0, 0, 0, 0);
+      service = rankingService();
+
+      java.util.Map<String, Object> result = service.copyCells(
+         "tok", principal(), "Calc1", "remove", new Rectangle(1, 0, 1, 1), null);
+
+      TableCellBinding group = (TableCellBinding) layout().getCellBinding(0, 0);
+      assertFalse(group.getOrderInfo(false).isSortByVal(), "sort must not follow Sum(Price)");
+      assertEquals(0, group.getTopN(false).getTopN());
+      String warnings = String.valueOf(result.get("warnings"));
+      assertTrue(warnings.contains("Sum(Total)"), warnings);
+      assertTrue(warnings.contains("[0,0]"), warnings);
+   }
+
+   @Test
+   void removingAnUnrelatedCellLeavesTheRankingAlone() throws Exception {
+      summary(0, 1, "Total", "Sum");
+      summary(0, 2, "Price", "Sum");
+      group(0, 0, 1, 1);
+      text(1, 1, "x");
+      service = rankingService();
+
+      java.util.Map<String, Object> result = service.copyCells(
+         "tok", principal(), "Calc1", "remove", new Rectangle(1, 1, 1, 1), null);
+
+      assertEquals(1, sortCol());
+      assertEquals(1, topnCol());
+      assertNull(result.get("warnings"));
+   }
+
+   @Test
+   void removingADuplicatedSummaryKeepsTheRankingBecauseTheDedupedListIsUnchanged()
+      throws Exception
+   {
+      summary(0, 1, "Total", "Sum");
+      summary(0, 2, "Total", "Sum");
+      summary(0, 3, "Price", "Sum");
+      group(0, 0, 1, 1);
+      service = rankingService();
+
+      java.util.Map<String, Object> result = service.copyCells(
+         "tok", principal(), "Calc1", "remove", new Rectangle(2, 0, 1, 1), null);
+
+      assertEquals(1, sortCol());
+      assertEquals(1, topnCol());
+      assertNull(result.get("warnings"));
+   }
+
+   @Test
+   void removingOneOfTwoIdenticalSummariesKeepsARankingOnIt() throws Exception {
+      summary(0, 1, "Total", "Sum");
+      summary(0, 2, "Total", "Sum");
+      summary(0, 3, "Price", "Sum");
+      group(0, 0, 0, 0);
+      service = rankingService();
+
+      java.util.Map<String, Object> result = service.copyCells(
+         "tok", principal(), "Calc1", "remove", new Rectangle(1, 0, 1, 1), null);
+
+      assertEquals(0, sortCol());
+      assertEquals(0, topnCol());
+      assertTrue(((TableCellBinding) layout().getCellBinding(0, 0)).getOrderInfo(false)
+                    .isSortByValDesc());
+      assertNull(result.get("warnings"));
+   }
+
+   @Test
+   void deletingAColumnOfSummariesRemapsAShiftedRanking() throws Exception {
+      summary(0, 1, "Total", "Sum");
+      summary(0, 2, "Price", "Sum");
+      summary(0, 3, "Qty", "Average");
+      group(0, 0, 2, 2);
+      service = rankingService();
+
+      service.modifyLayout("tok", principal(), "Calc1", "deleteCol", 0, 1, 1, 1, 1);
+
+      assertEquals(1, sortCol());
+      assertEquals(1, topnCol());
    }
 
    // ── helpers ───────────────────────────────────────────────────────────────
