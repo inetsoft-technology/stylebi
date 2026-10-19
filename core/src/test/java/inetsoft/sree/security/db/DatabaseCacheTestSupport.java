@@ -96,8 +96,8 @@ public final class DatabaseCacheTestSupport {
    }
 
    /**
-    * Tears down the engine's providers and the providers made here, and restores the
-    * properties.
+    * Tears down the engine's providers and the providers made here, undeploys their cache
+    * services and restores the properties.
     */
    public void tearDown() {
       slowLoad = false;
@@ -123,6 +123,17 @@ public final class DatabaseCacheTestSupport {
       }
 
       created.clear();
+
+      // stop the services' reload chains before the context closes
+      for(String name : names) {
+         try {
+            Cluster.getInstance().undeploySingletonService("DatabaseSecurity:" + name);
+         }
+         catch(Exception ignore) {
+         }
+      }
+
+      names.clear();
 
       for(Map.Entry<String, String> e : saved.entrySet()) {
          if(e.getValue() == null) {
@@ -172,6 +183,7 @@ public final class DatabaseCacheTestSupport {
       p.setSystemAdministratorRoles(new String[0]);
       p.setProviderName(name);
       created.add(p);
+      names.add(name);
       return p;
    }
 
@@ -254,4 +266,5 @@ public final class DatabaseCacheTestSupport {
    private final String url;
    private final Map<String, String> saved = new HashMap<>();
    private final List<DatabaseAuthenticationProvider> created = new ArrayList<>();
+   private final Set<String> names = new HashSet<>();
 }
