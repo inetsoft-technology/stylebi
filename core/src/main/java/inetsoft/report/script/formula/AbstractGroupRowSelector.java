@@ -111,6 +111,14 @@ abstract class AbstractGroupRowSelector extends RangeSelector {
    }
 
    /**
+    * Get the name of the first group column that could not be resolved, or null if all
+    * group columns were found.
+    */
+   public String getMissingColumn() {
+      return missingCol ? missingColName : null;
+   }
+
+   /**
     * Initialize the group columns and values.
     */
    protected void init(XTable table, Map groupspecs) {
@@ -137,6 +145,11 @@ abstract class AbstractGroupRowSelector extends RangeSelector {
 
             if(idx < 0) {
                missingCol = true;
+
+               if(missingColName == null) {
+                  missingColName = group.toString();
+               }
+
                LOG.warn(
                   "Group cell:" + group + " is not " +
                   "suitable. Please verify that all fields are from " +
@@ -163,6 +176,7 @@ abstract class AbstractGroupRowSelector extends RangeSelector {
    protected int[] gcolumns; // group columns
    protected Object[] values; // group values
    protected boolean missingCol = false; // if a column is not found
+   protected String missingColName = null; // first group column that was not found
    private transient TableRow tableRow;
    private transient ColumnIndexMap columnIndexMap;
    private static final Logger LOG =
