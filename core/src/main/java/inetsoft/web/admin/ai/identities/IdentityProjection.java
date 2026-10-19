@@ -33,6 +33,13 @@ import java.util.*;
  * 9) -- only a fixed presence/absence token, so a plan whose only change is a different password
  * still perturbs the hash without the hash (or a hash-mismatch error message echoing it back) ever
  * exposing the value or even its length.
+ *
+ * <p>Every rendered value is separator-escaped ({@code \ , ; =} get a backslash prefix,
+ * Bug #78854), so a value can't pass for a list boundary or another field: {@code ["GA,GB"]}
+ * and {@code ["GA","GB"]} project differently, and so do their plan hashes. An {@link
+ * IdentityID} key escapes its name and organization separately and keeps the literal
+ * {@code ~;~} between them, so ordinary names (no separator characters) render, and hash,
+ * exactly as before.
  */
 final class IdentityProjection {
    private IdentityProjection() {
@@ -44,7 +51,7 @@ final class IdentityProjection {
       }
 
       StringBuilder sb = new StringBuilder();
-      append(sb, "id", idKey(u.getIdentityID()));
+      appendId(sb, u.getIdentityID());
       append(sb, "alias", u.getAlias());
       append(sb, "locale", u.getLocale());
       append(sb, "theme", u.getTheme());
@@ -65,7 +72,7 @@ final class IdentityProjection {
     * is comparable across preview and apply. */
    static String projectUserSpec(IdentityID id, IdentitySpec spec) {
       StringBuilder sb = new StringBuilder();
-      append(sb, "id", idKey(id));
+      appendId(sb, id);
       append(sb, "alias", spec.getAlias());
       append(sb, "locale", spec.getLocale());
       append(sb, "theme", spec.getTheme());
@@ -83,7 +90,7 @@ final class IdentityProjection {
       }
 
       StringBuilder sb = new StringBuilder();
-      append(sb, "id", idKey(id));
+      appendId(sb, id);
       append(sb, "theme", g.getTheme());
       appendSorted(sb, "parentGroups", g.getParentGroups());
       appendSorted(sb, "memberUsers", g.getMemberUsers());
@@ -94,7 +101,7 @@ final class IdentityProjection {
 
    static String projectGroupSpec(IdentityID id, IdentitySpec spec) {
       StringBuilder sb = new StringBuilder();
-      append(sb, "id", idKey(id));
+      appendId(sb, id);
       append(sb, "theme", spec.getTheme());
       appendSorted(sb, "parentGroups", spec.getParentGroups());
       appendSorted(sb, "memberUsers", spec.getMemberUsers());
@@ -109,7 +116,7 @@ final class IdentityProjection {
       }
 
       StringBuilder sb = new StringBuilder();
-      append(sb, "id", idKey(id));
+      appendId(sb, id);
       append(sb, "description", r.getDescription());
       append(sb, "theme", r.getTheme());
       appendSorted(sb, "assignedUsers", r.getAssignedUsers());
@@ -123,7 +130,7 @@ final class IdentityProjection {
 
    static String projectRoleSpec(IdentityID id, IdentitySpec spec) {
       StringBuilder sb = new StringBuilder();
-      append(sb, "id", idKey(id));
+      appendId(sb, id);
       append(sb, "description", spec.getDescription());
       append(sb, "theme", spec.getTheme());
       appendSorted(sb, "assignedUsers", spec.getAssignedUsers());
@@ -160,12 +167,24 @@ final class IdentityProjection {
    }
 
    private static void append(StringBuilder sb, String field, String value) {
-      sb.append(field).append('=').append(value == null ? "" : value).append(';');
+      sb.append(field).append('=').append(escape(value)).append(';');
+   }
+
+   /** The {@code id} field of a user/group/role: the key's name and org are escaped separately
+    * and the literal {@code ~;~} between them is kept (see {@link #escapedIdKey}). */
+   private static void appendId(StringBuilder sb, IdentityID id) {
+      sb.append("id=").append(escapedIdKey(id)).append(';');
    }
 
    private static void appendSorted(StringBuilder sb, String field, List<String> values) {
       TreeSet<String> sorted = values == null ? new TreeSet<>() : new TreeSet<>(values);
-      sb.append(field).append('=').append(String.join(",", sorted)).append(';');
+      StringJoiner joined = new StringJoiner(",");
+
+      for(String value : sorted) {
+         joined.add(escape(value));
+      }
+
+      sb.append(field).append('=').append(joined).append(';');
    }
 
    /** {@code properties} isn't a flat {@code List<String>}, so it gets its own sorted-by-name
@@ -186,26 +205,67 @@ final class IdentityProjection {
             rendered.append(',');
          }
 
-         rendered.append(entry.getKey()).append('=').append(entry.getValue());
+         rendered.append(escape(entry.getKey())).append('=')
+            .append(escape(String.valueOf(entry.getValue())));
       }
 
       sb.append(field).append('=').append(rendered).append(';');
    }
 
    private static void appendSortedIds(StringBuilder sb, String field, List<IdentityID> ids) {
-      TreeSet<String> sorted = new TreeSet<>();
+      // Sorted by the raw key, as before, so ordinary names keep their order and bytes.
+      TreeMap<String, String> sorted = new TreeMap<>();
 
       if(ids != null) {
          for(IdentityID id : ids) {
-            sorted.add(idKey(id));
+            sorted.put(id == null ? "" : id.convertToKey(), escapedIdKey(id));
          }
       }
 
-      sb.append(field).append('=').append(String.join(",", sorted)).append(';');
+      sb.append(field).append('=').append(String.join(",", sorted.values())).append(';');
    }
 
-   private static String idKey(IdentityID id) {
-      return id == null ? "" : id.convertToKey();
+   /** {@link IdentityID#convertToKey()} with the name and organization escaped separately
+    * around the literal {@link IdentityID#KEY_DELIMITER}: the delimiter is the only unescaped
+    * {@code ;} in the result, so a {@code ~;~} inside the name or org can't move the boundary. */
+   private static String escapedIdKey(IdentityID id) {
+      if(id == null) {
+         return "";
+      }
+
+      String key = id.convertToKey();
+      String name = id.getName();
+      // convertToKey() is name + KEY_DELIMITER + org (org falls back to the global key), so the
+      // org part is everything after the name and the delimiter.
+      String org = key.substring(String.valueOf(name).length() + IdentityID.KEY_DELIMITER.length());
+      return escape(String.valueOf(name)) + IdentityID.KEY_DELIMITER + escape(org);
+   }
+
+   /** Backslash-escapes the projection's separator characters. Identity for ordinary values. */
+   private static String escape(String value) {
+      if(value == null) {
+         return "";
+      }
+
+      StringBuilder out = null;
+
+      for(int i = 0; i < value.length(); i++) {
+         char c = value.charAt(i);
+
+         if(c == '\\' || c == ',' || c == ';' || c == '=') {
+            if(out == null) {
+               out = new StringBuilder(value.length() + 8).append(value, 0, i);
+            }
+
+            out.append('\\');
+         }
+
+         if(out != null) {
+            out.append(c);
+         }
+      }
+
+      return out == null ? value : out.toString();
    }
 
    private static boolean isBlank(String s) {

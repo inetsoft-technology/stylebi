@@ -526,6 +526,36 @@ public class IdentityChangePlanService {
       checkField(label, "locale", spec.getLocale(),
                 unitType == IdentityUnitType.USER || unitType == IdentityUnitType.ORGANIZATION, null);
       // "theme" is legal on every unit type -- no check needed.
+      requireNoBlankElements(label, spec);
+   }
+
+   /** Refuses a null or blank element in any identity-name/email list (Bug #78854): such an
+    * element names nothing, and {@code [""]} would project (and hash) the same as {@code []}. */
+   private static void requireNoBlankElements(String label, IdentitySpec spec) {
+      requireNoBlankElements(label, "emails", spec.getEmails());
+      requireNoBlankElements(label, "groups", spec.getGroups());
+      requireNoBlankElements(label, "roles", spec.getRoles());
+      requireNoBlankElements(label, "parentGroups", spec.getParentGroups());
+      requireNoBlankElements(label, "memberUsers", spec.getMemberUsers());
+      requireNoBlankElements(label, "memberGroups", spec.getMemberGroups());
+      requireNoBlankElements(label, "inheritedRoles", spec.getInheritedRoles());
+      requireNoBlankElements(label, "assignedUsers", spec.getAssignedUsers());
+      requireNoBlankElements(label, "assignedGroups", spec.getAssignedGroups());
+   }
+
+   private static void requireNoBlankElements(String label, String fieldName, List<String> values) {
+      if(values == null) {
+         return;
+      }
+
+      for(int i = 0; i < values.size(); i++) {
+         String value = values.get(i);
+
+         if(value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(label + ".spec." + fieldName + "[" + i +
+               "]: must not be blank; remove the empty entry");
+         }
+      }
    }
 
    private static void checkField(String label, String fieldName, Object value, boolean legal,
