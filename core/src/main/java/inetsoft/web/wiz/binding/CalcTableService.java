@@ -1542,7 +1542,8 @@ public class CalcTableService {
       }
    }
 
-   static void requireInGrid(TableLayout layout, int row, int col) {
+   /** Also the calc-table bound of a highlight or hyperlink cell (bug #78719). */
+   public static void requireInGrid(TableLayout layout, int row, int col) {
       if(row < 0 || col < 0 || row >= layout.getRowCount() || col >= layout.getColCount()) {
          throw new IllegalArgumentException(
             "Cell [" + row + "," + col + "] is outside the grid, which is " +

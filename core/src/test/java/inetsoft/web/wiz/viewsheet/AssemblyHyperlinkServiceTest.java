@@ -31,6 +31,7 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -1075,6 +1076,15 @@ class AssemblyHyperlinkServiceTest {
       when(vs.getAssembly(assemblyName)).thenReturn(assembly);
       ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
       when(h.rvs().getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
+
+      // A table's cell is checked against its rendered lens (bug #78719), so a table-type
+      // assembly gets one by default; a test that needs particular headers stubs its own.
+      if(assembly instanceof TableDataVSAssembly && mockingDetails(assembly).isMock()) {
+         when(assembly.getAbsoluteName()).thenReturn(assemblyName);
+         VSTableLens lens = tableLens("A", "B", "C");
+         when(sandbox.getVSTableLens(assemblyName, false)).thenReturn(lens);
+      }
+
       return sandbox;
    }
 
@@ -1089,9 +1099,14 @@ class AssemblyHyperlinkServiceTest {
       return dataset;
    }
 
+   /** Rows of every mocked table lens, header rows included. */
+   private static final int TABLE_ROWS = 10;
+
    private static VSTableLens tableLens(String... headers) {
       VSTableLens lens = mock(VSTableLens.class);
       when(lens.getColCount()).thenReturn(headers.length);
+      when(lens.getRowCount()).thenReturn(TABLE_ROWS);
+      when(lens.moreRows(intThat(r -> r >= 0 && r < TABLE_ROWS))).thenReturn(true);
 
       for(int i = 0; i < headers.length; i++) {
          when(lens.getObject(0, i)).thenReturn(headers[i]);
@@ -1517,7 +1532,7 @@ class AssemblyHyperlinkServiceTest {
       when(info.getRowHyperlink()).thenReturn(mock(Hyperlink.class));
       when(assembly.getVSAssemblyInfo()).thenReturn(info);
       ViewsheetSandbox sandbox = wireRuntimeData(h, "Table1", assembly);
-      VSTableLens lens = mock(VSTableLens.class);
+      VSTableLens lens = tableLens("A");
       when(lens.getHeaderRowCount()).thenReturn(headerRows);
       when(sandbox.getVSTableLens("Table1", false)).thenReturn(lens);
       return h;
@@ -1663,7 +1678,7 @@ class AssemblyHyperlinkServiceTest {
       when(info.getRowHyperlink()).thenReturn(rowLinked ? mock(Hyperlink.class) : null);
       when(assembly.getVSAssemblyInfo()).thenReturn(info);
       ViewsheetSandbox sandbox = wireRuntimeData(h, "Table1", assembly);
-      VSTableLens lens = mock(VSTableLens.class);
+      VSTableLens lens = tableLens("A");
       when(lens.getHeaderRowCount()).thenReturn(headerRows);
       when(sandbox.getVSTableLens("Table1", false)).thenReturn(lens);
       return h;
