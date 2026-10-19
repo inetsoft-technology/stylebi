@@ -205,7 +205,9 @@ class PermissionIdentityRefsTest {
          () -> preview(create("k^host-org")));
 
       assertTrue(ex.getMessage().contains("ambiguous"), ex.getMessage());
-      assertTrue(ex.getMessage().contains("use \"name:orgId\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains(
+         "use \"k:host-org\" to name the second, or \"k^host-org:host-org\" to name the first"),
+         ex.getMessage());
    }
 
    @Test void createForAnIdentityThatDoesNotExistIsRefused() {

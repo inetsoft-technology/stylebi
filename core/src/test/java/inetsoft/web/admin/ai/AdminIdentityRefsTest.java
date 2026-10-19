@@ -130,6 +130,10 @@ class AdminIdentityRefsTest {
 
       assertTrue(message.contains("ambiguous"), message);
       assertTrue(message.contains("both"), message);
+      // both readings can still be named: the split one and the literal one
+      assertTrue(message.contains("\"j:cur\""), message);
+      assertTrue(message.contains("\"j^cur:cur\""), message);
+      assertEquals(new IdentityID("j^cur", "cur"), parse("j^cur:cur", false));
    }
 
    @Test void caretWhereNeitherReadingExistsSplits() {

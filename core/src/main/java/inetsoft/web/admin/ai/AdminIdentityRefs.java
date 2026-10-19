@@ -189,7 +189,9 @@ public final class AdminIdentityRefs {
                throw new IllegalArgumentException(
                   field + ": \"" + trimmed + "\" is ambiguous -- both the identity named \"" +
                   trimmed + "\" in org \"" + currentOrgId + "\" and the identity \"" + name +
-                  "\" in org \"" + suffix + "\" exist; use \"name:orgId\" to name the second");
+                  "\" in org \"" + suffix + "\" exist; use \"" + name + ":" + suffix +
+                  "\" to name the second, or \"" + trimmed + ":" + currentOrgId +
+                  "\" to name the first");
             }
 
             // only the literal reading exists, e.g. an external user really named "j^host-org"

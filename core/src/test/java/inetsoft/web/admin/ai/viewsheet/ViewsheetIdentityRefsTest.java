@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.viewsheet;
 
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.RepletRegistryManager;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.test.BaseTestConfiguration;
@@ -76,6 +77,7 @@ import static org.mockito.Mockito.*;
 class ViewsheetIdentityRefsTest {
    private static final String ORG = "host-org";
    private static final IdentityID ADMIN = new IdentityID("admin", ORG);
+   private static final String HOST_NAME_PROPERTY = "local.host.name";
 
    @Autowired private DataSpace dataSpace;
 
@@ -91,8 +93,14 @@ class ViewsheetIdentityRefsTest {
    private MockedStatic<SecurityEngine> securityEngineStatic;
    private MockedStatic<Audit> auditStatic;
    private String folder;
+   private String savedHostName;
 
    @BeforeEach void setUp() throws Exception {
+      // the apply audit calls Tool.getHost(); without a set host name it does a reverse DNS
+      // lookup that takes about 5 s on some machines (same stub as SchedulerTestHarness)
+      savedHostName = SreeEnv.getProperty(HOST_NAME_PROPERTY);
+      SreeEnv.setProperty(HOST_NAME_PROPERTY, "test-host");
+
       OrganizationManager orgManager = spy(OrganizationManager.getInstance());
       doReturn(ORG).when(orgManager).getCurrentOrgID();
       doReturn(true).when(orgManager).isSiteAdmin(any(Principal.class));
@@ -149,6 +157,13 @@ class ViewsheetIdentityRefsTest {
       auditStatic.close();
       securityEngineStatic.close();
       orgManagerStatic.close();
+
+      if(savedHostName == null) {
+         SreeEnv.remove(HOST_NAME_PROPERTY);
+      }
+      else {
+         SreeEnv.setProperty(HOST_NAME_PROPERTY, savedHostName);
+      }
    }
 
    // ------------------------------------------------------------------ get_viewsheet_folder
@@ -163,6 +178,9 @@ class ViewsheetIdentityRefsTest {
    }
 
    @Test void getFolderWithACaretAndAnUnknownOrgIsRefused() {
+      // refused only because "SELF" is not an org in this test's provider (unknown org); with
+      // a real org SELF, "admin^SELF" resolves to admin@SELF (with a not-found warning), as
+      // "admin:SELF" does
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> controller.getFolder(folder, "admin^SELF", user));
 
@@ -244,6 +262,9 @@ class ViewsheetIdentityRefsTest {
    }
 
    @Test void previewWithACaretAndAnUnknownOrgIsRefused() {
+      // refused only because "SELF" is not an org in this test's provider (unknown org); with
+      // a real org SELF, "admin^SELF" resolves to admin@SELF (with a not-found warning), as
+      // "admin:SELF" does
       ViewsheetChangeRequest create = folderChange(ViewsheetChangeRequest.VERB_CREATE, "admin^SELF");
       create.setFolderName("NewF");
 
