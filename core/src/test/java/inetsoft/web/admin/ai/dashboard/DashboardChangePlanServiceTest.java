@@ -32,6 +32,8 @@ import inetsoft.web.admin.content.repository.model.RepositoryFolderDashboardSett
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -64,6 +66,8 @@ class DashboardChangePlanServiceTest {
    @Mock private OrganizationManager orgManager;
    private DashboardChangePlanService service;
    private MockedStatic<OrganizationManager> orgManagerStatic;
+   private MockedStatic<inetsoft.sree.security.SecurityEngine> securityEngineStatic;
+   private inetsoft.sree.security.SecurityProvider ownerProvider;
    private MockedStatic<inetsoft.util.Tool> tool;
 
    private static final IdentityID OWNER = new IdentityID("bob", "host-org");
@@ -72,6 +76,19 @@ class DashboardChangePlanServiceTest {
       service = new DashboardChangePlanService(
          repositoryDashboardService, dashboardRegistryManager, dashboardManager);
 
+      // Bug #78866: owner parsing and the missing-owner warning consult the provider through
+      // SecurityEngine.getSecurity(); the fixture owners and orgs exist
+      ownerProvider = mock(inetsoft.sree.security.SecurityProvider.class, withSettings().lenient());
+      inetsoft.sree.security.SecurityEngine engine =
+         mock(inetsoft.sree.security.SecurityEngine.class, withSettings().lenient());
+      when(engine.getSecurityProvider()).thenReturn(ownerProvider);
+      when(ownerProvider.getUser(any())).thenReturn(mock(inetsoft.sree.security.User.class));
+      when(ownerProvider.getOrganization(any()))
+         .thenReturn(mock(inetsoft.sree.security.Organization.class));
+      securityEngineStatic =
+         mockStatic(inetsoft.sree.security.SecurityEngine.class, withSettings().lenient());
+      securityEngineStatic.when(inetsoft.sree.security.SecurityEngine::getSecurity)
+         .thenReturn(engine);
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       lenient().when(orgManager.getCurrentOrgID()).thenReturn("host-org");
@@ -89,6 +106,7 @@ class DashboardChangePlanServiceTest {
 
    @AfterEach void tearDown() {
       orgManagerStatic.close();
+      securityEngineStatic.close();
       tool.close();
    }
 
@@ -524,6 +542,57 @@ class DashboardChangePlanServiceTest {
       RepositoryFolderDashboardSettingsModel folder = service.getFolder("bob:host-org", user);
 
       assertEquals(List.of("Dashboard1__GLOBAL"), folder.dashboards());
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #78866: owner reference forms
+   // -------------------------------------------------------------------------
+
+   @ParameterizedTest
+   @ValueSource(strings = { "bob", "bob~;~host-org", "bob^host-org" })
+   void resolveUpdateOwnerScopedAcceptsEveryOwnerForm(String ownerRef) throws Exception {
+      onlyOwnerExists();
+      when(ownerRegistry.getDashboard(eq("Dashboard1"))).thenReturn(mock(Dashboard.class));
+      stubCurrentSettings("Dashboard1", OWNER, "Existing desc", vsAssetId(), true);
+      DashboardChangeRequest colon = updateDashboardChange("Dashboard1", null, "new desc");
+      colon.setOwner("bob:host-org");
+      DashboardChangeRequest change = updateDashboardChange("Dashboard1", null, "new desc");
+      change.setOwner(ownerRef);
+
+      var expected = service.resolve(request("task", List.of(colon)), user);
+      var plan = service.resolve(request("task", List.of(change)), user);
+
+      assertEquals(expected.changes().get(0).property(), plan.changes().get(0).property());
+      assertEquals(expected.planHash(), plan.planHash());
+      assertFalse(plan.changes().get(0).description().contains("WARNING"));
+   }
+
+   @Test void resolveWarnsForAnOwnerTheProviderDoesNotKnow() throws Exception {
+      when(ownerProvider.getUser(any())).thenReturn(null);
+      DashboardChangeRequest change = createDashboardChange("Dashboard1");
+      change.setOwner("bob:host-org");
+
+      var plan = service.resolve(request("task", List.of(change)), user);
+
+      assertTrue(plan.changes().get(0).description().startsWith("WARNING: owner \"bob"),
+                 plan.changes().get(0).description());
+   }
+
+   @Test void resolveRefusesACaretOwnerWithAnUnknownOrg() {
+      onlyOwnerExists();
+      when(ownerProvider.getOrganization("SELF")).thenReturn(null);
+      DashboardChangeRequest change = createDashboardChange("Dashboard1");
+      change.setOwner("bob^SELF");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("no organization \"SELF\""), ex.getMessage());
+   }
+
+   private void onlyOwnerExists() {
+      inetsoft.sree.security.User owner = mock(inetsoft.sree.security.User.class);
+      when(ownerProvider.getUser(any()))
+         .thenAnswer(inv -> OWNER.equals(inv.getArgument(0)) ? owner : null);
    }
 
    // -------------------------------------------------------------------------

@@ -20,8 +20,8 @@ package inetsoft.web.admin.ai.viewsheet;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.content.repository.RepletRegistryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -121,38 +121,21 @@ public class ViewsheetFolderService {
    }
 
    /**
-    * Parses a bare identity name or a {@code name:orgId}-shaped key -- a plain colon, the
-    * human/tool-facing wire format, matching {@code PermissionChangePlanService.requireIdentityId}'s
-    * own precedent and rationale exactly. <b>Deliberately does not call {@code
-    * IdentityID.getIdentityIDFromKey} directly</b>: that method's own delimiter is {@code
-    * IdentityID.KEY_DELIMITER} ("{@code ~;~}"), an internal serialization format that never appears
-    * in a caller-supplied argument -- calling it on a colon-separated string like {@code
-    * "bob:host-org"} would silently treat the WHOLE string as the identity name and default the org
-    * from {@code ThreadContext.getPrincipal()} (unset outside a live request thread), silently
-    * mis-resolving the owner rather than failing loud. Caught by this area's own tests before
-    * shipping (a real instance of repo CLAUDE.md's "tool-misuse is a plugin gap" class of defect).
-    * Unlike {@code requireIdentityId}, an explicit org suffix here is NOT restricted to the caller's
-    * own org -- {@code OrganizationAccess.check(owner.getOrgID(), principal)} already exists at the
-    * wrapped {@code ViewsheetService} tier for exactly this case (section 4a), and this area's
-    * only caller population is always a site administrator, who is exactly who that check exists to
-    * allow through for a different org.
+    * Parses an {@code owner} through {@link AdminIdentityRefs#parse}: a bare name, {@code
+    * name:orgId}, the storage key {@code name~;~orgId} (which plans and reads echo back), or the
+    * caret label {@code name^orgId} (Bug #78866). A blank owner is {@code null} (global scope).
+    * <b>Not {@code IdentityID.getIdentityIDFromKey} for a bare name</b>: that defaults the org from
+    * {@code ThreadContext.getPrincipal()} (unset outside a live request thread). Unlike {@code
+    * PermissionChangePlanService.requireIdentityId}, an explicit org here is NOT restricted to the
+    * caller's own org -- {@code OrganizationAccess.check(owner.getOrgID(), principal)} already
+    * exists at the wrapped {@code ViewsheetService} tier for exactly this case (section 4a), and
+    * this area's only caller population is always a site administrator -- but it must be an
+    * existing org. The owner itself is not required to exist in the security provider (an
+    * SSO-only user has a real per-user registry without a provider record); plans warn instead,
+    * see {@code AdminIdentityRefs#missingOwnerWarning}. Apply re-parses through this same method.
     */
    public static IdentityID parseOwner(String ownerRaw) {
-      String trimmed = ownerRaw == null ? null : ownerRaw.trim();
-
-      if(trimmed == null || trimmed.isEmpty()) {
-         return null;
-      }
-
-      int delim = trimmed.indexOf(':');
-
-      if(delim < 0) {
-         return new IdentityID(trimmed, OrganizationManager.getInstance().getCurrentOrgID());
-      }
-
-      String name = trimmed.substring(0, delim);
-      String orgId = trimmed.substring(delim + 1);
-      return new IdentityID(name, orgId);
+      return AdminIdentityRefs.parseOwner(ownerRaw);
    }
 
    /**

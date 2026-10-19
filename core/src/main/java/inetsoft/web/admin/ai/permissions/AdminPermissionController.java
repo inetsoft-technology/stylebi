@@ -22,6 +22,7 @@ import inetsoft.web.admin.security.ResourcePermission;
 import inetsoft.web.admin.security.SecurityService;
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
+import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ApplyResult;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -149,7 +150,7 @@ public class AdminPermissionController {
       String idType = PermissionChangePlanService.requireIdentityType("identityType", identityType);
       String currentOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       IdentityID id = PermissionChangePlanService.requireIdentityId(
-         "identityId", identityId, currentOrgId);
+         "identityId", identityId, currentOrgId, idType, AdminIdentityRefs.fromSecurityEngine());
 
       PermissionGrant grant = securityService.getPermissionGrant(
          resourcePath, type.name(), id.getName(), idType, user);

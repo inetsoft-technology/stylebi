@@ -189,7 +189,9 @@ public class PermissionChangesetApplyService {
       String identityType =
          PermissionChangePlanService.requireIdentityType("change", original.getIdentityType());
       IdentityID identityId =
-         PermissionChangePlanService.requireIdentityId("change", original.getIdentityId(), currentOrgId);
+         PermissionChangePlanService.requireIdentityId("change", original.getIdentityId(),
+                                                       currentOrgId, identityType,
+                                                       planService.directory());
 
       if(PermissionChangeRequest.VERB_CREATE.equals(original.getVerb())) {
          applyCreate(txId, task, key, resourceType, resourcePath, identityType, identityId,

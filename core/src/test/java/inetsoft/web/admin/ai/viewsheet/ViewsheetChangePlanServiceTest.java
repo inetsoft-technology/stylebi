@@ -30,6 +30,8 @@ import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -63,6 +65,8 @@ class ViewsheetChangePlanServiceTest {
    @Mock private OrganizationManager orgManager;
    private ViewsheetChangePlanService service;
    private MockedStatic<OrganizationManager> orgManagerStatic;
+   private MockedStatic<inetsoft.sree.security.SecurityEngine> securityEngineStatic;
+   private inetsoft.sree.security.SecurityProvider ownerProvider;
    private MockedStatic<DependencyTool> dependencyToolStatic;
    private MockedStatic<Tool> tool;
 
@@ -74,6 +78,19 @@ class ViewsheetChangePlanServiceTest {
       service = new ViewsheetChangePlanService(
          viewsheetApiService, folderService, assetRepository, worksheetApiService);
 
+      // Bug #78866: owner parsing and the missing-owner warning consult the provider through
+      // SecurityEngine.getSecurity(); the fixture owners and orgs exist
+      ownerProvider = mock(inetsoft.sree.security.SecurityProvider.class, withSettings().lenient());
+      inetsoft.sree.security.SecurityEngine engine =
+         mock(inetsoft.sree.security.SecurityEngine.class, withSettings().lenient());
+      when(engine.getSecurityProvider()).thenReturn(ownerProvider);
+      when(ownerProvider.getUser(any())).thenReturn(mock(inetsoft.sree.security.User.class));
+      when(ownerProvider.getOrganization(any()))
+         .thenReturn(mock(inetsoft.sree.security.Organization.class));
+      securityEngineStatic =
+         mockStatic(inetsoft.sree.security.SecurityEngine.class, withSettings().lenient());
+      securityEngineStatic.when(inetsoft.sree.security.SecurityEngine::getSecurity)
+         .thenReturn(engine);
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       lenient().when(orgManager.getCurrentOrgID()).thenReturn("host-org");
@@ -90,6 +107,7 @@ class ViewsheetChangePlanServiceTest {
 
    @AfterEach void tearDown() {
       orgManagerStatic.close();
+      securityEngineStatic.close();
       dependencyToolStatic.close();
       tool.close();
    }
@@ -726,6 +744,53 @@ class ViewsheetChangePlanServiceTest {
       var second = service.resolve(request("remove Census vs", List.of(change)), user);
 
       assertEquals(first.planHash(), second.planHash());
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #78866: owner reference forms on viewsheet rename (global=false)
+   // -------------------------------------------------------------------------
+
+   @ParameterizedTest
+   @ValueSource(strings = { "bob", "bob~;~host-org", "bob^host-org" })
+   void resolveRenameAcceptsEveryOwnerForm(String ownerRef) throws Exception {
+      IdentityID owner = new IdentityID("bob", "host-org");
+      inetsoft.sree.security.User bob = mock(inetsoft.sree.security.User.class);
+      when(ownerProvider.getUser(any()))
+         .thenAnswer(inv -> owner.equals(inv.getArgument(0)) ? bob : null);
+      stubViewsheetList(VS_ASSET_ID, "My Dashboards/Census", false, owner);
+
+      var expected = service.resolve(request("task", List.of(renameViewsheetChange(
+         VS_ASSET_ID, "My Dashboards/Census2", false, "bob:host-org"))), user);
+      var plan = service.resolve(request("task", List.of(renameViewsheetChange(
+         VS_ASSET_ID, "My Dashboards/Census2", false, ownerRef))), user);
+
+      assertEquals(expected.changes().get(0).proposedValue(), plan.changes().get(0).proposedValue());
+      assertEquals(expected.planHash(), plan.planHash());
+      assertFalse(plan.changes().get(0).description().contains("WARNING"));
+   }
+
+   @Test void resolveRenameWarnsForAnOwnerTheProviderDoesNotKnow() throws Exception {
+      when(ownerProvider.getUser(any())).thenReturn(null);
+      stubViewsheetList(VS_ASSET_ID, "My Dashboards/Census", false,
+                        new IdentityID("bob", "host-org"));
+
+      var plan = service.resolve(request("task", List.of(renameViewsheetChange(
+         VS_ASSET_ID, "My Dashboards/Census2", false, "bob"))), user);
+
+      assertTrue(plan.changes().get(0).description().startsWith("WARNING: owner \"bob"),
+                 plan.changes().get(0).description());
+   }
+
+   @Test void resolveRenameRefusesAnOwnerInAnUnknownOrg() throws Exception {
+      when(ownerProvider.getOrganization("nope-org")).thenReturn(null);
+      stubViewsheetList(VS_ASSET_ID, "My Dashboards/Census", false,
+                        new IdentityID("bob", "host-org"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(renameViewsheetChange(
+            VS_ASSET_ID, "My Dashboards/Census2", false, "bob:nope-org"))), user));
+      assertTrue(ex.getMessage().contains("organization \"nope-org\" does not exist"),
+                 ex.getMessage());
    }
 
    // -------------------------------------------------------------------------

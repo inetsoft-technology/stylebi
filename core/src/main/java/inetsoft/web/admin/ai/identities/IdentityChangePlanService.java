@@ -23,6 +23,7 @@ import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.util.audit.AdminChangeRecord;
+import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.SecurityProviderGuard;
@@ -166,6 +167,7 @@ public class IdentityChangePlanService {
       throws Exception
    {
       String name = requireNonBlank(label + ".spec.name", spec.getName());
+      requireNoReferenceSeparators(label + ".spec.name", name);
       String orgId = blankToDefault(spec.getOrgId(), currentOrgId);
       IdentityID id = new IdentityID(name, orgId);
       String key = key(IdentityUnitType.USER, id.convertToKey());
@@ -182,6 +184,7 @@ public class IdentityChangePlanService {
       throws Exception
    {
       String name = requireNonBlank(label + ".spec.name", spec.getName());
+      requireNoReferenceSeparators(label + ".spec.name", name);
       String orgId = blankToDefault(spec.getOrgId(), currentOrgId);
       IdentityID id = new IdentityID(name, orgId);
       String key = key(IdentityUnitType.GROUP, id.convertToKey());
@@ -197,6 +200,7 @@ public class IdentityChangePlanService {
       throws Exception
    {
       String name = requireNonBlank(label + ".spec.name", spec.getName());
+      requireNoReferenceSeparators(label + ".spec.name", name);
       String orgId = blankToDefault(spec.getOrgId(), currentOrgId);
       IdentityID id = new IdentityID(name, orgId);
       String key = key(IdentityUnitType.ROLE, id.convertToKey());
@@ -229,7 +233,7 @@ public class IdentityChangePlanService {
    {
       switch(unitType) {
       case USER: {
-         IdentityID id = parseIdentityId(label, rawId, currentOrgId);
+         IdentityID id = parseIdentityId(label, rawId, currentOrgId, unitType, directory());
          String key = key(unitType, id.convertToKey());
          requireUnseen(label, key, seenKeys);
          SecurityUser existing = requireGet(label, () -> securityService.getUser(id, user), key);
@@ -238,7 +242,7 @@ public class IdentityChangePlanService {
                                AdminChangeRecord.SCOPE_STORAGE, true, "delete user " + id.getLabel());
       }
       case GROUP: {
-         IdentityID id = parseIdentityId(label, rawId, currentOrgId);
+         IdentityID id = parseIdentityId(label, rawId, currentOrgId, unitType, directory());
          String key = key(unitType, id.convertToKey());
          requireUnseen(label, key, seenKeys);
          SecurityGroup existing = requireGet(label, () -> securityService.getGroup(id, user), key);
@@ -247,7 +251,7 @@ public class IdentityChangePlanService {
                                AdminChangeRecord.SCOPE_STORAGE, true, "delete group " + id.getLabel());
       }
       case ROLE: {
-         IdentityID id = parseIdentityId(label, rawId, currentOrgId);
+         IdentityID id = parseIdentityId(label, rawId, currentOrgId, unitType, directory());
          String key = key(unitType, id.convertToKey());
          requireUnseen(label, key, seenKeys);
          SecurityRole existing = requireGet(label, () -> securityService.getRole(id, user), key);
@@ -300,7 +304,9 @@ public class IdentityChangePlanService {
                                         Principal user, String currentOrgId, Set<String> seenKeys)
       throws Exception
    {
-      IdentityID id = parseIdentityId(label, rawId, currentOrgId);
+      IdentityID id =
+         parseIdentityId(label, rawId, currentOrgId, IdentityUnitType.USER, directory());
+      requireRenameFreeOfSeparators(label, spec, id);
       String key = key(IdentityUnitType.USER, id.convertToKey());
       requireUnseen(label, key, seenKeys);
       SecurityUser existing = requireGet(label, () -> securityService.getUser(id, user), key);
@@ -315,7 +321,9 @@ public class IdentityChangePlanService {
                                          Principal user, String currentOrgId, Set<String> seenKeys)
       throws Exception
    {
-      IdentityID id = parseIdentityId(label, rawId, currentOrgId);
+      IdentityID id =
+         parseIdentityId(label, rawId, currentOrgId, IdentityUnitType.GROUP, directory());
+      requireRenameFreeOfSeparators(label, spec, id);
       String key = key(IdentityUnitType.GROUP, id.convertToKey());
       requireUnseen(label, key, seenKeys);
       SecurityGroup existing = requireGet(label, () -> securityService.getGroup(id, user), key);
@@ -330,7 +338,9 @@ public class IdentityChangePlanService {
                                         Principal user, String currentOrgId, Set<String> seenKeys)
       throws Exception
    {
-      IdentityID id = parseIdentityId(label, rawId, currentOrgId);
+      IdentityID id =
+         parseIdentityId(label, rawId, currentOrgId, IdentityUnitType.ROLE, directory());
+      requireRenameFreeOfSeparators(label, spec, id);
       String key = key(IdentityUnitType.ROLE, id.convertToKey());
       requireUnseen(label, key, seenKeys);
       SecurityRole existing = requireGet(label, () -> securityService.getRole(id, user), key);
@@ -696,20 +706,49 @@ public class IdentityChangePlanService {
    }
 
    /**
-    * Parses a bare identity name or a {@code name:orgId}-shaped key (the human/tool-facing wire
-    * format -- a plain colon, not {@code IdentityID.convertToKey()}'s internal delimiter, matching
-    * C.2's {@code requireIdentityId} precedent and its reasoning for not using {@code
-    * IdentityID.getIdentityIDFromKey} directly).
+    * Parses an identity reference through {@link AdminIdentityRefs#parse}: a bare name, {@code
+    * name:orgId}, the storage key {@code name~;~orgId}, or the caret label {@code name^orgId}
+    * (Bug #78857). Not {@code IdentityID.getIdentityIDFromKey} for a bare name, because that
+    * defaults the org from {@code ThreadContext.getPrincipal()}. Another org is allowed when it
+    * exists. A global ({@code __GLOBAL__}) identity is refused: a global role's delete cannot be
+    * rolled back ({@code SecurityService.createRole} refuses a null org).
     */
-   static IdentityID parseIdentityId(String label, String rawId, String currentOrgId) {
-      String trimmed = requireNonBlank(label + ".id", rawId);
-      int delim = trimmed.indexOf(':');
+   static IdentityID parseIdentityId(String label, String rawId, String currentOrgId,
+                                     IdentityUnitType unitType, AdminIdentityRefs.Directory dir)
+   {
+      requireNonBlank(label + ".id", rawId);
+      return AdminIdentityRefs.parse(label + ".id", rawId, currentOrgId,
+                                     AdminIdentityRefs.Kind.valueOf(unitType.name()), true, false,
+                                     dir);
+   }
 
-      if(delim < 0) {
-         return new IdentityID(trimmed, currentOrgId);
+   /** The provider lookups {@link #parseIdentityId} uses. */
+   AdminIdentityRefs.Directory directory() {
+      return AdminIdentityRefs.of(securityEngine::getSecurityProvider);
+   }
+
+   /**
+    * Bug #78857: refuses a user/group/role name holding an identity-reference separator. Such a
+    * name could not be addressed again through {@link #parseIdentityId} (the EM validators forbid
+    * them too, but only on the client).
+    */
+   static void requireNoReferenceSeparators(String field, String name) {
+      if(name.contains(":") || name.contains("^") || name.contains(IdentityID.KEY_DELIMITER)) {
+         throw new IllegalArgumentException(
+            field + ": must not contain \":\", \"^\" or \"" + IdentityID.KEY_DELIMITER +
+            "\" -- they are identity-reference separators");
       }
+   }
 
-      return new IdentityID(trimmed.substring(0, delim), trimmed.substring(delim + 1));
+   /** A rename (a {@code spec.name} other than the current name) gets the create-time check. */
+   private static void requireRenameFreeOfSeparators(String label, IdentitySpec spec,
+                                                     IdentityID id)
+   {
+      String name = spec == null || spec.getName() == null ? null : spec.getName().trim();
+
+      if(name != null && !name.equals(id.getName())) {
+         requireNoReferenceSeparators(label + ".spec.name", name);
+      }
    }
 
    static String requireNonBlank(String field, String value) {

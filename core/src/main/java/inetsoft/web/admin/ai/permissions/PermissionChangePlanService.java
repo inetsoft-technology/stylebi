@@ -22,6 +22,7 @@ import inetsoft.web.admin.security.SecurityService;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.audit.AdminChangeRecord;
+import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.SecurityProviderGuard;
@@ -115,7 +116,9 @@ public class PermissionChangePlanService {
       ResourceType resourceType = requireAllowedResourceType(label, change.getResourceType());
       String resourcePath = requireNonBlank(label + ".resourcePath", change.getResourcePath());
       String identityType = requireIdentityType(label, change.getIdentityType());
-      IdentityID identityId = requireIdentityId(label, change.getIdentityId(), currentOrgId);
+      AdminIdentityRefs.Directory dir = directory();
+      IdentityID identityId =
+         requireIdentityId(label, change.getIdentityId(), currentOrgId, identityType, dir);
 
       String seenKey = grantKey(resourceType.name(), resourcePath, identityType, identityId);
 
@@ -130,6 +133,10 @@ public class PermissionChangePlanService {
 
       PermissionGrant existing = securityService.getPermissionGrant(
          resourcePath, resourceType.name(), identityId.getName(), identityType, user);
+      // Bug #78857: checked after getPermissionGrant, so its checkIdType "Did you mean
+      // identityType=..." refusal still wins for a name of the wrong kind
+      boolean identityKnown = Identity.Type.UNKNOWN_USER.name().equals(identityType) ||
+         dir.exists(kindOf(identityType), identityId);
 
       if(PermissionChangeRequest.VERB_CREATE.equals(verb)) {
          if(change.getActions() == null || change.getActions().isEmpty()) {
@@ -141,6 +148,12 @@ public class PermissionChangePlanService {
          if(existing != null) {
             throw new IllegalArgumentException(
                label + ": a grant already exists for " + seenKey + "; use verb=update instead");
+         }
+
+         if(!identityKnown) {
+            throw new IllegalArgumentException(
+               label + ".identityId: no " + identityType + " \"" + identityId.getName() +
+               "\" in org \"" + identityId.getOrgID() + "\" -- a grant would match nobody");
          }
 
          String proposed = PermissionProjection.projectTotalWithOverride(
@@ -165,9 +178,9 @@ public class PermissionChangePlanService {
          requireNoSelfLockout(label, user, identityType, identityId, existing, change.getActions());
          String proposed = PermissionProjection.projectTotalWithOverride(
             rawBefore, currentOrgId, identityType, identityId, change.getActions());
-         return new PlanChange(seenKey, identityId.getOrgID(), totalProjection, proposed,
-                               AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_VALUE, true,
-                               "update permission grant");
+         return withMissingIdentityWarning(identityKnown, new PlanChange(
+            seenKey, identityId.getOrgID(), totalProjection, proposed, AdminChangeRecord.RISK_HIGH,
+            AdminChangeRecord.SCOPE_VALUE, true, "update permission grant"));
       }
 
       // delete
@@ -183,9 +196,16 @@ public class PermissionChangePlanService {
       requireNoSelfLockout(label, user, identityType, identityId, existing, null);
       String proposed = PermissionProjection.projectTotalWithOverride(
          rawBefore, currentOrgId, identityType, identityId, null);
-      return new PlanChange(seenKey, identityId.getOrgID(), totalProjection, proposed,
-                            AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_VALUE, true,
-                            "delete permission grant");
+      return withMissingIdentityWarning(identityKnown, new PlanChange(
+         seenKey, identityId.getOrgID(), totalProjection, proposed, AdminChangeRecord.RISK_HIGH,
+         AdminChangeRecord.SCOPE_VALUE, true, "delete permission grant"));
+   }
+
+   /** update/delete of a grant whose identity is gone stays allowed (the grant itself must exist,
+    * and a stale grant must stay removable), with an advisory in the un-hashed description. */
+   private static PlanChange withMissingIdentityWarning(boolean identityKnown, PlanChange change) {
+      return identityKnown ? change :
+         AdminIdentityRefs.withWarning(change, "identity not found in the security provider");
    }
 
    /**
@@ -272,44 +292,40 @@ public class PermissionChangePlanService {
    }
 
    /**
-    * Parses a bare identity name or a {@code name:orgId}-shaped key (spec section 11 -- a plain
-    * colon, the human/tool-facing wire format, not {@code IdentityID.convertToKey()}'s internal
-    * {@code "~;~"} delimiter, which never appears in a caller-supplied argument). **Deliberately
-    * does not use {@code IdentityID.getIdentityIDFromKey} directly** -- that method defaults a
-    * bare name's org from {@code ThreadContext.getPrincipal()}, which is not set outside a live
-    * request thread (untestable without a thread-local fixture) and, more importantly, an explicit
-    * org suffix would silently diverge from what {@code SecurityService.getPermissionGrant} can
-    * actually look up: that method reconstructs the target identity using the *caller's own* org
-    * regardless of what org the lookup key names (read directly -- {@code new
-    * IdentityID(idName, IdentityID.getIdentityIDFromKey(principal.getName()).orgID)}), while
-    * {@code createPermissionGrant}/{@code updatePermissionGrant}/{@code deletePermissionGrant}
-    * take a full {@code PermissionGrant} with an arbitrary org and do not enforce the same
-    * constraint -- an asymmetry that would make an explicit cross-org {@code identityId} silently
-    * check one org and mutate another. Refusing any org suffix that does not match the caller's
-    * current org sidesteps that asymmetry entirely, consistent with this area's "no org-targeting
-    * parameter" decision (spec section 4a/10).
+    * Parses {@code identityId} through {@link AdminIdentityRefs#parse}: a bare name, {@code
+    * name:orgId}, the storage key {@code name~;~orgId}, or the caret label {@code name^orgId}
+    * (Bug #78857). **Deliberately does not use {@code IdentityID.getIdentityIDFromKey} for a bare
+    * name** -- that method defaults a bare name's org from {@code ThreadContext.getPrincipal()},
+    * which is not set outside a live request thread. Any org other than the caller's current org
+    * is refused, whatever the form: {@code SecurityService.getPermissionGrant} reconstructs the
+    * target identity using the *caller's own* org regardless of what org the lookup key names
+    * (read directly -- {@code new IdentityID(idName,
+    * IdentityID.getIdentityIDFromKey(principal.getName()).orgID)}), while {@code
+    * createPermissionGrant}/{@code updatePermissionGrant}/{@code deletePermissionGrant} take a
+    * full {@code PermissionGrant} with an arbitrary org and do not enforce the same constraint --
+    * an asymmetry that would make an explicit cross-org {@code identityId} silently check one org
+    * and mutate another. This is consistent with this area's "no org-targeting parameter" decision
+    * (spec section 4a/10). A global ({@code __GLOBAL__}) identity is refused too: this area always
+    * files a grant under the current org.
     */
-   static IdentityID requireIdentityId(String label, String identityId,
-                                               String currentOrgId)
+   static IdentityID requireIdentityId(String label, String identityId, String currentOrgId,
+                                       String identityType, AdminIdentityRefs.Directory dir)
    {
-      String trimmed = requireNonBlank(label + ".identityId", identityId);
-      int delim = trimmed.indexOf(':');
+      requireNonBlank(label + ".identityId", identityId);
+      return AdminIdentityRefs.parse(label + ".identityId", identityId, currentOrgId,
+                                     kindOf(identityType), false, false, dir);
+   }
 
-      if(delim < 0) {
-         return new IdentityID(trimmed, currentOrgId);
-      }
+   /** The {@link AdminIdentityRefs.Kind} of a validated {@code identityType}, or {@code USER} for
+    * {@code UNKNOWN_USER}, which has no provider record to look up. */
+   static AdminIdentityRefs.Kind kindOf(String identityType) {
+      return Identity.Type.UNKNOWN_USER.name().equals(identityType)
+         ? AdminIdentityRefs.Kind.USER : AdminIdentityRefs.Kind.valueOf(identityType);
+   }
 
-      String name = trimmed.substring(0, delim);
-      String orgId = trimmed.substring(delim + 1);
-
-      if(!Objects.equals(orgId, currentOrgId)) {
-         throw new IllegalArgumentException(
-            label + ".identityId: targets org \"" + orgId + "\", but this area only supports " +
-            "the caller's current org (\"" + currentOrgId + "\") in this cut -- no org-targeting " +
-            "parameter exists yet");
-      }
-
-      return new IdentityID(name, currentOrgId);
+   /** The provider lookups {@link #requireIdentityId} and the existence check use. */
+   AdminIdentityRefs.Directory directory() {
+      return AdminIdentityRefs.of(securityEngine::getSecurityProvider);
    }
 
    /**

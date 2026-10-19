@@ -472,7 +472,8 @@ public class IdentityChangesetApplyService {
                                 List<IdentityApplyOutcome> results, List<Undo> undoable)
       throws Exception
    {
-      IdentityID id = IdentityChangePlanService.parseIdentityId("change", rawId, currentOrgId);
+      IdentityID id = IdentityChangePlanService.parseIdentityId(
+         "change", rawId, currentOrgId, IdentityUnitType.USER, planService.directory());
       // Authoritative before-state, captured DURING apply, per spec section 2.5 of the guide.
       SecurityUser before = securityService.getUser(id, user);
       String beforeProjection = IdentityProjection.projectUser(before);
@@ -516,7 +517,8 @@ public class IdentityChangesetApplyService {
                                  List<IdentityApplyOutcome> results, List<Undo> undoable)
       throws Exception
    {
-      IdentityID id = IdentityChangePlanService.parseIdentityId("change", rawId, currentOrgId);
+      IdentityID id = IdentityChangePlanService.parseIdentityId(
+         "change", rawId, currentOrgId, IdentityUnitType.GROUP, planService.directory());
       SecurityGroup before = securityService.getGroup(id, user);
       String beforeProjection = IdentityProjection.projectGroup(before, id);
       String advisory = describeDeleteTaskImpacts(providerName, id, Identity.GROUP, user);
@@ -559,7 +561,8 @@ public class IdentityChangesetApplyService {
                                 List<Undo> undoable)
       throws Exception
    {
-      IdentityID id = IdentityChangePlanService.parseIdentityId("change", rawId, currentOrgId);
+      IdentityID id = IdentityChangePlanService.parseIdentityId(
+         "change", rawId, currentOrgId, IdentityUnitType.ROLE, planService.directory());
       SecurityRole before = securityService.getRole(id, user);
       String beforeProjection = IdentityProjection.projectRole(before, id);
       // getDeleteTaskImpacts only covers USER/GROUP (community IdentityService's own type filter,
@@ -675,7 +678,8 @@ public class IdentityChangesetApplyService {
                                 List<IdentityApplyOutcome> results, List<Undo> undoable)
       throws Exception
    {
-      IdentityID id = IdentityChangePlanService.parseIdentityId("change", rawId, currentOrgId);
+      IdentityID id = IdentityChangePlanService.parseIdentityId(
+         "change", rawId, currentOrgId, IdentityUnitType.USER, planService.directory());
       // Authoritative before-state, captured DURING apply, per spec section 2.5 of the guide --
       // matches applyDeleteUser's discipline, not reused from preview's resolve.
       SecurityUser before = securityService.getUser(id, user);
@@ -725,7 +729,8 @@ public class IdentityChangesetApplyService {
                                  List<IdentityApplyOutcome> results, List<Undo> undoable)
       throws Exception
    {
-      IdentityID id = IdentityChangePlanService.parseIdentityId("change", rawId, currentOrgId);
+      IdentityID id = IdentityChangePlanService.parseIdentityId(
+         "change", rawId, currentOrgId, IdentityUnitType.GROUP, planService.directory());
       SecurityGroup before = securityService.getGroup(id, user);
       String beforeProjection = IdentityProjection.projectGroup(before, id);
       SecurityGroup merged = IdentityMerge.mergeGroup(before, spec, id);
@@ -770,7 +775,8 @@ public class IdentityChangesetApplyService {
                                 List<IdentityApplyOutcome> results, List<Undo> undoable)
       throws Exception
    {
-      IdentityID id = IdentityChangePlanService.parseIdentityId("change", rawId, currentOrgId);
+      IdentityID id = IdentityChangePlanService.parseIdentityId(
+         "change", rawId, currentOrgId, IdentityUnitType.ROLE, planService.directory());
       SecurityRole before = securityService.getRole(id, user);
       String beforeProjection = IdentityProjection.projectRole(before, id);
       SecurityRole merged = IdentityMerge.mergeRole(before, spec, id);

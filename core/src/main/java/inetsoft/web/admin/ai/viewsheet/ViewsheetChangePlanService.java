@@ -33,6 +33,7 @@ import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.RecycleUtils;
+import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
@@ -143,16 +144,33 @@ public class ViewsheetChangePlanService {
       }
 
       String unitType = requireUnitType(label, change.getUnitType());
+      PlanChange resolved;
 
       if(ViewsheetChangeRequest.UNIT_VIEWSHEET.equals(unitType)) {
-         return resolveViewsheet(label, change, user, seenKeys, auxProjections);
+         resolved = resolveViewsheet(label, change, user, seenKeys, auxProjections);
+      }
+      else if(ViewsheetChangeRequest.UNIT_WORKSHEET.equals(unitType)) {
+         resolved = resolveWorksheet(label, change, user, seenKeys, auxProjections);
+      }
+      else {
+         resolved = resolveFolder(label, change, user, seenKeys, auxProjections);
       }
 
-      if(ViewsheetChangeRequest.UNIT_WORKSHEET.equals(unitType)) {
-         return resolveWorksheet(label, change, user, seenKeys, auxProjections);
-      }
+      return withMissingOwnerWarning(unitType, change, resolved);
+   }
 
-      return resolveFolder(label, change, user, seenKeys, auxProjections);
+   /** Bug #78866: an owner the security provider does not know is accepted (an SSO-only user
+    * has a real per-user registry), with an advisory in the un-hashed description. Only the
+    * changes that use the owner: folder changes, and an owner-scoped viewsheet/worksheet rename. */
+   private static PlanChange withMissingOwnerWarning(String unitType, ViewsheetChangeRequest change,
+                                                     PlanChange resolved)
+   {
+      boolean usesOwner = ViewsheetChangeRequest.UNIT_FOLDER.equals(unitType) ||
+         ViewsheetChangeRequest.VERB_RENAME.equals(change.getVerb()) &&
+         Boolean.FALSE.equals(change.getGlobal());
+      IdentityID owner = usesOwner ? ViewsheetFolderService.parseOwner(change.getOwner()) : null;
+      String warning = AdminIdentityRefs.missingOwnerWarning(owner);
+      return warning == null ? resolved : AdminIdentityRefs.withWarning(resolved, warning);
    }
 
    // ---------------------------------------------------------------- viewsheet

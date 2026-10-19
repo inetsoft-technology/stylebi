@@ -66,6 +66,12 @@ class PermissionChangesetApplyServiceTest {
       planService = new PermissionChangePlanService(securityService, securityEngine);
       service = new PermissionChangesetApplyService(planService, securityService, securityEngine);
       lenient().when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
+      // Bug #78857: create refuses an identity the provider does not know -- these fixtures' bare
+      // names (bob, alice, other-org, ...) stand for existing identities
+      lenient().when(securityProvider.getUser(any())).thenReturn(mock(User.class));
+      lenient().when(securityProvider.getGroup(any())).thenReturn(mock(Group.class));
+      lenient().when(securityProvider.getRole(any())).thenReturn(mock(Role.class));
+      lenient().when(securityProvider.getOrganization(any())).thenReturn(mock(Organization.class));
 
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);

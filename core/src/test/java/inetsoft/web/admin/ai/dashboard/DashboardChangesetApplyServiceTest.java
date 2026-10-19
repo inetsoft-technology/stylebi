@@ -35,6 +35,8 @@ import inetsoft.web.admin.content.repository.model.RepositoryFolderDashboardSett
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.quality.Strictness;
@@ -76,6 +78,8 @@ class DashboardChangesetApplyServiceTest {
    private DashboardChangePlanService planService;
    private DashboardChangesetApplyService service;
    private MockedStatic<OrganizationManager> orgManagerStatic;
+   private MockedStatic<inetsoft.sree.security.SecurityEngine> securityEngineStatic;
+   private inetsoft.sree.security.SecurityProvider ownerProvider;
    private MockedStatic<inetsoft.util.Tool> tool;
 
    private static final IdentityID OWNER = new IdentityID("bob", "host-org");
@@ -95,6 +99,19 @@ class DashboardChangesetApplyServiceTest {
       service = new DashboardChangesetApplyService(
          planService, repositoryDashboardService, dashboardManager, backupService);
 
+      // Bug #78866: owner parsing and the missing-owner warning consult the provider through
+      // SecurityEngine.getSecurity(); the fixture owners and orgs exist
+      ownerProvider = mock(inetsoft.sree.security.SecurityProvider.class, withSettings().lenient());
+      inetsoft.sree.security.SecurityEngine engine =
+         mock(inetsoft.sree.security.SecurityEngine.class, withSettings().lenient());
+      when(engine.getSecurityProvider()).thenReturn(ownerProvider);
+      when(ownerProvider.getUser(any())).thenReturn(mock(inetsoft.sree.security.User.class));
+      when(ownerProvider.getOrganization(any()))
+         .thenReturn(mock(inetsoft.sree.security.Organization.class));
+      securityEngineStatic =
+         mockStatic(inetsoft.sree.security.SecurityEngine.class, withSettings().lenient());
+      securityEngineStatic.when(inetsoft.sree.security.SecurityEngine::getSecurity)
+         .thenReturn(engine);
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       lenient().when(orgManager.getCurrentOrgID()).thenReturn("host-org");
@@ -199,6 +216,7 @@ class DashboardChangesetApplyServiceTest {
 
    @AfterEach void tearDown() {
       orgManagerStatic.close();
+      securityEngineStatic.close();
       tool.close();
    }
 
@@ -353,6 +371,26 @@ class DashboardChangesetApplyServiceTest {
       seedDashboard("Dashboard1", "old desc", vsAssetId(), true, null);
       DashboardChangeRequest change = updateDashboardChange("Dashboard1", null, "new desc");
       change.setOwner("bob:host-org");
+
+      var result = service.apply(applyRequest("update", change), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals("new desc", dashboardStore.get("Dashboard1").description());
+   }
+
+   /** Bug #78866: apply re-parses the owner, so the key and caret forms reach the owner's own
+    * registry too. */
+   @ParameterizedTest
+   @ValueSource(strings = { "bob~;~host-org", "bob^host-org" })
+   void appliesAnOwnerScopedDashboardUpdateGivenTheKeyOrCaretOwnerForm(String ownerRef)
+      throws Exception
+   {
+      inetsoft.sree.security.User bob = mock(inetsoft.sree.security.User.class);
+      when(ownerProvider.getUser(any()))
+         .thenAnswer(inv -> OWNER.equals(inv.getArgument(0)) ? bob : null);
+      seedDashboard("Dashboard1", "old desc", vsAssetId(), true, null);
+      DashboardChangeRequest change = updateDashboardChange("Dashboard1", null, "new desc");
+      change.setOwner(ownerRef);
 
       var result = service.apply(applyRequest("update", change), user);
 

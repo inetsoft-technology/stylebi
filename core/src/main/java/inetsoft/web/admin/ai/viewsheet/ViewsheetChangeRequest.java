@@ -66,9 +66,9 @@ public class ViewsheetChangeRequest {
    public Boolean getGlobal() { return global; }
    public void setGlobal(Boolean v) { this.global = v; }
 
-   /** A bare identity name or a {@code name:orgId}-shaped key (a plain colon, the human/
-    * tool-facing wire format -- see {@link ViewsheetFolderService#parseOwner}, never {@code
-    * IdentityID}'s own internal {@code "~;~"}-delimited {@code convertToKey()} format). Used by
+   /** A bare identity name, a {@code name:orgId}-shaped key (the documented wire format), the
+    * storage key {@code name~;~orgId}, or the caret label {@code name^orgId} -- see {@link
+    * ViewsheetFolderService#parseOwner}. Used by
     * both unit types: viewsheet rename's owner (required when {@code global: false}, rejected when
     * {@code global: true}), and any folder verb's optional owner. */
    public String getOwner() { return owner; }

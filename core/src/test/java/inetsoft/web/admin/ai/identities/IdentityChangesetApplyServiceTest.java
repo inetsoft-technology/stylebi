@@ -33,6 +33,8 @@ import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.AdminChangeRecord;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -189,6 +191,36 @@ class IdentityChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertNull(result.results().get(0).advisory());
       verify(securityService).deleteUser(eq(id), eq(user));
+   }
+
+   /** Bug #78857: apply re-parses the id, so the key and caret forms reach the real user. */
+   @ParameterizedTest
+   @ValueSource(strings = { "bob~;~host-org", "bob^host-org" })
+   void appliesADeleteUserGivenTheKeyOrCaretReferenceForm(String ref) throws Exception {
+      IdentityID id = new IdentityID("bob", "host-org");
+      when(securityService.getUser(eq(id), eq(user)))
+         .thenReturn(existingUser(id), existingUser(id), existingUser(id))
+         .thenThrow(new MissingResourceException("gone"));
+
+      var result = service.apply(applyRequest("delete bob", deleteUser(ref)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(securityService).deleteUser(eq(id), eq(user));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "bob~;~host-org", "bob^host-org" })
+   void appliesAnUpdateUserGivenTheKeyOrCaretReferenceForm(String ref) throws Exception {
+      IdentityID id = new IdentityID("bob", "host-org");
+      when(securityService.getUser(eq(id), eq(user))).thenReturn(existingUser(id));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setAlias("New Alias");
+
+      var result = service.apply(applyRequest("update bob", updateUser(ref, spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(securityService).updateUser(eq(id), argThat(req -> "New Alias".equals(req.getAlias())),
+                                         eq(user));
    }
 
    @Test void appliesADeleteUserAndDisclosesScheduleTaskImpact() throws Exception {
