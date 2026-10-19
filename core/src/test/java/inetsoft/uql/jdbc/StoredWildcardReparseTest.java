@@ -32,6 +32,7 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.*;
 import inetsoft.util.Plugins;
+import inetsoft.util.ThreadPool;
 import inetsoft.util.Tool;
 import inetsoft.util.credential.CredentialService;
 import org.junit.jupiter.api.*;
@@ -46,6 +47,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.io.*;
 import java.lang.reflect.*;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -435,17 +438,36 @@ class StoredWildcardReparseTest {
       String before = toXML(stored);
       Field field = UniformSQL.class.getDeclaredField("parserPool");
       field.setAccessible(true);
-      Object pool = field.get(null);
-      pool.getClass().getMethod("add", Runnable.class).invoke(pool, (Runnable) () -> {
-         try {
-            Thread.sleep(1500);
-         }
-         catch(InterruptedException ignore) {
-            // done
-         }
-      });
+      ThreadPool pool = (ThreadPool) field.get(null);
+      // the thread check of the pool isn't atomic, so concurrent parses earlier in the jvm may
+      // have started more than one parser thread. Keep every one of them busy
+      Field threadsField = ThreadPool.class.getDeclaredField("threads");
+      threadsField.setAccessible(true);
+      int threads = Math.max(1, ((List<?>) threadsField.get(pool)).size());
+      CountDownLatch busy = new CountDownLatch(threads);
+      CountDownLatch release = new CountDownLatch(1);
 
-      assertNull(JDBCUtil.reparseStoredWildcard(stored, strict(true), null, dataSource(), 200));
+      for(int i = 0; i < threads; i++) {
+         pool.add(() -> {
+            busy.countDown();
+
+            try {
+               release.await();
+            }
+            catch(InterruptedException ignore) {
+               // done
+            }
+         });
+      }
+
+      try {
+         assertTrue(busy.await(10, TimeUnit.SECONDS), "the parser threads are busy");
+         assertNull(JDBCUtil.reparseStoredWildcard(stored, strict(true), null, dataSource(), 200));
+      }
+      finally {
+         release.countDown();
+      }
+
       assertEquals(before, toXML(stored));
 
       UniformSQL failed = JDBCUtil.failStoredWildcard(stored);
