@@ -318,6 +318,7 @@ public class SelectionRuntimeService {
          // What the search-merge in VSSelectionService.applySelection put back after a replace or
          // deselect (bug-78216), collected from whichever branches below run.
          final List<List<String>> retained = new ArrayList<>();
+         boolean applySkipped = false;
 
          // Snapshot for the single-select reselect report below: a single-select assembly cannot
          // stay empty, so the post-apply refresh re-selects its first value (bug-78717).
@@ -333,7 +334,7 @@ public class SelectionRuntimeService {
             String activeSearch = searchString(info);
             List<List<String>> effectiveValues = values;
 
-            if(activeSearch != null && !activeSearch.isBlank() && !single) {
+            if(activeSearch != null && !activeSearch.isBlank()) {
                // Not a refusal: the apply is legitimate for whatever still matches, but
                // doApplySelection itself has no search-awareness at all -- it would otherwise
                // apply every requested value regardless of the active search (bug-76854). Filter
@@ -351,6 +352,12 @@ public class SelectionRuntimeService {
                   effectiveValues = matching;
                }
             }
+
+            // A single-select request the search dropped entirely leaves the selection untouched:
+            // an empty APPLY is the clear-all signal, after which single-select re-selects its
+            // first value -- possibly the very value the search just dropped (bug-78785). An
+            // explicit values:[] is a real clear and is not skipped.
+            final boolean skipApply = single && !values.isEmpty() && effectiveValues.isEmpty();
 
             if(!single && isPathDiffable(assembly) && !Boolean.TRUE.equals(additive)) {
                // Multi-select apply is a delta patch -- doApplySelection only ever turns matched
@@ -412,7 +419,7 @@ public class SelectionRuntimeService {
                                      effectiveValues),
                   user, dispatcher, linkUri);
             }
-            else if(!(Boolean.TRUE.equals(additive) && effectiveValues.isEmpty())) {
+            else if(!skipApply && !(Boolean.TRUE.equals(additive) && effectiveValues.isEmpty())) {
                // An empty APPLY is doApplySelection's clear-everything signal, so an additive call
                // that has nothing to add (values:[], or every value dropped by the search) must not
                // send one: "only add" is a no-op then, never a clear (bug-78718).
@@ -422,12 +429,13 @@ public class SelectionRuntimeService {
 
             result.put("valuesSelected", effectiveValues.size());
             requestedValues.addAll(effectiveValues);
+            applySkipped = skipApply;
 
             // A replace under an active search cannot clear a selected value the search hides:
             // VSSelectionService.applySelection adds every selected-but-filtered-out value back
             // (the filtered UI only sends the visible state). Measure what is left selected
             // after the apply rather than trusting the request (bug-78216).
-            if(isValueMatchable(assembly) && !Boolean.TRUE.equals(additive) &&
+            if(!skipApply && isValueMatchable(assembly) && !Boolean.TRUE.equals(additive) &&
                activeSearch != null && !activeSearch.isBlank())
             {
                SelectionList after = selectionListOf(assembly);
@@ -499,7 +507,7 @@ public class SelectionRuntimeService {
             }
          }
 
-         if(trackReselect) {
+         if(trackReselect && !applySkipped) {
             List<List<String>> reselected = reselectedBySetSelection(
                beforeSelected, unitIsId ? selectedNodeIds(assembly) : selectedPaths(assembly),
                requestedValues, deselect == null ? List.of() : deselect, values != null,
