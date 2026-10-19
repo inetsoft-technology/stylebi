@@ -24,6 +24,7 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.*;
+import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.DataSourceRenameException;
@@ -44,8 +45,11 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -355,9 +359,10 @@ public class DataSourceService {
          if(!force) {
             AssetEntry entry = new AssetEntry(
                AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, dxname, null);
-            List<AssetObject> dependencies = DependencyTool.getDependencies(entry.toIdentifier());
+            List<AssetObject> dependencies =
+               getDeleteDependencies(dxname, repository.getDataModel(dxname));
 
-            if(dependencies != null && !dependencies.isEmpty()) {
+            if(!dependencies.isEmpty()) {
                DependencyException depEx = new DependencyException(entry);
                depEx.addDependencies(dependencies.toArray(new Object[0]));
                throw depEx;
@@ -378,6 +383,53 @@ public class DataSourceService {
       finally {
          Audit.getInstance().auditAction(record, user);
       }
+   }
+
+   /**
+    * Gets the assets that block a {@code force=false} delete of a data source: the dependents of
+    * the data source itself and of each of its logical models. A sheet bound to a logical model is
+    * recorded only under that model's key, not the data source's (Bug #76338). The admin-chat
+    * delete preflight uses this too, so the two refuse the same deletes.
+    *
+    * @param dxname    the full name of the data source.
+    * @param dataModel the data source's data model, or {@code null} if it has none.
+    *
+    * @return the dependents, without duplicates; empty if there are none.
+    */
+   public static List<AssetObject> getDeleteDependencies(String dxname, XDataModel dataModel) {
+      Set<AssetObject> dependencies = new LinkedHashSet<>();
+      addDependencies(dependencies, dxname, AssetEntry.Type.DATA_SOURCE);
+
+      if(dataModel != null) {
+         // the same key the dependency writer builds for a sheet bound to the model
+         for(String model : dataModel.getLogicalModelNames()) {
+            addDependencies(dependencies, dxname + "/" + model, AssetEntry.Type.LOGIC_MODEL);
+         }
+      }
+
+      return new ArrayList<>(dependencies);
+   }
+
+   private static void addDependencies(Set<AssetObject> dependencies, String path,
+                                       AssetEntry.Type type)
+   {
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, type, path, null);
+      List<AssetObject> found = DependencyTool.getDependencies(entry.toIdentifier());
+
+      if(found != null) {
+         dependencies.addAll(found);
+      }
+   }
+
+   /**
+    * Gets the data model of a data source.
+    *
+    * @param dxname the full name of the data source.
+    *
+    * @return the data model, or {@code null} if the data source has none.
+    */
+   public XDataModel getDataModel(String dxname) throws RemoteException {
+      return repository.getDataModel(dxname);
    }
 
    /**

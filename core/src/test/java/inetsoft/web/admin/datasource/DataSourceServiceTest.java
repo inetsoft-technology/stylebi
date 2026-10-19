@@ -10,9 +10,12 @@ import inetsoft.test.*;
 import inetsoft.uql.DataSourceFolder;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DependencyException;
 import inetsoft.uql.asset.sync.DependencyTool;
+import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.audit.ActionRecord;
@@ -263,6 +266,56 @@ class DataSourceServiceTest {
          verify(audit).auditAction(captor.capture(), eq(principal));
          assertEquals(ActionRecord.ACTION_STATUS_SUCCESS, captor.getValue().getActionStatus());
       }
+   }
+
+   // Bug #76338: a sheet bound to a logical model is recorded under that model's key only, so the
+   // delete guard checks the data source's key and every logical model's key -- not just the first.
+   @Test
+   void deleteDependenciesIncludeEveryLogicalModelWithoutDuplicates() {
+      AssetObject a = mock(AssetObject.class);
+      AssetObject b = mock(AssetObject.class);
+      AssetObject c = mock(AssetObject.class);
+      XDataModel dataModel = mock(XDataModel.class);
+      when(dataModel.getLogicalModelNames()).thenReturn(new String[] { "LM1", "LM2" });
+
+      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class)) {
+         dependencyTool.when(() -> DependencyTool.getDependencies(anyString())).thenAnswer(inv -> {
+            String id = inv.getArgument(0);
+
+            if(id.equals(key(AssetEntry.Type.DATA_SOURCE, DS_NAME))) {
+               return List.of(a);
+            }
+            else if(id.equals(key(AssetEntry.Type.LOGIC_MODEL, DS_NAME + "/LM1"))) {
+               return List.of(b);
+            }
+            else if(id.equals(key(AssetEntry.Type.LOGIC_MODEL, DS_NAME + "/LM2"))) {
+               return List.of(a, c);
+            }
+
+            return List.of();
+         });
+
+         assertEquals(List.of(a, b, c), DataSourceService.getDeleteDependencies(DS_NAME, dataModel));
+      }
+   }
+
+   @Test
+   void deleteDependenciesWithoutADataModelCheckOnlyTheDataSource() {
+      AssetObject a = mock(AssetObject.class);
+
+      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class)) {
+         dependencyTool.when(() -> DependencyTool.getDependencies(anyString()))
+            .thenReturn(List.of(a));
+
+         assertEquals(List.of(a), DataSourceService.getDeleteDependencies(DS_NAME, null));
+         dependencyTool.verify(
+            () -> DependencyTool.getDependencies(key(AssetEntry.Type.DATA_SOURCE, DS_NAME)));
+         dependencyTool.verifyNoMoreInteractions();
+      }
+   }
+
+   private static String key(AssetEntry.Type type, String path) {
+      return new AssetEntry(AssetRepository.QUERY_SCOPE, type, path, null).toIdentifier();
    }
 
    // Bug 76599, Gap 2a: createDataSourceFolder is the standalone counterpart to the

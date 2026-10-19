@@ -20,9 +20,7 @@ package inetsoft.web.admin.ai.datasource;
 import inetsoft.web.admin.datasource.*;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.security.OrganizationManager;
-import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
-import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
@@ -52,8 +50,9 @@ import java.util.*;
  * {@link DataSourceService} does not provide at all (01-spec.md section 0): the password-merge
  * mechanism (section 0.1, {@link #buildProposedJdbc}/{@link #buildBeforeJdbc}, using {@link
  * DataSourceApiService#getCurrentPassword}) and the dependency preflight for delete (section 0.2,
- * {@link #findDependencies}, calling {@link DependencyTool#getDependencies} directly since {@code
- * deleteDataSource}'s own {@code force} parameter is a dead no-op at this tier).
+ * {@link #findDependencies}, so a delete with dependents is refused at preview, before signoff,
+ * naming them -- {@code deleteDataSource} refuses a {@code force=false} delete with dependents
+ * too, but only at apply time, after the mutation has started).
  *
  * <p><b>No org-targeting parameter is exposed at this tier</b> -- every {@code
  * DataSourceApiService} call this class makes passes {@code organizationid: null} ("the caller's
@@ -740,18 +739,14 @@ public class DataSourceChangePlanService {
                             AdminChangeRecord.SCOPE_STORAGE, true, description);
    }
 
-   /** Section 0.2: replicates {@code RepositoryObjectService.checkAssetEntryDependencies}'s own
-    * check (community/core/.../content/repository/RepositoryObjectService.java:544-572) directly,
-    * since {@code deleteDataSource}'s own {@code force} parameter never reaches this check at the
-    * wrapped Public API tier at all. Package-visible so {@link DataSourceChangesetApplyService}
-    * can re-run it at apply time (a concurrent change between preview and apply could add a new
+   /** Section 0.2: the dependents of the data source and of each of its logical models -- the same
+    * rule {@link DataSourceService#deleteDataSource} enforces for {@code force=false} (Bug #76338),
+    * via {@link DataSourceService#getDeleteDependencies}, so preview refuses exactly the deletes
+    * the wrapped delete would. Package-visible so {@link DataSourceChangesetApplyService} can
+    * re-run it at apply time (a concurrent change between preview and apply could add a new
     * dependency). */
-   List<AssetObject> findDependencies(String name) {
-      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-      AssetEntry entry =
-         new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, name, null, orgId);
-      List<AssetObject> dependencies = DependencyTool.getDependencies(entry.toIdentifier());
-      return dependencies == null ? List.of() : dependencies;
+   List<AssetObject> findDependencies(String name) throws Exception {
+      return DataSourceService.getDeleteDependencies(name, dataSourceService.getDataModel(name));
    }
 
    /** Package-visible for the same apply-time re-check reason as {@link #findDependencies}. */
@@ -762,9 +757,7 @@ public class DataSourceChangePlanService {
          throw new IllegalArgumentException(
             label + ": data source \"" + name + "\" is referenced by " + dependencies.size() +
             " other asset(s) (" + DataSourceProjection.projectDependencies(dependencies) + ") -- " +
-            "refusing to delete without force: true (section 0.2: deleteDataSource's own force " +
-            "parameter does not actually enforce this at the wrapped Public API tier, so this " +
-            "area's own preflight does)");
+            "refusing to delete without force: true");
       }
    }
 
