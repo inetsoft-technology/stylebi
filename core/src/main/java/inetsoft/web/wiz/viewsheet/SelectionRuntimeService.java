@@ -249,11 +249,7 @@ public class SelectionRuntimeService {
          // tree, or a tree without effective levels is single as a whole. Read from the stored
          // levels, so it neither writes the info (getSingleSelectionLevels() does) nor misses
          // levels hidden while singleSelect:true is still to be switched on below.
-         final List<Integer> singleLevels = single && !idMode &&
-            assembly instanceof SelectionTreeVSAssembly ?
-            effectiveSingleLevels(info.getStoredSingleSelectionLevels(),
-                                  info.isMixedSingleSelection(), info.getLevelNames().size()) :
-            List.of();
+         final List<Integer> singleLevels = singleLevelsOf(assembly, info, single, idMode);
          final boolean wholeTreeSingle = single && singleLevels.isEmpty();
          final List<List<String>> requested = singleLevels.isEmpty() || values == null ? values :
             dropPrefixPaths(values);
@@ -982,6 +978,33 @@ public class SelectionRuntimeService {
          value.setSelected(select);
          event.setValues(List.of(value));
 
+         if(select && !tree.isIDMode()) {
+            SelectionVSAssemblyInfo info = (SelectionVSAssemblyInfo) tree.getInfo();
+            List<Integer> singleLevels =
+               singleLevelsOf(tree, info, info.isSingleSelection(), false);
+
+            if(!singleLevels.isEmpty()) {
+               // A leaf select on a single-select level is a replace on that level, like
+               // setSelection's: the apply below clears only what the tree itself shows selected,
+               // but peer assemblies on the same table and columns share one selection set, and
+               // the single-select refresh keeps the first leaf of it -- a peer's selected leaf
+               // that sorts before the requested one wins over it (bug-78868). Deselect what
+               // conflicts with the request on a single level first; selections that differ only
+               // on multi-select levels stay (the subtree select is additive there).
+               List<List<String>> currentPaths = selectedPaths(tree);
+               List<List<String>> toRemove = singleLevelConflicts(
+                  keepAutoExtended(toDeselect(currentPaths, List.of(path)), List.of(path),
+                                   singleLevels),
+                  path, singleLevels);
+
+               if(!toRemove.isEmpty()) {
+                  selections.applySelection(runtimeId, assemblyName,
+                                            deselectEvent(deselectTargets(currentPaths, toRemove)),
+                                            user, dispatcher, linkUri);
+               }
+            }
+         }
+
          List<List<String>> before = select ? List.of() :
             selectedUnderSubtree(selectionListOf(assembly), path, tree.isIDMode());
 
@@ -1240,7 +1263,7 @@ public class SelectionRuntimeService {
                                                    List<String> path)
    {
       if(path.size() >= treeDepth) {
-         return; // a leaf path names exactly one node; the apply clears the single levels first.
+         return; // a leaf path names one node; selectSubtree deselects its single-level rivals.
       }
 
       throw new IllegalArgumentException(
@@ -1249,6 +1272,42 @@ public class SelectionRuntimeService {
          "leaf -- could silently collapse to just one descendant instead of the whole branch. " +
          "Name a full path down to a leaf instead, or pass singleSelect:false on set_selection " +
          "first to widen it.");
+   }
+
+   /**
+    * The single-select levels of a non-ID tree that is, or is about to be made, single-select;
+    * empty for anything else, and for a tree that is single-select as a whole (see
+    * {@link #effectiveSingleLevels}).
+    */
+   private static List<Integer> singleLevelsOf(SelectionVSAssembly assembly,
+                                               SelectionVSAssemblyInfo info, boolean single,
+                                               boolean idMode)
+   {
+      return single && !idMode && assembly instanceof SelectionTreeVSAssembly ?
+         effectiveSingleLevels(info.getStoredSingleSelectionLevels(),
+                               info.isMixedSingleSelection(), info.getLevelNames().size()) :
+         List.of();
+   }
+
+   /**
+    * The paths in {@code toRemove} that pick a different value than {@code requested} on a
+    * single-select level: the first index where they part is a single level, so the level can hold
+    * only one of them. Paths that part on a multi-select level can coexist with the request.
+    */
+   static List<List<String>> singleLevelConflicts(List<List<String>> toRemove,
+                                                  List<String> requested,
+                                                  Collection<Integer> singleLevels)
+   {
+      return toRemove.stream().filter(p -> {
+         int n = Math.min(p.size(), requested.size());
+         int d = 0;
+
+         while(d < n && Objects.equals(p.get(d), requested.get(d))) {
+            d++;
+         }
+
+         return d < n && singleLevels.contains(d);
+      }).toList();
    }
 
    /**
