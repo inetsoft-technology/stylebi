@@ -3838,7 +3838,7 @@ class WorksheetAgentControllerTest {
 
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "k", "v");
-      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "k", "v");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "k", "w");
       ws.addAssembly(a);
       ws.addAssembly(b);
 
@@ -3884,7 +3884,9 @@ class WorksheetAgentControllerTest {
    /**
     * Bug #78846: reorder_concat_subtables refuses a new first subtable that would drop what the
     * concatenation holds unless {@code confirmed}, and refuses a list that is not a permutation of
-    * its subtables, leaving the worksheet as it was.
+    * its subtables, leaving the worksheet as it was. The concatenation sums {@code v}, which the
+    * new first subtable B (columns k, w) lacks; a state on a name B keeps would not be refused
+    * (Bug #78888).
     */
    @Test
    void reorderConcatSubtablesRefusesUnconfirmedLossAndANonPermutation() throws Exception {
@@ -3892,7 +3894,7 @@ class WorksheetAgentControllerTest {
 
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "k", "v");
-      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "k", "v");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "k", "w");
       ws.addAssembly(a);
       ws.addAssembly(b);
 
