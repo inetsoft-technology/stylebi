@@ -112,6 +112,33 @@ public final class ChartRenderCheck {
       }
    }
 
+   /**
+    * The one-stop form for a chart write whose inner Composer call reads the chart's data: runs
+    * {@code inner} with {@link #swallowScriptError} when {@code name} is a chart, then
+    * {@link #warnIfScriptFails}. For any other assembly it just runs {@code inner}, so a table or
+    * text target keeps its own failure handling and is never silently swallowed.
+    *
+    * <p>New chart writes should use this rather than composing the three steps by hand, so the
+    * gate, the swallow and the end check cannot drift apart. Known limit: a failure never
+    * recorded for this sandbox (introduced by a path with no check) that an inner call consumes
+    * (format and date comparison execute the chart through the lifecycle) is not reported, since
+    * the check cannot tell it from an empty chart.
+    */
+   public static void guarded(RuntimeViewsheet rvs, String name, CommandDispatcher dispatcher,
+                              Body inner) throws Exception
+   {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      boolean chart = vs != null && vs.getAssembly(name) instanceof ChartVSAssembly;
+
+      if(!chart) {
+         inner.run();
+         return;
+      }
+
+      swallowScriptError(rvs, name, inner);
+      warnIfScriptFails(rvs, name, dispatcher);
+   }
+
    /** A whole mutation followed by {@link #warnIfScriptFails}, whichever way the body returns. */
    public static ViewsheetSessionService.Mutation checked(
       String chartName, ViewsheetSessionService.Mutation mutation)
@@ -120,6 +147,11 @@ public final class ChartRenderCheck {
          mutation.run(rvs, runtimeId, dispatcher);
          warnIfScriptFails(rvs, chartName, dispatcher);
       };
+   }
+
+   /** Whether {@code e} is, or was caused by, a {@link ScriptException}. */
+   public static boolean isScriptFailure(Throwable e) {
+      return scriptCause(e) != null;
    }
 
    private static ScriptException scriptCause(Throwable e) {

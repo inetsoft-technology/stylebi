@@ -1471,15 +1471,17 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hyperlink")
-   public void setHyperlink(@PathVariable String sessionToken,
-                            @RequestBody HyperlinkRequest request,
-                            @RequestParam(required = false, defaultValue = "") String linkUri,
-                            Principal user)
+   public Map<String, Object> setHyperlink(
+      @PathVariable String sessionToken,
+      @RequestBody HyperlinkRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user)
       throws Exception
    {
       requireEnabled();
-      hyperlinkService.set(sessionToken, user, request.assembly(), request.region(),
-                           request.link(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         hyperlinkService.set(sessionToken, user, request.assembly(), request.region(),
+                              request.link(), linkUri));
    }
 
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hyperlink/link-targets")

@@ -347,9 +347,13 @@ public class DateComparisonService {
          }
 
          DateComparisonInfo info = model.toDateComparisonInfo();
-         comparisonService.setDateComparison(runtimeId, assemblyName, info,
-                                            shareAssembly(comparison), linkUri, user,
-                                            dispatcher);
+         // Applying executes the chart through the lifecycle, which swallows a script failure and
+         // so consumes it; the check afterwards relies on the failure having been recorded (a chart
+         // never seen failing by a checked write cannot be told from an empty one).
+         ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
+            comparisonService.setDateComparison(runtimeId, assemblyName, info,
+                                                shareAssembly(comparison), linkUri, user,
+                                                dispatcher));
          result.putAll(adjusted);
          result.putAll(describeRetargetedDimension(rvs, assemblyName));
          result.putAll(describeChartTypeOverride(rvs, assemblyName, beforeChartType));
@@ -1240,8 +1244,9 @@ public class DateComparisonService {
       throws Exception
    {
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
-         comparisonService.clearDateComparison(runtimeId, assemblyName, linkUri, user,
-                                               dispatcher));
+         ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
+            comparisonService.clearDateComparison(runtimeId, assemblyName, linkUri, user,
+                                                  dispatcher)));
    }
 
    // ── the end-date guard ────────────────────────────────────────────────────

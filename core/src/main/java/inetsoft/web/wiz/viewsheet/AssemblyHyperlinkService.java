@@ -30,6 +30,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
@@ -38,6 +39,7 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.DataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
@@ -155,8 +157,9 @@ public class AssemblyHyperlinkService {
    }
 
    /** One {@code sessions.mutate}, so one undo checkpoint. */
-   public void set(String sessionToken, Principal user, String assemblyName, Region region,
-                   Map<String, Object> link, String linkUri) throws Exception
+   public List<String> set(String sessionToken, Principal user, String assemblyName,
+                           Region region, Map<String, Object> link, String linkUri)
+      throws Exception
    {
       // Validated before the runtime is touched: a link whose type and value disagree costs
       // nothing to refuse here, and opens no checkpoint the caller then has to undo.
@@ -177,7 +180,8 @@ public class AssemblyHyperlinkService {
       // silently drop (wrong linkType, or a name matching no VSBookmarkInfo) is refused instead.
       requireValidBookmark(type, link, assetId, user);
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireTableRendered(rvs, assemblyName);
          Region target = region == null ? Region.whole() : region;
          int col = resolveCol(rvs, assemblyName, target);
          TableLensGuard.Cell cell = requireTableCell(rvs, assemblyName, target.row(), col);
@@ -188,9 +192,33 @@ public class AssemblyHyperlinkService {
          applyRowScope(assemblyName, model, link, rowLinkTarget(rvs, assemblyName, target.row()));
          apply(rvs, assemblyName, model, type, link, assetId);
          model.setRejectDerivedMeasure(true);
-         hyperlinkService.setHyperlinkDialogModel(runtimeId, assemblyName, model, linkUri, user,
-                                                 dispatcher);
+         ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
+            hyperlinkService.setHyperlinkDialogModel(runtimeId, assemblyName, model, linkUri,
+                                                     user, dispatcher));
       });
+
+      return warnings == null ? List.of() : warnings;
+   }
+
+   /**
+    * {@code HyperlinkDialogService}'s table branch dereferences the table's lens unguarded, so a
+    * bound table that did not render (its script or condition threw while it loaded) surfaced as
+    * an NPE, a masked 500. Refused by name instead, the same way a highlight on it is.
+    */
+   private static void requireTableRendered(RuntimeViewsheet rvs, String assemblyName)
+      throws Exception
+   {
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      SourceInfo source = assembly instanceof TableDataVSAssembly &&
+         assembly.getInfo() instanceof DataVSAssemblyInfo info ? info.getSourceInfo() : null;
+
+      if(source != null && !source.isEmpty() && rvs.getViewsheetSandbox().isPresent()) {
+         TableLensGuard.requireRenderedLens(
+            rvs, assembly, assemblyName, "its hyperlinks cannot be addressed (they are stored " +
+            "per rendered cell)");
+      }
    }
 
    /**
@@ -827,7 +855,20 @@ public class AssemblyHyperlinkService {
          collectTableColumns(TableLensGuard.lensOrNull(box.get(), assemblyName, false), columns);
       }
       else if(assembly instanceof ChartVSAssembly) {
-         Object data = box.get().getData(assemblyName);
+         Object data;
+
+         try {
+            data = box.get().getData(assemblyName);
+         }
+         catch(Exception e) {
+            // A chart whose script fails cannot be checked against its data; the write itself
+            // reports that failure, so skip the column check rather than fail it here.
+            if(ChartRenderCheck.isScriptFailure(e)) {
+               return null;
+            }
+
+            throw e;
+         }
 
          if(data instanceof DataSet ds) {
             for(int i = 0; i < ds.getColCount(); i++) {
