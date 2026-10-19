@@ -23,6 +23,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
 import inetsoft.uql.jdbc.JDBCHandler;
+import inetsoft.util.DataSpace;
 import inetsoft.web.admin.security.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +35,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.lang.reflect.Method;
 import java.sql.Driver;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 
 import static inetsoft.sree.security.db.DatabaseCacheTestSupport.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -53,7 +55,7 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = BaseTestConfiguration.class,
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class DatabaseAuthenticationCacheReloadHookTest {
    @BeforeEach
    void setUp(TestInfo info) throws Exception {
@@ -64,6 +66,8 @@ class DatabaseAuthenticationCacheReloadHookTest {
 
    @AfterEach
    void tearDown() {
+      BlockingProvider.gate = null;
+
       if(writer != null) {
          writer.tearDown();
          writer = null;
@@ -141,6 +145,33 @@ class DatabaseAuthenticationCacheReloadHookTest {
       reload(host);
 
       assertTrue(await(() -> clusterLong(baseName, "refreshSeq") > 0L, 3_000));
+   }
+
+   @Test
+   void slowRefreshDoesNotHoldTheReloadingThread() throws Exception {
+      AuthenticationChain host = support.initEngine(List.of(base()));
+      // this thread stands for the storage event thread: it is the only one that reloads
+      DataSpace.getDataSpace().removeChangeListener(null, "authc-chain.json", host);
+      writer = new AuthenticationChain();
+      BlockingProvider.gate = new CountDownLatch(1);
+
+      try {
+         save(base(), support.blockingProvider("u78793", ALL_USERS));
+         long start = System.currentTimeMillis();
+         reload(host);
+         long elapsed = System.currentTimeMillis() - start;
+
+         // the storage event thread that runs the reload is free while the refresh waits
+         assertTrue(elapsed < 2_000L, "the reload waited " + elapsed + " ms for the refresh");
+         assertNotNull(find(host, "u78793"), "the new provider is in the chain before the refresh");
+         assertEquals(0L, clusterLong("u78793", "refreshSeq"));
+      }
+      finally {
+         BlockingProvider.gate.countDown();
+      }
+
+      assertTrue(await(() -> cachedAlice("u78793"), 5_000), "the refresh never ran");
+      BlockingProvider.gate = null;
    }
 
    @Test

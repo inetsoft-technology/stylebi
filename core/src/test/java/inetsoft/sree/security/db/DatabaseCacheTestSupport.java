@@ -25,6 +25,8 @@ import inetsoft.util.db.DBConnectionPool;
 
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -50,6 +52,31 @@ public final class DatabaseCacheTestSupport {
          setDriverAvailable(DRIVER::equals);
          setDriverSupplier(c -> (Driver) loader().loadClass(DRIVER).getConstructor().newInstance());
       }
+   }
+
+   /**
+    * A provider whose cache refresh waits for {@link #gate} while it is set, to hold the thread
+    * that refreshes it.
+    */
+   public static class BlockingProvider extends SeamProvider {
+      @Override
+      public void clearCache() {
+         CountDownLatch latch = gate;
+
+         // not while it is read from the configuration file, before it has a name
+         if(latch != null && getProviderName() != null) {
+            try {
+               latch.await(10, TimeUnit.SECONDS);
+            }
+            catch(InterruptedException e) {
+               Thread.currentThread().interrupt();
+            }
+         }
+
+         super.clearCache();
+      }
+
+      public static volatile CountDownLatch gate;
    }
 
    /**
@@ -158,6 +185,9 @@ public final class DatabaseCacheTestSupport {
       authz.setProviderName("Primary");
       AuthorizationChain authzChain = new AuthorizationChain();
       authzChain.setProviders(List.of(authz));
+      // these stand for another node; they must not keep listening to the configuration files
+      writer.tearDown();
+      authzChain.tearDown();
       SreeEnv.setProperty("security.enabled", "true");
       SreeEnv.save();
       SecurityEngine.getSecurity().init();
@@ -181,7 +211,20 @@ public final class DatabaseCacheTestSupport {
    public DatabaseAuthenticationProvider provider(String name, String userListQuery,
                                                   Consumer<DatabaseAuthenticationProvider> configure)
    {
-      DatabaseAuthenticationProvider p = new SeamProvider();
+      return provider(new SeamProvider(), name, userListQuery, configure);
+   }
+
+   /**
+    * Creates a {@link BlockingProvider} over the test database.
+    */
+   public DatabaseAuthenticationProvider blockingProvider(String name, String userListQuery) {
+      return provider(new BlockingProvider(), name, userListQuery, p -> { });
+   }
+
+   private DatabaseAuthenticationProvider provider(DatabaseAuthenticationProvider p, String name,
+                                                   String userListQuery,
+                                                   Consumer<DatabaseAuthenticationProvider> configure)
+   {
       p.setDriver(DRIVER);
       p.setUrl(url);
       p.setRequiresLogin(false);

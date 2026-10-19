@@ -123,8 +123,9 @@ class DatabaseAuthenticationCacheReloadTest {
 
       // not in this host's chain and never bound: a failed attempt, not an exception
       service.refresh();
-      assertTrue(await(() -> clusterLong(name, "lastFailureTime") != 0L, 5_000));
-      assertEquals(0L, clusterLong(name, "loadingCount"));
+      // the failure is recorded before the load lock is released
+      assertTrue(await(() -> clusterLong(name, "lastFailureTime") != 0L &&
+                          clusterLong(name, "loadingCount") == 0L, 5_000));
 
       DatabaseAuthenticationProvider p = support.provider(name, ALL_USERS);
       service.lookup.set(p);

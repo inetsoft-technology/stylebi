@@ -28,6 +28,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * {@code AuthenticationChain} wraps a list of authentication providers. When authorizing or getting
@@ -385,22 +387,43 @@ public class AuthenticationChain
     * added or changed. The cache state of a provider name outlives a removed provider, and on
     * the singleton host this refresh is the first one that runs after the host's chain has the
     * new configuration, so it loads that configuration (Bug #78793).
+    * <p>
+    * The refreshes connect to the cache service on the singleton host, so they run on their own
+    * thread rather than on the storage event thread that calls this. They are submitted after
+    * the new providers are in the chain and run in order.
     */
    @Override
    void providersReloaded(Map<String, String> before, List<AuthenticationProvider> list) {
+      List<DatabaseAuthenticationProvider> changed = new ArrayList<>();
+
       for(AuthenticationProvider provider : list) {
          if(provider instanceof DatabaseAuthenticationProvider db && db.isCacheEnabled()) {
             String old = before.get(db.getProviderName());
 
             if(old == null || !old.equals(describeCacheConfiguration(db))) {
-               try {
-                  db.clearCache();
-               }
-               catch(Exception e) {
-                  LOG.warn("Failed to refresh the cache of security provider {}",
-                           db.getProviderName(), e);
-               }
+               changed.add(db);
             }
+         }
+      }
+
+      if(!changed.isEmpty()) {
+         RELOAD_EXECUTOR.execute(() -> refreshReloaded(changed));
+      }
+   }
+
+   private void refreshReloaded(List<DatabaseAuthenticationProvider> providers) {
+      for(DatabaseAuthenticationProvider db : providers) {
+         // a later reload may have replaced and disposed it already
+         if(getProviderList().stream().noneMatch(p -> p == db)) {
+            continue;
+         }
+
+         try {
+            db.clearCache();
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to refresh the cache of security provider {}",
+                     db.getProviderName(), e);
          }
       }
    }
@@ -527,4 +550,10 @@ public class AuthenticationChain
    };
 
    private static final Logger LOG = LoggerFactory.getLogger(AuthenticationChain.class);
+   // runs the cache refreshes after a chain reload, in order, off the storage event thread
+   private static final ExecutorService RELOAD_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+      Thread thread = new Thread(r, "AuthenticationChainReload");
+      thread.setDaemon(true);
+      return thread;
+   });
 }
