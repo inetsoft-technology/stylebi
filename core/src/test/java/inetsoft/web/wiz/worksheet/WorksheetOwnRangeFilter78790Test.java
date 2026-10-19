@@ -165,6 +165,32 @@ class WorksheetOwnRangeFilter78790Test {
       assertNotNull(rangeColumn(table("Q").getColumnSelection(false)));
    }
 
+   @Test
+   void refusalNamesTheDownstreamTableAndTheTablesOwnFilterTogether() throws Exception {
+      addOwnFilter();
+      apply(ed -> ed.addMirror("DEP", "Q"));
+      apply(ed -> ed.setGroupAggregate("DEP", List.of(), List.of(sum("qty"))));
+      trigger();
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         apply(ed -> ed.setGroupAggregate("Q", List.of(new GroupSpec("pid")), List.of())));
+      String msg = ex.getMessage();
+      assertTrue(msg.contains("DEP"), msg);
+      assertTrue(msg.contains("table 'Q' itself (pre-condition)"), msg);
+      assertTrue(msg.indexOf("DEP") < msg.indexOf("table 'Q' itself"),
+         "the downstream table is named first: " + msg);
+      assertTrue(msg.contains("confirmed:true"), msg);
+      trigger();
+
+      assertEquals(1, filterCount(), "the filter survives the refusal and a trigger");
+      assertQuarterGrouping();
+
+      apply(ed -> ed.setGroupAggregate("Q", List.of(new GroupSpec("pid")), List.of(), false, true));
+      trigger();
+      assertEquals(0, filterCount(), "the single confirmed call accepts the named own loss");
+      assertNull(table("Q").getColumnSelection(false).getAttribute(quarter));
+   }
+
    // ---- helpers -----------------------------------------------------------
 
    private void regroupToMonth(boolean confirmed) throws Exception {

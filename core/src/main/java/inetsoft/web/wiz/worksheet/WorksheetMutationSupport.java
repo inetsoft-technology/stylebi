@@ -1477,30 +1477,22 @@ public final class WorksheetMutationSupport {
                   mutationWs, t, ainfo, originalAliases);
 
             if(!inputConflicts.isEmpty() || !referenceConflicts.isEmpty()) {
+               // One confirmed:true accepts every loss, so the table's own loss (if any) is
+               // named in the same refusal rather than dropped unannounced on the retry.
                throw new inetsoft.web.wiz.pairing.PairingException(
-                  describeDownstreamLossConflicts(inputConflicts, referenceConflicts));
+                  describeDownstreamLossConflicts(
+                     inputConflicts, referenceConflicts, describeOwnLoss(t, ownLoss)));
             }
          }
       }
 
-      // Refused after the downstream guards above so a call that is refused for both reasons
-      // names the other tables first; either way nothing is committed and the caller restores
-      // the snapshot, so the sweep's removals and the dropped conditions come back.
+      // Reached only when no downstream guard refused (that refusal names this loss too); either
+      // way nothing is committed and the caller restores the snapshot, so the sweep's removals
+      // and the dropped conditions come back.
       if(!ownLoss.isEmpty()) {
-         List<String> dropped = new ArrayList<>();
-         List<String> uses = new ArrayList<>();
-
-         for(Map.Entry<String, Set<String>> e : ownLoss.entrySet()) {
-            dropped.add("\"" + e.getKey() + "\"");
-            uses.addAll(e.getValue());
-         }
-
          throw new inetsoft.web.wiz.pairing.PairingException(
-            "This regroup would drop column(s) " + String.join(", ", dropped) +
-            " that this table still uses: table '" + t.getName() + "' itself (" +
-            String.join(", ", new LinkedHashSet<>(uses)) + "). Confirm with the user before " +
-            "retrying with confirmed:true -- the table's own conditions and sort on the dropped " +
-            "column are removed. Nothing was changed.");
+            "This regroup " + describeOwnLoss(t, ownLoss) + " Confirm with the user before " +
+            "retrying with confirmed:true. Nothing was changed.");
       }
 
       List<RankingRebind> rankingRebinds = rankingRebinds(t, ainfo, originalAliases);
@@ -1688,6 +1680,19 @@ public final class WorksheetMutationSupport {
       List<WorksheetControllerService.AggregateInputLossConflict> aggregateConflicts,
       List<WorksheetControllerService.ColumnReferenceLossConflict> referenceConflicts)
    {
+      return describeDownstreamLossConflicts(aggregateConflicts, referenceConflicts, null);
+   }
+
+   /**
+    * As above, with the table's own loss clause ({@link #describeOwnLoss}) appended when the same
+    * call would also drop the table's own state, so a single {@code confirmed:true} never accepts
+    * a loss the refusal did not name.
+    */
+   static String describeDownstreamLossConflicts(
+      List<WorksheetControllerService.AggregateInputLossConflict> aggregateConflicts,
+      List<WorksheetControllerService.ColumnReferenceLossConflict> referenceConflicts,
+      String ownLossClause)
+   {
       StringBuilder sb = new StringBuilder();
 
       for(WorksheetControllerService.AggregateInputLossConflict conflict : aggregateConflicts) {
@@ -1710,8 +1715,46 @@ public final class WorksheetMutationSupport {
 
       return "This change would break the following downstream table(s), which rely on the " +
          "affected column(s) as their own aggregate input, group-by key, condition, or " +
-         "expression reference: " + sb + ". Confirm with the user before retrying with " +
+         "expression reference: " + sb + "." +
+         (ownLossClause != null ? " It also " + ownLossClause : "") +
+         " Confirm with the user before retrying with " +
          "confirmed:true -- this changes what those OTHER tables show, not just this one.";
+   }
+
+   /**
+    * Clause naming what the table's OWN state loses when the stale-range sweep drops a column it
+    * still uses (Bug #78790): conditions, ranking and sort on it are deleted, while materialized
+    * view condition lists that mention it are only left stale. {@code null} when nothing is lost.
+    */
+   private static String describeOwnLoss(TableAssembly t, Map<String, Set<String>> ownLoss) {
+      if(ownLoss.isEmpty()) {
+         return null;
+      }
+
+      List<String> dropped = new ArrayList<>();
+      Set<String> uses = new LinkedHashSet<>();
+      boolean removed = false;
+      boolean stale = false;
+
+      for(Map.Entry<String, Set<String>> e : ownLoss.entrySet()) {
+         dropped.add("\"" + e.getKey() + "\"");
+
+         for(String use : e.getValue()) {
+            uses.add(use);
+            stale |= use.startsWith("MV ");
+            removed |= !use.startsWith("MV ");
+         }
+      }
+
+      String effect = removed && stale
+         ? "its conditions and sort on the dropped column are removed and its MV condition " +
+            "lists are left stale"
+         : removed ? "its conditions and sort on the dropped column are removed"
+         : "its MV condition lists are left stale";
+
+      return "would drop column(s) " + String.join(", ", dropped) +
+         " that this table still uses: table '" + t.getName() + "' itself (" +
+         String.join(", ", uses) + "); " + effect + ".";
    }
 
    /**
