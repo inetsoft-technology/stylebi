@@ -655,15 +655,21 @@ public class TableBindingService {
                }
             }
 
+            // Validate every target before hiding any, so a call that throws leaves the
+            // assembly unchanged (the mutate() checkpoint would otherwise keep the partial hide).
+            List<String> errors = new ArrayList<>();
+            List<Integer> hideCols = new ArrayList<>();
+
             for(int i = 0; i < targets.size(); i++) {
                TableBindingMutator.ShelfIndex target = targets.get(i);
                DataRef ref = liveCrosstabRef(crossInfo, target.shelf(), target.index());
 
                if(ref == null) {
-                  throw new IllegalArgumentException(
+                  errors.add(
                      "'" + target.shelf() + "[" + target.index() + "]' no longer resolves on " +
                      "the live assembly -- the binding may have changed since this call was " +
                      "validated.");
+                  continue;
                }
 
                // Bug #76882: same collision as applyCrosstabLabels/enrichCrosstabLabelsAndVisibility
@@ -672,23 +678,33 @@ public class TableBindingService {
                // wrongly collide with an unrelated row dimension's own corner cell, hiding the
                // wrong column.
                if("cols".equals(target.shelf())) {
-                  throw new IllegalArgumentException(
+                  errors.add(
                      "'" + target.shelf() + "[" + target.index() + "]' has no header cell of " +
                      "its own to resolve -- a crosstab's column dimension renders its bound " +
                      "values as the header, not a single column to hide by dimension position.");
+                  continue;
                }
 
                SetTableHeaderAliasHandler.HeaderCell cell =
                   SetTableHeaderAliasHandler.findHeaderCell(lens, ref, target.index());
 
                if(cell == null) {
-                  throw new IllegalArgumentException(
+                  errors.add(
                      "Could not find '" + target.shelf() + "[" + target.index() + "]' on the " +
                      "rendered header of '" + assemblyName + "' -- it may not currently render " +
                      "(suppressed or filtered out by the crosstab's current shape).");
+                  continue;
                }
 
-               tableInfo.addHiddenColumn(cell.col(), lens);
+               hideCols.add(cell.col());
+            }
+
+            if(!errors.isEmpty()) {
+               throw new IllegalArgumentException(String.join(" ", errors));
+            }
+
+            for(int i = 0; i < hideCols.size(); i++) {
+               tableInfo.addHiddenColumn(hideCols.get(i), lens);
                applied.add(requestedNames.get(i) + " -> hidden");
             }
          }
@@ -1037,14 +1053,22 @@ public class TableBindingService {
       VSTableLens lens = null;
       VSCrosstabInfo crossInfo = crosstab.getVSCrosstabInfo();
       FormatInfo formatInfo = crosstab.getFormatInfo();
+      // Resolve every target before writing any, so a call that throws leaves the assembly
+      // unchanged (the mutate() checkpoint would otherwise keep the partial label write).
+      List<String> errors = new ArrayList<>();
+      List<DataRef> clearRefs = new ArrayList<>();
+      List<Integer> clearIdx = new ArrayList<>();
+      List<TableDataPath> setPaths = new ArrayList<>();
+      List<String> setLabels = new ArrayList<>();
 
       for(TableBindingMutator.CrosstabTarget target : targets) {
          DataRef ref = liveCrosstabRef(crossInfo, target.shelf(), target.index());
 
          if(ref == null) {
-            throw new IllegalArgumentException(
+            errors.add(
                "'" + target.shelf() + "[" + target.index() + "]' no longer resolves on the " +
                "live assembly -- the binding may have changed since this call was validated.");
+            continue;
          }
 
          // Bug #76882: a crosstab column dimension has no header cell of its own to alias -- its
@@ -1053,15 +1077,17 @@ public class TableBindingService {
          // a row dimension's own corner title cell. See enrichCrosstabLabelsAndVisibility's
          // javadoc for the read-side half of this same defect.
          if("cols".equals(target.shelf())) {
-            throw new IllegalArgumentException(
+            errors.add(
                "'" + target.shelf() + "[" + target.index() + "]' has no header cell of its own " +
                "to relabel -- a crosstab's column dimension renders its bound values as the " +
                "header, not a dimension title, so there is nothing here for set_column_labels " +
                "to target.");
+            continue;
          }
 
          if(target.label().isEmpty()) {
-            ClearTableHeaderAliasHandler.clearAlias(ref, formatInfo, target.index());
+            clearRefs.add(ref);
+            clearIdx.add(target.index());
             continue;
          }
 
@@ -1074,14 +1100,30 @@ public class TableBindingService {
          TableDataPath path = SetTableHeaderAliasHandler.findHeaderPath(lens, ref, target.index());
 
          if(path == null) {
-            throw new IllegalArgumentException(
+            errors.add(
                "Could not find '" + target.shelf() + "[" + target.index() + "]' on the " +
                "rendered header of '" + crosstab.getAbsoluteName() + "' -- it may not currently " +
                "render (suppressed, filtered out, or hidden by the crosstab's current shape).");
+            continue;
          }
 
-         SetTableHeaderAliasHandler.setAliasWithHeaderDuality(path, formatInfo, target.label());
+         setPaths.add(path);
+         setLabels.add(target.label());
       }
+
+      if(!errors.isEmpty()) {
+         throw new IllegalArgumentException(String.join(" ", errors));
+      }
+
+      for(int i = 0; i < clearRefs.size(); i++) {
+         ClearTableHeaderAliasHandler.clearAlias(clearRefs.get(i), formatInfo, clearIdx.get(i));
+      }
+
+      for(int i = 0; i < setPaths.size(); i++) {
+         SetTableHeaderAliasHandler.setAliasWithHeaderDuality(
+            setPaths.get(i), formatInfo, setLabels.get(i));
+      }
+
 
       crosstab.setFormatInfo(formatInfo);
    }
@@ -1176,6 +1218,13 @@ public class TableBindingService {
          int rowCount = lens.getRowCount();
          Set<String> aggregateHeaders = aggregateFullNames(assembly);
 
+         // Validate every entry before writing any, so a call that throws leaves the assembly
+         // unchanged (the mutate() checkpoint would otherwise keep the partial width write).
+         List<String> errors = new ArrayList<>();
+         List<Integer> cols = new ArrayList<>();
+         List<String> names = new ArrayList<>();
+         List<Double> values = new ArrayList<>();
+
          for(Map.Entry<String, Double> entry : widths.entrySet()) {
             String column = entry.getKey();
             Double width = entry.getValue();
@@ -1186,32 +1235,45 @@ public class TableBindingService {
                                aggregateHeaders, matches);
 
             if(matches.isEmpty()) {
-               throw new IllegalArgumentException(
+               errors.add(
                   "'" + column + "' is not a visible column on '" + assemblyName + "' right " +
                   "now.");
+               continue;
             }
 
             if(matches.size() > 1) {
-               throw new IllegalArgumentException(
+               errors.add(
                   "'" + column + "' matches " + matches.size() + " rendered columns on '" +
                   assemblyName + "' -- width cannot be set by name when it's ambiguous.");
+               continue;
             }
 
-            int col = matches.get(0);
+            if(width != null && (!Double.isFinite(width) || width <= 0)) {
+               errors.add(
+                  "'" + column + "' width must be a finite, positive number of pixels; got " +
+                  width + ".");
+               continue;
+            }
+
+            cols.add(matches.get(0));
+            names.add(column);
+            values.add(width);
+         }
+
+         if(!errors.isEmpty()) {
+            throw new IllegalArgumentException(String.join(" ", errors));
+         }
+
+         for(int i = 0; i < cols.size(); i++) {
+            Double width = values.get(i);
 
             if(width == null) {
-               info.setColumnWidthValue(col, Double.NaN);
-               applied.add(column + " -> auto");
+               info.setColumnWidthValue(cols.get(i), Double.NaN);
+               applied.add(names.get(i) + " -> auto");
             }
             else {
-               if(!Double.isFinite(width) || width <= 0) {
-                  throw new IllegalArgumentException(
-                     "'" + column + "' width must be a finite, positive number of pixels; got " +
-                     width + ".");
-               }
-
-               info.setColumnWidthValue2(col, width, lens);
-               applied.add(column + " -> " + formatPixels(width) + "px");
+               info.setColumnWidthValue2(cols.get(i), width, lens);
+               applied.add(names.get(i) + " -> " + formatPixels(width) + "px");
             }
          }
 
