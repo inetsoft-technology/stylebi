@@ -175,6 +175,36 @@ class DatabaseAuthenticationCacheReloadHookTest {
    }
 
    @Test
+   void queuedRefreshOfAReplacedProviderIsNotLost() throws Exception {
+      AuthenticationChain host = support.initEngine(List.of(
+         base(), support.blockingProvider("v78793", NO_ALICE), support.provider("w78793", NO_ALICE)));
+      DataSpace.getDataSpace().removeChangeListener(null, "authc-chain.json", host);
+      load(host, "w78793");
+      assertFalse(cachedAlice("w78793"));
+      writer = new AuthenticationChain();
+      BlockingProvider.gate = new CountDownLatch(1);
+
+      try {
+         // reload 1 changes v and w; v's refresh holds the refresh thread, so w's waits behind it
+         save(base(), support.blockingProvider("v78793", ALL_USERS),
+              support.provider("w78793", ALL_USERS));
+         reload(host);
+         // reload 2 changes only v, and replaces every instance, w's too
+         save(base(), support.blockingProvider("v78793", NO_ALICE),
+              support.provider("w78793", ALL_USERS));
+         reload(host);
+         assertFalse(cachedAlice("w78793"));
+      }
+      finally {
+         BlockingProvider.gate.countDown();
+      }
+
+      // w's queued refresh runs on w's current instance
+      assertTrue(await(() -> cachedAlice("w78793"), 5_000), "w's refresh was lost");
+      BlockingProvider.gate = null;
+   }
+
+   @Test
    void initialLoadRefreshesNothing() throws Exception {
       support.initEngine(List.of(base(), support.provider("s78793", ALL_USERS)));
       Thread.sleep(500);
