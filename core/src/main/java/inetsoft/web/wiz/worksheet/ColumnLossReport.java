@@ -91,10 +91,11 @@ final class ColumnLossReport {
 
       /**
        * edit_sql_query / edit_table: downstream references and the table's own expression and
-       * range columns, which both edits keep (Bug #78681). Join keys and key types are
-       * refused by the caller's own checks; an aggregate stays accept-and-warn (WSQ-009).
+       * range columns, which both edits keep (Bug #78681). Join keys are named like any
+       * other dependent (Bug #78811); key types are refused by the caller's own check; an
+       * aggregate stays accept-and-warn (WSQ-009).
        */
-      static final Scope QUERY_EDIT = new Scope(false, false, false, true);
+      static final Scope QUERY_EDIT = new Scope(true, false, false, true);
 
       /**
        * edit_unpivot shrinking the header columns: the melted column's name leaves the table, so
