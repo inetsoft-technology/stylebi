@@ -130,6 +130,37 @@ class AddMirrorSource78881Test {
       assertInstanceOf(MirrorTableAssembly.class, ws.getAssembly("M"));
    }
 
+   @Test
+   void aMirrorNamedLikeItsSourceIsRefusedAndKeepsTheSource() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly source = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(source);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service(ws).apply("TOK", agent, ed -> ed.addMirror("T", "T")));
+
+      assertTrue(ex.getMessage().contains("collides with one of its own source tables"),
+                 ex.getMessage());
+      assertSame(source, ws.getAssembly("T"));
+      ws.checkValidity();
+   }
+
+   @Test
+   void aMirrorNamedLikeATableItsSourceIsBuiltOnIsRefused() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly table = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(table);
+      service(ws).apply("TOK", agent, ed -> ed.addMirror("B", "T"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service(ws).apply("TOK", agent, ed -> ed.addMirror("T", "B")));
+
+      assertTrue(ex.getMessage().contains("\"T\" already names an existing assembly"),
+                 ex.getMessage());
+      assertSame(table, ws.getAssembly("T"));
+      ws.checkValidity();
+   }
+
    // ------------------------------------------------------------------- cross-worksheet form
 
    @Test
@@ -169,18 +200,27 @@ class AddMirrorSource78881Test {
 
    @Test
    void aCrossWorksheetMirrorNamedLikeItsOwnSourceCopyIsRefused() throws Exception {
-      saveSource("am78881_copy");
+      // a space in the path, as in "Examples/Order Details"
+      String path = "am78881 copy";
+      saveSource(path);
       Worksheet ws = new Worksheet();
       AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
-                                        "am78881_copy", null);
+                                        path, null);
       // the name copyOuterAssemblies gives its copy of the source's primary table
       String copyName = AssetUtil.createPrefix(entry) + "0";
+      assertEquals("OUTER_am78881 copy_0", copyName);
 
       PairingException ex = assertThrows(PairingException.class,
-         () -> addWorksheetMirror(ws, copyName, "am78881_copy"));
+         () -> addWorksheetMirror(ws, copyName, path));
 
       assertTrue(ex.getMessage().contains("\"" + copyName + "\""), ex.getMessage());
       assertEquals(List.of(), names(ws), "the refusal left source copies behind");
+
+      // the worksheet is still usable: no self-referencing mirror was ever registered
+      ws.checkValidity();
+      addWorksheetMirror(ws, "M", path);
+      assertInstanceOf(MirrorTableAssembly.class, ws.getAssembly("M"));
+      ws.checkValidity();
    }
 
    @Test

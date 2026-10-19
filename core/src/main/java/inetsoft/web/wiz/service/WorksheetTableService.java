@@ -1819,6 +1819,23 @@ public class WorksheetTableService {
             "can only mirror a table assembly.");
       }
 
+      // addAssembly replaces a table of the same name, and the mirror and every table under it
+      // resolve their sources by name. Replacing the base, or a table the base is built on,
+      // would make the mirror resolve to itself and recurse until StackOverflowError.
+      Assembly replaced = worksheet.getAssembly(request.getTableName());
+
+      if(replaced != null &&
+         Arrays.stream(AssetUtil.getDependedAssemblies(worksheet, baseTable, true))
+            .anyMatch(depended -> depended == replaced))
+      {
+         throw new IllegalArgumentException(replaced == baseTable
+            ? "Mirror table '" + request.getTableName() + "' cannot have the same name as its " +
+              "base table. Choose a different tableName."
+            : "Mirror table '" + request.getTableName() + "' cannot replace table '" +
+              request.getTableName() + "': its base table '" + baseTableName + "' is built on " +
+              "it. Choose a different tableName.");
+      }
+
       MirrorTableAssembly mirror =
          new MirrorTableAssembly(worksheet, request.getTableName(), baseTable);
 

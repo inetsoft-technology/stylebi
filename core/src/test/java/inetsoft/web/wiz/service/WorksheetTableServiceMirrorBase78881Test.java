@@ -50,8 +50,9 @@ import static org.mockito.Mockito.when;
 
 /**
  * Bug #78881: a /ws/table mirror table into an existing worksheet fails naming the problem when
- * its base is not a table, or when its name is taken by an assembly of another kind -- and the
- * failed table's rollback leaves that existing assembly in place.
+ * its base is not a table, when its name is taken by an assembly of another kind, or when it would
+ * replace its own base or a table the base is built on -- and the failed table's rollback leaves
+ * that existing assembly in place.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -65,6 +66,7 @@ class WorksheetTableServiceMirrorBase78881Test {
    @Test
    void aMirrorOverAVariableFailsNamingItsKind() throws Exception {
       Worksheet ws = worksheet();
+      Assembly table = ws.getAssembly("T");
 
       WorksheetTableResponse result = createMirror(ws, "M", "V1");
 
@@ -73,6 +75,51 @@ class WorksheetTableServiceMirrorBase78881Test {
                  result.getErrorMessage());
       assertNull(ws.getAssembly("M"));
       assertInstanceOf(DefaultVariableAssembly.class, ws.getAssembly("V1"));
+      assertSame(table, ws.getAssembly("T"));
+   }
+
+   @Test
+   void aMirrorNamedLikeItsBaseFailsAndKeepsTheBase() throws Exception {
+      Worksheet ws = worksheet();
+      Assembly base = ws.getAssembly("T");
+
+      WorksheetTableResponse result = createMirror(ws, "T", "T");
+
+      assertFalse(result.isSuccess());
+      assertTrue(result.getErrorMessage().contains(
+         "Mirror table 'T' cannot have the same name as its base table"),
+         result.getErrorMessage());
+      assertSame(base, ws.getAssembly("T"));
+      ws.checkValidity();
+   }
+
+   @Test
+   void aMirrorNamedLikeATableItsBaseIsBuiltOnFailsAndKeepsThatTable() throws Exception {
+      Worksheet ws = worksheet();
+      Assembly table = ws.getAssembly("T");
+      assertTrue(createMirror(ws, "B", "T").isSuccess());
+
+      WorksheetTableResponse result = createMirror(ws, "T", "B");
+
+      assertFalse(result.isSuccess());
+      assertTrue(result.getErrorMessage().contains(
+         "Mirror table 'T' cannot replace table 'T': its base table 'B' is built on it"),
+         result.getErrorMessage());
+      assertSame(table, ws.getAssembly("T"));
+      ws.checkValidity();
+   }
+
+   @Test
+   void aMirrorNamedLikeItsBaseInAnotherCaseLeavesTheBaseInPlace() throws Exception {
+      // Worksheet.getAssembly and addAssembly match names exactly, so "t" does not replace "T"
+      // and the mirror's base still resolves to the original table.
+      Worksheet ws = worksheet();
+      Assembly base = ws.getAssembly("T");
+
+      createMirror(ws, "t", "T");
+
+      assertSame(base, ws.getAssembly("T"));
+      ws.checkValidity();
    }
 
    @Test
@@ -91,7 +138,10 @@ class WorksheetTableServiceMirrorBase78881Test {
    /** A worksheet holding a table T and a variable V1. */
    private static Worksheet worksheet() {
       Worksheet ws = new Worksheet();
-      ws.addAssembly(new PhysicalBoundTableAssembly(ws, "T"));
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "T");
+      // a source, so that checkValidity() can confirm the worksheet is still readable
+      table.setSourceInfo(new SourceInfo(SourceInfo.PHYSICAL_TABLE, "ds78881", "T"));
+      ws.addAssembly(table);
       DefaultVariableAssembly variable = new DefaultVariableAssembly(ws, "V1");
       variable.setVariable(new AssetVariable("V1"));
       ws.addAssembly(variable);
