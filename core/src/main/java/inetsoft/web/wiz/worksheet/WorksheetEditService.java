@@ -2089,7 +2089,7 @@ public class WorksheetEditService {
        *
        * @param name   the name for the new mirror assembly
        * @param source the name of the table assembly to mirror
-       * @throws PairingException if the source assembly is not found
+       * @throws PairingException if the source assembly is not found or is not a table
        */
       public void addMirror(String name, String source) throws PairingException {
          if(name == null || name.isBlank()) {
@@ -2098,12 +2098,34 @@ public class WorksheetEditService {
 
          Assembly a = ws.getAssembly(source);
 
-         if(!(a instanceof WSAssembly wsa)) {
-            throw new PairingException("Source assembly not found: " + source);
+         if(a == null) {
+            throw new PairingException(
+               "Source assembly not found: " + source + ". The source must be a table already " +
+               "in this worksheet: add it first (e.g. with add_table), or pass path instead of " +
+               "source to mirror a saved worksheet.");
          }
 
-         MirrorTableAssembly mirror = new MirrorTableAssembly(ws, name, wsa);
+         // MirrorTableAssembly casts its source to a table, so any other kind would fail there
+         // with a ClassCastException instead of a message naming the problem.
+         if(!(a instanceof TableAssembly table)) {
+            throw new PairingException(
+               "\"" + source + "\" is a " + kindOf(a) + ", not a table. add_mirror can only " +
+               "mirror a table assembly.");
+         }
+
+         MirrorTableAssembly mirror = new MirrorTableAssembly(ws, name, table);
          placeAssembly(mirror);
+      }
+
+      /** The kind of a non-table worksheet assembly, as a refusal names it. */
+      public static String kindOf(Assembly assembly) {
+         return switch(assembly.getAssemblyType()) {
+            case AbstractSheet.VARIABLE_ASSET -> "variable";
+            case AbstractSheet.NAMED_GROUP_ASSET -> "named group";
+            case AbstractSheet.CONDITION_ASSET -> "condition";
+            case AbstractSheet.DATE_RANGE_ASSET -> "date range";
+            default -> assembly.getClass().getSimpleName();
+         };
       }
 
       // -----------------------------------------------------------------------
@@ -4408,9 +4430,18 @@ public class WorksheetEditService {
        * {@code Worksheet}/{@code RuntimeWorksheet} rather than through this {@code Editor}.
        */
       static void requireNoNameCollision(WSAssembly assembly, Worksheet ws) throws PairingException {
-         if(ws.getAssembly(assembly.getName()) != null) {
+         requireNoNameCollision(assembly.getName(), ws);
+      }
+
+      /**
+       * The same check by name, for a caller that must refuse before it builds the assembly --
+       * {@link WorksheetAgentController}'s cross-worksheet add_mirror, which copies the source
+       * worksheet's assemblies in before the mirror exists.
+       */
+      static void requireNoNameCollision(String name, Worksheet ws) throws PairingException {
+         if(ws.getAssembly(name) != null) {
             throw new PairingException(
-               "\"" + assembly.getName() + "\" already names an existing assembly in this " +
+               "\"" + name + "\" already names an existing assembly in this " +
                "worksheet. Registering a new assembly under that name would silently replace and " +
                "discard it. Choose a different name for the new assembly.");
          }
