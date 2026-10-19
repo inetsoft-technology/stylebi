@@ -171,4 +171,69 @@ class TableUnpivotDialogServiceTest {
       assertEquals(1, table.getHeaderColumns(),
          "a rejected headerColumns change must not be applied");
    }
+
+   /** S(k int, x string hidden, mid, q2 int): private 4 columns, public 3, unpivoted at 2. */
+   private static UnpivotTableAssembly hiddenColumnUnpivot(Worksheet ws, String midType) {
+      ColumnRef x = col("x", XSchema.STRING);
+      x.setVisible(false);
+      EmbeddedTableAssembly src = table(ws, "S",
+         col("k", XSchema.INTEGER), x, col("q1", midType), col("q2", XSchema.INTEGER));
+      ws.addAssembly(src);
+
+      UnpivotTableAssembly table = new UnpivotTableAssembly(ws, "U", src);
+      table.setLiveData(true);
+      table.setHeaderColumns(2);
+      ws.addAssembly(table);
+      return table;
+   }
+
+   @Test
+   void changeUnpivotTableRowHeadersRejectsLevelAtVisibleColumnCountWithHiddenColumn()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      UnpivotTableAssembly table = hiddenColumnUnpivot(ws, XSchema.INTEGER);
+      TableUnpivotDialogService svc = service(mockRws(ws));
+
+      MessageException ex = assertThrows(MessageException.class, () ->
+         svc.changeUnpivotTableRowHeaders(
+            "Worksheet/ws1", event("U", 3), mock(Principal.class), mock(CommandDispatcher.class)));
+      assertTrue(ex.getMessage().contains("must be between 0 and 2 (table has 3 columns)"),
+                 ex.getMessage());
+      assertEquals(2, table.getHeaderColumns());
+   }
+
+   @Test
+   void changeUnpivotTableRowHeadersShrinkIgnoresHiddenColumnInTypeCheck() throws Exception {
+      Worksheet ws = new Worksheet();
+      UnpivotTableAssembly table = hiddenColumnUnpivot(ws, XSchema.INTEGER);
+      TableUnpivotDialogService svc = service(mockRws(ws));
+
+      try {
+         svc.changeUnpivotTableRowHeaders(
+            "Worksheet/ws1", event("U", 1), mock(Principal.class), mock(CommandDispatcher.class));
+      }
+      catch(MessageException ex) {
+         fail("the hidden column x is not melted, so the shrink is valid: " + ex.getMessage());
+      }
+      catch(Exception ignored) {
+         // the refresh after the validation needs a real sandbox, which this mock lacks
+      }
+
+      assertEquals(1, table.getHeaderColumns());
+   }
+
+   @Test
+   void changeUnpivotTableRowHeadersShrinkStillRefusesVisibleTypeConflict() throws Exception {
+      Worksheet ws = new Worksheet();
+      UnpivotTableAssembly table = hiddenColumnUnpivot(ws, XSchema.STRING);
+      TableUnpivotDialogService svc = service(mockRws(ws));
+
+      MessageException ex = assertThrows(MessageException.class, () ->
+         svc.changeUnpivotTableRowHeaders(
+            "Worksheet/ws1", event("U", 1), mock(Principal.class), mock(CommandDispatcher.class)));
+      assertTrue(ex.getMessage().contains("q1"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("x cannot"), ex.getMessage());
+      assertEquals(2, table.getHeaderColumns());
+   }
 }

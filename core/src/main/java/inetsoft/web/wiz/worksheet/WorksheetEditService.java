@@ -1490,7 +1490,8 @@ public class WorksheetEditService {
          }
 
          TableAssembly src = requireTable(source);
-         int colCount = src.getColumnSelection(false).getAttributeCount();
+         // The melt runs over the source's visible columns, a hidden one never reaches it.
+         int colCount = src.getColumnSelection(true).getAttributeCount();
 
          if(headerColumns < 0 || headerColumns >= colCount) {
             throw new PairingException(

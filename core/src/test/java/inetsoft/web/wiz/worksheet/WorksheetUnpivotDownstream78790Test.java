@@ -584,7 +584,7 @@ class WorksheetUnpivotDownstream78790Test {
       svc.apply("TOK", agent, m);
    }
 
-   private static EmbeddedTableAssembly source(Worksheet ws, String name) {
+   static EmbeddedTableAssembly source(Worksheet ws, String name) {
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(
          ws, name, "name", "score", "q1", "q2", "q3");
       t.setEmbeddedData(new XEmbeddedTable(
@@ -613,7 +613,7 @@ class WorksheetUnpivotDownstream78790Test {
       return t;
    }
 
-   private static WorksheetEditService service(Worksheet ws) throws Exception {
+   static WorksheetEditService service(Worksheet ws) throws Exception {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(
          any(), any(ResourceType.class), any(String.class), any(ResourceAction.class)))
