@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.script;
 
+import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -33,13 +35,19 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.script.model.ScriptError;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -97,6 +105,16 @@ public class ScriptExecuteService {
    private static final Pattern DECLARATION_KEYWORD = Pattern.compile("\\b(?:var|let|const)\\b");
    private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_$][\\w$]*");
 
+   // Bug #78812: ways a Script Library entry can declare a callable global function.
+   private static final List<Pattern> FUNCTION_DECLARATIONS = List.of(
+      Pattern.compile("\\bfunction\\s*\\*?\\s*([A-Za-z_$][\\w$]*)\\s*\\("),
+      Pattern.compile("([A-Za-z_$][\\w$]*)\\s*=\\s*(?:async\\s+)?function\\b"),
+      Pattern.compile("([A-Za-z_$][\\w$]*)\\s*=\\s*(?:async\\s*)?" +
+                      "(?:\\([^)]*\\)|[A-Za-z_$][\\w$]*)\\s*=>")
+   );
+
+   private static final Logger LOG = LoggerFactory.getLogger(ScriptExecuteService.class);
+
    @Autowired
    public ScriptExecuteService(ScriptReadService readService) {
       this.readService = readService;
@@ -113,11 +131,11 @@ public class ScriptExecuteService {
     */
    public ScriptExecResult dryRun(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {
       String text = readService.read(rvs, target).text();
-      String destructive = firstDestructiveGlobal(text);
+      DestructiveRef destructive = firstDestructiveReference(text, rvs);
 
       if(destructive != null) {
          return new ScriptExecResult(false, null, null, null, true,
-            "Script references \"" + destructive + "\", which can change stored/live data. " +
+            destructive.describe() + ", which can change stored/live data. " +
             "Dry-run cannot safely preview this — call run_script_live with confirmed=true " +
             "to execute it for real.", null, null);
       }
@@ -135,11 +153,11 @@ public class ScriptExecuteService {
       throws PairingException
    {
       String text = readService.read(rvs, target).text();
-      String destructive = firstDestructiveGlobal(text);
+      DestructiveRef destructive = firstDestructiveReference(text, rvs);
 
       if(destructive != null && !confirmed) {
          return new ScriptExecResult(false, null, null, null, true,
-            "Script references \"" + destructive + "\", which can change stored/live data. " +
+            destructive.describe() + ", which can change stored/live data. " +
             "Call run_script_live again with confirmed=true to proceed.", null, null);
       }
 
@@ -674,6 +692,145 @@ public class ScriptExecuteService {
       }
 
       return out.toString();
+   }
+
+   /**
+    * Bug #78812: finds the first destructive global the script reaches, directly or through
+    * Script Library functions it calls (transitively). Library functions are hoisted globals
+    * installed from the whole entry source, so the call-site identifier is the DECLARED function
+    * name (an entry may declare several, and its name may differ from them), not the entry name;
+    * both are indexed. Sources come from the runtime user's org library, the same set the engine
+    * installs. Like the direct scan this is a name scan only: eval/string-built/aliased global
+    * calls and library top-level code (which runs at engine init) are not covered.
+    */
+   private DestructiveRef firstDestructiveReference(String scriptText, RuntimeViewsheet rvs) {
+      String direct = firstDestructiveGlobal(scriptText);
+
+      if(direct != null) {
+         return new DestructiveRef(direct, null, null);
+      }
+
+      if(scriptText == null || scriptText.isEmpty()) {
+         return null;
+      }
+
+      Map<String, String> sources = libraryScripts(rvs.getUser());
+
+      if(sources == null || sources.isEmpty()) {
+         return null;
+      }
+
+      Map<String, Set<String>> index = new LinkedHashMap<>();
+
+      for(Map.Entry<String, String> e : sources.entrySet()) {
+         index.computeIfAbsent(e.getKey(), k -> new LinkedHashSet<>()).add(e.getKey());
+
+         for(String declared : declaredFunctions(e.getValue())) {
+            index.computeIfAbsent(declared, k -> new LinkedHashSet<>()).add(e.getKey());
+         }
+      }
+
+      Deque<String> work = new ArrayDeque<>(identifiers(stripCommentsAndStrings(scriptText), true));
+      Set<String> visited = new HashSet<>();
+
+      while(!work.isEmpty()) {
+         String token = work.poll();
+         Set<String> entries = index.get(token);
+
+         if(entries == null) {
+            continue;
+         }
+
+         for(String entry : entries) {
+            if(!visited.add(entry)) {
+               continue;
+            }
+
+            String source = sources.get(entry);
+            String hit = firstDestructiveGlobal(source);
+
+            if(hit != null) {
+               return new DestructiveRef(hit, token, entry);
+            }
+
+            work.addAll(identifiers(source, false));
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Library entry name to source for the runtime user's organization, or null when the library
+    * is unavailable (no provider bean, e.g. a minimal context), in which case only the direct
+    * scan applies. Package-private so tests can supply a library.
+    */
+   Map<String, String> libraryScripts(Principal user) {
+      LibManager mgr;
+
+      try {
+         LibManagerProvider provider = LibManagerProvider.getInstance();
+         mgr = user instanceof XPrincipal ? provider.getManager(user) : provider.getManager();
+      }
+      catch(RuntimeException ex) {
+         LOG.debug("Script Library unavailable; scanning the script text only", ex);
+         return null;
+      }
+
+      Map<String, String> sources = new LinkedHashMap<>();
+      Enumeration<String> names = mgr.getScripts();
+
+      while(names.hasMoreElements()) {
+         String name = names.nextElement();
+         String source = mgr.getScript(name);
+
+         if(source != null) {
+            sources.put(name, source);
+         }
+      }
+
+      return sources;
+   }
+
+   private static Set<String> declaredFunctions(String source) {
+      Set<String> names = new LinkedHashSet<>();
+
+      for(Pattern p : FUNCTION_DECLARATIONS) {
+         Matcher m = p.matcher(source);
+
+         while(m.find()) {
+            names.add(m.group(1));
+         }
+      }
+
+      return names;
+   }
+
+   private static List<String> identifiers(String text, boolean skipMembers) {
+      List<String> tokens = new ArrayList<>();
+      Matcher m = IDENTIFIER.matcher(text);
+
+      while(m.find()) {
+         if(skipMembers && m.start() > 0 && text.charAt(m.start() - 1) == '.') {
+            continue;
+         }
+
+         tokens.add(m.group());
+      }
+
+      return tokens;
+   }
+
+   private record DestructiveRef(String global, String function, String entry) {
+      String describe() {
+         if(function == null) {
+            return "Script references \"" + global + "\"";
+         }
+
+         String via = "library function \"" + function + "\"" +
+            (entry.equals(function) ? "" : " (entry \"" + entry + "\")");
+         return "Script calls " + via + ", which references \"" + global + "\"";
+      }
    }
 
    private static String firstDestructiveGlobal(String scriptText) {

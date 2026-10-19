@@ -463,6 +463,163 @@ class ScriptExecuteServiceTest {
       verify(scope).execute(eq("setCellValue('T', 0, 0, 1)"), nullable(String.class));
    }
 
+   /** Bug #78812: service whose Script Library is the given entry-name -> source map. */
+   private ScriptExecuteService serviceWithLibrary(Map<String, String> library) {
+      ScriptExecuteService svc = spy(new ScriptExecuteService(new ScriptReadService()));
+      doReturn(library).when(svc).libraryScripts(any());
+      return svc;
+   }
+
+   private ScriptExecResult runLiveWithLibrary(String script, Map<String, String> library,
+                                               boolean confirmed, ViewsheetScope scope)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetWithScript(script, scope);
+      return serviceWithLibrary(library).runLive(rvs, ScriptTarget.parse("vs-init"), confirmed);
+   }
+
+   @Test
+   void libraryFunctionCallingDestructiveGlobalRequiresConfirmation() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      Map<String, String> lib = Map.of("getOrderCount",
+         "function getOrderCount() { return runQuery('ws:global:x'); }");
+
+      ScriptExecResult result =
+         runLiveWithLibrary("'Total: ' + getOrderCount()", lib, false, scope);
+
+      assertFalse(result.ok());
+      assertTrue(result.requiresConfirmation());
+      assertTrue(result.confirmationReason().contains("\"runQuery\""));
+      assertTrue(result.confirmationReason().contains("\"getOrderCount\""));
+      verify(scope, never()).execute(anyString(), nullable(String.class));
+   }
+
+   @Test
+   void nestedLibraryCallIsFollowed() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      Map<String, String> lib = new LinkedHashMap<>();
+      lib.put("outer", "function outer() { return middle(); }");
+      lib.put("middle", "function middle() { return inner(); }");
+      lib.put("inner", "function inner() { return runQuery('q'); }");
+
+      ScriptExecResult result = runLiveWithLibrary("outer()", lib, false, scope);
+
+      assertTrue(result.requiresConfirmation());
+      assertTrue(result.confirmationReason().contains("\"runQuery\""));
+   }
+
+   @Test
+   void cyclicLibraryCallsTerminate() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+      Map<String, String> lib = new LinkedHashMap<>();
+      lib.put("a", "function a() { return b(); }");
+      lib.put("b", "function b() { return a(); }");
+
+      ScriptExecResult result = runLiveWithLibrary("a()", lib, false, scope);
+
+      assertTrue(result.ok());
+      assertFalse(result.requiresConfirmation());
+   }
+
+   @Test
+   void entryNameDifferentFromDeclaredFunctionNameIsFollowed() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      Map<String, String> lib = Map.of("orderHelpers",
+         "function getOrderCount() { return runQuery('q'); }");
+
+      ScriptExecResult result = runLiveWithLibrary("getOrderCount()", lib, false, scope);
+
+      assertTrue(result.requiresConfirmation());
+      assertTrue(result.confirmationReason().contains("\"getOrderCount\" (entry \"orderHelpers\")"));
+   }
+
+   @Test
+   void multiFunctionEntryIsFollowedThroughAnyDeclaredFunction() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      Map<String, String> lib = Map.of("helpers",
+         "function safe() { return 1; }\nvar load = function() { return runQuery('q'); };\n" +
+         "const twice = (x) => x * 2;");
+
+      assertTrue(runLiveWithLibrary("load()", lib, false, scope).requiresConfirmation());
+      assertTrue(runLiveWithLibrary("safe()", lib, false, scope).requiresConfirmation());
+   }
+
+   @Test
+   void unreferencedLibraryFunctionDoesNotRequireConfirmation() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(2);
+      Map<String, String> lib = Map.of("danger", "function danger() { return runQuery('q'); }");
+
+      ScriptExecResult result = runLiveWithLibrary("1 + 1", lib, false, scope);
+
+      assertTrue(result.ok());
+      assertFalse(result.requiresConfirmation());
+   }
+
+   @Test
+   void memberAccessNamedLikeLibraryFunctionIsNotACall() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(2);
+      Map<String, String> lib = Map.of("danger", "function danger() { return runQuery('q'); }");
+
+      ScriptExecResult result = runLiveWithLibrary("obj.danger", lib, false, scope);
+
+      assertFalse(result.requiresConfirmation());
+   }
+
+   @Test
+   void writeGlobalThroughLibraryRequiresConfirmation() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      Map<String, String> lib = Map.of("fill", "function fill() { setCellValue('T', 0, 0, 1); }");
+
+      ScriptExecResult result = runLiveWithLibrary("fill()", lib, false, scope);
+
+      assertTrue(result.requiresConfirmation());
+      assertTrue(result.confirmationReason().contains("\"setCellValue\""));
+   }
+
+   @Test
+   void dryRunRefusesLibraryDestructiveCallAndDoesNotExecute() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      RuntimeViewsheet rvs = viewsheetWithScript("getOrderCount()", scope);
+      ScriptExecuteService svc = serviceWithLibrary(Map.of("getOrderCount",
+         "function getOrderCount() { return runQuery('q'); }"));
+
+      ScriptExecResult result = svc.dryRun(rvs, ScriptTarget.parse("vs-init"));
+
+      assertFalse(result.ok());
+      assertTrue(result.requiresConfirmation());
+      assertTrue(result.confirmationReason().contains("runQuery"));
+      verify(scope, never()).execute(anyString(), nullable(String.class));
+   }
+
+   @Test
+   void runLiveExecutesLibraryDestructiveCallOnceConfirmed() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq("getOrderCount()"), nullable(String.class))).thenReturn(7);
+      Map<String, String> lib = Map.of("getOrderCount",
+         "function getOrderCount() { return runQuery('q'); }");
+
+      ScriptExecResult result = runLiveWithLibrary("getOrderCount()", lib, true, scope);
+
+      assertTrue(result.ok());
+      assertFalse(result.requiresConfirmation());
+      verify(scope).execute(eq("getOrderCount()"), nullable(String.class));
+   }
+
+   @Test
+   void unavailableLibraryFallsBackToDirectScanOnly() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+
+      ScriptExecResult clean = runLiveWithLibrary("getOrderCount()", null, false, scope);
+      assertTrue(clean.ok());
+
+      ScriptExecResult direct = runLiveWithLibrary("runQuery('q')", null, false, scope);
+      assertTrue(direct.requiresConfirmation());
+   }
+
    /** Bug #78662: a script run changes the live runtime, so it must read as changed since the last save. */
    @Test
    void runLiveAddsAnUndoCheckpointAndBumpsTheWriteRevision() throws Exception {
