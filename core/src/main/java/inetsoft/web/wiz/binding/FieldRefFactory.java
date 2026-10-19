@@ -36,6 +36,7 @@ import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
@@ -53,7 +54,6 @@ import inetsoft.web.composer.model.condition.ConditionValueModel;
 import inetsoft.web.composer.model.condition.JunctionOperatorModel;
 import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.wiz.binding.model.FieldRef;
-import inetsoft.util.Tool;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -339,50 +339,152 @@ public final class FieldRefFactory {
          return;
       }
 
-      String type = dataType != null ? dataType : XSchema.STRING;
-      AttributeRef ref = new AttributeRef(column);
-      ref.setDataType(type);
-      SNamedGroupInfo probeInfo = new SNamedGroupInfo();
-      probeInfo.setDataRef(ref);
-      // one entry per value of every group already seen: its group, raw value and condition
-      List<String> seenGroups = new ArrayList<>();
-      List<Object> seenValues = new ArrayList<>();
-      List<ConditionGroup> seenConditions = new ArrayList<>();
+      GroupValueMatcher matcher = new GroupValueMatcher(column, dataType);
 
       for(FieldRef.NamedGroupValues.Clause clause : spec.groups()) {
-         int earlierCount = seenGroups.size();
+         // only the groups before this one: a repeat inside this group is harmless
+         int earlier = matcher.size();
 
          for(Object value : clause.values()) {
-            Object[] row = { renderedValue(value, type) };
+            int i = matcher.match(value, earlier);
 
-            for(int i = 0; i < earlierCount; i++) {
-               if(seenGroups.get(i).equals(clause.name()) ||
-                  !seenConditions.get(i).evaluate(row))
-               {
-                  continue;
-               }
-
-               String first = seenGroups.get(i);
-               Object firstValue = seenValues.get(i);
-               throw new IllegalArgumentException(
-                  "Field '" + column + "'s 'namedGroupValues' lists value " + describe(value) +
-                  " in group '" + clause.name() + "', but group '" + first + "' already " +
-                  (Tool.equals(value, firstValue) ? "lists it" :
-                     "lists " + describe(firstValue) + ", which matches the same rows") +
-                  " -- a value can belong to only one group. The render puts it in the first " +
-                  "group that lists it ('" + first + "'), so group '" + clause.name() +
-                  "' never gets it. Remove " + describe(value) + " from group '" +
-                  clause.name() + "' (and from any later group that lists it): that leaves " +
-                  "the rendered grouping exactly as it is now. To put it in '" + clause.name() +
-                  "' instead, remove " + describe(firstValue) + " from '" + first + "'.");
+            if(i >= 0) {
+               throw overlap(column, matcher, clause.name(), value, i);
             }
 
-            probeInfo.setGroupValue("v", Collections.singletonList(value));
-            seenGroups.add(clause.name());
-            seenValues.add(value);
-            seenConditions.add(new ConditionGroup(0, probeInfo.getGroupCondition("v")));
+            matcher.add(clause.name(), value);
          }
       }
+   }
+
+   private static IllegalArgumentException overlap(String column, GroupValueMatcher matcher,
+                                                   String group, Object value, int i)
+   {
+      String first = matcher.group(i);
+      Object firstValue = matcher.value(i);
+      boolean unconvertible = value != null && !"".equals(value) &&
+         matcher.rendered(value) == null;
+      return new IllegalArgumentException(
+         "Field '" + column + "'s 'namedGroupValues' lists value " + describe(value) +
+         " in group '" + group + "', but group '" + first + "' already " +
+         (Tool.equals(value, firstValue) ? "lists it" :
+            "lists " + describe(firstValue) + ", which matches the same rows") +
+         (unconvertible ? " (" + describe(value) + " is not a valid " + matcher.type() +
+            " value, so it matches only the column's null rows)" : "") +
+         " -- a value can belong to only one group. The render puts it in the first " +
+         "group that lists it ('" + first + "'), so group '" + group + "' never gets it. " +
+         "Remove " + describe(value) + " from group '" + group + "' (and from any later " +
+         "group that lists it): that leaves the rendered grouping exactly as it is now. To " +
+         "put it in '" + group + "' instead, remove " + describe(firstValue) + " from '" +
+         first + "'.");
+   }
+
+   /**
+    * Bug #78862 R1: {@code spec} without the values the render never assigns to their group --
+    * those an EARLIER group already matches (same equality as {@link #refuseValueInTwoGroups}),
+    * dropping a group left with no value. The render is unchanged: a dropped value is one
+    * {@code SortOrder.findGroup} always put in the earlier group, and a dropped group is one
+    * that never matched a row. For a path that rewrites a binding already stored (a table
+    * source change re-resolving the dimensions it keeps) rather than one the caller wrote, so an
+    * overlap stored before the refusal existed does not fail a write that never sent it.
+    *
+    * @param dataType the column's data type, or {@code null} if unknown -- pass the type the
+    *                 re-resolving write will check with, so nothing it would refuse is left.
+    * @return {@code spec} itself when nothing is shadowed.
+    */
+   public static FieldRef.NamedGroupValues withoutShadowedValues(
+      FieldRef.NamedGroupValues spec, String column, String dataType)
+   {
+      if(spec == null || spec.groups() == null || spec.groups().size() < 2) {
+         return spec;
+      }
+
+      GroupValueMatcher matcher = new GroupValueMatcher(column, dataType);
+      List<FieldRef.NamedGroupValues.Clause> kept = new ArrayList<>();
+      boolean changed = false;
+
+      for(FieldRef.NamedGroupValues.Clause clause : spec.groups()) {
+         int earlier = matcher.size();
+         List<Object> values = new ArrayList<>();
+
+         for(Object value : clause.values() == null ? List.of() : clause.values()) {
+            if(matcher.match(value, earlier) >= 0) {
+               changed = true;
+            }
+            else {
+               values.add(value);
+            }
+
+            // every listed value stays a condition of its group in the render, dead or not
+            matcher.add(clause.name(), value);
+         }
+
+         if(!values.isEmpty() || clause.values() == null || clause.values().isEmpty()) {
+            kept.add(new FieldRef.NamedGroupValues.Clause(clause.name(), values.isEmpty() ?
+               clause.values() : values));
+         }
+      }
+
+      return changed ? new FieldRef.NamedGroupValues(kept, spec.others()) : spec;
+   }
+
+   /**
+    * The group values seen so far, each as the condition the render builds for it, so a later
+    * value can be matched against them the way {@code SortOrder.findGroup} matches a row.
+    */
+   private static final class GroupValueMatcher {
+      GroupValueMatcher(String column, String dataType) {
+         type = dataType != null ? dataType : XSchema.STRING;
+         AttributeRef ref = new AttributeRef(column);
+         ref.setDataType(type);
+         probeInfo.setDataRef(ref);
+      }
+
+      String type() {
+         return type;
+      }
+
+      int size() {
+         return groups.size();
+      }
+
+      String group(int i) {
+         return groups.get(i);
+      }
+
+      Object value(int i) {
+         return values.get(i);
+      }
+
+      Object rendered(Object value) {
+         return renderedValue(value, type);
+      }
+
+      /** The first of the first {@code upTo} seen values whose condition matches, or -1. */
+      int match(Object value, int upTo) {
+         Object[] row = { rendered(value) };
+
+         for(int i = 0; i < upTo; i++) {
+            if(conditions.get(i).evaluate(row)) {
+               return i;
+            }
+         }
+
+         return -1;
+      }
+
+      void add(String group, Object value) {
+         probeInfo.setGroupValue("v", Collections.singletonList(value));
+         groups.add(group);
+         values.add(value);
+         conditions.add(new ConditionGroup(0, probeInfo.getGroupCondition("v")));
+      }
+
+      private final String type;
+      private final SNamedGroupInfo probeInfo = new SNamedGroupInfo();
+      private final List<String> groups = new ArrayList<>();
+      private final List<Object> values = new ArrayList<>();
+      private final List<ConditionGroup> conditions = new ArrayList<>();
    }
 
    /**

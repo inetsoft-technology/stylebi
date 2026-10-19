@@ -20,13 +20,20 @@ package inetsoft.web.wiz.binding;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.XCondition;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.util.Tool;
+import inetsoft.web.binding.drm.AttributeRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
+import inetsoft.web.composer.model.condition.ConditionExpression;
+import inetsoft.web.composer.model.condition.ConditionModel;
+import inetsoft.web.composer.model.condition.ConditionValueModel;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -234,5 +241,83 @@ class InlineNamedGroupOverlapTest {
          groups(new Object[]{ "TX" }, new Object[]{ "tx" })), "'tx'", "GroupA", "GroupB");
       assertNull(chartWrite("Quantity", null,
          groups(new Object[]{ "1" }, new Object[]{ "01" })));
+   }
+
+   /**
+    * 02-refute F5: a worksheet named group used on a chart is snapshotted into an EXPERT group,
+    * and an all-equality one reads back as {@code namedGroupValues}. Overlapping equality
+    * conditions there are legitimate first-match in the worksheet, so writing that read-back
+    * straight back is refused -- with the one-step remedy in the message.
+    */
+   @Test
+   void aChartReadBackOfAnOverlappingWorksheetGroupIsRefusedWithTheRemedyOnWriteBack() {
+      ChartDimensionRefModel stored = new ChartDimensionRefModel();
+      stored.setColumnValue(STATE);
+      NamedGroupInfoModel expert = new NamedGroupInfoModel();
+      expert.setType(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO);
+      expert.setName("Custom");
+      expert.setConditions(List.of(oneOf("West", "CA", "TX"), oneOf("East", "TX", "NY")));
+      stored.setNamedGroupInfo(expert);
+
+      FieldRef read = FieldRefFactory.from(stored);
+      assertNotNull(read.namedGroupValues(), "an all-equality EXPERT group reads as values");
+      assertEquals(List.of("TX", "NY"), read.namedGroupValues().groups().get(1).values());
+
+      ChartBindingModel model = chart(STATE, "string");
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartBindingMutator.setShelf(model, "x", List.of(read)));
+      assertNamesBoth(e, "'TX'", "West", "East");
+   }
+
+   @Test
+   void anUnconvertibleValueOnANumericColumnSaysWhyItMatchesTheNullRows() {
+      IllegalArgumentException e = crosstabWrite("Quantity", "integer",
+         groups(new Object[]{ "abc" }, new Object[]{ "xyz" }));
+      assertNamesBoth(e, "'xyz'", "GroupA", "GroupB");
+      assertTrue(e.getMessage().contains("'xyz' is not a valid integer value, so it matches " +
+                                         "only the column's null rows"), e.getMessage());
+   }
+
+   @Test
+   void withoutShadowedValuesDropsOnlyWhatTheRenderNeverAssigns() {
+      FieldRef.NamedGroupValues clean = groups(new Object[]{ "CA" }, new Object[]{ "NY" });
+      assertSame(clean, FieldRefFactory.withoutShadowedValues(clean, STATE, "string"));
+
+      FieldRef.NamedGroupValues numeric = FieldRefFactory.withoutShadowedValues(
+         groups(new Object[]{ "1", "2" }, new Object[]{ "01", "3" }, new Object[]{ "2.0" }),
+         "Quantity", "integer");
+      assertEquals(List.of(
+         new FieldRef.NamedGroupValues.Clause("GroupA", List.of("1", "2")),
+         new FieldRef.NamedGroupValues.Clause("GroupB", List.of("3"))), numeric.groups(),
+         "01 renders in GroupA and GroupC's only value matches GroupA's 2");
+
+      // whitespace and the text 'null' stay; "" is null
+      FieldRef.NamedGroupValues text = FieldRefFactory.withoutShadowedValues(
+         groups(new Object[]{ null, "TX" }, new Object[]{ "", " TX", "null" }),
+         STATE, "string");
+      assertEquals(List.of(" TX", "null"), text.groups().get(1).values());
+
+      // the result is accepted by the write-time check
+      assertNull(crosstabWrite("Quantity", "integer", numeric));
+   }
+
+   private static ConditionExpression oneOf(String name, Object... values) {
+      ConditionModel condition = new ConditionModel();
+      condition.setField(new AttributeRefModel(new AttributeRef(STATE)));
+      condition.setOperation(XCondition.ONE_OF);
+      condition.setLevel(0);
+      ConditionValueModel[] models = new ConditionValueModel[values.length];
+
+      for(int i = 0; i < values.length; i++) {
+         models[i] = new ConditionValueModel();
+         models[i].setType(ConditionValueModel.VALUE);
+         models[i].setValue(values[i]);
+      }
+
+      condition.setValues(models);
+      ConditionExpression group = new ConditionExpression();
+      group.setName(name);
+      group.setList(new Object[]{ condition });
+      return group;
    }
 }
