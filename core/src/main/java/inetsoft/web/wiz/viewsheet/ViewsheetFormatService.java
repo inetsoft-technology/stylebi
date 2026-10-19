@@ -768,6 +768,14 @@ public class ViewsheetFormatService {
                                            part.getData(), warnings);
             }
          }
+
+         // The painter re-executes each chart through the lifecycle, which swallows a script
+         // failure (and uses up an armed one), so a failing chart reads as plain success unless
+         // it is asked here. Only a chart this sandbox already saw fail can be reported: a
+         // failure never recorded cannot be told from an empty chart once the painter consumed it.
+         for(String name : request.assemblies()) {
+            ChartRenderCheck.warnIfChartScriptFails(rvs, name, dispatcher);
+         }
       });
 
       if(sessionWarnings != null) {

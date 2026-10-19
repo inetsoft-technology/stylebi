@@ -230,8 +230,9 @@ public class AssemblyHighlightService {
          checkExpressions(rvs, highlight, model, warnings);
          model.setHighlights(highlights.toArray(new HighlightModel[0]));
          model.setRejectDerivedMeasure(true);
-         highlightService.setHighlightDialogModel(runtimeId, assemblyName, model, linkUri, user,
-                                                 dispatcher);
+         ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
+            highlightService.setHighlightDialogModel(runtimeId, assemblyName, model, linkUri,
+                                                     user, dispatcher));
       });
 
       if(sessionWarnings != null) {
@@ -329,8 +330,9 @@ public class AssemblyHighlightService {
          }
 
          model.setHighlights(kept.toArray(new HighlightModel[0]));
-         highlightService.setHighlightDialogModel(runtimeId, assemblyName, model, linkUri, user,
-                                                 dispatcher);
+         ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
+            highlightService.setHighlightDialogModel(runtimeId, assemblyName, model, linkUri,
+                                                     user, dispatcher));
       });
 
       return warnings == null ? List.of() : warnings;

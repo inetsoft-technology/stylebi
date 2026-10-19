@@ -783,7 +783,11 @@ public class ChartBindingService {
 
          ChangeSeparateStatusEvent event = new ChangeSeparateStatusEvent();
          event.setName(assemblyName);
-         swapService.swapXYBinding(runtimeId, event, user, dispatcher, linkUri);
+         // The swap re-arms a failing chart and then rebuilds it (SwapXYBindingService reads the
+         // graph pair), which throws the script failure after the swap is stored; only that
+         // call is wrapped, and the end check in checked() reports it.
+         ChartRenderCheck.swallowScriptError(rvs, assemblyName, () ->
+            swapService.swapXYBinding(runtimeId, event, user, dispatcher, linkUri));
       }));
    }
 

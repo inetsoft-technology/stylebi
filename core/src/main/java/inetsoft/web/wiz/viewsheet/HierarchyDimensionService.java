@@ -177,7 +177,10 @@ public class HierarchyDimensionService {
          pane.setDimensions(updated);
          pane.setColumnList(withoutConsumedColumns(catalog, updated));
 
-         target.write(runtimeId, model, linkUri, user, dispatcher);
+         // The chart target ends in editObjectProperty, which re-reads the chart data and throws
+         // its script failure after the edit is stored; guarded() turns that into the warning.
+         ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
+            target.write(runtimeId, model, linkUri, user, dispatcher));
 
          result.put("assembly", assemblyName);
          result.put("index", existing.length);
@@ -221,7 +224,10 @@ public class HierarchyDimensionService {
          pane.setDimensions(updated);
          pane.setColumnList(withoutConsumedColumns(catalog, updated));
 
-         target.write(runtimeId, model, linkUri, user, dispatcher);
+         // The chart target ends in editObjectProperty, which re-reads the chart data and throws
+         // its script failure after the edit is stored; guarded() turns that into the warning.
+         ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
+            target.write(runtimeId, model, linkUri, user, dispatcher));
 
          result.put("assembly", assemblyName);
          result.put("removed", index);

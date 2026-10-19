@@ -119,19 +119,33 @@ class ChartBindingServiceTest {
    }
 
    /**
-    * Bug #78439: binding writes have steps after the inner service call (calculator checks and
-    * their rollback, multi-style), so a script error from it is NOT swallowed: it propagates
-    * rather than claiming an edit was applied.
+    * Bug #78439 round 3: the swap's own graph rebuild throws the chart's script failure after the
+    * swap is stored, and only the final model command is skipped, so only that call is wrapped
+    * and the failure reaches the caller as the end-of-write warning instead of an opaque 500.
     */
    @Test
-   void aScriptErrorFromTheInnerServiceIsNotSwallowedByBindingWrites() throws Exception {
+   void aScriptErrorFromTheSwapIsSwallowedSoTheEndCheckCanWarn() throws Exception {
       SwapXYBindingService swap = mock(SwapXYBindingService.class);
       doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(swap).swapXYBinding(any(), any(), any(), any(), any());
       ChartBindingService service = harnessWithAssembly(
          mock(ChartVSAssembly.class), new ChartBindingModel(), mock(ChangeChartRefService.class),
          mock(ChangeChartTypeService.class), swap, mock(ChangeSeparateStatusService.class));
 
-      assertThrows(RuntimeException.class, () -> service.swapAxes("tok", principal(), "Chart1", ""));
+      assertDoesNotThrow(() -> service.swapAxes("tok", principal(), "Chart1", ""));
+   }
+
+   /** Anything that is not a script error still propagates from the swap. */
+   @Test
+   void otherErrorsFromTheSwapStillPropagate() throws Exception {
+      SwapXYBindingService swap = mock(SwapXYBindingService.class);
+      doThrow(new IllegalStateException("not a script error")).when(swap)
+         .swapXYBinding(any(), any(), any(), any(), any());
+      ChartBindingService service = harnessWithAssembly(
+         mock(ChartVSAssembly.class), new ChartBindingModel(), mock(ChangeChartRefService.class),
+         mock(ChangeChartTypeService.class), swap, mock(ChangeSeparateStatusService.class));
+
+      assertThrows(IllegalStateException.class,
+                   () -> service.swapAxes("tok", principal(), "Chart1", ""));
    }
 
    /** Bug #78439: every chart binding write returns the warnings the write captured. */
