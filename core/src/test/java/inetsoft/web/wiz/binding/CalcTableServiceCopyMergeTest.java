@@ -450,6 +450,38 @@ class CalcTableServiceCopyMergeTest {
    }
 
    @Test
+   void refusesARemoveWhoseTopLeftIsFreeButReachesASwallowedCellOfAVerticalMerge() {
+      text(0, 1, "ANCHOR");
+      text(1, 0, "L");
+      merge(0, 1, 2, 1);
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class, () -> remove(1, 0, 1, 2));
+
+      assertTrue(thrown.getMessage().contains("[1,1] is merged into [0,1]"),
+                 thrown.getMessage());
+      assertEquals("ANCHOR", value(0, 1));
+      assertEquals("L", value(1, 0));
+      assertEquals(new Dimension(1, 2), layout().getSpan(0, 1));
+      verifyNoInteractions(layoutService);
+   }
+
+   @Test
+   void refusesARemoveWhoseTopLeftIsFreeButReachesASwallowedCellOfAHorizontalMerge() {
+      text(1, 1, "ANCHOR");
+      merge(1, 1, 1, 2);
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class, () -> remove(0, 2, 2, 1));
+
+      assertTrue(thrown.getMessage().contains("[1,2] is merged into [1,1]"),
+                 thrown.getMessage());
+      assertEquals("ANCHOR", value(1, 1));
+      assertEquals(new Dimension(2, 1), layout().getSpan(1, 1));
+      verifyNoInteractions(layoutService);
+   }
+
+   @Test
    void refusesAHugeColsWithoutOverflowingTheFarCornerCheck() {
       assertThrows(IllegalArgumentException.class,
                    () -> remove(0, 1, 1, Integer.MAX_VALUE));
