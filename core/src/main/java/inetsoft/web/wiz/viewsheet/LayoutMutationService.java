@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Phase 3 of the layout implementation plan (2026-08-20-layout-implementation.md), Task 4:
@@ -91,13 +92,17 @@ import java.util.Map;
  * {@code LayoutInfo} -- which is exactly right to mutate directly, since a layout's stored object
  * list *is* the definitional data {@code edit_layout_objects} exists to change, and none of these
  * calls ever invokes {@code apply()} on anything. The one thing deliberately NOT reproduced here
- * is the STOMP path's {@code apply()}-based live-preview refresh and {@code
- * fixAssemblyLayoutsPosition} auto-repositioning (print-layout collision avoidance): this plugin
- * has no connected browser to refresh, {@link LayoutReadService} reads positions straight off
- * {@code LayoutInfo} rather than off a rendered preview, and skipping it removes the only
- * remaining path back to an {@code apply()} call on a live runtime. A caller that needs several
- * objects not to overlap in a print layout is responsible for spacing them; this is a known,
- * deliberate scope cut from the interactive Composer's behavior, not an oversight.
+ * is the STOMP path's {@code apply()}-based live-preview refresh: this plugin has no connected
+ * browser to refresh, {@link LayoutReadService} reads positions straight off {@code LayoutInfo}
+ * rather than off a rendered preview, and skipping it removes the only remaining path back to an
+ * {@code apply()} call on a live runtime.
+ *
+ * <p>The print-layout collision avoidance IS reproduced: after an add or a move_resize on a print
+ * layout, {@link VSLayoutService#fixAssemblyLayoutsPosition} runs exactly as in
+ * {@code VSLayoutControllerService}. It only mutates layout positions (no {@code apply()}), and a
+ * page break takes effect only through the positions it pushes objects to. Remove and device
+ * layouts do not call it natively and do not here either. It is skipped when the print layout has
+ * no page size, which the native path would fail on.
  *
  * <h2>The confirmation guard on remove</h2>
  *
@@ -261,6 +266,7 @@ public class LayoutMutationService {
                requireNonNegativePosition(x, y);
                Point position = new Point(x, y);
                Dimension size = new Dimension(width, height);
+               boolean move = !Objects.equals(position, currentPosition);
                assemblyLayout.setPosition(position);
                assemblyLayout.setSize(size);
 
@@ -290,6 +296,14 @@ public class LayoutMutationService {
                   throw new IllegalArgumentException(
                      "edit_layout_objects move_resize: \"" + name + "\" is not a layout-only " +
                      "text object -- \"text\" only applies there.");
+               }
+
+               if(hasPrintPageSize(layout)) {
+                  List<VSAssemblyLayout> sorted = vsLayoutService.getSortAssemblyLayouts(
+                     vsLayoutService.getVSAssemblyLayouts(layout, resolved));
+                  vsLayoutService.fixAssemblyLayoutsPosition(
+                     master.getViewsheet(), (PrintLayout) layout, sorted, assemblyLayout,
+                     move ? VSLayoutService.MOVE_ACTION : VSLayoutService.RESIZE_ACTION);
                }
             }
          });
@@ -434,10 +448,22 @@ public class LayoutMutationService {
                VSAssemblyLayout assemblyLayout = vsLayoutService
                   .createAssemblyLayout(event, masterVs, name, assembly, existAssembly);
                layouts.add(assemblyLayout);
+
+               if(hasPrintPageSize(layout)) {
+                  vsLayoutService.fixAssemblyLayoutsPosition(
+                     masterVs, (PrintLayout) layout,
+                     vsLayoutService.getSortAssemblyLayouts(layouts), assemblyLayout,
+                     VSLayoutService.ADD_ACTION);
+               }
             }
 
             vsLayoutService.setVSAssemblyLayouts(layout, layouts, region);
          });
+   }
+
+   private static boolean hasPrintPageSize(AbstractLayout layout) {
+      return layout instanceof PrintLayout print &&
+         VSLayoutService.getPrintPageSize(print) != null;
    }
 
    private static String regionName(int region) {
