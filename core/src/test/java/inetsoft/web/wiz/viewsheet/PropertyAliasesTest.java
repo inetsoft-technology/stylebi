@@ -1441,6 +1441,44 @@ class PropertyAliasesTest {
       }
    }
 
+   /** Bug #78440 round 2: the guard canon must fold an initial exactly as the setter resolves it. */
+   @Test
+   void foldsNonAsciiInitialsTheWayTheSetterResolvesThem() {
+      assertEquals("selectionGeneralPaneModel.sortType",
+                   PropertyAliases.lowerSegmentInitials("ſelectionGeneralPaneModel.sortType"));
+      assertEquals("selectionGeneralPaneModel.sortType",
+                   PropertyAliases.lowerSegmentInitials("selectionGeneralPaneModel.ſortType"));
+      assertEquals("imagePreviewPaneModel.selectedImage",
+                   PropertyAliases.lowerSegmentInitials("ımagePreviewPaneModel.selectedImage"));
+      assertEquals("selectionGeneralPaneModel.sortType",
+                   PropertyAliases.lowerSegmentInitials("SelectionGeneralPaneModel.SortType"));
+
+      // K (Kelvin) and I-with-dot lower-case to ASCII but the setter does not resolve them;
+      // they only need to canonicalize without surviving as a spelling that bypasses a guard.
+      assertEquals("kind.x", PropertyAliases.lowerSegmentInitials("Kind.x"));
+      assertEquals("image.x", PropertyAliases.lowerSegmentInitials("İmage.x"));
+   }
+
+   /** For every char the setter upper-cases to an ASCII letter, the canon is that letter lower-cased. */
+   @Test
+   void canonicalInitialInvertsTheSetterCapitalization() {
+      for(char c = 0; c < Character.MAX_VALUE; c++) {
+         char upper = Character.toUpperCase(c);
+
+         if(upper < 128 && Character.isLetter(upper)) {
+            assertEquals(Character.toLowerCase(upper), PropertyPath.canonicalInitial(c),
+                         "U+" + Integer.toHexString(c));
+         }
+      }
+   }
+
+   @Test
+   void refusesNonAsciiInitialVariantsOfGuardedSheetPanes() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "ſcreensPane.x"));
+      assertTrue(e.getMessage().contains("'screensPane'"), e.getMessage());
+   }
+
    @Test
    void refusesAnEmptySegmentOnTheSheetBeforeAnyGuard() {
       for(String bad : new String[] { ".vsScriptPane.onInit", "." }) {

@@ -618,7 +618,7 @@ public final class PropertyAliases {
 
       for(int i = 0; i < segments.length; i++) {
          String segment = segments[i];
-         segments[i] = Character.toLowerCase(segment.charAt(0)) + segment.substring(1);
+         segments[i] = PropertyPath.canonicalInitial(segment.charAt(0)) + segment.substring(1);
       }
 
       return String.join(".", segments);
