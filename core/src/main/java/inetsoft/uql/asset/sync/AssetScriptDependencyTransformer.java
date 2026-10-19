@@ -17,12 +17,22 @@
  */
 package inetsoft.uql.asset.sync;
 
-import inetsoft.report.internal.Util;
+import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.util.Tool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import java.util.List;
+
+/**
+ * Rewrites the text of the dependents of a renamed library script function: viewsheet and
+ * worksheet scripts and expressions, and other library scripts that call it.
+ */
 public class AssetScriptDependencyTransformer extends AssetDependencyTransformer {
    /**
     * Create a transformer to rename dependenies for the asset(ws/vs) binding worksheet.
@@ -32,8 +42,20 @@ public class AssetScriptDependencyTransformer extends AssetDependencyTransformer
    }
 
    @Override
+   public RenameDependencyInfo process(List<RenameInfo> infos) {
+      // a library script is not an asset document, its text lives in the library
+      if(asset.isScript()) {
+         renameLibraryScript(infos);
+         return null;
+      }
+
+      return super.process(infos);
+   }
+
+   @Override
    protected void renameScript(Element doc, RenameInfo info) {
       renameAssemblyScript(doc, info);
+      renameExpressions(doc, info);
    }
 
    private void renameAssemblyScript(Element doc, RenameInfo info) {
@@ -47,19 +69,90 @@ public class AssetScriptDependencyTransformer extends AssetDependencyTransformer
          return;
       }
 
-      String oname = info.getOldName();
-      String nname = info.getNewName();
-
       for(int i = 0; i < scriptList.getLength(); i++) {
-         Element scriptEle = (Element) scriptList.item(i);
+         renameScriptText((Element) scriptList.item(i), info);
+      }
+   }
 
-         if(scriptEle != null) {
-            String nscript = Util.renameScriptDepended(oname, nname, Tool.getValue(scriptEle));
+   /**
+    * Rename the function in script expressions: viewsheet calc fields and worksheet expression
+    * columns. A SQL expression is not script, so it is left alone.
+    */
+   private void renameExpressions(Element doc, RenameInfo info) {
+      NodeList list = getChildNodes(doc, ".//dataRef[@class='inetsoft.uql.erm.ExpressionRef']");
 
-            if(nscript != null) {
-               replaceCDATANode(scriptEle, nscript);
+      for(int i = 0; i < list.getLength(); i++) {
+         Element expr = (Element) list.item(i);
+
+         if(expr != null && !isSqlColumn(expr)) {
+            renameScriptText(expr, info);
+         }
+      }
+   }
+
+   /**
+    * Whether the expression is a SQL expression. ColumnRef writes the sql attribute only when it
+    * is false and reads a missing one as true, so a worksheet column is script only when it says
+    * sql="false". A viewsheet calc field is always script.
+    */
+   private boolean isSqlColumn(Element expr) {
+      return expr.getParentNode() instanceof Element parent &&
+         !CalculateRef.class.getName().equals(parent.getAttribute("class")) &&
+         !"false".equals(parent.getAttribute("sql"));
+   }
+
+   private void renameScriptText(Element scriptEle, RenameInfo info) {
+      if(scriptEle == null) {
+         return;
+      }
+
+      String script = Tool.getValue(scriptEle);
+      String nscript = LibManager.renameFunctionReferences(
+         info.getOldName(), info.getNewName(), script);
+
+      if(nscript != null && !nscript.equals(script)) {
+         replaceCDATANode(scriptEle, nscript);
+      }
+   }
+
+   /**
+    * Rewrite the calls in the text of a library script that calls the renamed function. The
+    * dependency record is moved by the rename task itself.
+    */
+   private void renameLibraryScript(List<RenameInfo> infos) {
+      if(getAssetFile() != null || infos == null) {
+         return;
+      }
+
+      for(RenameInfo info : infos) {
+         if(!info.isScriptFunction()) {
+            continue;
+         }
+
+         // the task runs on a thread without the user's organization, use the renamed one
+         LibManager lib = LibManagerProvider.getInstance().getManager(info.getOrganizationId());
+         String name = asset.getName();
+
+         synchronized(lib) {
+            String script = lib.getScript(name);
+            String nscript = LibManager.renameFunctionReferences(
+               info.getOldName(), info.getNewName(), script);
+
+            if(nscript != null && !nscript.equals(script)) {
+               lib.setScript(name, nscript);
+
+               try {
+                  lib.save();
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to save library script {} after renaming function {}",
+                           name, info.getOldName(), e);
+               }
             }
          }
       }
    }
+
+   private static final Logger LOG =
+      LoggerFactory.getLogger(AssetScriptDependencyTransformer.class);
 }
