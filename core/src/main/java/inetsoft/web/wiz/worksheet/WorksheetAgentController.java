@@ -5050,6 +5050,8 @@ public class WorksheetAgentController {
     *
     * @param req.table    the ConcatenatedTableAssembly name
     * @param req.subtables the subtable names in the desired new order
+    * @param req.confirmed proceed although a new first subtable drops state that {@link
+    *                      ConcatReorderGuard} reported (join keys are never overridable)
     */
    private void reorderConcatSubtables(String sessionToken, EditRequest req, Principal user)
       throws Exception
@@ -5070,21 +5072,15 @@ public class WorksheetAgentController {
             throw new PairingException("Not a concatenated table assembly: " + req.table());
          }
 
-         String[] subtables = req.subtables().toArray(new String[0]);
-         TableAssembly[] reordered = new TableAssembly[subtables.length];
+         TableAssembly[] reordered =
+            ConcatReorderGuard.resolvePermutation(ws, table, req.subtables());
+         ConcatReorderGuard.requireReorderKeepsState(
+            ws, table, reordered, Boolean.TRUE.equals(req.confirmed()));
 
-         for(int i = 0; i < subtables.length; i++) {
-            Assembly sub = ws.getAssembly(subtables[i]);
-
-            if(!(sub instanceof TableAssembly)) {
-               throw new PairingException(
-                  "Subtable not found in worksheet: " + subtables[i]);
-            }
-
-            reordered[i] = (TableAssembly) sub;
+         if(!table.reorderTableAssemblies(reordered)) {
+            throw new PairingException(
+               "'" + req.table() + "' did not accept the new subtable order. Nothing was changed.");
          }
-
-         table.reorderTableAssemblies(reordered);
 
          // Bug #76350 follow-on (item A), review round 1: same unbounded shape as refreshData's
          // single-table branch (3a) above -- a concatenated table can be made crosstab-shaped by

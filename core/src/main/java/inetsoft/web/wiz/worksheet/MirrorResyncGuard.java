@@ -163,7 +163,7 @@ final class MirrorResyncGuard {
     * The columns that come from the source: the mirror's own expression and named-group columns
     * are kept (or not) by the refresh, not by the re-sync.
     */
-   private static List<ColumnRef> sourceColumns(ColumnSelection selection) {
+   static List<ColumnRef> sourceColumns(ColumnSelection selection) {
       List<ColumnRef> columns = new ArrayList<>();
 
       for(int i = 0; i < selection.getAttributeCount(); i++) {
@@ -198,7 +198,7 @@ final class MirrorResyncGuard {
     * changed column list of any table feeding it, directly or through other tables, re-pairs
     * columns without any error.
     */
-   private static void requireNoConcatenationFed(Worksheet ws, TableAssembly table, String lead)
+   static void requireNoConcatenationFed(Worksheet ws, TableAssembly table, String lead)
       throws PairingException
    {
       List<String> fed = new ArrayList<>();
@@ -286,11 +286,11 @@ final class MirrorResyncGuard {
                       sourceColumns(fresh.getColumnSelection()));
    }
 
-   private interface Check {
+   interface Check {
       void run() throws PairingException;
    }
 
-   private static void refuse(List<String> out, Check check) {
+   static void refuse(List<String> out, Check check) {
       try {
          check.run();
       }
