@@ -1681,25 +1681,36 @@ public class SelectionRuntimeService {
 
       return filterBySearch(domain.getSelectionValues(), paths, idMode, search);
    }
-
    /**
     * Split out from its {@code SelectionList} container so it is testable, the same reason
-    * {@link #findUnmatchedPaths(SelectionValue[], List, boolean)} is. Reuses that method's own
-    * path-resolution walk ({@link #matchesSearchPath}/{@link #matchesSearchAnywhere} mirror
-    * {@link #matchesPath}/{@link #missingIds}, substituting a search-match test for an
-    * existence test at the point a path resolves to a value) so the two checks -- does this value
-    * exist at all, does it match the active search -- stay in lockstep as the domain-walking logic
-    * evolves.
+    * {@link #findUnmatchedPaths(SelectionValue[], List, boolean)} is. A path is kept iff the
+    * widget would show it: the tree widget renders {@code findAll(search, false)}
+    * ({@code VSSelectionTreeModel}), where a node whose own label matches is shown with its whole
+    * subtree and any other node only through a matching descendant. So visibility is decided by
+    * resolving the path in that filtered tree with the same walks the existence check uses -- a
+    * non-ID path must resolve segment by segment, an ID-mode path must have every id present
+    * (bug-78786).
     */
    static List<List<String>> filterBySearch(SelectionValue[] domain, List<List<String>> paths,
                                             boolean idMode, String search)
    {
+      SelectionList all = new SelectionList();
+
+      if(domain != null) {
+         for(SelectionValue value : domain) {
+            if(value != null) {
+               all.addSelectionValue(value);
+            }
+         }
+      }
+
+      SelectionValue[] visible = all.findAll(search, false).getSelectionValues();
       List<List<String>> matching = new ArrayList<>();
 
       for(List<String> path : paths) {
          String[] segments = path.toArray(new String[0]);
-         boolean matches = idMode ? matchesSearchAnywhere(domain, segments, search)
-                                   : matchesSearchPath(domain, segments, 0, search);
+         boolean matches = segments.length > 0 &&
+            (idMode ? missingIds(visible, segments).isEmpty() : matchesPath(visible, segments, 0));
 
          if(matches) {
             matching.add(path);
@@ -1707,70 +1718,6 @@ public class SelectionRuntimeService {
       }
 
       return matching;
-   }
-
-   /**
-    * {@link #matchesPath} with a search-match test in place of the found/not-found test at the
-    * point a path resolves to a value -- {@code recursive=true} on that final
-    * {@code SelectionValue.match} call is what lets a whole parent node selected as a composite
-    * match via a matching descendant, the same recursive semantics
-    * {@code CompositeSelectionValue.match} gives the widget's own search box.
-    */
-   private static boolean matchesSearchPath(SelectionValue[] level, String[] path, int index,
-                                            String search)
-   {
-      if(level == null || index >= path.length) {
-         return false;
-      }
-
-      SelectionValue value = findByValue(level, path[index]);
-
-      if(value == null) {
-         return false;
-      }
-
-      if(index < path.length - 1) {
-         if(!(value instanceof CompositeSelectionValue composite)) {
-            return false;
-         }
-
-         SelectionList childList = composite.getSelectionList();
-         return matchesSearchPath(childList == null ? null : childList.getSelectionValues(), path,
-                                  index + 1, search);
-      }
-
-      return value.match(search, true);
-   }
-
-   /** The ID-mode set scan with a search-match test alongside the existence test. */
-   private static boolean matchesSearchAnywhere(SelectionValue[] level, String[] path,
-                                                String search)
-   {
-      if(level == null) {
-         return false;
-      }
-
-      for(SelectionValue value : level) {
-         if(value == null) {
-            continue;
-         }
-
-         if(Tool.contains(path, value.getValue(), true, true, true) && value.match(search, true)) {
-            return true;
-         }
-
-         if(value instanceof CompositeSelectionValue composite) {
-            SelectionList childList = composite.getSelectionList();
-
-            if(matchesSearchAnywhere(childList == null ? null : childList.getSelectionValues(),
-                                     path, search))
-            {
-               return true;
-            }
-         }
-      }
-
-      return false;
    }
 
    /**
