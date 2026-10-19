@@ -1129,6 +1129,78 @@ class SelectionRuntimeServiceTest {
       assertTrue(e.getMessage().contains("range slider"), e.getMessage());
    }
 
+   // ── bug-78718: a refused call must not have applied anything; additive never clears ─────────
+
+   /** singleSelect:true with two values is refused, and the style toggle must not have run first. */
+   @Test
+   void singleSelectWithTooManyValuesRefusalDoesNotToggleOrSetSearch() throws Exception {
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, false, null);
+      SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) assembly.getInfo();
+      Harness h = harness(assembly);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "Filter1",
+                                      List.of(List.of("East"), List.of("West")), null, "desc", true,
+                                      null, "Ea", ""));
+
+      verifyNoInteractions(h.selections);
+      verify(info, never()).setSearchString(any());
+   }
+
+   /** A sort order on a range slider is refused above the style toggle that would precede it. */
+   @Test
+   void sliderSortOrderRefusalDoesNotToggleSelectionStyle() throws Exception {
+      TimeSliderVSAssembly slider = mock(TimeSliderVSAssembly.class);
+      TimeSliderVSAssemblyInfo info = mock(TimeSliderVSAssemblyInfo.class);
+      doReturn(info).when(slider).getInfo();
+      Harness h = harness(slider);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "Slider1", null, null, "asc", true, null,
+                                      ""));
+
+      verifyNoInteractions(h.selections);
+   }
+
+   /** A deselect on a range slider is refused before the values and the style toggle apply. */
+   @Test
+   void sliderDeselectRefusalAppliesNothing() throws Exception {
+      TimeSliderVSAssembly slider = mock(TimeSliderVSAssembly.class);
+      TimeSliderVSAssemblyInfo info = mock(TimeSliderVSAssemblyInfo.class);
+      doReturn(info).when(slider).getInfo();
+      Harness h = harness(slider);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "Slider1", null, List.of(List.of("2")),
+                                      null, true, null, ""));
+
+      verifyNoInteractions(h.selections);
+   }
+
+   /** additive:true with values:[] adds nothing; an empty APPLY would be the clear-all signal. */
+   @Test
+   void additiveWithEmptyValuesDoesNotApply() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+
+      Map<String, Object> result = h.service.setSelection(
+         "tok", principal(), "Filter1", List.of(), null, null, null, true, "");
+
+      verify(h.selections, never()).applySelection(anyString(), anyString(), any(),
+                                                    any(Principal.class), any(), anyString());
+      assertEquals(0, result.get("valuesSelected"));
+   }
+
+   /** Non-additive values:[] stays a legitimate replace-with-nothing. */
+   @Test
+   void nonAdditiveWithEmptyValuesStillApplies() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+
+      h.service.setSelection("tok", principal(), "Filter1", List.of(), null, null, null, null, "");
+
+      verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
+                                                    any(Principal.class), any(), anyString());
+   }
+
    /** 'deselect' alone (no 'values') is a legitimate call -- "just remove these" needs no new add. */
    @Test
    void acceptsDeselectAloneWithNoValues() throws Exception {

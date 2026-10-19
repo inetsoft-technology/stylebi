@@ -56,6 +56,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -1026,5 +1027,87 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       assertDoesNotThrow(() -> h.service().setSelection(
          "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
          List.of(List.of("East", "NY")), null, null, null, ""));
+   }
+
+   // ── bug-78718: a refused call must not have applied anything ───────────────
+
+   private static void assertNothingWritten(SelectionRuntimeServiceTest.Harness h,
+                                            SelectionTreeVSAssembly assembly)
+   {
+      verifyNoInteractions(h.selections());
+      verify(((SelectionTreeVSAssemblyInfo) assembly.getInfo()), never()).setSearchString(any());
+   }
+
+   private static SelectionTreeVSAssembly plainTreeForRefusal() {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.getSelectionList()).thenReturn(plainDomain());
+      return assembly;
+   }
+
+   /** search + sortOrder + singleSelect + an unresolvable value: refused before any of them applies. */
+   @Test
+   void unresolvableValuesRefusalLeavesSearchStyleAndSortUntouched() {
+      SelectionTreeVSAssembly assembly = plainTreeForRefusal();
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      assertThrows(IllegalArgumentException.class, () -> h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", List.of(List.of("Nowhere")),
+         null, "desc", true, null, "Ea", ""));
+
+      assertNothingWritten(h, assembly);
+   }
+
+   /** values (valid) + a bad deselect: the values must not be applied before the deselect refusal. */
+   @Test
+   void badDeselectRefusalDoesNotApplyTheValues() {
+      SelectionTreeVSAssembly assembly = plainTreeForRefusal();
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      assertThrows(IllegalArgumentException.class, () -> h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", List.of(List.of("East", "NY")),
+         List.of(List.of("Nowhere")), null, null, null, ""));
+
+      assertNothingWritten(h, assembly);
+   }
+
+   /** singleSelect + a bad deselect: the style toggle must not run before the refusal. */
+   @Test
+   void badDeselectRefusalDoesNotToggleTheSelectionStyle() {
+      SelectionTreeVSAssembly assembly = plainTreeForRefusal();
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      assertThrows(IllegalArgumentException.class, () -> h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("Nowhere")), null, true, null, ""));
+
+      assertNothingWritten(h, assembly);
+   }
+
+   /** search + a bad deselect: the search string must not stay set. */
+   @Test
+   void badDeselectRefusalDoesNotSetTheSearchString() {
+      SelectionTreeVSAssembly assembly = plainTreeForRefusal();
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      assertThrows(IllegalArgumentException.class, () -> h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("Nowhere")), null, null, null, "Ea", ""));
+
+      assertNothingWritten(h, assembly);
+   }
+
+   /** Every requested value is dropped by the search: an additive call is a no-op, not a clear. */
+   @Test
+   void additiveWithEveryValueDroppedBySearchDoesNotApply() throws Exception {
+      SelectionTreeVSAssembly assembly = searchedTree(false, plainDomain(), "Beta");
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", List.of(List.of("East", "NY")),
+         null, null, null, true, "");
+
+      verifyNoInteractions(h.selections());
+      assertEquals(0, result.get("valuesSelected"));
+      assertTrue(result.containsKey("scopedBySearchDropped"), result.toString());
    }
 }
