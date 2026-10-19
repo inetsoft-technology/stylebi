@@ -1420,28 +1420,68 @@ class SelectionRuntimeServiceTest {
    }
 
    /**
-    * Documents a known gap, not a passing behaviour to celebrate: an ID-mode path is matched by
-    * value anywhere in the tree (see {@code missingIds}), not positionally from the root, so
-    * {@code path.size()} says nothing about how many levels remain below the named node -- the
-    * depth heuristic above would be actively wrong here, not just imprecise, so the guard is
-    * skipped entirely for an ID-mode tree (see the caller's comment in {@code selectSubtree}).
-    * That means an ID-mode single-select tree's own version of VFL-004 is still open: this locks
-    * in that the call is currently let through, so a future fix that closes the gap has to update
-    * this test deliberately rather than by accident.
+    * An ID-mode single-select tree has no subtree select (the native UI hides it, and the engine
+    * leaves the selection unchanged), so every path depth -- root, branch, leaf -- is refused
+    * before anything is applied, with the way out named.
     */
    @Test
-   void treatsAnIdModeSingleSelectTreeAsUnguarded() throws Exception {
+   void refusesSelectOnAnIdModeSingleSelectTreeAtEveryDepth() throws Exception {
       SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, true);
       when(assembly.isIDMode()).thenReturn(true);
       when(assembly.getDataRefs()).thenReturn(
          new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
       Harness h = harness(assembly);
 
+      for(List<String> path : List.of(List.of("1"), List.of("1", "2"), List.of("1", "2", "4"))) {
+         Exception e = assertThrows(IllegalArgumentException.class, () -> h.service.selectSubtree(
+            "tok", principal(), "Tree1", path, "select", ""));
+         assertTrue(e.getMessage().contains("single-select ID-hierarchy tree"), e.getMessage());
+         assertTrue(e.getMessage().contains("set_selection"), e.getMessage());
+      }
+
+      verifyNoInteractions(h.selections);
+   }
+
+   /** Clear stays allowed on that tree: reportSubtreeClear is ID-aware. */
+   @Test
+   void allowsClearOnAnIdModeSingleSelectTree() throws Exception {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, true);
+      when(assembly.isIDMode()).thenReturn(true);
+      Harness h = harness(assembly);
+
       assertDoesNotThrow(() -> h.service.selectSubtree(
-         "tok", principal(), "Tree1", List.of("USA East"), "select", ""));
+         "tok", principal(), "Tree1", List.of("1"), "clear", ""));
 
       verify(h.selections).selectSubtree(anyString(), anyString(), any(), any(Principal.class),
                                          any(), anyString());
+   }
+
+   /** A multi-select ID-mode tree selects its subtree as before. */
+   @Test
+   void allowsSelectOnAnIdModeMultiSelectTree() throws Exception {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, false);
+      when(assembly.isIDMode()).thenReturn(true);
+      when(assembly.getDataRefs()).thenReturn(
+         new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
+      Harness h = harness(assembly);
+
+      assertDoesNotThrow(() -> h.service.selectSubtree(
+         "tok", principal(), "Tree1", List.of("1", "2"), "select", ""));
+
+      verify(h.selections).selectSubtree(anyString(), anyString(), any(), any(Principal.class),
+                                         any(), anyString());
+   }
+
+   /** A non-ID single-select tree still accepts a path that already reaches a leaf. */
+   @Test
+   void allowsALeafPathOnANonIdSingleSelectTree() throws Exception {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, true);
+      when(assembly.getDataRefs()).thenReturn(
+         new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
+      Harness h = harness(assembly);
+
+      assertDoesNotThrow(() -> h.service.selectSubtree(
+         "tok", principal(), "Tree1", List.of("USA East", "CT", "Hartford"), "select", ""));
    }
 
    /** The testable core of the guard, isolated from the assembly -- see the two tests above. */

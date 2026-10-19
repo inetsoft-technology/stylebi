@@ -188,6 +188,75 @@ class SelectionRuntimeServiceSubtreeDomainTest {
                                            any(), anyString());
    }
 
+   // ── select on an ID-mode tree (bug-78788) ───────────────────────────────────
+
+   /** {@code E{NY, BOS}} with the descendants already selected -- a fully selected subtree. */
+   private static SelectionList idModeFullySelectedEast() {
+      SelectionList domain = new SelectionList();
+      CompositeSelectionValue e = new CompositeSelectionValue("E", "E");
+      e.setSelected(true);
+      SelectionList children = new SelectionList();
+      SelectionValue ny = new SelectionValue("NY", "NY");
+      ny.setSelected(true);
+      SelectionValue bos = new SelectionValue("BOS", "BOS");
+      bos.setSelected(true);
+      children.addSelectionValue(ny);
+      children.addSelectionValue(bos);
+      e.setSelectionList(children);
+      domain.addSelectionValue(e);
+      return domain;
+   }
+
+   @Test
+   void selectRefusesAnIdModeSingleSelectTreeAgainstARealDomain() {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, true);
+      when(assembly.isIDMode()).thenReturn(true);
+      when(assembly.getSelectionList()).thenReturn(idModeRegionDomain());
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+      Principal user = SelectionRuntimeServiceTest.principal();
+
+      for(List<String> path : List.of(List.of("E"), List.of("E", "NY"))) {
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> h.service().selectSubtree("tok", user, "Tree1", path, "select", ""));
+         assertTrue(e.getMessage().contains("single-select ID-hierarchy tree"), e.getMessage());
+      }
+
+      verifyNoInteractions(h.selections());
+   }
+
+   /**
+    * Re-selecting a subtree that is already fully selected changes nothing and must still succeed
+    * (a before/after delta check would wrongly refuse it); the result reports the values that are
+    * selected under the subtree, not what was requested.
+    */
+   @Test
+   void selectingAnAlreadyFullySelectedIdModeSubtreeSucceedsAndReportsTheCount() throws Exception {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.isIDMode()).thenReturn(true);
+      when(assembly.getSelectionList()).thenReturn(idModeFullySelectedEast());
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      Map<String, Object> result = h.service().selectSubtree(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", List.of("E"), "select", "");
+
+      assertEquals(2, result.get("selectedCount"));
+      verify(h.selections()).selectSubtree(anyString(), anyString(), any(), any(Principal.class),
+                                           any(), anyString());
+   }
+
+   @Test
+   void selectReportsZeroWhenNothingIsSelectedUnderTheSubtreeAfterTheApply() throws Exception {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.isIDMode()).thenReturn(true);
+      when(assembly.getSelectionList()).thenReturn(idModeRegionDomain());
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      Map<String, Object> result = h.service().selectSubtree(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", List.of("E"), "select", "");
+
+      assertEquals(0, result.get("selectedCount"));
+   }
+
    // ── set_selection replace on an ID-mode tree (bug-76926) ───────────────────
 
    /** A{A1 selected} unselected, B selected: the shape an ID-mode select leaves behind. */
