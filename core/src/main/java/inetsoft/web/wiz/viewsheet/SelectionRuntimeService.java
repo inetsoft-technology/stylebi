@@ -198,7 +198,7 @@ public class SelectionRuntimeService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
-         final Map<String, List<List<String>>> othersBefore = snapshotOthers(rvs, assembly);
+         final Map<String, OtherSelection> othersBefore = snapshotOthers(rvs, assembly);
 
          if(assembly instanceof CalendarVSAssembly && (values != null || hasDeselect)) {
             // doApplySelection's Calendar branch only acts on a null event (its own "can only
@@ -547,7 +547,7 @@ public class SelectionRuntimeService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
-         final Map<String, List<List<String>>> othersBefore = snapshotOthers(rvs, assembly);
+         final Map<String, OtherSelection> othersBefore = snapshotOthers(rvs, assembly);
          requireBoundColumn(assembly, assemblyName);
 
          result.put("assembly", assemblyName);
@@ -857,7 +857,7 @@ public class SelectionRuntimeService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
-         final Map<String, List<List<String>>> othersBefore = snapshotOthers(rvs, assembly);
+         final Map<String, OtherSelection> othersBefore = snapshotOthers(rvs, assembly);
 
          if(!(assembly instanceof SelectionTreeVSAssembly)) {
             throw new IllegalArgumentException(
@@ -1289,34 +1289,54 @@ public class SelectionRuntimeService {
 
    // ── other-assembly side effects ───────────────────────────────────────────
 
+   /** One other filter's applied selection, with its type captured at snapshot time. */
+   record OtherSelection(String type, List<List<String>> paths) {
+   }
+
    /**
     * Applied selection of every selection list/tree other than {@code target} and its same-field
-    * cluster neighbors, keyed by assembly name. A selection write re-runs Association on the other
-    * filters, which can remove their selection with no trace in the target's own result. An
-    * assembly whose state list is null is left out (unknown, not cleared).
+    * cluster neighbors, keyed by absolute assembly name (embedded viewsheets share local names). A
+    * selection write re-runs Association on the other filters, which can remove their selection
+    * with no trace in the target's own result. An assembly whose state list is null is left out
+    * (unknown, not cleared). Best effort: a viewsheet in an odd state yields an empty snapshot
+    * rather than failing the write or masking its validation error.
     */
-   private static Map<String, List<List<String>>> snapshotOthers(RuntimeViewsheet rvs,
-                                                                 SelectionVSAssembly target)
+   private static Map<String, OtherSelection> snapshotOthers(RuntimeViewsheet rvs,
+                                                             SelectionVSAssembly target)
    {
-      Set<String> skip = new HashSet<>();
-      skip.add(target.getName());
-      SelectionVSUtil.getAssociatedSelectionCluster(target).forEach(a -> skip.add(a.getName()));
-      Map<String, List<List<String>>> snapshot = new LinkedHashMap<>();
+      Map<String, OtherSelection> snapshot = new LinkedHashMap<>();
 
-      for(Assembly other : rvs.getViewsheet().getAssemblies(true)) {
-         if(skip.contains(other.getName()) ||
-            !(other instanceof SelectionListVSAssembly || other instanceof SelectionTreeVSAssembly))
-         {
-            continue;
+      try {
+         Set<String> skip = new HashSet<>();
+         skip.add(target.getAbsoluteName());
+         SelectionVSUtil.getAssociatedSelectionCluster(target)
+            .forEach(a -> skip.add(a.getAbsoluteName()));
+         Assembly[] assemblies = rvs.getViewsheet().getAssemblies(true);
+
+         if(assemblies == null) {
+            return snapshot;
          }
 
-         SelectionVSAssembly selection = (SelectionVSAssembly) other;
-         SelectionList list = selectionListOf(selection);
+         for(Assembly other : assemblies) {
+            if(other == null || skip.contains(other.getAbsoluteName()) ||
+               !(other instanceof SelectionListVSAssembly ||
+                 other instanceof SelectionTreeVSAssembly))
+            {
+               continue;
+            }
 
-         if(list != null) {
-            boolean multi = !((SelectionVSAssemblyInfo) selection.getInfo()).isSingleSelection();
-            snapshot.put(selection.getName(), selectedPaths(list.getSelectionValues(), multi));
+            SelectionVSAssembly selection = (SelectionVSAssembly) other;
+            SelectionList list = selectionListOf(selection);
+
+            if(list != null) {
+               boolean multi = !((SelectionVSAssemblyInfo) selection.getInfo()).isSingleSelection();
+               snapshot.put(selection.getAbsoluteName(), new OtherSelection(
+                  describe(selection), selectedPaths(list.getSelectionValues(), multi)));
+            }
          }
+      }
+      catch(RuntimeException ex) {
+         return new LinkedHashMap<>();
       }
 
       return snapshot;
@@ -1324,34 +1344,47 @@ public class SelectionRuntimeService {
 
    /** Records {@code otherSelectionsChanged} for every assembly whose applied selection moved. */
    private static void reportOthersChanged(Map<String, Object> result, RuntimeViewsheet rvs,
-                                           Map<String, List<List<String>>> before,
+                                           Map<String, OtherSelection> before,
                                            SelectionVSAssembly target)
    {
-      Map<String, List<List<String>>> after = snapshotOthers(rvs, target);
-      List<Map<String, Object>> changed = new ArrayList<>();
-
-      before.forEach((name, was) -> {
-         List<List<String>> now = after.get(name);
-
-         if(now == null || new HashSet<>(was).equals(new HashSet<>(now))) {
-            return;
-         }
-
-         List<List<String>> removed = was.stream().filter(p -> !now.contains(p)).toList();
-         List<List<String>> added = now.stream().filter(p -> !was.contains(p)).toList();
-         Map<String, Object> entry = new LinkedHashMap<>();
-         entry.put("assembly", name);
-         entry.put("type", describe((VSAssembly) rvs.getViewsheet().getAssembly(name)));
-         entry.put("before", was);
-         entry.put("after", now);
-         entry.put("removed", removed);
-         entry.put("added", added);
-         changed.add(entry);
-      });
+      List<Map<String, Object>> changed = diffOthers(before, snapshotOthers(rvs, target));
 
       if(!changed.isEmpty()) {
          result.put("otherSelectionsChanged", changed);
       }
+   }
+
+   /** Entries for each assembly present in both snapshots whose applied paths differ. */
+   static List<Map<String, Object>> diffOthers(Map<String, OtherSelection> before,
+                                               Map<String, OtherSelection> after)
+   {
+      List<Map<String, Object>> changed = new ArrayList<>();
+
+      before.forEach((name, was) -> {
+         OtherSelection now = after.get(name);
+
+         if(now == null) {
+            return;
+         }
+
+         Set<List<String>> wasSet = new HashSet<>(was.paths());
+         Set<List<String>> nowSet = new HashSet<>(now.paths());
+
+         if(wasSet.equals(nowSet)) {
+            return;
+         }
+
+         Map<String, Object> entry = new LinkedHashMap<>();
+         entry.put("assembly", name);
+         entry.put("type", was.type());
+         entry.put("before", was.paths());
+         entry.put("after", now.paths());
+         entry.put("removed", was.paths().stream().filter(p -> !nowSet.contains(p)).toList());
+         entry.put("added", now.paths().stream().filter(p -> !wasSet.contains(p)).toList());
+         changed.add(entry);
+      });
+
+      return changed;
    }
 
    // ── reads ─────────────────────────────────────────────────────────────────
