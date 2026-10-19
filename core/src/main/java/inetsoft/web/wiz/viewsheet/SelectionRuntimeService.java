@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -197,6 +198,7 @@ public class SelectionRuntimeService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
+         final Map<String, List<List<String>>> othersBefore = snapshotOthers(rvs, assembly);
 
          if(assembly instanceof CalendarVSAssembly && (values != null || hasDeselect)) {
             // doApplySelection's Calendar branch only acts on a null event (its own "can only
@@ -518,6 +520,7 @@ public class SelectionRuntimeService {
                result.put("reselectedBySingleSelect", reselected);
             }
          }
+         reportOthersChanged(result, rvs, othersBefore, assembly);
       });
       ViewsheetSessionService.relayWarnings(result, warnings);
 
@@ -544,6 +547,7 @@ public class SelectionRuntimeService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
+         final Map<String, List<List<String>>> othersBefore = snapshotOthers(rvs, assembly);
          requireBoundColumn(assembly, assemblyName);
 
          result.put("assembly", assemblyName);
@@ -628,6 +632,7 @@ public class SelectionRuntimeService {
                reportRetainedAfterClear(result, assembly, current, selectedPaths(assembly), false);
             }
          }
+         reportOthersChanged(result, rvs, othersBefore, assembly);
       });
       ViewsheetSessionService.relayWarnings(result, warnings);
 
@@ -852,6 +857,7 @@ public class SelectionRuntimeService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
+         final Map<String, List<List<String>>> othersBefore = snapshotOthers(rvs, assembly);
 
          if(!(assembly instanceof SelectionTreeVSAssembly)) {
             throw new IllegalArgumentException(
@@ -916,6 +922,7 @@ public class SelectionRuntimeService {
          if(!select) {
             reportSubtreeClear(result, assembly, path, before, wholeBefore, tree.isIDMode());
          }
+         reportOthersChanged(result, rvs, othersBefore, assembly);
       });
       ViewsheetSessionService.relayWarnings(result, warnings);
 
@@ -1280,6 +1287,73 @@ public class SelectionRuntimeService {
       return value;
    }
 
+   // ── other-assembly side effects ───────────────────────────────────────────
+
+   /**
+    * Applied selection of every selection list/tree other than {@code target} and its same-field
+    * cluster neighbors, keyed by assembly name. A selection write re-runs Association on the other
+    * filters, which can remove their selection with no trace in the target's own result. An
+    * assembly whose state list is null is left out (unknown, not cleared).
+    */
+   private static Map<String, List<List<String>>> snapshotOthers(RuntimeViewsheet rvs,
+                                                                 SelectionVSAssembly target)
+   {
+      Set<String> skip = new HashSet<>();
+      skip.add(target.getName());
+      SelectionVSUtil.getAssociatedSelectionCluster(target).forEach(a -> skip.add(a.getName()));
+      Map<String, List<List<String>>> snapshot = new LinkedHashMap<>();
+
+      for(Assembly other : rvs.getViewsheet().getAssemblies(true)) {
+         if(skip.contains(other.getName()) ||
+            !(other instanceof SelectionListVSAssembly || other instanceof SelectionTreeVSAssembly))
+         {
+            continue;
+         }
+
+         SelectionVSAssembly selection = (SelectionVSAssembly) other;
+         SelectionList list = selectionListOf(selection);
+
+         if(list != null) {
+            boolean multi = !((SelectionVSAssemblyInfo) selection.getInfo()).isSingleSelection();
+            snapshot.put(selection.getName(), selectedPaths(list.getSelectionValues(), multi));
+         }
+      }
+
+      return snapshot;
+   }
+
+   /** Records {@code otherSelectionsChanged} for every assembly whose applied selection moved. */
+   private static void reportOthersChanged(Map<String, Object> result, RuntimeViewsheet rvs,
+                                           Map<String, List<List<String>>> before,
+                                           SelectionVSAssembly target)
+   {
+      Map<String, List<List<String>>> after = snapshotOthers(rvs, target);
+      List<Map<String, Object>> changed = new ArrayList<>();
+
+      before.forEach((name, was) -> {
+         List<List<String>> now = after.get(name);
+
+         if(now == null || new HashSet<>(was).equals(new HashSet<>(now))) {
+            return;
+         }
+
+         List<List<String>> removed = was.stream().filter(p -> !now.contains(p)).toList();
+         List<List<String>> added = now.stream().filter(p -> !was.contains(p)).toList();
+         Map<String, Object> entry = new LinkedHashMap<>();
+         entry.put("assembly", name);
+         entry.put("type", describe((VSAssembly) rvs.getViewsheet().getAssembly(name)));
+         entry.put("before", was);
+         entry.put("after", now);
+         entry.put("removed", removed);
+         entry.put("added", added);
+         changed.add(entry);
+      });
+
+      if(!changed.isEmpty()) {
+         result.put("otherSelectionsChanged", changed);
+      }
+   }
+
    // ── reads ─────────────────────────────────────────────────────────────────
 
    /** Every currently selected value, as paths — what "clear" has to send back deselected. */
@@ -1303,6 +1377,14 @@ public class SelectionRuntimeService {
     * selecting any of its children would silently vanish from the result.
     */
    static List<List<String>> selectedPaths(SelectionValue[] values) {
+      return selectedPaths(values, false);
+   }
+
+   /**
+    * @param skipExcluded when true, a selected value that Association has since excluded does not
+    *                     count (the "applied" selection of a multi-select assembly).
+    */
+   static List<List<String>> selectedPaths(SelectionValue[] values, boolean skipExcluded) {
       if(values == null) {
          return List.of();
       }
@@ -1310,7 +1392,7 @@ public class SelectionRuntimeService {
       List<List<String>> paths = new ArrayList<>();
 
       for(SelectionValue value : values) {
-         if(value == null || !value.isSelected()) {
+         if(value == null || !value.isSelected() || skipExcluded && value.isExcluded()) {
             continue;
          }
 
@@ -1321,7 +1403,7 @@ public class SelectionRuntimeService {
             SelectionList childList = composite.getSelectionList();
             List<List<String>> childPaths =
                new ArrayList<>(selectedPaths(childList == null ? null :
-                                             childList.getSelectionValues()));
+                                             childList.getSelectionValues(), skipExcluded));
 
             if(childPaths.isEmpty()) {
                childPaths.add(new ArrayList<>(Collections.nCopies(level + 1, (String) null)));
