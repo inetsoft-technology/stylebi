@@ -75,7 +75,7 @@ public abstract class DataSourceProperties {
     * @return the name.
     */
    @NotNull
-   @Schema(description = "The name of the data source.", example = "Orders")
+   @Schema(description = "The full, folder-qualified name of the data source.", example = "Examples/Orders")
    public String getName() {
       return name;
    }

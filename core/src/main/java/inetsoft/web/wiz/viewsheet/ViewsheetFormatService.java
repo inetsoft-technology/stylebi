@@ -2253,7 +2253,7 @@ public class ViewsheetFormatService {
     * {@link VSAssemblyInfo#TITLEPATH}. One call, one cell -- a caller wanting several cells
     * formatted makes several calls, matching {@code set_calc_cell_script}'s own granularity.
     */
-   public void setCellFormat(String sessionToken, Principal user, CellFormatRequest request,
+   public List<String> setCellFormat(String sessionToken, Principal user, CellFormatRequest request,
                              String linkUri) throws Exception
    {
       if(request.assembly() == null || request.assembly().isBlank()) {
@@ -2271,7 +2271,7 @@ public class ViewsheetFormatService {
             "set_calc_cell_format requires 'format' unless 'reset' is true.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          TableDataPath cellPath =
             calcService.cellFormatPath(rvs, request.assembly(), request.row(), request.col());
          calcService.requireNotMerged(rvs, request.assembly(), request.row(), request.col());

@@ -665,14 +665,16 @@ public class BindingAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/cell/format")
-   public void setCalcCellFormat(@PathVariable String sessionToken,
-                                 @RequestBody ViewsheetFormatService.CellFormatRequest request,
-                                 @RequestParam(required = false, defaultValue = "") String linkUri,
-                                 Principal user)
+   public Map<String, Object> setCalcCellFormat(
+      @PathVariable String sessionToken,
+      @RequestBody ViewsheetFormatService.CellFormatRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user)
       throws Exception
    {
       requireEnabled();
-      formatService.setCellFormat(sessionToken, user, request, linkUri);
+      return ViewsheetSessionService.warningsBody(
+         formatService.setCellFormat(sessionToken, user, request, linkUri));
    }
 
    public record TableSortRequest(String assembly, String shelf, String column, Integer index,

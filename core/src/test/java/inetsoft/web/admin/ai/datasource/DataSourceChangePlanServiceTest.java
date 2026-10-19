@@ -17,7 +17,9 @@
  */
 package inetsoft.web.admin.ai.datasource;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.web.admin.datasource.*;
+import inetsoft.web.admin.datasource.JdbcDataSourceProperties.IsolationLevel;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
@@ -29,16 +31,23 @@ import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.admin.security.ConnectionStatus;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.quality.Strictness;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.security.Principal;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -239,16 +248,16 @@ class DataSourceChangePlanServiceTest {
       assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
    }
 
-   // Bug 76457: for a data source under a non-root folder, the list-resolved identity
-   // ("Examples/Orders") is folder-qualified while the get-by-id DTO's own name
-   // (JdbcDataSourceProperties, mirroring the wrapped API's own documented bare-name quirk) is
-   // bare ("Orders"). A field-only update with no spec.name must not be misread as a rename just
-   // because those two representations differ.
+   // Bug 76457: for a data source under a non-root folder, the list-resolved identity is
+   // folder-qualified ("Examples/Orders"). A field-only update with no spec.name must not be
+   // misread as a rename. Bug 78817: the get-by-id DTO (JdbcDataSourceProperties) now carries the
+   // same full name as the list, so these stubs use it too (a bare "Orders" stub encoded the old
+   // defect).
    @Test void resolveUpdateDoesNotRequireConfirmRenameForFolderQualifiedNameWithFieldOnlySpec()
       throws Exception
    {
       stubList("Examples/Orders", "id-1", "jdbc");
-      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      stubGet("id-1", jdbc("id-1", "Examples/Orders", false, null));
       DataSourceChangeRequest change =
          updateChange("Examples/Orders", Map.of("ansiJoin", true));
 
@@ -261,7 +270,7 @@ class DataSourceChangePlanServiceTest {
       throws Exception
    {
       stubList("Examples/Orders", "id-1", "jdbc");
-      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      stubGet("id-1", jdbc("id-1", "Examples/Orders", false, null));
       DataSourceChangeRequest change =
          updateChange("Examples/Orders", Map.of("tableName", JdbcDataSourceProperties.DEFAULT_OPTION));
 
@@ -274,7 +283,7 @@ class DataSourceChangePlanServiceTest {
       throws Exception
    {
       stubList("Examples/Orders", "id-1", "jdbc");
-      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      stubGet("id-1", jdbc("id-1", "Examples/Orders", false, null));
       DataSourceChangeRequest change =
          updateChange("Examples/Orders", Map.of("name", "Examples/Orders2"));
 
@@ -286,7 +295,7 @@ class DataSourceChangePlanServiceTest {
    @Test void buildProposedJdbcDefaultsNameToTheResolvedFolderQualifiedNameWhenSpecOmitsIt()
       throws Exception
    {
-      JdbcDataSourceProperties current = jdbc("id-1", "Orders", false, null);
+      JdbcDataSourceProperties current = jdbc("id-1", "Examples/Orders", false, null);
 
       JdbcDataSourceProperties proposed = service.buildProposedJdbc(
          "changes[0]", "id-1", "Examples/Orders", current, Map.of("ansiJoin", true), user);
@@ -446,6 +455,185 @@ class DataSourceChangePlanServiceTest {
 
       assertTrue(proposed.isUseCredentialId());
       assertEquals("secret-ref-1", proposed.getCredentialID());
+   }
+
+   // -------------------------------------------------------------------------
+   // spec.isolation accepts the JDBC value form (Bug #78820)
+   // -------------------------------------------------------------------------
+
+   static Stream<Arguments> acceptedIsolationInputs() {
+      return Stream.of(
+         Arguments.of(2, IsolationLevel.TRANSACTION_READ_COMMITTED),
+         Arguments.of("2", IsolationLevel.TRANSACTION_READ_COMMITTED),
+         Arguments.of(" 2 ", IsolationLevel.TRANSACTION_READ_COMMITTED),
+         Arguments.of(2L, IsolationLevel.TRANSACTION_READ_COMMITTED),
+         Arguments.of(2.0, IsolationLevel.TRANSACTION_READ_COMMITTED),
+         Arguments.of(-1, IsolationLevel.DEFAULT),
+         Arguments.of("-1", IsolationLevel.DEFAULT),
+         Arguments.of(1, IsolationLevel.TRANSACTION_READ_UNCOMMITTED),
+         Arguments.of("4", IsolationLevel.TRANSACTION_REPEATABLE_READ),
+         Arguments.of(8, IsolationLevel.TRANSACTION_SERIALIZABLE),
+         Arguments.of(8.0f, IsolationLevel.TRANSACTION_SERIALIZABLE),
+         Arguments.of(new BigDecimal("4"), IsolationLevel.TRANSACTION_REPEATABLE_READ),
+         Arguments.of(BigInteger.valueOf(8), IsolationLevel.TRANSACTION_SERIALIZABLE),
+         // undocumented legacy alias: the enum constant name, case-insensitive
+         Arguments.of("TRANSACTION_READ_COMMITTED", IsolationLevel.TRANSACTION_READ_COMMITTED),
+         Arguments.of("transaction_serializable", IsolationLevel.TRANSACTION_SERIALIZABLE));
+   }
+
+   @ParameterizedTest
+   @MethodSource("acceptedIsolationInputs")
+   void buildProposedJdbcAcceptsIsolationValue(Object input, IsolationLevel expected)
+      throws Exception
+   {
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", false, null);
+      Map<String, Object> spec = new LinkedHashMap<>();
+      spec.put("isolation", input);
+
+      JdbcDataSourceProperties proposed =
+         service.buildProposedJdbc("changes[0]", "id-1", "Orders", current, spec, user);
+
+      assertEquals(expected, proposed.getIsolation());
+      String projection = DataSourceProjection.project(proposed);
+      assertTrue(projection.contains(";isolation=" + expected.value + ";"), projection);
+   }
+
+   static Stream<Arguments> refusedIsolationInputs() {
+      return Stream.of(
+         Arguments.of(3),
+         Arguments.of("3"),
+         Arguments.of(0),
+         Arguments.of(2.5),
+         Arguments.of(-0.5),
+         Arguments.of("2.0"),
+         Arguments.of("+2"),
+         Arguments.of("abc"),
+         Arguments.of(""),
+         Arguments.of("read_committed"),
+         Arguments.of(Double.NaN),
+         Arguments.of(Double.POSITIVE_INFINITY),
+         Arguments.of(Float.NEGATIVE_INFINITY),
+         // must not wrap through intValue(): 99999999999L.intValue() = 1215752191
+         Arguments.of(99999999999L),
+         // 2^64 + 2: BigInteger.intValue() would wrap to exactly 2 (TRANSACTION_READ_COMMITTED)
+         Arguments.of(new BigInteger("18446744073709551618")),
+         Arguments.of(new BigDecimal("1E+999999999")),
+         // 2^32 + 2 as a string: an 11-digit string is refused before parsing
+         Arguments.of("4294967298"),
+         Arguments.of("00000000002"),
+         Arguments.of(true),
+         Arguments.of(List.of(2)),
+         Arguments.of(Map.of("value", 2)));
+   }
+
+   @ParameterizedTest
+   @MethodSource("refusedIsolationInputs")
+   void buildProposedJdbcRefusesIsolationValue(Object input) {
+      assertIsolationRefused(input);
+   }
+
+   @Test void buildProposedJdbcRefusesNullIsolation() {
+      // null must never become a null IsolationLevel: DataSourceService.updateDataSource
+      // dereferences getIsolation().value when persisting.
+      assertIsolationRefused(null);
+   }
+
+   @Test void buildProposedJdbcRefusesAHugeDigitStringQuickly() {
+      String huge = "2".repeat(1_000_000);
+
+      assertTimeout(Duration.ofSeconds(2), () -> assertIsolationRefused(huge));
+   }
+
+   @Test void isolationRefusalListsTheNumericValuesOnly() {
+      IllegalArgumentException ex = assertIsolationRefused("abc");
+
+      assertTrue(ex.getMessage().startsWith(
+         "changes[0].spec.isolation: must be one of [-1, 1, 2, 4, 8] "), ex.getMessage());
+      assertTrue(ex.getMessage().endsWith(", got abc"), ex.getMessage());
+
+      for(IsolationLevel level : IsolationLevel.values()) {
+         assertFalse(ex.getMessage().contains(level.name()), ex.getMessage());
+      }
+   }
+
+   @Test void previewAcceptsNumericIsolationAndHashesEveryFormIdentically() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+
+      var fromNumber = service.resolve(
+         request("t", List.of(updateChange("Orders", Map.of("isolation", 2)))), user);
+      var fromString = service.resolve(
+         request("t", List.of(updateChange("Orders", Map.of("isolation", "2")))), user);
+      var fromName = service.resolve(request("t", List.of(updateChange(
+         "Orders", Map.of("isolation", "TRANSACTION_READ_COMMITTED")))), user);
+
+      String proposedValue = fromNumber.changes().get(0).proposedValue();
+      String currentValue = fromNumber.changes().get(0).currentValue();
+      assertTrue(proposedValue.contains(";isolation=2;"), proposedValue);
+      assertTrue(currentValue.contains(";isolation=-1;"), currentValue);
+      assertEquals(fromNumber.planHash(), fromString.planHash());
+      assertEquals(fromNumber.planHash(), fromName.planHash());
+   }
+
+   @Test void previewAcceptsTheIsolationStringReturnedByGetDataSource() throws Exception {
+      // get_data_source serializes isolation through the enum's @JsonValue toString(): "-1".
+      ObjectMapper mapper = new ObjectMapper();
+      Object roundTripped = mapper.readValue(
+         mapper.writeValueAsString(jdbc("id-1", "Orders", false, null)), Map.class)
+         .get("isolation");
+      assertEquals("-1", roundTripped);
+
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", false, null);
+      current.setIsolation(IsolationLevel.TRANSACTION_SERIALIZABLE);
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", current);
+
+      var plan = service.resolve(request(
+         "t", List.of(updateChange("Orders", Map.of("isolation", roundTripped)))), user);
+
+      String proposedValue = plan.changes().get(0).proposedValue();
+      assertTrue(proposedValue.contains(";isolation=-1;"), proposedValue);
+   }
+
+   @Test void testConnectionAcceptsNumericIsolation() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      ConnectionStatus expected = new ConnectionStatus("ok", true);
+      when(databaseSettingsService.testConnection(any(), eq(user))).thenReturn(expected);
+
+      DataSourceTestConnectionRequest req = new DataSourceTestConnectionRequest();
+      req.setName("Orders");
+      req.setSpec(Map.of("isolation", "2"));
+
+      assertSame(expected, service.testConnection(req, user));
+   }
+
+   @Test void testConnectionRefusesAnUnknownIsolationValue() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+
+      DataSourceTestConnectionRequest req = new DataSourceTestConnectionRequest();
+      req.setName("Orders");
+      req.setSpec(Map.of("isolation", 3));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.testConnection(req, user));
+      assertTrue(ex.getMessage().contains("spec.isolation: must be one of [-1, 1, 2, 4, 8]"),
+                 ex.getMessage());
+      verifyNoInteractions(databaseSettingsService);
+   }
+
+   private IllegalArgumentException assertIsolationRefused(Object input) {
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", false, null);
+      Map<String, Object> spec = new LinkedHashMap<>();
+      spec.put("isolation", input);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.buildProposedJdbc("changes[0]", "id-1", "Orders", current, spec, user),
+         () -> "accepted isolation " + input);
+      assertTrue(ex.getMessage().contains(
+         "changes[0].spec.isolation: must be one of [-1, 1, 2, 4, 8]"), ex.getMessage());
+      return ex;
    }
 
    // -------------------------------------------------------------------------

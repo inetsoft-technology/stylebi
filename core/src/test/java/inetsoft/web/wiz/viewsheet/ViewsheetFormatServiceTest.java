@@ -1384,6 +1384,43 @@ class ViewsheetFormatServiceTest {
       assertEquals("PercentFormat", captor.getValue().getFormat().getFormat());
    }
 
+   /** Bug #78823: the script-failure warnings of a cell format write are returned, not dropped. */
+   @Test
+   void setCellFormatReturnsTheSessionsWarnings() throws Exception {
+      ViewsheetSessionService sessions = sessionsFor(null);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(null, "rt1", null);
+         return List.of("script failed");
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      CalcTableService calcService = mock(CalcTableService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("PercentFormat");
+
+      List<String> warnings = service(sessions, mock(FormatPainterService.class), calcService)
+         .setCellFormat("tok", principal(),
+                        new ViewsheetFormatService.CellFormatRequest(
+                           "FreehandTable1", 1, 0, format, false), "");
+
+      assertEquals(List.of("script failed"), warnings);
+      assertEquals(java.util.Map.of("warnings", List.of("script failed")),
+                   ViewsheetSessionService.warningsBody(warnings));
+   }
+
+   @Test
+   void setCellFormatOnAHealthyTableReturnsNoWarnings() throws Exception {
+      CalcTableService calcService = mock(CalcTableService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("PercentFormat");
+
+      List<String> warnings = serviceWith(mock(FormatPainterService.class), calcService)
+         .setCellFormat("tok", principal(),
+                        new ViewsheetFormatService.CellFormatRequest(
+                           "FreehandTable1", 1, 0, format, false), "");
+
+      assertNull(ViewsheetSessionService.warningsBody(warnings));
+   }
+
    /** Redmine #78286: a format write to a merge-swallowed cell is refused before it applies. */
    @Test
    void setCellFormatRefusesAMergeSwallowedCell() throws Exception {

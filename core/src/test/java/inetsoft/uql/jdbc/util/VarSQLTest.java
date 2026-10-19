@@ -331,6 +331,120 @@ public class VarSQLTest {
       assertTrue(varSql.getParameterNames().isEmpty());
    }
 
+   // ---- comment syntax (Bug #78757) -----------------------------------------
+
+   private static VarSQL backslashVarSql(VarSQL.CommentSyntax syntax) {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+      varSql.setLiteralEscapeStyle(VarSQL.LiteralEscapeStyle.BACKSLASH);
+      varSql.setTemplateBackslash(VarSQL.TemplateBackslash.LITERAL_ESCAPE);
+      varSql.setCommentSyntax(syntax);
+      return varSql;
+   }
+
+   /** The default SQL syntax still treats -- and block comments as comments. */
+   @Test
+   void sqlCommentSyntax_isTheDefaultAndUnchanged() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+
+      assertEquals("-- don't\nWHERE a = 'x''y'", varSql.replaceVariables(
+         "-- don't\nWHERE a = '$(p)'", vars("p", "x'y")));
+      assertEquals("/* don't */ WHERE a = 'x''y'", varSql.replaceVariables(
+         "/* don't */ WHERE a = '$(p)'", vars("p", "x'y")));
+      // a placeholder in a comment is not replaced
+      assertEquals("-- $(p)\nWHERE a = 1", varSql.replaceVariables(
+         "-- $(p)\nWHERE a = 1", vars("p", "x")));
+   }
+
+   @Test
+   void hashCommentSyntax_apostropheInComment_keepsValueInsideLiteral() {
+      VarSQL varSql = backslashVarSql(VarSQL.CommentSyntax.HASH);
+      String value = ";system(intToUtf8(c(105,100)));y<-";
+
+      assertEquals("# don't filter blanks\ndf <- subset(d, name == '" + value + "'); df",
+                   varSql.replaceVariables(
+                      "# don't filter blanks\ndf <- subset(d, name == '$(p)'); df",
+                      vars("p", value)));
+      assertEquals("x <- 1 # it's\ny <- 'a\\'b'", varSql.replaceVariables(
+         "x <- 1 # it's\ny <- '$(p)'", vars("p", "a'b")));
+   }
+
+   @Test
+   void hashCommentSyntax_placeholderInComment_isNotReplaced() {
+      VarSQL varSql = backslashVarSql(VarSQL.CommentSyntax.HASH);
+
+      assertEquals("x <- 1 # was $(p)\ny <- 'v'", varSql.replaceVariables(
+         "x <- 1 # was $(p)\ny <- '$(p)'", vars("p", "v")));
+   }
+
+   @Test
+   void hashCommentSyntax_hashInLiteral_andSqlTokens_areNotComments() {
+      VarSQL varSql = backslashVarSql(VarSQL.CommentSyntax.HASH);
+
+      assertEquals("x <- '#'; y <- 'v'", varSql.replaceVariables(
+         "x <- '#'; y <- '$(p)'", vars("p", "v")));
+      // -- is minus minus in R, and /* is not a comment
+      assertEquals("x <- 5 --1; y <- 'v'", varSql.replaceVariables(
+         "x <- 5 --1; y <- '$(p)'", vars("p", "v")));
+      assertEquals("x <- d$`a/*b`; y <- 'v'", varSql.replaceVariables(
+         "x <- d$`a/*b`; y <- '$(p)'", vars("p", "v")));
+   }
+
+   @Test
+   void cStyleCommentSyntax_apostropheInComments_keepsValueInsideLiteral() {
+      VarSQL varSql = backslashVarSql(VarSQL.CommentSyntax.C_STYLE);
+
+      assertEquals("// don't do this\nvar n = 'a b';", varSql.replaceVariables(
+         "// don't do this\nvar n = '$(p)';", vars("p", "a b")));
+      assertEquals("/* don't */ var n = 'a b';", varSql.replaceVariables(
+         "/* don't */ var n = '$(p)';", vars("p", "a b")));
+      // "/*/" opens a comment that the same slash does not close
+      assertEquals("/*/ don't */ var n = 'a b';", varSql.replaceVariables(
+         "/*/ don't */ var n = '$(p)';", vars("p", "a b")));
+      // a block opener inside a line comment is not a comment
+      assertEquals("// x /* don't\nvar n = 'a b';", varSql.replaceVariables(
+         "// x /* don't\nvar n = '$(p)';", vars("p", "a b")));
+      // the closing slash of "*/" does not start a line comment
+      assertEquals("/* x *//1; var n = 'a b';", varSql.replaceVariables(
+         "/* x *//1; var n = '$(p)';", vars("p", "a b")));
+   }
+
+   @Test
+   void cStyleCommentSyntax_slashesInLiteral_andDecrement_areNotComments() {
+      VarSQL varSql = backslashVarSql(VarSQL.CommentSyntax.C_STYLE);
+
+      assertEquals("var u = 'http://x'; var n = 'v';", varSql.replaceVariables(
+         "var u = 'http://x'; var n = '$(p)';", vars("p", "v")));
+      // i-- is not a SQL line comment in JavaScript
+      assertEquals("while(i--) n = 'v';", varSql.replaceVariables(
+         "while(i--) n = '$(p)';", vars("p", "v")));
+      assertEquals("// $(p)\nvar n = 'v';", varSql.replaceVariables(
+         "// $(p)\nvar n = '$(p)';", vars("p", "v")));
+   }
+
+   @Test
+   void commentSyntax_lineCommentPrefixes() {
+      assertEquals("--", VarSQL.CommentSyntax.SQL.getLineCommentPrefix());
+      assertEquals("#", VarSQL.CommentSyntax.HASH.getLineCommentPrefix());
+      assertEquals("//", VarSQL.CommentSyntax.C_STYLE.getLineCommentPrefix());
+   }
+
+   /** JSON escaping with LITERAL_ESCAPE template handling, as for JavaScript text. */
+   @Test
+   void jsonStyle_literalEscapeTemplate_keepsBackslashes() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+      varSql.setLiteralEscapeStyle(VarSQL.LiteralEscapeStyle.JSON);
+      varSql.setTemplateBackslash(VarSQL.TemplateBackslash.LITERAL_ESCAPE);
+      varSql.setCommentSyntax(VarSQL.CommentSyntax.C_STYLE);
+
+      String noVar = "var s = 'a\\nb'; var r = /\\d+/; var t = 'it\\'s';";
+      assertEquals(noVar, varSql.replaceVariables(noVar, vars("p", "v")));
+      assertEquals("var s = 'C:\\\\temp\\\\' + '\\u0076';", varSql.replaceVariables(
+         "var s = 'C:\\\\temp\\\\' + '$(p)';", vars("p", "v")));
+   }
+
    /** The default (JDBC) template handling is unchanged: a backslash is consumed. */
    @Test
    void legacyTemplateBackslash_isStillDropped() {

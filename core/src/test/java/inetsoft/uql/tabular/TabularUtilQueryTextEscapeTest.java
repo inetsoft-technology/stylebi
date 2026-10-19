@@ -280,6 +280,63 @@ class TabularUtilQueryTextEscapeTest {
       assertEquals("{name: '\\u004f\\u0027Brien'}", bean.getQuery());
    }
 
+   // ---- JavaScript text: backslashes kept, // and /* */ comments (#78757) ---
+
+   @Test
+   void mongoDefault_templateBackslashIsStillDropped() {
+      assertEquals("{r: /d+/, n: '\\u0076'}",
+                   replace(new MongoBean(), "{r: /\\d+/, n: '$(p)'}", "v"));
+   }
+
+   @Test
+   void keepTemplateBackslashes_jsonStyleKeepsJavaScriptByteForByte() {
+      String noVar = "var s = 'a\\nb'; var r = /\\d+/; var t = 'it\\'s'; var u = 'C:\\\\temp\\\\';";
+      assertEquals(noVar, replace(new JsBean(), noVar, "v"));
+      assertEquals(noVar + " var n = '\\u0076';",
+                   replace(new JsBean(), noVar + " var n = '$(p)';", "v"));
+   }
+
+   @Test
+   void commentSyntax_apostropheInJsComment_keepsValueInsideLiteral() {
+      assertEquals("// don't\nvar n = '\\u0061 b';",
+                   replace(new JsBean(), "// don't\nvar n = '$(p)';", "a b"));
+   }
+
+   @Test
+   void findVariables_skipsLinesStartingWithTheLanguagesLineComment() {
+      JsBean js = new JsBean();
+      js.setQuery("// $(a)\n-- $(b)\nvar n = '$(c)';");
+      assertEquals(List.of("b", "c"), names(TabularUtil.findVariables(js)));
+
+      CqlBean cql = new CqlBean();
+      cql.setQuery("-- $(a)\n// $(b)\nSELECT '$(c)'");
+      assertEquals(List.of("b", "c"), names(TabularUtil.findVariables(cql)));
+   }
+
+   private static List<String> names(List<inetsoft.uql.schema.UserVariable> vars) {
+      List<String> names = new ArrayList<>();
+
+      for(inetsoft.uql.schema.UserVariable var : vars) {
+         names.add(var.getName());
+      }
+
+      return names;
+   }
+
+   public static class JsBean implements QueryBean {
+      @Property(label = "Query", sql = true, keepTemplateBackslashes = true,
+                commentSyntax = VarSQL.CommentSyntax.C_STYLE)
+      public String getQuery() {
+         return query;
+      }
+
+      public void setQuery(String query) {
+         this.query = query;
+      }
+
+      private String query;
+   }
+
    // ---- helpers --------------------------------------------------------------
 
    private static String replace(QueryBean bean, String template, Object value, Object q) {
