@@ -42,6 +42,16 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 class WizTableStyleControllerTest {
    @Test
+   void read_ofABuiltInStyleIdSaysItIsBuiltIn() {
+      Fixture fixture = new Fixture();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.read(
+         "inetsoft.report.style.CrosstabStyle", fixture.principal));
+
+      assertTrue(thrown.getMessage().contains("built-in"), thrown.getMessage());
+   }
+
+   @Test
    void create_refusesANameCollisionInsteadOfSilentlyOverwriting() {
       Fixture fixture = new Fixture();
       when(fixture.tableStyleService.contains(null, "BorderedBands")).thenReturn(true);

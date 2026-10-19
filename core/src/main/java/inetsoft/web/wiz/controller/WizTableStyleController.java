@@ -26,6 +26,7 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.web.composer.tablestyle.TableStyleFormatModel;
 import inetsoft.web.composer.tablestyle.service.TableStyleService;
+import inetsoft.web.viewsheet.service.VSDialogService;
 import inetsoft.web.wiz.service.WizTableStylePreviewRenderer;
 import org.springframework.web.bind.annotation.*;
 
@@ -497,6 +498,13 @@ public class WizTableStyleController {
       XTableStyle style = lib.getTableStyle(styleId);
 
       if(style == null) {
+         if(VSDialogService.CROSSTAB_STYLE_ID.equals(styleId)) {
+            throw new IllegalArgumentException(
+               "'" + styleId + "' is a built-in table style, not a library style, so it cannot be " +
+               "read, edited, previewed or deleted. Apply it by writing it to an assembly's " +
+               "'tableStyle'.");
+         }
+
          throw new IllegalArgumentException(
             "No table style with styleId '" + styleId + "'. list_table_styles reports what exists.");
       }
