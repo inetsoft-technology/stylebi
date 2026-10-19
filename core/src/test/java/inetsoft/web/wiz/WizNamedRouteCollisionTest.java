@@ -25,6 +25,7 @@ import inetsoft.test.*;
 import inetsoft.web.composer.tablestyle.service.TableStyleService;
 import inetsoft.web.wiz.controller.WizTableStyleController;
 import inetsoft.web.wiz.pairing.SheetAgentFeature;
+import inetsoft.web.wiz.service.WizTableStylePreviewRenderer;
 import inetsoft.web.wiz.viewsheet.LayoutReadService;
 import inetsoft.web.wiz.viewsheet.ViewsheetAssemblyAgentController;
 import jakarta.servlet.ServletException;
@@ -73,7 +74,8 @@ class WizNamedRouteCollisionTest {
          null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
          null, null, layoutReadService, null, null, null, null, null, null, null);
       WizTableStyleController tableStyleController = new WizTableStyleController(
-         libManagerProvider, mock(TableStyleService.class), mock(SecurityEngine.class));
+         libManagerProvider, mock(TableStyleService.class), mock(SecurityEngine.class),
+         mock(WizTableStylePreviewRenderer.class));
 
       // WebConfig.configurePathMatch sets a UrlPathHelper, which selects AntPathMatcher matching
       mvc = MockMvcBuilders.standaloneSetup(agentController, tableStyleController)

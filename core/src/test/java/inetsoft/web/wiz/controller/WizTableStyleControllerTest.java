@@ -26,6 +26,7 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.web.composer.tablestyle.TableStyleFormatModel;
 import inetsoft.web.composer.tablestyle.service.TableStyleService;
+import inetsoft.web.wiz.service.WizTableStylePreviewRenderer;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
@@ -713,12 +714,15 @@ class WizTableStyleControllerTest {
          // IdentityID.getIdentityIDFromKey(null) returns null, and setLastModifiedBy(pId.getName())
          // would NPE on that -- every write path needs a real name here, not Mockito's default null.
          when(principal.getName()).thenReturn("admin");
-         controller = new WizTableStyleController(libManagerProvider, tableStyleService, securityEngine);
+         controller = new WizTableStyleController(
+            libManagerProvider, tableStyleService, securityEngine, previewRenderer);
       }
 
       final LibManagerProvider libManagerProvider = mock(LibManagerProvider.class);
       final TableStyleService tableStyleService = mock(TableStyleService.class);
       final SecurityEngine securityEngine = mock(SecurityEngine.class);
+      final WizTableStylePreviewRenderer previewRenderer =
+         mock(WizTableStylePreviewRenderer.class);
       final LibManager lib = mock(LibManager.class);
       final Principal principal = mock(Principal.class);
       final WizTableStyleController controller;
