@@ -45,7 +45,7 @@ public class TabularDataSourceProperties extends DataSourceProperties {
     */
    public TabularDataSourceProperties(XDataSource ds, String id) {
       setId(id);
-      setName(ds.getName());
+      setName(ds.getFullName());
       setType(Type.TABULAR);
       setTabularType(ds.getType());
    }
@@ -61,7 +61,7 @@ public class TabularDataSourceProperties extends DataSourceProperties {
 
    @Override
    @NotNull
-   @Schema(description = "The name of the data source.", example = "Users")
+   @Schema(description = "The full, folder-qualified name of the data source.", example = "Users")
    public String getName() {
       return super.getName();
    }

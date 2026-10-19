@@ -50,7 +50,7 @@ public class JdbcDataSourceProperties extends DataSourceProperties {
     */
    public JdbcDataSourceProperties(JDBCDataSource ds, String id) {
       setId(id);
-      setName(ds.getName());
+      setName(ds.getFullName());
       setType(Type.JDBC);
       setUrl(ds.getURL());
       setDriver(ds.getDriver());
@@ -79,7 +79,7 @@ public class JdbcDataSourceProperties extends DataSourceProperties {
 
    @Override
    @NotNull
-   @Schema(description = "The name of the data source.", example = "Orders")
+   @Schema(description = "The full, folder-qualified name of the data source.", example = "Examples/Orders")
    public String getName() {
       return super.getName();
    }
