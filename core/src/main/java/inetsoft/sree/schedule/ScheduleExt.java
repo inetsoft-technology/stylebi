@@ -64,7 +64,7 @@ public interface ScheduleExt extends Iterable<ScheduleTask> {
     * @param name the task id, see {@link ScheduleTask#getTaskId()}.
     * @return <tt>true</tt> if the extension changed, <tt>false</tt> otherwise.
     */
-   boolean setEnable(String name, String orgId, boolean enable);
+   boolean setEnable(String name, String orgId, boolean enable) throws Exception;
 
    /**
     * Method will be invoked when a replet is removed.

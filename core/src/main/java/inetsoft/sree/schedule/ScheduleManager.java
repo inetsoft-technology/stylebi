@@ -426,7 +426,9 @@ public class ScheduleManager {
     *
     * @return <tt>true</tt> if the extension changed, <tt>false</tt> otherwise.
     */
-   private boolean updateExtensionEnabled(ScheduleExt ext, ScheduleTask task, String orgId) {
+   private boolean updateExtensionEnabled(ScheduleExt ext, ScheduleTask task, String orgId)
+      throws Exception
+   {
       if(ext.isEnable(task.getTaskId(), orgId) != task.isEnabled()) {
          ext.setEnable(task.getTaskId(), orgId, task.isEnabled());
          return true;

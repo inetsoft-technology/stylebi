@@ -527,7 +527,9 @@ class DataCycleManagerOrgLifecycleTest {
     * orgId through to the 2-arg IndexedStorage overloads, so seeding itself is unaffected by the
     * current-org-context coupling this file documents.
     */
-   private void seedDataCycle(String orgId, String cycleName, String userName) {
+   private void seedDataCycle(String orgId, String cycleName, String userName)
+      throws Exception
+   {
       // TimeCondition.at(hour, minute, second) is used instead of `new TimeCondition()` --
       // the no-arg constructor leaves `date` null, which TimeCondition.writeXML() dereferences
       // unconditionally and throws a NullPointerException that DataCycleManager.addCondition()
