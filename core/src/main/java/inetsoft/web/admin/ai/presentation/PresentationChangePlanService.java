@@ -71,8 +71,10 @@ public class PresentationChangePlanService {
     * @throws IllegalArgumentException with a field-named message on a blank task, an empty change
     *         list, an unrecognized verb/subModel/scope, a duplicate sub-model+scope pair, an
     *         unrecognized {@code spec} field, {@code scope: "organization"} for a global-only
-    *         sub-model, an unsafe {@code lookAndFeel} file name, a secret {@code webMap} field, or a
-    *         {@code portalIntegration.tabs} array that omits a current tab.
+    *         sub-model, an unsafe {@code lookAndFeel} file name, a secret {@code webMap} field, a
+    *         {@code portalIntegration.tabs} array that does not list every current tab exactly once
+    *         by its {@code originalIndex} (or renames a built-in tab), or an organization-scope change
+    *         to a global-only {@code portalIntegration} field (tabs and the five buttons).
     */
    public ResolvedPlan resolve(PresentationChangePlanRequest req, Principal principal)
       throws Exception
@@ -152,6 +154,11 @@ public class PresentationChangePlanService {
             throw new IllegalArgumentException(
                label + ".spec: does not produce a valid \"" + subModel.key() + "\" value (" +
                e.getMessage() + ")", e);
+         }
+
+         if(subModel == PresentationSubModel.PORTAL_INTEGRATION && !global) {
+            requireNoGlobalOnlyPortalChange(label, spec, currentNode,
+                                            PresentationJson.toNode(proposedModel));
          }
 
          String orgId = global ? null :
@@ -268,7 +275,18 @@ public class PresentationChangePlanService {
    /** 03-reconcile.md Addition 2: {@code portalIntegration.tabs} must always be every current tab, in
     * full -- {@code PortalIntegrationViewSettingsService.setModel} both indexes into the live tab list
     * by a caller-echoed {@code originalIndex} with no bounds/identity check AND does a whole-list
-    * replace underneath, so a shorter {@code tabs} array would silently drop the missing tabs. */
+    * replace underneath, so a shorter {@code tabs} array would silently drop the missing tabs.
+    *
+    * <p>Bug #78867: a count alone is not identity. {@code setModel} rebuilds the list from the spec
+    * entries' {@code originalIndex}, so an equal-length list that repeats one index (or substitutes
+    * one index for another) deletes the tab whose index is left out -- a built-in tab included, with
+    * no live rollback (storage scope). A tab's identity is therefore its {@code originalIndex}: every
+    * live index must appear exactly once. An entry without one would be a new tab, which this path
+    * cannot add (it could never verify against the read-back, which assigns it an index); new tabs
+    * are added in Enterprise Manager. A built-in ({@code editable:false}) tab cannot be renamed
+    * ({@code setModel} throws {@code tabsChanged} at apply, compared with {@code Objects.equals}), so
+    * its name must equal the live name exactly; an editable tab's name is free (a rename). Order is
+    * free: {@code setModel} writes the tabs in spec order. */
    private static void requireWholeTabList(String label, JsonNode spec, JsonNode current) {
       JsonNode tabs = spec.get("tabs");
 
@@ -281,16 +299,107 @@ public class PresentationChangePlanService {
       }
 
       JsonNode currentTabs = current.get("tabs");
-      int currentCount = currentTabs == null ? 0 : currentTabs.size();
+      int currentCount = currentTabs == null || !currentTabs.isArray() ? 0 : currentTabs.size();
 
       if(tabs.size() != currentCount) {
          throw new IllegalArgumentException(
             label + ".spec.tabs: must include every current tab (" + currentCount + "), not a " +
             "partial list -- got " + tabs.size() + " entries. portalIntegration.tabs is a " +
             "whole-list replace underneath (PortalIntegrationViewSettingsService.setModel); a " +
-            "shorter list would silently drop the tabs left out, not leave them unchanged.");
+            "shorter list would silently drop the tabs left out, not leave them unchanged, and a " +
+            "new tab cannot be added through admin-chat (add it in Enterprise Manager).");
+      }
+
+      Set<Integer> seen = new HashSet<>();
+      Set<Integer> duplicates = new TreeSet<>();
+
+      for(int i = 0; i < tabs.size(); i++) {
+         String entryLabel = label + ".spec.tabs[" + i + "]";
+         JsonNode tab = tabs.get(i);
+
+         if(tab == null || !tab.isObject()) {
+            throw new IllegalArgumentException(entryLabel + ": must be an object");
+         }
+
+         JsonNode indexNode = tab.get("originalIndex");
+
+         if(indexNode == null || indexNode.isNull()) {
+            throw new IllegalArgumentException(
+               entryLabel + ".originalIndex: required -- every entry must echo the originalIndex " +
+               "of the current tab it stands for (0.." + (currentCount - 1) + "). An entry without " +
+               "one would be a new tab, which admin-chat cannot add; add it in Enterprise Manager.");
+         }
+
+         if(!indexNode.isIntegralNumber() || !indexNode.canConvertToInt() ||
+            indexNode.asInt() < 0 || indexNode.asInt() >= currentCount)
+         {
+            throw new IllegalArgumentException(
+               entryLabel + ".originalIndex: " + indexNode + " is not the originalIndex of a " +
+               "current tab -- valid values are 0.." + (currentCount - 1) + ", each exactly once");
+         }
+
+         int originalIndex = indexNode.asInt();
+
+         if(!seen.add(originalIndex)) {
+            duplicates.add(originalIndex);
+         }
+
+         JsonNode live = currentTabs.get(originalIndex);
+
+         if(!live.path("editable").asBoolean(false)) {
+            String liveName = live.path("name").asText();
+            JsonNode nameNode = tab.get("name");
+            String name = nameNode == null || !nameNode.isTextual() ? null : nameNode.asText();
+
+            if(!Objects.equals(liveName, name)) {
+               throw new IllegalArgumentException(
+                  entryLabel + ".name: originalIndex " + originalIndex + " is the built-in tab \"" +
+                  liveName + "\", which cannot be renamed -- its name must be exactly \"" +
+                  liveName + "\" (case-sensitive), got " + nameNode);
+            }
+         }
+      }
+
+      if(!duplicates.isEmpty()) {
+         List<String> missing = new ArrayList<>();
+
+         for(int i = 0; i < currentCount; i++) {
+            if(!seen.contains(i)) {
+               missing.add(i + " (\"" + currentTabs.get(i).path("name").asText() + "\")");
+            }
+         }
+
+         throw new IllegalArgumentException(
+            label + ".spec.tabs: originalIndex " + duplicates + " appears more than once, so " +
+            "current tab(s) " + missing + " would be deleted -- list every current tab exactly " +
+            "once, by its own originalIndex");
       }
    }
+
+   /** Bug #78867 (folded-in org-scope finding): {@code PortalIntegrationViewSettingsService.setModel}
+    * writes the tabs and the five portal buttons only on a global save ("the portal buttons and tabs
+    * are global"). At organization scope a change to any of them plans with the change in
+    * {@code proposedValue} but writes nothing, and apply then reports a storage-scope rollback
+    * failure for a write that never happened. Refused here instead, naming the field; resupplying
+    * the live value unchanged stays accepted (it verifies). Compared on the typed model's projection,
+    * so a value Jackson coerces to the live one (e.g. {@code "true"}) counts as unchanged. */
+   private static void requireNoGlobalOnlyPortalChange(String label, JsonNode spec, JsonNode current,
+                                                       JsonNode proposed)
+   {
+      for(String field : PORTAL_GLOBAL_ONLY_FIELDS) {
+         if(spec.has(field) && !Objects.equals(current.get(field), proposed.get(field))) {
+            throw new IllegalArgumentException(
+               label + ".spec." + field + ": portalIntegration." + field + " is global-only -- " +
+               "the portal tabs and buttons are written only by a global save, so at scope " +
+               "\"organization\" this change would not be written at all. Use scope \"global\" " +
+               "(it applies to every organization).");
+         }
+      }
+   }
+
+   /** The {@code portalIntegration} fields {@code setModel} writes only when {@code globalSettings}. */
+   private static final List<String> PORTAL_GLOBAL_ONLY_FIELDS =
+      List.of("tabs", "help", "preference", "logout", "search", "home");
 
    /** 03-reconcile.md Addition 1: {@code lookAndFeel}'s org-scoped CSS-upload path
     * ({@code LookAndFeelService.setViewsheet}) writes a caller-supplied file name straight to
