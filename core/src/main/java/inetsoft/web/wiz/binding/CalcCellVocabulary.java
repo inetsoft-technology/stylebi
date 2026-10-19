@@ -101,6 +101,20 @@ public final class CalcCellVocabulary {
       "top", XCondition.TOP_N,
       "bottom", XCondition.BOTTOM_N);
 
+   /**
+    * {@code field.namedGroup.others}: whether the values no group claims are bucketed together
+    * ({@code true}) or left as their own raw values ({@code false}).
+    */
+   private static final Map<String, Boolean> NAMED_GROUP_OTHERS = Map.of(
+      "group", true,
+      "leave", false);
+
+   /** Why a calc-table named group must be made of simple, OR-joined conditions. */
+   public static final String NAMED_GROUP_RESTRICTION =
+      "A calc-table named group only buckets when every condition is 'equals' or 'one_of', " +
+      "not negated, and the conditions of a group are joined with 'or' -- otherwise the cell " +
+      "shows the raw values ungrouped.";
+
    /** Keys that mean something else here, mapped to the key the caller meant. */
    private static final Map<String, String> REJECTED = Map.of(
       "type", "content",
@@ -392,6 +406,33 @@ public final class CalcCellVocabulary {
       return resolve(TOPN_MODE, token, "topn.mode");
    }
 
+   /**
+    * Resolves {@code field.namedGroup.others} to "group the leftovers together". Besides the
+    * tool's {@code "group"}/{@code "leave"} words it accepts the plain {@code Boolean} the native
+    * UI's {@code OrderModel.others} uses; absent means group.
+    */
+   public static boolean groupOthers(Object others) {
+      if(others == null) {
+         return true;
+      }
+
+      if(others instanceof Boolean flag) {
+         return flag;
+      }
+
+      Boolean resolved = others instanceof String text ?
+         NAMED_GROUP_OTHERS.get(text.trim().toLowerCase(Locale.ROOT)) : null;
+
+      if(resolved == null) {
+         throw new IllegalArgumentException(
+            "'field.namedGroup.others' must be \"group\" (bucket the unlisted values together) " +
+            "or \"leave\" (keep them as their own values), got '" + others +
+            "'. Nothing was changed.");
+      }
+
+      return resolved;
+   }
+
    /** Whether a resolved grouping constant is the aggregating one. */
    public static boolean isSummary(int grouping) {
       return grouping == CellBinding.SUMMARY;
@@ -597,6 +638,7 @@ public final class CalcCellVocabulary {
 
       Map<String, Object> spec = (Map<String, Object>) namedGroup;
       requireKnownKeys(spec, "field.namedGroup", NAMED_GROUP_KEYS);
+      groupOthers(spec.get("others"));
       Object rawGroups = spec.get("groups");
 
       if(!(rawGroups instanceof List<?> groups) || groups.isEmpty()) {
@@ -664,6 +706,20 @@ public final class CalcCellVocabulary {
                      "'field.namedGroup.groups[" + i + "].conditions[" + c + "]." + key +
                      "' must be true or false, got '" + value + "'.");
                }
+            }
+
+            // A blank junction is left to ConditionVocabulary.requireJunctionArity, which treats
+            // it as absent. Only 'or' can be bucketed: 'and' was refused late and generically,
+            // and '||' was accepted.
+            Object junction = clause.get("junction");
+
+            String junctionWord = junction instanceof String word ?
+               word.trim().toLowerCase(Locale.ROOT) : null;
+
+            if(junction != null && !"".equals(junctionWord) && !"or".equals(junctionWord)) {
+               throw new IllegalArgumentException(
+                  "'" + conditionPath + ".junction' '" + junction + "' is not supported in a " +
+                  "calc-table named group. " + NAMED_GROUP_RESTRICTION + " Nothing was changed.");
             }
          }
       }

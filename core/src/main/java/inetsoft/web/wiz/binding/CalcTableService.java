@@ -570,7 +570,7 @@ public class CalcTableService {
       {
          throw new IllegalArgumentException(
             "Named group '" + namedGroup + "' exists on column '" + column + "' but cannot be " +
-            "used in a calc table. " + NAMED_GROUP_RESTRICTION);
+            "used in a calc table. " + CalcCellVocabulary.NAMED_GROUP_RESTRICTION);
       }
 
       throw new IllegalArgumentException(
@@ -652,14 +652,9 @@ public class CalcTableService {
 
          throw new IllegalArgumentException(
             where + " cannot be rendered by a calc table: " + culprit + ". " +
-            NAMED_GROUP_RESTRICTION);
+            CalcCellVocabulary.NAMED_GROUP_RESTRICTION);
       }
    }
-
-   private static final String NAMED_GROUP_RESTRICTION =
-      "A calc-table named group only buckets when every condition is 'equals' or 'one_of', " +
-      "not negated, and the conditions of a group are joined with 'or' -- otherwise the cell " +
-      "shows the raw values ungrouped.";
 
    private static boolean isSimpleGroup(String name, ConditionList list) {
       ExpertNamedGroupInfo single = new ExpertNamedGroupInfo();
@@ -754,20 +749,7 @@ public class CalcTableService {
       }
 
       order.setInfo(ngInfoModel);
-      order.setOthers(!isLeaveOthers(spec.get("others")));
-   }
-
-   /**
-    * {@code field.namedGroup.others} in the tool's own string vocabulary ({@code "group"}/
-    * {@code "leave"}), but also accepts the plain {@code Boolean} this same concept uses
-    * elsewhere in {@code inetsoft.web.wiz} ({@code DimensionSortRanking.Ranking.others},
-    * {@code EditRequest.groupOthers} -- both {@code true} = group, {@code false} = leave). A
-    * caller reasonably following that sibling convention and sending {@code others: false} here
-    * would otherwise silently get {@code GROUP_OTHERS} instead of the requested "leave ungrouped"
-    * behavior, since only the exact string {@code "leave"} was ever recognized.
-    */
-   private static boolean isLeaveOthers(Object others) {
-      return Boolean.FALSE.equals(others) || "leave".equalsIgnoreCase(String.valueOf(others));
+      order.setOthers(CalcCellVocabulary.groupOthers(spec.get("others")));
    }
 
    /**
