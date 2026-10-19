@@ -27,19 +27,28 @@ import inetsoft.uql.ConditionList;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
+import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
 import inetsoft.web.binding.controller.SwapXYBindingService;
 import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.event.ModifyCalculateFieldEvent;
+import inetsoft.web.binding.model.ExpressionRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
@@ -49,15 +58,27 @@ import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.composer.vs.objects.controller.ClipboardControllerService;
+import inetsoft.web.composer.vs.objects.controller.ComposerGroupService;
+import inetsoft.web.composer.vs.objects.controller.ComposerObjectService;
+import inetsoft.web.composer.vs.objects.controller.GroupingService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
+import inetsoft.web.composer.vs.objects.event.ChangeVSObjectTextEvent;
 import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.portal.controller.database.QueryManagerService;
+import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
+import inetsoft.web.wiz.binding.BindableFieldsService;
+import inetsoft.web.wiz.binding.CalcFieldAgentService;
 import inetsoft.web.wiz.binding.ChartBindingService;
+import inetsoft.web.wiz.binding.model.BindableField;
+import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
+import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -376,6 +397,132 @@ class ChartWriteGuardRealStackTest {
       assertEquals(List.of(), swap(rvs).swapAxes("tok", principal(), CHART, ""));
    }
 
+   // ── set_title / refresh (Bug #78774) ─────────────────────────────────────
+
+   /** changeTitle builds nothing, so before the guard an armed chart read as a clean ok. */
+   @Test
+   void setTitleOnAnArmedChartWarnsAndKeepsTheTitleInEveryOrder() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true, false);
+      arm(rvs);
+      ViewsheetEditService service = editService(rvs);
+
+      assertWarned(service.apply("tok", principal(), titleRequest(CHART, "T1"), "").warnings());
+      assertEquals("T1", chartTitle(rvs), "the title was stored");
+      assertWarned(service.apply("tok", principal(), titleRequest(CHART, "T2"), "").warnings());
+      assertEquals("T2", chartTitle(rvs));
+      consume(rvs);
+      assertWarned(service.apply("tok", principal(), titleRequest(CHART, "T3"), "").warnings());
+      assertEquals("T3", chartTitle(rvs));
+   }
+
+   /** The failure was already recorded by another write's check (set_format's), then re-armed. */
+   @Test
+   void setTitleAfterAFormatWriteRecordedTheFailureStillWarns() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true, false);
+      arm(rvs);
+      String request = "{\"assemblies\":[\"Chart1\"],\"format\":{\"color\":\"#ff0000\"}," +
+         "\"target\":\"title\"}";
+      assertWarned(format(rvs).setFormat("tok", principal(), parse(request), "").warnings());
+
+      assertWarned(editService(rvs).apply("tok", principal(), titleRequest(CHART, "T9"), "")
+                      .warnings());
+      assertEquals("T9", chartTitle(rvs));
+   }
+
+   @Test
+   void setTitleOnAHealthyChartIsSilent() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, false, false);
+
+      assertEquals(List.of(), editService(rvs).apply(
+         "tok", principal(), titleRequest(CHART, "T1"), "").warnings());
+      assertEquals("T1", chartTitle(rvs));
+   }
+
+   /** A table is not a chart: its title edit is untouched even while a chart is failing. */
+   @Test
+   void setTitleOnATableIsSilentWhileAChartIsFailing() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true, false);
+      arm(rvs);
+
+      assertEquals(List.of(), editService(rvs).apply(
+         "tok", principal(), titleRequest(TABLE, "Orders"), "").warnings());
+   }
+
+   @Test
+   void refreshOnAnArmedChartWarnsInEveryOrder() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true, false);
+      arm(rvs);
+      ViewsheetEditService service = editService(rvs);
+
+      assertWarned(service.apply("tok", principal(), refreshRequest(CHART), "").warnings());
+      assertWarned(service.apply("tok", principal(), refreshRequest(CHART), "").warnings());
+      consume(rvs);
+      assertWarned(service.apply("tok", principal(), refreshRequest(CHART), "").warnings());
+   }
+
+   @Test
+   void refreshOnAHealthyChartIsSilent() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, false, false);
+
+      assertEquals(List.of(), editService(rvs).apply(
+         "tok", principal(), refreshRequest(CHART), "").warnings());
+   }
+
+   // ── calc field add / edit / remove (Bug #78774) ──────────────────────────
+
+   @Test
+   void addEditAndRemoveCalcFieldNamingAnArmedChartWarnAndStoreTheWrite() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true, false);
+      arm(rvs);
+      CalcFieldAgentService service = calcFieldService(rvs);
+      Viewsheet vs = rvs.getViewsheet();
+
+      assertWarned(service.modify("tok", principal(), calc(CHART, "Zz", "1", true, false), "")
+                      .warnings());
+      assertNotNull(vs.getCalcField(TABLE, "Zz"), "the field was stored");
+
+      assertWarned(service.modify("tok", principal(), calc(CHART, "Zz", "2", false, false), "")
+                      .warnings());
+      assertEquals("2", ((ExpressionRef) vs.getCalcField(TABLE, "Zz").getDataRef())
+                          .getExpression());
+
+      consume(rvs);
+      assertWarned(service.modify("tok", principal(), calc(CHART, "Zz", null, false, true), "")
+                      .warnings());
+      assertNull(vs.getCalcField(TABLE, "Zz"), "the field was removed");
+   }
+
+   /** No named chart, no chart warning: the check is scoped to the assembly the caller names. */
+   @Test
+   void calcFieldWithNoAssemblyIsSilentEvenWhileAChartIsFailing() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, true, false);
+      arm(rvs);
+
+      assertEquals(List.of(), calcFieldService(rvs).modify(
+         "tok", principal(), calc(null, "Zz", "1", true, false), "").warnings());
+      assertNotNull(rvs.getViewsheet().getCalcField(TABLE, "Zz"));
+   }
+
+   @Test
+   void calcFieldNamingAHealthyChartOrATableIsSilent() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addChart(rvs, false, false);
+      CalcFieldAgentService service = calcFieldService(rvs);
+
+      assertEquals(List.of(), service.modify(
+         "tok", principal(), calc(CHART, "Zz", "1", true, false), "").warnings());
+      assertEquals(List.of(), service.modify(
+         "tok", principal(), calc(TABLE, "Zy", "1", true, false), "").warnings());
+   }
+
    // ── the helper itself ────────────────────────────────────────────────────
 
    /** A table target is never swallowed: only a chart's script failure is tolerated. */
@@ -534,6 +681,90 @@ class ChartWriteGuardRealStackTest {
          binding, coreLifecycleService, mock(VSAssemblyInfoHandler.class), chartHandler,
          viewsheetService);
       return new ChartBindingService(seam(rvs), binding, null, null, swapService, null, null);
+   }
+
+   private ViewsheetEditService editService(RuntimeViewsheet rvs) throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      // The real changeTitle only sets the title value; it builds nothing.
+      doAnswer(inv -> {
+         ChangeVSObjectTextEvent event = inv.getArgument(1);
+         VSAssembly named = rvs.getViewsheet().getAssembly(event.getName());
+         VSAssemblyInfo info = (VSAssemblyInfo) named.getVSAssemblyInfo().clone();
+         ((TitledVSAssemblyInfo) info).setTitleValue(event.getText());
+         named.setVSAssemblyInfo(info);
+         return null;
+      }).when(objects).changeTitle(anyString(), any(), any(Principal.class), any());
+      VSRefreshService refresh = mock(VSRefreshService.class);
+      // The real refresh executes the chart through the lifecycle, which swallows a script
+      // failure; it never reports it.
+      doAnswer(inv -> {
+         ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+         box.resetDataMap(CHART);
+
+         try {
+            box.getVGraphPair(CHART, true);
+         }
+         catch(Exception ignored) {
+         }
+
+         return null;
+      }).when(refresh).refreshVsAssembly(anyString(), any(), any(), any(), any());
+      ViewsheetReadService reader = mock(ViewsheetReadService.class);
+      when(reader.read(any())).thenReturn(new ViewsheetModel("vs", List.of(
+         new AssemblyNode(CHART, "Chart", 0, 0, 100, 100, 0, null, true),
+         new AssemblyNode(TABLE, "Table", 0, 200, 100, 100, 0, null, true))));
+      return new ViewsheetEditService(seam(rvs), objects, mock(ClipboardControllerService.class),
+                                      mock(VSObjectPropertyService.class), reader,
+                                      mock(ComposerGroupService.class), mock(GroupingService.class),
+                                      refresh, coreLifecycleService);
+   }
+
+   private static EditRequest titleRequest(String assembly, String title) {
+      return new EditRequest("set_title", assembly, null, null, null, null, null, title, null,
+                             null, null, null, null, null);
+   }
+
+   private static EditRequest refreshRequest(String assembly) {
+      return new EditRequest("refresh", assembly, null, null, null, null, null, null, null, null,
+                             null, null, null, null);
+   }
+
+   /** The proxy is the Composer's write; here it does what it stores, with no chart read. */
+   private CalcFieldAgentService calcFieldService(RuntimeViewsheet rvs) throws Exception {
+      Viewsheet vs = rvs.getViewsheet();
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      doAnswer(inv -> {
+         ModifyCalculateFieldEvent event = inv.getArgument(1);
+         String name = event.refName();
+
+         if(event.remove()) {
+            vs.removeCalcField(event.tableName(), name);
+         }
+         else {
+            ExpressionRef ref = new ExpressionRef(null, name);
+            ref.setExpression(((ExpressionRefModel) event.calculateRef().getDataRefModel())
+                                 .getExp());
+            CalculateRef calc = new CalculateRef(true);
+            calc.setDataRef(ref);
+            vs.addCalcField(event.tableName(), calc);
+         }
+
+         return null;
+      }).when(proxy).modifyCalculateField(anyString(), any(), any(Principal.class), any(), any());
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(anyString(), any(), any(Principal.class))).thenReturn(List.of(
+         new BindableTable(TABLE, null, List.of(new BindableField("wind", "double", null)))));
+      SecurityEngine security = mock(SecurityEngine.class);
+      when(security.checkPermission(any(), any(ResourceType.class), anyString(),
+                                    any(ResourceAction.class))).thenReturn(true);
+      return new CalcFieldAgentService(seam(rvs), fields, proxy, security);
+   }
+
+   private static CalcFieldAgentService.CalcFieldRequest calc(
+      String assembly, String name, String expression, boolean create, boolean remove)
+   {
+      return new CalcFieldAgentService.CalcFieldRequest(
+         TABLE, assembly, name, null, expression, "double", false, true, remove, create);
    }
 
    // ── fixtures ─────────────────────────────────────────────────────────────
