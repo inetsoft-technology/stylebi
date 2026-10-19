@@ -667,6 +667,53 @@ class CalcTableServiceCopyMergeTest {
       assertEquals(1, topnCol());
    }
 
+   @Test
+   void deletingAColumnLeftOfTheRankedGroupCellRemapsItsMovedClone() throws Exception {
+      summary(0, 0, "Total", "Sum");
+      group(0, 1, 1, 1);
+      summary(0, 2, "Price", "Sum");
+      service = rankingService();
+
+      service.modifyLayout("tok", principal(), "Calc1", "deleteCol", 0, 0, 1, 1, 1);
+
+      TableCellBinding moved = (TableCellBinding) layout().getCellBinding(0, 0);
+      assertEquals(TableCellBinding.GROUP, moved.getBType());
+      assertEquals(0, moved.getOrderInfo(false).getSortByCol());
+      assertEquals(0, moved.getTopN(false).getTopNSummaryCol());
+   }
+
+   @Test
+   void deletingARowAboveTheRankedGroupCellRemapsItsMovedClone() throws Exception {
+      summary(0, 1, "Total", "Sum");
+      group(1, 0, 1, 1);
+      summary(1, 2, "Price", "Sum");
+      service = rankingService();
+
+      service.modifyLayout("tok", principal(), "Calc1", "deleteRow", 0, 0, 1, 1, 1);
+
+      TableCellBinding moved = (TableCellBinding) layout().getCellBinding(0, 0);
+      assertEquals(TableCellBinding.GROUP, moved.getBType());
+      assertEquals(0, moved.getOrderInfo(false).getSortByCol());
+      assertEquals(0, moved.getTopN(false).getTopNSummaryCol());
+   }
+
+   @Test
+   void cuttingTheRankedGroupCellWithASummaryRemapsThePastedClone() throws Exception {
+      summary(0, 0, "Total", "Sum");
+      group(0, 1, 1, 1);
+      summary(0, 2, "Price", "Sum");
+      service = rankingService();
+
+      // Total and the group cell move to row 2, so Price now comes first in layout order.
+      service.copyCells("tok", principal(), "Calc1", "cut",
+                        new Rectangle(0, 0, 2, 1), new Rectangle(0, 2, 2, 1));
+
+      TableCellBinding moved = (TableCellBinding) layout().getCellBinding(2, 1);
+      assertEquals(TableCellBinding.GROUP, moved.getBType());
+      assertEquals(0, moved.getOrderInfo(false).getSortByCol());
+      assertEquals(0, moved.getTopN(false).getTopNSummaryCol());
+   }
+
    // ── helpers ───────────────────────────────────────────────────────────────
 
    private TableLayout layout() {

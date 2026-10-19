@@ -996,7 +996,7 @@ public class CalcTableService {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          TableLayout layout = layoutOf(assembly);
          requireInGrid(layout, row, col);
-         Map<TableCellBinding, RankSnapshot> rankings = snapshotRankings(rvs, assembly);
+         List<RankTarget> rankings = snapshotRankings(rvs, assembly);
 
          if("splitCells".equals(resolved)) {
             Dimension span = layout.getSpan(row, col);
@@ -1060,7 +1060,7 @@ public class CalcTableService {
          }
 
          requireSourceRangeInGrid(layout, source);
-         Map<TableCellBinding, RankSnapshot> rankings = snapshotRankings(rvs, assembly);
+         List<RankTarget> rankings = snapshotRankings(rvs, assembly);
 
          if("remove".equals(resolved)) {
             requireRemoveKeepsMergeIntact(layout, source);
@@ -1120,8 +1120,6 @@ public class CalcTableService {
       }
    }
 
-   private record RankSnapshot(RankTarget sort, RankTarget topn) {}
-
    private static boolean ranksBySummary(OrderInfo order) {
       return order != null && (order.isSortByValAsc() || order.isSortByValDesc());
    }
@@ -1131,49 +1129,45 @@ public class CalcTableService {
    }
 
    /**
-    * Records, per group cell that ranks by a summary, which summary that is. Empty (and
-    * {@link #aggregatesOf} never called) when no cell ranks by one.
+    * The summary list as it is before an edit, in the index domain every group cell's stored
+    * {@code sortByCol}/{@code topNSummaryCol} still uses afterwards (moved cells are cloned with
+    * their index unchanged). Null, and {@link #aggregatesOf} never called, when no group cell
+    * ranks by a summary.
     */
-   private Map<TableCellBinding, RankSnapshot> snapshotRankings(RuntimeViewsheet rvs,
-                                                                CalcTableVSAssembly assembly)
+   private List<RankTarget> snapshotRankings(RuntimeViewsheet rvs, CalcTableVSAssembly assembly)
       throws Exception
    {
-      Map<TableCellBinding, RankSnapshot> out = new IdentityHashMap<>();
-      List<TableCellBinding> ranked = new ArrayList<>();
+      boolean ranked = false;
 
       for(TableCellBinding cell : groupCellsOf(layoutOf(assembly))) {
-         if(ranksBySummary(cell.getOrderInfo(false)) || ranksBySummary(cell.getTopN(false))) {
-            ranked.add(cell);
-         }
+         ranked |= ranksBySummary(cell.getOrderInfo(false)) || ranksBySummary(cell.getTopN(false));
       }
 
-      if(ranked.isEmpty()) {
-         return out;
+      if(!ranked) {
+         return null;
       }
 
       AggregateRef[] aggs = aggregatesOf(rvs, assembly);
+      List<RankTarget> out = new ArrayList<>();
 
-      for(TableCellBinding cell : ranked) {
-         OrderInfo order = cell.getOrderInfo(false);
-         TopNInfo topn = cell.getTopN(false);
-         out.put(cell, new RankSnapshot(
-            ranksBySummary(order) ? RankTarget.of(aggs, order.getSortByCol()) : null,
-            ranksBySummary(topn) ? RankTarget.of(aggs, topn.getTopNSummaryCol()) : null));
+      for(int i = 0; i < aggs.length; i++) {
+         out.add(RankTarget.of(aggs, i));
       }
 
       return out;
    }
 
    /**
-    * Points each snapshotted ranking at the same summary's new index. A ranking whose summary no
-    * longer exists is cleared (sort reset to plain ascending/descending, top-N off) and
-    * disclosed, rather than left on whichever summary now holds its old index.
+    * Translates every group cell's ranking index (old index -> summary identity -> new index),
+    * whether or not the cell moved. A ranking whose summary no longer exists is cleared (sort
+    * reset to plain ascending/descending, top-N off) and disclosed, rather than left on whichever
+    * summary now holds its old index.
     */
    private void remapRankings(RuntimeViewsheet rvs, CalcTableVSAssembly assembly,
-                              Map<TableCellBinding, RankSnapshot> snapshot, List<String> warnings)
+                              List<RankTarget> before, List<String> warnings)
       throws Exception
    {
-      if(snapshot.isEmpty()) {
+      if(before == null) {
          return;
       }
 
@@ -1182,21 +1176,19 @@ public class CalcTableService {
 
       for(int r = 0; r < layout.getRowCount(); r++) {
          for(int c = 0; c < layout.getColCount(); c++) {
-            if(!(layout.getCellBinding(r, c) instanceof TableCellBinding cell)) {
-               continue;
-            }
-
-            RankSnapshot before = snapshot.get(cell);
-
-            if(before == null) {
+            if(!(layout.getCellBinding(r, c) instanceof TableCellBinding cell) ||
+               cell.getType() != CellBinding.BIND_COLUMN ||
+               cell.getBType() != TableCellBinding.GROUP)
+            {
                continue;
             }
 
             String where = "[" + r + "," + c + "]";
+            OrderInfo order = cell.getOrderInfo(false);
 
-            if(before.sort() != null) {
-               OrderInfo order = cell.getOrderInfo(false);
-               int index = before.sort().indexIn(aggs);
+            if(ranksBySummary(order)) {
+               RankTarget target = targetAt(before, order.getSortByCol());
+               int index = target == null ? -1 : target.indexIn(aggs);
 
                if(index >= 0) {
                   order.setSortByCol(index);
@@ -1205,15 +1197,18 @@ public class CalcTableService {
                   order.setSortByCol(0);
                   order.setOrder(order.isSortByValAsc() ? OrderInfo.SORT_ASC :
                                     OrderInfo.SORT_DESC);
-                  warnings.add("Group cell " + where + " sorted by " + before.sort() +
+                  warnings.add("Group cell " + where + " sorted by " +
+                               (target == null ? "a summary" : target) +
                                ", which this operation removed; its sort was reset to plain " +
                                "ascending/descending by label.");
                }
             }
 
-            if(before.topn() != null) {
-               TopNInfo topn = cell.getTopN(false);
-               int index = before.topn().indexIn(aggs);
+            TopNInfo topn = cell.getTopN(false);
+
+            if(ranksBySummary(topn)) {
+               RankTarget target = targetAt(before, topn.getTopNSummaryCol());
+               int index = target == null ? -1 : target.indexIn(aggs);
 
                if(index >= 0) {
                   topn.setTopNSummaryCol(index);
@@ -1223,12 +1218,16 @@ public class CalcTableService {
                   topn.setTopNSummaryCol(-1);
                   topn.setTopNReverse(false);
                   warnings.add("Group cell " + where + " ranked its top/bottom-N by " +
-                               before.topn() + ", which this operation removed; its top-N was " +
-                               "cleared.");
+                               (target == null ? "a summary" : target) + ", which this " +
+                               "operation removed; its top-N was cleared.");
                }
             }
          }
       }
+   }
+
+   private static RankTarget targetAt(List<RankTarget> list, int index) {
+      return index >= 0 && index < list.size() ? list.get(index) : null;
    }
 
    private static List<TableCellBinding> groupCellsOf(TableLayout layout) {
