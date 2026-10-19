@@ -23,6 +23,7 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.test.SwapperTestConfiguration;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.TransformListener;
 import inetsoft.util.XMLSerializable;
@@ -40,11 +41,14 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -122,7 +126,7 @@ class AbstractAssetEngineSheetCacheRaceTest {
          () -> engine.getSheet(entry, user, false, AssetContent.ALL));
 
       // the reader has read the old XML but not yet cached it
-      loaded.await(10, TimeUnit.SECONDS);
+      assertTrue(loaded.await(10, TimeUnit.SECONDS), "the reader did not load the old sheet");
       // the writer saves a new sheet and clears the cache
       stored.set(sheet(2L));
       engine.clearCache(entry);
@@ -133,6 +137,84 @@ class AbstractAssetEngineSheetCacheRaceTest {
       AbstractSheet after = engine.getSheet(entry, user, false, AssetContent.ALL);
       assertEquals(2L, after.getLastModified(),
                    "the pre-save sheet was left in the sheet cache after the save");
+   }
+
+   // the reader starts after setSheet cleared the cache and before it wrote the new sheet, so it
+   // reads the old XML and inserts it right after the write. Only the clear after the write drops it
+   @Test
+   void readerBetweenClearAndWrite_doesNotCacheStaleSheetAfterSetSheet() throws Exception {
+      AssetEntry entry =
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "F/W", null);
+      String id = entry.toIdentifier();
+      Worksheet old = sheet(1L);
+      old.setCreatedBy("old");
+      Worksheet saved = sheet(2L);
+      saved.setCreatedBy("new");
+      AtomicReference<Worksheet> stored = new AtomicReference<>(old);
+      CountDownLatch loaded = new CountDownLatch(1);
+      CountDownLatch release = new CountDownLatch(1);
+      AtomicBoolean racing = new AtomicBoolean(false);
+      AtomicBoolean parked = new AtomicBoolean(false);
+      ConcurrentHashMap<String, XMLSerializable> others = new ConcurrentHashMap<>();
+      others.put(new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, "F", null)
+                    .toIdentifier(), new AssetFolder());
+      Future<?>[] reader = new Future<?>[1];
+      Thread writer = Thread.currentThread();
+
+      TestEngine[] holder = new TestEngine[1];
+      Principal user = () -> "u";
+      IndexedStorage storage = mock(IndexedStorage.class);
+      when(storage.getXMLSerializable(anyString(), any(), any()))
+         .thenAnswer(inv -> {
+            String key = inv.getArgument(0);
+
+            if(!key.equals(id)) {
+               return others.get(key);
+            }
+
+            XMLSerializable result = stored.get();
+
+            if(racing.get() && Thread.currentThread() != writer && parked.compareAndSet(false, true)) {
+               loaded.countDown();
+               release.await(10, TimeUnit.SECONDS);
+            }
+
+            return result;
+         });
+      when(storage.getXMLSerializable(anyString(), any()))
+         .thenAnswer(inv -> others.get((String) inv.getArgument(0)));
+      doAnswer(inv -> {
+         String key = inv.getArgument(0);
+         XMLSerializable value = inv.getArgument(1);
+
+         if(!key.equals(id)) {
+            others.put(key, value);
+            return null;
+         }
+
+         // setSheet cleared the cache and is about to write: a reader reads the old sheet now
+         racing.set(true);
+         reader[0] = executor.submit(
+            () -> holder[0].getSheet(entry, user, false, AssetContent.ALL));
+         assertTrue(loaded.await(10, TimeUnit.SECONDS), "the reader did not load the old sheet");
+         stored.set((Worksheet) value);
+         // the write is done and the reader, which holds the old sheet, caches it before
+         // setSheet gets to clear the cache again
+         release.countDown();
+         reader[0].get(10, TimeUnit.SECONDS);
+         return null;
+      }).when(storage).putXMLSerializable(anyString(), any());
+      when(storage.contains(anyString())).thenReturn(true);
+
+      TestEngine engine = new TestEngine(cluster);
+      engine.istore = storage;
+      holder[0] = engine;
+
+      engine.setSheet(entry, saved, user, true, false, false);
+
+      AbstractSheet after = engine.getSheet(entry, user, false, AssetContent.ALL);
+      assertEquals("new", after.getCreatedBy(),
+                   "the pre-save sheet was left in the sheet cache after setSheet");
    }
 
    private static Worksheet sheet(long modified) {
