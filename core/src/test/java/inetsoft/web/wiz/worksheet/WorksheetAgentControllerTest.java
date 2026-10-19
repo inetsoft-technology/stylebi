@@ -3873,8 +3873,63 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      assertThrows(RenderNotReadyException.class,
+      // the concatenation holds an aggregate, which a new first subtable would drop, so the
+      // reorder is confirmed to reach the refresh
+      EditRequest confirmed = new WebConfig().objectMapper().readValue(
+         "{\"op\":\"reorder_concat_subtables\",\"table\":\"Concat1\",\"subtables\":[\"B\",\"A\"]," +
+         "\"confirmed\":true}", EditRequest.class);
+      assertThrows(RenderNotReadyException.class, () -> ctrl.edit("TOK-RC", confirmed, agent));
+   }
+
+   /**
+    * Bug #78846: reorder_concat_subtables refuses a new first subtable that would drop what the
+    * concatenation holds unless {@code confirmed}, and refuses a list that is not a permutation of
+    * its subtables, leaving the worksheet as it was.
+    */
+   @Test
+   void reorderConcatSubtablesRefusesUnconfirmedLossAndANonPermutation() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "k", "v");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "k", "v");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setOperation(TableAssemblyOperator.UNION);
+      top.addOperator(op);
+
+      ConcatenatedTableAssembly concat = new ConcatenatedTableAssembly(
+         ws, "Concat1", new TableAssembly[]{ a, b }, new TableAssemblyOperator[]{ top });
+      TestWorksheets.withGroupSumAndSort(concat, "k", "v");
+      ws.addAssembly(concat);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RC"), any())).thenReturn(session("TOK-RC"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException unconfirmed = assertThrows(PairingException.class,
          () -> ctrl.edit("TOK-RC", reorderConcatSubtablesRequest("Concat1", List.of("B", "A")), agent));
+      assertTrue(unconfirmed.getMessage().contains("confirmed:true"), unconfirmed.getMessage());
+
+      PairingException duplicate = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-RC", reorderConcatSubtablesRequest("Concat1", List.of("A", "A")), agent));
+      assertTrue(duplicate.getMessage().contains("exactly once"), duplicate.getMessage());
+
+      assertArrayEquals(new String[]{ "A", "B" }, concat.getTableNames());
    }
 
    @Test
