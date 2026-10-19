@@ -98,13 +98,20 @@ public class HighlightDialogService {
 
          if(assembly instanceof CrosstabVSAssembly) {
             VSCrosstabInfo cinfo = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
+            boolean cellSupplied = row != null || col != null;
             int[] resolved = resolveStackedMeasureCell(cinfo.getRuntimeAggregates(),
                cinfo.isSummarySideBySide(), lens.getHeaderRowCount(), lens.getHeaderColCount(),
-               colName);
+               colName, cellSupplied);
 
             if(resolved != null) {
                row = resolved[0];
                col = resolved[1];
+            }
+            else if(colName != null && !cellSupplied) {
+               throw new IllegalArgumentException(
+                  "colName '" + colName + "' does not name a measure of '" + objectId +
+                  "' that resolves to a data cell; use row/col to address header or dimension " +
+                  "cells.");
             }
          }
          else if(colName != null) {
@@ -116,6 +123,8 @@ public class HighlightDialogService {
             }
          }
 
+         row = row == null ? 0 : row;
+         col = col == null ? 0 : col;
          dataPath = lens.getTableDataPath(row, col);
 
          if(assemblyInfo instanceof TableVSAssemblyInfo) {
@@ -218,8 +227,8 @@ public class HighlightDialogService {
       List<HighlightModel> highlightModelList = new ArrayList<>();
 
       if(assemblyInfo instanceof TableDataVSAssemblyInfo) {
-         model.setRow(row);
-         model.setCol(col);
+         model.setRow(row == null ? 0 : row);
+         model.setCol(col == null ? 0 : col);
          TableHighlightAttr tableHighlightAttr = ((TableDataVSAssemblyInfo) assemblyInfo)
             .getHighlightAttr();
 
@@ -418,21 +427,42 @@ public class HighlightDialogService {
     * <p>Mirrors the chart branch below, where {@code colName} is already a standalone address
     * (a chart has no rows/columns to combine it with) -- here it takes priority over whatever
     * {@code row}/{@code col} arrived, but only once it actually matches one of this crosstab's
-    * aggregates; a {@code colName} naming something else (or absent, or a crosstab with fewer than
-    * two aggregates, where there is nothing to disambiguate) leaves {@code row}/{@code col}
+    * aggregates; a {@code colName} naming something else (or absent, or a single-aggregate crosstab
+    * with an explicit row/col) leaves {@code row}/{@code col}
     * untouched.
     */
    static int[] resolveStackedMeasureCell(DataRef[] runtimeAggregates, boolean summarySideBySide,
                                           int headerRowCount, int headerColCount, String colName)
    {
-      if(colName == null || runtimeAggregates == null || runtimeAggregates.length < 2) {
+      return resolveStackedMeasureCell(runtimeAggregates, summarySideBySide, headerRowCount,
+                                       headerColCount, colName, false);
+   }
+
+   /**
+    * @param cellSupplied whether the caller supplied an explicit row/col. With 2+ aggregates a
+    *                     matching {@code colName} always wins (bug 76307). With exactly one
+    *                     aggregate the measure's data cell is simply the first data cell, so
+    *                     {@code colName} only applies when no cell was supplied -- an explicit
+    *                     cell (e.g. a subtotal or grand-total cell) is never silently moved
+    *                     (bug 78776). The placeholder aggregate a crosstab carries
+    *                     while none is bound is never matched.
+    */
+   static int[] resolveStackedMeasureCell(DataRef[] runtimeAggregates, boolean summarySideBySide,
+                                          int headerRowCount, int headerColCount, String colName,
+                                          boolean cellSupplied)
+   {
+      if(colName == null || runtimeAggregates == null || runtimeAggregates.length == 0 ||
+         runtimeAggregates.length < 2 && cellSupplied)
+      {
          return null;
       }
 
       int index = -1;
 
       for(int i = 0; i < runtimeAggregates.length; i++) {
-         if(runtimeAggregates[i] instanceof VSAggregateRef) {
+         if(runtimeAggregates[i] instanceof VSAggregateRef &&
+            !VSUtil.isFake(runtimeAggregates[i]))
+         {
             VSAggregateRef aggregate = (VSAggregateRef) runtimeAggregates[i];
 
             if(Tool.equals(aggregate.getName(), colName) ||

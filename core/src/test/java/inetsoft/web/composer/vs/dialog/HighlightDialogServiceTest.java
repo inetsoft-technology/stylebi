@@ -27,6 +27,7 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.web.composer.model.vs.HighlightDialogModel;
@@ -123,13 +124,113 @@ class HighlightDialogServiceTest {
          aggregates, false, 1, 1, "NOT_A_MEASURE"));
    }
 
+   // ── single aggregate: bug 78776 ─────────────────────────────────────────────
+
    @Test
-   void leavesTheCellUnresolvedWithOnlyOneStackedMeasure() {
+   void resolvesTheOnlyMeasureToTheFirstDataCellWhenNoCellWasSupplied() {
       DataRef[] aggregates = { aggregate("PAID", AggregateFormula.SUM) };
 
-      assertNull(HighlightDialogService.resolveStackedMeasureCell(aggregates, false, 1, 1, "PAID"),
-                 "a single measure has nothing to disambiguate -- leave the existing " +
-                 "first-data-cell fallback alone");
+      assertArrayEquals(new int[] { 1, 1 },
+                        HighlightDialogService.resolveStackedMeasureCell(
+                           aggregates, false, 1, 1, "PAID"));
+      assertArrayEquals(new int[] { 1, 1 },
+                        HighlightDialogService.resolveStackedMeasureCell(
+                           aggregates, false, 1, 1, "PAID", false));
+   }
+
+   @Test
+   void resolvesTheOnlyMeasureToTheFirstDataCellWithColumnDimensionHeaders() {
+      DataRef[] aggregates = { aggregate("PAID", AggregateFormula.SUM) };
+
+      assertArrayEquals(new int[] { 2, 1 },
+                        HighlightDialogService.resolveStackedMeasureCell(
+                           aggregates, false, 2, 1, "PAID", false));
+      assertArrayEquals(new int[] { 2, 1 },
+                        HighlightDialogService.resolveStackedMeasureCell(
+                           aggregates, true, 2, 1, "PAID", false));
+   }
+
+   @Test
+   void keepsAnExplicitCellWithOnlyOneMeasure() {
+      DataRef[] aggregates = { aggregate("PAID", AggregateFormula.SUM) };
+
+      assertNull(HighlightDialogService.resolveStackedMeasureCell(
+                    aggregates, false, 1, 1, "PAID", true),
+                 "an explicit row/col (e.g. a subtotal or grand-total cell) must not be moved");
+   }
+
+   @Test
+   void twoMeasuresStillBeatAnExplicitCell() {
+      DataRef[] aggregates = {
+         aggregate("PAID", AggregateFormula.SUM), aggregate("DISCOUNT", AggregateFormula.SUM),
+      };
+
+      assertArrayEquals(new int[] { 2, 1 },
+                        HighlightDialogService.resolveStackedMeasureCell(
+                           aggregates, false, 1, 1, "DISCOUNT", true));
+   }
+
+   @Test
+   void leavesTheOnlyMeasureUnresolvedWhenColNameNamesADimension() {
+      DataRef[] aggregates = { aggregate("PAID", AggregateFormula.SUM) };
+
+      assertNull(HighlightDialogService.resolveStackedMeasureCell(
+         aggregates, false, 1, 1, "Year(ORDER_DATE)", false));
+   }
+
+   @Test
+   void resolvesNothingForACrosstabWithNoAggregateOrOnlyThePlaceholder() {
+      assertNull(HighlightDialogService.resolveStackedMeasureCell(
+         new DataRef[0], false, 1, 1, "Aggregate", false));
+
+      CalculateRef calc = new CalculateRef(false);
+      calc.setDataRef(new AttributeRef("0"));
+      calc.setFake(true);
+      calc.setName("Aggregate");
+      VSAggregateRef placeholder = new VSAggregateRef();
+      placeholder.setDataRef(calc);
+
+      assertNull(HighlightDialogService.resolveStackedMeasureCell(
+         new DataRef[] { placeholder }, false, 1, 1, "Aggregate", false));
+   }
+
+   @Test
+   void theOnlyMeasureResolvesToTheRealDataCellOfARowDimensionCrosstab() {
+      Object[][] data = {
+         { "YEAR", "PAID" },
+         { 2021, 100 },
+         { 2022, 200 },
+      };
+      CrossTabFilter table = new CrossTabFilter(new DefaultTableLens(data), new int[] { 0 },
+         new int[] {}, new int[] { 1 }, new SumFormula[] { new SumFormula() });
+
+      int[] cell = HighlightDialogService.resolveStackedMeasureCell(
+         new DataRef[] { aggregate("PAID", AggregateFormula.SUM) }, table.isSummarySideBySide(),
+         table.getHeaderRowCount(), table.getHeaderColCount(), "PAID", false);
+
+      assertNotNull(cell);
+      assertEquals(100.0, ((Number) table.getObject(cell[0], cell[1])).doubleValue(), 0.0001);
+      assertNotNull(table.getDescriptor().getCellDataPath(cell[0], cell[1]));
+   }
+
+   @Test
+   void theOnlyMeasureResolvesToTheRealDataCellOfACrosstabWithAColumnDimension() {
+      Object[][] data = {
+         { "YEAR", "REGION", "PAID" },
+         { 2021, "East", 100 },
+         { 2022, "East", 200 },
+      };
+      CrossTabFilter table = new CrossTabFilter(new DefaultTableLens(data), new int[] { 0 },
+         new int[] { 1 }, new int[] { 2 }, new SumFormula[] { new SumFormula() });
+
+      int[] cell = HighlightDialogService.resolveStackedMeasureCell(
+         new DataRef[] { aggregate("PAID", AggregateFormula.SUM) }, table.isSummarySideBySide(),
+         table.getHeaderRowCount(), table.getHeaderColCount(), "PAID", false);
+
+      assertNotNull(cell);
+      assertEquals(table.getHeaderRowCount(), cell[0]);
+      assertEquals(table.getHeaderColCount(), cell[1]);
+      assertEquals(100.0, ((Number) table.getObject(cell[0], cell[1])).doubleValue(), 0.0001);
    }
 
    // ── end-to-end against a real crosstab lens ────────────────────────────────
