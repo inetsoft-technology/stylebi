@@ -20,6 +20,7 @@ package inetsoft.uql.asset;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.web.composer.model.ws.DependencyType;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,7 +28,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.util.List;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -39,6 +40,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class CompositeTableAssemblyTest {
+   private static final int UNION = TableAssemblyOperator.UNION;
+   private static final int MINUS = TableAssemblyOperator.MINUS;
+   private static final int INTERSECT = TableAssemblyOperator.INTERSECT;
+
    /**
     * Operators are keyed by ADJACENT pair, so reordering the subtables strands every operator
     * whose two tables stopped being neighbours: {@code A UNION B MINUS C} reordered to
@@ -163,6 +168,214 @@ class CompositeTableAssemblyTest {
       assertNotNull(star.getOperator("F", "D2"),
                     "the NON-adjacent join must survive it too -- dropping it deletes a join "
                        + "condition the user never touched");
+   }
+
+   /**
+    * A concatenation is a left fold, {@code (A op1 B) op2 C}, so each operator belongs to the
+    * table on its right. Removing a subtable used to copy the first pair's operator onto every
+    * remaining pair, so {@code A UNION B MINUS C} without {@code A} became {@code B UNION C} and
+    * the rows the user subtracted came back.
+    */
+   @Test
+   void removingTheFirstOfThreeSubtablesKeepsTheOtherPairsOperator() {
+      assertRemovalKeepsOwnOperators(new int[]{ UNION, MINUS }, "A", 1);
+   }
+
+   /**
+    * The middle table takes its own (left-hand) operator with it; the right-hand one now joins
+    * its neighbours: {@code A UNION B MINUS C} without {@code B} is {@code A MINUS C}.
+    */
+   @Test
+   void removingTheMiddleOfThreeSubtablesKeepsTheRightHandOperator() {
+      assertRemovalKeepsOwnOperators(new int[]{ UNION, MINUS }, "B", 1);
+   }
+
+   @Test
+   void removingTheLastOfThreeSubtablesKeepsTheFirstPairsOperator() {
+      assertRemovalKeepsOwnOperators(new int[]{ UNION, MINUS }, "C", 0);
+   }
+
+   @Test
+   void removingTheFirstOfFourSubtablesKeepsTheOtherOperators() {
+      assertRemovalKeepsOwnOperators(new int[]{ UNION, MINUS, INTERSECT }, "A", 1, 2);
+   }
+
+   @Test
+   void removingTheSecondOfFourSubtablesKeepsTheOtherOperators() {
+      assertRemovalKeepsOwnOperators(new int[]{ UNION, MINUS, INTERSECT }, "B", 1, 2);
+   }
+
+   @Test
+   void removingTheThirdOfFourSubtablesKeepsTheOtherOperators() {
+      assertRemovalKeepsOwnOperators(new int[]{ UNION, MINUS, INTERSECT }, "C", 0, 2);
+   }
+
+   @Test
+   void removingTheLastOfFourSubtablesKeepsTheOtherOperators() {
+      assertRemovalKeepsOwnOperators(new int[]{ UNION, MINUS, INTERSECT }, "D", 0, 1);
+   }
+
+   /** Native Composer removes several subtables one at a time, so the rule must compose. */
+   @Test
+   void removingSubtablesOneAfterAnotherKeepsEachRemainingTablesOperator() {
+      Worksheet ws = new Worksheet();
+      ConcatenatedTableAssembly concat = concat(
+         ws, "U", new int[]{ UNION, MINUS, INTERSECT, MINUS }, tables(ws, "A", "B", "C", "D", "E"));
+      TableAssemblyOperator[] before = operators(concat);
+
+      assertFalse(concat.removeTable("B"));
+      assertFalse(concat.removeTable("D"));
+
+      // A UNION B MINUS C INTERSECT D MINUS E -> A MINUS C MINUS E
+      assertEquals(List.of("A", "C", "E"), List.of(concat.getTableNames()));
+      assertEquals(2, concat.getOperatorCount());
+      assertSame(before[1], concat.getOperator(0));
+      assertSame(before[3], concat.getOperator(1));
+   }
+
+   /** The negative control: a uniform concatenation looks the same under the old and new rule. */
+   @Test
+   void removingASubtableFromAUniformConcatenationKeepsItUniform() {
+      Worksheet ws = new Worksheet();
+      ConcatenatedTableAssembly concat = concat(
+         ws, "U", new int[]{ UNION, UNION }, tables(ws, "A", "B", "C"));
+
+      assertFalse(concat.removeTable("B"));
+
+      assertEquals(List.of("A", "C"), List.of(concat.getTableNames()));
+      assertEquals(1, concat.getOperatorCount());
+      assertEquals(UNION, operation(concat.getOperator(0)));
+   }
+
+   /** A name that is not a subtable removes nothing, so no operator may change either. */
+   @Test
+   void removingAnUnknownSubtableChangesNoOperator() {
+      Worksheet ws = new Worksheet();
+      ConcatenatedTableAssembly concat = concat(
+         ws, "U", new int[]{ UNION, MINUS, INTERSECT }, tables(ws, "A", "B", "C", "D"));
+      TableAssemblyOperator[] before = operators(concat);
+
+      assertFalse(concat.removeTable("Z"));
+
+      assertEquals(List.of("A", "B", "C", "D"), List.of(concat.getTableNames()));
+      TableAssemblyOperator[] after = operators(concat);
+
+      for(int i = 0; i < before.length; i++) {
+         assertSame(before[i], after[i], "pair " + i + " must keep its own operator");
+      }
+   }
+
+   /**
+    * A concatenation with a pair that has no operator must still lose a subtable without
+    * throwing, leaving that pair empty and the others untouched.
+    */
+   @Test
+   void removingASubtableFromAConcatenationWithAMissingPairKeepsTheOthers() {
+      Worksheet ws = new Worksheet();
+      ConcatenatedTableAssembly concat = concat(
+         ws, "U", new int[]{ UNION, MINUS, INTERSECT }, tables(ws, "A", "B", "C", "D"));
+      TableAssemblyOperator minus = concat.getOperator(1);
+      concat.getCompositeTableInfo().removeOperator("A", "B");
+
+      assertFalse(concat.removeTable("D"));
+
+      assertEquals(List.of("A", "B", "C"), List.of(concat.getTableNames()));
+      assertNull(concat.getOperator(0));
+      assertSame(minus, concat.getOperator(1));
+      assertEquals(1, concat.getOperatorCount());
+   }
+
+   /** Below two sources the whole assembly goes; the remaining one is left as it was. */
+   @Test
+   void removingOneOfTwoSubtablesReportsTheAssemblyAsInvalid() {
+      Worksheet ws = new Worksheet();
+      ConcatenatedTableAssembly concat = concat(
+         ws, "U", new int[]{ MINUS }, tables(ws, "A", "B"));
+      TableAssemblyOperator op = concat.getOperator(0);
+
+      assertTrue(concat.removeTable("B"));
+
+      assertEquals(List.of("A", "B"), List.of(concat.getTableNames()));
+      assertSame(op, concat.getOperator(0));
+   }
+
+   /**
+    * Removes {@code removed} from a concatenation of tables A, B, C... joined by
+    * {@code operations}, then checks that pair {@code i} holds the very operator object that
+    * was pair {@code keptPairs[i]} before (so its operation and distinct flag too, and no two
+    * pairs share one), and that every remaining table keeps the dependency label native
+    * Composer shows for it -- except the new first table, which becomes the base.
+    */
+   private static void assertRemovalKeepsOwnOperators(int[] operations, String removed,
+                                                      int... keptPairs)
+   {
+      Worksheet ws = new Worksheet();
+      String[] names = new String[operations.length + 1];
+
+      for(int i = 0; i < names.length; i++) {
+         names[i] = String.valueOf((char) ('A' + i));
+      }
+
+      ConcatenatedTableAssembly concat = concat(ws, "U", operations, tables(ws, names));
+      TableAssemblyOperator[] before = operators(concat);
+
+      for(int i = 0; i < before.length; i++) {
+         before[i].getKeyOperator().setDistinct(i % 2 == 0);
+      }
+
+      Map<String, DependencyType> labelsBefore = concatLabels(concat);
+
+      assertFalse(concat.removeTable(removed));
+
+      List<String> expectedNames = new ArrayList<>(List.of(names));
+      expectedNames.remove(removed);
+      assertEquals(expectedNames, List.of(concat.getTableNames()));
+      assertEquals(keptPairs.length, concat.getOperatorCount(),
+                   "one operator per adjacent pair");
+
+      for(int i = 0; i < keptPairs.length; i++) {
+         TableAssemblyOperator op = concat.getOperator(i);
+         assertSame(before[keptPairs[i]], op, "pair " + i + " must keep its own operator");
+         assertEquals(operations[keptPairs[i]], operation(op));
+         assertEquals(keptPairs[i] % 2 == 0, op.getKeyOperator().isDistinct());
+      }
+
+      Map<String, DependencyType> labelsAfter = concatLabels(concat);
+      assertEquals(DependencyType.BASE_CONCATENATED_TABLE, labelsAfter.get(expectedNames.get(0)));
+
+      for(String name : expectedNames.subList(1, expectedNames.size())) {
+         assertEquals(labelsBefore.get(name), labelsAfter.get(name),
+                      name + " must keep the operator it was concatenated with");
+      }
+   }
+
+   private static Map<String, DependencyType> concatLabels(ConcatenatedTableAssembly concat) {
+      Set<DependencyType> concatTypes = EnumSet.of(
+         DependencyType.BASE_CONCATENATED_TABLE, DependencyType.UNION,
+         DependencyType.INTERSECTION, DependencyType.MINUS);
+      Map<String, Set<DependencyType>> dependeds = new HashMap<>();
+      concat.getAugmentedDependeds(dependeds);
+      Map<String, DependencyType> labels = new HashMap<>();
+
+      dependeds.forEach((name, types) -> types.stream()
+         .filter(concatTypes::contains)
+         .forEach(type -> assertNull(labels.put(name, type), name + " has one concat label")));
+
+      return labels;
+   }
+
+   private static TableAssemblyOperator[] operators(ConcatenatedTableAssembly concat) {
+      TableAssemblyOperator[] ops = new TableAssemblyOperator[concat.getTableNames().length - 1];
+
+      for(int i = 0; i < ops.length; i++) {
+         ops[i] = concat.getOperator(i);
+      }
+
+      return ops;
+   }
+
+   private static TableAssembly[] tables(Worksheet ws, String... names) {
+      return Arrays.stream(names).map(name -> table(ws, name)).toArray(TableAssembly[]::new);
    }
 
    private static TableAssemblyOperator join(String ltable, String rtable) {
