@@ -27,6 +27,7 @@ import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.admin.security.ConnectionStatus;
 import org.junit.jupiter.api.*;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -363,6 +365,83 @@ class DataSourceChangePlanServiceTest {
 
       assertNull(proposed.getPassword());
       verify(dataSourceService, never()).getCurrentPassword(anyString(), any());
+   }
+
+   // -------------------------------------------------------------------------
+   // bug 78818: padded / other-length masks are refused, real values stored verbatim
+   // -------------------------------------------------------------------------
+
+   @ParameterizedTest
+   @ValueSource(strings = {
+      " ********** ", "**********\n", "\t******", "\u00a0**********", "\uFEFF******",
+      "\u200B**********", "  ******  ", "***", "*", "********", "************",
+      "******", "**********"
+   })
+   void buildProposedJdbcRefusesMaskLikePassword(String password) {
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.buildProposedJdbc("changes[0]", "id-1", "Orders", current,
+            Map.of("password", password), user));
+      assertTrue(ex.getMessage().contains("masked placeholder"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("made only of asterisks"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Enterprise Manager"), ex.getMessage());
+      assertTrue(ex.getMessage().startsWith("changes[0].spec.password:"), ex.getMessage());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "a*b", "*a*", "** **", " real pw ", "pass*****", "*****word", "" })
+   void buildProposedJdbcStoresNonMaskPasswordVerbatim(String password) throws Exception {
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
+
+      JdbcDataSourceProperties proposed = service.buildProposedJdbc(
+         "changes[0]", "id-1", "Orders", current, Map.of("password", password), user);
+
+      assertEquals(password, proposed.getPassword());
+      verify(dataSourceService, never()).getCurrentPassword(anyString(), any());
+   }
+
+   @Test void previewRefusesPaddedMaskPassword() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", true, "******"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(
+            updateChange("Orders", Map.of("password", " ********** ")))), user));
+      assertTrue(ex.getMessage().contains("made only of asterisks"), ex.getMessage());
+   }
+
+   @Test void testConnectionRefusesPaddedMaskPassword() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", true, "******"));
+
+      DataSourceTestConnectionRequest req = new DataSourceTestConnectionRequest();
+      req.setName("Orders");
+      req.setSpec(Map.of("password", "\u00a0**********"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.testConnection(req, user));
+      assertTrue(ex.getMessage().contains("made only of asterisks"), ex.getMessage());
+      verifyNoInteractions(databaseSettingsService);
+   }
+
+   @Test void applyRefusesPaddedMaskPasswordBeforeAnyWrite() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", true, "******"));
+      AdminBackupService backupService = mock(AdminBackupService.class);
+      DataSourceChangesetApplyService applyService =
+         new DataSourceChangesetApplyService(service, dataSourceService, backupService);
+
+      DataSourceApplyRequest req = new DataSourceApplyRequest();
+      req.setTask("task");
+      req.setChanges(List.of(updateChange("Orders", Map.of("password", "**********\n"))));
+      req.setPlanHash("any");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> applyService.apply(req, user));
+      assertTrue(ex.getMessage().contains("made only of asterisks"), ex.getMessage());
+      verifyNoInteractions(backupService);
+      verify(dataSourceService, never()).updateDataSource(anyString(), any(), any());
    }
 
    // -------------------------------------------------------------------------
