@@ -107,8 +107,7 @@ public class ScriptExecuteService {
    // JS identifiers may be Unicode, and Script Library entry names are not restricted to ASCII.
    private static final String ID = "[\\p{L}_$][\\p{L}\\p{M}\\p{N}_$]*";
    private static final Pattern IDENTIFIER = Pattern.compile(ID);
-   private static final Pattern GLOBAL_QUALIFIER =
-      Pattern.compile("(?:this|globalThis|window|self)\\s*\\.$");
+   private static final Set<String> GLOBAL_OBJECTS = Set.of("this", "globalThis", "window", "self");
 
    // Bug #78812: ways a Script Library entry can declare a callable global function.
    private static final List<Pattern> FUNCTION_DECLARATIONS = List.of(
@@ -860,19 +859,58 @@ public class ScriptExecuteService {
       return tokens;
    }
 
-   /** True for {@code obj.name}; false for {@code this.name}/{@code globalThis.name} etc. */
+   /**
+    * True only for {@code ident.name}, {@code call().name}, {@code arr[0].name} and their
+    * {@code ?.} forms, where the qualifier is clearly not a global object. Anything else (spread
+    * {@code ...name}, {@code this.name}, {@code globalThis?.name}, an unrecognised preceding
+    * token) is scanned: the skip only reduces false positives, so it must fail towards scanning.
+    */
    private static boolean isPlainMember(String text, int start) {
-      int p = start - 1;
-
-      while(p >= 0 && Character.isWhitespace(text.charAt(p))) {
-         p--;
-      }
+      int p = skipWhitespaceBack(text, start - 1);
 
       if(p < 0 || text.charAt(p) != '.') {
          return false;
       }
 
-      return !GLOBAL_QUALIFIER.matcher(text.substring(Math.max(0, p - 20), p + 1)).find();
+      p = skipWhitespaceBack(text, p - 1);
+
+      if(p >= 0 && text.charAt(p) == '?') {
+         p = skipWhitespaceBack(text, p - 1);
+      }
+      else if(p >= 0 && text.charAt(p) == '.') {
+         return false;
+      }
+
+      if(p < 0) {
+         return false;
+      }
+
+      char c = text.charAt(p);
+
+      if(c == ')' || c == ']') {
+         return true;
+      }
+
+      int end = p + 1;
+
+      while(p >= 0 && isIdentifierPart(text.charAt(p))) {
+         p--;
+      }
+
+      return p + 1 < end && !GLOBAL_OBJECTS.contains(text.substring(p + 1, end));
+   }
+
+   private static boolean isIdentifierPart(char c) {
+      return Character.isLetterOrDigit(c) || c == '_' || c == '$' ||
+         Character.getType(c) == Character.NON_SPACING_MARK;
+   }
+
+   private static int skipWhitespaceBack(String text, int p) {
+      while(p >= 0 && Character.isWhitespace(text.charAt(p))) {
+         p--;
+      }
+
+      return p;
    }
 
    private record DestructiveRef(String global, String function, String entry) {

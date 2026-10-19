@@ -652,13 +652,39 @@ class ScriptExecuteServiceTest {
       Map<String, String> lib = Map.of("getOrderCount",
          "function getOrderCount() { return runQuery('q'); }");
 
-      for(String qualifier : List.of("this", "globalThis", "window", "self", "this .")) {
+      for(String qualifier : List.of("this", "globalThis", "window", "self", "this .", "this?",
+         "globalThis ?")) {
          ViewsheetScope scope = mock(ViewsheetScope.class);
          String call = qualifier.endsWith(".") ? qualifier + " getOrderCount()" :
             qualifier + ".getOrderCount()";
          ScriptExecResult result = runLiveWithLibrary("'T: ' + " + call, lib, false, scope);
 
          assertTrue(result.requiresConfirmation(), call);
+      }
+   }
+
+   @Test
+   void spreadOfLibraryCallIsStillScanned() throws Exception {
+      Map<String, String> lib = Map.of("getOrderCount",
+         "function getOrderCount() { return runQuery('q'); }");
+
+      for(String script : List.of("[...getOrderCount()]", "Math.max(...getOrderCount())")) {
+         ViewsheetScope scope = mock(ViewsheetScope.class);
+         assertTrue(runLiveWithLibrary(script, lib, false, scope).requiresConfirmation(), script);
+      }
+   }
+
+   @Test
+   void plainMemberOfNonGlobalIsStillSkipped() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+      Map<String, String> lib = Map.of("getOrderCount",
+         "function getOrderCount() { return runQuery('q'); }");
+
+      for(String script : List.of("obj.getOrderCount", "obj?.getOrderCount", "f().getOrderCount",
+         "a[0].getOrderCount"))
+      {
+         assertTrue(runLiveWithLibrary(script, lib, false, scope).ok(), script);
       }
    }
 
