@@ -126,7 +126,7 @@ public class HierarchyDimensionService {
       List<Integer> levels = resolveLevels(wanted, dateLevels);
       Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          Target target = resolveTarget(rvs, assemblyName);
          Object model = target.readModel(runtimeId, user);
          HierarchyPropertyPaneModel pane = target.pane(model);
@@ -184,6 +184,7 @@ public class HierarchyDimensionService {
          result.put("columns", wanted);
       });
 
+      ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
    }
 
@@ -197,7 +198,7 @@ public class HierarchyDimensionService {
    {
       Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          Target target = resolveTarget(rvs, assemblyName);
          Object model = target.readModel(runtimeId, user);
          HierarchyPropertyPaneModel pane = target.pane(model);
@@ -227,6 +228,7 @@ public class HierarchyDimensionService {
          result.put("remaining", updated.length);
       });
 
+      ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
    }
 

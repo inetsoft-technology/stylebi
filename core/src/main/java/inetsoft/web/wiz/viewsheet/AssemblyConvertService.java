@@ -251,9 +251,24 @@ public class AssemblyConvertService {
     */
    private static void requireConvertibleSource(RuntimeViewsheet rvs, VSAssembly assembly,
                                                 String assemblyName, String target)
+      throws Exception
    {
       if(!FREEHAND_TABLE.equals(target)) {
          return;
+      }
+
+      SourceInfo source = assembly.getInfo() instanceof DataVSAssemblyInfo info
+         ? info.getSourceInfo() : null;
+
+      // The freehand layout is generated from the rendered result. A bound table that did not
+      // render (its script or condition threw while it loaded) yields an empty 0x0 layout and the
+      // endpoint still answers success, so this is refused rather than relayed. A table that
+      // rendered zero rows has a lens and still converts; an unbound one has nothing to render and
+      // keeps its previous behaviour.
+      if(source != null && !source.isEmpty()) {
+         TableLensGuard.requireRenderedLens(
+            rvs, assembly, assemblyName,
+            "converting it to a freehand table would build its layout from an empty result");
       }
 
       Viewsheet vs = rvs.getViewsheet();
@@ -263,9 +278,6 @@ public class AssemblyConvertService {
       if(!metadata) {
          return;
       }
-
-      SourceInfo source = assembly.getInfo() instanceof DataVSAssemblyInfo info
-         ? info.getSourceInfo() : null;
 
       if(source != null && source.getType() == SourceInfo.VS_ASSEMBLY) {
          throw new IllegalArgumentException(

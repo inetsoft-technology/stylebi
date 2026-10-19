@@ -2313,14 +2313,15 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/date-comparison/clear")
-   public void clearDateComparison(
+   public Map<String, Object> clearDateComparison(
       @PathVariable String sessionToken,
       @RequestBody DateComparisonRequest request,
       @RequestParam(required = false, defaultValue = "") String linkUri,
       Principal user) throws Exception
    {
       requireEnabled();
-      comparisonService.clear(sessionToken, user, request.assembly(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         comparisonService.clear(sessionToken, user, request.assembly(), linkUri));
    }
 
    // ── Layout: list_layouts, get_layout, set_print_layout, manage_device_layout, ──────────
