@@ -589,7 +589,12 @@ public class XSessionManager {
       return new TableLoadException(XNodeTableLens.getRootCauseMessage(ex), ex);
    }
 
-   private static boolean isScheduler(VariableTable qvars) {
+   /**
+    * Check if a query's variables mark a scheduled run. The scheduler sets
+    * {@code __is_scheduler__} to {@code Boolean.TRUE}, but the viewsheet open path turns it into
+    * the String {@code "true"}, so both forms are accepted (Bug #78494).
+    */
+   public static boolean isScheduler(VariableTable qvars) {
       try {
          Object scheduler = qvars.get("__is_scheduler__");
          return Boolean.TRUE.equals(scheduler) || "true".equals(scheduler);
