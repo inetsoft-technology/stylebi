@@ -137,22 +137,29 @@ type of its first row, as the dialog already decides `headerRow = cell.row < hea
 clear, and unticked when it is set. This answers the question decision 5 left open, "unticked", which
 is accurate: the flag means an author set the height.
 
+**(my call)** For data rows, "set" means *pinned*: the flag is set, or a data height other than `defh`
+is stored without it. That is exactly when the density does not apply (§2.1). The wizard's table sync
+produces the second case (`SyncTableHandler.java:56`). Header rows need no such rule, because the lens
+wipes stored header heights whenever the header flag is clear (§2.1).
+
 **D5 — What OK does. (user)**
 
 | Box at OK | Effect on that row type |
 |---|---|
-| ticked, flag was clear | no row resize. Only the column width changes, and the flag stays clear. |
-| ticked, flag was set | flag cleared, and that row type's stored heights reset to `defh`: `dataRowHeight` for a data cell, every `headerRowHeights` entry for a header cell. The rows return to the density tier. Not `resetRowHeights()`, which also resets the title height. |
+| ticked, rows were following | no row resize. Only the column width changes, and the flag stays clear. |
+| ticked, rows were pinned (D4) | flag cleared, and that row type's stored heights reset to `defh`: `dataRowHeight` for a data cell, every `headerRowHeights` entry for a header cell. The rows return to the density tier. Not `resetRowHeights()`, which also resets the title height. |
 | unticked | the typed height is written and the flag set, even when the number is unchanged. This is how an author pins the height they see. |
 
 The column half of OK is unchanged in every case.
 
 **An unticked OK on a header cell keeps every other header row where it is. (user)** Only the clicked
 cell's header rows take the typed height. When the header flag was clear before OK, every other
-header row is given a stored height such that it draws at exactly the height it drew before OK. Under
-the density that is the tier less the row's padding (`VSDensityDefaults.headerRowHeight(ctx, info)`).
-Where CSS set the header height (D10), work it out from what the row drew and the padding it will
-draw with once the flag is set, and prove it with a test. Without this, setting the shared flag would
+header row is given a stored height such that it draws at exactly the height it drew before OK. That
+is the height the lens holds for the row now (`VSTableLens.getRowHeight(row)`, in stored terms: the
+tier less the row's padding, or the CSS height where CSS sets one, D10). A row's padding does not
+depend on either flag: `VSTableLens.getRowPadding` reads the stylesheet through
+`isCSSRowHeightDefined`, not through the flag-gated CSS getters (`VSTableLens.java:2154-2200`). So
+writing that value keeps the row in place under the density and under CSS alike. Without this, setting the shared flag would
 drop those rows back to `defh` plus padding: 22→26 at dense, 26→28 at compact and 30→32 at
 comfortable. When the flag was already set, the other rows already store their own heights and
 nothing extra is written. Dragging a header border keeps today's behaviour (D8), which does move the
@@ -162,7 +169,9 @@ other rows.
 height (§2.2), so a compact data row shows 16 (24 less 4 + 4 padding). Unticking and pressing OK
 without typing leaves the row exactly where it is.
 
-That promise covers a single-row cell on an unwrapped table. Two cases already drift on today's
+That promise covers a single-row cell on an unwrapped table, including one whose height CSS sets:
+setting the flag switches the CSS height off, but the stored value is that height and the row's
+padding does not change with the flag (see the header paragraph under D5). Two cases already drift on today's
 dialog, on every OK, and keep doing so after an unticked OK. **(my call)** Both are out of scope:
 fixing them means changing the dialog's shared math, which the viewer also runs (D7). A ticked OK
 sends no row resize, so it avoids both.
@@ -245,15 +254,8 @@ today.
 - **Crosstab header heights.** `CrossBaseVSAssemblyInfo.getHeaderRowHeights(isWrappedHeader, count)`
   builds the header array differently. Confirm that a cleared header flag puts every crosstab header
   row back on the tier.
-- **A stored data height with the flag clear.** If anything can leave `dataRowHeight != defh` while
-  `userDataRowHeight` is false, a ticked box would show for rows that do not follow (the anti-goal).
-  The parse-time derivation rules this out for saved files. Check the other writers
-  (`SyncTableHandler.java:56`, `TableDataVSAssembly.java:349-355`). If one can do it, the box's
-  starting state should also require the stored height to be `defh`.
-- **The data round trip under CSS.** Setting the data flag switches CSS off and can change the row's
-  padding floor (`VSTableLens.getRowPadding`). Check whether an unticked OK without typing moves a
-  CSS-sized data row. If it does, today's dialog does the same on every OK. Record it in D6's list;
-  don't fix it.
+- **A stored data height with the flag clear: resolved in D4.** The wizard's table sync copies
+  `dataRowHeight` without `userDataRowHeight` (`SyncTableHandler.java:56`), so this case does occur.
 - **Wrapped rows.** `userDataRowHeight` also switches how wrapped text grows a row
   (`VSTableLens.java:1663-1680`), so ticking the box changes wrap growth to the never-touched
   behaviour. That is expected. Cover it in a manual check rather than treating it as a regression.
