@@ -908,9 +908,7 @@ public final class ChartBindingMutator {
       if(!isAestheticChannel(shelf)) {
          releaseTimeSeriesForSort(model, shelf, dimension, sort);
       }
-      else if(dimension instanceof ChartDimensionRefModel chartDimension &&
-         chartDimension.isTimeSeries() && overridesAscending(sort))
-      {
+      else if(blocksOnTimeSeries(model, shelf.trim().toLowerCase(), dimension, sort)) {
          throw new IllegalArgumentException(
             "Cannot sort '" + refColumn(dimension) + "' '" + sort.direction() + "' on the " +
             shelf.trim().toLowerCase() + " channel: it is a time-series date dimension, which " +
@@ -919,7 +917,8 @@ public final class ChartBindingMutator {
 
       DimensionSortRanking.applySort(dimension, sort);
       return mirrorToAesthetics(model, shelf, dimension, multiAesthetic,
-                                target -> DimensionSortRanking.applySort(target, sort), "order");
+                                target -> DimensionSortRanking.applySort(target, sort), "order",
+                                sort);
    }
 
    /**
@@ -997,7 +996,33 @@ public final class ChartBindingMutator {
       DimensionSortRanking.applyRanking(dimension, ranking);
       return mirrorToAesthetics(model, shelf, dimension, multiAesthetic,
                                 target -> DimensionSortRanking.applyRanking(target, ranking),
-                                "ranking");
+                                "ranking", null);
+   }
+
+   /**
+    * The aesthetic counterpart of {@link #releaseTimeSeriesForSort}: a non-ascending sort on a
+    * channel dimension whose time-series flag is in force ({@link ChartTimeSeriesGuard}) would be
+    * stored and never render, so that is reported as blocked. A flag that is stored but not in
+    * force is cleared so the sort takes effect.
+    */
+   private static boolean blocksOnTimeSeries(ChartBindingModel model, String channel,
+                                             BDimensionRefModel dimension,
+                                             DimensionSortRanking.Sort sort)
+   {
+      if(!(dimension instanceof ChartDimensionRefModel chartDimension) ||
+         !chartDimension.isTimeSeries() || !overridesAscending(sort))
+      {
+         return false;
+      }
+
+      if(ChartTimeSeriesGuard.isEffective(
+         model, ChartTimeSeriesGuard.Place.AESTHETIC, channel, -1, chartDimension))
+      {
+         return true;
+      }
+
+      chartDimension.setTimeSeries(false);
+      return false;
    }
 
    // -- aesthetic-channel dimensions (bug #78803) ----------------------------------------------
@@ -1063,7 +1088,8 @@ public final class ChartBindingMutator {
                                                   BDimensionRefModel dimension,
                                                   boolean multiAesthetic,
                                                   java.util.function.Consumer<BDimensionRefModel> apply,
-                                                  String what)
+                                                  String what,
+                                                  DimensionSortRanking.Sort sort)
    {
       List<String> notes = new ArrayList<>();
 
@@ -1097,13 +1123,34 @@ public final class ChartBindingMutator {
          return notes;
       }
 
+      List<String> applied = new ArrayList<>();
+      List<String> skipped = new ArrayList<>();
+
       for(String channel : channels) {
-         apply.accept((BDimensionRefModel) ChartAestheticMutator.read(model, channel).getDataInfo());
+         BDimensionRefModel target =
+            (BDimensionRefModel) ChartAestheticMutator.read(model, channel).getDataInfo();
+
+         if(blocksOnTimeSeries(model, channel, target, sort)) {
+            skipped.add(channel);
+            continue;
+         }
+
+         apply.accept(target);
+         applied.add(channel);
       }
 
-      notes.add("alsoApplied: " + String.join(", ", channels) + " -- '" + column +
-                "' is also bound on that channel, so the same " + what + " was written there; " +
-                "the channel's own " + what + " governs the legend.");
+      if(!applied.isEmpty()) {
+         notes.add("alsoApplied: " + String.join(", ", applied) + " -- '" + column +
+                   "' is also bound on that channel, so the same " + what + " was written " +
+                   "there; the channel's own " + what + " governs the legend.");
+      }
+
+      if(!skipped.isEmpty()) {
+         notes.add("'" + column + "' is also bound on the " + String.join(", ", skipped) +
+                   " channel as a time-series date dimension, which always renders ascending, so " +
+                   "the " + what + " was not written there.");
+      }
+
       return notes;
    }
 

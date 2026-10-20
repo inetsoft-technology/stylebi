@@ -578,7 +578,9 @@ public class ChartBindingService {
          ChartVSAssembly written = requireChart(rvs, assemblyName);
          String label = ChartAdvancedPaneModel.getRankPerGroupLabel(written.getVSChartInfo());
 
-         if(label != null && written.getChartDescriptor().isRankPerGroup()) {
+         boolean clearing = ranking == null || "none".equalsIgnoreCase(ranking.mode());
+
+         if(!clearing && label != null && written.getChartDescriptor().isRankPerGroup()) {
             notes.add("Ranking is applied per group, not chart-wide: the chart shows '" + label +
                       "' (rankPerGroup is on). To rank across the whole chart, set " +
                       "rankPerGroup:false with set_assembly_properties.");
