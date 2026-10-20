@@ -132,19 +132,18 @@ public class VSSelectionService {
 
          // Clear the single-select levels before selecting the path, as doApplySelection does.
          // Clearing afterwards would unselect a requested leaf on a single-select level, since
-         // only a composite match is kept.
+         // only a composite match is kept. A clear replaces nothing, so it leaves the other
+         // values of the single-select levels alone (bug-78869).
          if(!isIDTree && !CollectionUtils.isEmpty(singleLevels)) {
             for(ApplySelectionListEvent.Value value : event.getValues()) {
-               String[] selectionValues = value.getValue();
-
-               if(value.isSelected()) {
-                  selectionValues = fixSingleSelectValue(
-                     selectionList, singleLevels, value.getValue());
-                  value.setValue(selectionValues);
+               if(!value.isSelected()) {
+                  continue;
                }
 
-               clearSingleSelectionValues(selectionList, singleLevels,
-                                          selectionValues, value.isSelected());
+               String[] selectionValues = fixSingleSelectValue(
+                  selectionList, singleLevels, value.getValue());
+               value.setValue(selectionValues);
+               clearSingleSelectionValues(selectionList, singleLevels, selectionValues, true);
             }
          }
 
@@ -160,6 +159,10 @@ public class VSSelectionService {
          final String[] selectedArray = setSubtree(treeInfo, subtreeRoot, eventValue.isSelected(),
                                                    isIDTree, true, new ArrayList<>(), requireReset);
          event.setValues(null);
+
+         if(!isIDTree && !eventValue.isSelected()) {
+            deselectEmptyAncestors(subtreePath, 0, selectionList);
+         }
 
          if(selectedArray.length > 0 && isIDTree) {
             updateIDSelectionTree(selectedArray, selectionList, eventValue.isSelected(), false,
@@ -1168,9 +1171,15 @@ public class VSSelectionService {
       for(SelectionValue svalue : selectionList.getSelectionValues()) {
          if(Tool.equals(svalue.getValue(), path[index])) {
             index++;
-            setSelectedAndUnexclude(svalue, selected, requireReset);
+            final boolean descend = svalue instanceof CompositeSelectionValue && index < path.length;
 
-            if(svalue instanceof CompositeSelectionValue && index < path.length) {
+            // A clear leaves the ancestors to deselectEmptyAncestors: another child of an
+            // ancestor may stay selected.
+            if(selected || !descend) {
+               setSelectedAndUnexclude(svalue, selected, requireReset);
+            }
+
+            if(descend) {
                return findSubtreeRoot(path, selected, index,
                   ((CompositeSelectionValue) svalue).getSelectionList(), requireReset);
             }
@@ -1181,6 +1190,30 @@ public class VSSelectionService {
       }
 
       return null;
+   }
+
+   /**
+    * Deselects the ancestors on {@code path} that no longer have a selected child, deepest first,
+    * after the subtree at the end of the path was cleared. An ancestor with a selected child is
+    * kept; one without would otherwise be refilled with its first child on the next refresh.
+    */
+   private void deselectEmptyAncestors(String[] path, int index, SelectionList selectionList) {
+      for(SelectionValue svalue : selectionList.getSelectionValues()) {
+         if(!Tool.equals(svalue.getValue(), path[index])) {
+            continue;
+         }
+
+         if(svalue instanceof CompositeSelectionValue && index + 1 < path.length) {
+            SelectionList children = ((CompositeSelectionValue) svalue).getSelectionList();
+            deselectEmptyAncestors(path, index + 1, children);
+
+            if(Arrays.stream(children.getSelectionValues()).noneMatch(SelectionValue::isSelected)) {
+               svalue.setSelected(false);
+            }
+         }
+
+         return;
+      }
    }
 
    private SelectionValue findIDSubtreeRoot(String[] path,

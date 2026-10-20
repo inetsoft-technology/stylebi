@@ -254,6 +254,37 @@ class SelectionRuntimeServiceSubtreeClearReportTest {
       assertEquals(List.of(List.of("West", "CA")), result.get("reselectedBySingleSelect"));
    }
 
+   /** bug-78869: a value outside the cleared subtree that vanished is reported, not "no change". */
+   @Test
+   void clearThatDropsAValueOutsideTheSubtreeReportsIt() throws Exception {
+      SelectionList domain = eastWest(true, false, true);
+      SelectionRuntimeServiceTest.Harness h = harness(false, domain, null);
+      onApply(h, () -> {
+         domain.getSelectionValue(1).setSelected(false);
+         deselect(domain, 1, 0);
+      });
+
+      Map<String, Object> result = clear(h, "East", "MA");
+
+      assertEquals(0, result.get("clearedCount"));
+      assertEquals(List.of(List.of("West", "CA")), result.get("removedOutsideSubtree"));
+   }
+
+   @Test
+   void clearThatKeepsEverythingOutsideTheSubtreeReportsNoRemoval() throws Exception {
+      SelectionList domain = eastWest(true, true, true);
+      SelectionRuntimeServiceTest.Harness h = harness(false, domain, null);
+      onApply(h, () -> {
+         domain.getSelectionValue(0).setSelected(false);
+         deselect(domain, 0, 0, 1);
+      });
+
+      Map<String, Object> result = clear(h, "East");
+
+      assertEquals(2, result.get("clearedCount"));
+      assertFalse(result.containsKey("removedOutsideSubtree"));
+   }
+
    @Test
    void selectModeResultIsUnchanged() throws Exception {
       SelectionList domain = eastWest(false, false, false);
