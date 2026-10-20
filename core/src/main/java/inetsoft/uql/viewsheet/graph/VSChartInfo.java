@@ -815,6 +815,24 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
    }
 
    /**
+    * Check if the axis has fields and all of them are dynamic (variable) refs. Only then is an
+    * empty runtime result "nothing selected" rather than a missing column.
+    */
+   private static boolean allVariable(ChartRef[] refs) {
+      if(refs == null || refs.length == 0) {
+         return false;
+      }
+
+      for(ChartRef ref : refs) {
+         if(!(ref instanceof VSChartRef) || !((VSChartRef) ref).isVariable()) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
     * Update the info to fill in runtime value.
     *
     * @param vs      the specified viewsheet.
@@ -957,7 +975,8 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
          temp = new ChartRef[list.size()];
          list.toArray(temp);
          setRTGroupFields(temp);
-         setRTResolved(true);
+         setRTResolved(allVariable(getXFields()), allVariable(getYFields()),
+                       allVariable(getGroupFields()));
 
          // #treemap-heal: a treemap-family chart whose hierarchy dimensions were bound on the
          // X slot with an empty group slot renders empty, because SeparateGraphGenerator reads

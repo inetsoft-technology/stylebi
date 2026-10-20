@@ -163,14 +163,29 @@ class VSChartInfoEmptyDynamicRefTest {
    }
 
    @Test
-   void allDrillInvisibleYResolvesToEmptyAxis() {
+   void allDrillInvisibleYKeepsDesignFallback() {
       DefaultVSChartInfo info = new DefaultVSChartInfo();
       VSChartAggregateRef ref = plainMeasure();
       ref.setDrillVisible(false);
       info.addYField(ref);
       info.update(null, columns(), false, null, null, null);
 
-      assertEquals(0, info.getRTYFields().length);
+      assertEquals(1, info.getRTYFields().length);
+   }
+
+   @Test
+   void staticMissingColumnStillFallsBackToDesignField() {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("No Such Column"));
+      info.update(null, columns(), false, null, null, null);
+
+      assertEquals(1, info.getRTXFields().length);
+   }
+
+   private static VSChartDimensionRef dimension(String column) {
+      VSChartDimensionRef ref = new VSChartDimensionRef();
+      ref.setGroupColumnValue(column);
+      return ref;
    }
 
    private static VSChartAggregateRef dynamicMeasure(Object value) {
