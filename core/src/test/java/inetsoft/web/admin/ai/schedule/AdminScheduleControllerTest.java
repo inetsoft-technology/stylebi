@@ -18,7 +18,6 @@
 package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.web.api.schedule.ScheduleTask;
-import inetsoft.web.api.schedule.ScheduleTaskList;
 import inetsoft.web.api.schedule.UnsupportedScheduleItem;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
@@ -101,10 +100,10 @@ class AdminScheduleControllerTest {
    }
 
    @Test void listTasksDelegatesToScheduleGateway() throws Exception {
-      ScheduleTaskList list = new ScheduleTaskList();
+      AdminScheduleTaskList list = new AdminScheduleTaskList();
       when(scheduleGateway.getScheduleTasks(isNull(), eq(principal))).thenReturn(list);
 
-      ScheduleTaskList result = controller.listTasks(principal);
+      AdminScheduleTaskList result = controller.listTasks(principal);
 
       assertSame(list, result);
    }
@@ -120,12 +119,14 @@ class AdminScheduleControllerTest {
       List<Object> conditions = List.of(new UnsupportedScheduleItem("inetsoft.sree.schedule.TaskBalancerCondition"));
       List<Object> actions = Collections.emptyList();
       when(scheduleGateway.getScheduleTask(taskId, null, principal)).thenReturn(task);
+      when(scheduleGateway.getScheduleTaskPath(taskId, principal)).thenReturn("A/B");
       when(scheduleGateway.getTaskConditionsLenient(taskId, null, principal)).thenReturn(conditions);
       when(scheduleGateway.getTaskActionsLenient(taskId, null, principal)).thenReturn(actions);
 
       ScheduleTaskView result = controller.getTask(taskId, principal);
 
       assertSame(task, result.getTask());
+      assertEquals("A/B", result.getPath());
       assertEquals(conditions, result.getConditions());
       assertEquals(actions, result.getActions());
       verify(scheduleGateway, never()).getTaskConditions(anyString(), any(), any());

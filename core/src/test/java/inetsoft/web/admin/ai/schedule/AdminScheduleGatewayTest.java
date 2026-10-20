@@ -360,6 +360,68 @@ class AdminScheduleGatewayTest {
       }
    }
 
+   // -------------------------------------------------------------------------
+   // Bug #78959: the folder path of a task must be readable (list and get)
+   // -------------------------------------------------------------------------
+
+   private inetsoft.sree.schedule.ScheduleTask taskAt(String name, String path) {
+      inetsoft.sree.schedule.ScheduleTask task =
+         new inetsoft.sree.schedule.ScheduleTask(name);
+      task.setOwner(callerOwner);
+      task.setPath(path);
+      return task;
+   }
+
+   @Test
+   void getScheduleTasks_includesFolderPathAndRootForNullOrEmpty() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask inFolder = taskAt("inFolder", "A/B");
+      inetsoft.sree.schedule.ScheduleTask atRoot = taskAt("atRoot", "/");
+      inetsoft.sree.schedule.ScheduleTask nullPath = taskAt("nullPath", null);
+      inetsoft.sree.schedule.ScheduleTask emptyPath = taskAt("emptyPath", "");
+      when(repository.getScheduleTasks(user)).thenReturn(new String[]{
+         inFolder.getTaskId(), atRoot.getTaskId(), nullPath.getTaskId(), emptyPath.getTaskId()});
+      when(scheduleManager.getScheduleTask(inFolder.getTaskId())).thenReturn(inFolder);
+      when(scheduleManager.getScheduleTask(atRoot.getTaskId())).thenReturn(atRoot);
+      when(scheduleManager.getScheduleTask(nullPath.getTaskId())).thenReturn(nullPath);
+      when(scheduleManager.getScheduleTask(emptyPath.getTaskId())).thenReturn(emptyPath);
+
+      AdminScheduleTaskList list = gateway.getScheduleTasks(null, user);
+
+      assertEquals(List.of("A/B", "/", "/", "/"),
+                   list.getTasks().stream().map(ScheduleTaskEntry::getPath).toList());
+      assertEquals("inFolder", list.getTasks().get(0).getName());
+      assertEquals(callerOwner, list.getTasks().get(0).getOwner());
+   }
+
+   @Test
+   void getScheduleTaskPath_returnsFolderPathOfTask() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask task = taskAt("t", "A/B");
+      when(repository.getScheduleTask(task.getTaskId())).thenReturn(task);
+      when(repository.checkPermission(user, ResourceType.SCHEDULE_TASK, task.getTaskId(),
+                                      ResourceAction.READ)).thenReturn(true);
+
+      assertEquals("A/B", gateway.getScheduleTaskPath(task.getTaskId(), user));
+
+      task.setPath(null);
+      assertEquals("/", gateway.getScheduleTaskPath(task.getTaskId(), user));
+   }
+
+   @Test
+   void getScheduleTaskPath_requiresReadPermission() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask task = taskAt("t", "A/B");
+      when(repository.getScheduleTask(task.getTaskId())).thenReturn(task);
+
+      assertThrows(UnauthorizedAccessException.class,
+                   () -> gateway.getScheduleTaskPath(task.getTaskId(), user));
+   }
+
+   @Test
+   void getScheduleTaskPath_rejectsMissingTask() throws Exception {
+      when(repository.getScheduleTask("nope")).thenReturn(null);
+
+      assertThrows(MissingResourceException.class, () -> gateway.getScheduleTaskPath("nope", user));
+   }
+
    @Test
    void getScheduleTask_rejectsMissingTask() throws Exception {
       when(repository.getScheduleTask("nope")).thenReturn(null);
