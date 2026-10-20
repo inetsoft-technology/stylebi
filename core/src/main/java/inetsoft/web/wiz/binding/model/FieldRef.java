@@ -17,8 +17,14 @@
  */
 package inetsoft.web.wiz.binding.model;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
+import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.web.binding.model.graph.CalculateInfo;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -68,14 +74,17 @@ import java.util.List;
  * @param runtimeChartType what that measure resolved to, when it differs from {@code chartType}
  * @param calculateInfo    a per-measure Trend/Calculator (running total, change, moving, value-of,
  *                         percent, compound growth, or a custom expression), measures only —
- *                         mirrors the Composer binding pane's own Calculator button. {@code null}
- *                         leaves it unchanged. There is currently no signal that clears a
- *                         previously-applied one through this agent surface — changing
- *                         {@code aggregate} alone does not; {@code BAggregateRefModel.setFormula}/
+ *                         mirrors the Composer binding pane's own Calculator button. An
+ *                         <em>omitted</em> key leaves it unchanged; an <em>explicit JSON
+ *                         {@code null}</em> clears it (bug #78865). Jackson maps both to a Java
+ *                         {@code null} on a record component, so the explicit null is bound to a
+ *                         private sentinel by {@link CalculateInfoDeserializer}, and
+ *                         {@link #calculateInfo()} hides that sentinel (it reads {@code null})
+ *                         while {@link #clearsCalculateInfo()} reports it. Changing
+ *                         {@code aggregate} alone never clears one;
+ *                         {@code BAggregateRefModel.setFormula}/
  *                         {@code ChartAggregateRefModel.setFormula} only ever touch the formula
- *                         field, never {@code calculateInfo}. Removing a calculator once set
- *                         requires a follow-up capability (a real "clear" signal), not something
- *                         this record already supports.
+ *                         field, never {@code calculateInfo}.
  * @param label            this field's header alias, table/crosstab shelves only — {@code
  *                         set_column_labels}' read side. {@code null} means no label is set, not
  *                         that it is unknown; a crosstab whose label could not be resolved (no
@@ -109,12 +118,117 @@ import java.util.List;
  *                         {@code #setSecondaryColumnValue}, not the {@code DataRefModel}-typed
  *                         {@code secondaryColumn}/{@code setSecondaryColumn} pair on that same
  *                         model. {@code null}/absent means "not specified".
+ * @param operand          the N of NthLargest/NthSmallest/NthMostFrequent or the P of
+ *                         PthPercentile, measures only (bug #78856) -- a String, like
+ *                         {@code BAggregateRefModel#getNumValue}, so a dynamic {@code $(var)} /
+ *                         {@code =expr} operand the Composer UI can author reads back and
+ *                         round-trips. Reported only for those four formulas. {@code null}/absent
+ *                         means "not specified": a matched previous ref's operand is kept, and a
+ *                         fresh N/P aggregate with none is refused rather than rendering as N=1.
  */
 public record FieldRef(String column, String type, String aggregate, String dateLevel,
                        String namedGroup, Integer chartType, Integer runtimeChartType,
-                       NamedGroupValues namedGroupValues, CalculateInfo calculateInfo,
+                       NamedGroupValues namedGroupValues,
+                       @JsonDeserialize(using = CalculateInfoDeserializer.class)
+                       CalculateInfo calculateInfo,
                        String label, Boolean secondaryY, Boolean visible, Boolean timeSeries,
-                       String secondaryColumn) {
+                       String secondaryColumn, String operand) {
+   /**
+    * The shape before {@code operand} was added -- kept so that addition did not touch every call
+    * site that already named {@code secondaryColumn} (this was the record's own canonical
+    * constructor before {@code operand} was appended).
+    */
+   public FieldRef(String column, String type, String aggregate, String dateLevel,
+                   String namedGroup, Integer chartType, Integer runtimeChartType,
+                   NamedGroupValues namedGroupValues, CalculateInfo calculateInfo, String label,
+                   Boolean secondaryY, Boolean visible, Boolean timeSeries,
+                   String secondaryColumn)
+   {
+      this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
+           namedGroupValues, calculateInfo, label, secondaryY, visible, timeSeries,
+           secondaryColumn, null);
+   }
+
+   /**
+    * The calculator the caller supplied, or {@code null} when it supplied none <em>or</em> asked
+    * to clear it -- the two are told apart by {@link #clearsCalculateInfo()}. The clear sentinel
+    * never leaves this record, so no consumer (shelf mutators, validators, read-side copies) can
+    * hand it to a model.
+    */
+   @Override
+   public CalculateInfo calculateInfo() {
+      return calculateInfo == CLEAR ? null : calculateInfo;
+   }
+
+   /**
+    * A copy with the column names replaced and every other component carried over, the clear
+    * request included -- unlike a copy built from the {@link #calculateInfo()} accessor, which
+    * would turn an explicit {@code calculateInfo: null} back into an omitted one.
+    */
+   public FieldRef withColumns(String column, String secondaryColumn) {
+      return new FieldRef(column, type, aggregate, dateLevel, namedGroup, chartType,
+                          runtimeChartType, namedGroupValues, calculateInfo, label, secondaryY,
+                          visible, timeSeries, secondaryColumn, operand);
+   }
+
+   /** Whether the caller sent an explicit {@code calculateInfo: null}, asking to remove it. */
+   public boolean clearsCalculateInfo() {
+      return calculateInfo == CLEAR;
+   }
+
+   /** Stands for an explicit JSON null on {@code calculateInfo}; see the component's javadoc. */
+   private static final CalculateInfo CLEAR = new CalculateInfo() {
+      @Override
+      protected void loadCalcInfo(Calculator calc) {
+      }
+
+      @Override
+      protected Calculator toCalculator0() {
+         return null;
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         return obj == this;
+      }
+
+      @Override
+      public int hashCode() {
+         return System.identityHashCode(this);
+      }
+   };
+
+   /**
+    * Binds an explicit JSON {@code null} to the clear sentinel and a missing key to a Java
+    * {@code null}. Both overrides are needed: for a record's creator property Jackson asks
+    * {@link #getAbsentValue} for a missing key, and its default delegates to
+    * {@link #getNullValue}, so overriding only the latter would make an omitted key clear too.
+    * A non-null value never reaches {@link #deserialize}: the component is polymorphic
+    * ({@code @JsonTypeInfo}), so Jackson dispatches straight to the subtype's deserializer.
+    */
+   public static final class CalculateInfoDeserializer extends StdDeserializer<CalculateInfo> {
+      public CalculateInfoDeserializer() {
+         super(CalculateInfo.class);
+      }
+
+      @Override
+      public CalculateInfo getNullValue(DeserializationContext ctxt) {
+         return CLEAR;
+      }
+
+      @Override
+      public Object getAbsentValue(DeserializationContext ctxt) {
+         return null;
+      }
+
+      @Override
+      public CalculateInfo deserialize(JsonParser p, DeserializationContext ctxt)
+         throws IOException
+      {
+         return (CalculateInfo) ctxt.handleUnexpectedToken(CalculateInfo.class, p);
+      }
+   }
+
    /**
     * Every caller but the chart read builds a ref with no chart type. Kept so that adding the
     * components did not touch forty-odd construction sites that have nothing to do with charts.

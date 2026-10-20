@@ -406,8 +406,15 @@ public final class ChartBindingMutator {
    private static void preserveAggregateState(ChartAggregateRefModel previous,
                                                ChartAggregateRefModel aggregate, FieldRef field)
    {
-      if(field.calculateInfo() == null) {
+      // An explicit calculateInfo:null (bug #78865) is the one signal that drops it.
+      if(field.calculateInfo() == null && !field.clearsCalculateInfo()) {
          aggregate.setCalculateInfo(previous.getCalculateInfo());
+      }
+
+      // An untouched Nth/Pth measure must keep its N (bug #78856); toChartRef builds a fresh ref
+      // whose numValue is null, which renders as N=1.
+      if(field.operand() == null || field.operand().isBlank()) {
+         aggregate.setNumValue(previous.getNumValue());
       }
 
       if(field.secondaryY() == null) {

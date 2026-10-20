@@ -33,6 +33,7 @@ import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabOptionInfo;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
+import inetsoft.web.binding.model.graph.CalculateInfo;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
@@ -1031,6 +1032,10 @@ public final class TableBindingMutator {
     *                 incoming field's own is {@code null}; an incoming field that supplies its
     *                 own always overrides it, exactly as the pre-existing {@code if(field
     *                 .calculateInfo() != null)} branch already did before this fix.
+    *
+    *                 <p>An explicit JSON {@code null} ({@link FieldRef#clearsCalculateInfo}) is the
+    *                 one signal that clears it (bug #78865); a clear skips only this copy, never
+    *                 the rest of the match.
     * @param carried  parallel to {@code fields} for an add/remove/move: the shelf's own model for
     *                 an entry the write leaves untouched, {@code null} for the entry it adds, so
     *                 the state stays with the occurrence the caller meant (bug #77025 R2). {@code
@@ -1086,19 +1091,35 @@ public final class TableBindingMutator {
             : previousOccurrence(previous, refs, i);
 
          if(match != null) {
-            // FieldRef has no slot for any of these, so an untouched aggregate must keep them
-            // (an Nth/Pth N reset to null renders as N=1).
+            // FieldRef has no slot for these, so an untouched aggregate must keep them. The N/P
+            // operand does have one (field.operand()), applied below so an explicit one wins
+            // over this inherited value (an Nth/Pth N reset to null renders as N=1).
             ref.setNumValue(match.getNumValue());
             ref.setCaption(match.getCaption());
             ref.setPercentage(match.getPercentage());
             ref.setComboType(match.getComboType());
          }
 
+         FieldRefFactory.applyOperand(ref, field, match == null);
+
+         // Only the calculator copy is skipped on a clear; the rest of the match above is kept.
          if(field.calculateInfo() != null) {
             ref.setCalculateInfo(field.calculateInfo());
          }
+         else if(field.clearsCalculateInfo()) {
+            ref.setCalculateInfo(null);
+         }
          else if(match != null) {
             ref.setCalculateInfo(match.getCalculateInfo());
+
+            // Only a wholesale replace names the entry without carrying its state: an
+            // add/remove/move re-reads the shelf, so an untouched calculator arrives on the
+            // field itself and the first branch takes it, never this one (bug #78865).
+            if(carried == null && match.getCalculateInfo() != null) {
+               notes().add(KEPT_NOTE_PREFIX + "the calculator on '" + field.column() + "' (" +
+                  calculatorName(match.getCalculateInfo()) + ") was kept, because this write " +
+                  "did not name calculateInfo. Send calculateInfo: null to remove it.");
+            }
          }
 
          out.add(ref);
@@ -1644,6 +1665,9 @@ public final class TableBindingMutator {
    /** Prefix of every message {@link #drainNotes} returns; the plugin splits on it. */
    public static final String NOTE_PREFIX = "Binding reset: ";
 
+   /** Prefix of a note about state a write left in place; returned by {@link #drainNotes} too. */
+   public static final String KEPT_NOTE_PREFIX = "Binding kept: ";
+
    /** Prefix of a warning about a shape that renders misleadingly; the plugin splits on it. */
    public static final String WARNING_PREFIX = "Binding warning: ";
 
@@ -1717,6 +1741,13 @@ public final class TableBindingMutator {
       List<String> out = new ArrayList<>(NOTES.get());
       NOTES.get().clear();
       return out;
+   }
+
+   private static String calculatorName(CalculateInfo info) {
+      String name = info.getClass().getSimpleName();
+
+      return name.endsWith("CalcInfo")
+         ? name.substring(0, name.length() - "CalcInfo".length()).toUpperCase() : name;
    }
 
    private static boolean vanished(String measure, List<FieldRef> was, List<FieldRef> now) {

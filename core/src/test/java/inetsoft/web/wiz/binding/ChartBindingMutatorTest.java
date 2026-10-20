@@ -601,6 +601,60 @@ class ChartBindingMutatorTest {
    // via sameMeasure -- the same column+formula identity preserveChartTypes already uses for
    // chartType, minus its secondaryY tiebreak, which would be circular here).
 
+   // ── bugs #78856 / #78865 on the chart shelves ───────────────────────────────────────────
+
+   private static FieldRef nthMeasure(String column, String aggregate, String operand) {
+      return new FieldRef(column, "measure", aggregate, null, null, null, null, null, null, null,
+                          null, null, null, null, operand);
+   }
+
+   @Test
+   void aChartMeasureTakesItsOperandAndAnUntouchedOneSurvivesAResubmit() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(nthMeasure("Sales", "PthPercentile", "90")));
+      assertEquals("90", ((ChartAggregateRefModel) model.getYFields().get(0)).getNumValue());
+
+      // A resubmit that omits the operand must not reset it to the engine's N=1.
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "PthPercentile", null, null)));
+      assertEquals("90", ((ChartAggregateRefModel) model.getYFields().get(0)).getNumValue());
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(nthMeasure("Sales", "PthPercentile", "50")));
+      assertEquals("50", ((ChartAggregateRefModel) model.getYFields().get(0)).getNumValue());
+   }
+
+   @Test
+   void aChartMeasureRefusesAnOutOfRangeOperand() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      assertThrows(IllegalArgumentException.class, () ->
+         ChartBindingMutator.setShelf(model, "y",
+            List.of(nthMeasure("Sales", "PthPercentile", "0"))));
+   }
+
+   @Test
+   void anExplicitNullCalculateInfoClearsAChartMeasuresCalculatorAndAnOmittedOneKeepsIt()
+      throws Exception
+   {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(measureWithCalc("Sales", "Sum", runningTotal("Sum"))));
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+            "{\"column\":\"Sales\",\"type\":\"measure\",\"aggregate\":\"Sum\"}", FieldRef.class)));
+      assertNotNull(((ChartAggregateRefModel) model.getYFields().get(0)).getCalculateInfo(),
+                    "an omitted calculateInfo keeps the calculator");
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+            "{\"column\":\"Sales\",\"type\":\"measure\",\"aggregate\":\"Sum\"," +
+            "\"calculateInfo\":null}", FieldRef.class)));
+      assertNull(((ChartAggregateRefModel) model.getYFields().get(0)).getCalculateInfo());
+   }
+
    private static RunningTotalCalcInfo runningTotal(String aggregate) {
       RunningTotalCalcInfo calc = new RunningTotalCalcInfo();
       calc.setAggregate(aggregate);

@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.web.binding.model.graph.calc.PercentCalcInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -104,8 +105,9 @@ class FieldRefBindingTest {
       String json = mapper.writeValueAsString(
          new FieldRef("PAID", "measure", "Sum", null, null, 5, 1));
 
-      assertEquals(new FieldRef("PAID", "measure", "Sum", null, null, 5, 1),
-                   mapper.readValue(json, FieldRef.class));
+      // Compared as JSON: a read-back's explicit calculateInfo null binds to the clear request
+      // (bug #78865), which is deliberately not equal to the absent one the original carried.
+      assertEquals(json, mapper.writeValueAsString(mapper.readValue(json, FieldRef.class)));
    }
 
    /**
@@ -125,6 +127,87 @@ class FieldRefBindingTest {
       assertEquals("PAID", ref.secondaryColumn());
 
       String json = mapper.writeValueAsString(ref);
-      assertEquals(ref, mapper.readValue(json, FieldRef.class));
+      assertEquals(json, mapper.writeValueAsString(mapper.readValue(json, FieldRef.class)));
+   }
+
+   /**
+    * Bug #78865: an explicit {@code calculateInfo: null} asks to clear the calculator, an omitted
+    * key leaves it alone. Jackson maps both to a Java null on a record component, and for a
+    * missing creator property it asks {@code getAbsentValue}, which delegates to
+    * {@code getNullValue} by default -- so a deserializer overriding only the latter would make
+    * an omitted key clear too (and silently strip every calculator on every write that omits it).
+    */
+   @Test
+   void tellsAnExplicitNullCalculateInfoFromAnOmittedOne() throws Exception {
+      FieldRef explicit = mapper.readValue(
+         """
+         { "column": "PAID", "type": "measure", "aggregate": "Sum", "calculateInfo": null }
+         """, FieldRef.class);
+      FieldRef omitted = mapper.readValue(
+         """
+         { "column": "PAID", "type": "measure", "aggregate": "Sum" }
+         """, FieldRef.class);
+
+      assertTrue(explicit.clearsCalculateInfo());
+      assertNull(explicit.calculateInfo(), "the sentinel must never leave the record");
+      assertFalse(omitted.clearsCalculateInfo(), "an omitted key must keep the calculator");
+      assertNull(omitted.calculateInfo());
+   }
+
+   @Test
+   void aCalculatorObjectStillBindsToItsSubtypeAndIsNotAClear() throws Exception {
+      FieldRef ref = mapper.readValue(
+         """
+         { "column": "PAID", "type": "measure", "aggregate": "Sum",
+           "calculateInfo": { "classType": "PERCENT", "level": 1 } }
+         """, FieldRef.class);
+
+      assertInstanceOf(PercentCalcInfo.class, ref.calculateInfo());
+      assertFalse(ref.clearsCalculateInfo());
+   }
+
+   @Test
+   void anExplicitNullInsideAListOfRefsClearsOnlyThatEntry() throws Exception {
+      List<FieldRef> refs = mapper.readValue(
+         """
+         [ { "column": "A", "type": "measure", "calculateInfo": null },
+           { "column": "B", "type": "measure" } ]
+         """, mapper.getTypeFactory().constructCollectionType(List.class, FieldRef.class));
+
+      assertTrue(refs.get(0).clearsCalculateInfo());
+      assertFalse(refs.get(1).clearsCalculateInfo());
+   }
+
+   @Test
+   void theClearRequestSerialisesAsNullAndSurvivesAColumnRename() throws Exception {
+      FieldRef ref = mapper.readValue(
+         """
+         { "column": "paid", "type": "measure", "calculateInfo": null, "operand": "90" }
+         """, FieldRef.class);
+
+      assertTrue(mapper.readTree(mapper.writeValueAsString(ref)).get("calculateInfo").isNull());
+
+      FieldRef renamed = ref.withColumns("PAID", "OTHER");
+
+      assertTrue(renamed.clearsCalculateInfo());
+      assertEquals("PAID", renamed.column());
+      assertEquals("OTHER", renamed.secondaryColumn());
+      assertEquals("90", renamed.operand());
+   }
+
+   /** Bug #78856: the N/P operand, a string so a dynamic one round-trips. */
+   @Test
+   void bindsAndRoundTripsTheOperandAsAString() throws Exception {
+      FieldRef ref = mapper.readValue(
+         """
+         { "column": "PAID", "type": "measure", "aggregate": "PthPercentile",
+           "operand": "$(p)" }
+         """, FieldRef.class);
+
+      assertEquals("$(p)", ref.operand());
+      assertNull(mapper.readValue(
+         """
+         { "column": "PAID", "type": "measure" }
+         """, FieldRef.class).operand());
    }
 }

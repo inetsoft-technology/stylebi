@@ -1673,7 +1673,7 @@ public class TableBindingService {
                           field.namedGroup(), field.chartType(), field.runtimeChartType(),
                           field.namedGroupValues(), field.calculateInfo(), label,
                           field.secondaryY(), field.visible(), field.timeSeries(),
-                          field.secondaryColumn());
+                          field.secondaryColumn(), field.operand());
    }
 
    /**
@@ -1776,7 +1776,7 @@ public class TableBindingService {
                           field.namedGroup(), field.chartType(), field.runtimeChartType(),
                           field.namedGroupValues(), field.calculateInfo(), field.label(),
                           field.secondaryY(), visible, field.timeSeries(),
-                          field.secondaryColumn());
+                          field.secondaryColumn(), field.operand());
    }
 
    private static Map<String, Object> describeOptions(BaseTableBindingModel model) {

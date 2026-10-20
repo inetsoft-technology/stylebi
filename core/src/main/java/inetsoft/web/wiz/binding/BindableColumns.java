@@ -192,10 +192,7 @@ public final class BindableColumns {
          return field;
       }
 
-      return new FieldRef(column, field.type(), field.aggregate(), field.dateLevel(),
-                          field.namedGroup(), field.chartType(), field.runtimeChartType(),
-                          field.namedGroupValues(), field.calculateInfo(), field.label(),
-                          field.secondaryY(), field.visible(), field.timeSeries(), secondary);
+      return field.withColumns(column, secondary);
    }
 
    /**
