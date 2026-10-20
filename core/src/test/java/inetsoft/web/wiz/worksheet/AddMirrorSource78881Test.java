@@ -40,6 +40,8 @@ import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -233,16 +235,105 @@ class AddMirrorSource78881Test {
       assertInstanceOf(MirrorTableAssembly.class, ws.getAssembly("M"));
    }
 
+   // ------------------------------------------------------------------- reported result (#78917)
+
+   @Test
+   void aCrossWorksheetTableMirrorReportsItsNameAndKind() throws Exception {
+      saveSource("am78917_table");
+      Worksheet ws = new Worksheet();
+
+      ResponseEntity<EditResponse> response = addWorksheetMirror(ws, "M", "am78917_table");
+
+      assertEquals(HttpStatus.OK, response.getStatusCode());
+      assertEquals(new EditResponse("M", "table"), response.getBody());
+   }
+
+   @Test
+   void aCrossWorksheetVariableMirrorReportsItsNameAndKind() throws Exception {
+      saveVariableSource("am78917_variable");
+      Worksheet ws = new Worksheet();
+
+      ResponseEntity<EditResponse> response = addWorksheetMirror(ws, "MV", "am78917_variable");
+
+      assertInstanceOf(MirrorVariableAssembly.class, ws.getAssembly("MV"));
+      assertEquals(new EditResponse("MV", "variable"), response.getBody());
+   }
+
+   @Test
+   void aSameWorksheetMirrorReportsItsNameAndKind() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "T", "a", "b"));
+
+      ResponseEntity<EditResponse> response =
+         controller(ws).edit("TOK", request("add_mirror", "name", "M", "source", "T"), agent);
+
+      assertEquals(new EditResponse("M", "table"), response.getBody());
+   }
+
+   @Test
+   void anAddMirrorWithoutANameReportsTheNameItWasGiven() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "T", "a", "b"));
+
+      ResponseEntity<EditResponse> response =
+         controller(ws).edit("TOK", request("add_mirror", "source", "T"), agent);
+
+      EditResponse body = response.getBody();
+      assertNotNull(body);
+      assertInstanceOf(MirrorTableAssembly.class, ws.getAssembly(body.assemblyName()));
+      assertEquals("table", body.assemblyKind());
+   }
+
+   @Test
+   void aKindIsLeftOutOfTheBodyOfOpsThatDoNotReportOne() throws Exception {
+      ObjectMapper mapper = new WebConfig().objectMapper();
+
+      assertEquals("{\"assemblyName\":\"T\"}",
+                   mapper.writeValueAsString(new EditResponse("T", null)));
+
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "T", "a", "b"));
+
+      ResponseEntity<EditResponse> response =
+         controller(ws).edit("TOK", request("delete_table", "table", "T"), agent);
+
+      assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+      assertNull(response.getBody());
+   }
+
+   @Test
+   void assemblyKindNamesEveryKindAMirrorCanTake() {
+      Worksheet ws = new Worksheet();
+
+      assertEquals("table", WorksheetEditService.Editor.assemblyKind(
+         TestWorksheets.tableWithColumns(ws, "T", "a")));
+      assertEquals("variable", WorksheetEditService.Editor.assemblyKind(variable(ws, "V")));
+      assertEquals("named group", WorksheetEditService.Editor.assemblyKind(
+         new DefaultNamedGroupAssembly(ws, "G")));
+      assertEquals("condition", WorksheetEditService.Editor.assemblyKind(
+         new DefaultConditionAssembly(ws, "C")));
+      assertEquals("date range", WorksheetEditService.Editor.assemblyKind(
+         new DefaultDateRangeAssembly(ws, "D")));
+   }
+
    // ------------------------------------------------------------------- fixtures
 
-   private void addWorksheetMirror(Worksheet ws, String name, String path) throws Exception {
+   private ResponseEntity<EditResponse> addWorksheetMirror(Worksheet ws, String name, String path)
+      throws Exception
+   {
+      return controller(ws).edit("TOK", request("add_mirror", "name", name, "path", path), agent);
+   }
+
+   private static EditRequest request(String op, String... keysAndValues) throws Exception {
       Map<String, Object> body = new LinkedHashMap<>();
-      body.put("op", "add_mirror");
-      body.put("name", name);
-      body.put("path", path);
+      body.put("op", op);
+
+      for(int i = 0; i < keysAndValues.length; i += 2) {
+         body.put(keysAndValues[i], keysAndValues[i + 1]);
+      }
+
       ObjectMapper mapper = new WebConfig().objectMapper();
-      EditRequest req = mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
-      controller(ws).edit("TOK", req, agent);
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
    }
 
    private WorksheetAgentController controller(Worksheet ws) throws Exception {
@@ -330,6 +421,17 @@ class AddMirrorSource78881Test {
       worksheetService.setWorksheet(ws, entry, null, true, true);
       repository().clearCache(entry);
       SnapshotEmbeddedTableDataCache.getInstance().clear();
+   }
+
+   /** Saves a global worksheet whose primary assembly is a variable. */
+   private void saveVariableSource(String path) throws Exception {
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                        path, null);
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(variable(ws, "V"));
+      ws.setPrimaryAssembly("V");
+      worksheetService.setWorksheet(ws, entry, null, true, true);
+      repository().clearCache(entry);
    }
 
    /** A variable as add_variable creates it, with its definition. */
