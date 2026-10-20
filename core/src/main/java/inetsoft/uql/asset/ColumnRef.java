@@ -360,6 +360,23 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
    }
 
    /**
+    * Get the position this column held in the full ordered column list when it was hidden
+    * from a table, so it can be put back there when shown again.
+    * @return the 0-based position, or -1 if unknown.
+    */
+   public int getHiddenPosition() {
+      return hiddenPosition;
+   }
+
+   /**
+    * Set the position this column held in the full ordered column list when it was hidden.
+    * @param hiddenPosition the 0-based position, or -1 if unknown.
+    */
+   public void setHiddenPosition(int hiddenPosition) {
+      this.hiddenPosition = hiddenPosition;
+   }
+
+   /**
     * Check if is visible.
     * @return true if is visible, false otherwise.
     */
@@ -614,6 +631,12 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
          writer.print("\"");
       }
 
+      if(hiddenPosition >= 0) {
+         writer.print(" hiddenpos=\"");
+         writer.print(hiddenPosition);
+         writer.print("\"");
+      }
+
       if(!sql) {
          writer.print(" sql=\"");
          writer.print(sql);
@@ -655,6 +678,7 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
     */
    @Override
    protected void writeAttributes2(DataOutputStream dos) {
+      // hiddenPosition is deliberately XML-only (see writeAttributes); the binary form drops it
       try {
          dos.writeInt(width);
          dos.writeBoolean(visible);
@@ -693,6 +717,18 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
 
       if(val != null) {
          visible = "true".equals(val);
+      }
+
+      val = Tool.getAttribute(tag, "hiddenpos");
+
+      if(val != null) {
+         try {
+            hiddenPosition = Integer.parseInt(val);
+         }
+         catch(NumberFormatException ex) {
+            // a malformed mark must not abort the whole viewsheet parse; behave as unrecorded
+            hiddenPosition = -1;
+         }
       }
 
       val = Tool.getAttribute(tag, "valid");
@@ -926,6 +962,7 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
       this.caption = from.caption;
       this.width = from.width;
       this.visible = from.visible;
+      this.hiddenPosition = from.hiddenPosition;
       this.valid = from.valid;
       this.sql = from.sql;
       this.dtype = from.dtype;
@@ -954,6 +991,7 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
 
          return Tool.equals(ref, cref.ref) && Tool.equals(alias, cref.alias) &&
             width == cref.width && visible == cref.visible &&
+            hiddenPosition == cref.hiddenPosition &&
             valid == cref.valid && sql == cref.sql && Tool.equals(desc, cref.desc) &&
             Tool.equals(dtype, cref.dtype);
       }
@@ -1022,6 +1060,7 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
    private byte width = 1;
    private int pixelWidth;
    private boolean visible = true;
+   private int hiddenPosition = -1;
    private boolean valid = true;
    private boolean sql = true;
    private String dtype = null;

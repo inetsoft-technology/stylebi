@@ -23,6 +23,7 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -90,7 +91,14 @@ public class HideColumnsDialogService {
       TableVSAssemblyInfo clone = (TableVSAssemblyInfo)info.clone();
       ColumnSelection oavailable = info.getColumnSelection();
       ColumnSelection ohidden = info.getHiddenColumns();
-      List<DataRef> columns = getAllColumns(oavailable, ohidden);
+      List<DataRef> columns = getOrderedColumns(oavailable, ohidden);
+      Set<String> wasHidden = new HashSet<>();
+      Enumeration<DataRef> hrefs = ohidden.getAttributes();
+
+      while(hrefs.hasMoreElements()) {
+         wasHidden.add(hrefs.nextElement().getAttribute());
+      }
+
       ColumnSelection availableColumns = new ColumnSelection();
       ColumnSelection hiddenColumns = new ColumnSelection();
 
@@ -98,11 +106,13 @@ public class HideColumnsDialogService {
          DataRef ref = columns.get(i);
 
          if(model.availableColumns().contains(ref.getAttribute())) {
-            availableColumns.addAttribute(ref);
+            availableColumns.addAttribute(withHiddenPosition(ref, -1));
          }
 
          if(model.hiddenColumns().contains(ref.getAttribute())) {
-            hiddenColumns.addAttribute(ref);
+            // remember where a newly hidden column sat; an already hidden one keeps its mark
+            int pos = wasHidden.contains(ref.getAttribute()) ? -2 : i;
+            hiddenColumns.addAttribute(pos == -2 ? ref : withHiddenPosition(ref, pos));
          }
       }
 
@@ -114,14 +124,55 @@ public class HideColumnsDialogService {
       return null;
    }
 
-   private List<DataRef> getAllColumns(ColumnSelection show, ColumnSelection hide) {
+   private DataRef withHiddenPosition(DataRef ref, int pos) {
+      if(!(ref instanceof ColumnRef) || ((ColumnRef) ref).getHiddenPosition() == pos) {
+         return ref;
+      }
+
+      ColumnRef copy = (ColumnRef) ref.clone();
+      copy.setHiddenPosition(pos);
+      return copy;
+   }
+
+   /**
+    * Get the table's columns, shown and hidden, in their full original order. A hidden column
+    * is put back at the position it held when it was hidden, clamped to the list's size when
+    * columns have since been added or removed; a hidden column with no recorded position
+    * (hidden before positions were recorded) goes after every other column.
+    */
+   public static List<DataRef> getOrderedColumns(ColumnSelection show, ColumnSelection hide) {
       List<DataRef> cols = new ArrayList<>();
       addColumns(cols, show);
-      addColumns(cols, hide);
+      List<DataRef> hidden = new ArrayList<>();
+      addColumns(hidden, hide);
+      List<DataRef> positioned = new ArrayList<>();
+
+      for(DataRef ref : hidden) {
+         if(hiddenPositionOf(ref) >= 0) {
+            positioned.add(ref);
+         }
+      }
+
+      positioned.sort(Comparator.comparingInt(HideColumnsDialogService::hiddenPositionOf));
+
+      for(DataRef ref : positioned) {
+         cols.add(Math.min(hiddenPositionOf(ref), cols.size()), ref);
+      }
+
+      for(DataRef ref : hidden) {
+         if(hiddenPositionOf(ref) < 0) {
+            cols.add(ref);
+         }
+      }
+
       return cols;
    }
 
-   private void addColumns(List<DataRef> all, ColumnSelection part) {
+   private static int hiddenPositionOf(DataRef ref) {
+      return ref instanceof ColumnRef ? ((ColumnRef) ref).getHiddenPosition() : -1;
+   }
+
+   private static void addColumns(List<DataRef> all, ColumnSelection part) {
       Enumeration<DataRef> refs = part.getAttributes();
       DataRef currentRef = null;
 

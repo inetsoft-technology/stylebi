@@ -2387,6 +2387,254 @@ class TableBindingServiceTest {
    }
 
    /**
+    * Bug #78852 read side: a hidden column reads back at the slot it was hidden from, typed as
+    * the dimension every other details column is, not appended last with no type.
+    */
+   @Test
+   void readInterleavesAHiddenColumnAtItsRecordedPositionWithATypeOfDimension() throws Exception {
+      TableVSAssembly table = tableWithHiddenB();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      Map<String, Object> read = service.read("tok", principal(), "TableView2");
+
+      @SuppressWarnings("unchecked")
+      Map<String, List<FieldRef>> shelves =
+         (Map<String, List<FieldRef>>) (Map<String, ?>) read.get("shelves");
+      List<FieldRef> details = shelves.get("details");
+      assertEquals(List.of("A", "B", "C"), details.stream().map(FieldRef::column).toList());
+      assertEquals(Boolean.FALSE, details.get(1).visible());
+      assertEquals("dimension", details.get(1).type(),
+                   "a hidden details column must read back typed like the shown ones");
+   }
+
+   /**
+    * Bug #78852 review I1: {@code add_table_field.position} on a Table counts the full (shown
+    * and hidden) order {@code get_table_binding} reports, so an index read back and written back
+    * names the same slot.
+    */
+   @Test
+   void addFieldPositionCountsHiddenColumnsLikeTheReadBack() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "D", "E");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         hiddenAt(1, "B"));
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      // full order is A,B,C,D,E: D reads back at index 3, so Z at 3 sits immediately before D
+      service.addField("tok", principal(), "TableView2", "details", dim("Z"), 3, null);
+
+      assertEquals(List.of("A", "C", "Z", "D", "E"),
+                   written[0].getDetails().stream().map(d -> d.getName()).toList());
+      assertEquals(1, hiddenPositionOf(table, "B"), "B still sits after A");
+
+   }
+
+   @Test
+   void addFieldBeforeAHiddenColumnShiftsItsRecordedPosition() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "D", "E");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      // index 1 is B's own slot: Y goes before it, so a later show of B lands after Y
+      service.addField("tok", principal(), "TableView2", "details", dim("Y"), 1, null);
+
+      assertEquals(List.of("A", "Y", "C", "D", "E"),
+                   written[0].getDetails().stream().map(d -> d.getName()).toList());
+      assertEquals(2, hiddenPositionOf(table, "B"));
+   }
+
+   @Test
+   void addFieldRefusesAPositionPastTheFullOrder() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.addField("tok", principal(), "TableView2", "details", dim("Z"), 4, null));
+      assertTrue(e.getMessage().contains("0 to 3"), e.getMessage());
+   }
+
+   /** Bug #78852 review I3: removing a shown column before a hidden one keeps the hidden slot. */
+   @Test
+   void removeFieldKeepsAHiddenColumnsSlotRelativeToItsNeighbours() throws Exception {
+      TableVSAssembly table = tableWithHiddenB();
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      service.removeField("tok", principal(), "TableView2", "details", "A");
+
+      // full order was A,B,C; without A it is B,C, so B is now slot 0
+      assertEquals(0, hiddenPositionOf(table, "B"));
+   }
+
+   /** Bug #78852 review M9: a bare shown column must not be taken for an entity-qualified hidden one. */
+   @Test
+   void readKeepsABareColumnAndAnEntityQualifiedHiddenColumnOfTheSameAttributeApart()
+      throws Exception
+   {
+      TableVSAssembly table = tableWithColumns("TableView2", "Id", "Name");
+      inetsoft.uql.ColumnSelection hidden = new inetsoft.uql.ColumnSelection();
+      inetsoft.uql.asset.ColumnRef product = new inetsoft.uql.asset.ColumnRef(
+         new inetsoft.uql.erm.AttributeRef("Product", "Name"));
+      product.setHiddenPosition(0);
+      hidden.addAttribute(product);
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hidden);
+      TableBindingService service = hiddenColumnService(table, null);
+
+      Map<String, Object> read = service.read("tok", principal(), "TableView2");
+
+      @SuppressWarnings("unchecked")
+      Map<String, List<FieldRef>> shelves =
+         (Map<String, List<FieldRef>>) (Map<String, ?>) read.get("shelves");
+      List<FieldRef> details = shelves.get("details");
+      assertEquals(List.of("Product.Name", "Id", "Name"),
+                   details.stream().map(FieldRef::column).toList());
+      assertEquals(List.of(Boolean.FALSE, Boolean.TRUE, Boolean.TRUE),
+                   details.stream().map(FieldRef::visible).toList());
+   }
+
+   @Test
+   void addFieldRestampsSeveralHiddenColumnsTogether() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "E");
+      inetsoft.uql.ColumnSelection hidden = columnRefSelectionOf("B", "D");
+      ((inetsoft.uql.asset.ColumnRef) hidden.getAttribute(0)).setHiddenPosition(1);
+      ((inetsoft.uql.asset.ColumnRef) hidden.getAttribute(1)).setHiddenPosition(3);
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hidden);
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      // full order A,B,C,D,E: Z at 3 goes between C and D
+      service.addField("tok", principal(), "TableView2", "details", dim("Z"), 3, null);
+
+      assertEquals(List.of("A", "C", "Z", "E"),
+                   written[0].getDetails().stream().map(d -> d.getName()).toList());
+      assertEquals(1, hiddenPositionOf(table, "B"));
+      assertEquals(4, hiddenPositionOf(table, "D"));
+   }
+
+   @Test
+   void addFieldReaddingAHiddenColumnPlacesItAtTheRequestedSlot() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "D", "E");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      service.addField("tok", principal(), "TableView2", "details", dim("B"), 3, null);
+
+      assertEquals(List.of("A", "C", "D", "B", "E"),
+                   written[0].getDetails().stream().map(d -> d.getName()).toList());
+   }
+
+   @Test
+   void addFieldPositionErrorForAHiddenReaddNamesTheCountItUses() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "D", "E");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.addField("tok", principal(), "TableView2", "details", dim("B"), 5, null));
+      assertTrue(e.getMessage().contains("0 to 4") && e.getMessage().contains("'B'"),
+                 e.getMessage());
+      assertFalse(e.getMessage().contains("holds 4 field(s)"), e.getMessage());
+   }
+
+   /** Bug #78852 review I4: a differently-cased name re-stamps the same as the exact one. */
+   @Test
+   void removeFieldWithALowercaseNameStillKeepsAHiddenColumnsSlot() throws Exception {
+      TableVSAssembly table = tableWithHiddenB();
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      service.removeField("tok", principal(), "TableView2", "details", "a");
+
+      assertEquals(0, hiddenPositionOf(table, "B"));
+   }
+
+   @Test
+   void addFieldReaddingAHiddenColumnByALowercaseNamePlacesItAtTheRequestedSlot()
+      throws Exception
+   {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "D", "E");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      service.addField("tok", principal(), "TableView2", "details", dim("b"), 3, null);
+
+      assertEquals(List.of("a", "c", "d", "b", "e"),
+                   written[0].getDetails().stream().map(d -> d.getName().toLowerCase())
+                      .toList());
+   }
+
+   /** Bug #78852 review M12: remove's index counts hidden columns, like add's position. */
+   @Test
+   void removeFieldIndexIsTranslatedFromTheFullOrder() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "D");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      service.removeField("tok", principal(), "TableView2", "details", "D", 3);
+
+      assertEquals(List.of("A", "C"),
+                   written[0].getDetails().stream().map(d -> d.getName()).toList());
+      assertEquals(1, hiddenPositionOf(table, "B"));
+   }
+
+   private static TableVSAssembly tableWithHiddenB() {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      return table;
+   }
+
+   private static inetsoft.uql.ColumnSelection hiddenAt(int position, String name) {
+      inetsoft.uql.ColumnSelection selection = columnRefSelectionOf(name);
+      ((inetsoft.uql.asset.ColumnRef) selection.getAttribute(0)).setHiddenPosition(position);
+      return selection;
+   }
+
+   private static int hiddenPositionOf(TableVSAssembly table, String name) {
+      return ((inetsoft.uql.asset.ColumnRef) ((TableVSAssemblyInfo) table.getVSAssemblyInfo())
+         .getHiddenColumns().getAttribute(name)).getHiddenPosition();
+   }
+
+   private static TableBindingService hiddenColumnService(TableVSAssembly table,
+                                                          TableBindingModel[] written)
+      throws Exception
+   {
+      ViewsheetSessionService sessions = sessionsFor(table);
+      inetsoft.web.binding.service.DataRefModelFactoryService refModelService =
+         mock(inetsoft.web.binding.service.DataRefModelFactoryService.class);
+      when(refModelService.createDataRefModel(any())).thenAnswer(
+         invocation -> new inetsoft.web.binding.drm.ColumnRefModel(invocation.getArgument(0)));
+
+      VSBindingService binding = mock(VSBindingService.class);
+      when(binding.createModel(any())).thenAnswer(invocation -> {
+         TableBindingModel created =
+            new TableBindingModel(refModelService, (TableVSAssembly) invocation.getArgument(0));
+         created.setSource(new inetsoft.web.binding.model.SourceInfo());
+         created.getSource().setSource("ORDERS");
+         return created;
+      });
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      if(written != null) {
+         doAnswer(invocation -> {
+            ApplyVSAssemblyInfoEvent event = invocation.getArgument(1);
+            written[0] = (TableBindingModel) event.getBinding();
+            return null;
+         }).when(bindings).setBinding(anyString(), any(), any(), any());
+      }
+
+      return new TableBindingService(
+         sessions, binding, bindings, refModelService,
+         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class),
+         committingAssemblyInfoHandler());
+   }
+
+   /**
     * Write side of bug #76820: re-adding a hidden column via {@code add_table_field}/{@code
     * set_table_fields} left it present in both {@code getColumnSelection()} and {@code
     * getHiddenColumns()} at once, so {@code get_table_binding} kept reporting it hidden even

@@ -1357,7 +1357,7 @@ public final class TableBindingMutator {
       return formula + "(" + column + ")";
    }
 
-   private static FieldRef fieldOf(DataRefModel ref, String shelf) {
+   static FieldRef fieldOf(DataRefModel ref, String shelf) {
       FieldRef field = FieldRefFactory.from(ref);
 
       // A detail column is neither dimension nor measure on the wire, but the shared
