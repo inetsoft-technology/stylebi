@@ -1794,4 +1794,113 @@ class AssemblyHyperlinkServiceTest {
       rewrite.service().set("tok", principal(), "Table1", rowOf(4), web(true), "");
       assertTrue(capture(rewrite.links()).isApplyToRow());
    }
+
+   // Bug #78921: links to a deleted (Recycle Bin) viewsheet
+
+   private static void assertRefusedAsRecycled(Harness h, Map<String, Object> link) {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null, link, ""));
+      String m = e.getMessage().toLowerCase();
+      assertTrue(m.contains("recycle bin") && m.contains("deleted"), m);
+   }
+
+   @Test
+   void recycledPathIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(true);
+
+      assertRefusedAsRecycled(h, link("linkType", "viewsheet",
+                                      "assetLinkPath", "Recycle Bin/abc-123"));
+   }
+
+   @Test
+   void recycledUserScopePathIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(true);
+
+      assertRefusedAsRecycled(h, link("linkType", "viewsheet",
+                                      "assetLinkPath", "My Dashboards/Recycle Bin/abc-123"));
+   }
+
+   @Test
+   void pathMerelyContainingRecycleBinIsAccepted() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(true);
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "viewsheet", "assetLinkPath", "Reports/Recycle Bin Analysis"), ""));
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "viewsheet", "assetLinkPath", "Recycle Bin Archive/x"), ""));
+   }
+
+   @Test
+   void recycledAssetIdIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      assertRefusedAsRecycled(h, link("linkType", "viewsheet", "assetLinkPath", "Recycle Bin/abc",
+                                      "assetLinkId", "1^128^__NULL__^Recycle Bin/abc^host-org"));
+   }
+
+   @Test
+   void malformedAssetIdIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+                                  "assetLinkId", "not-an-id"), ""));
+      assertTrue(e.getMessage().contains("not a valid viewsheet asset identifier"));
+   }
+
+   @Test
+   void validAssetIdWithOrgIsStillAccepted() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+              "assetLinkId", "1^128^__NULL__^Reports/Detail^host-org"), ""));
+   }
+
+   @Test
+   void readFlagsADeletedViewsheetTarget() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(Hyperlink.VIEWSHEET_LINK);
+      model.setAssetLinkPath("Recycle Bin/abc-123");
+      model.setAssetLinkId("1^128^__NULL__^Recycle Bin/abc-123^host-org");
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      assertEquals(true, read.get("targetDeleted"));
+      assertTrue(((String) read.get("warning")).contains("deleted"));
+      assertEquals("Recycle Bin/abc-123", read.get("assetLinkPath"));
+   }
+
+   @Test
+   void readDoesNotFlagALiveViewsheetTarget() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(Hyperlink.VIEWSHEET_LINK);
+      model.setAssetLinkPath("Reports/Recycle Bin Analysis");
+      model.setAssetLinkId("1^128^__NULL__^Reports/Recycle Bin Analysis^host-org");
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      assertFalse(read.containsKey("targetDeleted"));
+      assertFalse(read.containsKey("warning"));
+   }
+
+   @Test
+   void readDoesNotFlagANonViewsheetLink() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(Hyperlink.WEB_LINK);
+      model.setAssetLinkPath("Recycle Bin/stale");
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      assertFalse(read.containsKey("targetDeleted"));
+   }
 }
