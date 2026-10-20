@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartBindable;
+import inetsoft.uql.viewsheet.graph.GanttVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.RelationChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -105,9 +106,16 @@ public class ChartAestheticAgentService {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          ChartBindingService.applySource(model, sourceTable);
-         ChartAestheticMutator.setField(
-            model, name, field, relationChart, rvs, chart.getSourceInfo(), refModelService,
-            perMeasureFrameChannels(chart));
+
+         if(isGantt(chart)) {
+            ChartAestheticMutator.setGanttField(
+               model, name, field, rvs, chart.getSourceInfo(), refModelService);
+         }
+         else {
+            ChartAestheticMutator.setField(
+               model, name, field, relationChart, rvs, chart.getSourceInfo(), refModelService,
+               perMeasureFrameChannels(chart));
+         }
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
@@ -148,7 +156,14 @@ public class ChartAestheticAgentService {
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       return apply(sessionToken, user, assemblyName, name, linkUri,
-            (chart, model) -> ChartAestheticMutator.clearField(model, name, relationChart));
+            (chart, model) -> {
+               if(isGantt(chart)) {
+                  ChartAestheticMutator.clearGanttField(model, name);
+               }
+               else {
+                  ChartAestheticMutator.clearField(model, name, relationChart);
+               }
+            });
    }
 
    public List<String> setFrame(String sessionToken, Principal user, String assemblyName, String channel,
@@ -209,6 +224,15 @@ public class ChartAestheticAgentService {
    private static boolean isMultiAesthetic(ChartVSAssembly chart) {
       VSChartInfo info = chart == null ? null : chart.getVSChartInfo();
       return info != null && info.isMultiAesthetic();
+   }
+
+   /**
+    * Bug #78918: whether field writes go onto the chart's start/milestone measures
+    * ({@code ChartAestheticMutator.setGanttField}) instead of the chart-level slot. Keyed on the
+    * info class, the one whose {@code isMultiAesthetic()} is hard-coded true.
+    */
+   private static boolean isGantt(ChartVSAssembly chart) {
+      return chart != null && chart.getVSChartInfo() instanceof GanttVSChartInfo;
    }
 
    /**
@@ -440,6 +464,13 @@ public class ChartAestheticAgentService {
     * writes the design flag ({@code ChangeSeparateStatusProcessor.process}), and the live/DC
     * override still wins on the very next read. Only clearing the comparison actually changes the
     * value this guard checks, so the DC-forced branch below names that instead.
+    *
+    * <p><b>Bug #78918:</b> a Gantt chart is not checked. {@code GanttVSChartInfo.isMultiAesthetic()}
+    * is hard-coded true whatever the multi-style setting, so this guard refused every field write
+    * on one and offered {@code set_chart_type(multi:false)}, which cannot change it. Its field
+    * writes go onto the start/milestone measures instead
+    * ({@code ChartAestheticMutator.setGanttField}), the slots a Gantt chart renders from, and never
+    * onto the chart-level slot this guard protects.
     */
    private void requireNotMultiAesthetic(String sessionToken, Principal user, String assemblyName)
       throws Exception
@@ -447,6 +478,10 @@ public class ChartAestheticAgentService {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       ChartVSAssembly chart = requireChart(rvs, assemblyName);
       VSChartInfo info = chart.getVSChartInfo();
+
+      if(isGantt(chart)) {
+         return;
+      }
 
       if(info != null && info.isMultiAesthetic()) {
          if(info.isAppliedDateComparison() && !info.isDesignMultiStyles()) {
