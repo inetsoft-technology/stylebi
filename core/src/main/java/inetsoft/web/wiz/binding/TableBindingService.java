@@ -1714,6 +1714,7 @@ public class TableBindingService {
          enriched.set(i, withVisibility(field, !hidden.contains(field.column())));
       }
 
+      Map<String, FieldRef> hiddenFields = new HashMap<>();
       Enumeration<DataRef> hiddenRefs = hiddenCols.getAttributes();
 
       while(hiddenRefs.hasMoreElements()) {
@@ -1726,10 +1727,40 @@ public class TableBindingService {
          ColumnRef col = (ColumnRef) ref.clone();
          col.setApplyingAlias(false);
          ColumnRefModel model = (ColumnRefModel) refModelService.createDataRefModel(col);
-         enriched.add(withVisibility(FieldRefFactory.from(model), false));
+         hiddenFields.put(ref.getAttribute(),
+                          withVisibility(TableBindingMutator.fieldOf(model, "details"), false));
       }
 
-      shelfFields.put("details", enriched);
+      // a hidden column reads back at the position it will return to when shown
+      List<FieldRef> ordered = new ArrayList<>();
+      Map<String, FieldRef> byName = new HashMap<>();
+
+      for(FieldRef field : enriched) {
+         byName.put(field.column(), field);
+      }
+
+      for(DataRef ref : HideColumnsDialogService.getOrderedColumns(info.getColumnSelection(),
+                                                                   hiddenCols))
+      {
+         FieldRef field = byName.remove(ref.getAttribute());
+
+         if(field == null) {
+            field = hiddenFields.remove(ref.getAttribute());
+         }
+
+         if(field != null) {
+            ordered.add(field);
+         }
+      }
+
+      for(FieldRef field : enriched) {
+         if(byName.containsKey(field.column())) {
+            ordered.add(field);
+         }
+      }
+
+      ordered.addAll(hiddenFields.values());
+      shelfFields.put("details", ordered);
    }
 
    /**
