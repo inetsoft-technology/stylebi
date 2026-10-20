@@ -141,8 +141,8 @@ public class ChartRegionPropertyService {
             "milliseconds with the date they mean, and are set as an ISO date or date-time " +
             "(or epoch milliseconds). increment is a number of the axis's date periods. " +
             "logarithmicScale, reverse, shared and minorIncrement do not apply." +
-            (primary == null ? "" : " This Gantt draws the axis from '" + primary +
-               "''s settings (the minimum/maximum listed here are that field's); set the axis " +
+            (primary == null ? "" : " This Gantt draws the axis from the settings of '" +
+               primary + "' (the minimum/maximum listed here are that field's); set the axis " +
                "with field '" + primary + "'."));
       }
 
@@ -852,7 +852,7 @@ public class ChartRegionPropertyService {
       if(primary != null) {
          throw new IllegalArgumentException(
             "'" + field + "' shares this Gantt chart's one time axis with '" + primary + "', and " +
-            "the axis is drawn only from '" + primary + "''s settings (the first bound of start, " +
+            "the axis is drawn only from the settings of '" + primary + "' (the first bound of start, " +
             "end and milestone), so this write would be silently ignored. Pass field '" +
             primary + "' instead. Nothing was changed.");
       }
@@ -929,9 +929,19 @@ public class ChartRegionPropertyService {
    }
 
    /**
+    * The smallest magnitude accepted as epoch milliseconds: 1e8 ms is about 28 hours after
+    * 1970-01-01T00:00Z. A smaller number is never a real axis bound; it is a bare year
+    * ({@code 2025}) or a typo, and read as milliseconds it silently drew the axis in 1970 (bug
+    * #78919 review). Real epoch values for any date after 1970-01-02 have 9 or more digits, and
+    * dates before 1969-12-31 are equally far below zero, so nothing plausible is lost.
+    */
+   private static final long MIN_EPOCH_MILLIS = 100_000_000L;
+
+   /**
     * A time axis's minimum or maximum as epoch milliseconds: an ISO date ({@code 2025-01-01},
-    * the start of that day), an ISO date-time with or without an offset (without one, it is
-    * server-local time, as the chart's own date values are), or a number of epoch milliseconds.
+    * the start of that day), a compact ISO date ({@code 20250101}), an ISO date-time with or
+    * without an offset (without one, it is server-local time, as the chart's own date values
+    * are), or a number of epoch milliseconds at least {@link #MIN_EPOCH_MILLIS} in magnitude.
     * null or exactly "" clears the value.
     */
    private static Long epochMillis(String key, Object value) {
@@ -943,64 +953,99 @@ public class ChartRegionPropertyService {
          double d = number.doubleValue();
 
          if(Double.isFinite(d)) {
-            return number instanceof Double || number instanceof Float
-               ? Long.valueOf(Math.round(d)) : Long.valueOf(number.longValue());
+            long millis = number instanceof Double || number instanceof Float
+               ? Math.round(d) : number.longValue();
+
+            if(Math.abs(millis) >= MIN_EPOCH_MILLIS) {
+               return millis;
+            }
          }
       }
       else {
          String text = String.valueOf(value).trim();
 
          if(!text.isEmpty()) {
-            try {
-               return Long.parseLong(text);
-            }
-            catch(NumberFormatException ignore) {
-               // not a plain integer; try the other forms
-            }
-
-            try {
-               double d = Double.parseDouble(text);
-
-               if(Double.isFinite(d)) {
-                  return Math.round(d);
+            // Before the number forms: read as milliseconds, 20250101 is 1970-01-01T05:37Z.
+            if(text.length() == 8 && text.chars().allMatch(c -> c >= '0' && c <= '9')) {
+               try {
+                  return LocalDate.parse(text, DateTimeFormatter.BASIC_ISO_DATE)
+                     .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+               }
+               catch(DateTimeParseException ignore) {
+                  // not a real date (e.g. 20251399); falls through to the refusal below
                }
             }
-            catch(NumberFormatException ignore) {
-               // not a number; try a date
-            }
 
-            String iso = text.replaceFirst(" ", "T");
+            Long number = parseNumber(text);
 
-            try {
-               return OffsetDateTime.parse(iso).toInstant().toEpochMilli();
+            if(number != null) {
+               if(Math.abs(number) >= MIN_EPOCH_MILLIS) {
+                  return number;
+               }
             }
-            catch(DateTimeParseException ignore) {
-               // no offset; try a local date-time
-            }
+            else {
+               Long date = parseIsoDate(text);
 
-            try {
-               return LocalDateTime.parse(iso).atZone(ZoneId.systemDefault()).toInstant()
-                  .toEpochMilli();
-            }
-            catch(DateTimeParseException ignore) {
-               // no time; try a date
-            }
-
-            try {
-               return LocalDate.parse(iso).atStartOfDay(ZoneId.systemDefault()).toInstant()
-                  .toEpochMilli();
-            }
-            catch(DateTimeParseException ignore) {
-               // falls through to the refusal below
+               if(date != null) {
+                  return date;
+               }
             }
          }
       }
 
       throw new IllegalArgumentException(
-         "'" + key + "' on a time (date) axis must be a date such as 2025-01-01, a date-time " +
-         "such as 2025-01-01T08:30:00 (server-local time) or 2025-01-01T08:30:00Z (with an " +
-         "offset), or epoch milliseconds such as 1735689600000 (or empty to clear it); '" +
-         value + "' is not. Nothing was changed.");
+         "'" + key + "' on a time (date) axis must be a date such as 2025-01-01 (or 20250101), " +
+         "a date-time such as 2025-01-01T08:30:00 (server-local time) or 2025-01-01T08:30:00Z " +
+         "(with an offset), or epoch milliseconds such as 1735689600000 (or empty to clear " +
+         "it); '" + value + "' is not. A number is read as epoch milliseconds, so one below " +
+         MIN_EPOCH_MILLIS + " in magnitude (such as a bare year) is refused rather than drawn " +
+         "in 1970. Nothing was changed.");
+   }
+
+   /** A plain integer or decimal, rounded to a long; null when the text is not a finite one. */
+   private static Long parseNumber(String text) {
+      try {
+         return Long.parseLong(text);
+      }
+      catch(NumberFormatException ignore) {
+         // not a plain integer; try a decimal
+      }
+
+      try {
+         double d = Double.parseDouble(text);
+         return Double.isFinite(d) ? Long.valueOf(Math.round(d)) : null;
+      }
+      catch(NumberFormatException ignore) {
+         return null;
+      }
+   }
+
+   /** An ISO date-time with an offset, a local date-time, or a date; null when none parses. */
+   private static Long parseIsoDate(String text) {
+      String iso = text.replaceFirst(" ", "T");
+
+      try {
+         return OffsetDateTime.parse(iso).toInstant().toEpochMilli();
+      }
+      catch(DateTimeParseException ignore) {
+         // no offset; try a local date-time
+      }
+
+      try {
+         return LocalDateTime.parse(iso).atZone(ZoneId.systemDefault()).toInstant()
+            .toEpochMilli();
+      }
+      catch(DateTimeParseException ignore) {
+         // no time; try a date
+      }
+
+      try {
+         return LocalDate.parse(iso).atStartOfDay(ZoneId.systemDefault()).toInstant()
+            .toEpochMilli();
+      }
+      catch(DateTimeParseException ignore) {
+         return null;
+      }
    }
 
    /** Epoch milliseconds as an ISO date-time with the server's offset, for read-back. */
@@ -1388,7 +1433,9 @@ public class ChartRegionPropertyService {
       catch(IllegalArgumentException e) {
          // A Gantt draws its time axis at the bottom, where a caller looks for x, but the engine
          // and the binding address it as y (bug #78919).
-         String hint = "axis".equals(region) ? ganttTimeAxisHint(sessionToken, user, assembly) : "";
+         // Only for a missing x: for a missing y2/x2 "use target y" is not the answer.
+         String hint = "axis".equals(region) && "x".equals(ChartRegionResolver.canonical(target))
+            ? ganttTimeAxisHint(sessionToken, user, assembly) : "";
 
          if(hint.isEmpty()) {
             throw e;

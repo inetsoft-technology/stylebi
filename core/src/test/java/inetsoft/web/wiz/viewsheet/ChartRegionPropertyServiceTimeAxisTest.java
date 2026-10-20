@@ -113,6 +113,82 @@ class ChartRegionPropertyServiceTimeAxisTest {
       assertEquals(JAN_1, firstTick(g));
    }
 
+   /** Review r1: a bare year or a small number used to be read as epoch ms and drawn in 1970. */
+   @Test
+   void aBareYearOrASmallNumberIsRefusedNotDrawnIn1970() throws Exception {
+      for(Object value : List.of("2025", 2025, "99999999", "-5", "2025.5")) {
+         Gantt g = gantt(true);
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> g.service.set("tok", principal(), "Chart1", "axis", "y", g.startName,
+                                Map.of("minimum", value), ""), String.valueOf(value));
+
+         assertTrue(thrown.getMessage().contains("2025-01-01"), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("epoch milliseconds"), thrown.getMessage());
+         assertNull(g.start.getAxisDescriptor().getMinimum(), String.valueOf(value));
+         verify(g.regions, never()).setAxisPropertyDialogModel(
+            anyString(), anyString(), anyString(), anyInt(), any(), any(), anyString(),
+            any(Principal.class), any());
+      }
+   }
+
+   @Test
+   void aCompactDateIsReadAsThatDate() throws Exception {
+      Gantt g = gantt(true);
+
+      g.service.set("tok", principal(), "Chart1", "axis", "y", g.startName,
+                    Map.of("minimum", "20250101"), "");
+
+      assertEquals(Long.valueOf(JAN_1), g.start.getAxisDescriptor().getMinimum());
+   }
+
+   @Test
+   void anInvalidCompactDateIsRefused() {
+      Gantt g = gantt(true);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> g.service.set("tok", principal(), "Chart1", "axis", "y", g.startName,
+                             Map.of("minimum", "20251399"), ""));
+      assertNull(g.start.getAxisDescriptor().getMinimum());
+   }
+
+   @Test
+   void anEpochMillisecondStringIsStillAccepted() throws Exception {
+      Gantt g = gantt(true);
+
+      g.service.set("tok", principal(), "Chart1", "axis", "y", g.startName,
+                    Map.of("minimum", "1735689600000", "maximum", "-100000000"), "");
+
+      assertEquals(Long.valueOf(1735689600000L), g.start.getAxisDescriptor().getMinimum());
+      assertEquals(Long.valueOf(-100000000L), g.start.getAxisDescriptor().getMaximum());
+   }
+
+   @Test
+   void theEndFieldRefusalReadsCleanly() throws Exception {
+      Gantt g = gantt(true);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> g.service.set("tok", principal(), "Chart1", "axis", "y", g.endName,
+                             Map.of("showTicks", false), ""));
+
+      assertFalse(thrown.getMessage().contains("''"), thrown.getMessage());
+
+      String note = (String) g.service.list("tok", principal(), "Chart1", "axis", "y", g.endName)
+         .get("note");
+      assertTrue(note.contains("'" + g.startName + "'"), note);
+      assertFalse(note.contains("''"), note);
+   }
+
+   @Test
+   void theMissingY2RefusalDoesNotPointToY() {
+      Gantt g = gantt(true);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> g.service.list("tok", principal(), "Chart1", "axis", "y2", null));
+
+      assertFalse(thrown.getMessage().contains("target 'y' with field"), thrown.getMessage());
+   }
+
    @Test
    void aWriteOfOtherKeysKeepsTheStoredRangeExact() throws Exception {
       Gantt g = gantt(true);
