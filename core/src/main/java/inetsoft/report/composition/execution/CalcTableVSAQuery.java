@@ -165,6 +165,7 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                synchronized(cassembly) {
                   VSLayoutTool.createCalcLens(cassembly, null, box.getVariableTable(), false);
                   clens = (CalcTableLens) cassembly.getBaseTable();
+                  applyInfoCounts(clens, info);
                   TableLayout layout = cassembly.getTableLayout();
                   hasFormula = hasFormulaBinding(layout);
 
@@ -209,7 +210,13 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          if(datas.size() == 0 || datas.contains(null)) {
             synchronized(cassembly) {
                VSLayoutTool.createCalcLens(cassembly, null, box.getVariableTable(), false);
-               return cassembly.getBaseTable();
+               TableLens base = cassembly.getBaseTable();
+
+               if(base instanceof CalcTableLens) {
+                  applyInfoCounts((CalcTableLens) base, info);
+               }
+
+               return base;
             }
          }
 
@@ -249,10 +256,7 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                   // createCalcLenses()
                   clens = (CalcTableLens) clenses.get(i);
                   clens.setScriptTable(dataChild);
-                  clens.setHeaderRowCount(info.getHeaderRowCount());
-                  clens.setHeaderColCount(info.getHeaderColCount());
-                  clens.setTrailerRowCount(info.getTrailerRowCount());
-                  clens.setTrailerColCount(info.getTrailerColCount());
+                  applyInfoCounts(clens, info);
                   clens.setProperty(XTable.REPORT_NAME, box.getID());
                   clens.setProperty(XTable.REPORT_TYPE,
                                     ExecutionBreakDownRecord.OBJECT_TYPE_VIEWSHEET);
@@ -400,6 +404,17 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             box.unlockWrite();
          }
       }
+   }
+
+   /**
+    * Make the lens header/trailer row/col counts agree with the assembly info, which is what
+    * decides the cell data path type (HEADER/TRAILER/DETAIL) formats are stored under (#78930).
+    */
+   private static void applyInfoCounts(CalcTableLens clens, CalcTableVSAssemblyInfo info) {
+      clens.setHeaderRowCount(info.getHeaderRowCount());
+      clens.setHeaderColCount(info.getHeaderColCount());
+      clens.setTrailerRowCount(info.getTrailerRowCount());
+      clens.setTrailerColCount(info.getTrailerColCount());
    }
 
    private boolean isChangeMeaningFormula(AggregateFormula formula) {
