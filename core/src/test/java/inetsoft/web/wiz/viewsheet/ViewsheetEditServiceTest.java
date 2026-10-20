@@ -39,8 +39,10 @@ import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
+import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.ImageVSAssembly;
 import inetsoft.uql.viewsheet.LockableVSAssembly;
+import inetsoft.uql.viewsheet.RectangleVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.ShapeVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
@@ -117,6 +119,68 @@ class ViewsheetEditServiceTest {
                                    anyString());
       assertEquals(300, captor.getValue().getWidth());
       assertEquals(150, captor.getValue().getHeight());
+   }
+
+   /**
+    * Bug #78901: layout re-derives a group container's size from its members, and an embedded
+    * viewsheet's from its contents, so {@code resize} on either is refused before anything is
+    * written instead of reporting a resize that is thrown away. The real-class version is
+    * {@code ViewsheetEditServiceResizeTest}.
+    */
+   @Test
+   void resizeOnAGroupContainerFailsLoudRatherThanSilentlyReverting() {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWithRuntime(
+         runtimeWith("GroupContainer1", mock(GroupContainerVSAssembly.class)),
+         readerReturning(new AssemblyNode("GroupContainer1", "GroupContainer", 20, 380, 300, 220,
+                                          0, null, true)), objects);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> service.apply(
+         "tok", principal(), sized("resize", "GroupContainer1", 600, 400), ""));
+      assertTrue(thrown.getMessage().contains("GroupContainer1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("group container"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("member"), thrown.getMessage());
+      verifyNoInteractions(objects);
+   }
+
+   @Test
+   void resizeOnAnEmbeddedViewsheetFailsLoudRatherThanSilentlyReverting() {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWithRuntime(
+         runtimeWith("Viewsheet1", mock(Viewsheet.class)),
+         readerReturning(new AssemblyNode("Viewsheet1", "Viewsheet", 40, 60, 100, 50, 0, null,
+                                          true)), objects);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> service.apply(
+         "tok", principal(), sized("resize", "Viewsheet1", 400, 300), ""));
+      assertTrue(thrown.getMessage().contains("Viewsheet1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("embedded viewsheet"), thrown.getMessage());
+      verifyNoInteractions(objects);
+   }
+
+   /** A rectangle, a tab and a selection container own their size and still resize. */
+   @ParameterizedTest
+   @ValueSource(strings = { "Rectangle", "Tab", "CurrentSelection" })
+   void resizeStillAppliesToAssembliesThatOwnTheirSize(String type) throws Exception {
+      VSAssembly assembly = switch(type) {
+         case "Rectangle" -> mock(RectangleVSAssembly.class);
+         case "Tab" -> mock(TabVSAssembly.class);
+         default -> mock(CurrentSelectionVSAssembly.class);
+      };
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWithRuntime(runtimeWith("Obj1", assembly),
+         readerReturning(new AssemblyNode("Obj1", type, 10, 10, 150, 30, 0, null, true)),
+         objects);
+
+      service.apply("tok", principal(), sized("resize", "Obj1", 250, 40), "");
+
+      ArgumentCaptor<ResizeVSObjectEvent> captor =
+         ArgumentCaptor.forClass(ResizeVSObjectEvent.class);
+      verify(objects).resizeObject(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                   anyString());
+      assertEquals("Obj1", captor.getValue().getName());
+      assertEquals(250, captor.getValue().getWidth());
+      assertEquals(40, captor.getValue().getHeight());
    }
 
    @Test
