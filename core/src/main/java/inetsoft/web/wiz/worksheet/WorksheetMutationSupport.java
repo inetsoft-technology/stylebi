@@ -4353,7 +4353,91 @@ public final class WorksheetMutationSupport {
          ref = resolveFieldOrNull(t, key, false);
       }
 
+      // A concatenation's stored type is narrowed to its first subtable's; join against the type
+      // its rows actually carry. The stored selection is left alone (see mergedConcatSelection).
+      if(ref instanceof ColumnRef cr) {
+         String type = effectiveType(mergedConcatSelection(t), cr);
+
+         if(!Tool.equals(type, cr.getDataType())) {
+            cr = (ColumnRef) cr.clone();
+            cr.setDataType(type);
+            ref = cr;
+         }
+      }
+
       return ref;
+   }
+
+   /**
+    * Bug #78896: the column types a non-aggregate concatenation's rows actually carry. Every
+    * refresh widens the stored selection to the merged subtable type, but
+    * {@link ConcatenatedTableAssembly#checkValidity} narrows it back to the first subtable's, so
+    * the stored type disagrees with the data and with a mirror of the concatenation (which reads
+    * the merged type). Built on {@link ConcatenatedTableAssembly#getDefaultColumnSelection}, with
+    * a nested concatenation contributing its own merged types instead of its stored ones. The
+    * result is for reporting and guards only: it must not be written to the stored selection,
+    * since {@code checkValidity} would undo it.
+    *
+    * @return the merged selection, or {@code null} when {@code t} is not a non-aggregate
+    *         concatenation or its subtables cannot be resolved
+    */
+   public static ColumnSelection mergedConcatSelection(TableAssembly t) {
+      if(!(t instanceof ConcatenatedTableAssembly concat) || t.isAggregate()) {
+         return null;
+      }
+
+      try {
+         TableAssembly[] subs = concat.getTableAssemblies(true);
+
+         if(subs == null || subs.length == 0 || Arrays.asList(subs).contains(null)) {
+            return null;
+         }
+
+         ColumnSelection merged = ConcatenatedTableAssembly.getDefaultColumnSelection(subs);
+
+         if(merged == null) {
+            return null;
+         }
+
+         for(TableAssembly sub : subs) {
+            ColumnSelection nested = mergedConcatSelection(sub);
+
+            if(nested == null) {
+               continue;
+            }
+
+            ColumnSelection pub = sub.getColumnSelection(true);
+
+            for(int i = 0; i < merged.getAttributeCount() && i < pub.getAttributeCount(); i++) {
+               ColumnRef col = (ColumnRef) merged.getAttribute(i);
+               col.setDataType(XSchema.mergeNumericType(
+                  col.getDataType(), effectiveType(nested, pub.getAttribute(i))));
+            }
+         }
+
+         return merged;
+      }
+      catch(RuntimeException e) {
+         // a dangling or half-built subtable: keep reporting the stored types
+         return null;
+      }
+   }
+
+   /**
+    * The type of {@code ref} per {@code merged} (see {@link #mergedConcatSelection}), matched by
+    * attribute like the refresh does; the stored type for an expression column, a column the
+    * merged selection has no counterpart for, or a {@code null} {@code merged}.
+    */
+   public static String effectiveType(ColumnSelection merged, DataRef ref) {
+      String stored = ref.getDataType();
+
+      if(merged == null || !(ref instanceof ColumnRef col) || col.isExpression()) {
+         return stored;
+      }
+
+      int idx = merged.indexOfAttribute(col);
+      String type = idx < 0 ? null : merged.getAttribute(idx).getDataType();
+      return type != null ? type : stored;
    }
 
    /** The type an expression column has before and after an edit, see {@link #prospectiveType}. */
