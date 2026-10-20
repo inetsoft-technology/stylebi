@@ -1814,7 +1814,7 @@ class TableBindingMutatorTest {
                    model.getOption().getPercentageByValue());
    }
 
-   /** By-column with no columns bound renders zeros rather than failing. */
+   /** By-column with no columns bound is refused: every cell would be its own total (100%). */
    @Test
    void refusesPercentageByColWithNoColumnsBound() {
       Exception thrown = assertThrows(
@@ -1822,7 +1822,20 @@ class TableBindingMutatorTest {
          () -> TableBindingMutator.setOptions(new CrosstabBindingModel(),
                                               Map.of("percentageBy", "col")));
 
-      assertTrue(thrown.getMessage().contains("zeros"));
+      assertTrue(thrown.getMessage().contains("100%"));
+      assertFalse(thrown.getMessage().contains("zeros"));
+   }
+
+   /** The row twin: by-row with no rows bound is refused for the same reason. */
+   @Test
+   void refusesPercentageByRowWithNoRowsBound() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setOptions(new CrosstabBindingModel(),
+                                              Map.of("percentageBy", "row")));
+
+      assertTrue(thrown.getMessage().contains("100%"));
+      assertFalse(thrown.getMessage().contains("zeros"));
    }
 
    @Test
