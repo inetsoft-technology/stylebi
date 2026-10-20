@@ -51,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -859,5 +860,37 @@ class WsMergeServiceTest {
       col.setDataType(XSchema.DOUBLE);
       col.setAlias(alias);
       return col;
+   }
+
+   // ─── ensureBaseHasPrevMirror: a taken "{name}_base" must refuse, not self-mirror ────────
+
+   private static void assertMergeRefusedWhenBaseNameTaken(String holderName) {
+      Worksheet dashWS = new Worksheet();
+      PhysicalBoundTableAssembly existing = physicalTable(dashWS, "PT", "pt_id");
+      dashWS.addAssembly(existing);
+
+      PhysicalBoundTableAssembly holder = new PhysicalBoundTableAssembly(dashWS, holderName);
+      holder.setSourceInfo(new SourceInfo(SourceInfo.PHYSICAL_TABLE, "postgres", "public.other"));
+      dashWS.addAssembly(holder);
+
+      Worksheet vizWS = new Worksheet();
+      vizWS.addAssembly(physicalTable(vizWS, "PT", "pt_id", "categ_id"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> new WsMergeService().mergeWorksheet(vizWS, dashWS, "suffix1", new HashMap<>()));
+
+      assertTrue(ex.getMessage().contains("'PT_base' already names a"), "got: " + ex.getMessage());
+      assertSame(existing, dashWS.getAssembly("PT"), "PT must stay the original table");
+      assertSame(holder, dashWS.getAssembly(holderName), "the holder must be left alone");
+   }
+
+   @Test
+   void mergeRefusesWhenBaseNameIsHeldByATable() {
+      assertMergeRefusedWhenBaseNameTaken("PT_base");
+   }
+
+   @Test
+   void mergeRefusesWhenBaseNameIsHeldIgnoringCase() {
+      assertMergeRefusedWhenBaseNameTaken("pt_BASE");
    }
 }

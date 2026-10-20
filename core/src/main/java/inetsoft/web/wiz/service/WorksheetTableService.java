@@ -1247,7 +1247,8 @@ public class WorksheetTableService {
       if(tableName == null || tableName.isBlank() ||
          taken != null && !(taken instanceof TableAssembly))
       {
-         throw new IllegalArgumentException(addRefusal(kind.label(), tableName, taken));
+         throw new IllegalArgumentException(
+            WsServiceHelper.addRefusal(kind.label(), tableName, "tableName", taken));
       }
 
       return kind.builder().build(worksheet, request, user);
@@ -1288,18 +1289,10 @@ public class WorksheetTableService {
       if(!worksheet.addAssembly(table)) {
          String tableName = request.getTableName();
 
-         throw new IllegalArgumentException(addRefusal(
-            tableKind(request.getTableType()).label(), tableName, worksheet.getAssembly(tableName)));
+         throw new IllegalArgumentException(WsServiceHelper.addRefusal(
+            tableKind(request.getTableType()).label(), tableName, "tableName",
+            worksheet.getAssembly(tableName)));
       }
-   }
-
-   /** Why a table could not be added; taken is the assembly holding its name, if any. */
-   private static String addRefusal(String kind, String tableName, Assembly taken) {
-      return taken != null
-         ? kind + " '" + tableName + "' cannot be added: '" + tableName + "' already names a " +
-           WorksheetEditService.Editor.kindOf(taken) + " in this worksheet. Choose a different " +
-           "tableName."
-         : kind + " '" + tableName + "' could not be added to the worksheet.";
    }
 
    private AbstractTableAssembly buildPhysicalTable(Worksheet worksheet,
