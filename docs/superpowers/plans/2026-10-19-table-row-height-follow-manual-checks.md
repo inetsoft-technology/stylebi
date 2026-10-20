@@ -33,16 +33,18 @@
 
 ## Results
 
+Run 2026-10-20 on a server built from `52bab363c4`. Scripted checks: `.superpowers/baselines/table-row-height-follow/rhf-checks.js` (git-excluded), 29/29 pass against `RHF Fixture`.
+
 | ID | Result | Notes |
 |---|---|---|
-| MT-1 | | |
-| MT-2 | | |
-| MT-3 | | |
-| MT-4 | | |
-| MT-5 | | |
-| MT-6 | | |
-| MT-7 | | |
-| MT-8 | | |
-| MT-9 | | |
-| MT-10 | | |
-| MT-11 | | |
+| MT-1 | PASS (scripted) | ticked width-only OK: col 0 100->140, rows stay 24 and unpinned; compact -> comfortable: 28 |
+| MT-2 | PASS (scripted) | drag pins at 34; ticking returns 24, unpinned |
+| MT-3 | PASS (scripted) | untick, no typing: pinned, stays 24; -> dense draws 22 (16 + 6), not the tier 20 |
+| MT-4 | PASS (scripted) | Crosstab1 [26,26]; untick row 0, type 30: [38,26], header pinned |
+| MT-5 | PASS (scripted) | tick: [26,26], unpinned |
+| MT-6 | PASS (scripted) | freehand Crosstab2: all MT-1..5 and MT-9 checks pass |
+| MT-7 | PASS (scripted) | after Revert the model is unmarked (no box); a sent followsDensity is ignored, OK pins as before |
+| MT-8 | PASS (by hand) | no box in the viewer or preview |
+| MT-9 | PASS (scripted) | one undo restores the pinned 34 |
+| MT-10 | PASS (scripted + eye) | RHF MT-10 1708 PDF/PNG produced; PNG data-row pitch 28, crosstab header rows 30, col 0 140 |
+| MT-11 | PASS (by hand) | wrapped rows grow in whole-row steps after ticking |
