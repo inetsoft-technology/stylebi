@@ -2132,6 +2132,67 @@ class TableBindingServiceTest {
       assertTrue(thrown.getMessage().contains("product_name"));
    }
 
+   // ── set_table_column_sort on a hidden column (bug-78855) ───────────────────
+
+   private static TableVSAssembly tableWithShownAndHidden(String assemblyName, String[] shown,
+                                                          String[] hidden)
+   {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setColumnSelection(columnRefSelectionOf(shown));
+      info.setHiddenColumns(columnRefSelectionOf(hidden));
+      TableVSAssembly table = new TableVSAssembly(mock(Viewsheet.class), assemblyName);
+      table.setVSAssemblyInfo(info);
+      return table;
+   }
+
+   @Test
+   void setColumnSortNoneClearsASortOnAColumnThatWasHiddenAfterSorting() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "product_id", "product_name");
+      ViewsheetSessionService sessions = sessionsFor(table);
+      TableBindingService service = serviceWithCommittingHandler(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      service.setColumnSort("tok", principal(), "TableView2", "product_id", "asc", null);
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      info.setColumnSelection(columnRefSelectionOf("product_name"));
+      info.setHiddenColumns(columnRefSelectionOf("product_id"));
+      assertEquals(1, table.getSortInfo().getSortCount());
+
+      service.setColumnSort("tok", principal(), "TableView2", "product_id", "none", null);
+
+      assertEquals(0, table.getSortInfo().getSortCount(),
+                   "a bound-but-hidden column's sort must be clearable without un-hiding it");
+   }
+
+   @Test
+   void setColumnSortDescAppliesToAHiddenColumn() throws Exception {
+      TableVSAssembly table = tableWithShownAndHidden(
+         "TableView2", new String[] {"product_name"}, new String[] {"product_id"});
+      ViewsheetSessionService sessions = sessionsFor(table);
+      TableBindingService service = serviceWithCommittingHandler(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      service.setColumnSort("tok", principal(), "TableView2", "PRODUCT_ID", "desc", null);
+
+      assertEquals(Integer.valueOf(inetsoft.report.StyleConstants.SORT_DESC),
+                  orderOf(table.getSortInfo(), "product_id"));
+   }
+
+   @Test
+   void setColumnSortUnboundErrorListsHiddenColumnsMarkedHidden() throws Exception {
+      TableVSAssembly table = tableWithShownAndHidden(
+         "TableView2", new String[] {"product_name"}, new String[] {"product_id"});
+      ViewsheetSessionService sessions = sessionsFor(table);
+      TableBindingService service = serviceWith(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setColumnSort("tok", principal(), "TableView2", "ghost_col", "asc", null));
+
+      assertTrue(thrown.getMessage().contains("product_name"));
+      assertTrue(thrown.getMessage().contains("product_id (hidden)"), thrown.getMessage());
+   }
+
    @Test
    void setColumnSortRefusesACrosstabByName() {
       ViewsheetSessionService sessions = sessionsFor(mock(CrosstabVSAssembly.class));
