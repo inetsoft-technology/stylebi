@@ -1173,6 +1173,109 @@ class RowFetchFailureTest {
       }
    }
 
+   // Bug #78518: a load failure in a dynamic value that is not a text value, the visibility of
+   // a text, fails the scheduled export also when it comes after a hidden chart over the failed
+   // table: the chart's own failure is logged and does not stop the dynamic values (#78727), so
+   // the visibility is still run. Without the visibility the export completes, and an
+   // interactive export completes too
+   @Test
+   void scheduledExportOfAVisibilityReadAfterAHiddenFailedChartFails() throws Exception {
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         String read = "=TableV.table.length > 0";
+         ViewsheetSandbox scheduled = hiddenChartVisibilitySandbox(true, read);
+         assertEquals("Chart1", scheduled.getViewsheet().getAssemblies(false)[0].getName());
+         CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null);
+         RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+            exporter.export(scheduled, "Text2", null);
+            exporter.write();
+         });
+         assertLoadFailure(ex, DB_MESSAGE);
+         assertTrue(hasSqlException(TableLoadException.find(ex)), String.valueOf(ex));
+
+         ViewsheetSandbox plain = hiddenChartVisibilitySandbox(true, null);
+         CSVVSExporter exporter2 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+         exporter2.export(plain, "Text2", null);
+         exporter2.write();
+
+         ViewsheetSandbox interactive = hiddenChartVisibilitySandbox(false, read);
+         CSVVSExporter exporter3 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+         exporter3.export(interactive, "Text2", null);
+         exporter3.write();
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // Bug #78518: the dynamic values now get a chart's graph pair as prepareSheet does. The graph
+   // of a shown chart is still written: interactive over the failed table (the rows read before
+   // the failure, #77901), and scheduled over a good table
+   @Test
+   void exportOfAShownChartStillWritesItsGraph() throws Exception {
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         for(boolean scheduler : new boolean[] { false, true }) {
+            ViewsheetSandbox box = chartSandbox(!scheduler, scheduler);
+            List<Integer> rows = new ArrayList<>();
+            CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null) {
+               @Override
+               protected void writeChart(ChartVSAssembly asm, inetsoft.graph.VGraph graph,
+                                         inetsoft.graph.data.DataSet data, boolean imgOnly)
+               {
+                  rows.add(graph == null || data == null ? -1 : data.getRowCount());
+               }
+            };
+            exporter.export(box, "Chart1", null);
+            exporter.write();
+            assertEquals(List.of(10), rows, "scheduler " + scheduler);
+         }
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // the chart Chart1 over the failing T1, hidden, then the hidden table TableV over T1 and the
+   // text Text2 with the visibility, if not null
+   private static ViewsheetSandbox hiddenChartVisibilitySandbox(boolean scheduler,
+                                                                String visibility)
+      throws Exception
+   {
+      ViewsheetSandbox box = chartSandbox(true, scheduler);
+      Viewsheet vs = box.getViewsheet();
+      ((VSAssembly) vs.getAssembly("Chart1")).getVSAssemblyInfo()
+         .setVisibleValue(String.valueOf(VSAssembly.ALWAYS_HIDE));
+      TableVSAssembly table = new TableVSAssembly(vs, "TableV");
+      table.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "T1"));
+      ColumnSelection cols = new ColumnSelection();
+
+      for(String name : new String[] { "id", "g", "x" }) {
+         cols.addAttribute(new ColumnRef(new AttributeRef(null, name)));
+      }
+
+      table.setColumnSelection(cols);
+      table.getVSAssemblyInfo().setVisibleValue(String.valueOf(VSAssembly.ALWAYS_HIDE));
+      vs.addAssembly(table);
+      TextVSAssembly text = new TextVSAssembly(vs, "Text2");
+      text.setTextValue("static");
+
+      if(visibility != null) {
+         text.getVSAssemblyInfo().setVisibleValue(visibility);
+      }
+
+      vs.addAssembly(text);
+      return box;
+   }
+
    // the hidden failed table sandbox, with the text value of Text1 set to the dynamic value
    private static ViewsheetSandbox dynamicValueSandbox(boolean scheduler, String value)
       throws Exception
