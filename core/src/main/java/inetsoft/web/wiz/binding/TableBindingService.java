@@ -833,11 +833,16 @@ public class TableBindingService {
                "support form tables yet.");
          }
 
+         // A hidden column is still bound and its sort still applies; it just lives in the
+         // separate hidden-columns selection, so resolve over shown then hidden.
          ColumnSelection columns = table.getColumnSelection();
+         ColumnSelection hidden = table.getHiddenColumns();
          DataRef ref = resolveSortColumn(columns, column);
+         ref = ref != null ? ref : resolveSortColumn(hidden, column);
 
          if(ref == null) {
             List<String> bound = boundColumnNames(columns);
+            bound.addAll(boundColumnNames(hidden).stream().map(n -> n + " (hidden)").toList());
             throw new IllegalArgumentException(
                "'" + column + "' is not bound on '" + assemblyName + "'. It holds: " +
                (bound.isEmpty() ? "(nothing)" : String.join(", ", bound)) + ".");
@@ -913,6 +918,10 @@ public class TableBindingService {
 
    /** Case-insensitive column-name lookup, matching this class's other by-name resolutions. */
    private static DataRef resolveSortColumn(ColumnSelection columns, String column) {
+      if(columns == null) {
+         return null;
+      }
+
       Enumeration<DataRef> refs = columns.getAttributes();
 
       while(refs.hasMoreElements()) {
@@ -931,6 +940,11 @@ public class TableBindingService {
 
    private static List<String> boundColumnNames(ColumnSelection columns) {
       List<String> names = new ArrayList<>();
+
+      if(columns == null) {
+         return names;
+      }
+
       Enumeration<DataRef> refs = columns.getAttributes();
 
       while(refs.hasMoreElements()) {
