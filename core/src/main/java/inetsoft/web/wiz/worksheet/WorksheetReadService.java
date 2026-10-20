@@ -58,6 +58,7 @@ public class WorksheetReadService {
       List<WorksheetModel.TableModel> tables = new ArrayList<>();
       List<WorksheetModel.VariableModel> variables = new ArrayList<>();
       List<WorksheetModel.NamedGroupModel> namedGroups = new ArrayList<>();
+      List<WorksheetModel.MirrorModel> mirrors = new ArrayList<>();
 
       for(Assembly assembly : assemblies) {
          if(assembly instanceof TableAssembly t) {
@@ -70,9 +71,14 @@ public class WorksheetReadService {
          else if(assembly instanceof DefaultNamedGroupAssembly nga) {
             namedGroups.add(readNamedGroup(nga));
          }
+         else if(assembly instanceof MirrorAssembly mirror) {
+            // MirrorVariable/NamedGroup/Condition/DateRange assemblies are not subtypes of the
+            // Default* classes above; a table mirror is a TableAssembly and is read as one.
+            mirrors.add(readMirror(assembly, mirror));
+         }
       }
 
-      return new WorksheetModel(tables, variables, namedGroups);
+      return new WorksheetModel(tables, variables, namedGroups, mirrors);
    }
 
    /**
@@ -99,6 +105,21 @@ public class WorksheetReadService {
 
       return new WorksheetPropertiesModel(
          entry.getName(), alias, description, entry.isReportDataSource());
+   }
+
+   // -------------------------------------------------------------------------
+   // Mirrors
+   // -------------------------------------------------------------------------
+
+   private WorksheetModel.MirrorModel readMirror(Assembly assembly, MirrorAssembly mirror) {
+      return new WorksheetModel.MirrorModel(
+         assembly.getName(), WorksheetEditService.Editor.assemblyKind(assembly),
+         WorksheetEditService.Editor.mirrorSource(mirror), mirror.isOuterMirror(),
+         mirror.isAutoUpdate());
+   }
+
+   private static Boolean hidden(Assembly assembly) {
+      return assembly instanceof WSAssembly ws && ws.isOuter() ? Boolean.TRUE : null;
    }
 
    // -------------------------------------------------------------------------
@@ -146,7 +167,7 @@ public class WorksheetReadService {
          readReferencedVariables(t),
          mvUpdatePreConditions, mvUpdatePostConditions,
          mvDeletePreConditions, mvDeletePostConditions,
-         t.isMVForceAppendUpdates());
+         t.isMVForceAppendUpdates(), hidden(t));
    }
 
    /**
@@ -483,7 +504,8 @@ public class WorksheetReadService {
       AssetVariable var = dva.getVariable();
 
       if(var == null) {
-         return new WorksheetModel.VariableModel(dva.getName(), null, null, null, null);
+         return new WorksheetModel.VariableModel(dva.getName(), null, null, null, null,
+                                                 hidden(dva));
       }
 
       String label = var.getAlias();
@@ -493,8 +515,10 @@ public class WorksheetReadService {
       String defaultValue = valueNode != null ? valueNode.getValue() != null
          ? valueNode.getValue().toString() : null : null;
 
-      return new WorksheetModel.VariableModel(var.getName(), label, type, defaultValue,
-                                              readVariableChoices(var));
+      // The assembly name, not the inner variable's: they differ for the hidden copy backing a
+      // mirror (OUTER..._n), and every write tool resolves the assembly name.
+      return new WorksheetModel.VariableModel(dva.getName(), label, type, defaultValue,
+                                              readVariableChoices(var), hidden(dva));
    }
 
    /**
@@ -663,7 +687,7 @@ public class WorksheetReadService {
 
       return new WorksheetModel.NamedGroupModel(
          name, table, column, datasource, logicalModel, sourceTable, attribute, type, mappings,
-         groupOthers);
+         groupOthers, hidden(nga));
    }
 
    /**

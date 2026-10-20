@@ -4140,6 +4140,8 @@ public class WorksheetAgentController {
             for(Map.Entry<String, Object> entry : req.variableValues().entrySet()) {
                String vname = entry.getKey();
                Assembly assembly = ws.getAssembly(vname);
+               WorksheetEditService.Editor.refuseMirrorOrHiddenCopy(
+                  assembly, vname, "Set values on the source worksheet's variable instead.");
 
                // L2-Group8: mirror VariableInputDialogService.initVariableInfos, which can
                // only ever be invoked for a variable the worksheet actually declares (its
