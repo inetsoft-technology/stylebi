@@ -1191,6 +1191,11 @@ public class AssemblyHyperlinkService {
     * cell whose path equals this one; on a plain table, every row of the right type in the
     * <b>first</b> column whose header equals the path's ({@code TableAttr.getColumns}), which on
     * a duplicate header is not the addressed column. {@code null} when the cell has no path.
+    *
+    * <p>{@code sharedByKind} is whether more than one rendered cell matches right now, counted
+    * by that same rule, never assumed from the cell's kind: a kind that repeats in one crosstab
+    * (a column header) can be a single cell in another (the measure title of a crosstab with no
+    * column dimension, or a grand total).
     */
    static CellLinkScope cellLinkScope(TableLens lens, int row, int col) {
       TableDataDescriptor desc = lens == null ? null : lens.getDescriptor();
@@ -1210,22 +1215,25 @@ public class AssemblyHyperlinkService {
 
    private static CellLinkScope plainScope(TableLens lens, TableDataPath path, int col) {
       String header = path.getPath()[0];
-
-      if(path.getType() == TableDataPath.HEADER) {
-         return new CellLinkScope(
-            "this header cell only (column " + col + ", '" + header + "')", false);
-      }
-
-      String rows = path.getType() == TableDataPath.TRAILER
-         ? "every summary (trailer) row" : "every data row";
+      boolean headerCell = path.getType() == TableDataPath.HEADER;
+      String rows = headerCell ? "every header row"
+         : path.getType() == TableDataPath.TRAILER ? "every summary (trailer) row"
+         : "every data row";
       String stored = "a table's cell link is stored per column header, not per cell";
       int[] cols = TableAttr.getColumns(lens, header);
       int fires = cols == null || cols.length == 0 ? -1 : cols[0];
 
       if(fires == col) {
+         if(matchingRows(lens, path, col) > 1) {
+            return new CellLinkScope(
+               rows + " of column " + col + " ('" + header + "'), not just this row: " + stored +
+               ", so every row of the column fires the same link", true);
+         }
+
          return new CellLinkScope(
-            rows + " of column " + col + " ('" + header + "'), not just this row: " + stored +
-            ", so every row of the column fires the same link", true);
+            "this " + (headerCell ? "header " : "") + "cell only (column " + col + ", '" +
+            header + "'), the only such row right now" + (headerCell ? "" : "; " + stored +
+            ", so " + rows + " the column gets would fire it too"), false);
       }
 
       return new CellLinkScope(
@@ -1233,6 +1241,53 @@ public class AssemblyHyperlinkService {
          "under '" + header + "' on " + (fires < 0 ? "no column at all" : rows + " of column " +
          fires + ", the first column with that header") + ". Rename one of the duplicate " +
          "headers to link this column", true);
+   }
+
+   /**
+    * How many rows of column {@code col} the Viewer fires a plain-table link stored under
+    * {@code path} on, counting up to 2: whether it is shared is all that matters, and stopping
+    * there keeps a large table from being loaded in full. A header or data path finds its second
+    * row at once; only a trailer path, at the end of the table, reads to the end.
+    */
+   private static int matchingRows(TableLens lens, TableDataPath path, int col) {
+      TableDataDescriptor desc = lens.getDescriptor();
+      int matches = 0;
+
+      for(int r = 0; matches < 2 && lens.moreRows(r); r++) {
+         if(path.getType() == TableDataPath.HEADER && r >= lens.getHeaderRowCount()) {
+            break;
+         }
+
+         matches += desc.isCellDataPathType(r, col, path) ? 1 : 0;
+      }
+
+      return matches;
+   }
+
+   /**
+    * Whether another rendered cell has this crosstab cell's path (the Viewer's match). Only this
+    * cell's row and column need scanning: a crosstab path fixes the row and column group depth
+    * (and the measure), so if a cell (r2, c2) elsewhere matched, so would (row, c2) on this row,
+    * and a header cell's path fixes its header row or column outright.
+    */
+   private static boolean sharesCrosstabPath(TableLens lens, TableDataPath path, int row,
+                                             int col)
+   {
+      TableDataDescriptor desc = lens.getDescriptor();
+
+      for(int c = 0; c < lens.getColCount(); c++) {
+         if(c != col && path.equals(desc.getCellDataPath(row, c))) {
+            return true;
+         }
+      }
+
+      for(int r = 0; lens.moreRows(r); r++) {
+         if(r != row && path.equals(desc.getCellDataPath(r, col))) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static CellLinkScope crosstabScope(TableLens lens, TableDataPath path, int row,
@@ -1246,6 +1301,13 @@ public class AssemblyHyperlinkService {
       if(path.getType() == TableDataPath.HEADER && last.startsWith("Cell [")) {
          return new CellLinkScope("this cell only (a corner or empty header cell, which is " +
                                   "stored by its position)", false);
+      }
+
+      if(!sharesCrosstabPath(lens, path, row, col)) {
+         return new CellLinkScope(
+            "this cell only, the only rendered cell of its kind right now; a crosstab's cell " +
+            "link is stored per kind of cell (its fields, group level and measure -- never its " +
+            "values), so a cell of the same kind added later would fire it too", false);
       }
 
       String kind = switch(path.getType()) {
