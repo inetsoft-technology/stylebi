@@ -816,6 +816,60 @@ class ChartElementServiceTest {
       return assembly;
    }
 
+   /** Bug #78936: the suggested "at least" value must pass the same raw comparison. */
+   @Test
+   void theSuggestedMinimumAlwaysPassesTheGuardEvenOneUlpAboveADecimal() {
+      for(int n : new int[] { 2, 4, 6 }) {
+         double scale = Math.pow(10, n);
+
+         for(int k = 1; k < 20000; k++) {
+            double initial = Math.nextUp(k / scale);
+            double pass = ChartElementService.ceilRatio(initial);
+            assertTrue(pass >= initial, "ceilRatio(" + initial + ") = " + pass);
+            assertDoesNotThrow(() -> ChartElementService.requireAtLeastInitial(
+               Double.parseDouble(ChartElementService.ratioText(
+                  pass, 17, java.math.RoundingMode.HALF_UP)), initial, null, "width"));
+            assertTrue(ChartElementService.floorRatio(initial) <= initial);
+         }
+      }
+   }
+
+   @Test
+   void aRefusedRatioAndItsBaselinePrintDifferentlyAndAreNeverScientific() {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartElementService.requireAtLeastInitial(0.023, 0.0235294, null, "width"));
+      assertTrue(e.getMessage().contains("'ratio' of 0.023 is below"), e.getMessage());
+      assertTrue(e.getMessage().contains("baseline of 0.02353,"), e.getMessage());
+      assertTrue(e.getMessage().contains("Pass at least 0.02353 to"), e.getMessage());
+
+      e = assertThrows(IllegalArgumentException.class,
+         () -> ChartElementService.requireAtLeastInitial(0.0004, 0.0009, null, "width"));
+      assertFalse(e.getMessage().contains("E-"), e.getMessage());
+      assertTrue(e.getMessage().contains("baseline of 0.0009,"), e.getMessage());
+   }
+
+   @Test
+   void aSuggestionNeverExceedsTheMaximumAndTheMaximumIsComparedUnrounded() {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartElementService.requireAtLeastInitial(1.0, 1.00001, 1.00001, "width"));
+      assertTrue(e.getMessage().contains("Pass at least 1.00001 "), e.getMessage());
+
+      assertDoesNotThrow(() -> ChartElementService.requireAtMost(5.003, 5.004, 1.0, "width"));
+      e = assertThrows(IllegalArgumentException.class,
+         () -> ChartElementService.requireAtMost(5.004, 5.0039, 1.0, "width"));
+      assertTrue(e.getMessage().contains("Pass 5.003 or less"), e.getMessage());
+   }
+
+   @Test
+   void aDirectionWithNoRoomToGrowIsRefusedAsNotResizable() {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartElementService.requireEnlargeable(0.0235, 0.0235, "height"));
+      assertTrue(e.getMessage().contains("cannot enlarge this chart's height"), e.getMessage());
+      assertTrue(e.getMessage().contains("reset:true"), e.getMessage());
+      assertDoesNotThrow(() -> ChartElementService.requireEnlargeable(0.0235, 0.047, "height"));
+      assertDoesNotThrow(() -> ChartElementService.requireEnlargeable(0.0235, null, "height"));
+   }
+
    private static Principal principal() {
       return () -> "admin";
    }
