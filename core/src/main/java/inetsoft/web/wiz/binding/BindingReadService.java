@@ -286,7 +286,7 @@ public class BindingReadService {
                           ref.namedGroup(), stored, resolved ? runtime : null,
                           ref.namedGroupValues(), ref.calculateInfo(), ref.label(),
                           ref.secondaryY(), ref.visible(), ref.timeSeries(),
-                          ref.secondaryColumn());
+                          ref.secondaryColumn(), ref.operand());
    }
 
    private final VSBindingService binding;

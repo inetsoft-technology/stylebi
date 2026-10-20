@@ -20,6 +20,7 @@ package inetsoft.web.wiz.binding;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.report.internal.binding.SummaryAttr;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.uql.Condition;
 import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
@@ -43,6 +44,7 @@ import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.ChartBindingModel;
+import inetsoft.web.binding.model.graph.calc.PercentCalcInfo;
 import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
@@ -68,6 +70,12 @@ class TableBindingMutatorTest {
 
    private static FieldRef measure(String column, String aggregate) {
       return new FieldRef(column, "measure", aggregate, null, null);
+   }
+
+   /** A measure carrying the N/P operand of an Nth/Pth formula (bug #78856). */
+   private static FieldRef nth(String column, String aggregate, String operand) {
+      return new FieldRef(column, "measure", aggregate, null, null, null, null, null, null, null,
+                          null, null, null, null, operand);
    }
 
    private static RunningTotalCalcInfo runningTotal(String aggregate) {
@@ -796,7 +804,7 @@ class TableBindingMutatorTest {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
       TableBindingMutator.setShelf(model, "aggregates",
-         List.of(new FieldRef("Product", "measure", "NthMostFrequent", null, null)));
+         List.of(nth("Product", "NthMostFrequent", "3")));
 
       TableBindingMutator.setRanking(model, "rows", "Region", null,
          new DimensionSortRanking.Ranking("top", 5, "NthMostFrequent(Product, 3)", null));
@@ -2436,16 +2444,11 @@ class TableBindingMutatorTest {
 
    // ── bug #77025 P3/P4/P6: per-ref state FieldRef cannot carry ──────────────
 
-   private static void setNumValue(CrosstabBindingModel model, int index, String n) {
-      model.getAggregates().get(index).setNumValue(n);
-   }
-
    @Test
    void aggregatesWriteKeepsNthNAcrossResubmitAddAndShift() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "aggregates",
-         List.of(measure("Cost", "Sum"), measure("Sales", "NthLargest")));
-      setNumValue(model, 1, "3");
+         List.of(measure("Cost", "Sum"), nth("Sales", "NthLargest", "3")));
 
       TableBindingMutator.setShelf(model, "aggregates",
          List.of(measure("Cost", "Sum"), measure("Sales", "NthLargest")));
@@ -2463,8 +2466,7 @@ class TableBindingMutatorTest {
    @Test
    void aggregatesWriteDoesNotCarryNWhenTheFormulaChanges() {
       CrosstabBindingModel model = new CrosstabBindingModel();
-      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Sales", "NthLargest")));
-      setNumValue(model, 0, "3");
+      TableBindingMutator.setShelf(model, "aggregates", List.of(nth("Sales", "NthLargest", "3")));
 
       TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Sales", "Sum")));
 
@@ -2475,9 +2477,7 @@ class TableBindingMutatorTest {
    void aggregatesWriteMatchesDuplicateMeasuresByOccurrence() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "aggregates",
-         List.of(measure("Sales", "NthLargest"), measure("Sales", "NthLargest")));
-      setNumValue(model, 0, "2");
-      setNumValue(model, 1, "5");
+         List.of(nth("Sales", "NthLargest", "2"), nth("Sales", "NthLargest", "5")));
       model.getAggregates().get(1).setCaption("Fifth");
 
       // Both shift by one position behind a new leading aggregate.
@@ -2488,6 +2488,252 @@ class TableBindingMutatorTest {
       assertEquals("2", model.getAggregates().get(1).getNumValue());
       assertEquals("5", model.getAggregates().get(2).getNumValue());
       assertEquals("Fifth", model.getAggregates().get(2).getCaption());
+   }
+
+   // ── bug #78856: the N/P operand of Nth/Pth aggregates ─────────────────────
+
+   private static final List<String> OPERAND_FORMULAS =
+      List.of("NthLargest", "NthSmallest", "NthMostFrequent", "PthPercentile");
+
+   private static String operandOnShelf(CrosstabBindingModel model, int index) {
+      return TableBindingMutator.read(model, "aggregates").get(index).operand();
+   }
+
+   @Test
+   void aFreshOperandFormulaTakesItsExplicitOperandAndReadsItBack() {
+      for(String formula : OPERAND_FORMULAS) {
+         CrosstabBindingModel model = new CrosstabBindingModel();
+         TableBindingMutator.setShelf(model, "aggregates", List.of(nth("Total", formula, "90")));
+
+         assertEquals("90", model.getAggregates().get(0).getNumValue(), formula);
+         assertEquals("90", operandOnShelf(model, 0), formula);
+      }
+   }
+
+   @Test
+   void refusesABareOperandFormulaOnAFreshAggregateNamingTheColumnAndFormula() {
+      for(String formula : OPERAND_FORMULAS) {
+         // Median first, so the matched-previous rule cannot supply anything: the formula changes.
+         CrosstabBindingModel model = new CrosstabBindingModel();
+         TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Total", "Median")));
+
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+            TableBindingMutator.setShelf(model, "aggregates",
+                                         List.of(measure("Total", formula))), formula);
+
+         assertTrue(e.getMessage().contains("'Total'") && e.getMessage().contains(formula),
+                    e.getMessage());
+         assertEquals("Median", model.getAggregates().get(0).getFormula(),
+                      "a refused write must leave the shelf as it was");
+      }
+   }
+
+   @Test
+   void refusesABareOperandFormulaAddedThroughAddField() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Cost", "Sum")));
+
+      assertThrows(IllegalArgumentException.class, () ->
+         TableBindingMutator.addField(model, "aggregates", measure("Total", "PthPercentile"),
+                                      null));
+
+      TableBindingMutator.addField(model, "aggregates", nth("Total", "PthPercentile", "90"),
+                                   null);
+      assertEquals("90", model.getAggregates().get(1).getNumValue());
+   }
+
+   @Test
+   void anExplicitOperandBeatsTheOneInheritedFromAMatchedPreviousRef() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(nth("Total", "PthPercentile", "90")));
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(nth("Total", "PthPercentile", "50")));
+
+      assertEquals("50", model.getAggregates().get(0).getNumValue());
+   }
+
+   @Test
+   void aBareResubmitOfAnExistingOperandAggregateKeepsItsOperand() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(nth("Total", "PthPercentile", "90")));
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Total", "PthPercentile")));
+
+      assertEquals("90", model.getAggregates().get(0).getNumValue());
+   }
+
+   @Test
+   void anUnrelatedEditDoesNotRefuseAnExistingOperandAggregateThatStoresNoOperand() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      BAggregateRefModel legacy = new BAggregateRefModel();
+      legacy.setName("Total");
+      legacy.setColumnValue("Total");
+      legacy.setFormula("NthLargest");
+      BAggregateRefModel cost = new BAggregateRefModel();
+      cost.setName("Cost");
+      cost.setColumnValue("Cost");
+      cost.setFormula("Sum");
+      model.setAggregates(new java.util.ArrayList<>(List.of(legacy, cost)));
+
+      TableBindingMutator.removeField(model, "aggregates", "Cost");
+
+      assertEquals(1, model.getAggregates().size());
+      assertEquals("NthLargest", model.getAggregates().get(0).getFormula());
+   }
+
+   @Test
+   void rangeChecksALiteralOperandInsteadOfLettingTheEngineClampIt() {
+      for(String[] bad : new String[][] {
+         {"PthPercentile", "0"}, {"PthPercentile", "101"}, {"PthPercentile", "-5"},
+         {"NthLargest", "0"}, {"NthSmallest", "-1"}, {"NthMostFrequent", "2147483648"},
+         {"PthPercentile", "ninety"}, {"NthLargest", "2.5"}})
+      {
+         CrosstabBindingModel model = new CrosstabBindingModel();
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+            TableBindingMutator.setShelf(model, "aggregates",
+                                         List.of(nth("Total", bad[0], bad[1]))),
+            bad[0] + " " + bad[1]);
+         assertTrue(e.getMessage().contains(bad[1]), e.getMessage());
+      }
+
+      CrosstabBindingModel ok = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(ok, "aggregates",
+         List.of(nth("A", "PthPercentile", "1"), nth("B", "PthPercentile", "100"),
+                 nth("C", "NthLargest", "2147483647")));
+      assertEquals("100", ok.getAggregates().get(1).getNumValue());
+   }
+
+   @Test
+   void passesADynamicOperandThroughUnchecked() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(nth("A", "PthPercentile", "$(p)"), nth("B", "NthLargest", "=1+1")));
+
+      assertEquals("$(p)", model.getAggregates().get(0).getNumValue());
+      assertEquals("=1+1", operandOnShelf(model, 1));
+   }
+
+   @Test
+   void refusesAnOperandOnAFormulaThatTakesNone() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         TableBindingMutator.setShelf(model, "aggregates", List.of(nth("Total", "Sum", "90"))));
+
+      assertTrue(e.getMessage().contains("'Total'") && e.getMessage().contains("Sum"),
+                 e.getMessage());
+   }
+
+   @Test
+   void readsNoOperandBackForAFormulaThatTakesNone() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Total", "Sum")));
+      // The runtime stores "1" as the N of every aggregate, an Nth/Pth one or not.
+      model.getAggregates().get(0).setNumValue("1");
+
+      assertNull(operandOnShelf(model, 0));
+   }
+
+   // ── bug #78865: clearing a measure's calculator ───────────────────────────
+
+   private static FieldRef clearingCalc(String column, String aggregate) {
+      try {
+         return new ObjectMapper().readValue(
+            "{\"column\":\"" + column + "\",\"type\":\"measure\",\"aggregate\":\"" + aggregate +
+            "\",\"calculateInfo\":null}", FieldRef.class);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
+   @Test
+   void anExplicitNullCalculateInfoClearsItButKeepsTheRestOfTheMatch() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Total", "measure", "NthLargest", null, null, null, null, null,
+                              new PercentCalcInfo(), null, null, null, null, null, "3")));
+      model.getAggregates().get(0).setCaption("Third");
+      assertNotNull(model.getAggregates().get(0).getCalculateInfo());
+
+      TableBindingMutator.drainNotes();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(clearingCalc("Total", "NthLargest")));
+
+      BAggregateRefModel total = model.getAggregates().get(0);
+      assertNull(total.getCalculateInfo());
+      assertEquals("3", total.getNumValue(), "only the calculator copy is skipped");
+      assertEquals("Third", total.getCaption());
+      assertTrue(TableBindingMutator.drainNotes().isEmpty(), "a clear is not a kept calculator");
+   }
+
+   @Test
+   void anOmittedCalculateInfoKeepsItAndSaysSoOnAReplace() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Total", "Sum", runningTotal("Sum")),
+                 measure("Cost", "Sum")));
+
+      TableBindingMutator.drainNotes();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Total", "Sum"), measure("Cost", "Sum")));
+
+      assertNotNull(model.getAggregates().get(0).getCalculateInfo());
+      List<String> notes = TableBindingMutator.drainNotes();
+      assertEquals(1, notes.size(), "only the entry that actually kept a calculator: " + notes);
+      assertTrue(notes.get(0).startsWith(TableBindingMutator.KEPT_NOTE_PREFIX), notes.get(0));
+      assertTrue(notes.get(0).contains("'Total'") && notes.get(0).contains("calculateInfo"),
+                 notes.get(0));
+   }
+
+   @Test
+   void addAndRemoveNeverClaimTheyKeptACalculatorTheCallerDidNotName() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Total", "Sum", runningTotal("Sum")), measure("Cost", "Sum")));
+
+      TableBindingMutator.drainNotes();
+      TableBindingMutator.addField(model, "aggregates", measure("Qty", "Sum"), null);
+      TableBindingMutator.removeField(model, "aggregates", "Qty");
+
+      assertNotNull(model.getAggregates().get(0).getCalculateInfo());
+      assertTrue(TableBindingMutator.drainNotes().isEmpty());
+   }
+
+   @Test
+   void anExplicitNullCalculateInfoIsHarmlessOnADimensionAndOnAMeasureWithNone() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      FieldRef nullDim = jsonDimWithNullCalc("Region");
+      assertTrue(nullDim.clearsCalculateInfo(), "built from JSON, so it carries the clear request");
+
+      TableBindingMutator.setShelf(model, "rows", List.of(nullDim));
+      TableBindingMutator.setShelf(model, "aggregates", List.of(clearingCalc("Total", "Sum")));
+
+      assertEquals("Region", model.getRows().get(0).getColumnValue());
+      assertNull(model.getAggregates().get(0).getCalculateInfo());
+
+      CrosstabBindingModel cols = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(cols, "cols", List.of(jsonDimWithNullCalc("Region")));
+      assertEquals("Region", cols.getCols().get(0).getColumnValue());
+
+      TableBindingModel table = new TableBindingModel();
+      TableBindingMutator.setShelf(table, "details", List.of(jsonDimWithNullCalc("Region")));
+      assertEquals(1, table.getDetails().size());
+   }
+
+   private static FieldRef jsonDimWithNullCalc(String column) {
+      try {
+         return new ObjectMapper().readValue(
+            "{\"column\":\"" + column + "\",\"type\":\"dimension\",\"calculateInfo\":null}",
+            FieldRef.class);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
    }
 
    private static TableBindingModel tableWithLabels() {

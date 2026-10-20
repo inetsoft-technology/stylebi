@@ -138,6 +138,10 @@ public final class FieldRefFactory {
             ref.setCalculateInfo(field.calculateInfo());
          }
 
+         if(field.operand() != null && !field.operand().isBlank()) {
+            applyOperand(ref, field, false);
+         }
+
          ref.setSecondaryY(Boolean.TRUE.equals(field.secondaryY()));
 
          return ref;
@@ -355,6 +359,114 @@ public final class FieldRefFactory {
       return WorksheetNamedGroupMatcher.worksheetNamedGroups(ws, source, column);
    }
 
+   private static final Set<String> OPERAND_FORMULAS = Set.of(
+      "nthlargest", "nthsmallest", "nthmostfrequent", "pthpercentile");
+
+   /** Whether {@code formula} takes an N (NthLargest/Smallest/MostFrequent) or P (PthPercentile). */
+   public static boolean isOperandFormula(String formula) {
+      return formula != null && OPERAND_FORMULAS.contains(formula.trim().toLowerCase());
+   }
+
+   private static boolean isDynamicOperand(String value) {
+      return value != null &&
+         (value.startsWith("=") || value.startsWith("$(") && value.endsWith(")"));
+   }
+
+   /**
+    * Applies the N/P operand of an aggregate (bug #78856).
+    *
+    * <p>An explicit {@code operand} wins over anything the caller already inherited onto
+    * {@code ref} from a matched previous ref. Without one, an N/P formula keeps that inherited operand; a
+    * <em>fresh</em> one ({@code refuseMissing}, i.e. no matched previous ref)
+    * would render as N=1 / P=1 -- {@code BAggregateRefModel#createDataRef} turns a null N into
+    * the engine's default -- so it is refused instead. A matched ref with no stored operand is
+    * left alone: that is an existing binding this write does not change, and refusing it would
+    * block every unrelated edit of a shelf that already holds one.
+    *
+    * <p>A literal operand is range-checked here because the engine silently clamps instead:
+    * N must be at least 1, P is 1 to 100 (0 would be clamped to 1, a silent substitution). A
+    * dynamic operand ({@code $(var)} / {@code =expr}, which the Composer UI can author) is passed
+    * through unchecked -- it is only known at render time.
+    */
+   public static void applyOperand(BAggregateRefModel ref, FieldRef field,
+                                   boolean refuseMissing)
+   {
+      String formula = ref.getFormula();
+      String operand = field.operand() == null || field.operand().isBlank()
+         ? null : field.operand().trim();
+      String column = field.column();
+
+      if(isDynamicOperand(formula)) {
+         if(operand != null) {
+            ref.setNumValue(operand);
+         }
+
+         return;
+      }
+
+      boolean needsOperand = isOperandFormula(formula);
+
+      if(operand == null) {
+         if(needsOperand && refuseMissing) {
+            throw new IllegalArgumentException(
+               "'" + column + "' is bound with aggregate '" + formula + "', which needs its " +
+               operandName(formula) + " (the field's 'n'), e.g. " + formula + " with n " +
+               (isPercentile(formula) ? "90" : "3") + ". Without one it would silently render " +
+               "as " + operandName(formula) + "=1. Nothing was changed.");
+         }
+
+         return;
+      }
+
+      if(!needsOperand) {
+         throw new IllegalArgumentException(
+            "'" + column + "' carries an 'n' operand, but aggregate '" + formula + "' takes " +
+            "none: only NthLargest, NthSmallest, NthMostFrequent (N) and PthPercentile (P) do. " +
+            "Nothing was changed.");
+      }
+
+      if(!isDynamicOperand(operand)) {
+         int min = 1;
+         int max = isPercentile(formula) ? 100 : Integer.MAX_VALUE;
+         long value;
+
+         try {
+            value = Long.parseLong(operand);
+         }
+         catch(NumberFormatException e) {
+            throw new IllegalArgumentException(
+               "'" + column + "': the operand '" + operand + "' of " + formula + " must be an " +
+               "integer (" + operandName(formula) + "), or a $(variable) / =expression. " +
+               "Nothing was changed.");
+         }
+
+         if(value < min || value > max) {
+            throw new IllegalArgumentException(
+               "'" + column + "': the operand " + operand + " of " + formula + " must be an " +
+               "integer from " + min + " to " + max + " (" + operandName(formula) + "); the " +
+               "engine would silently clamp it. Nothing was changed.");
+         }
+      }
+
+      ref.setNumValue(operand);
+   }
+
+   private static boolean isPercentile(String formula) {
+      return "pthpercentile".equalsIgnoreCase(formula.trim());
+   }
+
+   private static String operandName(String formula) {
+      return isPercentile(formula) ? "P" : "N";
+   }
+
+   /** The operand to report for {@code aggregate}: only the four N/P formulas have one. */
+   private static String operandOf(BAggregateRefModel aggregate) {
+      String value = aggregate.getNumValue();
+
+      return isOperandFormula(aggregate.getFormula()) && value != null && !value.isBlank() &&
+         !"null".equals(value) ? value : null;
+   }
+
    public static FieldRef from(DataRefModel ref) {
       if(ref instanceof BAggregateRefModel aggregate) {
          Boolean secondaryY = aggregate instanceof ChartAggregateRefModel chartAggregate
@@ -362,7 +474,8 @@ public final class FieldRefFactory {
 
          return new FieldRef(aggregate.getColumnValue(), MEASURE, aggregate.getFormula(),
                              null, null, null, null, null, aggregate.getCalculateInfo(),
-                             null, secondaryY, null, null, aggregate.getSecondaryColumnValue());
+                             null, secondaryY, null, null, aggregate.getSecondaryColumnValue(),
+                             operandOf(aggregate));
       }
 
       if(ref instanceof BDimensionRefModel dimension) {
