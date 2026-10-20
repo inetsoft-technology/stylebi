@@ -187,7 +187,14 @@ public class WorksheetTableService {
             Assembly built = worksheet.getAssembly(table.getTableName());
 
             if(built != null && built != prior) {
-               worksheet.removeAssembly(table.getTableName());
+               if(prior instanceof WSAssembly priorTable) {
+                  // The half-built table replaced the existing one of the same name; put the
+                  // existing one back. removeAssembly would also drop it and clear the primary.
+                  worksheet.addAssembly(priorTable);
+               }
+               else {
+                  worksheet.removeAssembly(table.getTableName());
+               }
             }
 
             results.add(failure(table.getTableName(), rootMessage(e)));
