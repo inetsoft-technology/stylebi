@@ -26,6 +26,7 @@ import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ApplyResult;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.content.repository.MVSupportService;
+import inetsoft.web.admin.model.NameLabelTuple;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Answers;
@@ -88,6 +89,9 @@ class MvChangesetApplyServiceTest {
       service = new MvChangesetApplyService(planService, mvGateway, backupService);
 
       lenient().when(backupService.backup(anyString())).thenReturn("admin-snapshot/ref");
+      lenient().when(mvGateway.getDataCycles(any())).thenReturn(List.of(
+         NameLabelTuple.builder().name("cycle-old").label("cycle-old").build(),
+         NameLabelTuple.builder().name("cycle-new").label("cycle-new").build()));
 
       tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
