@@ -1003,12 +1003,12 @@ public class WizAutoBindingService {
     * {@link inetsoft.web.wiz.binding.BindableColumns} duplicates it: {@code VSUtil}'s static
     * initializer reaches for a live Spring {@code ApplicationContext}.
     */
-   private static boolean isDynamicColumn(String text) {
-      return isDynamicVariableReference(text) || text != null && text.startsWith("=");
-   }
-
    private static boolean isDynamicVariableReference(String text) {
       return text != null && text.startsWith("$(") && text.endsWith(")");
+   }
+
+   private static boolean isDynamicColumn(String text) {
+      return isDynamicVariableReference(text) || text != null && text.startsWith("=");
    }
 
    /**

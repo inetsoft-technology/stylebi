@@ -395,6 +395,13 @@ class BindableColumnsTest {
    }
 
    @Test
+   void scriptColumnDoesNotVetoTheCandidateTableTheLiteralFieldsPick() {
+      assertEquals("Products",
+                   BindableColumns.requireSource(TABLES, "Chart1", null,
+                                                 List.of(dim("=a + b"), dim("PRODUCT_NAME"))));
+   }
+
+   @Test
    void stillRefusesANonExistentLiteralColumnAlongsideAScriptColumn() {
       assertThrows(IllegalArgumentException.class,
                    () -> BindableColumns.require(TABLES, "Chart1", dim("=a + b"),
