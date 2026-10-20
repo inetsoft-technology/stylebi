@@ -83,6 +83,15 @@ class VSInputServiceSubmitRefreshTest {
    }
 
    @Test
+   void refreshOffRunsOnLoadOncePerSubmittedInputAndOnceForTheSubmit() throws Exception {
+      submit(false);
+
+      // commitInputTableWrites processes each submitted input once, then the submit itself;
+      // the inputs must not be processed a second time
+      assertEquals(SUBMITTED_INPUTS + 1, loadCount() - loadsBeforeSubmit);
+   }
+
+   @Test
    void refreshOnSendsOnLoadResultAndSubmittedInputs() throws Exception {
       CommandDispatcher dispatcher = submit(true);
 
@@ -180,13 +189,18 @@ class VSInputServiceSubmitRefreshTest {
       vs.addAssembly(button);
 
       vs.addAssembly(new TextVSAssembly(vs, "Echo"));
+      TextVSAssembly counter = new TextVSAssembly(vs, "LoadCount");
+      ((TextVSAssemblyInfo) counter.getVSAssemblyInfo()).setTextValue("0");
+      vs.addAssembly(counter);
       vs.getViewsheetInfo().setOnLoad(
+         "LoadCount.text = String(Number(LoadCount.text) + 1);" +
          "Echo.text = 'cat=' + CategoryPicker.selectedObject + ';n=' + TopNSpinner.selectedObject" +
          " + ';rate=' + RateSlider.selectedObject + ';note=' + NoteInput.value" +
          " + ';mode=' + ModeRadio.selectedObject + ';flags=' + FlagsCheck.selectedObjects;");
 
       box.reset(null, vs.getAssemblies(), new ChangedAssemblyList(), true, true, null);
       assertEquals("cat=(All);n=1;rate=0;note=a;mode=A;flags=", echo().getText());
+      loadsBeforeSubmit = loadCount();
 
       VSSubmitEvent event = ImmutableVSSubmitEvent.builder()
          .values(new InputValue[] {
@@ -198,6 +212,7 @@ class VSInputServiceSubmitRefreshTest {
             value("FlagsCheck", new Object[] { "X" }),
             value("CellInput", "written") })
          .build();
+      assertEquals(SUBMITTED_INPUTS, event.values().length);
 
       VSInputService inputService = new VSInputService(
          objectService, coreLifecycleService, viewsheetService, mock(VSObjectPropertyService.class),
@@ -229,6 +244,11 @@ class VSInputServiceSubmitRefreshTest {
    private TextVSAssemblyInfo echo() {
       return (TextVSAssemblyInfo) vsResource.getRuntimeViewsheet().getViewsheet()
          .getAssembly("Echo").getVSAssemblyInfo();
+   }
+
+   private int loadCount() {
+      return Integer.parseInt(((TextVSAssemblyInfo) vsResource.getRuntimeViewsheet()
+         .getViewsheet().getAssembly("LoadCount").getVSAssemblyInfo()).getText());
    }
 
    private Object embeddedCell() {
@@ -283,6 +303,7 @@ class VSInputServiceSubmitRefreshTest {
    }
 
    private static final String EMBEDDED_TABLE = "Query1";
+   private static final int SUBMITTED_INPUTS = 7;
    private static final String EXPECTED_ECHO =
       "cat=Games;n=5;rate=30;note=b;mode=B;flags=X";
 
@@ -294,4 +315,5 @@ class VSInputServiceSubmitRefreshTest {
    @Autowired VSObjectService objectService;
 
    private Principal oldPrincipal;
+   private int loadsBeforeSubmit;
 }

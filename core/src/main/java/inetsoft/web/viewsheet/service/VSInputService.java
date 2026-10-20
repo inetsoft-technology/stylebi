@@ -389,7 +389,6 @@ public class VSInputService {
    public Void onClick(@ClusterProxyKey String vsId, String name, String x, String y, VSSubmitEvent submitEvent,
                        String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception
    {
-      String[] submittedNames = null;
       ChangedAssemblyList submitList = null;
 
       if(submitEvent != null && submitEvent.values() != null) {
@@ -416,12 +415,10 @@ public class VSInputService {
             // (Bug #78878).
             submitList = commitInputTableWrites(vsId, assemblyNames, principal, dispatcher,
                                                 linkUri);
-            submittedNames = assemblyNames;
          }
       }
 
-      onClick(vsId, name, x, y, linkUri, false, null, principal, dispatcher,
-              submittedNames, submitList);
+      onClick(vsId, name, x, y, linkUri, false, null, principal, dispatcher, submitList);
 
       return null;
    }
@@ -2612,19 +2609,17 @@ public class VSInputService {
                        boolean isConfirm, List<UserMessage> usrmsg, Principal principal,
                        CommandDispatcher dispatcher) throws Exception
    {
-      onClick(vsId, name, x, y, linkUri, isConfirm, usrmsg, principal, dispatcher, null, null);
+      onClick(vsId, name, x, y, linkUri, isConfirm, usrmsg, principal, dispatcher, null);
    }
 
    /**
-    * @param submittedNames the input assemblies whose values the submit event applied, or
-    *                       {@code null}.
-    * @param submitList     the changed assembly list those values were processed into, or
-    *                       {@code null}.
+    * @param submitList the changed assembly list the values of a submit event were processed
+    *                   into, or {@code null}.
     */
    private void onClick(String vsId, String name, String x, String y, String linkUri,
                         boolean isConfirm, List<UserMessage> usrmsg, Principal principal,
-                        CommandDispatcher dispatcher, String[] submittedNames,
-                        ChangedAssemblyList submitList) throws Exception
+                        CommandDispatcher dispatcher, ChangedAssemblyList submitList)
+      throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
@@ -2637,7 +2632,7 @@ public class VSInputService {
 
       try {
          process0(rvs, name, x, y, linkUri, isConfirm, usrmsg, principal, dispatcher,
-                  submittedNames, submitList);
+                  submitList);
       }
       finally {
          WSExecution.setAssetQuerySandbox(null);
@@ -2647,7 +2642,7 @@ public class VSInputService {
    private void process0(RuntimeViewsheet rvs, String name, String xstr, String ystr,
                          String linkUri, boolean isConfirm, List<UserMessage> usrmsg,
                          Principal principal, CommandDispatcher dispatcher,
-                         String[] submittedNames, ChangedAssemblyList submitList)
+                         ChangedAssemblyList submitList)
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
@@ -2720,20 +2715,26 @@ public class VSInputService {
       boolean refreshAll = assembly instanceof SubmitVSAssembly &&
          ((SubmitVSAssemblyInfo) assembly.getInfo()).isRefresh();
       // without the full refresh only the listed changes are sent, so keep the ones the
-      // submitted values already caused (Bug #78878)
+      // submitted values already caused, the submitted inputs included (Bug #78878)
       ChangedAssemblyList clist = !refreshAll && submitList != null ? submitList :
          this.coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
 
       VSUtil.getReferencedAssets(script, set,
                                  name.contains(".") ? box0.getViewsheet() : vs, assembly);
 
+      // the data assemblies the onClick script references. clist may already hold the
+      // submitted inputs' changes, which were processed when they were applied
+      List<AssemblyEntry> scriptDataList = new ArrayList<>();
+
       for(AssemblyRef ref : set) {
          switch(ref.getType()) {
          case AssemblyRef.OUTPUT_DATA:
             clist.getDataList().add(ref.getEntry());
+            scriptDataList.add(ref.getEntry());
             break;
          case AssemblyRef.INPUT_DATA:
             clist.getDataList().add(ref.getEntry());
+            scriptDataList.add(ref.getEntry());
             break;
          case AssemblyRef.VIEW:
             clist.getViewList().add(ref.getEntry());
@@ -2746,7 +2747,7 @@ public class VSInputService {
       try {
          // fix bug1269914683174, need to refresh chart when the chart data changed
          // by onclick script
-         for(AssemblyEntry obj : clist.getDataList()) {
+         for(AssemblyEntry obj : scriptDataList) {
             String name0 = obj.getAbsoluteName();
             VSAssembly assembly0 = (VSAssembly) vs.getAssembly(name0);
 
@@ -2796,19 +2797,6 @@ public class VSInputService {
          }
          else {
             box.get().processChange(name, VSAssembly.INPUT_DATA_CHANGED, clist);
-
-            // send the submitted inputs back with their applied values, or the client keeps
-            // showing the old ones, e.g. a spinner's label (Bug #78878)
-            if(submittedNames != null) {
-               for(String submittedName : submittedNames) {
-                  VSAssembly input = vs.getAssembly(submittedName);
-
-                  if(input != null && !clist.getViewList().contains(input.getAssemblyEntry())) {
-                     clist.getViewList().add(input.getAssemblyEntry());
-                  }
-               }
-            }
-
             coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
          }
       }
