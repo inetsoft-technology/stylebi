@@ -2159,8 +2159,17 @@ public class VSWizardBindingHandler {
       AestheticRef textField = chartInfo.getTextField();
 
       if(textField != null) {
-         updateTextFormat(getNameForFormat((VSChartRef) textField.getDataRef()), tempInfo, assembly, rvs, chartInfo,
-                          updateAssembly);
+         String textName = getNameForFormat((VSChartRef) textField.getDataRef());
+         updateTextFormat(textName, tempInfo, assembly, rvs, chartInfo, updateAssembly);
+
+         // The lookup by name returns a Y ref when the key equals its full name (Count,
+         // DistinctCount, aggregate calc fields), which skips the chart-level text field that
+         // the data labels render from; write that one too.
+         if(updateAssembly && !chartInfo.isMultiAesthetic() &&
+            regionHandler.getChartBindable(chartInfo, textName) != chartInfo)
+         {
+            updateTextFormat((ChartBindable) chartInfo, tempInfo, assembly, rvs, updateAssembly);
+         }
       }
 
       if(chartInfo instanceof GanttVSChartInfo) {
