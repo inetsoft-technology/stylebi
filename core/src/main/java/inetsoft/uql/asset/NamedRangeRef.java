@@ -348,7 +348,7 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
                sb.append(field);
                sb.append(" IS NULL ");
                sb.append("THEN ");
-               sb.append("'" + names[i] + "'");
+               sb.append("'" + escapeSQLString(names[i]) + "'");
             }
             else {
                for(int k = 0; k < condition.getValueCount(); k++) {
@@ -366,7 +366,7 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
                      list.add(value);
                   }
                   else {
-                     list.add("'" + value + "'");
+                     list.add("'" + escapeSQLString("" + value) + "'");
                   }
                }
             }
@@ -398,7 +398,7 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
          }
 
          sb.append("THEN ");
-         sb.append("'" + names[i] + "'");
+         sb.append("'" + escapeSQLString(names[i]) + "'");
       }
 
       if(isdate) {

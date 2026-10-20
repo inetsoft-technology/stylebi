@@ -279,6 +279,42 @@ class NamedRangeRefTest {
    }
 
    @Test
+   void legacySqlPlainValuesUnchangedOnAllDialects() {
+      String expected = "(CASE \n WHEN field['Customer:State'] IN ('NJ')THEN 'G'\n" +
+         " ELSE field['Customer:State'] END)";
+
+      for(String db : new String[] { "mysql", "mariadb", "postgresql", "derby" }) {
+         assertEquals(expected,
+            sql(XSchema.STRING, db, cond(XSchema.STRING, XCondition.EQUAL_TO, "NJ")), db);
+      }
+   }
+
+   @Test
+   void legacySqlEscapesQuoteAndBackslash() {
+      Condition c = cond(XSchema.STRING, XCondition.EQUAL_TO, "O'Neil", "a\\' OR 1=1 --");
+      String pg = sql(XSchema.STRING, "postgresql", c);
+      assertTrue(pg.contains("IN ('O''Neil', 'a\\'' OR 1=1 --')"), pg);
+      String my = sql(XSchema.STRING, "mysql", c);
+      assertTrue(my.contains("IN ('O''Neil', 'a\\\\'' OR 1=1 --')"), my);
+   }
+
+   @Test
+   void legacySqlGroupNameEscaped() {
+      for(String db : new String[] { "mysql", "postgresql" }) {
+         for(int nullCase = 0; nullCase < 2; nullCase++) {
+            ExpertNamedGroupInfo info = new ExpertNamedGroupInfo();
+            info.setGroupCondition("it's\\x", list(nullCase == 0 ?
+               cond(XSchema.STRING, XCondition.EQUAL_TO, "A") :
+               cond(XSchema.STRING, XCondition.NULL)));
+            NamedRangeRef r = ref(XSchema.STRING, db, list());
+            r.setNamedGroupInfo(info);
+            String expected = db.equals("postgresql") ? "THEN 'it''s\\x'" : "THEN 'it''s\\\\x'";
+            assertTrue(r.getExpression().contains(expected), r.getExpression());
+         }
+      }
+   }
+
+   @Test
    void sqlNumericDerbyUnquoted() {
       assertTrue(sql(XSchema.INTEGER, "derby",
          cond(XSchema.INTEGER, XCondition.BETWEEN, 1, 5)).contains("BETWEEN 1 AND 5"));
