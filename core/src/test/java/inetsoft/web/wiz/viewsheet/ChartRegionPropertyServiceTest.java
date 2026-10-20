@@ -2294,6 +2294,35 @@ class ChartRegionPropertyServiceTest {
                                                    any());
    }
 
+   /**
+    * Bug #78919: a single date-typed measure is drawn on a TimeScale, which takes its range as
+    * epoch milliseconds. A date used to be refused as "not a finite number", and a number was
+    * stored through Float, moving it by up to a minute.
+    */
+   @Test
+   void aDateMeasureAxisTakesADateRangeAndStoresItExactly() throws Exception {
+      VSChartAggregateRef date = mock(VSChartAggregateRef.class);
+      when(date.isDiscrete()).thenReturn(false);
+      when(date.getFullName()).thenReturn("Max(ORDER_DATE)");
+      when(date.getName()).thenReturn("ORDER_DATE");
+      when(date.getDataType()).thenReturn(XSchema.DATE);
+      Viewsheet vs = withShelves(viewsheet(false), new ChartRef[0], new ChartRef[] { date });
+      AxisDescriptor desc = ((ChartVSAssembly) vs.getAssembly("Chart1")).getVSChartInfo()
+         .getAxisDescriptor();
+      Harness h = harness(vs);
+      stubAxisModel(h);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("minimum", "2025-01-01", "maximum", 1735689600000L), "");
+
+      verify(desc).setMinimum(java.time.LocalDate.of(2025, 1, 1)
+         .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli());
+      verify(desc).setMaximum(1735689600000L);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   eq("Max(ORDER_DATE)"), any(), anyString(),
+                                                   any(Principal.class), any());
+   }
+
    private static AxisPropertyDialogModel axisModel() {
       AxisPropertyDialogModel model = new AxisPropertyDialogModel();
       model.setAxisLinePaneModel(new AxisLinePaneModel());
