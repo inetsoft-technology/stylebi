@@ -48,15 +48,17 @@ final class GeneralJson {
    static final ObjectMapper MAPPER = new ObjectMapper();
 
    /**
-    * The four {@code email} fields this area withholds on read and refuses on write.
+    * The four {@code email} fields this area withholds on read and does not write.
     *
     * <p>These are exactly the four {@code mail.*} names {@code AdminPropertyCatalog}'s
-    * {@code ENCRYPTED_CREDENTIALS} already covers on the generic properties path --
-    * {@code mail.smtp.pass}, {@code mail.smtp.clientsecret}, {@code mail.smtp.accesstoken},
-    * {@code mail.smtp.refreshtoken}. Keeping the two surfaces in agreement is the point: that
-    * catalog tells an agent, as instruction text, that admin-chat will not write these values, and
-    * a sibling verb in this package that still wrote them would make that a false statement --
-    * the same class of inconsistency Bug #76170 was.
+    * {@code ENCRYPTED_CREDENTIALS} covers on the generic properties path -- {@code mail.smtp.pass},
+    * {@code mail.smtp.clientsecret}, {@code mail.smtp.accesstoken},
+    * {@code mail.smtp.refreshtoken}. The generic path ACCEPTS and encrypts them on write (it
+    * withholds them on read only), so refusing them in this verb is a deliberate narrowing of this
+    * verb -- credentials travel through the generic path, not through the structured General
+    * Settings tool -- and the refusal names that path ({@link #EMAIL_SECRET_PROPERTIES}) rather
+    * than claiming the value cannot be set. Do not describe the generic path as withholding these
+    * on write (Bug #78963).
     *
     * <p><b>{@code smtpTokenUri} is deliberately absent.</b> {@code EmailSettingsService.getModel}
     * reads it with {@code SreeEnv.getPassword} but {@code setModel} writes it with a plain
@@ -71,6 +73,18 @@ final class GeneralJson {
     */
    static final Set<String> EMAIL_SECRET_FIELDS =
       Set.of("smtpPassword", "smtpClientSecret", "smtpAccessToken", "smtpRefreshToken");
+
+   /**
+    * Each {@link #EMAIL_SECRET_FIELDS} entry mapped to the generic-path property that writes it,
+    * in the casing the generic path documents. The refusal text is built from this so the pointer
+    * cannot drift; a test asserts every value satisfies
+    * {@code AdminPropertyCatalog.isEncryptedCredential}.
+    */
+   static final Map<String, String> EMAIL_SECRET_PROPERTIES = Map.of(
+      "smtpPassword", "mail.smtp.pass",
+      "smtpClientSecret", "mail.smtp.clientSecret",
+      "smtpAccessToken", "mail.smtp.accessToken",
+      "smtpRefreshToken", "mail.smtp.refreshToken");
 
    static final String SECRET_MASK = "********";
 

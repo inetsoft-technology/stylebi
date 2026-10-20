@@ -453,20 +453,24 @@ public class GeneralChangePlanService {
     * webhook URLs stay writable in the presentation area after the properties path stopped writing
     * them (Bug #76170).
     *
-    * <p>Refusing here is what keeps {@code AdminPropertyCatalog}'s guidance for these four names
-    * ("admin-chat will not set it ... Configure it through Enterprise Manager instead") true of
-    * the whole admin-chat surface rather than of one endpoint. That string is instruction text
-    * handed to an agent, so a sibling verb that accepted these values would not merely leave a
-    * second way in -- it would make the guidance a false statement.
+    * <p>This is a deliberate narrowing of this verb, not a statement that the value cannot be
+    * set: the generic properties path accepts and encrypts these four on write (it withholds them
+    * on read only), so the refusal names that route -- {@code preview_changes} on the matching
+    * {@code mail.smtp.*} property, from {@link GeneralJson#EMAIL_SECRET_PROPERTIES} -- and gives
+    * Enterprise Manager only as the fallback for a cloud-secrets deployment, where the generic
+    * path refuses too. The text must not claim the generic path withholds these on write (Bug
+    * #78963).
     */
    private static void requireNoSecretFields(String label, GeneralSubModel subModel, JsonNode spec) {
       for(String secret : subModel.secretFields()) {
          if(spec.has(secret)) {
             throw new IllegalArgumentException(
                label + ".spec." + secret + ": secret-classified credentials cannot be set through " +
-               "admin-chat -- this caller relays responses off-host, and the same value is " +
-               "withheld on the generic properties path for the same reason. Change it through " +
-               "Enterprise Manager instead.");
+               "admin-chat's General Settings tool, which deliberately does not carry credentials. " +
+               "Set it with preview_changes/apply_changes on the property " +
+               GeneralJson.EMAIL_SECRET_PROPERTIES.get(secret) + " (the value stays masked on " +
+               "read, so a change cannot be confirmed by reading it back). On a cloud-secrets " +
+               "deployment that route refuses too; change it through Enterprise Manager instead.");
          }
       }
    }
