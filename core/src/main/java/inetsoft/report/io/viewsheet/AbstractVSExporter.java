@@ -58,6 +58,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
@@ -186,7 +187,10 @@ public abstract class AbstractVSExporter implements VSExporter {
             ViewsheetScope scope = box.getScope();
             ChartVSAScriptable chartScope = (ChartVSAScriptable)
                scope.getVSAScriptable(assembly.getName());
-            VGraphPair graphPair = box.getVGraphPair(assembly.getAbsoluteName());
+            // a chart whose graph fails, e.g. a hidden chart over a table that failed to load,
+            // is handled as in prepareSheet(), so its failure does not fail the export now
+            // that a load failure in a dynamic value does (#78518)
+            VGraphPair graphPair = getPreparedGraphPair(box, assembly);
 
             if(chartScope != null && graphPair != null && graphPair.isChangedByScript0()) {
                chartScope.setGraphCreator(graphPair.getGraphCreator());
@@ -1437,9 +1441,14 @@ public abstract class AbstractVSExporter implements VSExporter {
             executeViewDynamicValues(viewsheet, box);
          }
          catch(ScriptException scriptException) {
+            // a dynamic value that read a table that failed to load for a reader that has to
+            // fail, e.g. a scheduled run, has no value: exporting past it would leave the
+            // property unset, e.g. a blank text (#78518)
+            TableLoadException.rethrow(scriptException);
             LOG.warn("Failed to execute dynamic values: {}", scriptException.getMessage());
          }
          catch(Exception ex) {
+            TableLoadException.rethrow(ex);
             LOG.error("Failed to execute dynamic values", ex);
          }
 

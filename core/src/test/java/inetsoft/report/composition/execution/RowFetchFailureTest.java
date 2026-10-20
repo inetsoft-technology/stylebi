@@ -1095,6 +1095,223 @@ class RowFetchFailureTest {
       }
    }
 
+   // Bug #78518: a scheduled CSV export of a viewsheet whose text value is a dynamic value that
+   // reads a hidden table that failed to load fails with the database error, instead of
+   // logging the script error and exporting a blank text. An interactive export, and a
+   // scheduled export whose dynamic value fails for another reason, still complete
+   @Test
+   void scheduledExportOfADynamicValueReadOfAHiddenFailedTableFails() throws Exception {
+      ViewsheetSandbox scheduled = dynamicValueSandbox(true, "=TableV.table.length");
+      CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+         exporter.export(scheduled, "Text", null);
+         exporter.write();
+      });
+      assertLoadFailure(ex, DB_MESSAGE);
+      assertTrue(hasSqlException(TableLoadException.find(ex)), String.valueOf(ex));
+
+      // interactive: the dynamic value reads the rows that were loaded and the export completes
+      ViewsheetSandbox interactive = dynamicValueSandbox(false, "=TableV.table.length");
+      CSVVSExporter exporter2 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      exporter2.export(interactive, "Text", null);
+      exporter2.write();
+
+      // a scheduled dynamic value error that is not a load failure is logged and the export
+      // completes
+      ViewsheetSandbox plain = dynamicValueSandbox(true, "=throw 'PLAINX';");
+      assertThrows(Exception.class, () -> plain.executeDynamicValues(
+         "Text1", ((VSAssembly) plain.getViewsheet().getAssembly("Text1"))
+            .getViewDynamicValues(true)));
+      CSVVSExporter exporter3 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      exporter3.export(plain, "Text", null);
+      exporter3.write();
+   }
+
+   // Bug #78518: the PDF export through a print layout runs the dynamic values on its own path,
+   // so a scheduled one fails on the load failure too; a plain dynamic value error is logged and
+   // the print layout report is still built. The report is checked at the exporter, because
+   // writing the PDF needs the text shaping classes of inetsoft-xml-formats
+   @Test
+   void scheduledPrintLayoutExportOfADynamicValueLoadFailureFails() throws Exception {
+      ViewsheetSandbox scheduled = dynamicValueSandbox(true, "=TableV.table.length");
+      addPrintLayout(scheduled);
+      inetsoft.report.io.viewsheet.pdf.PDFVSExporter exporter = pdfExporter();
+      RuntimeException ex = assertThrows(
+         RuntimeException.class, () -> exporter.export(scheduled, "Current View", 0, null));
+      assertLoadFailure(ex, DB_MESSAGE);
+      assertTrue(hasSqlException(TableLoadException.find(ex)), String.valueOf(ex));
+      assertEquals(0, printLayoutReports(exporter).size());
+
+      ViewsheetSandbox plain = dynamicValueSandbox(true, "=throw 'PLAINX';");
+      addPrintLayout(plain);
+      inetsoft.report.io.viewsheet.pdf.PDFVSExporter exporter2 = pdfExporter();
+      exporter2.export(plain, "Current View", 0, null);
+      assertEquals(1, printLayoutReports(exporter2).size());
+   }
+
+   // Bug #78518: through the real ViewsheetAction save to disk (CSV), a scheduled task whose
+   // dynamic value reads a hidden table that failed to load fails with the database error and
+   // saves nothing. A plain dynamic value error is logged, and the task saves the file
+   @Test
+   void scheduledSaveToDiskFailsOnADynamicValueLoadFailure() throws Exception {
+      Path dir = Files.createTempDirectory("vsaction78518");
+
+      try {
+         List<String> saved = new ArrayList<>();
+         Throwable ex =
+            runSaveToDisk(dynamicValueSandbox(true, "=TableV.table.length"), dir, saved);
+         assertLoadFailure(ex, DB_MESSAGE);
+         assertTrue(hasSqlException(TableLoadException.find(ex)), String.valueOf(ex));
+         assertTrue(saved.isEmpty(), String.valueOf(saved));
+         assertEquals(0, dir.toFile().list().length);
+
+         assertNull(runSaveToDisk(dynamicValueSandbox(true, "=throw 'PLAINX';"), dir, saved));
+         assertEquals(1, saved.size(), String.valueOf(saved));
+      }
+      finally {
+         Tool.deleteFile(dir.toFile());
+      }
+   }
+
+   // Bug #78518: a load failure in a dynamic value that is not a text value, the visibility of
+   // a text, fails the scheduled export also when it comes after a hidden chart over the failed
+   // table: the chart's own failure is logged and does not stop the dynamic values (#78727), so
+   // the visibility is still run. Without the visibility the export completes, and an
+   // interactive export completes too
+   @Test
+   void scheduledExportOfAVisibilityReadAfterAHiddenFailedChartFails() throws Exception {
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         String read = "=TableV.table.length > 0";
+         ViewsheetSandbox scheduled = hiddenChartVisibilitySandbox(true, read);
+         assertEquals("Chart1", scheduled.getViewsheet().getAssemblies(false)[0].getName());
+         CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null);
+         RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+            exporter.export(scheduled, "Text2", null);
+            exporter.write();
+         });
+         assertLoadFailure(ex, DB_MESSAGE);
+         assertTrue(hasSqlException(TableLoadException.find(ex)), String.valueOf(ex));
+
+         ViewsheetSandbox plain = hiddenChartVisibilitySandbox(true, null);
+         CSVVSExporter exporter2 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+         exporter2.export(plain, "Text2", null);
+         exporter2.write();
+
+         ViewsheetSandbox interactive = hiddenChartVisibilitySandbox(false, read);
+         CSVVSExporter exporter3 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+         exporter3.export(interactive, "Text2", null);
+         exporter3.write();
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // Bug #78518: the dynamic values now get a chart's graph pair as prepareSheet does. The graph
+   // of a shown chart is still written: interactive over the failed table (the rows read before
+   // the failure, #77901), and scheduled over a good table
+   @Test
+   void exportOfAShownChartStillWritesItsGraph() throws Exception {
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         for(boolean scheduler : new boolean[] { false, true }) {
+            ViewsheetSandbox box = chartSandbox(!scheduler, scheduler);
+            List<Integer> rows = new ArrayList<>();
+            CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null) {
+               @Override
+               protected void writeChart(ChartVSAssembly asm, inetsoft.graph.VGraph graph,
+                                         inetsoft.graph.data.DataSet data, boolean imgOnly)
+               {
+                  rows.add(graph == null || data == null ? -1 : data.getRowCount());
+               }
+            };
+            exporter.export(box, "Chart1", null);
+            exporter.write();
+            assertEquals(List.of(10), rows, "scheduler " + scheduler);
+         }
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // the chart Chart1 over the failing T1, hidden, then the hidden table TableV over T1 and the
+   // text Text2 with the visibility, if not null
+   private static ViewsheetSandbox hiddenChartVisibilitySandbox(boolean scheduler,
+                                                                String visibility)
+      throws Exception
+   {
+      ViewsheetSandbox box = chartSandbox(true, scheduler);
+      Viewsheet vs = box.getViewsheet();
+      ((VSAssembly) vs.getAssembly("Chart1")).getVSAssemblyInfo()
+         .setVisibleValue(String.valueOf(VSAssembly.ALWAYS_HIDE));
+      TableVSAssembly table = new TableVSAssembly(vs, "TableV");
+      table.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "T1"));
+      ColumnSelection cols = new ColumnSelection();
+
+      for(String name : new String[] { "id", "g", "x" }) {
+         cols.addAttribute(new ColumnRef(new AttributeRef(null, name)));
+      }
+
+      table.setColumnSelection(cols);
+      table.getVSAssemblyInfo().setVisibleValue(String.valueOf(VSAssembly.ALWAYS_HIDE));
+      vs.addAssembly(table);
+      TextVSAssembly text = new TextVSAssembly(vs, "Text2");
+      text.setTextValue("static");
+
+      if(visibility != null) {
+         text.getVSAssemblyInfo().setVisibleValue(visibility);
+      }
+
+      vs.addAssembly(text);
+      return box;
+   }
+
+   // the hidden failed table sandbox, with the text value of Text1 set to the dynamic value
+   private static ViewsheetSandbox dynamicValueSandbox(boolean scheduler, String value)
+      throws Exception
+   {
+      ViewsheetSandbox box = hiddenFailedTableSandbox(scheduler, null);
+      ((TextVSAssembly) box.getViewsheet().getAssembly("Text1")).setTextValue(value);
+      return box;
+   }
+
+   // give the viewsheet a print layout that holds Text1
+   private static void addPrintLayout(ViewsheetSandbox box) {
+      inetsoft.uql.viewsheet.vslayout.PrintLayout layout =
+         new inetsoft.uql.viewsheet.vslayout.PrintLayout();
+      List<inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout> layouts = new ArrayList<>();
+      layouts.add(new inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout(
+         "Text1", new java.awt.Point(0, 0), new java.awt.Dimension(200, 20)));
+      layout.setVSAssemblyLayouts(layouts);
+      box.getViewsheet().getLayoutInfo().setPrintLayout(layout);
+   }
+
+   private static inetsoft.report.io.viewsheet.pdf.PDFVSExporter pdfExporter() {
+      return (inetsoft.report.io.viewsheet.pdf.PDFVSExporter)
+         inetsoft.report.io.viewsheet.AbstractVSExporter.getVSExporter(
+            FileFormatInfo.EXPORT_TYPE_PDF, null, new ByteArrayOutputStream(), false, null);
+   }
+
+   // the print layout reports the PDF exporter queued for write()
+   private static List<?> printLayoutReports(
+      inetsoft.report.io.viewsheet.pdf.PDFVSExporter exporter) throws Exception
+   {
+      Field field =
+         inetsoft.report.io.viewsheet.pdf.PDFVSExporter.class.getDeclaredField("reportList");
+      field.setAccessible(true);
+      return (List<?>) field.get(exporter);
+   }
+
    // Bug #78445: a load failure in the onLoad of a viewsheet embedded two levels down fails the
    // scheduled export; interactive, the same sheet exports without an error
    @Test

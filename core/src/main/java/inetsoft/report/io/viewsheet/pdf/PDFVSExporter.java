@@ -34,6 +34,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
@@ -205,6 +206,8 @@ public class PDFVSExporter extends AbstractVSExporter {
             executeViewDynamicValues(viewsheet, layoutBox);
          }
          catch(Exception ex) {
+            // fail on a table that failed to load, as the canvas path does (#78518)
+            TableLoadException.rethrow(ex);
             LOG.error("Failed to execute dynamic values", ex);
          }
 
