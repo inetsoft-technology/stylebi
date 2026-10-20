@@ -246,6 +246,39 @@ class NamedRangeRefTest {
    }
 
    @Test
+   void sqlBackslashEscapedOnMysqlOnly() {
+      String evil = "a\\' OR 1=1 --";
+      Condition[] conds = {
+         cond(XSchema.STRING, XCondition.ONE_OF, evil),
+         cond(XSchema.STRING, XCondition.STARTING_WITH, evil),
+         cond(XSchema.STRING, XCondition.LIKE, evil)
+      };
+
+      for(Condition c : conds) {
+         String my = sql(XSchema.STRING, "mysql", c);
+         assertTrue(my.contains("a\\\\''"), my);
+         assertFalse(my.contains("a\\'' OR"), my);
+         String pg = sql(XSchema.STRING, "postgresql", c);
+         assertTrue(pg.contains("a\\'' OR 1=1 --"), pg);
+         assertFalse(pg.contains("a\\\\"), pg);
+      }
+   }
+
+   @Test
+   void sqlGroupNameEscaped() {
+      ExpertNamedGroupInfo info = new ExpertNamedGroupInfo();
+      info.setGroupCondition("it's\\x",
+         list(cond(XSchema.STRING, XCondition.STARTING_WITH, "N")));
+
+      for(String db : new String[] { "mysql", "mariadb", "postgresql" }) {
+         NamedRangeRef r = ref(XSchema.STRING, db, list());
+         r.setNamedGroupInfo(info);
+         String expected = db.equals("postgresql") ? "THEN 'it''s\\x'" : "THEN 'it''s\\\\x'";
+         assertTrue(r.getExpression().contains(expected), r.getExpression());
+      }
+   }
+
+   @Test
    void sqlNumericDerbyUnquoted() {
       assertTrue(sql(XSchema.INTEGER, "derby",
          cond(XSchema.INTEGER, XCondition.BETWEEN, 1, 5)).contains("BETWEEN 1 AND 5"));

@@ -316,7 +316,7 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
          if(!isLegacyConditionList(clist)) {
             sb.append(" WHEN ");
             sb.append(getSQLPredicate(clist, field, isdate));
-            sb.append(" THEN '").append(names[i].replace("'", "''")).append("'");
+            sb.append(" THEN '").append(escapeSQLString(names[i])).append("'");
             continue;
          }
 
@@ -652,17 +652,29 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
          }
       }
 
-      return "'" + str.replace("'", "''") + "'";
+      return "'" + escapeSQLString(str) + "'";
    }
 
-   private static String getLikeLiteral(Object value, boolean leading, boolean startsOrContains) {
+   /**
+    * Escape a value for use inside a single-quoted SQL string literal. MySQL/MariaDB treat a
+    * backslash as an escape character, so it is doubled there; elsewhere it is a plain character.
+    */
+   private String escapeSQLString(String str) {
+      if("mysql".equalsIgnoreCase(getDBType()) || "mariadb".equalsIgnoreCase(getDBType())) {
+         str = str.replace("\\", "\\\\");
+      }
+
+      return str.replace("'", "''");
+   }
+
+   private String getLikeLiteral(Object value, boolean leading, boolean startsOrContains) {
       String str = value == null ? "" : "" + value;
 
       if(startsOrContains) {
          str = str.replace("!", "!!").replace("%", "!%").replace("_", "!_");
       }
 
-      str = str.replace("'", "''");
+      str = escapeSQLString(str);
       return "'" + (leading ? "%" : "") + str + (startsOrContains ? "%" : "") + "'";
    }
 
