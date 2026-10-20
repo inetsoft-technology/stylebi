@@ -148,7 +148,7 @@ wipes stored header heights whenever the header flag is clear (§2.1).
 |---|---|
 | ticked, rows were following | no row resize. Only the column width changes, and the flag stays clear. |
 | ticked, rows were pinned (D4) | flag cleared, and that row type's stored heights reset to `defh`: `dataRowHeight` for a data cell, every `headerRowHeights` entry for a header cell. The rows return to the density tier. Not `resetRowHeights()`, which also resets the title height. |
-| unticked | the typed height is written and the flag set, even when the number is unchanged. This is how an author pins the height they see. |
+| unticked | the typed height is written and the flag set, even when the number is unchanged. This is how an author pins the height they see. What is pinned is that content height: the cell padding drawn around it still follows the dashboard density, exactly as for a dragged row, since author heights have been stored as content heights since the density padding design (§2, "Author-set row heights are already stored as content heights"). |
 
 The column half of OK is unchanged in every case.
 

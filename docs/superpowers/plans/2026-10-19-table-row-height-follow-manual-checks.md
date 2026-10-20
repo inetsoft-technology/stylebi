@@ -21,7 +21,7 @@
 |---|---|---|
 | MT-1 | On a table never resized, open Set Cell Size on a data cell. Change only Cell Width, then OK. Then switch the dashboard density to comfortable. | Before OK the box is ticked and Cell Height is greyed at 16. The width changes. After the switch, data rows draw at 28. |
 | MT-2 | Drag a data row border on the table, then reopen Set Cell Size on a data cell. Tick the box, then OK. | Before ticking, the box is unticked and Cell Height is editable. After OK the data rows are back on the tier (24 at compact). |
-| MT-3 | Open Set Cell Size on a following data row. Untick the box and press OK without typing. Then change the dashboard density. | OK doesn't move the row. The density change no longer moves it either. |
+| MT-3 | Open Set Cell Size on a following data row. Untick the box and press OK without typing. Then change the dashboard density to dense. | OK doesn't move the row. After the change it keeps its 16 content height and only the cell padding follows: 16 + 6 = 22 at dense, where a following row draws 20. Comfortable can't show this, because 16 + 12 = 28 equals its tier. |
 | MT-4 | Crosstab, never resized: open Set Cell Size on a cell in the first column-header row. Untick, type 30, then OK. | The first header row changes. The second header row keeps exactly the height it drew before (26 at compact). |
 | MT-5 | Same crosstab: open Set Cell Size on a header cell. Tick the box, then OK. | Every header row returns to the tier. |
 | MT-6 | Freehand table: repeat MT-1 and MT-4. | Same results as on the table and the crosstab. |
