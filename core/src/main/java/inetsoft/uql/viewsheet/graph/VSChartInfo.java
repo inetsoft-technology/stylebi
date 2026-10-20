@@ -957,6 +957,7 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
          temp = new ChartRef[list.size()];
          list.toArray(temp);
          setRTGroupFields(temp);
+         setRTResolved(true);
 
          // #treemap-heal: a treemap-family chart whose hierarchy dimensions were bound on the
          // X slot with an empty group slot renders empty, because SeparateGraphGenerator reads

@@ -79,6 +79,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       rxrefs = new ChartRef[0];
       ryrefs = new ChartRef[0];
       rgrefs = new ChartRef[0];
+      rtResolved = false;
    }
 
    /**
@@ -1145,7 +1146,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
     */
    @Override
    public ChartRef[] getRTXFields() {
-      return rxrefs != null && rxrefs.length > 0 ? rxrefs : getXFields();
+      return rxrefs != null && (rtResolved || rxrefs.length > 0) ? rxrefs : getXFields();
    }
 
    /**
@@ -1161,7 +1162,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
     */
    @Override
    public ChartRef[] getRTYFields() {
-      return ryrefs != null && ryrefs.length > 0 ? ryrefs : getYFields();
+      return ryrefs != null && (rtResolved || ryrefs.length > 0) ? ryrefs : getYFields();
    }
 
    /**
@@ -1178,7 +1179,16 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
     */
    @Override
    public ChartRef[] getRTGroupFields() {
-      return rgrefs != null && rgrefs.length > 0 ? rgrefs : getGroupFields();
+      return rgrefs != null && (rtResolved || rgrefs.length > 0) ? rgrefs : getGroupFields();
+   }
+
+   /**
+    * Mark that the runtime x/y/group fields have been resolved, so an empty runtime array means
+    * the binding resolved to nothing (e.g. a dynamic ref with no selection) instead of "not
+    * computed yet", and the design fields are not used as a fallback. Reset by clearRuntime().
+    */
+   protected void setRTResolved(boolean rtResolved) {
+      this.rtResolved = rtResolved;
    }
 
    /**
@@ -3861,6 +3871,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    private List<ChartRef> xrefs = Collections.synchronizedList(new ArrayList<>()); // x refs
    private List<ChartRef> yrefs = Collections.synchronizedList(new ArrayList<>()); // y fields
    private List<ChartRef> grefs = Collections.synchronizedList(new ArrayList<>()); // break-by fields
+   private boolean rtResolved; // runtime x/y/group refs resolved by update()
    private ChartRef[] rxrefs = new ChartRef[0]; // runtime x chart refs
    private ChartRef[] ryrefs = new ChartRef[0]; // runtime y chart refs
    private ChartRef[] rgrefs = new ChartRef[0]; // runtime group refs
