@@ -241,6 +241,12 @@ class GeneralSettingsCoverageTest {
 
    private void stubRead(GeneralSubModel subModel) throws Exception {
       lenient().when(access.read(eq(subModel), any())).thenReturn(current(subModel));
+
+      if(subModel == GeneralSubModel.MV) {
+         // current(MV) has no data cycles, so the probe's "sample" defaultCycle can only be
+         // accepted where the cycle list is suppressed (multi-tenant enterprise).
+         lenient().when(access.isCycleListSuppressed()).thenReturn(true);
+      }
    }
 
    private static Object current(GeneralSubModel subModel) {
