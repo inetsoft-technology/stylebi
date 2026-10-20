@@ -177,6 +177,20 @@ class ComposerVSTableServiceRowHeightFollowTest {
       assertEquals(40, info.getHeaderRowHeight(1));
    }
 
+   // the lens rows date from the last render; the pin must be what render draws now
+   @Test
+   void anUntickedOkPinsTheOtherHeaderRowsAtTheDensityInForce() throws Exception {
+      TableDataVSAssembly table = marked(headerTable(), "dense");
+      TableDataVSAssemblyInfo info = table.getTableDataVSAssemblyInfo();
+      VSTableLens lens = initLens(table);
+      SreeEnv.setProperty("viewsheet.density", "compact");
+
+      resize(table, lens, headerCell(0, 25), false);
+
+      // compact's 26 less the 3 + 3 padding seeded at dense, which a density change leaves alone
+      assertEquals(20, info.getHeaderRowHeight(1));
+   }
+
    @Test
    void anUntickedOkWithNoLensRowsFallsBackToTheTier() throws Exception {
       TableDataVSAssembly table = marked(headerTable(), "compact");

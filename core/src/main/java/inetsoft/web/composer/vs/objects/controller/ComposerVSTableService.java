@@ -1045,6 +1045,12 @@ public class ComposerVSTableService {
     * none of them. A row's padding does not depend on the flag.
     */
    static void pinHeaderRows(TableDataVSAssemblyInfo info, VSTableLens lens, int headerRowCount) {
+      // rebuilt from the assembly, so the rows are what render draws now, not at the last load
+      if(lens != null) {
+         lens.setRowHeights(null);
+         lens.initTableGrid(info);
+      }
+
       final int[] heights = new int[headerRowCount];
       final int tier = VSDensityDefaults.headerRowHeight(VizContext.of(info), info);
 
