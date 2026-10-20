@@ -270,6 +270,7 @@ class AdminFileContentControllerTest {
 
       assertEquals("not-found", actual.get("status"));
       assertEquals("scripts/missing.js", actual.get("path"));
+      assertEquals("No stored asset at \"scripts/missing.js\"", actual.get("error"));
 
       ResponseStatus annotation = AdminFileContentController.class
          .getMethod("handleNotFound", StoredAssetNotFoundException.class)

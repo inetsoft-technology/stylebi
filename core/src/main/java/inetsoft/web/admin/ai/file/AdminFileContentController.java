@@ -177,7 +177,7 @@ public class AdminFileContentController {
    @ResponseStatus(HttpStatus.NOT_FOUND)
    @ResponseBody
    public Map<String, String> handleNotFound(StoredAssetNotFoundException ex) {
-      return Map.of("status", "not-found", "path", ex.path());
+      return Map.of("status", "not-found", "error", ex.getMessage(), "path", ex.path());
    }
 
    @ExceptionHandler(AdminChangesetApplyService.PlanHashMismatchException.class)
