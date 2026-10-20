@@ -1644,9 +1644,11 @@ public class WorksheetAgentController {
     * grouping in {@code WorksheetEditService.Editor#addNamedGroup}: that mode intentionally
     * records {@code attachedSource} as the worksheet table's own name -- a convention {@code
     * CalcTableService}/{@code FieldRefFactory} rely on to resolve a chart/table/crosstab/
-    * calc-table's {@code field.namedGroup} binding -- so a grouping created here is not
-    * resolvable through that same binding-time matching, and is not attached to any worksheet
-    * table at all.</p>
+    * calc-table's {@code field.namedGroup} binding. A grouping created here is attached to the
+    * datasource/model attribute instead; {@code WorksheetNamedGroupMatcher} resolves it at
+    * binding time by walking the viewsheet's mirror table down to the worksheet table's own
+    * {@code SourceInfo} (and, for a logical model, the same entity). A data-type-only grouping
+    * is not bindable to a column unless it is made a predefined group.</p>
     */
    private void addDatasourceScopedNamedGroup(String sessionToken, EditRequest req, Principal user)
       throws Exception
