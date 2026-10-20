@@ -34,15 +34,20 @@ public class VSWizardObjectToolbarController {
       this.vsWizardObjectToolbarServiceProxy = vsWizardObjectToolbarServiceProxy;
    }
 
+   /**
+    * Prepares the assembly the full editor opens.
+    *
+    * @return the name and object type of that assembly, or {@code null} if there is none.
+    */
    @GetMapping("/api/vswizard/object/toolbar/full-editor")
-   public void gotoFullEditor(
+   public VSWizardObjectToolbarService.FullEditorAssembly gotoFullEditor(
       @RequestParam("id") String id,
       @RequestParam(value = "assemblyName", required = false) String assemblyName,
       Principal principal)
       throws Exception
    {
 
-      vsWizardObjectToolbarServiceProxy.gotoFullEditor(id, assemblyName, principal);
+      return vsWizardObjectToolbarServiceProxy.gotoFullEditor(id, assemblyName, principal);
    }
 
    private final VSWizardObjectToolbarServiceProxy vsWizardObjectToolbarServiceProxy;

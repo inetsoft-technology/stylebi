@@ -21,18 +21,23 @@ package inetsoft.web.vswizard.controller;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.Assembly;
-import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.web.vswizard.model.VSWizardOriginalModel;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
+import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.io.Serializable;
 import java.security.Principal;
+import java.util.Objects;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -46,9 +51,20 @@ public class VSWizardObjectToolbarService {
    }
 
 
+   /**
+    * Prepares the assembly the full editor opens.
+    *
+    * @param id           the runtime viewsheet id.
+    * @param assemblyName the name of the preview assembly shown on the client, or {@code null}
+    *                     if the preview has not reached the client yet.
+    * @param principal    the current user.
+    *
+    * @return the name and object type of the assembly the full editor opens, or {@code null}
+    *         if there is none.
+    */
    @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Void gotoFullEditor(@ClusterProxyKey String id,
+   public FullEditorAssembly gotoFullEditor(@ClusterProxyKey String id,
       @RequestParam(value = "assemblyName", required = false) String assemblyName,
       Principal principal)
       throws Exception
@@ -61,36 +77,165 @@ public class VSWizardObjectToolbarService {
          return null;
       }
 
-      if(assemblyName == null) {
-         // may be null if the chart is not bound (Bug #44232)
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
          return null;
       }
 
-      Viewsheet vs = rvs.getViewsheet();
-      Assembly assembly = vs.getAssembly(assemblyName);
+      FullEditorAssembly result;
+      boolean changed = false;
 
-      if(assembly == null) {
-         LOGGER.error("The assembly does not exist: {}", assemblyName);
-         return null;
-      }
+      // Bug #78734, the name is missing if Full Editor is clicked before the preview reaches
+      // the client. The read lock waits for a recommendation in progress, which adds the
+      // preview assembly under the write lock, so the latest preview assembly is used.
+      box.get().lockRead();
 
-      VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
-      VSWizardOriginalModel originalModel = vsTemporaryInfo.getOriginalModel();
+      try {
+         Viewsheet vs = rvs.getViewsheet();
+         Assembly assembly;
 
-      if(originalModel != null) {
-         String originalName = originalModel.getOriginalName();
-         Assembly originalAssembly = vs.getAssembly(originalName);
+         if(assemblyName == null) {
+            assembly = WizardRecommenderUtil.getTempAssembly(vs);
 
-         if(originalAssembly != null &&
-            assembly.getAssemblyType() == originalAssembly.getAssemblyType())
-         {
-            assembly.setPixelSize(originalAssembly.getPixelSize());
+            if(assembly == null) {
+               // no preview assembly, e.g. the chart is not bound (Bug #44232)
+               return null;
+            }
+         }
+         else {
+            assembly = vs.getAssembly(assemblyName);
+
+            if(assembly == null) {
+               LOGGER.error("The assembly does not exist: {}", assemblyName);
+               return null;
+            }
          }
 
+         VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
+         VSWizardOriginalModel originalModel =
+            vsTemporaryInfo == null ? null : vsTemporaryInfo.getOriginalModel();
+
+         if(originalModel != null) {
+            String originalName = originalModel.getOriginalName();
+            Assembly originalAssembly = vs.getAssembly(originalName);
+
+            if(originalAssembly != null &&
+               assembly.getAssemblyType() == originalAssembly.getAssemblyType())
+            {
+               assembly.setPixelSize(originalAssembly.getPixelSize());
+            }
+
+            changed = true;
+         }
+
+         result = new FullEditorAssembly(assembly.getAbsoluteName(), getObjectType(assembly));
+      }
+      finally {
+         box.get().unlockRead();
+      }
+
+      if(changed) {
          viewsheetService.flushRuntimeSheet(id);
       }
 
+      return result;
+   }
+
+   /**
+    * Gets the client object type of an assembly the recommender creates, or {@code null} for
+    * any other assembly. The names must match the {@code @JsonSubTypes} names in
+    * {@link inetsoft.web.viewsheet.model.VSObjectModel}.
+    */
+   private static String getObjectType(Assembly assembly) {
+      if(assembly instanceof ChartVSAssembly) {
+         return "VSChart";
+      }
+      else if(assembly instanceof CrosstabVSAssembly) {
+         return "VSCrosstab";
+      }
+      else if(assembly instanceof TableVSAssembly) {
+         return "VSTable";
+      }
+      else if(assembly instanceof GaugeVSAssembly) {
+         return "VSGauge";
+      }
+      else if(assembly instanceof TextVSAssembly) {
+         return "VSText";
+      }
+      else if(assembly instanceof SelectionListVSAssembly) {
+         return "VSSelectionList";
+      }
+      else if(assembly instanceof SelectionTreeVSAssembly) {
+         return "VSSelectionTree";
+      }
+      else if(assembly instanceof TimeSliderVSAssembly) {
+         return "VSRangeSlider";
+      }
+      else if(assembly instanceof CalendarVSAssembly) {
+         return "VSCalendar";
+      }
+
       return null;
+   }
+
+   /**
+    * The assembly the full editor opens. It is returned through the cluster proxy, so it must
+    * be serializable by Ignite's BinaryMarshaller. Do not make it a record: the marshaller
+    * cannot set the final fields of a record when it reads the result on the calling node.
+    */
+   public static class FullEditorAssembly implements Serializable {
+      public FullEditorAssembly() {
+      }
+
+      public FullEditorAssembly(String absoluteName, String objectType) {
+         this.absoluteName = absoluteName;
+         this.objectType = objectType;
+      }
+
+      public String getAbsoluteName() {
+         return absoluteName;
+      }
+
+      public void setAbsoluteName(String absoluteName) {
+         this.absoluteName = absoluteName;
+      }
+
+      public String getObjectType() {
+         return objectType;
+      }
+
+      public void setObjectType(String objectType) {
+         this.objectType = objectType;
+      }
+
+      @Override
+      public boolean equals(Object o) {
+         if(this == o) {
+            return true;
+         }
+
+         if(!(o instanceof FullEditorAssembly that)) {
+            return false;
+         }
+
+         return Objects.equals(absoluteName, that.absoluteName) &&
+            Objects.equals(objectType, that.objectType);
+      }
+
+      @Override
+      public int hashCode() {
+         return Objects.hash(absoluteName, objectType);
+      }
+
+      @Override
+      public String toString() {
+         return "FullEditorAssembly{absoluteName='" + absoluteName + "', objectType='" +
+            objectType + "'}";
+      }
+
+      private String absoluteName;
+      private String objectType;
    }
 
    private final VSWizardTemporaryInfoService temporaryInfoService;
