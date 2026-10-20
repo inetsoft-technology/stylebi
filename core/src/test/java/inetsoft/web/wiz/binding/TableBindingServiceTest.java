@@ -2511,4 +2511,38 @@ class TableBindingServiceTest {
 
       assertEquals(List.of("Script execution error in assembly: Crosstab1"), warnings);
    }
+
+   /** Bug 78909: a shape-changing write on a rows-only PERCENT crosstab relays the shape warning. */
+   @Test
+   void relaysTheDegeneratePercentWarningFromAShapeChangingWrite() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region"), dim("Year")));
+      inetsoft.web.binding.model.BAggregateRefModel agg =
+         new inetsoft.web.binding.model.BAggregateRefModel();
+      agg.setColumnValue("Total");
+      agg.setPercentage("1");
+      existing.setAggregates(List.of(agg));
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(mock(CrosstabVSAssembly.class));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      inetsoft.web.wiz.dispatch.CapturingCommandDispatcher dispatcher =
+         mock(inetsoft.web.wiz.dispatch.CapturingCommandDispatcher.class);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", dispatcher);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      serviceWith(sessions, existing, mock(VSBindingModelService.class))
+         .moveField("tok", principal(), "Crosstab1", "rows", "aggregates", "Year", null);
+
+      ArgumentCaptor<inetsoft.web.viewsheet.command.MessageCommand> sent =
+         ArgumentCaptor.forClass(inetsoft.web.viewsheet.command.MessageCommand.class);
+      verify(dispatcher, atLeastOnce()).sendCommand(eq("Crosstab1"), sent.capture());
+      assertTrue(sent.getAllValues().stream().anyMatch(
+         c -> c.getMessage().startsWith(TableBindingMutator.WARNING_PREFIX)));
+   }
 }
