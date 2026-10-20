@@ -246,9 +246,7 @@ public class WorksheetControllerService {
          }
 
          if(!dtable.isAggregate()) {
-            DataRef outer = AssetUtil.getOuterAttribute(table.getName(), edited);
-            ColumnRef mapped =
-               AssetUtil.getColumnRefFromAttribute(dtable.getColumnSelection(), outer);
+            ColumnRef mapped = mapToDependentColumn(table, dtable, edited);
 
             if(mapped != null) {
                collectJoinKeyTypeConflicts(
@@ -311,6 +309,100 @@ public class WorksheetControllerService {
    }
 
    /**
+    * Bug #78234 / WBS-103: whether a composed table draws its columns from more than one source
+    * table, so a bare column name may not identify which source a column comes from.
+    */
+   public static boolean isMultiSource(ComposedTableAssembly composedTable) {
+      String[] names = composedTable.getTableNames();
+      return names != null && names.length > 1;
+   }
+
+   /**
+    * Bug #78234 / WBS-103: finds the column of a multi-source composed table that comes FROM
+    * {@code source}'s column {@code ocolumn}. Composed tables build each column as
+    * {@code AssetUtil.getOuterAttribute(sourceName, sourceColumn)} -- entity = the source table,
+    * attribute = the source column's output name (alias, else attribute) -- so a column belongs to
+    * the renamed source iff its entity is that source and its attribute is the source column's old
+    * output name. The alias is tried against every column before the attribute: after an earlier
+    * rename (alias Item over attribute Product) a different column can carry the attribute Product.
+    * A concat's columns all carry its FIRST source as entity, so a non-first source never matches
+    * and the concat is left alone, which is correct: its output does not follow that source.
+    *
+    * @return the matching column, or {@code null} when the rename does not reach this table.
+    */
+   public static ColumnRef findSourceColumn(ColumnRef ocolumn, TableAssembly source,
+                                             ComposedTableAssembly composedTable)
+   {
+      ColumnSelection columns = composedTable.getColumnSelection();
+      String sourceName = source.getName();
+      List<String> names = new ArrayList<>();
+
+      if(!Tool.isEmptyString(ocolumn.getAlias())) {
+         names.add(ocolumn.getAlias());
+      }
+
+      if(!Tool.isEmptyString(ocolumn.getAttribute()) && !names.contains(ocolumn.getAttribute())) {
+         names.add(ocolumn.getAttribute());
+      }
+
+      for(String name : names) {
+         for(int i = 0; i < columns.getAttributeCount(); i++) {
+            if(columns.getAttribute(i) instanceof ColumnRef col &&
+               Tool.equals(sourceName, col.getEntity()) && name.equals(col.getAttribute()))
+            {
+               return col;
+            }
+         }
+      }
+
+      // A legacy column with no entity at all cannot be attributed to a source; match it by name
+      // rather than silently skipping it. Never the composed table's own expression columns.
+      for(String name : names) {
+         for(int i = 0; i < columns.getAttributeCount(); i++) {
+            if(columns.getAttribute(i) instanceof ColumnRef col &&
+               Tool.isEmptyString(col.getEntity()) && !col.isExpression() &&
+               name.equals(col.getAttribute()))
+            {
+               return col;
+            }
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Bug #78922 / WBS-146: maps {@code ref}, a column of {@code source}, to the column of
+    * {@code dependent} that comes from it. A multi-source dependent (join, merge join, cross join,
+    * concat) or a mirror can hold several columns with the same bare attribute from different
+    * sources, so the bare-name lookup {@link AssetUtil#getColumnRefFromAttribute} cannot tell them
+    * apart and picks the last; there the column is identified by its source (entity) instead, via
+    * {@link #findSourceColumn}. When that finds nothing (a concat's non-first source, a renamed
+    * source, a derived column, a rotate/unpivot/other dependent) the legacy bare-name mapping is
+    * used unchanged.
+    *
+    * @param sourceRef the column of {@code source}; only a {@link ColumnRef} can be matched by
+    *                  entity, any other {@link DataRef} goes straight to the legacy mapping.
+    * @return the dependent's column, or {@code null} when none maps.
+    */
+   public static ColumnRef mapToDependentColumn(TableAssembly source, TableAssembly dependent,
+                                                DataRef sourceRef)
+   {
+      if(sourceRef instanceof ColumnRef column && dependent instanceof ComposedTableAssembly composed &&
+         (isMultiSource(composed) || composed instanceof MirrorTableAssembly))
+      {
+         ColumnRef mapped = findSourceColumn(column, source, composed);
+
+         if(mapped != null) {
+            return mapped;
+         }
+      }
+
+      return AssetUtil.getColumnRefFromAttribute(
+         dependent.getColumnSelection(), AssetUtil.getOuterAttribute(dependent.getName(), sourceRef));
+   }
+
+   /**
     * Check if allows deletion.
     */
    public static boolean allowsDeletion(Worksheet ws, TableAssembly assembly, ColumnRef ref) {
@@ -330,9 +422,7 @@ public class WorksheetControllerService {
 
          if(tmp instanceof TableAssembly) {
             TableAssembly table = (TableAssembly) tmp;
-            DataRef dataRef = AssetUtil.getOuterAttribute(assemblyName, ref);
-            ColumnRef ref2 =
-               AssetUtil.getColumnRefFromAttribute(table.getColumnSelection(), dataRef);
+            ColumnRef ref2 = mapToDependentColumn(assembly, table, ref);
 
             if(ref2 != null && !allowsDeletion(ws, table, ref2)) {
                return false;
@@ -465,7 +555,7 @@ public class WorksheetControllerService {
     * except the downstream lookup key for each of {@code table}'s OWN columns is built
     * from {@code originalAliases} (the column's alias before the CURRENT {@code
     * applyAggregateInfo} call touched anything), not the column's live -- possibly
-    * already-mutated -- alias. See {@link #getOuterAttributeSnapshotAware}.
+    * already-mutated -- alias. See {@link #snapshotAwareSource}.
     * {@code originalAliases} may be {@code null}, matching the 3-arg overload's
     * unconditional live-alias lookup for any caller built before this parameter existed.
     *
@@ -690,7 +780,7 @@ public class WorksheetControllerService {
    /**
     * {@code column} itself when its alias is unchanged since {@code originalAliases} was
     * captured, else a shadow clone carrying the pre-call alias, so a downstream lookup asks
-    * about the identity the column HAD (see {@link #getOuterAttributeSnapshotAware}).
+    * about the identity the column HAD (see {@link #snapshotAwareSource}).
     */
    private static ColumnRef withPreCallAlias(ColumnRef column,
                                              Map<ColumnRef, String> originalAliases)
@@ -730,22 +820,22 @@ public class WorksheetControllerService {
     * map and falls through to the ordinary, unmodified lookup, which is already correct
     * for it (its own alias reflects its own history, never mutated by this call).</p>
     */
-   private static DataRef getOuterAttributeSnapshotAware(
-      String table, ColumnRef column, Map<ColumnRef, String> originalAliases)
+   private static ColumnRef snapshotAwareSource(
+      ColumnRef column, Map<ColumnRef, String> originalAliases)
    {
       if(originalAliases == null || !originalAliases.containsKey(column)) {
-         return AssetUtil.getOuterAttribute(table, column);
+         return column;
       }
 
       String originalAlias = originalAliases.get(column);
 
       if(Objects.equals(originalAlias, column.getAlias())) {
-         return AssetUtil.getOuterAttribute(table, column);
+         return column;
       }
 
       ColumnRef shadow = (ColumnRef) column.clone();
       shadow.setAlias(originalAlias);
-      return AssetUtil.getOuterAttribute(table, shadow);
+      return shadow;
    }
 
    /**
@@ -789,9 +879,8 @@ public class WorksheetControllerService {
             }
 
             TableAssembly dependent = (TableAssembly) tmp;
-            DataRef outerRef = getOuterAttributeSnapshotAware(assemblyName, ref, originalAliases);
-            ColumnRef mappedRef =
-               AssetUtil.getColumnRefFromAttribute(dependent.getColumnSelection(), outerRef);
+            ColumnRef mappedRef = mapToDependentColumn(
+               assembly, dependent, snapshotAwareSource(ref, originalAliases));
 
             if(mappedRef == null) {
                continue;
@@ -919,9 +1008,7 @@ public class WorksheetControllerService {
             // detection is scoped one recursion level at a time.
             collectDotNotationExpressionReferences(assembly.getName(), ref, dependent, found);
 
-            DataRef outerRef = AssetUtil.getOuterAttribute(assemblyName, ref);
-            ColumnRef mappedRef =
-               AssetUtil.getColumnRefFromAttribute(dependent.getColumnSelection(), outerRef);
+            ColumnRef mappedRef = mapToDependentColumn(assembly, dependent, ref);
 
             if(mappedRef != null) {
                collectTableStateReferences(dependent, mappedRef, found);
