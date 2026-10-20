@@ -11299,9 +11299,13 @@ class WorksheetEditServiceMutatorsTest {
 
       for(String name : List.of("J", "M", "RO", "U")) {
          for(String mode : List.of("full", "default")) {
+            TableAssembly t = (TableAssembly) ws.getAssembly(name);
+            // a fresh hierarchical table per (table, mode) pair, so "default" is not satisfied
+            // by the flag an earlier "full" already cleared
+            ((ComposedTableAssembly) t).setHierarchical(true);
+            assertTrue(((ComposedTableAssembly) t).isHierarchical(), name + " precondition");
             svc.apply("TOK", agent, ed -> ed.setTableMode(name, "detail"));
             svc.apply("TOK", agent, ed -> ed.setTableMode(name, mode));
-            TableAssembly t = (TableAssembly) ws.getAssembly(name);
 
             assertEquals(AssetQuerySandbox.DESIGN_MODE,
                          inetsoft.web.composer.ws.assembly.WorksheetEventUtil.getMode(t),
