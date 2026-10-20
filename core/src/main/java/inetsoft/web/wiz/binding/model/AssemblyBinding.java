@@ -38,9 +38,11 @@ import java.util.Map;
  * advertise a shelf that chart cannot use.
  *
  * <p>{@code sorts} carries per-dimension sort/ranking, keyed by column (or {@code "column [i]"}
- * when the same column is bound more than once on the same shelf) — currently populated for a
- * chart's x/y/group shelves only, in the vocabulary {@code DimensionSortRanking.describe}
- * produces. Empty for a table or crosstab, whose own sort/ranking is reported by the richer
+ * when the same column is bound more than once on the same shelf, or {@code "column [shelf]"}
+ * when the same column is sorted on two shelves) — populated for a chart's x/y/group shelves, a
+ * map's geo shelf, and the color/shape/size/text channels ({@code "column [channel]"}), in the
+ * vocabulary {@code DimensionSortRanking.describe} produces. The single-field shelves are not
+ * described. Empty for a table or crosstab, whose own sort/ranking is reported by the richer
  * {@code table/binding} read instead.
  *
  * <p>{@code dateComparisonSeries} (Bug #77015, DCG-013 b) lists the series an applied date
