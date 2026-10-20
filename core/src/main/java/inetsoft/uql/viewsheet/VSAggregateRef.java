@@ -1091,6 +1091,11 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
          }
 
          String rtext = Tool.toString(arr[i]);
+
+         // an empty selection (e.g. a combo box with a blank value) is an empty ref, same as null
+         if((variable || isScript()) && rtext.isEmpty()) {
+            continue;
+         }
          DataRef ref = columns.getAttribute(rtext, getEntity());
          DataRef ref2 = null;
          // formula parsed from an "Agg(col)" variable value, overrides the design formula
