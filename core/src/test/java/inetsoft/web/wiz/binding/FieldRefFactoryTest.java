@@ -750,6 +750,39 @@ class FieldRefFactoryTest {
       assertEquals("Max", ((ChartAggregateRefModel) ref).getFormula());
    }
 
+   /** Bug #78884: a measure ref carries its source column's type, as a native drop stamps it. */
+   @Test
+   void toChartRefStampsTheNumericOriginalDataTypeOnAMeasure() throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Total", "double")));
+      FieldRef field = new FieldRef("Total", "measure", "$(Pick)", null, null);
+
+      ChartAggregateRefModel ref =
+         (ChartAggregateRefModel) FieldRefFactory.toChartRef(field, model, null, null, null);
+
+      assertEquals("double", ref.getOriginalDataType());
+   }
+
+   @Test
+   void toChartRefLeavesOriginalDataTypeUnsetWhenTheColumnTypeIsUnknown() {
+      ChartAggregateRefModel ref = (ChartAggregateRefModel) FieldRefFactory.toChartRef(
+         new FieldRef("Total", "measure", "Sum", null, null));
+
+      assertNull(ref.getOriginalDataType());
+   }
+
+   @Test
+   void toChartRefKeepsAStringColumnDimensionUnchanged() throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Region", "string")));
+      FieldRef field = new FieldRef("Region", "dimension", null, null, null);
+
+      ChartRefModel ref = FieldRefFactory.toChartRef(field, model, null, null, null);
+
+      assertTrue(ref instanceof ChartDimensionRefModel);
+      assertEquals("Region", ((ChartDimensionRefModel) ref).getColumnValue());
+   }
+
    private static BindingModel.SourceTable sourceTable(String name, String column,
                                                        String dataType)
    {
