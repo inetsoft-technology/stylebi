@@ -389,6 +389,9 @@ public class VSInputService {
    public Void onClick(@ClusterProxyKey String vsId, String name, String x, String y, VSSubmitEvent submitEvent,
                        String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception
    {
+      String[] submittedNames = null;
+      ChangedAssemblyList submitList = null;
+
       if(submitEvent != null && submitEvent.values() != null) {
          final InputValue[] inputValues = submitEvent.values();
 
@@ -407,11 +410,18 @@ public class VSInputService {
             // does a full viewsheet reset. That reset re-derives each input's selected value
             // from its bound table cell, which would otherwise clobber the value just applied
             // above with the stale, pre-submit value before it ever gets written back.
-            commitInputTableWrites(vsId, assemblyNames, principal, dispatcher, linkUri);
+            // The returned list holds what onLoad changed in response to the submitted
+            // values. A later processChange only sees changes made after this one, so the
+            // submit must execute this list or those changes never reach the client
+            // (Bug #78878).
+            submitList = commitInputTableWrites(vsId, assemblyNames, principal, dispatcher,
+                                                linkUri);
+            submittedNames = assemblyNames;
          }
       }
 
-      onClick(vsId, name, x, y, linkUri, false, null, principal, dispatcher);
+      onClick(vsId, name, x, y, linkUri, false, null, principal, dispatcher,
+              submittedNames, submitList);
 
       return null;
    }
@@ -419,16 +429,21 @@ public class VSInputService {
    /**
     * Write the current (just-applied) selected values of the given input assemblies into
     * their bound embedded table cells, if any.
+    *
+    * @return the changed assembly list the changes were processed into, or {@code null} if
+    *         the viewsheet has no sandbox.
     */
-   private void commitInputTableWrites(String vsId, String[] assemblyNames, Principal principal,
-                                       CommandDispatcher dispatcher, String linkUri)
+   private ChangedAssemblyList commitInputTableWrites(String vsId, String[] assemblyNames,
+                                                      Principal principal,
+                                                      CommandDispatcher dispatcher,
+                                                      String linkUri)
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       if(box.isEmpty()) {
-         return;
+         return null;
       }
 
       ChangedAssemblyList clist =
@@ -444,6 +459,8 @@ public class VSInputService {
       finally {
          box.get().unlockWrite();
       }
+
+      return clist;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -2595,6 +2612,20 @@ public class VSInputService {
                        boolean isConfirm, List<UserMessage> usrmsg, Principal principal,
                        CommandDispatcher dispatcher) throws Exception
    {
+      onClick(vsId, name, x, y, linkUri, isConfirm, usrmsg, principal, dispatcher, null, null);
+   }
+
+   /**
+    * @param submittedNames the input assemblies whose values the submit event applied, or
+    *                       {@code null}.
+    * @param submitList     the changed assembly list those values were processed into, or
+    *                       {@code null}.
+    */
+   private void onClick(String vsId, String name, String x, String y, String linkUri,
+                        boolean isConfirm, List<UserMessage> usrmsg, Principal principal,
+                        CommandDispatcher dispatcher, String[] submittedNames,
+                        ChangedAssemblyList submitList) throws Exception
+   {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
@@ -2605,7 +2636,8 @@ public class VSInputService {
       WSExecution.setAssetQuerySandbox(box.get().getAssetQuerySandbox());
 
       try {
-         process0(rvs, name, x, y, linkUri, isConfirm, usrmsg, principal, dispatcher);
+         process0(rvs, name, x, y, linkUri, isConfirm, usrmsg, principal, dispatcher,
+                  submittedNames, submitList);
       }
       finally {
          WSExecution.setAssetQuerySandbox(null);
@@ -2614,7 +2646,8 @@ public class VSInputService {
 
    private void process0(RuntimeViewsheet rvs, String name, String xstr, String ystr,
                          String linkUri, boolean isConfirm, List<UserMessage> usrmsg,
-                         Principal principal, CommandDispatcher dispatcher)
+                         Principal principal, CommandDispatcher dispatcher,
+                         String[] submittedNames, ChangedAssemblyList submitList)
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
@@ -2682,8 +2715,14 @@ public class VSInputService {
       }
 
       Set<AssemblyRef> set = new HashSet<>();
-      ChangedAssemblyList clist = this.coreLifecycleService.createList(true, dispatcher,
-                                                                       rvs, linkUri);
+      //If property "refresh viewsheet after submit" of the submit button is checked,
+      //we should update whole viewsheet after clicking the button.
+      boolean refreshAll = assembly instanceof SubmitVSAssembly &&
+         ((SubmitVSAssemblyInfo) assembly.getInfo()).isRefresh();
+      // without the full refresh only the listed changes are sent, so keep the ones the
+      // submitted values already caused (Bug #78878)
+      ChangedAssemblyList clist = !refreshAll && submitList != null ? submitList :
+         this.coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
 
       VSUtil.getReferencedAssets(script, set,
                                  name.contains(".") ? box0.getViewsheet() : vs, assembly);
@@ -2744,11 +2783,7 @@ public class VSInputService {
                               VSAssembly.OUTPUT_DATA_CHANGED, clist);
          }
 
-         //If property "refresh viewsheet after submit" of the submit button is checked,
-         //we should update whole viewsheet after clicking the button.
-         if(assembly instanceof SubmitVSAssembly &&
-            ((SubmitVSAssemblyInfo) assembly.getInfo()).isRefresh())
-         {
+         if(refreshAll) {
             // resetRuntime=false: reset=true already re-executes every assembly against the
             // sandbox's current (in-memory) worksheet data, which is all "refresh viewsheet
             // after submit" needs. resetRuntime=true would additionally reload the base
@@ -2761,6 +2796,19 @@ public class VSInputService {
          }
          else {
             box.get().processChange(name, VSAssembly.INPUT_DATA_CHANGED, clist);
+
+            // send the submitted inputs back with their applied values, or the client keeps
+            // showing the old ones, e.g. a spinner's label (Bug #78878)
+            if(submittedNames != null) {
+               for(String submittedName : submittedNames) {
+                  VSAssembly input = vs.getAssembly(submittedName);
+
+                  if(input != null && !clist.getViewList().contains(input.getAssemblyEntry())) {
+                     clist.getViewList().add(input.getAssemblyEntry());
+                  }
+               }
+            }
+
             coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
          }
       }
