@@ -2707,13 +2707,33 @@ class TableBindingMutatorTest {
    @Test
    void anExplicitNullCalculateInfoIsHarmlessOnADimensionAndOnAMeasureWithNone() {
       CrosstabBindingModel model = new CrosstabBindingModel();
-      FieldRef nullDim = new FieldRef("Region", "dimension", null, null, null);
+      FieldRef nullDim = jsonDimWithNullCalc("Region");
+      assertTrue(nullDim.clearsCalculateInfo(), "built from JSON, so it carries the clear request");
 
       TableBindingMutator.setShelf(model, "rows", List.of(nullDim));
       TableBindingMutator.setShelf(model, "aggregates", List.of(clearingCalc("Total", "Sum")));
 
       assertEquals("Region", model.getRows().get(0).getColumnValue());
       assertNull(model.getAggregates().get(0).getCalculateInfo());
+
+      CrosstabBindingModel cols = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(cols, "cols", List.of(jsonDimWithNullCalc("Region")));
+      assertEquals("Region", cols.getCols().get(0).getColumnValue());
+
+      TableBindingModel table = new TableBindingModel();
+      TableBindingMutator.setShelf(table, "details", List.of(jsonDimWithNullCalc("Region")));
+      assertEquals(1, table.getDetails().size());
+   }
+
+   private static FieldRef jsonDimWithNullCalc(String column) {
+      try {
+         return new ObjectMapper().readValue(
+            "{\"column\":\"" + column + "\",\"type\":\"dimension\",\"calculateInfo\":null}",
+            FieldRef.class);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
    }
 
    private static TableBindingModel tableWithLabels() {

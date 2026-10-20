@@ -93,7 +93,8 @@ public final class FieldRefFactory {
     * Builds the chart-side ref model a {@link FieldRef} describes, resolving {@code namedGroup}
     * into a live {@link NamedGroupInfoModel} when the field carries one.
     *
-    *     *                       data types when a measure arrives with no {@code aggregate}.
+    * @param model          the chart's binding model, for the bound source's reported column
+    *                       data types when a measure arrives with no {@code aggregate}.
     * @param rvs            the runtime viewsheet, for a worksheet-local named group lookup
     *                       and the aggregate calc-field lookup.
     * @param source         the chart's own {@code SourceInfo}, so a worksheet-local name is
