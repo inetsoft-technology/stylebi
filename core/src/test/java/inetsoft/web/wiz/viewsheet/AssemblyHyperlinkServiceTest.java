@@ -799,7 +799,7 @@ class AssemblyHyperlinkServiceTest {
     * required, because it is the display half of the same link.
     */
    @Test
-   void anExplicitAssetLinkIdIsUsedVerbatimWithoutConsultingTheRepository() throws Exception {
+   void anExplicitAssetLinkIdIsUsedVerbatimAfterAnExistenceCheck() throws Exception {
       Harness h = harness(new HyperlinkDialogModel());
 
       h.service.set("tok", principal(), "Chart1", null,
@@ -807,7 +807,97 @@ class AssemblyHyperlinkServiceTest {
                          "assetLinkId", "1^128^__NULL__^Reports/Detail"), "");
 
       assertEquals("1^128^__NULL__^Reports/Detail", capture(h.links).getAssetLinkId());
-      verify(h.repository, never()).containsEntry(any());
+      verify(h.repository).containsEntry(any());
+   }
+
+   private static void assertIdRefused(Harness h, String path, String id, String... fragments) {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "viewsheet", "assetLinkPath", path,
+                                  "assetLinkId", id), ""));
+      verifyNoInteractions(h.links);
+
+      for(String fragment : fragments) {
+         assertTrue(e.getMessage().contains(fragment), e.getMessage());
+      }
+   }
+
+   /** Bug #78934: path A with the id of B was stored as B. */
+   @Test
+   void anAssetLinkIdForADifferentPathIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      assertIdRefused(h, "Reports/A", "1^128^__NULL__^Reports/B", "Reports/A", "Reports/B");
+   }
+
+   @Test
+   void aNonexistentAssetLinkIdWithAMatchingPathIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+
+      assertIdRefused(h, "Reports/Ghost", "1^128^__NULL__^Reports/Ghost", "No viewsheet with");
+   }
+
+   @Test
+   void aNonexistentAssetLinkIdWithAnotherPathIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+
+      assertIdRefused(h, "Reports/A", "1^128^__NULL__^Reports/Ghost", "Reports/Ghost");
+   }
+
+   /** The documented use of assetLinkId: pin the personal sheet of a name that is also global. */
+   @Test
+   void aPersonalIdWithItsPathPinsThePersonalSheetOfASharedName() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      AssetEntry personal = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Detail",
+         IdentityID.getIdentityIDFromKey("admin"));
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(true);
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+                         "assetLinkId", personal.toIdentifier()), "");
+
+      assertEquals(personal.toIdentifier(), capture(h.links).getAssetLinkId());
+   }
+
+   /** get_hyperlink reads a personal sheet back as "My Dashboards/<path>". */
+   @Test
+   void aPersonalIdAcceptsTheMyDashboardsReadBackPath() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      AssetEntry personal = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Detail",
+         IdentityID.getIdentityIDFromKey("admin"));
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "viewsheet", "assetLinkPath", "My Dashboards/Reports/Detail",
+              "assetLinkId", personal.toIdentifier()), ""));
+   }
+
+   @Test
+   void aGlobalIdDoesNotAcceptAMyDashboardsPath() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      assertIdRefused(h, "My Dashboards/Reports/Detail", "1^128^__NULL__^Reports/Detail",
+                      "different viewsheets");
+   }
+
+   /** An id carrying another organization's id is not verified against this org's storage. */
+   @Test
+   void anOtherOrgIdSkipsTheExistenceCheckButStillMatchesThePath() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+      String id = "1^128^__NULL__^Reports/Detail^some-other-org";
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+              "assetLinkId", id), ""));
+      Harness other = harness(new HyperlinkDialogModel());
+      assertIdRefused(other, "Reports/Other", id, "different viewsheets");
    }
 
    /**

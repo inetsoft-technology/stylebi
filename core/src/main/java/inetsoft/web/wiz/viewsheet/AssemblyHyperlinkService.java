@@ -617,7 +617,9 @@ public class AssemblyHyperlinkService {
       String explicit = str(link, "assetLinkId");
 
       if(explicit != null) {
-         requireOpenableAssetId(explicit);
+         AssetRepository idRepository =
+            sessions.resolve(sessionToken, user).getAssetRepository();
+         requireOpenableAssetId(explicit, str(link, "assetLinkPath"), idRepository, user);
          return explicit;
       }
 
@@ -659,8 +661,9 @@ public class AssemblyHyperlinkService {
       throw new IllegalArgumentException(
          "No viewsheet at '" + path + "'. Looked in the global scope and in " + owner.getName() +
          "'s own scope. A link to a viewsheet that does not exist is accepted by the dialog and " +
-         "then does nothing when clicked, so it is refused here instead. Pass 'assetLinkId' " +
-         "directly if you already hold the asset identifier.");
+         "then does nothing when clicked, so it is refused here instead. Use a path from " +
+         "list_hyperlink_targets; to pin a scope, pass its 'assetLinkId' together with the " +
+         "matching 'assetLinkPath'.");
    }
 
    /**
@@ -694,12 +697,16 @@ public class AssemblyHyperlinkService {
    }
 
    /**
-    * Validates an explicit {@code assetLinkId}: it must parse as a viewsheet asset identifier and
-    * must not point into the Recycle Bin. No existence check is made for this form -- ids from
-    * {@code list_hyperlink_targets} may carry another organization's id and the Composer dialog
-    * passes cross-org ids, so {@code containsEntry} cannot be relied on to accept them.
+    * Validates an explicit {@code assetLinkId}: it must parse as a viewsheet asset identifier,
+    * must not point into the Recycle Bin, must name the same asset as {@code assetLinkPath}
+    * (bug #78934: a path for one sheet with the id of another was stored as the id's sheet), and
+    * must exist. The existence check is skipped for an id carrying another organization's id: the
+    * Composer dialog passes cross-org ids and {@code containsEntry} was never verified to accept
+    * them, so only the path agreement is enforced there.
     */
-   private static void requireOpenableAssetId(String id) {
+   private static void requireOpenableAssetId(String id, String path, AssetRepository repository,
+                                              Principal user) throws Exception
+   {
       AssetEntry entry;
 
       try {
@@ -716,6 +723,35 @@ public class AssemblyHyperlinkService {
       }
 
       requireNotRecycled(entry.getPath());
+
+      String expected = entry.getPath();
+      String given = path;
+      String myPrefix = Tool.MY_DASHBOARD + "/";
+
+      if(given != null && entry.getScope() == AssetRepository.USER_SCOPE &&
+         given.startsWith(myPrefix))
+      {
+         given = given.substring(myPrefix.length());
+      }
+
+      if(given != null && !expected.equals(given)) {
+         throw new IllegalArgumentException(
+            "'assetLinkPath' ('" + path + "') and 'assetLinkId' ('" + id + "', path '" +
+            expected + "') name different viewsheets. Pass the assetLinkId together with the " +
+            "assetLinkPath of the same entry from list_hyperlink_targets.");
+      }
+
+      String entryOrg = entry.getOrgID();
+      String callerOrg = IdentityID.getIdentityIDFromKey(user.getName()).getOrgID();
+      boolean otherOrg = entryOrg != null && callerOrg != null &&
+         !entryOrg.equalsIgnoreCase(callerOrg);
+
+      if(!otherOrg && !repository.containsEntry(entry)) {
+         throw new IllegalArgumentException(
+            "No viewsheet with assetLinkId '" + id + "'. A link to a viewsheet that does not " +
+            "exist is accepted by the dialog and then does nothing when clicked, so it is " +
+            "refused here instead. Use an assetLinkId from list_hyperlink_targets.");
+      }
    }
 
    private static boolean isRecycledId(String id) {
