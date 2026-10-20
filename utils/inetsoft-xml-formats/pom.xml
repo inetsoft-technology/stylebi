@@ -23,7 +23,7 @@
   <parent>
     <groupId>com.inetsoft.stylebi</groupId>
     <artifactId>utils-parent</artifactId>
-    <version>2.0.1</version>
+    <version>2.0.2-SNAPSHOT</version>
   </parent>
 
   <artifactId>inetsoft-xml-formats</artifactId>
@@ -530,7 +530,7 @@
           <dependency>
             <groupId>com.inetsoft.stylebi.build</groupId>
             <artifactId>maven-shade-transformers</artifactId>
-            <version>2.0.1</version>
+            <version>2.0.2-SNAPSHOT</version>
           </dependency>
         </dependencies>
       </plugin>
