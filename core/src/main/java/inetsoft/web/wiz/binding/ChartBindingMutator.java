@@ -831,6 +831,10 @@ public final class ChartBindingMutator {
    private static BDimensionRefModel requireDimension(ChartBindingModel model, String shelf,
                                                        String column, Integer index)
    {
+      if(isAestheticChannel(shelf)) {
+         return requireAestheticDimension(model, shelf.trim().toLowerCase(), column);
+      }
+
       List<ChartRefModel> refs = readShelf(model, shelf);
       List<String> present = new ArrayList<>();
       Map<Integer, BDimensionRefModel> matches = new LinkedHashMap<>();
@@ -881,13 +885,40 @@ public final class ChartBindingMutator {
    public static void setSort(ChartBindingModel model, String shelf, String column,
                               Integer index, DimensionSortRanking.Sort sort)
    {
+      setSort(model, shelf, column, index, sort, false);
+   }
+
+   /**
+    * @param multiAesthetic whether the chart renders per-measure aesthetic frames
+    *                       ({@code VSChartInfo.isMultiAesthetic()}).
+    * @return notes for the caller: the aesthetic channels the same order was also written to, or
+    *         why it could not be.
+    */
+   public static List<String> setSort(ChartBindingModel model, String shelf, String column,
+                                      Integer index, DimensionSortRanking.Sort sort,
+                                      boolean multiAesthetic)
+   {
       if(sort != null && sort.sortByField() != null && !sort.sortByField().isBlank()) {
          requireUnambiguousMeasure(model, sort.sortByField(), "sortByField");
       }
 
+      requireNotMultiAestheticChannel(shelf, multiAesthetic);
       BDimensionRefModel dimension = requireDimension(model, shelf, column, index);
-      releaseTimeSeriesForSort(model, shelf, dimension, sort);
+
+      if(!isAestheticChannel(shelf)) {
+         releaseTimeSeriesForSort(model, shelf, dimension, sort);
+      }
+      else if(blocksOnTimeSeries(model, shelf.trim().toLowerCase(), dimension, sort)) {
+         throw new IllegalArgumentException(
+            "Cannot sort '" + refColumn(dimension) + "' '" + sort.direction() + "' on the " +
+            shelf.trim().toLowerCase() + " channel: it is a time-series date dimension, which " +
+            "always renders in ascending date order. Use 'asc'.");
+      }
+
       DimensionSortRanking.applySort(dimension, sort);
+      return mirrorToAesthetics(model, shelf, dimension, multiAesthetic,
+                                target -> DimensionSortRanking.applySort(target, sort), "order",
+                                sort);
    }
 
    /**
@@ -948,11 +979,198 @@ public final class ChartBindingMutator {
    public static void setRanking(ChartBindingModel model, String shelf, String column,
                                  Integer index, DimensionSortRanking.Ranking ranking)
    {
+      setRanking(model, shelf, column, index, ranking, false);
+   }
+
+   /** @see #setSort(ChartBindingModel, String, String, Integer, DimensionSortRanking.Sort, boolean) */
+   public static List<String> setRanking(ChartBindingModel model, String shelf, String column,
+                                         Integer index, DimensionSortRanking.Ranking ranking,
+                                         boolean multiAesthetic)
+   {
       if(ranking != null && ranking.measure() != null && !ranking.measure().isBlank()) {
          requireUnambiguousMeasure(model, ranking.measure(), "measure");
       }
 
-      DimensionSortRanking.applyRanking(requireDimension(model, shelf, column, index), ranking);
+      requireNotMultiAestheticChannel(shelf, multiAesthetic);
+      BDimensionRefModel dimension = requireDimension(model, shelf, column, index);
+      DimensionSortRanking.applyRanking(dimension, ranking);
+      return mirrorToAesthetics(model, shelf, dimension, multiAesthetic,
+                                target -> DimensionSortRanking.applyRanking(target, ranking),
+                                "ranking", null);
+   }
+
+   /**
+    * The aesthetic counterpart of {@link #releaseTimeSeriesForSort}: a non-ascending sort on a
+    * channel dimension whose time-series flag is in force ({@link ChartTimeSeriesGuard}) would be
+    * stored and never render, so that is reported as blocked. A flag that is stored but not in
+    * force is cleared so the sort takes effect.
+    */
+   private static boolean blocksOnTimeSeries(ChartBindingModel model, String channel,
+                                             BDimensionRefModel dimension,
+                                             DimensionSortRanking.Sort sort)
+   {
+      if(!(dimension instanceof ChartDimensionRefModel chartDimension) ||
+         !chartDimension.isTimeSeries() || !overridesAscending(sort))
+      {
+         return false;
+      }
+
+      if(ChartTimeSeriesGuard.isEffective(
+         model, ChartTimeSeriesGuard.Place.AESTHETIC, channel, -1, chartDimension))
+      {
+         return true;
+      }
+
+      chartDimension.setTimeSeries(false);
+      return false;
+   }
+
+   // -- aesthetic-channel dimensions (bug #78803) ----------------------------------------------
+   //
+   // A dimension bound to color/shape/size/text is a separate ChartDimensionRefModel from the
+   // same column on x/y/group. The legend order comes from the aesthetic ref
+   // (VSFrameVisitor.setLegendComparator), and ChartVSAQuery's SortInfo lets the later aesthetic
+   // ref overwrite the shelf ref's order for the same column, so a shelf-only sort never reached
+   // what the user sees.
+
+   private static boolean isAestheticChannel(String shelf) {
+      return shelf != null && AestheticChannels.FIELD_CHANNELS.contains(shelf.trim().toLowerCase());
+   }
+
+   private static void requireNotMultiAestheticChannel(String shelf, boolean multiAesthetic) {
+      if(multiAesthetic && isAestheticChannel(shelf)) {
+         throw new IllegalArgumentException(
+            "This chart renders per-measure aesthetic frames (multi-style), so sort/ranking on " +
+            "the " + shelf.trim().toLowerCase() + " channel is not supported yet: the " +
+            "per-measure bindings are what the legend reads, and a write to the channel-level " +
+            "field would be stored without taking effect.");
+      }
+   }
+
+   private static BDimensionRefModel requireAestheticDimension(ChartBindingModel model,
+                                                               String channel, String column)
+   {
+      AestheticInfo info = ChartAestheticMutator.read(model, channel);
+
+      if(info == null || info.getDataInfo() == null) {
+         throw new IllegalArgumentException(
+            "The " + channel + " channel has no field bound, so there is nothing to sort or " +
+            "rank. Bind a dimension with set_aesthetic_field first.");
+      }
+
+      if(!(info.getDataInfo() instanceof BDimensionRefModel dimension)) {
+         throw new IllegalArgumentException(
+            "The " + channel + " channel holds a measure, not a dimension; only a dimension has " +
+            "a sort order or ranking.");
+      }
+
+      String bound = refColumn(dimension);
+
+      if(column != null && !column.isBlank() && (bound == null || !bound.equalsIgnoreCase(column))) {
+         throw new IllegalArgumentException(
+            "'" + column + "' is not the field on the " + channel + " channel. It holds: " +
+            bound + ".");
+      }
+
+      return dimension;
+   }
+
+   private static String refColumn(BDimensionRefModel dimension) {
+      return dimension.getColumnValue() == null ? dimension.getName() : dimension.getColumnValue();
+   }
+
+   /**
+    * Writes the same sort/ranking to every aesthetic channel bound to the same column at the same
+    * date level as a sorted x/y/group dimension (a different date level is a different field).
+    * Not done in the other direction: sorting a channel leaves the shelf alone.
+    */
+   private static List<String> mirrorToAesthetics(ChartBindingModel model, String shelf,
+                                                  BDimensionRefModel dimension,
+                                                  boolean multiAesthetic,
+                                                  java.util.function.Consumer<BDimensionRefModel> apply,
+                                                  String what,
+                                                  DimensionSortRanking.Sort sort)
+   {
+      List<String> notes = new ArrayList<>();
+
+      if(isAestheticChannel(shelf)) {
+         return notes;
+      }
+
+      String column = refColumn(dimension);
+      List<String> channels = new ArrayList<>();
+
+      for(String channel : AestheticChannels.FIELD_CHANNELS) {
+         AestheticInfo info = ChartAestheticMutator.read(model, channel);
+
+         if(info != null && info.getDataInfo() instanceof BDimensionRefModel other &&
+            other != dimension && column != null && column.equalsIgnoreCase(refColumn(other)) &&
+            Objects.equals(dimension.getDateLevel(), other.getDateLevel()))
+         {
+            channels.add(channel);
+         }
+      }
+
+      if(channels.isEmpty()) {
+         return notes;
+      }
+
+      if(multiAesthetic) {
+         notes.add("'" + column + "' is also bound on the " + String.join(", ", channels) +
+                   " channel, but this chart renders per-measure aesthetic frames, so the legend " +
+                   "order is governed by per-measure aesthetic bindings that this call did not " +
+                   "touch.");
+         return notes;
+      }
+
+      List<String> applied = new ArrayList<>();
+      List<String> skipped = new ArrayList<>();
+
+      for(String channel : channels) {
+         BDimensionRefModel target =
+            (BDimensionRefModel) ChartAestheticMutator.read(model, channel).getDataInfo();
+
+         if(blocksOnTimeSeries(model, channel, target, sort)) {
+            skipped.add(channel);
+            continue;
+         }
+
+         apply.accept(target);
+         applied.add(channel);
+      }
+
+      if(!applied.isEmpty()) {
+         notes.add("alsoApplied: " + String.join(", ", applied) + " -- '" + column +
+                   "' is also bound on that channel, so the same " + what + " was written " +
+                   "there; the channel's own " + what + " governs the legend.");
+      }
+
+      if(!skipped.isEmpty()) {
+         notes.add("'" + column + "' is also bound on the " + String.join(", ", skipped) +
+                   " channel as a time-series date dimension, which always renders ascending, so " +
+                   "the " + what + " was not written there.");
+      }
+
+      return notes;
+   }
+
+   /**
+    * The sort and ranking of each dimension bound to an aesthetic channel, keyed
+    * {@code "<column> [<channel>]"} so it never collides with the same column's shelf entry.
+    */
+   public static Map<String, Object> describeAestheticSorts(ChartBindingModel model) {
+      Map<String, Object> out = new LinkedHashMap<>();
+
+      for(String channel : AestheticChannels.FIELD_CHANNELS) {
+         AestheticInfo info = ChartAestheticMutator.read(model, channel);
+
+         if(info != null && info.getDataInfo() instanceof BDimensionRefModel dimension) {
+            out.put(refColumn(dimension) + " [" + channel + "]",
+                    DimensionSortRanking.describe(dimension));
+         }
+      }
+
+      return out;
    }
 
    /**

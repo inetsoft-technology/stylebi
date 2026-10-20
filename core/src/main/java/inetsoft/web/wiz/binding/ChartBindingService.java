@@ -43,6 +43,7 @@ import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
+import inetsoft.web.composer.model.vs.ChartAdvancedPaneModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.binding.model.ChartTypeState;
@@ -523,11 +524,13 @@ public class ChartBindingService {
                        String column, Integer index, DimensionSortRanking.Sort sort,
                        String linkUri) throws Exception
    {
-      return sessions.mutate(sessionToken, user,
+      List<String> notes = new ArrayList<>();
+      List<String> warnings = sessions.mutate(sessionToken, user,
          ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
-         ChartBindingMutator.setSort(model, shelf, column, index, sort);
+         notes.addAll(ChartBindingMutator.setSort(
+            model, shelf, column, index, sort, isMultiAesthetic(chart)));
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
@@ -535,6 +538,19 @@ public class ChartBindingService {
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
       }));
+
+      return withNotes(warnings, notes);
+   }
+
+   private static boolean isMultiAesthetic(ChartVSAssembly chart) {
+      VSChartInfo info = chart.getVSChartInfo();
+      return info != null && info.isMultiAesthetic();
+   }
+
+   private static List<String> withNotes(List<String> warnings, List<String> notes) {
+      List<String> all = new ArrayList<>(warnings == null ? List.of() : warnings);
+      all.addAll(notes);
+      return all;
    }
 
    /** @see #setSort */
@@ -542,18 +558,36 @@ public class ChartBindingService {
                           String column, Integer index, DimensionSortRanking.Ranking ranking,
                           String linkUri) throws Exception
    {
-      return sessions.mutate(sessionToken, user,
+      List<String> notes = new ArrayList<>();
+      List<String> warnings = sessions.mutate(sessionToken, user,
          ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
-         ChartBindingMutator.setRanking(model, shelf, column, index, ranking);
+         notes.addAll(ChartBindingMutator.setRanking(
+            model, shelf, column, index, ranking, isMultiAesthetic(chart)));
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+
+         // Same condition the Composer's Advanced pane uses for its "Top N for Each {0}" label:
+         // ranking on an inner dimension is evaluated within each outer value while the chart's
+         // rankPerGroup flag is on (the default).
+         ChartVSAssembly written = requireChart(rvs, assemblyName);
+         String label = ChartAdvancedPaneModel.getRankPerGroupLabel(written.getVSChartInfo());
+
+         boolean clearing = ranking == null || "none".equalsIgnoreCase(ranking.mode());
+
+         if(!clearing && label != null && written.getChartDescriptor().isRankPerGroup()) {
+            notes.add("Ranking is applied per group, not chart-wide: the chart shows '" + label +
+                      "' (rankPerGroup is on). To rank across the whole chart, set " +
+                      "rankPerGroup:false with set_assembly_properties.");
+         }
       }));
+
+      return withNotes(warnings, notes);
    }
 
    public List<String> setChartType(String sessionToken, Principal user, String assemblyName, int type,

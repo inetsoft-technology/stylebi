@@ -224,9 +224,8 @@ class ChartTimeSeriesSortConflictTest {
       IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
          () -> ChartAestheticMutator.setField(model, "color", date("quarter", true)));
 
-      // a set_chart_field_sort on the colour dimension is impossible: no such shelf
-      assertThrows(IllegalArgumentException.class,
-         () -> ChartBindingMutator.setSort(model, "color", "Order Date", null, sort("asc")));
+      // a set_chart_field_sort on the colour dimension is possible since bug #78803
+      ChartBindingMutator.setSort(model, "color", "Order Date", null, sort("asc"));
 
       ChartAestheticMutator.clearField(model, "color");
       ChartAestheticMutator.setField(model, "color", date("quarter", true));
