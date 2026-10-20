@@ -17,11 +17,13 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * Response body for {@link WorksheetAgentController#edit}, populated only for ops whose result
- * assembly may be named other than what the caller requested -- currently {@code add_table} and
- * {@code convert_to_embedded} (every other op keeps getting an empty {@code 204 No Content}
- * response).
+ * assembly may be named other than what the caller requested, or whose kind the caller cannot
+ * tell from the request -- currently {@code add_table}, {@code convert_to_embedded} and
+ * {@code add_mirror} (every other op keeps getting an empty {@code 204 No Content} response).
  *
  * <p>{@code add_table} can silently create its new assembly under a name other than the one
  * requested, via {@code AssetUtil.getNextName}'s collision-suffixing (e.g. a request for
@@ -30,6 +32,13 @@ package inetsoft.web.wiz.worksheet;
  * table is left untouched), so its resolved name is never the requested {@code table} name at
  * all. In both cases {@code assemblyName} discloses the actual resolved name so the caller does
  * not have to discover it via a follow-up {@code read_worksheet_model} call.</p>
+ *
+ * <p>{@code add_mirror} builds a mirror of the source's own kind (a saved worksheet's primary
+ * may be a table, variable, condition, date range or named group), which no list tool shows for
+ * the non-table kinds, so it also reports {@code assemblyKind}. It is omitted from the body for
+ * the ops that do not set it.</p>
  */
-public record EditResponse(String assemblyName) {
+public record EditResponse(String assemblyName,
+                           @JsonInclude(JsonInclude.Include.NON_NULL) String assemblyKind)
+{
 }

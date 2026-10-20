@@ -2093,9 +2093,10 @@ public class WorksheetEditService {
        *
        * @param name   the name for the new mirror assembly
        * @param source the name of the table assembly to mirror
+       * @return the created mirror, which carries the name actually used
        * @throws PairingException if the source assembly is not found or is not a table
        */
-      public void addMirror(String name, String source) throws PairingException {
+      public MirrorTableAssembly addMirror(String name, String source) throws PairingException {
          if(name == null || name.isBlank()) {
             name = AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
          }
@@ -2119,6 +2120,15 @@ public class WorksheetEditService {
 
          MirrorTableAssembly mirror = new MirrorTableAssembly(ws, name, table);
          placeAssembly(mirror);
+         return mirror;
+      }
+
+      /**
+       * The kind of any worksheet assembly, as a result field names it: {@code table},
+       * {@code variable}, {@code condition}, {@code date range} or {@code named group}.
+       */
+      public static String assemblyKind(Assembly assembly) {
+         return assembly instanceof TableAssembly ? "table" : kindOf(assembly);
       }
 
       /** The kind of a non-table worksheet assembly, as a refusal names it. */

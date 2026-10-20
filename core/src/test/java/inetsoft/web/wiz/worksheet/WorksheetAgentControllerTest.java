@@ -4225,7 +4225,8 @@ class WorksheetAgentControllerTest {
       // Regression: today's same-worksheet add_mirror(name, source) must keep working unchanged
       // now that a new path/scope form exists -- the new dispatch guard must not intercept a
       // request with no 'path'.
-      ctrl.edit("TOK-AM", addMirrorRequest("M", "T"), agent);
+      EditResponse response = ctrl.edit("TOK-AM", addMirrorRequest("M", "T"), agent).getBody();
+      assertEquals(new EditResponse("M", "table"), response);
 
       Assembly created = ws.getAssembly("M");
       assertTrue(created instanceof MirrorTableAssembly, "expected an inner mirror assembly");
@@ -4275,7 +4276,10 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetRepository);
 
-      ctrl.edit("TOK-AWM", addWorksheetMirrorRequest("M", "Sample Queries/SRC", null), agent);
+      EditResponse response =
+         ctrl.edit("TOK-AWM", addWorksheetMirrorRequest("M", "Sample Queries/SRC", null), agent)
+            .getBody();
+      assertEquals(new EditResponse("M", "table"), response);
 
       Assembly created = ws.getAssembly("M");
       assertTrue(created instanceof MirrorTableAssembly, "expected an outer mirror assembly");

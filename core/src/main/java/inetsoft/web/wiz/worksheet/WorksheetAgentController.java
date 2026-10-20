@@ -377,14 +377,14 @@ public class WorksheetAgentController {
    {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
-      String[] resolvedNameHolder = new String[1];
+      String[] resolvedNameHolder = new String[2];
       editOp(sessionToken, req, user, resolvedNameHolder);
 
       if(resolvedNameHolder[0] == null) {
          return ResponseEntity.noContent().build();
       }
 
-      return ResponseEntity.ok(new EditResponse(resolvedNameHolder[0]));
+      return ResponseEntity.ok(new EditResponse(resolvedNameHolder[0], resolvedNameHolder[1]));
    }
 
    /**
@@ -410,6 +410,7 @@ public class WorksheetAgentController {
    /**
     * Same as {@link #editOp(String, EditRequest, Principal)}, plus an optional out-param that
     * {@code add_table}'s branches fill with the resolved assembly name (see {@link EditResponse}).
+    * Slot 0 is the name; slot 1 is the assembly kind, filled only by {@code add_mirror}.
     * {@code null} for every other op, and accepted as {@code null} here too (the 3-arg overload
     * above passes {@code null} for its one in-process caller, which has no use for the name).
     */
@@ -667,7 +668,7 @@ public class WorksheetAgentController {
       // same-worksheet form (source only, no path) still goes through the ordinary dispatch
       // switch below, unchanged.
       if("add_mirror".equals(req.op()) && req.path() != null && !req.path().isBlank()) {
-         addWorksheetMirror(sessionToken, req, user);
+         addWorksheetMirror(sessionToken, req, user, resolvedNameHolder);
          return;
       }
 
@@ -710,7 +711,7 @@ public class WorksheetAgentController {
          return;
       }
 
-      editService.apply(sessionToken, user, editor -> dispatch(editor, req));
+      editService.apply(sessionToken, user, editor -> dispatch(editor, req, resolvedNameHolder));
    }
 
    /**
@@ -3876,7 +3877,26 @@ public class WorksheetAgentController {
       return agent != null ? agent.getName() : null;
    }
 
+   /** Reports the created assembly's actual name and kind through the edit out-param. */
+   private static void fillResolved(String[] resolvedNameHolder, Assembly created) {
+      if(resolvedNameHolder != null) {
+         resolvedNameHolder[0] = created.getName();
+         resolvedNameHolder[1] = WorksheetEditService.Editor.assemblyKind(created);
+      }
+   }
+
    private void dispatch(WorksheetEditService.Editor editor, EditRequest req)
+      throws Exception
+   {
+      dispatch(editor, req, null);
+   }
+
+   /**
+    * Same as {@link #dispatch(WorksheetEditService.Editor, EditRequest)}, plus the optional
+    * out-param described on {@link #editOp(String, EditRequest, Principal, String[])}.
+    */
+   private void dispatch(WorksheetEditService.Editor editor, EditRequest req,
+                         String[] resolvedNameHolder)
       throws Exception
    {
       switch(req.op() == null ? "" : req.op()) {
@@ -3965,7 +3985,7 @@ public class WorksheetAgentController {
             editor.addConcatenation(req.name(), req.tables(), req.concatType(),
                                     req.concatDistinct());
          case "add_mirror" ->
-            editor.addMirror(req.name(), req.source());
+            fillResolved(resolvedNameHolder, editor.addMirror(req.name(), req.source()));
          case "set_conditions" ->
             editor.setConditions(req.table(), req.conditions());
          case "set_post_conditions" ->
@@ -4578,7 +4598,8 @@ public class WorksheetAgentController {
     * WorksheetEditService.Editor} has neither of -- same reason {@link #updateMirror} bypasses
     * {@code dispatch} via {@link WorksheetEditService#applyOnRuntime}.
     */
-   private void addWorksheetMirror(String sessionToken, EditRequest req, Principal user)
+   private void addWorksheetMirror(String sessionToken, EditRequest req, Principal user,
+                                   String[] resolvedNameHolder)
       throws Exception
    {
       String name = req.name();
@@ -4643,6 +4664,8 @@ public class WorksheetAgentController {
                throw new PairingException(
                   "The mirror \"" + name + "\" could not be added to the worksheet.");
             }
+
+            fillResolved(resolvedNameHolder, mirror);
          }
          catch(Exception e) {
             for(WSAssembly copy : created) {
