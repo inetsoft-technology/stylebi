@@ -1115,17 +1115,7 @@ public class AssemblyHighlightService {
    }
 
    private static List<String> fieldNames(HighlightDialogModel model) {
-      List<String> names = new ArrayList<>();
-
-      if(model.getFields() != null) {
-         for(var field : model.getFields()) {
-            if(field != null && field.getName() != null) {
-               names.add(field.getName());
-            }
-         }
-      }
-
-      return names;
+      return ConditionVocabulary.canonicalNames(model.getFields());
    }
 
    private final ViewsheetSessionService sessions;
