@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.binding.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -118,7 +119,7 @@ import java.util.List;
  *                         {@code #setSecondaryColumnValue}, not the {@code DataRefModel}-typed
  *                         {@code secondaryColumn}/{@code setSecondaryColumn} pair on that same
  *                         model. {@code null}/absent means "not specified".
- * @param operand          the N of NthLargest/NthSmallest/NthMostFrequent or the P of
+ * @param operand          (wire key {@code n}) the N of NthLargest/NthSmallest/NthMostFrequent or the P of
  *                         PthPercentile, measures only (bug #78856) -- a String, like
  *                         {@code BAggregateRefModel#getNumValue}, so a dynamic {@code $(var)} /
  *                         {@code =expr} operand the Composer UI can author reads back and
@@ -132,7 +133,8 @@ public record FieldRef(String column, String type, String aggregate, String date
                        @JsonDeserialize(using = CalculateInfoDeserializer.class)
                        CalculateInfo calculateInfo,
                        String label, Boolean secondaryY, Boolean visible, Boolean timeSeries,
-                       String secondaryColumn, String operand) {
+                       String secondaryColumn,
+                       @JsonProperty("n") String operand) {
    /**
     * The shape before {@code operand} was added -- kept so that addition did not touch every call
     * site that already named {@code secondaryColumn} (this was the record's own canonical

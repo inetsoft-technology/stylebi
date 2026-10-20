@@ -182,7 +182,7 @@ class FieldRefBindingTest {
    void theClearRequestSerialisesAsNullAndSurvivesAColumnRename() throws Exception {
       FieldRef ref = mapper.readValue(
          """
-         { "column": "paid", "type": "measure", "calculateInfo": null, "operand": "90" }
+         { "column": "paid", "type": "measure", "calculateInfo": null, "n": "90" }
          """, FieldRef.class);
 
       assertTrue(mapper.readTree(mapper.writeValueAsString(ref)).get("calculateInfo").isNull());
@@ -201,10 +201,12 @@ class FieldRefBindingTest {
       FieldRef ref = mapper.readValue(
          """
          { "column": "PAID", "type": "measure", "aggregate": "PthPercentile",
-           "operand": "$(p)" }
+           "n": "$(p)" }
          """, FieldRef.class);
 
       assertEquals("$(p)", ref.operand());
+      assertEquals("$(p)", mapper.readTree(mapper.writeValueAsString(ref)).get("n").asText(),
+                   "the wire key is n, the one the plugin and get_table_binding use");
       assertNull(mapper.readValue(
          """
          { "column": "PAID", "type": "measure" }
