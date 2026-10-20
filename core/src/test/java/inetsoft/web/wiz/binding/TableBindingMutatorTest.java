@@ -1158,6 +1158,90 @@ class TableBindingMutatorTest {
       assertNotEquals(0, dim.getNamedGroupInfo().getType());
    }
 
+   private static FieldRef dimWithInlineGroup(String column) {
+      return new FieldRef(column, "dimension", null, null, null, null, null,
+         new FieldRef.NamedGroupValues(
+            List.of(new FieldRef.NamedGroupValues.Clause("West", List.of("CA", "OR")),
+                    new FieldRef.NamedGroupValues.Clause("East", List.of("NY"))), null),
+         null, null, null, null, null, null);
+   }
+
+   private static Worksheet worksheetWithGroupNamed(String name) {
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(Condition.EQUAL_TO);
+      when(condition.getValues()).thenReturn(List.of("CA"));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "REGION"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("West", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn(name);
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(QUERY1_SOURCE);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "REGION"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[]{ ngAssembly });
+      return ws;
+   }
+
+   /** Bug #78937, the vtb-070 shape: an inline group re-sent with namedGroupValues. */
+   @Test
+   void resendingAnInlineGroupWithNamedGroupValuesKeepsItsDescSort() throws Exception {
+      Worksheet ws = worksheetWithGroupNamed("Unused");
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dimWithInlineGroup("REGION")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+      TableBindingMutator.setSort(model, "rows", "REGION", null,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+      assertEquals(XConstants.SORT_DESC, model.getRows().get(0).getOrder());
+
+      TableBindingMutator.setShelf(model, "rows", List.of(dimWithInlineGroup("REGION")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+
+      BDimensionRefModel dim = model.getRows().get(0);
+      assertEquals(XConstants.SORT_DESC, dim.getOrder());
+      assertNotNull(dim.getNamedGroupInfo());
+      assertEquals(XNamedGroupInfo.SIMPLE_NAMEDGROUP_INFO, dim.getNamedGroupInfo().getType());
+   }
+
+   /** Bug #78937, the {@code echoed} branch: the "Custom" placeholder resolves to a real group. */
+   @Test
+   void resendingAnExpertGroupThroughTheEchoBranchKeepsItsDescSort() throws Exception {
+      Worksheet ws = worksheetWithGroupNamed("Custom");
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dimWithNamedGroup("REGION", "Custom")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+      TableBindingMutator.setSort(model, "rows", "REGION", null,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+      assertEquals(XConstants.SORT_DESC, model.getRows().get(0).getOrder());
+
+      TableBindingMutator.setShelf(model, "rows", List.of(dimWithNamedGroup("REGION", "Custom")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+
+      BDimensionRefModel dim = model.getRows().get(0);
+      assertEquals(XConstants.SORT_DESC, dim.getOrder());
+      assertEquals(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO, dim.getNamedGroupInfo().getType());
+   }
+
+   /** Bug #78937 contrast: a group newly added to an ungrouped desc field is still SPECIFIC. */
+   @Test
+   void addingAGroupToAnUngroupedDescFieldStillBecomesSortSpecific() throws Exception {
+      Worksheet ws = worksheetWithGroupNamed("Unused");
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("REGION")));
+      TableBindingMutator.setSort(model, "rows", "REGION", null,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+      assertEquals(XConstants.SORT_DESC, model.getRows().get(0).getOrder());
+
+      TableBindingMutator.setShelf(model, "rows", List.of(dimWithInlineGroup("REGION")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+
+      assertEquals(XConstants.SORT_SPECIFIC, model.getRows().get(0).getOrder());
+   }
+
    /**
     * Removing CATEGORY (index 0) shifts ORDER_DATE from index 1 to index 0. A wholesale replace
     * (set_table_fields) still matches by absolute index and so does not follow it, but removeField
