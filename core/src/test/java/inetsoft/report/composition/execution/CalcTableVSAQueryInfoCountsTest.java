@@ -33,6 +33,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.mockito.Mockito.*;
 
 /**
@@ -47,6 +49,8 @@ import static org.mockito.Mockito.*;
 @SreeHome
 @Tag("core")
 class CalcTableVSAQueryInfoCountsTest {
+   private static final AtomicBoolean FALLBACK_REACHED = new AtomicBoolean();
+
    private enum Mode { SOURCELESS, FALLBACK, SOURCED }
 
    private static TableLens lens(Mode mode, int hrow, int trow, boolean formula,
@@ -60,7 +64,7 @@ class CalcTableVSAQueryInfoCountsTest {
       info.setTrailerRowCount(trow);
       TableLayout layout = cassembly.getTableLayout();
 
-      if(formula) {
+      if(formula || mode == Mode.FALLBACK) {
          layout.setCellBinding(1, 0, new TableCellBinding(CellBinding.BIND_FORMULA, "1+1"));
       }
       else {
@@ -86,6 +90,7 @@ class CalcTableVSAQueryInfoCountsTest {
 
          @Override
          protected TableLens getTableLens(TableAssembly t) {
+            FALLBACK_REACHED.set(mode == Mode.FALLBACK);
             return mode == Mode.FALLBACK ? null :
                new DefaultTableLens(new Object[][] { { "col" }, { "a" } });
          }
@@ -97,9 +102,11 @@ class CalcTableVSAQueryInfoCountsTest {
    private static void assertTypesMatchInfo(Mode mode, int hrow, int trow, boolean formula,
                                             int expectRow, int expectType) throws Exception
    {
+      FALLBACK_REACHED.set(false);
       CalcTableVSAssembly[] a = new CalcTableVSAssembly[1];
       TableLens lens = lens(mode, hrow, trow, formula, a);
       CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) a[0].getInfo();
+      assertEquals(mode == Mode.FALLBACK, FALLBACK_REACHED.get(), "null-base-data path hit");
 
       for(int r = 0; r < 2; r++) {
          assertEquals(info.getCellDataPath(r, 0).getType(),
