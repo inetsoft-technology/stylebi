@@ -22,6 +22,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.wiz.worksheet.WorksheetEditService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -595,7 +596,17 @@ public class WsMergeService {
          // renameAssembly updates the registry and calls renameDepended on all assemblies.
          prevMirrorName = baseName;
          String newBaseName = baseName + "_base";
-         dashWS.renameAssembly(baseName, newBaseName, true);
+
+         if(!dashWS.renameAssembly(baseName, newBaseName, true)) {
+            Assembly taken = findAssemblyIgnoreCase(dashWS, newBaseName);
+
+            throw new IllegalArgumentException(
+               "Cannot merge into table '" + baseName + "': " + (taken != null
+                  ? "'" + newBaseName + "' already names a " +
+                    WorksheetEditService.Editor.kindOf(taken) + " in this worksheet."
+                  : "it could not be renamed to '" + newBaseName + "'."));
+         }
+
          prevMirror = new MirrorTableAssembly(dashWS, prevMirrorName, existingTable);
       }
 
@@ -661,6 +672,16 @@ public class WsMergeService {
       }
 
       return prevMirrorName;
+   }
+
+   private static Assembly findAssemblyIgnoreCase(Worksheet ws, String name) {
+      for(Assembly assembly : ws.getAssemblies()) {
+         if(assembly.getName().equalsIgnoreCase(name)) {
+            return assembly;
+         }
+      }
+
+      return null;
    }
 
    /**

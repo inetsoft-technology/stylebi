@@ -172,17 +172,28 @@ public class GenerateWsService {
       return generateWsResponse;
    }
 
+   private static void addTable(Worksheet worksheet, AbstractTableAssembly table, String nameParam) {
+      if(!worksheet.addAssembly(table)) {
+         throw new IllegalArgumentException(WsServiceHelper.addRefusal(
+            "Table", table.getName(), nameParam, worksheet.getAssembly(table.getName())));
+      }
+   }
+
    private record WorksheetBuildResult(Worksheet worksheet, AbstractTableAssembly primaryTable) {
    }
 
    private WorksheetBuildResult buildFreshWorksheet(WorksheetConstructionModel model, Principal user)
       throws Exception
    {
-      Worksheet originWs = getWorksheet(model, user);
-
       if(model.getFields() == null || model.getFields().isEmpty()) {
          throw new IllegalArgumentException("At least one field must be selected.");
       }
+
+      if(model.getName() == null || model.getName().isBlank()) {
+         throw new IllegalArgumentException("A table name is required.");
+      }
+
+      Worksheet originWs = getWorksheet(model, user);
 
       Worksheet worksheet = originWs != null ? originWs : new Worksheet();
 
@@ -198,6 +209,13 @@ public class GenerateWsService {
 
       if(model.getJoinPaths() == null || model.getJoinPaths().isEmpty()) {
          if(originWs != null) {
+            Assembly taken = originWs.getAssembly(model.getName());
+
+            if(taken != null) {
+               throw new IllegalArgumentException(
+                  WsServiceHelper.addRefusal("Table", model.getName(), "name", taken));
+            }
+
             WSAssembly baseTable = (WSAssembly) originWs.getAssembly(fields.getFirst().getTable().getName());
             table = new MirrorTableAssembly(originWs, model.getName(), baseTable);
          }
@@ -206,7 +224,7 @@ public class GenerateWsService {
             applyColumnSelection(table, fields, user);
          }
 
-         worksheet.addAssembly(table);
+         addTable(worksheet, table, "name");
       }
       else {
          boolean containsMergeJoin = false; // Todo To be implemented later
@@ -224,7 +242,7 @@ public class GenerateWsService {
 
             for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
                AbstractTableAssembly joinTable = createJoinTable(worksheet, joinPath, fields, tableMapping, user);
-               worksheet.addAssembly(joinTable);
+               addTable(worksheet, joinTable, null);
 
                if(joinPath == joinPaths.getLast()) {
                   table = joinTable;
@@ -246,7 +264,7 @@ public class GenerateWsService {
             }
 
             RelationalJoinTableAssembly joinTable = new RelationalJoinTableAssembly(worksheet, "mainTable", tableAssemblies.toArray(new TableAssembly[0]), new TableAssemblyOperator[0]);
-            worksheet.addAssembly(joinTable);
+            addTable(worksheet, joinTable, null);
 
             innerJoinService.editExistingJoinTable(worksheet, joinTable, noperator, true);
             WsServiceHelper.initCompositeColumnSelection(joinTable);
@@ -262,7 +280,7 @@ public class GenerateWsService {
          for(WorksheetConstructionModel.TableSetOperation tableSetOperation : tableSetOperations) {
             AbstractTableAssembly concatenatedTable = createConcatenatedTable(worksheet, tableSetOperation, fields, tableMapping, user);
 
-            worksheet.addAssembly(concatenatedTable);
+            addTable(worksheet, concatenatedTable, null);
             tableMapping.put(getTableInfoKey(tableSetOperation.getLeftTable()), concatenatedTable.getName());
             tableMapping.put(getTableInfoKey(tableSetOperation.getRightTable()), concatenatedTable.getName());
 
@@ -694,7 +712,7 @@ public class GenerateWsService {
          addJoinKeyField(tableFields, tableInfo, joinKey);
 
          applyColumnSelection(table, tableFields.stream().toList(), metaData, user);
-         worksheet.addAssembly(table);
+         addTable(worksheet, table, null);
 
          return table;
       }
@@ -720,7 +738,7 @@ public class GenerateWsService {
          applySourceInfo(table, tableInfo, user);
          Set<WorksheetConstructionModel.QueryField> tableFields = getTableFields(allFields, tableInfo);
          applyColumnSelection(table, tableFields.stream().toList(), user);
-         worksheet.addAssembly(table);
+         addTable(worksheet, table, null);
 
          return table;
       }

@@ -29,6 +29,7 @@ import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.wiz.model.WorksheetColumnInfo;
 import inetsoft.web.wiz.model.osi.*;
+import inetsoft.web.wiz.worksheet.WorksheetEditService;
 
 import java.security.Principal;
 import java.util.*;
@@ -42,6 +43,20 @@ import static inetsoft.web.wiz.service.GenerateWsService.WORKSHEET_ROOT_FOLDER_P
 final class WsServiceHelper {
 
    private WsServiceHelper() {}
+
+   /**
+    * Why a table could not be added to a worksheet; taken is the assembly holding its name, if
+    * any, and nameParam the request field the caller can change to avoid it (null if none).
+    */
+   static String addRefusal(String kind, String name, String nameParam, Assembly taken) {
+      if(taken == null) {
+         return kind + " '" + name + "' could not be added to the worksheet.";
+      }
+
+      String message = kind + " '" + name + "' cannot be added: '" + name + "' already names a " +
+         WorksheetEditService.Editor.kindOf(taken) + " in this worksheet.";
+      return nameParam == null ? message : message + " Choose a different " + nameParam + ".";
+   }
 
    static String extractFieldType(ObjectMapper objectMapper, OsiField osiField) {
       if(osiField.getCustomExtensions() == null) {
