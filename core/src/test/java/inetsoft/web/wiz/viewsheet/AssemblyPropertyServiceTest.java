@@ -3484,6 +3484,22 @@ class AssemblyPropertyServiceTest {
          .imagePreviewPaneModel().selectedImage());
    }
 
+   /** Bug #78901: a group's width/height would be dropped, so the write is refused unapplied. */
+   @Test
+   void refusesAGroupContainerSizeWriteWithoutApplyingIt() {
+      GroupContainerPropertyDialogModel model = groupContainerModelWithTree();
+      model.getGroupContainerGeneralPane().getSizePositionPaneModel().setWidth(300);
+      AssemblyPropertyService service =
+         serviceWith(mock(GroupContainerVSAssembly.class), model);
+
+      Exception e = assertThrows(IllegalArgumentException.class, () -> service.set(
+         "tok", principal(), "Group1", Map.of("width", 600, "height", 400), ""));
+
+      assertTrue(e.getMessage().contains("read-only on groupcontainer"), e.getMessage());
+      assertEquals(300, model.getGroupContainerGeneralPane().getSizePositionPaneModel()
+         .getWidth());
+   }
+
    @Test
    void allowsClearingAGroupContainerBackgroundImage() {
       AssemblyPropertyService service =

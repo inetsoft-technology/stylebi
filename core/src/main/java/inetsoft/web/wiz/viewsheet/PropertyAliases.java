@@ -154,7 +154,10 @@ public final class PropertyAliases {
       // getGroupContainerPropertyDialogModel() explicitly sets showEnabledGroup(false), so the
       // native Composer UI never even renders the Enabled checkbox for this type
       // (general-prop-pane.component.html gates the whole control on *ngIf="showEnabledGroup").
-      "groupcontainer", Set.of("enabled"),
+      // width/height (bug #78901): the same apply method reads only left/top of its
+      // sizePositionPaneModel, and layout re-derives the size as the bounding box of the members
+      // (GroupContainerVSAssembly.updateGridSize); the Composer dialog hides both fields.
+      "groupcontainer", Set.of("enabled", "width", "height"),
       // Selection list/tree, range slider and plain slider (bug #78566). An entry here is a
       // path suffix (see deadFieldWriteRefusal), because the short alias vocabulary expresses
       // "dead" only by omission and a raw dotted path reaches the same field regardless. Each
@@ -449,7 +452,11 @@ public final class PropertyAliases {
 
          return "'" + named + "' is read-only on " + normalizedType + ". It has a getter/setter " +
             "pair on the dialog model, populated on every read, but this type's apply method " +
-            "never reads it back -- a write would report success and change nothing.";
+            "never reads it back -- a write would report success and change nothing." +
+            ("groupcontainer".equals(normalizedType) && !"enabled".equals(deadEntry)
+               ? " A group's size is always the bounding box of its members: resize the " +
+                 "members instead (the group re-fits to them), or set left/top to move the group."
+               : "");
       }
 
       String sizeField = SIZE_POSITION_LIVE_TYPES.keySet().stream()
