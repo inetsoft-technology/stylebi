@@ -583,7 +583,10 @@ public class CalcTableService {
       throw new IllegalArgumentException(
          "'" + namedGroup + "' is not a named group on column '" + column + "' -- it matches " +
          "neither a worksheet-local group created by add_named_group nor a repository-" +
-         "registered predefined named group. list_named_groups reports what is available.");
+         "registered predefined named group. list_named_groups reports what is available." +
+         WorksheetNamedGroupMatcher.unmatchedReason(
+            rvs == null || rvs.getViewsheet() == null ? null : rvs.getViewsheet().getBaseWorksheet(),
+            namedGroup));
    }
 
    /**

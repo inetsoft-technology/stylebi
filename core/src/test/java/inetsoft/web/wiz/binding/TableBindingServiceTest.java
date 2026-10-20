@@ -164,6 +164,33 @@ class TableBindingServiceTest {
       assertEquals(1, posted.getRows().size(), "the shelf write itself must still land");
    }
 
+   /**
+    * Bug #78932: a first call carrying both {@code table} and a {@code namedGroup} resolved the
+    * group against the assembly's still-empty SourceInfo, because the source is only applied when
+    * the write lands. The mutator must be handed the source this call is establishing.
+    */
+   @Test
+   void setShelfHandsTheMutatorTheSourceThisCallEstablishes() throws Exception {
+      CrosstabBindingModel existing = withTables("ORDERS", "CUSTOMERS");
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getSourceInfo()).thenReturn(new inetsoft.uql.asset.SourceInfo());
+
+      try(org.mockito.MockedStatic<TableBindingMutator> mutator =
+             org.mockito.Mockito.mockStatic(TableBindingMutator.class,
+                                            org.mockito.Mockito.CALLS_REAL_METHODS))
+      {
+         harness(assembly, existing, bindings)
+            .setShelf("tok", principal(), "Crosstab1", "rows", List.of(dim("Region")), "ORDERS");
+
+         ArgumentCaptor<inetsoft.uql.asset.SourceInfo> source =
+            ArgumentCaptor.forClass(inetsoft.uql.asset.SourceInfo.class);
+         mutator.verify(() -> TableBindingMutator.setShelf(
+            any(), eq("rows"), any(), any(), source.capture(), any()));
+         assertEquals("ORDERS", source.getValue().getSource());
+      }
+   }
+
    @Test
    void setShelfLeavesAnAlreadyBoundSourceAlone() throws Exception {
       CrosstabBindingModel existing = withTables("ORDERS", "CUSTOMERS");
