@@ -1847,6 +1847,34 @@ public class WorksheetTableService {
       }
    }
 
+   /**
+    * addAssembly replaces a table of the same name, and a composite table and every table under it
+    * resolve their sources by name. Replacing one of the sources, or a table a source is built on,
+    * would make the new table resolve to itself and recurse until StackOverflowError.
+    */
+   private void refuseReplacingSource(Worksheet worksheet, String kind, String tableName,
+                                      String sourceLabel, Collection<TableAssembly> sources)
+   {
+      Assembly replaced = worksheet.getAssembly(tableName);
+
+      if(replaced == null) {
+         return;
+      }
+
+      for(TableAssembly source : sources) {
+         if(Arrays.stream(AssetUtil.getDependedAssemblies(worksheet, source, true))
+            .anyMatch(depended -> depended == replaced))
+         {
+            throw new IllegalArgumentException(replaced == source
+               ? kind + " '" + tableName + "' cannot have the same name as its " + sourceLabel +
+                 ". Choose a different tableName."
+               : kind + " '" + tableName + "' cannot replace table '" + tableName + "': its " +
+                 sourceLabel + " '" + source.getName() + "' is built on it. Choose a different " +
+                 "tableName.");
+         }
+      }
+   }
+
    private AbstractTableAssembly buildMirrorTable(Worksheet worksheet,
                                                   WorksheetTable request)
    {
@@ -1872,22 +1900,8 @@ public class WorksheetTableService {
             "can only mirror a table assembly.");
       }
 
-      // addAssembly replaces a table of the same name, and the mirror and every table under it
-      // resolve their sources by name. Replacing the base, or a table the base is built on,
-      // would make the mirror resolve to itself and recurse until StackOverflowError.
-      Assembly replaced = worksheet.getAssembly(request.getTableName());
-
-      if(replaced != null &&
-         Arrays.stream(AssetUtil.getDependedAssemblies(worksheet, baseTable, true))
-            .anyMatch(depended -> depended == replaced))
-      {
-         throw new IllegalArgumentException(replaced == baseTable
-            ? "Mirror table '" + request.getTableName() + "' cannot have the same name as its " +
-              "base table. Choose a different tableName."
-            : "Mirror table '" + request.getTableName() + "' cannot replace table '" +
-              request.getTableName() + "': its base table '" + baseTableName + "' is built on " +
-              "it. Choose a different tableName.");
-      }
+      refuseReplacingSource(worksheet, "Mirror table", request.getTableName(), "base table",
+                            List.of(baseTable));
 
       MirrorTableAssembly mirror =
          new MirrorTableAssembly(worksheet, request.getTableName(), baseTable);
@@ -1952,6 +1966,7 @@ public class WorksheetTableService {
 
       // Build the composite operator.
       TableAssemblyOperator noperator = new TableAssemblyOperator();
+      Set<TableAssembly> sources = new LinkedHashSet<>(tableSet);
 
       for(WorksheetTable.JoinPathInfo path : joinPaths) {
          TableAssembly left = (TableAssembly) worksheet.getAssembly(path.getLeftTable());
@@ -1962,6 +1977,9 @@ public class WorksheetTableService {
                "Join path references table not in worksheet: " +
                path.getLeftTable() + " → " + path.getRightTable());
          }
+
+         sources.add(left);
+         sources.add(right);
 
          DataRef leftAttr = left.getColumnSelection(true).getAttribute(path.getLeftKey());
          DataRef rightAttr = right.getColumnSelection(true).getAttribute(path.getRightKey());
@@ -1984,6 +2002,9 @@ public class WorksheetTableService {
          op.setOperation(getJoinOperation(path.getJoinType(), path.getJoinOperator()));
          noperator.addOperator(op);
       }
+
+      refuseReplacingSource(worksheet, "Relational join table", request.getTableName(),
+                            "source table", sources);
 
       RelationalJoinTableAssembly joinTable = new RelationalJoinTableAssembly(
          worksheet, request.getTableName(),
