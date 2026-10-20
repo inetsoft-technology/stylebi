@@ -1003,6 +1003,10 @@ public class WizAutoBindingService {
     * {@link inetsoft.web.wiz.binding.BindableColumns} duplicates it: {@code VSUtil}'s static
     * initializer reaches for a live Spring {@code ApplicationContext}.
     */
+   private static boolean isDynamicColumn(String text) {
+      return isDynamicVariableReference(text) || text != null && text.startsWith("=");
+   }
+
    private static boolean isDynamicVariableReference(String text) {
       return text != null && text.startsWith("$(") && text.endsWith(")");
    }
@@ -1039,7 +1043,7 @@ public class WizAutoBindingService {
       // begin with, falling back to binding every visible column (#76641).
       List<String> missing = derived.stream()
          .map(SimpleFieldInfo::getField)
-         .filter(f -> f != null && !isDynamicVariableReference(f) && !available.contains(f))
+         .filter(f -> f != null && !isDynamicColumn(f) && !available.contains(f))
          .sorted()
          .collect(Collectors.toList());
 
@@ -1874,7 +1878,7 @@ public class WizAutoBindingService {
          // (#76641). Reporting it as an unknown field would turn every type change of a chart carrying
          // one into a 400.
          List<String> missing = configMap.keySet().stream()
-            .filter(k -> !isDynamicVariableReference(k) && !available.contains(k))
+            .filter(k -> !isDynamicColumn(k) && !available.contains(k))
             .sorted()
             .collect(Collectors.toList());
 
