@@ -116,8 +116,9 @@ public class TableBindingService {
          applySource(model, sourceTable);
          Viewsheet vs = rvs.getViewsheet();
          VSAssembly assembly = vs.getAssembly(assemblyName);
-         inetsoft.uql.asset.SourceInfo source = assembly instanceof DataVSAssembly data
-            ? data.getSourceInfo() : null;
+         inetsoft.uql.asset.SourceInfo source = BindingSources.effective(
+            assembly instanceof DataVSAssembly data ? data.getSourceInfo() : null,
+            model.getSource());
          requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
                                     fields == null ? 0 : fields.size());
          String livePercentageBy = livePercentageByValue(assembly);
@@ -481,6 +482,7 @@ public class TableBindingService {
             applySource(model, sourceTable);
             requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
                                        field == null ? 0 : 1);
+            source = BindingSources.effective(source, model.getSource());
             TableVSAssembly table = rvs.getViewsheet().getAssembly(assemblyName)
                instanceof TableVSAssembly t ? t : null;
             List<String> full = table == null || position == null || field == null
