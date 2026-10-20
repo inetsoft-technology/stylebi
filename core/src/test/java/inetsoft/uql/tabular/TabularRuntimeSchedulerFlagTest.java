@@ -19,7 +19,6 @@ package inetsoft.uql.tabular;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
-import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.schema.XSchema;
@@ -28,7 +27,6 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.impl.TabularHandler;
 import inetsoft.uql.util.Drivers;
 import inetsoft.uql.util.XSessionService;
-import inetsoft.uql.util.XTableTableNode;
 import inetsoft.util.DataCacheVisitor;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.credential.CredentialType;
@@ -54,14 +52,16 @@ import static org.mockito.Mockito.*;
  * Bug #78494: a scheduled run carries {@code __is_scheduler__} as {@code Boolean.TRUE} at export
  * time and as the String {@code "true"} at open time. A tabular connector's query error must fail
  * the scheduled run in both forms instead of becoming an empty (and cached) table, and must still
- * fall back to the connector's value in an interactive run.
+ * fall back to the connector's value in an interactive run. Runs the real {@link XSessionManager}
+ * and {@link TabularHandler}; the fast check of {@code handleError} alone is
+ * {@link TabularRuntimeHandleErrorTest}.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
                                   TabularRuntimeSchedulerFlagTest.TestConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class TabularRuntimeSchedulerFlagTest {
    @Configuration
    static class TestConfig {
@@ -131,24 +131,6 @@ class TabularRuntimeSchedulerFlagTest {
       assertEquals(1, queryRuns.get());
       assertNotNull(lens);
       assertFalse(lens.moreRows(1), "the connector's null becomes an empty table, as before");
-   }
-
-   @Test
-   void handleErrorReturnsTheSupplierValueOnlyWithoutTheFlag() {
-      XTableNode fallback = new XTableTableNode(new DefaultTableLens(new Object[][] { { "c1" } }));
-      Exception error = new IOException("connector failure");
-      TabularRuntime runtime = new FailingRuntime();
-
-      assertSame(fallback, runtime.handleError(new VariableTable(), error, () -> fallback));
-      assertSame(fallback, runtime.handleError(null, error, () -> fallback));
-
-      for(Object flag : new Object[] { Boolean.TRUE, "true" }) {
-         VariableTable vars = new VariableTable();
-         vars.put("__is_scheduler__", flag);
-         RuntimeException ex = assertThrows(RuntimeException.class,
-            () -> runtime.handleError(vars, error, () -> fallback), "flag " + flag);
-         assertSame(error, ex.getCause());
-      }
    }
 
    private void assertQueryFails(Object flag) {
