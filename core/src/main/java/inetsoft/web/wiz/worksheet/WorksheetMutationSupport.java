@@ -477,7 +477,7 @@ public final class WorksheetMutationSupport {
    public static void addFilter(TableAssembly t, String field,
                                 String operation, String... values)
    {
-      FilterItem built = buildFilterItem(t, field, operation, values);
+      FilterItem built = buildFilterItem(t, field, operation, null, values);
       appendFilterItem(t, built);
    }
 
@@ -491,6 +491,10 @@ public final class WorksheetMutationSupport {
     * <p>The replacement is built in full first (operator, {@code DATE_IN} range, field
     * resolution and the leftover-literal guard), and the list is only touched once that build
     * has succeeded, so a refused call leaves the table's conditions exactly as they were.</p>
+    *
+    * <p>Bug #78897: a numeric literal the column's current type refuses (a fraction after the
+    * column narrowed to integer) is judged against the type of the condition being replaced
+    * instead, see {@link #literalType}.</p>
     *
     * <ul>
     *   <li>No condition on {@code field} yet: appended, exactly as {@link #addFilter}.</li>
@@ -509,25 +513,27 @@ public final class WorksheetMutationSupport {
    public static void replaceFilter(TableAssembly t, String field,
                                     String operation, String... values)
    {
-      FilterItem built = buildFilterItem(t, field, operation, values);
-      ConditionListWrapper existing =
-         built.post() ? t.getPostConditionList() : t.getPreConditionList();
+      boolean post = resolveUnambiguousAggregateAlias(t, field) != null;
+      ConditionListWrapper existing = post ? t.getPostConditionList() : t.getPreConditionList();
       List<Integer> matches = existing == null || existing.isEmpty()
          ? List.of() : filterMatches(existing.getConditionList(), field);
-
-      if(matches.isEmpty()) {
-         appendFilterItem(t, built);
-         return;
-      }
 
       if(matches.size() > 1) {
          throw new IllegalArgumentException(
             "\"" + field + "\" has " + matches.size() + " conditions in this table's " +
-            (built.post() ? "post-aggregate (HAVING)" : "pre-aggregate") + " filter, so " +
+            (post ? "post-aggregate (HAVING)" : "pre-aggregate") + " filter, so " +
             "edit_condition cannot tell which one to replace, and replacing all of them would " +
             "collapse the group they form. Nothing was changed. Read the conditions with " +
             "get_condition/read_worksheet_model and rewrite the whole list with " +
-            (built.post() ? "set_post_conditions" : "set_conditions") + " instead.");
+            (post ? "set_post_conditions" : "set_conditions") + " instead.");
+      }
+
+      String storedType = matches.isEmpty() ? null : storedNumericType(existing, field, null);
+      FilterItem built = buildFilterItem(t, field, operation, storedType, values);
+
+      if(matches.isEmpty()) {
+         appendFilterItem(t, built);
+         return;
       }
 
       ConditionList cl = existing.getConditionList();
@@ -550,9 +556,11 @@ public final class WorksheetMutationSupport {
     * Builds the {@link ConditionItem} {@link #addFilter} and {@link #replaceFilter} write, without
     * touching the table. Every refusal (unknown operator, unknown {@code DATE_IN} range,
     * unresolvable field, leftover field-reference literal) happens here, before any write.
+    *
+    * @param storedType the numeric type of the condition this one replaces, or {@code null}
     */
-   private static FilterItem buildFilterItem(TableAssembly t, String field,
-                                             String operation, String... values)
+   private static FilterItem buildFilterItem(TableAssembly t, String field, String operation,
+                                             String storedType, String... values)
    {
       boolean negate = isNegatedOperation(operation);
       int op = parseOperation(operation);
@@ -582,6 +590,7 @@ public final class WorksheetMutationSupport {
          item = new ConditionItem(ref, resolved, 0);
       }
       else {
+         dtype = literalType(field, dtype, storedType, Arrays.asList(values));
          Condition c = new Condition(dtype);
          c.setOperation(op);
 
@@ -3486,7 +3495,8 @@ public final class WorksheetMutationSupport {
          return;
       }
 
-      ConditionList cl = buildConditionList(t, nodes, post);
+      ConditionList cl = buildConditionList(
+         t, nodes, post, post ? t.getPostConditionList() : t.getPreConditionList());
 
       if(post) {
          t.setPostConditionList(cl);
@@ -3531,10 +3541,14 @@ public final class WorksheetMutationSupport {
       // Bug #78145 (AC-2): build every list before setting any, so a refusal in a later list
       // (bad operator, unknown range, leftover literal, bad index) leaves the earlier ones
       // untouched. An empty list builds to null, which is stored as an empty list (WSC-012).
-      ConditionList updatePreList = updatePre != null ? mvConditionList(t, updatePre, false) : null;
-      ConditionList updatePostList = updatePost != null ? mvConditionList(t, updatePost, true) : null;
-      ConditionList deletePreList = deletePre != null ? mvConditionList(t, deletePre, false) : null;
-      ConditionList deletePostList = deletePost != null ? mvConditionList(t, deletePost, true) : null;
+      ConditionList updatePreList = updatePre != null
+         ? mvConditionList(t, updatePre, false, t.getMVUpdatePreConditionList()) : null;
+      ConditionList updatePostList = updatePost != null
+         ? mvConditionList(t, updatePost, true, t.getMVUpdatePostConditionList()) : null;
+      ConditionList deletePreList = deletePre != null
+         ? mvConditionList(t, deletePre, false, t.getMVDeletePreConditionList()) : null;
+      ConditionList deletePostList = deletePost != null
+         ? mvConditionList(t, deletePost, true, t.getMVDeletePostConditionList()) : null;
 
       if(updatePreList != null) {
          t.setMVUpdatePreConditionList(updatePreList);
@@ -3559,9 +3573,9 @@ public final class WorksheetMutationSupport {
 
    /** {@link #buildConditionList}, with an empty result as an empty list rather than null. */
    private static ConditionList mvConditionList(TableAssembly t, List<ConditionNode> nodes,
-                                                boolean post)
+                                                boolean post, ConditionListWrapper existing)
    {
-      ConditionList cl = buildConditionList(t, nodes, post);
+      ConditionList cl = buildConditionList(t, nodes, post, existing);
       return cl != null ? cl : new ConditionList();
    }
 
@@ -3570,9 +3584,12 @@ public final class WorksheetMutationSupport {
     * nodes (see {@link #setConditions}'s own doc for the node-alternation contract), without
     * applying it to the table. Returns {@code null} for an empty result, matching
     * {@code setConditions}' own empty-list convention.
+    *
+    * @param existing the list being replaced; a numeric literal the column's current type
+    *                 refuses may be judged against its conditions' types (Bug #78897)
     */
    private static ConditionList buildConditionList(TableAssembly t, List<ConditionNode> nodes,
-                                                    boolean post)
+                                                    boolean post, ConditionListWrapper existing)
    {
       ConditionList cl = new ConditionList();
 
@@ -3582,6 +3599,12 @@ public final class WorksheetMutationSupport {
             int op = parseOperation(spec.operation());
             boolean negate = spec.negated() || isNegatedOperation(spec.operation());
             String dtype = conditionType(t, spec, post);
+
+            if((spec.type() == null || spec.type().isBlank()) && op != XCondition.DATE_IN) {
+               dtype = literalType(spec.field(), dtype,
+                                   storedNumericType(existing, spec.field(), op),
+                                   spec.values() == null ? List.of() : spec.values());
+            }
 
             DataRef ref = resolveField(t, spec.field(), post);
 
@@ -4550,6 +4573,86 @@ public final class WorksheetMutationSupport {
       return XSchema.INTEGER.equals(dtype) || XSchema.LONG.equals(dtype) ||
          XSchema.SHORT.equals(dtype) || XSchema.BYTE.equals(dtype) ||
          XSchema.FLOAT.equals(dtype) || XSchema.DOUBLE.equals(dtype);
+   }
+
+   /**
+    * Bug #78897: the numeric type of the {@link Condition} a list already stores on
+    * {@code field} (restricted to operation {@code op} unless it is {@code null}). A condition
+    * keeps the type it was built with when its column's type later changes, e.g. when removing a
+    * concatenation subtable narrows a double column to integer.
+    *
+    * @return that type, or {@code null} when there is no such condition or they disagree
+    */
+   private static String storedNumericType(ConditionListWrapper existing, String field, Integer op)
+   {
+      if(existing == null || existing.isEmpty()) {
+         return null;
+      }
+
+      ConditionList list = existing.getConditionList();
+      Set<String> types = new HashSet<>();
+
+      for(int i : filterMatches(list, field)) {
+         if(list.getItem(i) instanceof ConditionItem ci &&
+            ci.getXCondition() instanceof Condition c &&
+            (op == null || c.getOperation() == op) && isNumericConditionType(c.getType()))
+         {
+            types.add(c.getType());
+         }
+      }
+
+      return types.size() == 1 ? types.iterator().next() : null;
+   }
+
+   /**
+    * Bug #78897: the type to build a condition on a numeric column with, so the numeric literal
+    * guard judges {@code values} against the condition it replaces and not only against the
+    * column. A condition built as double keeps meaning {@code K < 1.5} after its column narrows
+    * to integer; re-sending that value must not be refused as a fraction on an integer column.
+    * The column's own type is kept whenever it accepts every value, and when there is no numeric
+    * stored counterpart, so a new fractional literal on an integer column is still refused.
+    *
+    * @param storedType the type returned by {@link #storedNumericType}, or {@code null}
+    * @throws IllegalArgumentException if the stored type differs from the column's and neither
+    *                                  accepts the values
+    */
+   private static String literalType(String field, String columnType, String storedType,
+                                     List<String> values)
+   {
+      if(storedType == null || storedType.equals(columnType) ||
+         !isNumericConditionType(columnType) || !isNumericConditionType(storedType))
+      {
+         return columnType;
+      }
+
+      try {
+         requireParsableNumericLiterals(field, columnType, values);
+         return columnType;
+      }
+      catch(IllegalArgumentException ex) {
+         try {
+            requireParsableNumericLiterals(field, storedType, values);
+            return storedType;
+         }
+         catch(IllegalArgumentException ex2) {
+            throw new IllegalArgumentException(
+               ex.getMessage() + " The column's type is now " + columnType + ", and the " +
+               "condition it already has was built as " + storedType + ", which does not " +
+               "accept this value either.");
+         }
+      }
+   }
+
+   private static void requireParsableNumericLiterals(String field, String dtype,
+                                                      List<String> values)
+   {
+      for(String v : values) {
+         boolean variable = v != null && v.startsWith("$(") && v.endsWith(")") && v.length() > 3;
+
+         if(v != null && !variable) {
+            requireParsableNumericLiteral(field, dtype, v);
+         }
+      }
    }
 
    private static boolean isDateConditionType(String dtype) {
