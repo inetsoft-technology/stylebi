@@ -105,6 +105,17 @@ class WizAutoBindingServiceDynamicColumnRefTest {
    }
 
    @Test
+   void scriptColumnIsNotReportedAsAnUnknownField() {
+      List<ColumnRef> columns = List.of(col("Households"), col("amount"));
+
+      List<ColumnRef> result = assertDoesNotThrow(() -> WizAutoBindingService.selectBindColumns(
+         columns, configMap(config("=Radio1.selectedObject"), config("amount"))));
+
+      assertEquals(1, result.size());
+      assertEquals("amount", result.get(0).getDisplayName());
+   }
+
+   @Test
    void genuinelyUnknownFieldStillThrowsAlongsideADynamicReference() {
       List<ColumnRef> columns = List.of(col("Households"), col("amount"));
 

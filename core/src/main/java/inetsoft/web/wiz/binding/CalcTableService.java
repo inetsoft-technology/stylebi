@@ -449,6 +449,13 @@ public class CalcTableService {
    private String requireBindableColumn(String runtimeId, Principal user, String assemblyName,
                                         String column)
    {
+      if(column != null && column.startsWith("=")) {
+         // A calc-cell column binding names a real column; a script is a formula cell's content.
+         throw new IllegalArgumentException(
+            "'" + column + "' is not a column " + assemblyName + " can bind. Use a formula cell " +
+            "for a script.");
+      }
+
       try {
          List<BindableTable> tables = fieldsService.list(runtimeId, assemblyName, user);
          FieldRef ref = new FieldRef(column, null, null, null, null);

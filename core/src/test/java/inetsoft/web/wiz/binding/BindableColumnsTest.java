@@ -384,6 +384,31 @@ class BindableColumnsTest {
    }
 
    @Test
+   void acceptsAScriptColumnRegardlessOfWhetherItIsAnAvailableColumn() {
+      assertDoesNotThrow(
+         () -> BindableColumns.require(TABLES, "Chart1", dim("=RadioButton2.selectedObject")));
+      assertDoesNotThrow(
+         () -> BindableColumns.require(BOUND_TO_QUERY1, "Chart1", dim("=field['Sales']")));
+      assertDoesNotThrow(
+         () -> BindableColumns.requireSource(TABLES, "Chart1", "Query1",
+                                             List.of(dim("=RadioButton2.selectedObject"))));
+   }
+
+   @Test
+   void scriptColumnDoesNotVetoTheCandidateTableTheLiteralFieldsPick() {
+      assertEquals("Products",
+                   BindableColumns.requireSource(TABLES, "Chart1", null,
+                                                 List.of(dim("=a + b"), dim("PRODUCT_NAME"))));
+   }
+
+   @Test
+   void stillRefusesANonExistentLiteralColumnAlongsideAScriptColumn() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> BindableColumns.require(TABLES, "Chart1", dim("=a + b"),
+                                                 dim("NO_SUCH_COLUMN_XYZ")));
+   }
+
+   @Test
    void acceptsADynamicReferenceEvenWhenNothingIsListedAtAll() {
       assertDoesNotThrow(
          () -> BindableColumns.require(List.of(), "Crosstab1", dim("$(RadioButton2)")));
