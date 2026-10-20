@@ -132,24 +132,41 @@ public class RepositoryAssetSelectionResolver {
    }
 
    /** Returns {@code null} (not an empty list) when the folder path itself does not resolve, so
-    * the caller can tell "folder not found" apart from "folder found but empty". */
+    * the caller can tell "folder not found" apart from "folder found but empty".
+    *
+    * <p>{@code getAllEntries} is a plain key-prefix filter and returns an empty array for a
+    * nonexistent folder, so emptiness alone cannot signal "not found". A folder therefore exists
+    * when it has readable descendants (this also covers a folder implied only by its sheets'
+    * paths) or when its own same-org REPOSITORY_FOLDER entry exists (an empty folder). Paths are
+    * matched case-sensitively, exactly as the repository storage does; a leading or trailing "/"
+    * is stripped, a blank path is unresolved, and "/" is the repository root. */
    private List<SelectedAssetModel> resolveFolder(String folderPath, AssetRepository repository,
                                                    Principal principal)
       throws Exception
    {
       String path = folderPath == null ? "" : folderPath.trim();
 
-      if(path.startsWith("/")) {
+      if(path.isEmpty()) {
+         return null;
+      }
+
+      while(path.startsWith("/")) {
          path = path.substring(1);
       }
 
-      AssetEntry root = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+      while(path.endsWith("/")) {
+         path = path.substring(0, path.length() - 1);
+      }
+
+      boolean root = path.isEmpty();
+
+      AssetEntry folder = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
          AssetEntry.Type.REPOSITORY_FOLDER, path, null);
 
       AssetEntry[] entries;
 
       try {
-         entries = repository.getAllEntries(root, principal, ResourceAction.READ,
+         entries = repository.getAllEntries(folder, principal, ResourceAction.READ,
             new AssetEntry.Selector(AssetEntry.Type.VIEWSHEET, AssetEntry.Type.WORKSHEET));
       }
       catch(Exception e) {
@@ -160,6 +177,10 @@ public class RepositoryAssetSelectionResolver {
          return null;
       }
 
+      if(entries.length == 0 && !root && !folderExists(folder, repository)) {
+         return null;
+      }
+
       List<SelectedAssetModel> result = new ArrayList<>();
 
       for(AssetEntry entry : entries) {
@@ -167,6 +188,15 @@ public class RepositoryAssetSelectionResolver {
       }
 
       return result;
+   }
+
+   private static boolean folderExists(AssetEntry folder, AssetRepository repository) {
+      try {
+         return repository.containsEntry(folder);
+      }
+      catch(Exception e) {
+         return false;
+      }
    }
 
    /** Mirrors {@code DeployService.getUserEntryPath} (private there, replicated here per this
