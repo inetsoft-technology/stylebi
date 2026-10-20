@@ -43,6 +43,7 @@ import inetsoft.uql.viewsheet.internal.DataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
+import inetsoft.web.RecycleUtils;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
 import inetsoft.web.composer.model.vs.InputParameterDialogModel;
@@ -596,10 +597,12 @@ public class AssemblyHyperlinkService {
       String explicit = str(link, "assetLinkId");
 
       if(explicit != null) {
+         requireOpenableAssetId(explicit);
          return explicit;
       }
 
       String path = str(link, "assetLinkPath");
+      requireNotRecycled(path);
       AssetRepository repository = sessions.resolve(sessionToken, user).getAssetRepository();
       IdentityID owner = IdentityID.getIdentityIDFromKey(user.getName());
 
@@ -638,6 +641,75 @@ public class AssemblyHyperlinkService {
          "'s own scope. A link to a viewsheet that does not exist is accepted by the dialog and " +
          "then does nothing when clicked, so it is refused here instead. Pass 'assetLinkId' " +
          "directly if you already hold the asset identifier.");
+   }
+
+   /**
+    * True when {@code path} is under the Recycle Bin folder: first segment, optionally after the
+    * {@code My Dashboards/} prefix. Anchored on purpose -- {@code RecycleUtils.isInRecycleBin} is
+    * a substring test and would also match a legitimate "Reports/Recycle Bin Analysis".
+    */
+   static boolean isRecycledPath(String path) {
+      if(path == null) {
+         return false;
+      }
+
+      String p = path;
+      String myPrefix = Tool.MY_DASHBOARD + "/";
+
+      if(p.startsWith(myPrefix)) {
+         p = p.substring(myPrefix.length());
+      }
+
+      String bin = RecycleUtils.RECYCLE_BIN_FOLDER;
+      return p.equals(bin) || p.startsWith(bin + "/");
+   }
+
+   private static void requireNotRecycled(String path) {
+      if(isRecycledPath(path)) {
+         throw new IllegalArgumentException(
+            "The viewsheet at '" + path + "' is in the Recycle Bin (deleted). A link to a " +
+            "deleted viewsheet does nothing when clicked, so it is refused. Restore the " +
+            "viewsheet first, or link to a viewsheet listed by list_hyperlink_targets.");
+      }
+   }
+
+   /**
+    * Validates an explicit {@code assetLinkId}: it must parse as a viewsheet asset identifier and
+    * must not point into the Recycle Bin. No existence check is made for this form -- ids from
+    * {@code list_hyperlink_targets} may carry another organization's id and the Composer dialog
+    * passes cross-org ids, so {@code containsEntry} cannot be relied on to accept them.
+    */
+   private static void requireOpenableAssetId(String id) {
+      AssetEntry entry;
+
+      try {
+         entry = AssetEntry.createAssetEntry(id);
+      }
+      catch(RuntimeException e) {
+         entry = null;
+      }
+
+      if(entry == null || entry.getType() != AssetEntry.Type.VIEWSHEET || entry.getPath() == null) {
+         throw new IllegalArgumentException(
+            "'" + id + "' is not a valid viewsheet asset identifier. Pass an 'assetLinkId' " +
+            "exactly as list_hyperlink_targets returns it, or use 'assetLinkPath'.");
+      }
+
+      requireNotRecycled(entry.getPath());
+   }
+
+   private static boolean isRecycledId(String id) {
+      if(id == null) {
+         return false;
+      }
+
+      try {
+         AssetEntry entry = AssetEntry.createAssetEntry(id);
+         return entry != null && isRecycledPath(entry.getPath());
+      }
+      catch(RuntimeException e) {
+         return false;
+      }
    }
 
    /**
@@ -1061,6 +1133,17 @@ public class AssemblyHyperlinkService {
       // same-named assets across scopes a link actually resolved to.
       out.put("assetLinkId", model.getAssetLinkId());
       out.put("bookmark", model.getBookmark());
+
+      // Deleting a viewsheet moves it to the Recycle Bin and the dependency transformer rewrites
+      // links to it, so the stored target reads back as "Recycle Bin/<uuid>" with no signal.
+      if(model.getLinkType() == Hyperlink.VIEWSHEET_LINK &&
+         (isRecycledPath(model.getAssetLinkPath()) || isRecycledId(model.getAssetLinkId())))
+      {
+         out.put("targetDeleted", true);
+         out.put("warning", "The linked viewsheet was deleted and is in the Recycle Bin; " +
+                 "this link will not open. Restore the viewsheet or set a new target.");
+      }
+
       // model.isSelf() is dialog-model UI sugar: HyperlinkDialogService.getHyperlinkDialogModel
       // blanks targetFrame to "" and sets self=true whenever the persisted Hyperlink.targetFrame
       // was the literal "SELF", so it must be reconstructed here for this class's own wire
