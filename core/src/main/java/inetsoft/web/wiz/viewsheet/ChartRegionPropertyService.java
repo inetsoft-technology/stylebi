@@ -19,11 +19,15 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.graph.data.PairsDataSet;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.AxisDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.GanttChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.TitleDescriptor;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -39,6 +43,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -100,14 +107,27 @@ public class ChartRegionPropertyService {
       }
 
       Object model = readModel(sessionToken, user, assembly, name, key, field);
+      AxisKind kind = "axis".equals(name)
+         ? computeTrueAxisKind(sessionToken, user, assembly, key, field) : null;
+      boolean time = kind != null && kind.time();
+      String primary = time ? otherPrimaryGanttField(sessionToken, user, assembly, kind) : null;
       Map<String, String> aliases = aliasesFor(name);
       List<Map<String, Object>> properties = new ArrayList<>();
 
       for(Map.Entry<String, String> alias : aliases.entrySet()) {
          Map<String, Object> one = new LinkedHashMap<>();
+         Object value = PropertyPath.get(model, alias.getValue());
          one.put("name", alias.getKey());
          one.put("path", alias.getValue());
-         one.put("value", PropertyPath.get(model, alias.getValue()));
+         one.put("value", value);
+
+         // A time axis's range is epoch milliseconds (bug #78919); show the date it means too.
+         if(time && ("minimum".equals(alias.getKey()) || "maximum".equals(alias.getKey())) &&
+            value instanceof String text && !text.isEmpty())
+         {
+            one.put("date", isoDateTime(Long.parseLong(text)));
+         }
+
          properties.add(one);
       }
 
@@ -115,6 +135,17 @@ public class ChartRegionPropertyService {
       out.put("assembly", assembly);
       out.put("region", name);
       out.put("target", key);
+
+      if(time) {
+         out.put("note", "This is a time (date) axis. minimum/maximum are listed as epoch " +
+            "milliseconds with the date they mean, and are set as an ISO date or date-time " +
+            "(or epoch milliseconds). increment is a number of the axis's date periods. " +
+            "logarithmicScale, reverse, shared and minorIncrement do not apply." +
+            (primary == null ? "" : " This Gantt draws the axis from '" + primary +
+               "''s settings (the minimum/maximum listed here are that field's); set the axis " +
+               "with field '" + primary + "'."));
+      }
+
       out.put("properties", properties);
       return out;
    }
@@ -153,12 +184,33 @@ public class ChartRegionPropertyService {
       // mutable map, replacing the old conditional-copy special case for "rotation"/"aliases".
       properties = normalizeToAliasKeys(name, properties);
 
+      TimeRange timeRange = null;
+
       if("axis".equals(name)) {
-         requireNumericAxisValues(properties);
          field = resolveAxisField(sessionToken, user, assembly, key, field);
          // First, so a mixed or multi-dimension shelf gets the "pass field" message rather than a
          // misleading linear/non-linear one (bug #78187).
          requireUnambiguousAxis(sessionToken, user, assembly, key, field);
+         // After the field resolves: a time axis takes dates for minimum/maximum, so the value
+         // check needs the axis kind (bug #78919). Still before any write.
+         AxisKind kind = computeTrueAxisKind(sessionToken, user, assembly, key, field);
+
+         if(kind.time()) {
+            // Name the field, so the dialog write and writeTimeAxis address the same descriptor
+            // rather than the dialog following whichever area sorts first.
+            if(field == null || field.isBlank()) {
+               field = kind.matchedRef().getFullName();
+            }
+
+            requirePrimaryGanttField(sessionToken, user, assembly, field, kind);
+            requireNoTimeAxisIgnoredKeys(key, field, properties);
+            requireNumericAxisValues(properties, List.of("increment"));
+            timeRange = TimeRange.parse(properties);
+         }
+         else {
+            requireNumericAxisValues(properties, NUMERIC_AXIS_KEYS);
+         }
+
          requireLinearAxisForLinearOnlyKeys(sessionToken, user, assembly, key, field, properties);
          requireNonLinearAxisForNonLinearOnlyKeys(
             sessionToken, user, assembly, key, field, properties);
@@ -184,6 +236,13 @@ public class ChartRegionPropertyService {
          ? parseAliasEntries(properties.get("aliases")) : null;
 
       Object model = readModel(sessionToken, user, assembly, name, key, field);
+
+      // A time axis's range is written exactly after the dialog write (writeTimeAxis), not
+      // through the model, whose Float parse cannot hold an epoch-millisecond date.
+      if(timeRange != null) {
+         properties.remove("minimum");
+         properties.remove("maximum");
+      }
 
       if(aliasEntries != null) {
          Object current = PropertyPath.get(model, "aliasPaneModel.aliasList");
@@ -241,14 +300,26 @@ public class ChartRegionPropertyService {
 
       final Object written = rebuilt;
       final String writeField = field;
+      final TimeRange writeRange = timeRange;
 
       return sessions.mutate(sessionToken, user,
          ChartRenderCheck.checked(assembly, (rvs, runtimeId, dispatcher) -> {
          ChartRenderCheck.swallowScriptError(rvs, assembly, () -> {
             switch(name) {
-            case "axis" -> regions.setAxisPropertyDialogModel(
-               runtimeId, assembly, axisType(key), 0, writeField,
-               (AxisPropertyDialogModel) written, linkUri, user, dispatcher);
+            case "axis" -> {
+               if(writeRange != null) {
+                  writeTimeAxis(rvs, assembly, key, writeField, writeRange,
+                                (AxisPropertyDialogModel) written,
+                                () -> regions.setAxisPropertyDialogModel(
+                                   runtimeId, assembly, axisType(key), 0, writeField,
+                                   (AxisPropertyDialogModel) written, linkUri, user, dispatcher));
+               }
+               else {
+                  regions.setAxisPropertyDialogModel(
+                     runtimeId, assembly, axisType(key), 0, writeField,
+                     (AxisPropertyDialogModel) written, linkUri, user, dispatcher);
+               }
+            }
             case "legend" -> regions.setLegendFormatDialogModel(
                runtimeId, assembly, indexOf(key), (LegendFormatDialogModel) written, linkUri,
                user, dispatcher);
@@ -323,7 +394,8 @@ public class ChartRegionPropertyService {
             "'" + axisTarget + "'" + (field != null && !field.isBlank() ? " ('" + field + "')" : "")
             + " on this chart is bound to a dimension or discrete measure, not a measure, so these would be " +
             "silently ignored — or, on some chart types, corrupt the render instead of being " +
-            "ignored. Omit them for a dimension axis.");
+            "ignored. Omit them for a dimension axis." +
+            ganttTimeAxisHint(sessionToken, user, assembly));
       }
    }
 
@@ -471,7 +543,8 @@ public class ChartRegionPropertyService {
          throw new IllegalArgumentException(
             "Axis '" + axisTarget + "' is ambiguous: its shelf has several fields (" +
             String.join(", ", names) + ") and no 'field' was given, so it is undefined which " +
-            "one's axis is meant. Pass 'field' with the full name of one of them.");
+            "one's axis is meant. Pass 'field' with the full name of one of them." +
+            ganttTimeAxisHint(sessionToken, user, assembly));
       }
    }
 
@@ -601,7 +674,11 @@ public class ChartRegionPropertyService {
     * matching {@link ChartAggregateRef} when {@code linear} is true, or the sole candidate ref on
     * the shelf when unambiguous and non-linear, else {@code null} when there is more than one
     * candidate and no way to say which one this axis-target/field pair actually means. */
-   private record AxisKind(boolean linear, ChartRef matchedRef) {}
+   private record AxisKind(boolean linear, ChartRef matchedRef, boolean time) {
+      AxisKind(boolean linear, ChartRef matchedRef) {
+         this(linear, matchedRef, false);
+      }
+   }
 
    private AxisKind computeTrueAxisKind(String sessionToken, Principal user, String assembly,
                                          String axisTarget, String field)
@@ -650,7 +727,20 @@ public class ChartRegionPropertyService {
             .findFirst().orElse(null);
 
          if(measureMatch != null) {
-            return new AxisKind(true, measureMatch);
+            return new AxisKind(true, measureMatch, isDateMeasureAxis(info, canonical, measureMatch));
+         }
+
+         // A Gantt's start, end and milestone are on no shelf, so the filter above misses them
+         // while resolveAxisField accepts them through the same handler lookup used here (bug
+         // #78919). They are the engine's TimeScale y axis (GanttGraphGenerator.addGanttFields).
+         if(field != null && !field.isBlank() && candidates.isEmpty() &&
+            "y".equals(canonical) && info instanceof GanttChartInfo gantt)
+         {
+            ChartRef ref = ChartRegionHandler.getChartRef(info, axisType(axisTarget), field);
+
+            if(ref != null && isGanttField(gantt, ref)) {
+               return new AxisKind(true, ref, true);
+            }
          }
 
          // With no field, "the sole candidate" must mean the same thing as in
@@ -668,10 +758,13 @@ public class ChartRegionPropertyService {
     * Refuses a non-numeric axis range value before anything is written. The model parses these
     * with Float.valueOf mid-way through writing the live axis descriptor, so a bad value used to
     * leave the keys written before it applied. null or exactly "" clears the value, as the model
-    * does; anything else must parse to a finite number.
+    * does; anything else must parse to a finite number. A time axis passes only the keys that
+    * stay numbers there; its minimum/maximum are dates, checked by {@link TimeRange#parse}.
     */
-   private static void requireNumericAxisValues(Map<String, Object> properties) {
-      for(String key : NUMERIC_AXIS_KEYS) {
+   private static void requireNumericAxisValues(Map<String, Object> properties,
+                                                List<String> keys)
+   {
+      for(String key : keys) {
          if(!properties.containsKey(key)) {
             continue;
          }
@@ -698,6 +791,301 @@ public class ChartRegionPropertyService {
                "' is not. Nothing was changed.");
          }
       }
+   }
+
+   /**
+    * Whether a measure axis is drawn on a {@code TimeScale}: {@code
+    * GraphGenerator.createMeasureScale} gives one to a single date-typed measure, while a scale
+    * shared by several measures (a merged graph) is linear.
+    */
+   private static boolean isDateMeasureAxis(VSChartInfo info, String canonical, ChartRef ref) {
+      if(!XSchema.isDateType(ref.getDataType())) {
+         return false;
+      }
+
+      return info.isSeparatedGraph() || Arrays.stream(axisCandidates(info, canonical))
+         .filter(ChartRegionPropertyService::isTrueMeasure).count() == 1;
+   }
+
+   private static boolean isGanttField(GanttChartInfo gantt, ChartRef ref) {
+      return ref == gantt.getStartField() || ref == gantt.getEndField() ||
+         ref == gantt.getMilestoneField();
+   }
+
+   /**
+    * The Gantt field whose descriptor the engine reads for the whole time axis: the first bound
+    * of start, end and milestone ({@code GanttGraphGenerator.addGanttFields} keys the one
+    * {@code TimeScale} by it, and {@code getAxisDescriptor} takes that field's own descriptor
+    * whether or not the graph is separated).
+    */
+   private static ChartRef primaryGanttField(GanttChartInfo gantt) {
+      return gantt.getStartField() != null ? gantt.getStartField()
+         : gantt.getEndField() != null ? gantt.getEndField() : gantt.getMilestoneField();
+   }
+
+   /** A sentence pointing at a Gantt's time axis, or "" for any other chart. */
+   private String ganttTimeAxisHint(String sessionToken, Principal user, String assembly)
+      throws Exception
+   {
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+         ChartRef primary = info instanceof GanttChartInfo gantt ? primaryGanttField(gantt) : null;
+
+         return primary == null ? "" :
+            " On a Gantt chart the date (time) axis, drawn along the bottom, is target 'y' with " +
+            "field '" + primary.getFullName() + "'.";
+      });
+   }
+
+   /**
+    * Refuses a write to a Gantt end or milestone field when another Gantt field is the one the
+    * time axis is drawn from (bug #78919). The engine builds one time axis for all three and
+    * reads its settings only from {@link #primaryGanttField}, so a write to the others was a
+    * silent no-op.
+    */
+   private void requirePrimaryGanttField(String sessionToken, Principal user, String assembly,
+                                         String field, AxisKind kind)
+      throws Exception
+   {
+      String primary = otherPrimaryGanttField(sessionToken, user, assembly, kind);
+
+      if(primary != null) {
+         throw new IllegalArgumentException(
+            "'" + field + "' shares this Gantt chart's one time axis with '" + primary + "', and " +
+            "the axis is drawn only from '" + primary + "''s settings (the first bound of start, " +
+            "end and milestone), so this write would be silently ignored. Pass field '" +
+            primary + "' instead. Nothing was changed.");
+      }
+   }
+
+   /** The full name of {@link #primaryGanttField} when {@code kind} is another Gantt field, else
+    * null. */
+   private String otherPrimaryGanttField(String sessionToken, Principal user, String assembly,
+                                         AxisKind kind)
+      throws Exception
+   {
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+
+         if(!(info instanceof GanttChartInfo gantt) || !isGanttField(gantt, kind.matchedRef())) {
+            return null;
+         }
+
+         ChartRef ref = primaryGanttField(gantt);
+         return ref == kind.matchedRef() ? null : ref.getFullName();
+      });
+   }
+
+   /** Axis keys a {@code TimeScale} has no use for: only {@code LinearScale} takes them. */
+   private static final List<String> TIME_AXIS_IGNORED_KEYS =
+      List.of("logarithmicScale", "reverse", "shared", "minorIncrement");
+
+   /**
+    * Refuses a log scale, reversed direction, shared range or minor increment on a time axis.
+    * {@code GraphGenerator} applies them to a {@code LinearScale} only, so on a time axis they
+    * were silently ignored (or, for a log scale on a date measure, swapped the time scale for a
+    * log scale of epoch milliseconds). Turning one off (false, or empty) is still accepted, so a
+    * value set before can be cleared.
+    */
+   private static void requireNoTimeAxisIgnoredKeys(String axisTarget, String field,
+                                                    Map<String, Object> properties)
+   {
+      List<String> requested = TIME_AXIS_IGNORED_KEYS.stream()
+         .filter(properties::containsKey)
+         .filter(key -> {
+            Object value = properties.get(key);
+            return value != null && !Boolean.FALSE.equals(value) &&
+               !"false".equalsIgnoreCase(String.valueOf(value).trim()) &&
+               !"".equals(String.valueOf(value).trim());
+         })
+         .toList();
+
+      if(!requested.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + String.join("', '", requested) + "' " +
+            (requested.size() == 1 ? "has" : "have") + " no effect on a time (date) axis. '" +
+            axisTarget + "'" + (field != null && !field.isBlank() ? " ('" + field + "')" : "") +
+            " is drawn on a time scale, which has no log, reversed or shared-range option and no " +
+            "minor ticks. On a time axis, minimum/maximum take dates and increment is a number " +
+            "of the axis's date periods. Nothing was changed.");
+      }
+   }
+
+   /**
+    * The minimum and maximum of a patch to a time axis, as exact epoch milliseconds (bug
+    * #78919). {@code AxisPropertyDialogModel} parses them through {@code Float}, which moves a
+    * present-day date by up to about a minute, so a time axis's range is written to its
+    * descriptor directly ({@link #writeTimeAxis}). Built for every write to a time axis, with or
+    * without range keys, so a write of other keys does not round the stored range either.
+    */
+   private record TimeRange(boolean hasMinimum, Long minimum, boolean hasMaximum, Long maximum) {
+      static TimeRange parse(Map<String, Object> properties) {
+         boolean hasMinimum = properties.containsKey("minimum");
+         boolean hasMaximum = properties.containsKey("maximum");
+         return new TimeRange(
+            hasMinimum, hasMinimum ? epochMillis("minimum", properties.get("minimum")) : null,
+            hasMaximum, hasMaximum ? epochMillis("maximum", properties.get("maximum")) : null);
+      }
+   }
+
+   /**
+    * A time axis's minimum or maximum as epoch milliseconds: an ISO date ({@code 2025-01-01},
+    * the start of that day), an ISO date-time with or without an offset (without one, it is
+    * server-local time, as the chart's own date values are), or a number of epoch milliseconds.
+    * null or exactly "" clears the value.
+    */
+   private static Long epochMillis(String key, Object value) {
+      if(value == null || "".equals(value)) {
+         return null;
+      }
+
+      if(value instanceof Number number) {
+         double d = number.doubleValue();
+
+         if(Double.isFinite(d)) {
+            return number instanceof Double || number instanceof Float
+               ? Long.valueOf(Math.round(d)) : Long.valueOf(number.longValue());
+         }
+      }
+      else {
+         String text = String.valueOf(value).trim();
+
+         if(!text.isEmpty()) {
+            try {
+               return Long.parseLong(text);
+            }
+            catch(NumberFormatException ignore) {
+               // not a plain integer; try the other forms
+            }
+
+            try {
+               double d = Double.parseDouble(text);
+
+               if(Double.isFinite(d)) {
+                  return Math.round(d);
+               }
+            }
+            catch(NumberFormatException ignore) {
+               // not a number; try a date
+            }
+
+            String iso = text.replaceFirst(" ", "T");
+
+            try {
+               return OffsetDateTime.parse(iso).toInstant().toEpochMilli();
+            }
+            catch(DateTimeParseException ignore) {
+               // no offset; try a local date-time
+            }
+
+            try {
+               return LocalDateTime.parse(iso).atZone(ZoneId.systemDefault()).toInstant()
+                  .toEpochMilli();
+            }
+            catch(DateTimeParseException ignore) {
+               // no time; try a date
+            }
+
+            try {
+               return LocalDate.parse(iso).atStartOfDay(ZoneId.systemDefault()).toInstant()
+                  .toEpochMilli();
+            }
+            catch(DateTimeParseException ignore) {
+               // falls through to the refusal below
+            }
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "'" + key + "' on a time (date) axis must be a date such as 2025-01-01, a date-time " +
+         "such as 2025-01-01T08:30:00 (server-local time) or 2025-01-01T08:30:00Z (with an " +
+         "offset), or epoch milliseconds such as 1735689600000 (or empty to clear it); '" +
+         value + "' is not. Nothing was changed.");
+   }
+
+   /** Epoch milliseconds as an ISO date-time with the server's offset, for read-back. */
+   private static String isoDateTime(long epochMillis) {
+      return OffsetDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), ZoneId.systemDefault())
+         .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+   }
+
+   /**
+    * The descriptor the engine reads for a time axis's range. For a Gantt field that is always
+    * {@link #primaryGanttField}'s own descriptor; {@code ChartRegionHandler.getAxisDescriptor}
+    * returns the chart's shared descriptor instead when the graph is not separated, which
+    * {@code GanttGraphGenerator} never reads. For a date measure it is the handler's own pick.
+    */
+   private AxisDescriptor timeAxisDescriptor(VSChartInfo info, String axisTarget, String column) {
+      ChartRef ref = ChartRegionHandler.getChartRef(info, axisType(axisTarget), column);
+
+      if(info instanceof GanttChartInfo gantt && ref != null && isGanttField(gantt, ref)) {
+         return primaryGanttField(gantt).getAxisDescriptor();
+      }
+
+      return regionHandler.getAxisDescriptor(info, column, axisType(axisTarget),
+                                             new AtomicBoolean());
+   }
+
+   /**
+    * Runs the dialog write for a time axis, then sets the range exactly where the engine reads
+    * it (bug #78919).
+    *
+    * <p>The dialog write is handed its own descriptor's current minimum/maximum, so it rewrites
+    * them rather than writing the requested dates through {@code Float}. On a merged Gantt that
+    * descriptor is the chart's shared one, which the Gantt never reads, so the requested range
+    * must not land there either. The exact range is then set on {@link #timeAxisDescriptor} and
+    * the chart's runtime rebuilt from it, as the dialog write itself does. A range key the patch
+    * does not name keeps its exact stored value.
+    */
+   private void writeTimeAxis(RuntimeViewsheet rvs, String assembly, String axisTarget,
+                              String column, TimeRange range, AxisPropertyDialogModel model,
+                              ChartRenderCheck.Body dialogWrite)
+      throws Exception
+   {
+      ChartVSAssembly chart = ChartRegionResolver.requireChart(rvs, assembly);
+      VSChartInfo info = chart.getVSChartInfo();
+      AxisDescriptor timeDesc = timeAxisDescriptor(info, axisTarget, column);
+      AxisDescriptor dialogDesc = regionHandler.getAxisDescriptor(
+         info, column, axisType(axisTarget), new AtomicBoolean());
+      Number minimum = range.hasMinimum() ? range.minimum() : timeDesc.getMinimum();
+      Number maximum = range.hasMaximum() ? range.maximum() : timeDesc.getMaximum();
+      AxisLinePaneModel pane = model.getAxisLinePaneModel();
+      pane.setMinimum(dialogDesc.getMinimum() == null ? "" : dialogDesc.getMinimum() + "");
+      pane.setMaximum(dialogDesc.getMaximum() == null ? "" : dialogDesc.getMaximum() + "");
+
+      try {
+         dialogWrite.run();
+      }
+      finally {
+         timeDesc.setMinimum(minimum);
+         timeDesc.setMaximum(maximum);
+
+         ((ChartVSAssemblyInfo) chart.getVSAssemblyInfo()).resetRuntimeValues();
+         info.clearRuntime();
+         ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+         if(box != null) {
+            box.updateAssembly(chart.getAbsoluteName());
+            box.clearGraph(chart.getAbsoluteName());
+         }
+      }
+   }
+
+   /**
+    * Shows a time axis's range as exact epoch milliseconds from the descriptor the engine reads
+    * ({@link #timeAxisDescriptor}), replacing the dialog's own, which on a merged Gantt is a
+    * descriptor the chart never draws from.
+    */
+   private void showTimeAxisRange(String sessionToken, Principal user, String assembly,
+                                  String axisTarget, String column, AxisPropertyDialogModel model)
+      throws Exception
+   {
+      AxisDescriptor desc = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+         timeAxisDescriptor(ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo(),
+                            axisTarget, column));
+      AxisLinePaneModel pane = model.getAxisLinePaneModel();
+      pane.setMinimum(desc.getMinimum() == null ? "" : desc.getMinimum().longValue() + "");
+      pane.setMaximum(desc.getMaximum() == null ? "" : desc.getMaximum().longValue() + "");
    }
 
    /** The angles both the axis label and the title actually offer, degrees, "auto" aside. */
@@ -994,7 +1382,20 @@ public class ChartRegionPropertyService {
          (rvs, runtimeId, dispatcher) ->
             ChartRegionResolver.resolve(rvs, ChartRegionResolver.requireChart(rvs, assembly)));
 
-      ChartRegionResolver.requireAxis(axes, region, target);
+      try {
+         ChartRegionResolver.requireAxis(axes, region, target);
+      }
+      catch(IllegalArgumentException e) {
+         // A Gantt draws its time axis at the bottom, where a caller looks for x, but the engine
+         // and the binding address it as y (bug #78919).
+         String hint = "axis".equals(region) ? ganttTimeAxisHint(sessionToken, user, assembly) : "";
+
+         if(hint.isEmpty()) {
+            throw e;
+         }
+
+         throw new IllegalArgumentException(e.getMessage() + hint, e);
+      }
 
       if("title".equals(region)) {
          requireVisibleTitle(sessionToken, user, assembly, ChartRegionResolver.canonical(target));
@@ -1086,6 +1487,12 @@ public class ChartRegionPropertyService {
             axisModel.setLinear(kind.linear());
             backfillAxisLinearOnlyFields(sessionToken, user, assembly, target, field, kind,
                                          axisModel);
+         }
+
+         if(kind.time()) {
+            showTimeAxisRange(sessionToken, user, assembly, target,
+                              field != null && !field.isBlank() ? field
+                                 : kind.matchedRef().getFullName(), axisModel);
          }
       }
 
