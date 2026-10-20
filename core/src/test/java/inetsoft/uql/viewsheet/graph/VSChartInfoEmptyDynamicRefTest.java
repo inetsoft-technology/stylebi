@@ -25,7 +25,6 @@ import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.viewsheet.graph.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -84,6 +83,25 @@ class VSChartInfoEmptyDynamicRefTest {
       info.update(null, columns(), false, null, null, null);
 
       assertEquals(0, info.getRTYFields().length);
+   }
+
+   @Test
+   void blankComboBoxXDimensionStaysEmptyAfterUpdate() {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dynamicDimension(""));
+      info.addYField(plainMeasure());
+      info.update(null, columns(), false, null, null, null);
+
+      assertEquals(0, info.getRTXFields().length);
+   }
+
+   @Test
+   void blankComboBoxGroupDimensionStaysEmptyAfterUpdate() {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.addGroupField(dynamicDimension(""));
+      info.update(null, columns(), false, null, null, null);
+
+      assertEquals(0, info.getRTGroupFields().length);
    }
 
    @Test
