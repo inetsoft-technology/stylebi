@@ -340,8 +340,8 @@ public class RenameColumnController extends WorksheetController {
                   // (Bug #77005 / WBS-102): its column may carry its OWN alias, which is its
                   // output name and which the bare-name lookup below can neither find nor keep.
                   // Rotate and unpivot keep the original bare-name path below unchanged.
-                  if(isMultiSource(composedTable) || composedTable instanceof MirrorTableAssembly) {
-                     ColumnRef sourceColumn = findSourceColumn(ocolumn, table, composedTable);
+                  if(WorksheetControllerService.isMultiSource(composedTable) || composedTable instanceof MirrorTableAssembly) {
+                     ColumnRef sourceColumn = WorksheetControllerService.findSourceColumn(ocolumn, table, composedTable);
 
                      if(sourceColumn != null) {
                         renameMultiSourceColumn(
@@ -427,69 +427,6 @@ public class RenameColumnController extends WorksheetController {
             }
          }
       }
-   }
-
-   /**
-    * Bug #78234 / WBS-103: whether a composed table draws its columns from more than one source
-    * table, so a bare column name may not identify which source a column comes from.
-    */
-   private static boolean isMultiSource(ComposedTableAssembly composedTable) {
-      String[] names = composedTable.getTableNames();
-      return names != null && names.length > 1;
-   }
-
-   /**
-    * Bug #78234 / WBS-103: finds the column of a multi-source composed table that comes FROM
-    * {@code source}'s column {@code ocolumn}. Composed tables build each column as
-    * {@code AssetUtil.getOuterAttribute(sourceName, sourceColumn)} -- entity = the source table,
-    * attribute = the source column's output name (alias, else attribute) -- so a column belongs to
-    * the renamed source iff its entity is that source and its attribute is the source column's old
-    * output name. The alias is tried against every column before the attribute: after an earlier
-    * rename (alias Item over attribute Product) a different column can carry the attribute Product.
-    * A concat's columns all carry its FIRST source as entity, so a non-first source never matches
-    * and the concat is left alone, which is correct: its output does not follow that source.
-    *
-    * @return the matching column, or {@code null} when the rename does not reach this table.
-    */
-   private static ColumnRef findSourceColumn(ColumnRef ocolumn, TableAssembly source,
-                                             ComposedTableAssembly composedTable)
-   {
-      ColumnSelection columns = composedTable.getColumnSelection();
-      String sourceName = source.getName();
-      List<String> names = new ArrayList<>();
-
-      if(!Tool.isEmptyString(ocolumn.getAlias())) {
-         names.add(ocolumn.getAlias());
-      }
-
-      if(!Tool.isEmptyString(ocolumn.getAttribute()) && !names.contains(ocolumn.getAttribute())) {
-         names.add(ocolumn.getAttribute());
-      }
-
-      for(String name : names) {
-         for(int i = 0; i < columns.getAttributeCount(); i++) {
-            if(columns.getAttribute(i) instanceof ColumnRef col &&
-               Tool.equals(sourceName, col.getEntity()) && name.equals(col.getAttribute()))
-            {
-               return col;
-            }
-         }
-      }
-
-      // A legacy column with no entity at all cannot be attributed to a source; match it by name
-      // rather than silently skipping it. Never the composed table's own expression columns.
-      for(String name : names) {
-         for(int i = 0; i < columns.getAttributeCount(); i++) {
-            if(columns.getAttribute(i) instanceof ColumnRef col &&
-               Tool.isEmptyString(col.getEntity()) && !col.isExpression() &&
-               name.equals(col.getAttribute()))
-            {
-               return col;
-            }
-         }
-      }
-
-      return null;
    }
 
    /**
