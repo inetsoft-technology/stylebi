@@ -379,13 +379,15 @@ public class WorksheetAgentController {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
       String[] resolvedNameHolder = new String[2];
-      editOp(sessionToken, req, user, resolvedNameHolder);
+      boolean[] madeVisibleHolder = new boolean[1];
+      editOp(sessionToken, req, user, resolvedNameHolder, madeVisibleHolder);
 
-      if(resolvedNameHolder[0] == null) {
+      if(resolvedNameHolder[0] == null && !madeVisibleHolder[0]) {
          return ResponseEntity.noContent().build();
       }
 
-      return ResponseEntity.ok(new EditResponse(resolvedNameHolder[0], resolvedNameHolder[1]));
+      return ResponseEntity.ok(new EditResponse(resolvedNameHolder[0], resolvedNameHolder[1],
+                                                madeVisibleHolder[0] ? Boolean.TRUE : null));
    }
 
    /**
@@ -405,7 +407,7 @@ public class WorksheetAgentController {
    public void editOp(String sessionToken, EditRequest req, Principal user)
       throws Exception
    {
-      editOp(sessionToken, req, user, null);
+      editOp(sessionToken, req, user, null, null);
    }
 
    /**
@@ -416,10 +418,18 @@ public class WorksheetAgentController {
     * above passes {@code null} for its one in-process caller, which has no use for the name).
     */
    private void editOp(String sessionToken, EditRequest req, Principal user,
-                       String[] resolvedNameHolder)
+                       String[] resolvedNameHolder, boolean[] madeVisibleHolder)
       throws Exception
    {
       requireEnabled();
+
+      // set_primary_assembly reports whether it made a hidden table visible to viewsheets, so the
+      // caller can disclose the side effect (see EditResponse#madeVisible).
+      if("set_primary_assembly".equals(req.op()) && madeVisibleHolder != null) {
+         editService.apply(sessionToken, user,
+                           editor -> madeVisibleHolder[0] = editor.setPrimaryAssembly(req.table()));
+         return;
+      }
 
       // add_table's extraProperties requires endpoint/suffix identity and excludes queryParams
       // (which is already its own complete, self-sufficient form) -- checked first, before either
@@ -3894,7 +3904,7 @@ public class WorksheetAgentController {
 
    /**
     * Same as {@link #dispatch(WorksheetEditService.Editor, EditRequest)}, plus the optional
-    * out-param described on {@link #editOp(String, EditRequest, Principal, String[])}.
+    * out-param described on {@link #editOp(String, EditRequest, Principal, String[], boolean[])}.
     */
    private void dispatch(WorksheetEditService.Editor editor, EditRequest req,
                          String[] resolvedNameHolder)

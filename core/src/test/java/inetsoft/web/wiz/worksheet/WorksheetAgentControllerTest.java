@@ -4260,6 +4260,53 @@ class WorksheetAgentControllerTest {
       return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
    }
 
+   private WorksheetAgentController setPrimaryController(Worksheet ws) throws Exception {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SP"), any())).thenReturn(session("TOK-SP"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         mock(InnerJoinService.class));
+      return controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), editSvc,
+         mock(WorksheetService.class));
+   }
+
+   private static EditRequest setPrimaryRequest(String table) throws Exception {
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(
+         mapper.writeValueAsString(Map.of("op", "set_primary_assembly", "table", table)),
+         EditRequest.class);
+   }
+
+   /** Bug #78874: making a hidden table primary reports it in a 200 body, key absent otherwise. */
+   @Test
+   void setPrimaryAssemblyReportsMadeVisibleOnlyWhenAHiddenTableWasShown() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "B", "id"));
+      ws.setPrimaryAssembly("B");
+      EmbeddedTableAssembly hidden = TestWorksheets.tableWithColumns(ws, "A", "id");
+      ws.addAssembly(hidden);
+      ((inetsoft.uql.asset.internal.TableAssemblyInfo) hidden.getTableInfo())
+         .setVisibleTable(false);
+      WorksheetAgentController ctrl = setPrimaryController(ws);
+      ObjectMapper mapper = new WebConfig().objectMapper();
+
+      ResponseEntity<EditResponse> shown =
+         ctrl.edit("TOK-SP", setPrimaryRequest("A"), agent);
+      assertEquals(org.springframework.http.HttpStatus.OK, shown.getStatusCode());
+      assertEquals("{\"madeVisible\":true}", mapper.writeValueAsString(shown.getBody()));
+
+      // already visible and already primary: nothing to report
+      ResponseEntity<EditResponse> again =
+         ctrl.edit("TOK-SP", setPrimaryRequest("A"), agent);
+      assertEquals(org.springframework.http.HttpStatus.NO_CONTENT, again.getStatusCode());
+   }
+
    @Test
    void editAddMirrorWithSourceStillResolvesSameWorksheetAssembly() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");

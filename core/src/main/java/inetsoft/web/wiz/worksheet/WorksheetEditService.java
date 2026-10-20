@@ -3796,15 +3796,21 @@ public class WorksheetEditService {
       /**
        * Sets a table as the worksheet's primary assembly.
        *
+       * <p>Like {@code WSPrimaryService.setAsPrimary}, a primary that actually changes is also
+       * exposed to viewsheets; re-setting the current primary leaves its visibility alone.
+       *
        * @param table the assembly name to set as primary
+       * @return {@code true} if a hidden table was made visible to viewsheets
        * @throws PairingException if the assembly is not found
        */
-      public void setPrimaryAssembly(String table) throws PairingException {
+      public boolean setPrimaryAssembly(String table) throws PairingException {
          Assembly a = ws.getAssembly(table);
 
          if(a == null) {
             throw new PairingException("Assembly not found: " + table);
          }
+
+         boolean changed = !table.equals(ws.getPrimaryAssemblyName());
 
          if(!ws.setPrimaryAssembly(table)) {
             throw new PairingException("Failed to set primary assembly: " + table);
@@ -3815,9 +3821,14 @@ public class WorksheetEditService {
          // earlier -- but that table would otherwise stay absent from the viewsheet binding tree
          // (VSBindingService:2006, BaseTreeModelBuilder:143, VSOutputService:239) while being the
          // sheet's primary, which is the one assembly a viewsheet binding is most likely to want.
-         if(a instanceof TableAssembly ta) {
-            ((TableAssemblyInfo) ta.getTableInfo()).setVisibleTable(true);
+         if(changed && a instanceof TableAssembly ta) {
+            TableAssemblyInfo info = (TableAssemblyInfo) ta.getTableInfo();
+            boolean wasHidden = !info.isVisibleTable();
+            info.setVisibleTable(true);
+            return wasHidden;
          }
+
+         return false;
       }
 
       // -----------------------------------------------------------------------
