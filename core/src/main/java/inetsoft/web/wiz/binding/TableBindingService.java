@@ -480,9 +480,97 @@ public class TableBindingService {
             applySource(model, sourceTable);
             requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
                                        field == null ? 0 : 1);
-            TableBindingMutator.addField(model, shelf, field, position, rvs, source,
+            TableVSAssembly table = rvs.getViewsheet().getAssembly(assemblyName)
+               instanceof TableVSAssembly t ? t : null;
+            List<String> full = table == null || position == null || field == null
+               ? null : fullDetailsOrder(table, field.column());
+
+            if(full == null) {
+               TableBindingMutator.addField(model, shelf, field, position, rvs, source,
+                                            refModelService);
+               return;
+            }
+
+            if(position < 0 || position > full.size()) {
+               throw new IllegalArgumentException(
+                  "Position " + position + " is outside the details shelf, which holds " +
+                  full.size() + " field(s), shown and hidden (the order get_table_binding " +
+                  "reports). Valid positions are 0 to " + full.size() + ".");
+            }
+
+            int shownPosition = 0;
+
+            for(String name : full.subList(0, position)) {
+               if(!isHidden(table, name)) {
+                  shownPosition++;
+               }
+            }
+
+            TableBindingMutator.addField(model, shelf, field, shownPosition, rvs, source,
                                          refModelService);
+            full.add(position, field.column());
+            restampHiddenPositions(table, full);
          });
+   }
+
+   /**
+    * The Table's column names in the full (shown and hidden) order {@code get_table_binding}
+    * reports, minus {@code excluding} when that column is currently hidden (re-adding it shows
+    * it, so it is not a slot of the list it is being inserted into); {@code null} when the
+    * Table has no hidden column, so the shown-only index already is the full-order index.
+    */
+   private static List<String> fullDetailsOrder(TableVSAssembly table, String excluding) {
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+
+      if(info.getHiddenColumns().getAttributeCount() == 0) {
+         return null;
+      }
+
+      List<String> names = new ArrayList<>();
+
+      for(DataRef ref : HideColumnsDialogService.getOrderedColumns(info.getColumnSelection(),
+                                                                   info.getHiddenColumns()))
+      {
+         names.add(refKey(ref));
+      }
+
+      if(isHidden(table, excluding)) {
+         names.remove(excluding);
+      }
+
+      return names;
+   }
+
+   private static boolean isHidden(TableVSAssembly table, String name) {
+      Enumeration<DataRef> refs =
+         ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns().getAttributes();
+
+      while(refs.hasMoreElements()) {
+         if(refKey(refs.nextElement()).equals(name)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Re-stamps every hidden column's recorded position as its index in {@code full}, the order
+    * the Table will have once the write that produced it is applied, so a later show lands the
+    * column in the same slot relative to its neighbours.
+    */
+   private static void restampHiddenPositions(TableVSAssembly table, List<String> full) {
+      Enumeration<DataRef> refs =
+         ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns().getAttributes();
+
+      while(refs.hasMoreElements()) {
+         DataRef ref = refs.nextElement();
+         int index = full.indexOf(refKey(ref));
+
+         if(index >= 0 && ref instanceof ColumnRef column) {
+            column.setHiddenPosition(index);
+         }
+      }
    }
 
    /**
@@ -1686,11 +1774,18 @@ public class TableBindingService {
     * TableBindingModel}'s constructor builds it only from {@link
     * TableVSAssembly#getColumnSelection()}, the shown side, disjoint by construction from {@code
     * getHiddenColumns()}. So this does not just re-mark the existing list: it merges in every
-    * hidden column {@code details} is missing, the same shown+hidden union {@link
-    * HideColumnsDialogService}'s own {@code getAllColumns} builds for the write side's dialog
-    * model. Without this merge a hidden field vanishes from {@code get_table_binding} instead of
-    * reporting {@code visible: false} -- the exact silent-disappearance class of bug bug-76807
-    * exists to close, just reopened on the read side.
+    * hidden column {@code details} is missing, at the position {@link
+    * HideColumnsDialogService#getOrderedColumns} recorded for it. Without this merge a hidden
+    * field vanishes from {@code get_table_binding} instead of reporting {@code visible: false}
+    * -- the exact silent-disappearance class of bug bug-76807 exists to close, just reopened on
+    * the read side.
+    *
+    * <p>The resulting {@code details} index is the column's slot in the <em>full</em> (shown and
+    * hidden) order, and {@link #addField}'s {@code position} on a Table reads the same order, so
+    * an index read here and written back names the same slot. Hidden positions are absolute
+    * indexes into that order: they are re-stamped by {@code addField} but not when shown columns
+    * are reordered or inserted by other writes, so a column shown again later may land beside a
+    * different neighbour than the one it was hidden next to.
     */
    private void enrichTableVisibility(TableVSAssembly table,
                                        Map<String, List<FieldRef>> shelfFields)
@@ -1701,7 +1796,9 @@ public class TableBindingService {
       Enumeration<DataRef> refs = hiddenCols.getAttributes();
 
       while(refs.hasMoreElements()) {
-         hidden.add(refs.nextElement().getAttribute());
+         DataRef href = refs.nextElement();
+         hidden.add(refKey(href));
+         hidden.add(href.getAttribute());
       }
 
       List<FieldRef> details = shelfFields.get("details");
@@ -1714,20 +1811,20 @@ public class TableBindingService {
          enriched.set(i, withVisibility(field, !hidden.contains(field.column())));
       }
 
-      Map<String, FieldRef> hiddenFields = new HashMap<>();
+      Map<String, FieldRef> hiddenFields = new LinkedHashMap<>();
       Enumeration<DataRef> hiddenRefs = hiddenCols.getAttributes();
 
       while(hiddenRefs.hasMoreElements()) {
          DataRef ref = hiddenRefs.nextElement();
 
-         if(present.contains(ref.getAttribute())) {
+         if(present.contains(refKey(ref)) || present.contains(ref.getAttribute())) {
             continue;
          }
 
          ColumnRef col = (ColumnRef) ref.clone();
          col.setApplyingAlias(false);
          ColumnRefModel model = (ColumnRefModel) refModelService.createDataRefModel(col);
-         hiddenFields.put(ref.getAttribute(),
+         hiddenFields.put(refKey(ref),
                           withVisibility(TableBindingMutator.fieldOf(model, "details"), false));
       }
 
@@ -1742,10 +1839,14 @@ public class TableBindingService {
       for(DataRef ref : HideColumnsDialogService.getOrderedColumns(info.getColumnSelection(),
                                                                    hiddenCols))
       {
-         FieldRef field = byName.remove(ref.getAttribute());
+         FieldRef field = byName.remove(refKey(ref));
 
          if(field == null) {
-            field = hiddenFields.remove(ref.getAttribute());
+            field = byName.remove(ref.getAttribute());
+         }
+
+         if(field == null) {
+            field = hiddenFields.remove(refKey(ref));
          }
 
          if(field != null) {
@@ -1761,6 +1862,15 @@ public class TableBindingService {
 
       ordered.addAll(hiddenFields.values());
       shelfFields.put("details", ordered);
+   }
+
+   /**
+    * The key {@link FieldRef#column()} reports a Table column under: the column's own name,
+    * entity-qualified when it has an entity, never its alias.
+    */
+   private static String refKey(DataRef ref) {
+      return ref instanceof ColumnRef column && column.getDataRef() != null
+         ? column.getDataRef().getName() : ref.getName();
    }
 
    /**

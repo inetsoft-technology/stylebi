@@ -678,6 +678,7 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
     */
    @Override
    protected void writeAttributes2(DataOutputStream dos) {
+      // hiddenPosition is deliberately XML-only (see writeAttributes); the binary form drops it
       try {
          dos.writeInt(width);
          dos.writeBoolean(visible);
@@ -721,7 +722,13 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
       val = Tool.getAttribute(tag, "hiddenpos");
 
       if(val != null) {
-         hiddenPosition = Integer.parseInt(val);
+         try {
+            hiddenPosition = Integer.parseInt(val);
+         }
+         catch(NumberFormatException ex) {
+            // a malformed mark must not abort the whole viewsheet parse; behave as unrecorded
+            hiddenPosition = -1;
+         }
       }
 
       val = Tool.getAttribute(tag, "valid");

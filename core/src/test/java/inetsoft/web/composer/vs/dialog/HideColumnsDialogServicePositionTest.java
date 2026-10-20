@@ -175,6 +175,22 @@ class HideColumnsDialogServicePositionTest {
       assertEquals(-1, parsed.getHiddenPosition());
    }
 
+   @Test
+   void malformedPositionIsToleratedAsUnrecorded() throws Exception {
+      ColumnRef ref = new ColumnRef(new AttributeRef(null, "C"));
+      ref.setHiddenPosition(2);
+      StringWriter sw = new StringWriter();
+      PrintWriter pw = new PrintWriter(sw);
+      ref.writeXML(pw);
+      pw.flush();
+
+      Element tag = Tool.parseXML(new java.io.StringReader(
+         sw.toString().replace("hiddenpos=\"2\"", "hiddenpos=\"x\""))).getDocumentElement();
+      ColumnRef parsed = new ColumnRef();
+      parsed.parseXML(tag);
+      assertEquals(-1, parsed.getHiddenPosition());
+   }
+
    private void setVisible(String column, boolean visible) throws Exception {
       List<String> shown = new ArrayList<>(shown());
       List<String> hidden = new ArrayList<>(hidden());
