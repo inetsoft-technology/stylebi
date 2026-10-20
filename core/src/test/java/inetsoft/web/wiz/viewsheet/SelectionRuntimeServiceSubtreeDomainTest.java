@@ -169,6 +169,41 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       verifyNoInteractions(h.selections());
    }
 
+   /** Bug 78809: a lone id that exists below the root names its full chain, no spelling hint. */
+   @Test
+   void idModeRefusalNamesTheFullChainOfALoneExistingId() {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.isIDMode()).thenReturn(true);
+      when(assembly.getSelectionList()).thenReturn(idModeRegionDomain());
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+      Principal user = SelectionRuntimeServiceTest.principal();
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service().selectSubtree("tok", user, "Tree1", List.of("NY"), "select", ""));
+
+      assertTrue(e.getMessage().contains("full chain of ids from the root"), e.getMessage());
+      assertTrue(e.getMessage().contains("id 'NY' exists at [E, NY]"), e.getMessage());
+      assertFalse(e.getMessage().contains("spelling"), e.getMessage());
+      assertFalse(e.getMessage().contains(String.valueOf((char) 10)), e.getMessage());
+   }
+
+   /** Bug 78809: an id that is no node anywhere is plain not-found, no chain claim. */
+   @Test
+   void idModeRefusalForAFabricatedIdMakesNoChainClaim() {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.isIDMode()).thenReturn(true);
+      when(assembly.getSelectionList()).thenReturn(idModeRegionDomain());
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+      Principal user = SelectionRuntimeServiceTest.principal();
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service().selectSubtree("tok", user, "Tree1", List.of("99"), "clear", ""));
+
+      assertTrue(e.getMessage().contains("(not found: '99')"), e.getMessage());
+      assertFalse(e.getMessage().contains("exists at"), e.getMessage());
+      assertFalse(e.getMessage().contains("spelling"), e.getMessage());
+   }
+
    /**
     * The refute's other required case: a valid prefix path (an ancestor, not a leaf) must NOT be
     * refused, and must actually reach the apply -- {@code selections.selectSubtree(...)} is

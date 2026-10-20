@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * A selection assembly's runtime state: which values are selected, how the list is sorted, and
@@ -940,6 +941,12 @@ public class SelectionRuntimeService {
             List.of(path), false);
 
          if(!unmatched.isEmpty()) {
+            if(tree.isIDMode()) {
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' has no subtree at " + path +
+                  idModeChainHint(selectionListOf(assembly), path));
+            }
+
             throw new IllegalArgumentException(
                "'" + assemblyName + "' has no subtree at " + path +
                unresolvedDetail(selectionListOf(assembly), unmatched, false) +
@@ -2165,6 +2172,56 @@ public class SelectionRuntimeService {
       }
 
       return named.isEmpty() ? "" : " (not found: " + String.join(", ", named) + ")";
+   }
+
+   /**
+    * The tail of an ID-mode subtree refusal. An ID-mode path is the full chain of ids from the
+    * root, so the failing id is usually a real node asked for without its ancestors -- name the
+    * chain(s) to use instead of hinting at a spelling problem. Package-private for tests.
+    */
+   static String idModeChainHint(SelectionList domain, List<String> path) {
+      SelectionValue[] values = domain == null ? null : domain.getSelectionValues();
+      String[] segments = path.toArray(new String[0]);
+      int index = firstUnresolvedSegment(values, segments);
+      String id = index < segments.length ? segments[index] : segments[segments.length - 1];
+      List<List<String>> chains = new ArrayList<>();
+      collectIdChains(values, id, new ArrayList<>(), chains);
+      String rule = "an ID-mode path must be the full chain of ids from the root";
+
+      if(chains.isEmpty()) {
+         return " (not found: '" + id + "') -- " + rule + ".";
+      }
+
+      String named = chains.stream().map(List::toString).collect(Collectors.joining(" or "));
+      return " -- " + rule + "; id '" + id + "' exists at " + named +
+         ", pass that full chain from the root.";
+   }
+
+   private static void collectIdChains(SelectionValue[] level, String id, List<String> prefix,
+                                       List<List<String>> out)
+   {
+      if(level == null) {
+         return;
+      }
+
+      for(SelectionValue value : level) {
+         if(value == null) {
+            continue;
+         }
+
+         List<String> chain = new ArrayList<>(prefix);
+         chain.add(value.getValue());
+
+         if(Tool.equals(id, value.getValue())) {
+            out.add(chain);
+         }
+
+         if(value instanceof CompositeSelectionValue composite) {
+            SelectionList childList = composite.getSelectionList();
+            collectIdChains(childList == null ? null : childList.getSelectionValues(), id, chain,
+                            out);
+         }
+      }
    }
 
    /** Index of the first segment that does not resolve, or {@code path.length} if none fails. */
