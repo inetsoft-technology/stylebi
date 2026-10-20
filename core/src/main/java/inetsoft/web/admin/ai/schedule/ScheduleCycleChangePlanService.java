@@ -153,6 +153,8 @@ public class ScheduleCycleChangePlanService {
             label + ".spec.name: a scheduled cycle named \"" + name + "\" already exists");
       }
 
+      ScheduleConditionConverter.requireKnownTimeRanges(
+         label + ".spec.conditions", change.spec().conditions());
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(user);
       List<inetsoft.sree.schedule.ScheduleCondition> conditions =
          ScheduleConditionConverter.convertConditions(change.spec().conditions());
@@ -212,6 +214,11 @@ public class ScheduleCycleChangePlanService {
                "assigned to the following materialized view(s), which would be left " +
                "referencing a nonexistent cycle: " + String.join(", ", dependentMvNames));
          }
+      }
+
+      if(spec.conditions() != null) {
+         ScheduleConditionConverter.requireKnownTimeRanges(
+            label + ".spec.conditions", spec.conditions());
       }
 
       List<inetsoft.sree.schedule.ScheduleCondition> conditions = spec.conditions() != null

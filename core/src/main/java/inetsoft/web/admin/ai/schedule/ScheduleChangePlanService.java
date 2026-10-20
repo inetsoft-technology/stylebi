@@ -250,6 +250,8 @@ public class ScheduleChangePlanService {
          }
 
          TimeCondition tc = (TimeCondition) conditions.get(i);
+         ScheduleConditionConverter.requireKnownTimeRange(
+            label + ".spec.conditions[" + i + "]", tc.getTimeRange());
 
          if(tc.getType() == TimeCondition.Type.AT && tc.getDate() == null) {
             throw new IllegalArgumentException(

@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.web.api.schedule.*;
 import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.TimeRange;
 import inetsoft.sree.schedule.ServerPathInfo;
 import inetsoft.sree.schedule.ViewsheetAction;
 import inetsoft.sree.security.IdentityID;
@@ -160,6 +161,62 @@ class ScheduleChangePlanServiceTest {
       ResolvedPlan plan = service.resolve(req, user);
 
       assertEquals(1, plan.changes().size());
+   }
+
+   // bug #78902: an unknown time range name used to be dropped silently at apply time.
+   @Test void resolveCreateThrowsOnUnknownTimeRange() {
+      try(MockedStatic<TimeRange> ranges = definedRanges("Overnight", "Morning")) {
+         TimeCondition second = timeCondition(10, 0);
+         second.setTimeRange("Nope");
+         CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+         spec.setConditions(List.of(timeCondition(9, 0), second));
+         ScheduleChangePlanRequest req = request("task", List.of(createChange(spec)));
+
+         IllegalArgumentException ex =
+            assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+         assertEquals("changes[0].spec.conditions[1].timeRange: \"Nope\" is not a defined " +
+                      "time range (available: Overnight, Morning)", ex.getMessage());
+      }
+   }
+
+   @Test void resolveCreateSaysNoneWhenNoTimeRangeIsDefined() {
+      try(MockedStatic<TimeRange> ranges = definedRanges()) {
+         TimeCondition condition = timeCondition(9, 0);
+         condition.setTimeRange("Morning");
+         CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+         spec.setConditions(List.of(condition));
+         ScheduleChangePlanRequest req = request("task", List.of(createChange(spec)));
+
+         IllegalArgumentException ex =
+            assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+         assertTrue(ex.getMessage().endsWith("(available: none)"));
+      }
+   }
+
+   @Test void resolveCreateAcceptsDefinedBlankAndAbsentTimeRange() throws Exception {
+      try(MockedStatic<TimeRange> ranges = definedRanges("Morning")) {
+         TimeCondition defined = timeCondition(9, 0);
+         defined.setTimeRange("Morning");
+         TimeCondition blank = timeCondition(10, 0);
+         blank.setTimeRange("");
+         CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+         spec.setConditions(List.of(defined, blank, timeCondition(11, 0)));
+         String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+         when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+         when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+         ScheduleChangePlanRequest req = request("task", List.of(createChange(spec)));
+
+         assertEquals(1, service.resolve(req, user).changes().size());
+      }
+   }
+
+   private static MockedStatic<TimeRange> definedRanges(String... names) {
+      MockedStatic<TimeRange> ranges = mockStatic(TimeRange.class);
+      ranges.when(TimeRange::getTimeRanges).thenReturn(
+         java.util.Arrays.stream(names)
+            .map(n -> new TimeRange(n, "06:00", "12:00", false))
+            .collect(java.util.stream.Collectors.toList()));
+      return ranges;
    }
 
    @Test void resolveCreateThrowsOnUnsupportedActionType() {

@@ -17,7 +17,9 @@
  */
 package inetsoft.web.admin.ai.schedule;
 
+import inetsoft.sree.schedule.TimeRange;
 import inetsoft.web.api.schedule.TimeCondition;
+import org.mockito.MockedStatic;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +27,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mockStatic;
 
 /**
  * Regression coverage for the extraction of {@code AdminScheduleGateway}'s former private
@@ -131,6 +134,72 @@ class ScheduleConditionConverterTest {
       assertEquals(2.0f, roundTripped.getHourlyInterval(), 0.0001f);
       assertArrayEquals(new int[]{1, 3, 5}, roundTripped.getDaysOfWeek());
       assertTrue(roundTripped.isWeekdayOnly());
+   }
+
+   @Test
+   void requireKnownTimeRangeRefusesUnknownNameWithAvailableList() {
+      try(MockedStatic<TimeRange> ranges = definedRanges("Overnight", "Morning")) {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> ScheduleConditionConverter.requireKnownTimeRange(
+               "changes[0].spec.conditions[1]", "Nope"));
+         assertEquals("changes[0].spec.conditions[1].timeRange: \"Nope\" is not a defined " +
+                      "time range (available: Overnight, Morning)", ex.getMessage());
+      }
+   }
+
+   @Test
+   void requireKnownTimeRangeIsCaseSensitive() {
+      try(MockedStatic<TimeRange> ranges = definedRanges("Morning")) {
+         assertThrows(IllegalArgumentException.class,
+            () -> ScheduleConditionConverter.requireKnownTimeRange("c", "morning"));
+      }
+   }
+
+   @Test
+   void requireKnownTimeRangeSaysNoneWhenNoRangeIsDefined() {
+      try(MockedStatic<TimeRange> ranges = definedRanges()) {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> ScheduleConditionConverter.requireKnownTimeRange("c", "Morning"));
+         assertTrue(ex.getMessage().endsWith("(available: none)"));
+      }
+   }
+
+   @Test
+   void requireKnownTimeRangeAcceptsDefinedNullAndBlank() {
+      try(MockedStatic<TimeRange> ranges = definedRanges("Morning")) {
+         assertDoesNotThrow(() -> {
+            ScheduleConditionConverter.requireKnownTimeRange("c", "Morning");
+            ScheduleConditionConverter.requireKnownTimeRange("c", null);
+            ScheduleConditionConverter.requireKnownTimeRange("c", "");
+            ScheduleConditionConverter.requireKnownTimeRange("c", "  ");
+         });
+      }
+   }
+
+   // Cycle rollback feeds the write-direction converter snapshot names whose range may have been
+   // deleted since; that path must stay lenient (the range is dropped, the rollback still works).
+   @Test
+   void writeConverterStaysLenientForAnUndefinedRangeSoRollbackKeepsWorking() {
+      try(MockedStatic<TimeRange> ranges = definedRanges()) {
+         TimeCondition wire = new TimeCondition();
+         wire.setType(TimeCondition.Type.EVERY_DAY);
+         wire.setInterval(1);
+         wire.setTimeRange("DeletedSince");
+
+         inetsoft.sree.schedule.TimeCondition real =
+            assertDoesNotThrow(() -> ScheduleConditionConverter.convertCondition(wire));
+
+         assertNull(real.getTimeRange());
+      }
+   }
+
+   private static MockedStatic<TimeRange> definedRanges(String... names) {
+      MockedStatic<TimeRange> ranges = mockStatic(TimeRange.class);
+      ranges.when(TimeRange::getTimeRanges).thenReturn(
+         java.util.Arrays.stream(names)
+            .map(n -> new TimeRange(n, "06:00", "12:00", false))
+            .collect(java.util.stream.Collectors.toList()));
+      return ranges;
    }
 
    private static TimeCondition roundTrip(TimeCondition original) {

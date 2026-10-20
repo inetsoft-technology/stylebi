@@ -29,6 +29,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.TimeZone;
+import java.util.stream.Collectors;
 
 /**
  * Converts between the wiz-bridge's own {@code inetsoft.web.api.schedule} condition DTOs
@@ -57,6 +58,41 @@ final class ScheduleConditionConverter {
       }
       else {
          throw new IllegalArgumentException("Unsupported condition type: " + condition);
+      }
+   }
+
+   /**
+    * Refuses a time range name that is not defined. A blank name means "no time range" and is
+    * accepted. {@link #convertCondition(TimeCondition)} deliberately stays lenient (cycle rollback
+    * feeds it snapshot names whose range may have been deleted since), so user input must be
+    * checked here, at plan time.
+    *
+    * @param conditionLabel the path of the condition, e.g. {@code changes[0].spec.conditions[1]}.
+    */
+   static void requireKnownTimeRange(String conditionLabel, String timeRange) {
+      if(timeRange == null || timeRange.isBlank()) {
+         return;
+      }
+
+      List<String> names = TimeRange.getTimeRanges().stream()
+         .map(TimeRange::getName)
+         .collect(Collectors.toList());
+
+      if(!names.contains(timeRange)) {
+         throw new IllegalArgumentException(
+            conditionLabel + ".timeRange: \"" + timeRange + "\" is not a defined time range " +
+            "(available: " + (names.isEmpty() ? "none" : String.join(", ", names)) + ")");
+      }
+   }
+
+   /**
+    * Applies {@link #requireKnownTimeRange} to every condition of a list.
+    *
+    * @param conditionsLabel the path of the list, e.g. {@code changes[0].spec.conditions}.
+    */
+   static void requireKnownTimeRanges(String conditionsLabel, List<TimeCondition> conditions) {
+      for(int i = 0; i < conditions.size(); i++) {
+         requireKnownTimeRange(conditionsLabel + "[" + i + "]", conditions.get(i).getTimeRange());
       }
    }
 

@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.sree.internal.DataCycleManager;
+import inetsoft.sree.schedule.TimeRange;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -314,6 +315,90 @@ class ScheduleCycleChangePlanServiceTest {
 
       assertNotEquals(
          service.resolve(req1, user).planHash(), service.resolve(req2, user).planHash());
+   }
+
+   // -------------------------------------------------------------------------
+   // time range names (bug #78902)
+   // -------------------------------------------------------------------------
+
+   @Test void resolveCreateThrowsOnUnknownTimeRange() {
+      try(MockedStatic<TimeRange> ranges = definedRanges("Morning")) {
+         TimeCondition second = everyDay();
+         second.setTimeRange("Nope");
+         ScheduleCycleChangePlanRequest req =
+            request("task", List.of(createChange("NewCycle", List.of(everyDay(), second))));
+
+         IllegalArgumentException ex =
+            assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+         assertEquals("changes[0].spec.conditions[1].timeRange: \"Nope\" is not a defined " +
+                      "time range (available: Morning)", ex.getMessage());
+      }
+   }
+
+   @Test void resolveCreateAcceptsDefinedBlankAndAbsentTimeRange() throws Exception {
+      try(MockedStatic<TimeRange> ranges = definedRanges("Morning")) {
+         TimeCondition defined = everyDay();
+         defined.setTimeRange("Morning");
+         TimeCondition blank = everyDay();
+         blank.setTimeRange("");
+         ScheduleCycleChangePlanRequest req = request("task",
+            List.of(createChange("NewCycle", List.of(defined, blank, everyDay()))));
+
+         assertEquals(1, service.resolve(req, user).changes().size());
+      }
+   }
+
+   @Test void resolveCreateSaysNoneWhenNoTimeRangeIsDefined() {
+      try(MockedStatic<TimeRange> ranges = definedRanges()) {
+         TimeCondition condition = everyDay();
+         condition.setTimeRange("Morning");
+         ScheduleCycleChangePlanRequest req =
+            request("task", List.of(createChange("NewCycle", List.of(condition))));
+
+         IllegalArgumentException ex =
+            assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+         assertTrue(ex.getMessage().endsWith("(available: none)"));
+      }
+   }
+
+   @Test void resolveUpdateThrowsOnUnknownTimeRange() throws Exception {
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.currentAsset("Cycle1", "host-org")).thenReturn(asset("Cycle1"));
+
+      try(MockedStatic<TimeRange> ranges = definedRanges("Morning")) {
+         TimeCondition condition = everyDay();
+         condition.setTimeRange("Nope");
+         ScheduleCycleChangePlanRequest req =
+            request("task", List.of(updateChange("Cycle1", null, List.of(condition))));
+
+         IllegalArgumentException ex =
+            assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+         assertTrue(ex.getMessage()
+            .startsWith("changes[0].spec.conditions[0].timeRange: \"Nope\""));
+      }
+   }
+
+   @Test void resolveUpdateWithoutConditionsDoesNotCheckTimeRanges() throws Exception {
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.cycleExists("Cycle2", user)).thenReturn(false);
+      when(cycleGateway.currentAsset("Cycle1", "host-org")).thenReturn(asset("Cycle1"));
+
+      try(MockedStatic<TimeRange> ranges = definedRanges()) {
+         ScheduleCycleChangePlanRequest req =
+            request("task", List.of(updateChange("Cycle1", "Cycle2", null)));
+
+         assertEquals(1, service.resolve(req, user).changes().size());
+         ranges.verifyNoInteractions();
+      }
+   }
+
+   private static MockedStatic<TimeRange> definedRanges(String... names) {
+      MockedStatic<TimeRange> ranges = mockStatic(TimeRange.class);
+      ranges.when(TimeRange::getTimeRanges).thenReturn(
+         java.util.Arrays.stream(names)
+            .map(n -> new TimeRange(n, "06:00", "12:00", false))
+            .collect(java.util.stream.Collectors.toList()));
+      return ranges;
    }
 
    // -------------------------------------------------------------------------
