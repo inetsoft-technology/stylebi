@@ -1193,6 +1193,9 @@ public class WorksheetEventUtil {
                      assetDataCache.remove(key);
                   }
                }
+
+               // Bug #78940: the stored LIVE/RUNTIME entry is keyed from the normalized clone.
+               AssetQueryCacheNormalizer.clearCache(dep, box);
             }
             catch(Exception e) {
                LOG.warn("Failed to invalidate cached data of dependent table: " +
