@@ -506,11 +506,12 @@ public class WorksheetEditService {
 
          WorksheetMutationSupport.assertSnapshotAllowsColumnRemove(t, table, col, toRemove);
 
-         if(toRemove instanceof ColumnRef cr &&
-            !WorksheetControllerService.allowsDeletion(ws, t, cr))
-         {
-            throw new PairingException(Catalog.getCatalog().getString(
-               "common.columnDependency", col));
+         // Bug #78895: same allowsDeletion refusal as before, but naming the dependent join.
+         if(toRemove instanceof ColumnRef cr) {
+            ColumnLossReport.requireNotJoinKey(
+               ws, t, cr, "Cannot remove column \"" + col + "\" from table \"" + table + "\"",
+               "Remove that join, or change its keys to another column, first. " +
+               "Nothing was changed.");
          }
 
          if(toRemove instanceof ColumnRef cr && !confirmed) {
@@ -731,10 +732,13 @@ public class WorksheetEditService {
          DataRef existing = WorksheetMutationSupport.resolveFieldOrNull(t, col, false);
 
          if(existing instanceof ColumnRef cr) {
-            if(!WorksheetControllerService.allowsDeletion(ws, t, cr)) {
-               throw new PairingException(Catalog.getCatalog().getString(
-                  "common.columnDependency", col));
-            }
+            // Bug #78895: same allowsDeletion refusal as before, but naming the dependent join.
+            ColumnLossReport.requireNotJoinKey(
+               ws, t, cr,
+               "Cannot rename column \"" + col + "\" of table \"" + table + "\" to \"" +
+               newName + "\"",
+               "Renaming it changes what that join matches on. Edit the join's keys first. " +
+               "Nothing was changed.");
 
             // No CommandDispatcher exists on this headless bridge -- renameColumn(Worksheet,
             // CommandDispatcher, ...) tolerates a null one (see its own comment) and simply
@@ -2281,10 +2285,11 @@ public class WorksheetEditService {
          }
 
          if(cr.isVisible() && !visible) {
-            if(!WorksheetControllerService.allowsDeletion(ws, t, cr)) {
-               throw new PairingException(Catalog.getCatalog().getString(
-                  "common.columnDependency", col));
-            }
+            // Bug #78895: same allowsDeletion refusal as before, but naming the dependent join.
+            ColumnLossReport.requireNotJoinKey(
+               ws, t, cr, "Cannot hide column \"" + col + "\" of table \"" + table + "\"",
+               "A hidden column leaves the table's output, so that join would lose its key. " +
+               "Edit the join's keys first. Nothing was changed.");
 
             // Bug #77001 / WBS-088: allowsDeletion only catches a downstream JOIN key
             // conflict -- a table that merely aggregates or groups by this column is
