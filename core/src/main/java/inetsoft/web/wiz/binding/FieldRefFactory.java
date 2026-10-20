@@ -124,6 +124,12 @@ public final class FieldRefFactory {
          // applyAggregateDefaults().
          applyAggregateDefaults(ref, model, rvs, source, field.column());
 
+         // Bug #78884 -- stamp the source column's type the way a native drop does
+         // (VSChartBindingHandler.createChartRef). Left null, VSAggregateRef.getOriginalDataType()
+         // defaults to string, so GraphUtil.isCategorical judges a numeric measure whose formula
+         // is none/unresolved ($(Pick)) categorical and fixVisualFrame swaps in a categorical frame.
+         ref.setOriginalDataType(sourceColumnType(model, rvs, source, field.column()));
+
          if(field.secondaryColumn() != null) {
             ref.setSecondaryColumnValue(field.secondaryColumn());
          }
@@ -645,6 +651,24 @@ public final class FieldRefFactory {
 
          ref.setFormula(dataType != null && NUMERIC_TYPES.contains(dataType) ? SUM : COUNT);
       }
+   }
+
+   /**
+    * The data type of {@code column} on the bound source, or {@code null} when it is unknown
+    * (no model, or a dynamic {@code $(...)}/{@code =} column that names no real column).
+    */
+   private static String sourceColumnType(BindingModel model, RuntimeViewsheet rvs,
+                                          SourceInfo source, String column)
+   {
+      CalculateRef found = findCalcField(model, rvs, source, column);
+
+      if(found != null) {
+         return found.getDataType();
+      }
+
+      BindingModel.SourceTable bound = boundTable(model, effectiveSource(model, source));
+      BindingModel.SourceTableColumn own = bound == null ? null : ownedColumn(bound, column);
+      return own != null ? own.getDataType() : dataTypeOf(model, column);
    }
 
    /**
