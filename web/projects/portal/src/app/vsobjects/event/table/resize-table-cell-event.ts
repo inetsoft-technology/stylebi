@@ -22,6 +22,9 @@ import {ResizeTableColumnEvent} from "../resize-table-column-event";
  * Resize both width/height of table cell in 1 event
  */
 export class ResizeTableCellEvent {
-  constructor(public colEvent: ResizeTableColumnEvent, public rowEvent: ResizeTableRowEvent) {
+  // followsDensity is left out where the dialog showed no box
+  constructor(public colEvent: ResizeTableColumnEvent, public rowEvent: ResizeTableRowEvent,
+              public followsDensity?: boolean)
+  {
   }
 }

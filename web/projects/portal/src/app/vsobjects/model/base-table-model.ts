@@ -43,6 +43,8 @@ export interface BaseTableModel extends VSObjectModel {
    titleVisible: boolean;
    shrink: boolean; // shrink to fit
    explicitTableWidth?: boolean;
+   dataRowHeightPinned?: boolean; // a stored height, not the density, decides the data rows
+   headerRowHeightPinned?: boolean;
    rowHeights?: Map<number, number>;
    editedByWizard: boolean;
 

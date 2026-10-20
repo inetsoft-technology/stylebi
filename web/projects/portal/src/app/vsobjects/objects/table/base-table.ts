@@ -2333,7 +2333,21 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
 
          dialog.width = width;
          dialog.height = height;
+         dialog.followsDensity = this.cellHeightFollowsDensity(cell);
       }
+   }
+
+   /**
+    * The starting state of Set Cell Size's follow-the-default-density box for the cell's row type,
+    * or null where the box is not offered: outside the composer, and on an unmarked table.
+    */
+   protected cellHeightFollowsDensity(cell: BaseTableCellModel): boolean | null {
+      if(this.viewer || !this.model.vizModern) {
+         return null;
+      }
+
+      return cell.row < this.model.headerRowCount ?
+         !this.model.headerRowHeightPinned : !this.model.dataRowHeightPinned;
    }
 
    /**
@@ -2370,7 +2384,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       );
 
       this.resetScroll(false);
-      const event = new ResizeTableCellEvent(colEvent, rowEvent);
+      const event = new ResizeTableCellEvent(colEvent, rowEvent, result.followsDensity);
       this.viewsheetClient.sendEvent("/events/composer/viewsheet/table/changeCellSize", event);
    }
 
