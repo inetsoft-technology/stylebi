@@ -717,6 +717,7 @@ public class TableBindingService {
             // assembly unchanged (the mutate() checkpoint would otherwise keep the partial hide).
             List<String> errors = new ArrayList<>();
             List<Integer> hideCols = new ArrayList<>();
+            List<Integer> hideCounts = new ArrayList<>();
 
             for(int i = 0; i < targets.size(); i++) {
                TableBindingMutator.ShelfIndex target = targets.get(i);
@@ -743,10 +744,37 @@ public class TableBindingService {
                   continue;
                }
 
-               SetTableHeaderAliasHandler.HeaderCell cell =
-                  SetTableHeaderAliasHandler.findHeaderCell(lens, ref, target.index());
+               boolean aggregate = "aggregates".equals(target.shelf());
 
-               if(cell == null) {
+               // Bug #78850: hiding is per rendered lens column, but an aggregate renders in
+               // several (one per cols value, plus grand totals/subtotals) when side by side, and
+               // all measures share ONE column when stacked.
+               if(aggregate && isStackedMeasures(crossInfo)) {
+                  errors.add(
+                     "'" + requestedNames.get(i) + "' cannot be hidden on its own: this " +
+                     "crosstab stacks its measures as rows (summarySideBySide is false), so " +
+                     "they all share one measure-name column and hiding it would hide every " +
+                     "measure's label. Set summarySideBySide:true with set_table_options " +
+                     "first, then hide the measure.");
+                  continue;
+               }
+
+               List<SetTableHeaderAliasHandler.HeaderCell> cells = new ArrayList<>();
+
+               if(aggregate) {
+                  cells.addAll(
+                     SetTableHeaderAliasHandler.findHeaderCells(lens, ref, target.index()));
+               }
+               else {
+                  SetTableHeaderAliasHandler.HeaderCell first =
+                     SetTableHeaderAliasHandler.findHeaderCell(lens, ref, target.index());
+
+                  if(first != null) {
+                     cells.add(first);
+                  }
+               }
+
+               if(cells.isEmpty()) {
                   errors.add(
                      "Could not find '" + target.shelf() + "[" + target.index() + "]' on the " +
                      "rendered header of '" + assemblyName + "' -- it may not currently render " +
@@ -754,16 +782,25 @@ public class TableBindingService {
                   continue;
                }
 
-               hideCols.add(cell.col());
+               for(SetTableHeaderAliasHandler.HeaderCell cell : cells) {
+                  hideCols.add(cell.col());
+               }
+
+               hideCounts.add(cells.size());
             }
 
             if(!errors.isEmpty()) {
                throw new IllegalArgumentException(String.join(" ", errors));
             }
 
-            for(int i = 0; i < hideCols.size(); i++) {
-               tableInfo.addHiddenColumn(hideCols.get(i), lens);
-               applied.add(requestedNames.get(i) + " -> hidden");
+            for(int col : hideCols) {
+               tableInfo.addHiddenColumn(col, lens);
+            }
+
+            for(int i = 0; i < requestedNames.size(); i++) {
+               int copies = hideCounts.get(i);
+               applied.add(requestedNames.get(i) + " -> hidden" +
+                           (copies > 1 ? " (" + copies + " rendered columns)" : ""));
             }
          }
 
@@ -1208,6 +1245,27 @@ public class TableBindingService {
     * more entries than the model's {@code aggregates} shelf. Filtering the same way here restores
     * the position correspondence the model's {@code index} was resolved against.
     */
+   /**
+    * {@code true} when this crosstab lays several measures out as rows ({@code
+    * summarySideBySide} off, more than one aggregate), so they share one measure-name column
+    * rather than each owning rendered columns.
+    */
+   private static boolean isStackedMeasures(VSCrosstabInfo crossInfo) {
+      if(crossInfo.isSummarySideBySide()) {
+         return false;
+      }
+
+      int count = 0;
+
+      for(DataRef agg : crossInfo.getAggregates()) {
+         if(!VSUtil.isFake(agg)) {
+            count++;
+         }
+      }
+
+      return count > 1;
+   }
+
    private static DataRef liveCrosstabRef(VSCrosstabInfo crossInfo, String shelf, int index) {
       switch(shelf) {
          case "rows":
@@ -1456,12 +1514,13 @@ public class TableBindingService {
       for(String shelf : TableBindingMutator.shelvesOf(model)) {
          shelfFields.put(shelf, new ArrayList<>(TableBindingMutator.read(model, shelf)));
       }
+      List<String> visibilityNotes = new ArrayList<>();
 
       if(model instanceof CrosstabBindingModel) {
          VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
 
          if(liveAssembly instanceof CrosstabVSAssembly crosstab) {
-            enrichCrosstabLabelsAndVisibility(rvs, crosstab, shelfFields);
+            enrichCrosstabLabelsAndVisibility(rvs, crosstab, shelfFields, visibilityNotes);
          }
       }
       else if(model instanceof TableBindingModel) {
@@ -1485,6 +1544,10 @@ public class TableBindingService {
                  "This assembly has no source table, so it renders empty whatever is on its " +
                  "shelves. Point it at one with set_table_source — list_bindable_fields " +
                  "reports the names it accepts.");
+      }
+
+      if(!visibilityNotes.isEmpty()) {
+         out.put("visibilityNote", String.join(" ", visibilityNotes));
       }
 
       out.put("shelves", new LinkedHashMap<>(shelfFields));
@@ -1612,7 +1675,8 @@ public class TableBindingService {
     */
    private static void enrichCrosstabLabelsAndVisibility(RuntimeViewsheet rvs,
                                                          CrosstabVSAssembly crosstab,
-                                                         Map<String, List<FieldRef>> shelfFields)
+                                                         Map<String, List<FieldRef>> shelfFields,
+                                                         List<String> notes)
    {
       try {
          Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
@@ -1647,21 +1711,56 @@ public class TableBindingService {
                   continue;
                }
 
-               SetTableHeaderAliasHandler.HeaderCell cell =
-                  SetTableHeaderAliasHandler.findHeaderCell(lens, ref, i);
+               boolean aggregate = "aggregates".equals(shelf);
+               List<SetTableHeaderAliasHandler.HeaderCell> cells = new ArrayList<>();
 
-               if(cell == null) {
+               if(aggregate) {
+                  cells.addAll(SetTableHeaderAliasHandler.findHeaderCells(lens, ref, i));
+               }
+               else {
+                  SetTableHeaderAliasHandler.HeaderCell first =
+                     SetTableHeaderAliasHandler.findHeaderCell(lens, ref, i);
+
+                  if(first != null) {
+                     cells.add(first);
+                  }
+               }
+
+               if(cells.isEmpty()) {
                   continue;
                }
 
                FieldRef field = fields.get(i);
-               String label = readAlias(formatInfo, cell.path());
+               String label = readAlias(formatInfo, cells.get(0).path());
 
                if(label != null) {
                   field = withLabel(field, label);
                }
 
-               field = withVisibility(field, !tableInfo.isColumnHidden(cell.col(), lens));
+               // Bug #78850: stacked measures share one column, so no single measure has a
+               // visibility of its own -- leave it unreported rather than read all-hidden.
+               if(aggregate && isStackedMeasures(crossInfo)) {
+                  fields.set(i, field);
+                  continue;
+               }
+
+               int hidden = 0;
+
+               for(SetTableHeaderAliasHandler.HeaderCell cell : cells) {
+                  if(tableInfo.isColumnHidden(cell.col(), lens)) {
+                     hidden++;
+                  }
+               }
+
+               // Hidden only when every rendered copy is; a partial hide (e.g. one column hidden
+               // in the Composer UI) still renders, so it reads visible with a note.
+               field = withVisibility(field, hidden < cells.size());
+
+               if(hidden > 0 && hidden < cells.size()) {
+                  notes.add("'" + field.column() + "' is partially hidden: " + hidden + " of " +
+                            cells.size() + " rendered columns are hidden.");
+               }
+
                fields.set(i, field);
             }
          }
