@@ -740,7 +740,8 @@ public class DataSourceChangePlanService {
       String description = dependencies.isEmpty()
          ? "delete data source \"" + name + "\""
          : "delete data source \"" + name + "\" (force: true, " + dependencies.size() +
-           " dependent asset(s))";
+           " dependent asset(s): " +
+           dependencyProjections.get(name) + ")";
       return new PlanChange(name, orgId, beforeProjection, null, AdminChangeRecord.RISK_HIGH,
                             AdminChangeRecord.SCOPE_STORAGE, true, description);
    }

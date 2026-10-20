@@ -744,6 +744,23 @@ class DataSourceChangePlanServiceTest {
       assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
    }
 
+   @Test void resolveDeleteForcePlanDescriptionNamesEveryDependent() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      var dep1 = dependency("Examples/Orders Query");
+      var dep2 = dependency("Examples/Orders Summary");
+      dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
+         .thenReturn(List.of(dep1, dep2));
+      DataSourceChangeRequest change = deleteChange("Orders");
+      change.setForce(true);
+
+      String description = service.resolve(request("task", List.of(change)), user)
+         .changes().get(0).description();
+      assertTrue(description.contains("2 dependent asset(s)"), description);
+      assertTrue(description.contains("Examples/Orders Query"), description);
+      assertTrue(description.contains("Examples/Orders Summary"), description);
+   }
+
    @Test void resolveDeleteSucceedsWhenNoDependencies() throws Exception {
       stubList("Orders", "id-1", "jdbc");
       stubGet("id-1", jdbc("id-1", "Orders", false, null));
