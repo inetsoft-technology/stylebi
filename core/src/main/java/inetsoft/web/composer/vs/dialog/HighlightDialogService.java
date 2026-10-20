@@ -115,7 +115,7 @@ public class HighlightDialogService {
             }
          }
          else if(colName != null) {
-            int[] resolved = resolveNamedColumnCell(lens, colName);
+            int[] resolved = resolvePlainTableCell(lens, colName, row, col, objectId);
 
             if(resolved != null) {
                row = resolved[0];
@@ -481,6 +481,26 @@ public class HighlightDialogService {
       return summarySideBySide
          ? new int[] { headerRowCount, headerColCount + index }
          : new int[] { headerRowCount + index, headerColCount };
+   }
+
+   /**
+    * Resolves {@code colName} on a non-crosstab table to its first data cell. When the caller
+    * supplied no cell and {@code colName} names no rendered column (hidden, unbound, or
+    * misspelled), refuses rather than defaulting to header cell (0, 0) -- bug 78848. A caller
+    * that supplied {@code row}/{@code col} keeps them ({@code null} is returned).
+    */
+   static int[] resolvePlainTableCell(TableLens lens, String colName, Integer row, Integer col,
+                                      String objectId)
+   {
+      int[] resolved = resolveNamedColumnCell(lens, colName);
+
+      if(resolved == null && row == null && col == null) {
+         throw new IllegalArgumentException(
+            "colName '" + colName + "' is not a rendered column of '" + objectId +
+            "'; use row/col to address a cell.");
+      }
+
+      return resolved;
    }
 
    /**

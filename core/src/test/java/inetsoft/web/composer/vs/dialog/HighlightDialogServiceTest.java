@@ -341,6 +341,42 @@ class HighlightDialogServiceTest {
       assertNull(HighlightDialogService.resolveNamedColumnCell(table, "NOT_A_COLUMN"));
    }
 
+   // ── resolvePlainTableCell: bug 78848 ───────────────────────────────────────
+
+   @Test
+   void refusesAColNameNamingNoRenderedColumnWhenNoCellWasSupplied() {
+      DefaultTableLens table = new DefaultTableLens(
+         new Object[][] { { "ORDER_ID", "STATE" }, { 1, "NY" } });
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> HighlightDialogService.resolvePlainTableCell(
+            table, "HIDDEN_COL", null, null, "Table1"));
+
+      assertTrue(e.getMessage().contains("HIDDEN_COL") && e.getMessage().contains("Table1"),
+                 e.getMessage());
+   }
+
+   @Test
+   void keepsTheSuppliedCellWhenColNameNamesNoRenderedColumn() {
+      DefaultTableLens table = new DefaultTableLens(
+         new Object[][] { { "ORDER_ID", "STATE" }, { 1, "NY" } });
+
+      assertNull(HighlightDialogService.resolvePlainTableCell(
+         table, "HIDDEN_COL", 1, 0, "Table1"));
+      assertNull(HighlightDialogService.resolvePlainTableCell(
+         table, "HIDDEN_COL", null, 1, "Table1"));
+   }
+
+   @Test
+   void stillResolvesAVisibleColumnByItsRenderedHeaderLabel() {
+      DefaultTableLens table = new DefaultTableLens(
+         new Object[][] { { "Order Id", "State Label" }, { 1, "NY" } });
+
+      assertArrayEquals(new int[]{ 1, 1 },
+         HighlightDialogService.resolvePlainTableCell(
+            table, "State Label", null, null, "Table1"));
+   }
+
    @Test
    void leavesTheCellUnresolvedWhenColNameIsAbsentForAPlainTable() {
       Object[][] data = { { "ORDER_ID", "STATE" }, { 1, "NY" } };
