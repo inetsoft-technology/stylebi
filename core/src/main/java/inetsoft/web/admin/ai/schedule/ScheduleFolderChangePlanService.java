@@ -321,7 +321,12 @@ public class ScheduleFolderChangePlanService {
             label + ".targetPath: no schedule-task folder exists at \"" + targetPath + "\"");
       }
 
-      return new PlanChange(taskId, null, null, null, AdminChangeRecord.RISK_LOW,
+      // Bug #78958: current (the task's live folder) and proposed (the normalized target) go in
+      // the hashed fields, so a different targetPath, or a task relocated since the preview, changes
+      // planHash and the apply is refused with a mismatch. The description is never hashed.
+      String currentPath = folderGateway.getTaskPath(taskId);
+      String current = currentPath == null ? null : AdminScheduleFolderGateway.normalizePath(currentPath);
+      return new PlanChange(taskId, null, current, targetPath, AdminChangeRecord.RISK_LOW,
                             AdminChangeRecord.SCOPE_STORAGE, true,
                             "move schedule task \"" + taskId + "\" into \"" + targetPath + "\"");
    }

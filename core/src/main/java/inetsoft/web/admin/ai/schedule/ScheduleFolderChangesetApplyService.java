@@ -305,7 +305,7 @@ public class ScheduleFolderChangesetApplyService {
       // (taskFolderService.moveScheduleItems), so mutationEntered must be threaded through rather
       // than set here -- setting it before this call would (incorrectly) mark a pure permission
       // refusal as a partial-mutation risk (bug #76856).
-      folderGateway.moveTask(taskId, targetPath, user, mutationEntered);
+      folderGateway.moveTask(taskId, normalizedTargetPath, user, mutationEntered);
 
       String afterPath = folderGateway.getTaskPath(taskId);
       boolean verified = afterPath != null &&

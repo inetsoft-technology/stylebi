@@ -446,6 +446,41 @@ class ScheduleFolderChangePlanServiceTest {
       assertEquals("low", change.risk());
    }
 
+   // Bug #78958: the destination and the task's live folder are part of the hashed plan.
+   @Test void resolveMoveTaskPlanHashDiffersForDifferentTargetPath() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      when(folderGateway.folderExists("A")).thenReturn(true);
+      when(folderGateway.folderExists("B")).thenReturn(true);
+      when(folderGateway.getTaskPath("task1")).thenReturn("Old");
+
+      ResolvedPlan a = service.resolve(request("t", List.of(moveTaskChange("task1", "A"))), user);
+      ResolvedPlan b = service.resolve(request("t", List.of(moveTaskChange("task1", "B"))), user);
+
+      assertNotEquals(a.planHash(), b.planHash());
+   }
+
+   @Test void resolveMoveTaskPlanHashDiffersWhenTaskCurrentPathChanges() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      when(folderGateway.folderExists("Target")).thenReturn(true);
+      when(folderGateway.getTaskPath("task1")).thenReturn("Old", "Elsewhere");
+
+      ResolvedPlan first = service.resolve(request("t", List.of(moveTaskChange("task1", "Target"))), user);
+      ResolvedPlan second = service.resolve(request("t", List.of(moveTaskChange("task1", "Target"))), user);
+
+      assertNotEquals(first.planHash(), second.planHash());
+   }
+
+   @Test void resolveMoveTaskPlanHashIgnoresTargetPathSpelling() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      when(folderGateway.folderExists("Target")).thenReturn(true);
+      when(folderGateway.getTaskPath("task1")).thenReturn("Old");
+
+      ResolvedPlan plain = service.resolve(request("t", List.of(moveTaskChange("task1", "Target"))), user);
+      ResolvedPlan slashed = service.resolve(request("t", List.of(moveTaskChange("task1", " /Target"))), user);
+
+      assertEquals(plain.planHash(), slashed.planHash());
+   }
+
    @Test void resolveMoveTaskAndFolderMoveOfTheSameLiteralIdentifierAreNotTreatedAsDuplicates() throws Exception {
       when(folderGateway.taskExists("A")).thenReturn(true);
       when(folderGateway.folderExists("Target")).thenReturn(true);
