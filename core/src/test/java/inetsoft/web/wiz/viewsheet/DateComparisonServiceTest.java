@@ -1972,6 +1972,47 @@ class DateComparisonServiceTest {
                                                 any(Principal.class), any());
    }
 
+   private static VSAssembly sharing(String name, String shareFrom) {
+      VSAssembly assembly = mock(VSAssembly.class);
+      ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      when(assembly.getName()).thenReturn(name);
+      when(assembly.getInfo()).thenReturn(info);
+      when(info.getComparisonShareFrom()).thenReturn(shareFrom);
+      return assembly;
+   }
+
+   @Test
+   void sharersOfNamesEveryAssemblyThatSharedFromTheClearedSource() throws Exception {
+      Harness h = harness(model());
+      inetsoft.uql.asset.Assembly[] all = new inetsoft.uql.asset.Assembly[] {
+         sharing("Src", null), sharing("ShareA", "Src"), sharing("ShareB", "Src"),
+         sharing("Other", "Elsewhere")};
+      when(h.vs.getAssemblies()).thenReturn(all);
+
+      assertEquals(java.util.List.of("ShareA", "ShareB"),
+                   h.service.sharersOf("tok", principal(), "Src"));
+   }
+
+   @Test
+   void sharersOfASharerNamesNoOne() throws Exception {
+      Harness h = harness(model());
+      inetsoft.uql.asset.Assembly[] all = new inetsoft.uql.asset.Assembly[] {
+         sharing("Src", null), sharing("ShareA", "Src")};
+      when(h.vs.getAssemblies()).thenReturn(all);
+
+      assertTrue(h.service.sharersOf("tok", principal(), "ShareA").isEmpty());
+   }
+
+   @Test
+   void sharersOfWithNoSharersIsEmpty() throws Exception {
+      Harness h = harness(model());
+      inetsoft.uql.asset.Assembly[] all = new inetsoft.uql.asset.Assembly[] {
+         sharing("Src", null)};
+      when(h.vs.getAssemblies()).thenReturn(all);
+
+      assertTrue(h.service.sharersOf("tok", principal(), "Src").isEmpty());
+   }
+
    // ── the read side ─────────────────────────────────────────────────────────
 
    @Test

@@ -1249,6 +1249,43 @@ public class DateComparisonService {
                                                   dispatcher)));
    }
 
+   /**
+    * Names of the other assemblies currently sharing their comparison from {@code assemblyName}.
+    * Clearing that assembly natively drops their share too (the same as the Composer's own
+    * dialog), so the caller reads this BEFORE {@link #clear} and discloses it.
+    */
+   public List<String> sharersOf(String sessionToken, Principal user, String assemblyName)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      return rvs == null ? new ArrayList<>() : sharersOf(rvs.getViewsheet(), assemblyName);
+   }
+
+   private static List<String> sharersOf(Viewsheet vs, String source) {
+      List<String> names = new ArrayList<>();
+
+      if(vs == null || source == null) {
+         return names;
+      }
+
+      Assembly[] assemblies = vs.getAssemblies();
+
+      if(assemblies == null) {
+         return names;
+      }
+
+      for(Assembly assembly : assemblies) {
+         if(assembly.getInfo() instanceof DateCompareAbleAssemblyInfo info &&
+            !source.equals(assembly.getName()) &&
+            Objects.equals(source, info.getComparisonShareFrom()))
+         {
+            names.add(assembly.getName());
+         }
+      }
+
+      return names;
+   }
+
    // ── the end-date guard ────────────────────────────────────────────────────
 
    /**
