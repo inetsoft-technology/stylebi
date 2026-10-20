@@ -185,4 +185,41 @@ class StoredConditionType78897Test {
 
       assertEquals(XSchema.INTEGER, stored(t.getPreConditionList(), 0).getType());
    }
+
+   @Test
+   void setConditionsRefusesAnUnparseableValueOnTheNarrowedField() {
+      BoundTableAssembly t = narrowedWith("<", "1.5");
+
+      refused(() -> setConditions(t, cond("<", "abc"), false), "\"abc\"", "integer", "double");
+   }
+
+   @Test
+   void twoDifferentStoredTypesOnTheFieldFallBackToTheColumnType() {
+      BoundTableAssembly t = table(XSchema.DOUBLE);
+      addFilter(t, "K", "=", "1.5");
+      ((ColumnRef) t.getColumnSelection().getAttribute(0)).setDataType(XSchema.INTEGER);
+      addFilter(t, "K", "=", "3");
+      assertEquals(XSchema.DOUBLE, stored(t.getPreConditionList(), 0).getType());
+      assertEquals(XSchema.INTEGER, stored(t.getPreConditionList(), 2).getType());
+
+      refused(() -> setConditions(t, cond("=", "1.5"), false), "\"1.5\"", "integer");
+   }
+
+   @Test
+   void aFieldComparisonReplayOnTheNarrowedFieldIsNotJudgedAsALiteral() {
+      BoundTableAssembly was = table(XSchema.DOUBLE);
+      ColumnRef b = new ColumnRef(new AttributeRef(null, "B"));
+      b.setDataType(XSchema.INTEGER);
+      was.getColumnSelection().addAttribute(b);
+      addFilter(was, "K", "=", "1.5");
+      BoundTableAssembly t = table(XSchema.INTEGER);
+      t.getColumnSelection().addAttribute(b);
+      t.setPreConditionList(was.getPreConditionList());
+
+      setConditions(t, List.of(new ConditionNode(new ConditionSpec(
+         "K", "=", List.of("T.B"), false, null,
+         List.of(new ConditionValueSpec("field", "T.B", null, null, 0))), null, 0)), false);
+
+      assertEquals(1, t.getPreConditionList().getConditionSize());
+   }
 }

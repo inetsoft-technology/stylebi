@@ -3601,9 +3601,28 @@ public final class WorksheetMutationSupport {
             String dtype = conditionType(t, spec, post);
 
             if((spec.type() == null || spec.type().isBlank()) && op != XCondition.DATE_IN) {
+               // A value an indexed valueSpec replaces is a field/expression/variable reference
+               // whose values() entry is only display text, so it is not a literal to judge.
+               java.util.Set<Integer> replaced = new java.util.HashSet<>();
+
+               if(spec.valueSpecs() != null) {
+                  for(ConditionValueSpec vs : spec.valueSpecs()) {
+                     if(vs.index() != null) {
+                        replaced.add(vs.index());
+                     }
+                  }
+               }
+
+               List<String> literals = new ArrayList<>();
+
+               for(int i = 0; spec.values() != null && i < spec.values().size(); i++) {
+                  if(!replaced.contains(i)) {
+                     literals.add(spec.values().get(i));
+                  }
+               }
+
                dtype = literalType(spec.field(), dtype,
-                                   storedNumericType(existing, spec.field(), op),
-                                   spec.values() == null ? List.of() : spec.values());
+                                   storedNumericType(existing, spec.field(), op), literals);
             }
 
             DataRef ref = resolveField(t, spec.field(), post);
@@ -4647,12 +4666,14 @@ public final class WorksheetMutationSupport {
                                                       List<String> values)
    {
       for(String v : values) {
-         boolean variable = v != null && v.startsWith("$(") && v.endsWith(")") && v.length() > 3;
-
-         if(v != null && !variable) {
+         if(v != null && !isVariableReference(v)) {
             requireParsableNumericLiteral(field, dtype, v);
          }
       }
+   }
+
+   private static boolean isVariableReference(String value) {
+      return value != null && value.startsWith("$(") && value.endsWith(")") && value.length() > 3;
    }
 
    private static boolean isDateConditionType(String dtype) {
@@ -5039,7 +5060,7 @@ public final class WorksheetMutationSupport {
     * the same one the Composer's own condition dialog performs.
     */
    private static Object conditionValue(String dtype, String value) {
-      if(value != null && value.startsWith("$(") && value.endsWith(")") && value.length() > 3) {
+      if(isVariableReference(value)) {
          return AbstractCondition.getObject(dtype, value.substring(2, value.length() - 1), true);
       }
 
@@ -5188,7 +5209,7 @@ public final class WorksheetMutationSupport {
     * integer group 0. A {@code $(name)} reference is left to the date check only, as before.
     */
    private static String groupLiteral(String group, String type, String value) {
-      if(value != null && !(value.startsWith("$(") && value.endsWith(")") && value.length() > 3)) {
+      if(value != null && !isVariableReference(value)) {
          try {
             value = (String) conditionValue(type, value);
          }
