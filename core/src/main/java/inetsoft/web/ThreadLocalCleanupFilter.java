@@ -18,8 +18,10 @@
 
 package inetsoft.web;
 
+import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.CoreTool;
 import inetsoft.util.ThreadContext;
 import jakarta.servlet.*;
@@ -34,12 +36,16 @@ public class ThreadLocalCleanupFilter implements Filter {
       throws IOException, ServletException
    {
       // user messages are thread-local, clear them only around the top-level dispatch so that a
-      // nested forward/include does not drop messages added by the enclosing request
+      // nested forward/include does not drop messages added by the enclosing request. the asset
+      // exception lists are per-thread too and are not drained on every path (e.g. a refresh),
+      // so a pooled thread would otherwise hand one user's script error to the next request
       boolean topLevel = request.getDispatcherType() == DispatcherType.REQUEST;
 
       try {
          if(topLevel) {
             CoreTool.clearUserMessage();
+            WorksheetService.ASSET_EXCEPTIONS.remove();
+            AssetRepository.ASSET_ERRORS.remove();
          }
 
          Principal principal = SUtil.getPrincipal((HttpServletRequest) request);
@@ -59,6 +65,8 @@ public class ThreadLocalCleanupFilter implements Filter {
 
          if(topLevel) {
             CoreTool.clearUserMessage();
+            WorksheetService.ASSET_EXCEPTIONS.remove();
+            AssetRepository.ASSET_ERRORS.remove();
          }
       }
    }
