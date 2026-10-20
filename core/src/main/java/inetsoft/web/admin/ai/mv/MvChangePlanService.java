@@ -23,6 +23,7 @@ import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.content.repository.MVSupportService;
+import inetsoft.web.admin.model.NameLabelTuple;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -62,7 +63,8 @@ public class MvChangePlanService {
     * @throws IllegalArgumentException with a field-named message on a blank task, an empty change
     *                                 list, an unrecognized verb, a duplicate mv name across
     *                                 entries, a missing/blank required field, an mvName not present
-    *                                 in the named analysisId's candidate list (create/set_cycle), or
+    *                                 in the named analysisId's candidate list (create/set_cycle),
+    *                                 a non-empty cycle that is not an existing data cycle, or
     *                                 an mvName that does not currently exist (delete).
     * @throws AnalysisExpiredException if a referenced analysisId is unknown or has expired.
     */
@@ -85,14 +87,17 @@ public class MvChangePlanService {
       // analysisId must not re-fetch (and re-validate freshness of) the same cluster-map entry once
       // per name.
       Map<String, List<MVSupportService.MVStatus>> candidatesByAnalysisId = new HashMap<>();
+      // Existing data cycle names are fetched at most once per resolve() call, and only if some
+      // entry actually names a cycle.
+      CycleNames cycleNames = new CycleNames(user);
 
       for(FlatChange fc : flat) {
          if(MvChangeRequest.VERB_CREATE.equals(fc.verb)) {
-            changes.add(resolveCreate(fc, orgId, candidatesByAnalysisId, user));
+            changes.add(resolveCreate(fc, orgId, candidatesByAnalysisId, cycleNames, user));
             hasCreate = true;
          }
          else if(MvChangeRequest.VERB_SET_CYCLE.equals(fc.verb)) {
-            changes.add(resolveSetCycle(fc, orgId, candidatesByAnalysisId, user));
+            changes.add(resolveSetCycle(fc, orgId, candidatesByAnalysisId, cycleNames, user));
          }
          else {
             changes.add(resolveDelete(fc, orgId));
@@ -112,9 +117,10 @@ public class MvChangePlanService {
 
    private PlanChange resolveCreate(FlatChange fc, String orgId,
                                     Map<String, List<MVSupportService.MVStatus>> candidatesByAnalysisId,
-                                    Principal user)
+                                    CycleNames cycleNames, Principal user) throws Exception
    {
       requireCandidate(fc, candidatesByAnalysisId, user);
+      requireKnownCycle(fc, cycleNames);
       boolean noData = fc.source.getNoData() == null || fc.source.getNoData();
       // Mirrors applyCreate's gating in MvChangesetApplyService so this preview string describes
       // the runInBackground value apply will actually use.
@@ -128,13 +134,33 @@ public class MvChangePlanService {
 
    private PlanChange resolveSetCycle(FlatChange fc, String orgId,
                                       Map<String, List<MVSupportService.MVStatus>> candidatesByAnalysisId,
-                                      Principal user)
+                                      CycleNames cycleNames, Principal user) throws Exception
    {
       MVSupportService.MVStatus status = requireCandidate(fc, candidatesByAnalysisId, user);
+      requireKnownCycle(fc, cycleNames);
       String currentCycle = status.getDefinition().getCycle();
       return new PlanChange(fc.mvName, orgId, currentCycle, fc.source.getCycle(),
                             AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_STORAGE, true,
                             "set mv data cycle");
+   }
+
+   /** Refuses a non-empty {@code cycle} that is not the name of an existing data cycle -- the same
+    * org- and permission-filtered list {@code get_mv_analysis} reports as {@code availableCycles}.
+    * An absent or empty cycle means "no cycle" and is always valid. */
+   private void requireKnownCycle(FlatChange fc, CycleNames cycleNames) throws Exception {
+      String cycle = fc.source.getCycle();
+
+      if(cycle == null || cycle.isEmpty()) {
+         return;
+      }
+
+      List<String> available = cycleNames.get();
+
+      if(!available.contains(cycle)) {
+         throw new IllegalArgumentException(
+            fc.label + ".cycle: \"" + cycle + "\" is not an existing data cycle (available: " +
+            (available.isEmpty() ? "none" : String.join(", ", available)) + ")");
+      }
    }
 
    private PlanChange resolveDelete(FlatChange fc, String orgId) {
@@ -278,6 +304,31 @@ public class MvChangePlanService {
       final String verb;
       final MvChangeRequest source;
       final String mvName;
+   }
+
+   /** Lazily fetched names (never labels -- the name is what MVDef stores) of the data cycles the
+    * caller can use. */
+   private final class CycleNames {
+      CycleNames(Principal user) {
+         this.user = user;
+      }
+
+      List<String> get() throws Exception {
+         if(names == null) {
+            List<String> fetched = new ArrayList<>();
+
+            for(NameLabelTuple cycle : mvGateway.getDataCycles(user)) {
+               fetched.add(cycle.name());
+            }
+
+            names = fetched;
+         }
+
+         return names;
+      }
+
+      private final Principal user;
+      private List<String> names;
    }
 
    private static final char SEP = (char) 0x1f;
