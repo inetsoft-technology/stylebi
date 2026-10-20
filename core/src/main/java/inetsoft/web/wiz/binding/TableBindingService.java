@@ -539,7 +539,7 @@ public class TableBindingService {
       }
 
       if(isHidden(table, excluding)) {
-         names.remove(excluding);
+         names.removeIf(n -> n.equalsIgnoreCase(excluding));
       }
 
       return names;
@@ -550,7 +550,9 @@ public class TableBindingService {
          ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns().getAttributes();
 
       while(refs.hasMoreElements()) {
-         if(refKey(refs.nextElement()).equals(name)) {
+         String key = refKey(refs.nextElement());
+
+         if(name != null && key.equalsIgnoreCase(name)) {
             return true;
          }
       }
@@ -619,10 +621,26 @@ public class TableBindingService {
                instanceof TableVSAssembly t ? t : null;
             List<String> full = table == null ? null : fullDetailsOrder(table, null);
 
-            TableBindingMutator.removeField(model, shelf, column, index, rvs, source,
+            Integer shownIndex = index;
+
+            if(full != null && index != null && index >= 0 && index < full.size() &&
+               full.get(index).equalsIgnoreCase(column) && !isHidden(table, column))
+            {
+               shownIndex = 0;
+
+               for(String name : full.subList(0, index)) {
+                  if(!isHidden(table, name)) {
+                     shownIndex++;
+                  }
+               }
+            }
+
+            TableBindingMutator.removeField(model, shelf, column, shownIndex, rvs, source,
                                             refModelService);
 
-            if(full != null && !isHidden(table, column) && full.remove(column)) {
+            if(full != null && !isHidden(table, column) &&
+               full.removeIf(n -> n.equalsIgnoreCase(column)))
+            {
                restampHiddenPositions(table, full);
             }
          });

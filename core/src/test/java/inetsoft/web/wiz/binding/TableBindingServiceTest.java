@@ -2478,6 +2478,49 @@ class TableBindingServiceTest {
       assertFalse(e.getMessage().contains("holds 4 field(s)"), e.getMessage());
    }
 
+   /** Bug #78852 review I4: a differently-cased name re-stamps the same as the exact one. */
+   @Test
+   void removeFieldWithALowercaseNameStillKeepsAHiddenColumnsSlot() throws Exception {
+      TableVSAssembly table = tableWithHiddenB();
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      service.removeField("tok", principal(), "TableView2", "details", "a");
+
+      assertEquals(0, hiddenPositionOf(table, "B"));
+   }
+
+   @Test
+   void addFieldReaddingAHiddenColumnByALowercaseNamePlacesItAtTheRequestedSlot()
+      throws Exception
+   {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "D", "E");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      service.addField("tok", principal(), "TableView2", "details", dim("b"), 3, null);
+
+      assertEquals(List.of("a", "c", "d", "b", "e"),
+                   written[0].getDetails().stream().map(d -> d.getName().toLowerCase())
+                      .toList());
+   }
+
+   /** Bug #78852 review M12: remove's index counts hidden columns, like add's position. */
+   @Test
+   void removeFieldIndexIsTranslatedFromTheFullOrder() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "D");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      service.removeField("tok", principal(), "TableView2", "details", "D", 3);
+
+      assertEquals(List.of("A", "C"),
+                   written[0].getDetails().stream().map(d -> d.getName()).toList());
+      assertEquals(1, hiddenPositionOf(table, "B"));
+   }
+
    private static TableVSAssembly tableWithHiddenB() {
       TableVSAssembly table = tableWithColumns("TableView2", "A", "C");
       ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
