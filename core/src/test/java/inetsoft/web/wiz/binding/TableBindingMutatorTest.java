@@ -1120,6 +1120,44 @@ class TableBindingMutatorTest {
          "namedGroupInfo is null here, so order being SORT_SPECIFIC would be inconsistent");
    }
 
+   /** Bug #78937: re-sending an already-grouped dimension must not reset its sort to manual. */
+   @Test
+   void resendingAnAlreadyGroupedFieldKeepsItsSortDirection() throws Exception {
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(Condition.EQUAL_TO);
+      when(condition.getValues()).thenReturn(List.of("CA"));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "REGION"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("West", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Coastal");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(QUERY1_SOURCE);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "REGION"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[]{ ngAssembly });
+
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dimWithNamedGroup("REGION", "Coastal")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+      TableBindingMutator.setSort(model, "rows", "REGION", null,
+                                  new DimensionSortRanking.Sort("desc", null, null));
+      assertEquals(XConstants.SORT_DESC, model.getRows().get(0).getOrder());
+
+      TableBindingMutator.setShelf(model, "rows", List.of(dimWithNamedGroup("REGION", "Coastal")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+
+      BDimensionRefModel dim = model.getRows().get(0);
+      assertEquals(XConstants.SORT_DESC, dim.getOrder(),
+         "the echo of an already-grouped field must keep its desc sort, not become manual");
+      assertNotNull(dim.getNamedGroupInfo());
+      assertNotEquals(0, dim.getNamedGroupInfo().getType());
+   }
+
    /**
     * Removing CATEGORY (index 0) shifts ORDER_DATE from index 1 to index 0. A wholesale replace
     * (set_table_fields) still matches by absolute index and so does not follow it, but removeField
