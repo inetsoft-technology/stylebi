@@ -353,7 +353,7 @@ public class ChartElementService {
     * chart-areas command sends to the browser - so a caller is not left guessing against this
     * class' blunt {@link #MAX_PLOT_RATIO} cap, which is a typo guard rather than a real limit.
     */
-   private static Map<String, Object> maxRatios(VGraph graph, VSChartInfo info) {
+   static Map<String, Object> maxRatios(VGraph graph, VSChartInfo info) {
       Coordinate coord = graph.getCoordinate();
       double maxWidth;
       double maxHeight;
@@ -399,8 +399,8 @@ public class ChartElementService {
     *
     * <p>The maximum needs the laid-out graph, so a chart that has none - unbound, empty, still
     * computing - is checked against the lower bound alone rather than being refused for a bound
-    * that cannot be computed. The lower bound never needs the graph: {@code initialRatio} is on
-    * the chart info.
+    * that cannot be computed. The graph is only needed for the upper bound: {@code
+    * initialRatio} is on the chart info.
     *
     * <p><b>This guards the agent path only.</b> {@code VSChartPlotResizeService} is still
     * unvalidated. It is reachable today from here and from the slider, and both now bound it, so
@@ -509,8 +509,9 @@ public class ChartElementService {
    static void requireEnlargeable(double initial, Object max, String direction) {
       if(max instanceof Number bound && bound.doubleValue() <= initial) {
          throw new IllegalArgumentException(
-            "resize_plot cannot enlarge this chart's " + direction + ": it has no more than " +
-            "one axis unit in that direction, so its maximum (" +
+            "resize_plot cannot enlarge this chart's " + direction + ": it has at most one " +
+            "axis unit or a" +
+            " fixed cap in that direction, so its maximum (" +
             ratioText(bound.doubleValue(), 6, RoundingMode.HALF_UP) + ") is not above its " +
             "baseline (" + ratioText(initial, 6, RoundingMode.HALF_UP) + ") and every ratio " +
             "would be stored and change nothing. Use reset:true to restore the default size, " +

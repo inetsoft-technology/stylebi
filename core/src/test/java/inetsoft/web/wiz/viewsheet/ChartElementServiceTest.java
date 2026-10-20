@@ -18,6 +18,8 @@
 package inetsoft.web.wiz.viewsheet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.graph.VGraph;
+import inetsoft.graph.coord.FacetCoord;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -814,6 +816,48 @@ class ChartElementServiceTest {
       ChartVSAssembly assembly = mock(ChartVSAssembly.class);
       when(assembly.getVSChartInfo()).thenReturn(info);
       return assembly;
+   }
+
+   /**
+    * Bug #78936: the ratio fields of the read are the baseline a caller derives its next write
+    * from, so rounding them to 2 decimals made 0.0235294 read back as 0.02.
+    */
+   @Test
+   void readsRatiosBackUnroundedSoTheBaselineIsRecoverable() throws Exception {
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getUnitWidthRatio()).thenReturn(0.0235294);
+      when(info.getUnitWidthRatioPercent()).thenReturn(1.0000001);
+      when(info.getInitialWidthRatio()).thenReturn(0.0235294);
+      when(info.getEffectiveWidthRatio()).thenReturn(0.0235294);
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(info);
+      Harness h = harness(assembly);
+
+      Map<String, Object> result = h.service.readPlotSize("tok", principal(), "Chart1");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> width = (Map<String, Object>) result.get("width");
+      assertEquals(0.0235294, width.get("ratio"));
+      assertEquals(1.0000001, width.get("percent"));
+      assertEquals(0.0235294, width.get("initialRatio"));
+      assertEquals(0.0235294, width.get("effectiveRatio"));
+   }
+
+   @Test
+   void maximumRatiosAreReturnedUnrounded() {
+      FacetCoord coord = mock(FacetCoord.class);
+      when(coord.getXUnitCount()).thenReturn(7);
+      when(coord.getYUnitCount()).thenReturn(3);
+      VGraph graph = mock(VGraph.class);
+      when(graph.getCoordinate()).thenReturn(coord);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getInitialWidthRatio()).thenReturn(0.0235294);
+      when(info.getInitialHeightRatio()).thenReturn(0.0123457);
+
+      Map<String, Object> max = ChartElementService.maxRatios(graph, info);
+
+      assertEquals(0.0235294 * 7, max.get("maxWidthRatio"));
+      assertEquals(0.0123457 * 3, max.get("maxHeightRatio"));
    }
 
    /** Bug #78936: the suggested "at least" value must pass the same raw comparison. */
