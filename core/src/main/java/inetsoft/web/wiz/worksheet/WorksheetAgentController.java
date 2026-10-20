@@ -24,6 +24,7 @@ import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.execution.AssetQuery;
+import inetsoft.report.composition.execution.AssetQueryCacheNormalizer;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.BoundQuery;
 import inetsoft.report.composition.execution.DataKey;
@@ -4844,6 +4845,13 @@ public class WorksheetAgentController {
                   assetDataCache.remove(runtimeKey);
                }
 
+               // Bug #78940: LIVE/RUNTIME entries are stored under the key of
+               // AssetQueryCacheNormalizer's prepared clone (columns name-sorted, all visible,
+               // removable aliases dropped), so the keys above miss them whenever that clone
+               // differs from the assembly. Must run before loadColumnSelection below, which
+               // changes the column selection the stale entry was keyed on.
+               clearNormalizedCache(table, box);
+
                // Dependents' cached results otherwise survive the refresh (bug 76873).
                WorksheetEventUtil.invalidateDependents(ws, table, box, assetDataCache);
 
@@ -4990,6 +4998,8 @@ public class WorksheetAgentController {
                      assetDataCache.remove(runtimeKey);
                   }
 
+                  // Bug #78940: see the single-table branch.
+                  clearNormalizedCache(table, box);
                   WorksheetEventUtil.invalidateDependents(ws, table, box, assetDataCache);
 
                   try {
@@ -5014,6 +5024,21 @@ public class WorksheetAgentController {
 
          return null;
       });
+   }
+
+   /**
+    * Bug #78940: removes the AssetDataCache entries stored under the key of the table's
+    * normalized clone (what {@code AssetQuery.doGetTableLens} actually stores for LIVE/RUNTIME
+    * reads), in every mode, as {@code WSQueryService.runQuery} does. Best-effort so a failure
+    * cannot fail the whole refresh.
+    */
+   private void clearNormalizedCache(TableAssembly table, AssetQuerySandbox box) {
+      try {
+         AssetQueryCacheNormalizer.clearCache(table, box);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to clear the normalized cache entry for table: " + table.getName(), e);
+      }
    }
 
    /**
