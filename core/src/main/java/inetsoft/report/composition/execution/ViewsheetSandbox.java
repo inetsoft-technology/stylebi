@@ -1803,16 +1803,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                         vname, ex.getMessage());
             }
 
-            boolean isScheduler = false;
-
-            try {
-               isScheduler = (getVariableTable() != null && "true".equals(getVariableTable().get("__is_scheduler__")));
-            }
-            catch(Exception e) {
-               //ignored
-            }
-
-            if(isScheduler) {
+            // export and alert sandboxes carry the flag as Boolean.TRUE (Bug #78494)
+            if(XSessionManager.isScheduler(getVariableTable())) {
                throw new RuntimeException("Failure while processing viewsheet",ex);
             }
          }
