@@ -164,6 +164,23 @@ class VSSelectionServiceTreeClearTest {
    }
 
    /**
+    * Bug #78869: clearing one of two selected leaves of a year keeps the year and the other leaf
+    * in the tree and in every neighbour.
+    */
+   @Test
+   void subtreeClearOfOneLeafKeepsTheSiblingInEveryNeighbour() throws Exception {
+      init("ST1", "ST2");
+
+      apply("ST1", true, path(year1, name1a), path(year1, name1b));
+      selectSubtree("ST1", false, year1, name1a);
+
+      Set<String> kept = Set.of(year1, year1 + "/" + name1b);
+      assertEquals(Set.of(year1), selected("SL1"));
+      assertEquals(kept, selected("ST1"));
+      assertEquals(kept, selected("ST2"));
+   }
+
+   /**
     * A year picked in the list itself survives the tree's clear of another year.
     */
    @Test
@@ -235,8 +252,8 @@ class VSSelectionServiceTreeClearTest {
       dispatcher = mock(CommandDispatcher.class, RETURNS_DEEP_STUBS);
    }
 
-   private void selectSubtree(String tree, boolean select, String year) throws Exception {
-      service.selectSubtree(rid, tree, event(select, path(year)), principal, dispatcher, "");
+   private void selectSubtree(String tree, boolean select, String... subtree) throws Exception {
+      service.selectSubtree(rid, tree, event(select, subtree), principal, dispatcher, "");
    }
 
    private void apply(String assembly, boolean select, String[]... paths) throws Exception {

@@ -812,6 +812,16 @@ public class SelectionRuntimeService {
       return reselected;
    }
 
+   /** The values selected before a subtree clear, outside the subtree, that are gone after it. */
+   static List<List<String>> removedOutsideSubtree(List<List<String>> wholeBefore,
+                                                   List<List<String>> wholeAfter,
+                                                   List<List<String>> subtreeBefore)
+   {
+      Set<List<String>> kept = new HashSet<>(wholeAfter);
+      kept.addAll(subtreeBefore);
+      return wholeBefore.stream().filter(v -> !kept.contains(v)).toList();
+   }
+
    /**
     * Re-states a subtree clear from the post-apply state, scoped to the subtree. With an active
     * search, {@code VSSelectionService.selectSubtree} merges back every selected value the search
@@ -832,10 +842,16 @@ public class SelectionRuntimeService {
       result.put("remainingUnderSubtree", after.size());
       SelectionVSAssemblyInfo info = (SelectionVSAssemblyInfo) assembly.getInfo();
       String search = searchString(info);
+      List<List<String>> wholeAfter = idMode ? selectedNodeIds(assembly) : selectedPaths(assembly);
+      // A clear changes nothing outside its subtree; a value that vanished there was lost, and
+      // "no change" would hide it (bug-78869).
+      List<List<String>> removedOutside = removedOutsideSubtree(wholeBefore, wholeAfter, before);
+
+      if(!removedOutside.isEmpty()) {
+         result.put("removedOutsideSubtree", removedOutside);
+      }
 
       if(info.isSingleSelection()) {
-         List<List<String>> wholeAfter =
-            idMode ? selectedNodeIds(assembly) : selectedPaths(assembly);
          List<List<String>> reselected = reselectedAfterSubtreeClear(
             wholeBefore, wholeAfter, before, after, search != null && !search.isBlank());
 

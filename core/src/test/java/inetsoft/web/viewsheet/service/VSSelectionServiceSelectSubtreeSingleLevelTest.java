@@ -176,6 +176,98 @@ class VSSelectionServiceSelectSubtreeSingleLevelTest {
       assertEquals(subtreePaths(year2), selected());
    }
 
+   // ── bug-78869: a clear must not touch what it was not asked to clear ─────
+
+   @Test
+   void clearOfALeafInAnotherParentKeepsTheSelectionOnAnAllSingleTree() throws Exception {
+      allLevelsSingle();
+      apply(path(year2, name2a));
+
+      selectSubtree(false, year1, name1a);
+
+      assertEquals(Set.of(year2, year2 + "/" + name2a), selected());
+   }
+
+   @Test
+   void clearOfASiblingLeafKeepsTheSelectionOnAnAllSingleTree() throws Exception {
+      allLevelsSingle();
+      apply(path(year1, name1a));
+
+      selectSubtree(false, year1, name1b);
+
+      assertEquals(Set.of(year1, year1 + "/" + name1a), selected());
+   }
+
+   @Test
+   void clearOfAnotherBranchKeepsTheSelectionWhenOnlyTheParentLevelIsSingle() throws Exception {
+      singleLevels(0);
+      apply(path(year1, name1a));
+
+      selectSubtree(false, year2);
+
+      assertEquals(Set.of(year1, year1 + "/" + name1a), selected());
+   }
+
+   @Test
+   void clearOfALeafInAnotherParentKeepsTheSelectionWhenOnlyTheLeafLevelIsSingle()
+      throws Exception
+   {
+      singleLevels(1);
+      apply(path(year2, name2a));
+
+      selectSubtree(false, year1, name1a);
+
+      assertEquals(Set.of(year2, year2 + "/" + name2a), selected());
+   }
+
+   @Test
+   void clearOfAnUnselectedLeafKeepsTheSelectedParentOnAnAllSingleTree() throws Exception {
+      allLevelsSingle();
+      apply(path(year1, name1a));
+
+      selectSubtree(false, year1, name1b);
+
+      assertEquals(Set.of(year1, year1 + "/" + name1a), selected());
+   }
+
+   @Test
+   void clearOfTheOnlySelectedLeafUnselectsItsParent() throws Exception {
+      allLevelsSingle();
+      apply(path(year1, name1a));
+
+      selectSubtree(false, year1, name1a);
+
+      assertEquals(Set.of(), selected());
+   }
+
+   @Test
+   void clearOfASiblingLeafKeepsTheParentAndTheOtherLeafOnAMultiSelectTree() throws Exception {
+      selectSubtree(true, year1, name1a);
+      selectSubtree(true, year1, name1b);
+
+      selectSubtree(false, year1, name1b);
+
+      assertEquals(Set.of(year1, year1 + "/" + name1a), selected());
+   }
+
+   @Test
+   void clearOfAnUnselectedLeafKeepsTheSelectedParentOnAMultiSelectTree() throws Exception {
+      selectSubtree(true, year1, name1a);
+
+      selectSubtree(false, year1, name1b);
+
+      assertEquals(Set.of(year1, year1 + "/" + name1a), selected());
+   }
+
+   @Test
+   void clearOfTheOnlySelectedLeafUnselectsItsParentOnAMultiSelectTree() throws Exception {
+      selectSubtree(true, year1, name1a);
+
+      selectSubtree(false, year1, name1a);
+
+      assertEquals(Set.of(), selected());
+   }
+
    // ── setup ───────────────────────────────────────────────────────────────
 
    /**
