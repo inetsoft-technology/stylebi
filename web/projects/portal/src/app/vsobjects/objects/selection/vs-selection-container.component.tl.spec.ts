@@ -44,6 +44,7 @@ import { Component, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angul
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { By } from "@angular/platform-browser";
 import { Subject, Subscription } from "rxjs";
 
 import { server } from "@test-mocks/server";
@@ -78,6 +79,7 @@ class VSTitleStub {
    @Input() formatPainterMode: boolean;
    @Input() titleFormat: any;
    @Input() titleContent: string;
+   @Input() cornerRadius: string;
    @Output() titleResizeMove = new EventEmitter<any>();
    @Output() selectTitle = new EventEmitter<void>();
    @Output() changeTitle = new EventEmitter<string>();
@@ -292,6 +294,37 @@ describe("VSSelectionContainer - render and title contracts", () => {
       comp.titleResizeEnd();
 
       expect(spy).toHaveBeenCalledTimes(1);
+   });
+});
+
+describe("VSSelectionContainer - title corners", () => {
+   // makeModel's card is 180px tall with a 4px radius
+   async function titleCorners(titleRadius: number, titleHeight: number,
+                               cardRadius: number = 4): Promise<string>
+   {
+      const model = makeModel();
+      model.objectFormat.roundCorner = cardRadius;
+      model.titleFormat = { ...TestUtils.createMockVSFormatModel(), roundCorner: titleRadius,
+         height: titleHeight };
+      const { fixture } = await renderComponent({ model, viewer: false });
+
+      return fixture.debugElement.query(By.directive(VSTitleStub)).componentInstance.cornerRadius;
+   }
+
+   it("rounds the title's top corners with the card", async () => {
+      expect(await titleCorners(0, 20)).toBe("4px 4px 0px 0px");
+   });
+
+   it("takes the card's radius over the title's at the card edge", async () => {
+      expect(await titleCorners(2, 20)).toBe("4px 4px 2px 2px");
+   });
+
+   it("keeps the title's own radius on a square card", async () => {
+      expect(await titleCorners(3, 20, 0)).toBe("3px 3px 3px 3px");
+   });
+
+   it("rounds all four corners of a title that fills the card", async () => {
+      expect(await titleCorners(0, 180)).toBe("4px 4px 4px 4px");
    });
 });
 

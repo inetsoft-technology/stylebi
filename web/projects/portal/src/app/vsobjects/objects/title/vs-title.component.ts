@@ -45,6 +45,8 @@ export class VSTitle implements OnChanges {
    @Input() insetHeader: boolean;
    @Input() formatPainterMode: boolean;
    @Input() cursorPointer: boolean;
+   // set by a host whose title meets its card's corners, over the title's own radius
+   @Input() cornerRadius: string;
    @Output() selectTitle = new EventEmitter<MouseEvent>();
    @Output() changeTitle = new EventEmitter<string>();
    @Output() titleResizeMove = new EventEmitter<number>();
@@ -80,6 +82,11 @@ export class VSTitle implements OnChanges {
 
    get vsWizardPreview(): boolean {
       return this.contextProvider.vsWizardPreview;
+   }
+
+   get borderRadius(): string {
+      const own = this.titleFormat.roundCorner;
+      return this.cornerRadius ?? (own == null ? null : own + "px");
    }
 
    titleResizeMoving(event: any) {

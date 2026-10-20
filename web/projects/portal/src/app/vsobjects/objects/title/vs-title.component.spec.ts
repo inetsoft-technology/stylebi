@@ -29,13 +29,15 @@ import { VSTitle } from "./vs-title.component";
 
 @Component({
    selector: "test-app",
-   template: "<vs-title [titleFormat]='titleFormat' [titleVisible]='titleVisible'></vs-title>",
+   template: "<vs-title [titleFormat]='titleFormat' [titleVisible]='titleVisible' " +
+      "[cornerRadius]='cornerRadius'></vs-title>",
    standalone: true,
    imports: [VSTitle]
 })
 class TestApp {
    public titleFormat = TestUtils.createMockVSFormatModel();
    public titleVisible: boolean = true;
+   public cornerRadius: string = null;
 }
 
 describe("VSTitle", () => {
@@ -70,5 +72,24 @@ describe("VSTitle", () => {
       testApp.titleVisible = false;
       fixture.detectChanges();
       expect(titleDiv.style["display"]).toBe("none");
+   });
+
+   it("takes the title format's radius when its host sets no corners", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      fixture.componentInstance.titleFormat.roundCorner = 4;
+      fixture.detectChanges();
+
+      const titleDiv = fixture.debugElement.query(By.css(".vs-title")).nativeElement;
+      expect(titleDiv.style.borderRadius).toBe("4px");
+   });
+
+   it("takes the corners its host sets over the title format's radius", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      fixture.componentInstance.titleFormat.roundCorner = 4;
+      fixture.componentInstance.cornerRadius = "6px 6px 4px 4px";
+      fixture.detectChanges();
+
+      const titleDiv = fixture.debugElement.query(By.css(".vs-title")).nativeElement;
+      expect(titleDiv.style.borderRadius).toBe("6px 6px 4px 4px");
    });
 });

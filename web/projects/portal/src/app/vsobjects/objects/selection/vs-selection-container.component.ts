@@ -120,6 +120,19 @@ export class VSSelectionContainer extends AbstractVSObject<VSSelectionContainerM
       }
    }
 
+   /**
+    * Title corners that meet the card's corners take the card's radius, or they draw square over
+    * it. A title as tall as the card meets its bottom corners too.
+    */
+   get titleCornerRadius(): string {
+      const card = this.model.objectFormat.roundCorner ?? 0;
+      const title = this.model.titleFormat.roundCorner ?? 0;
+      const top = card > 0 ? card : title;
+      const bottom = card > 0 && this.model.titleFormat.height >= this.model.objectFormat.height
+         ? card : title;
+      return `${top}px ${top}px ${bottom}px ${bottom}px`;
+   }
+
    ngOnDestroy(): void {
       super.ngOnDestroy();
 
