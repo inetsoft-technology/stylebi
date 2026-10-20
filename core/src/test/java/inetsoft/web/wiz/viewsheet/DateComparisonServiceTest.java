@@ -1982,36 +1982,35 @@ class DateComparisonServiceTest {
    }
 
    @Test
-   void clearBodyNamesEveryAssemblyThatSharedFromTheClearedSource() throws Exception {
+   void sharersOfNamesEveryAssemblyThatSharedFromTheClearedSource() throws Exception {
       Harness h = harness(model());
       inetsoft.uql.asset.Assembly[] all = new inetsoft.uql.asset.Assembly[] {
          sharing("Src", null), sharing("ShareA", "Src"), sharing("ShareB", "Src"),
          sharing("Other", "Elsewhere")};
       when(h.vs.getAssemblies()).thenReturn(all);
 
-      Map<String, Object> body = h.service.clearBody("tok", principal(), "Src", "");
-
-      assertEquals(java.util.List.of("ShareA", "ShareB"), body.get("sharersCleared"));
+      assertEquals(java.util.List.of("ShareA", "ShareB"),
+                   h.service.sharersOf("tok", principal(), "Src"));
    }
 
    @Test
-   void clearBodyOnASharerNamesNoOne() throws Exception {
+   void sharersOfASharerNamesNoOne() throws Exception {
       Harness h = harness(model());
       inetsoft.uql.asset.Assembly[] all = new inetsoft.uql.asset.Assembly[] {
          sharing("Src", null), sharing("ShareA", "Src")};
       when(h.vs.getAssemblies()).thenReturn(all);
 
-      assertNull(h.service.clearBody("tok", principal(), "ShareA", ""));
+      assertTrue(h.service.sharersOf("tok", principal(), "ShareA").isEmpty());
    }
 
    @Test
-   void clearBodyWithNoSharersIsUnchanged() throws Exception {
+   void sharersOfWithNoSharersIsEmpty() throws Exception {
       Harness h = harness(model());
       inetsoft.uql.asset.Assembly[] all = new inetsoft.uql.asset.Assembly[] {
          sharing("Src", null)};
       when(h.vs.getAssemblies()).thenReturn(all);
 
-      assertNull(h.service.clearBody("tok", principal(), "Src", ""));
+      assertTrue(h.service.sharersOf("tok", principal(), "Src").isEmpty());
    }
 
    // ── the read side ─────────────────────────────────────────────────────────

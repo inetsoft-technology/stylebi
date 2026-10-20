@@ -110,6 +110,33 @@ class ViewsheetAssemblyAgentControllerWarningRelayTest {
                                                 principal()));
    }
 
+   /** Bug #78861: clearing a shared source discloses the sharers, alongside any warnings. */
+   @Test
+   void clearDateComparisonDisclosesTheSharersAlone() throws Exception {
+      DateComparisonService comparisons = mock(DateComparisonService.class);
+      when(comparisons.sharersOf(eq("tok"), any(), eq("Xt1"))).thenReturn(List.of("Xt2"));
+      when(comparisons.clear(eq("tok"), any(), eq("Xt1"), anyString())).thenReturn(List.of());
+      ViewsheetAssemblyAgentController controller =
+         controller(DateComparisonService.class, comparisons);
+
+      assertEquals(Map.of("sharersCleared", List.of("Xt2")),
+                   controller.clearDateComparison("tok", dateComparisonRequest("Xt1"), "",
+                                                  principal()));
+   }
+
+   @Test
+   void clearDateComparisonCombinesWarningsAndSharers() throws Exception {
+      DateComparisonService comparisons = mock(DateComparisonService.class);
+      when(comparisons.sharersOf(eq("tok"), any(), eq("Xt1"))).thenReturn(List.of("Xt2"));
+      when(comparisons.clear(eq("tok"), any(), eq("Xt1"), anyString())).thenReturn(WARNED);
+      ViewsheetAssemblyAgentController controller =
+         controller(DateComparisonService.class, comparisons);
+
+      assertEquals(Map.of("warnings", WARNED, "sharersCleared", List.of("Xt2")),
+                   controller.clearDateComparison("tok", dateComparisonRequest("Xt1"), "",
+                                                  principal()));
+   }
+
    /** Bug #78406 round 4: set_column_options used to answer an empty 200 whatever happened. */
    @Test
    void setColumnOptionsRelaysTheWarnings() throws Exception {

@@ -2324,7 +2324,23 @@ public class ViewsheetAssemblyAgentController {
       Principal user) throws Exception
    {
       requireEnabled();
-      return comparisonService.clearBody(sessionToken, user, request.assembly(), linkUri);
+      List<String> sharers =
+         comparisonService.sharersOf(sessionToken, user, request.assembly());
+      Map<String, Object> body = ViewsheetSessionService.warningsBody(
+         comparisonService.clear(sessionToken, user, request.assembly(), linkUri));
+
+      if(sharers == null || sharers.isEmpty()) {
+         return body;
+      }
+
+      Map<String, Object> out = new LinkedHashMap<>();
+
+      if(body != null) {
+         out.putAll(body);
+      }
+
+      out.put("sharersCleared", sharers);
+      return out;
    }
 
    // ── Layout: list_layouts, get_layout, set_print_layout, manage_device_layout, ──────────
