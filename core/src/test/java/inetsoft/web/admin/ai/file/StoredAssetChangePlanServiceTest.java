@@ -211,6 +211,24 @@ class StoredAssetChangePlanServiceTest {
    }
 
    @Test
+   void resolveDeleteAndRenameOfAMissingPathNameTheEntryAndPath() {
+      when(dataSpace.exists(null, "gone/x.txt")).thenReturn(false);
+      StoredAssetChangeRequest del =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_DELETE, "gone/x.txt");
+      StoredAssetNotFoundException ex1 = assertThrows(StoredAssetNotFoundException.class,
+         () -> service.resolve(request(del), principal));
+      assertTrue(ex1.getMessage().contains("changes[0].path"), ex1.getMessage());
+      assertTrue(ex1.getMessage().contains("gone/x.txt"), ex1.getMessage());
+
+      StoredAssetChangeRequest ren =
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_RENAME, "gone/x.txt");
+      ren.setNewName("y");
+      StoredAssetNotFoundException ex2 = assertThrows(StoredAssetNotFoundException.class,
+         () -> service.resolve(request(ren), principal));
+      assertTrue(ex2.getMessage().contains("changes[0].path"), ex2.getMessage());
+   }
+
+   @Test
    void resolveRenameRejectsANewNameContainingASeparator() {
       // newName is validated before any DataSpace call, so no stub is exercised here.
       StoredAssetChangeRequest c =

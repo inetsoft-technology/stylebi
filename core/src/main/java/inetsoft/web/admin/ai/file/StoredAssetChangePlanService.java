@@ -207,7 +207,7 @@ public class StoredAssetChangePlanService {
       String newName = StoredAssetPathValidator.requireSiblingName(raw.getNewName(), label + ".newName");
 
       if(!dataSpace.exists(null, path)) {
-         throw new StoredAssetNotFoundException(path);
+         throw new StoredAssetNotFoundException(path, label);
       }
 
       boolean actualFolder = dataSpace.isDirectory(path);
@@ -241,7 +241,7 @@ public class StoredAssetChangePlanService {
       StoredAssetPathValidator.requireNotRoot(path, label + ".path");
 
       if(!dataSpace.exists(null, path)) {
-         throw new StoredAssetNotFoundException(path);
+         throw new StoredAssetNotFoundException(path, label);
       }
 
       boolean actualFolder = dataSpace.isDirectory(path);

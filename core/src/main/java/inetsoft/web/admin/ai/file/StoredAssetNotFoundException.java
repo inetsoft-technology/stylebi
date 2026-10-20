@@ -29,6 +29,11 @@ public class StoredAssetNotFoundException extends RuntimeException {
       this.path = path;
    }
 
+   public StoredAssetNotFoundException(String path, String label) {
+      super(label + ".path: no stored asset at \"" + path + "\"");
+      this.path = path;
+   }
+
    public String path() {
       return path;
    }
