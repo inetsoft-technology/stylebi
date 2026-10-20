@@ -4142,6 +4142,12 @@ public class WorksheetEditService {
        *   <li>{@code "detail"} — live detail view with aggregation disabled</li>
        *   <li>{@code "edit"} — edit mode (liveData=false, editMode=true)</li>
        * </ul>
+       *
+       * <p>{@code "full"} and {@code "default"} also take a non-runtime composed table (join,
+       * mirror, concatenation, rotate, unpivot) out of hierarchical view, as
+       * {@code TableModeService} does: {@code WorksheetEventUtil#getMode} forces
+       * {@code liveData=true} on a hierarchical composed table, so the mode would otherwise
+       * read back as "detail". The other modes leave the flag alone, as native does.
        */
       public void setTableMode(String tableName, String mode) throws PairingException {
          Assembly a = ws.getAssembly(tableName);
@@ -4172,6 +4178,7 @@ public class WorksheetEditService {
                table.setRuntime(false);
                table.setEditMode(false);
                ((TableAssemblyInfo) table.getTableInfo()).setAggregate(false);
+               leaveHierarchicalView(table);
             }
             case "detail" -> {
                table.setLiveData(true);
@@ -4194,7 +4201,17 @@ public class WorksheetEditService {
                // TableModeService#setDefaultTableMode:334.
                ((TableAssemblyInfo) table.getTableInfo()).setAggregate(
                   table.getAggregateInfo() != null && !table.getAggregateInfo().isEmpty());
+               leaveHierarchicalView(table);
             }
+         }
+      }
+
+      // TableModeService#setFullMode:140 / #setDefaultTableMode:358. The pixel-size and
+      // resetTableLens steps native also does are skipped: the former is cosmetic
+      // (fixAssemblyInfo re-syncs it) and loadTableData(..., reset=true) already resets the lens.
+      private void leaveHierarchicalView(TableAssembly table) {
+         if(table instanceof ComposedTableAssembly ctable && !table.isRuntime()) {
+            ctable.setHierarchical(false);
          }
       }
 
