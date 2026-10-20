@@ -313,6 +313,13 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
 
          boolean includeLastDay = false;
 
+         if(!isLegacyConditionList(clist)) {
+            sb.append(" WHEN ");
+            sb.append(getSQLPredicate(clist, field, isdate));
+            sb.append(" THEN '").append(escapeSQLString(names[i])).append("'");
+            continue;
+         }
+
          for(int j = 0; j < clist.getConditionSize(); j++) {
             ConditionItem item = clist.getConditionItem(j);
 
@@ -341,7 +348,7 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
                sb.append(field);
                sb.append(" IS NULL ");
                sb.append("THEN ");
-               sb.append("'" + names[i] + "'");
+               sb.append("'" + escapeSQLString(names[i]) + "'");
             }
             else {
                for(int k = 0; k < condition.getValueCount(); k++) {
@@ -359,7 +366,7 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
                      list.add(value);
                   }
                   else {
-                     list.add("'" + value + "'");
+                     list.add("'" + escapeSQLString("" + value) + "'");
                   }
                }
             }
@@ -391,7 +398,7 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
          }
 
          sb.append("THEN ");
-         sb.append("'" + names[i] + "'");
+         sb.append("'" + escapeSQLString(names[i]) + "'");
       }
 
       if(isdate) {
@@ -404,6 +411,271 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
       sb.append(" END)");
 
       return sb.toString();
+   }
+
+   /**
+    * Whether the condition is one whose rendering predates operator support
+    * (equal, less, greater, null; not negated). Those keep their original output.
+    */
+   private static boolean isLegacyCondition(Condition condition) {
+      int op = condition.getOperation();
+
+      return !condition.isNegated() &&
+         (op == XCondition.EQUAL_TO || op == XCondition.LESS_THAN ||
+          op == XCondition.GREATER_THAN || op == XCondition.NULL);
+   }
+
+   private static boolean isLegacyConditionList(ConditionList clist) {
+      for(int j = 0; j < clist.getConditionSize(); j++) {
+         ConditionItem item = clist.getConditionItem(j);
+
+         if(item != null && !isLegacyCondition(item.getCondition())) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Render a condition (any operator, negation aware) as a null-safe script predicate.
+    */
+   private String getScriptPredicate(Condition condition, String field, boolean fnumber,
+                                     boolean fdate)
+   {
+      int op = condition.getOperation();
+      boolean numeric = fnumber || XSchema.isNumericType(getBaseDataType());
+      boolean cs = condition.isCaseSensitive();
+      String lhs;
+
+      if(fdate) {
+         lhs = "(" + field + ".getYear() * 10000 + " + field + ".getMonth() * 100 + " +
+            field + ".getDate())";
+      }
+      else if(numeric) {
+         lhs = "Number(" + field + ")";
+      }
+      else {
+         lhs = cs ? "String(" + field + ")" : "String(" + field + ").toLowerCase()";
+      }
+
+      if(op == XCondition.NULL) {
+         return condition.isNegated() ? "(" + field + " != null)" : "(" + field + " == null)";
+      }
+
+      List<String> rhs = new ArrayList<>();
+
+      for(int k = 0; k < condition.getValueCount(); k++) {
+         rhs.add(getScriptLiteral(condition.getValue(k), numeric, fdate, cs));
+      }
+
+      String pred;
+
+      if(rhs.isEmpty()) {
+         pred = "false";
+      }
+      else {
+         switch(op) {
+         case XCondition.EQUAL_TO:
+            pred = lhs + " == " + rhs.get(0);
+            break;
+         case XCondition.LESS_THAN:
+            pred = lhs + (condition.isEqual() ? " <= " : " < ") + rhs.get(0);
+            break;
+         case XCondition.GREATER_THAN:
+            pred = lhs + (condition.isEqual() ? " >= " : " > ") + rhs.get(0);
+            break;
+         case XCondition.ONE_OF:
+            StringBuilder one = new StringBuilder();
+
+            for(int k = 0; k < rhs.size(); k++) {
+               one.append(k > 0 ? " || " : "").append(lhs).append(" == ").append(rhs.get(k));
+            }
+
+            pred = one.toString();
+            break;
+         case XCondition.BETWEEN:
+            pred = rhs.size() < 2 ? "false" :
+               lhs + " >= " + rhs.get(0) + " && " + lhs + " <= " + rhs.get(1);
+            break;
+         case XCondition.STARTING_WITH:
+            pred = fdate || numeric ? "false" : lhs + ".indexOf(" + rhs.get(0) + ") == 0";
+            break;
+         case XCondition.CONTAINS:
+            pred = fdate || numeric ? "false" : lhs + ".indexOf(" + rhs.get(0) + ") >= 0";
+            break;
+         case XCondition.LIKE:
+            if(fdate || numeric) {
+               pred = "false";
+            }
+            else {
+               String regex =
+                  Condition.getLikePattern("" + condition.getValue(0), true).pattern();
+               pred = "new RegExp(\"" + StringEscapeUtils.escapeEcmaScript(regex) + "\"" +
+                  (cs ? "" : ", \"i\"") + ").test(String(" + field + "))";
+            }
+
+            break;
+         default:
+            pred = "false";
+         }
+      }
+
+      pred = field + " != null && (" + pred + ")";
+      return condition.isNegated() ? "!(" + pred + ")" : "(" + pred + ")";
+   }
+
+   private String getScriptLiteral(Object value, boolean numeric, boolean fdate, boolean cs) {
+      if(fdate && value instanceof Date) {
+         Calendar calendar = CoreTool.calendar.get();
+         calendar.clear();
+         calendar.setTime((Date) value);
+         return "" + ((calendar.get(Calendar.YEAR) - 1900) * 10000 +
+            calendar.get(Calendar.MONTH) * 100 + calendar.get(Calendar.DATE));
+      }
+
+      String str = value == null ? "" : "" + value;
+
+      if(numeric) {
+         try {
+            double d = Double.parseDouble(str.trim());
+
+            if(!Double.isNaN(d) && !Double.isInfinite(d)) {
+               return Double.toString(d);
+            }
+         }
+         catch(NumberFormatException ignore) {
+            // not a number, rendered as a string literal below
+         }
+      }
+
+      return "\"" + StringEscapeUtils.escapeEcmaScript(cs ? str : str.toLowerCase()) + "\"";
+   }
+
+   /**
+    * Render a condition list (any operators, negation and junction aware) as a SQL predicate.
+    */
+   private String getSQLPredicate(ConditionList clist, String field, boolean isdate) {
+      StringBuilder sb = new StringBuilder();
+      boolean firstItem = true;
+
+      for(int j = 0; j < clist.getConditionSize(); j++) {
+         ConditionItem item = clist.getConditionItem(j);
+
+         if(item == null) {
+            continue;
+         }
+
+         if(!firstItem) {
+            sb.append(clist.getJunction(j - 1) == JunctionOperator.OR ? " OR " : " AND ");
+         }
+
+         firstItem = false;
+         sb.append(getSQLPredicate(item.getCondition(), field, isdate));
+      }
+
+      return sb.length() == 0 ? "1=0" : "(" + sb + ")";
+   }
+
+   private String getSQLPredicate(Condition condition, String field, boolean isdate) {
+      int op = condition.getOperation();
+      String pred;
+
+      if(op == XCondition.NULL) {
+         return condition.isNegated() ? "(" + field + " IS NOT NULL)" :
+            "(" + field + " IS NULL)";
+      }
+
+      List<String> lits = new ArrayList<>();
+
+      for(int k = 0; k < condition.getValueCount(); k++) {
+         lits.add(getSQLLiteral(condition, condition.getValue(k), isdate));
+      }
+
+      if(lits.isEmpty()) {
+         pred = "1=0";
+      }
+      else {
+         switch(op) {
+         case XCondition.EQUAL_TO:
+            pred = field + " = " + lits.get(0);
+            break;
+         case XCondition.LESS_THAN:
+            pred = field + (condition.isEqual() ? " <= " : " < ") + lits.get(0);
+            break;
+         case XCondition.GREATER_THAN:
+            pred = field + (condition.isEqual() ? " >= " : " > ") + lits.get(0);
+            break;
+         case XCondition.ONE_OF:
+            pred = field + " IN (" + String.join(", ", lits) + ")";
+            break;
+         case XCondition.BETWEEN:
+            pred = lits.size() < 2 ? "1=0" :
+               field + " BETWEEN " + lits.get(0) + " AND " + lits.get(1);
+            break;
+         case XCondition.STARTING_WITH:
+            pred = field + " LIKE " + getLikeLiteral(condition.getValue(0), false, true) +
+               " ESCAPE '!'";
+            break;
+         case XCondition.CONTAINS:
+            pred = field + " LIKE " + getLikeLiteral(condition.getValue(0), true, true) +
+               " ESCAPE '!'";
+            break;
+         case XCondition.LIKE:
+            pred = field + " LIKE " + getLikeLiteral(condition.getValue(0), false, false);
+            break;
+         default:
+            pred = "1=0";
+         }
+      }
+
+      return condition.isNegated() ? "(" + field + " IS NULL OR NOT (" + pred + "))" :
+         "(" + pred + ")";
+   }
+
+   private String getSQLLiteral(Condition condition, Object value, boolean isdate) {
+      if(isdate) {
+         return "" + condition.getValueSQLString(value);
+      }
+
+      String str = value == null ? "" : "" + value;
+
+      if(("db2".equals(getDBType()) || "derby".equals(getDBType()) ||
+          "sybase".equals(getDBType())) && XSchema.isNumericType(getBaseDataType()))
+      {
+         try {
+            Double.parseDouble(str.trim());
+            return str.trim();
+         }
+         catch(NumberFormatException ignore) {
+            // quoted below
+         }
+      }
+
+      return "'" + escapeSQLString(str) + "'";
+   }
+
+   /**
+    * Escape a value for use inside a single-quoted SQL string literal. MySQL/MariaDB treat a
+    * backslash as an escape character, so it is doubled there; elsewhere it is a plain character.
+    */
+   private String escapeSQLString(String str) {
+      if("mysql".equalsIgnoreCase(getDBType()) || "mariadb".equalsIgnoreCase(getDBType())) {
+         str = str.replace("\\", "\\\\");
+      }
+
+      return str.replace("'", "''");
+   }
+
+   private String getLikeLiteral(Object value, boolean leading, boolean startsOrContains) {
+      String str = value == null ? "" : "" + value;
+
+      if(startsOrContains) {
+         str = str.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+      }
+
+      str = escapeSQLString(str);
+      return "'" + (leading ? "%" : "") + str + (startsOrContains ? "%" : "") + "'";
    }
 
    /**
@@ -483,9 +755,12 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
             Condition condition = item.getCondition();
             int op = condition.getOperation();
 
-            if(op == XCondition.NULL) {
+            if(op == XCondition.NULL && !condition.isNegated()) {
                sb.append(" (null == (!" + field + "? null : " +
                             tfield + "))");
+            }
+            else if(!isLegacyCondition(condition)) {
+               sb.append(getScriptPredicate(condition, field, fnumber, fdate));
             }
             else {
                for(int k = 0; k < condition.getValueCount(); k++) {
