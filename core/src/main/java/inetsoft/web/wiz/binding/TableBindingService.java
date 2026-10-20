@@ -492,10 +492,14 @@ public class TableBindingService {
             }
 
             if(position < 0 || position > full.size()) {
+               boolean readding = isHidden(table, field.column());
                throw new IllegalArgumentException(
                   "Position " + position + " is outside the details shelf, which holds " +
-                  full.size() + " field(s), shown and hidden (the order get_table_binding " +
-                  "reports). Valid positions are 0 to " + full.size() + ".");
+                  (full.size() + (readding ? 1 : 0)) + " field(s), shown and hidden (the " +
+                  "order get_table_binding reports)." +
+                  (readding ? " Re-adding hidden '" + field.column() + "' moves it, so it " +
+                     "does not count as a slot of its own." : "") +
+                  " Valid positions are 0 to " + full.size() + ".");
             }
 
             int shownPosition = 0;
@@ -610,9 +614,18 @@ public class TableBindingService {
                            String shelf, String column, Integer index) throws Exception
    {
       return applyWithContext(sessionToken, user, assemblyName, shelf,
-         (model, rvs, source) ->
+         (model, rvs, source) -> {
+            TableVSAssembly table = rvs.getViewsheet().getAssembly(assemblyName)
+               instanceof TableVSAssembly t ? t : null;
+            List<String> full = table == null ? null : fullDetailsOrder(table, null);
+
             TableBindingMutator.removeField(model, shelf, column, index, rvs, source,
-                                            refModelService));
+                                            refModelService);
+
+            if(full != null && !isHidden(table, column) && full.remove(column)) {
+               restampHiddenPositions(table, full);
+            }
+         });
    }
 
    public List<String> moveField(String sessionToken, Principal user, String assemblyName,
@@ -1783,8 +1796,8 @@ public class TableBindingService {
     * <p>The resulting {@code details} index is the column's slot in the <em>full</em> (shown and
     * hidden) order, and {@link #addField}'s {@code position} on a Table reads the same order, so
     * an index read here and written back names the same slot. Hidden positions are absolute
-    * indexes into that order: they are re-stamped by {@code addField} but not when shown columns
-    * are reordered or inserted by other writes, so a column shown again later may land beside a
+    * indexes into that order: they are re-stamped by {@code addField} and {@code removeField} but not
+    * when shown columns are reordered, inserted or removed by other writes, so a column shown again later may land beside a
     * different neighbour than the one it was hidden next to.
     */
    private void enrichTableVisibility(TableVSAssembly table,
@@ -1798,7 +1811,6 @@ public class TableBindingService {
       while(refs.hasMoreElements()) {
          DataRef href = refs.nextElement();
          hidden.add(refKey(href));
-         hidden.add(href.getAttribute());
       }
 
       List<FieldRef> details = shelfFields.get("details");
@@ -1817,7 +1829,7 @@ public class TableBindingService {
       while(hiddenRefs.hasMoreElements()) {
          DataRef ref = hiddenRefs.nextElement();
 
-         if(present.contains(refKey(ref)) || present.contains(ref.getAttribute())) {
+         if(present.contains(refKey(ref))) {
             continue;
          }
 
@@ -1840,10 +1852,6 @@ public class TableBindingService {
                                                                    hiddenCols))
       {
          FieldRef field = byName.remove(refKey(ref));
-
-         if(field == null) {
-            field = byName.remove(ref.getAttribute());
-         }
 
          if(field == null) {
             field = hiddenFields.remove(refKey(ref));

@@ -2394,6 +2394,90 @@ class TableBindingServiceTest {
       assertTrue(e.getMessage().contains("0 to 3"), e.getMessage());
    }
 
+   /** Bug #78852 review I3: removing a shown column before a hidden one keeps the hidden slot. */
+   @Test
+   void removeFieldKeepsAHiddenColumnsSlotRelativeToItsNeighbours() throws Exception {
+      TableVSAssembly table = tableWithHiddenB();
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      service.removeField("tok", principal(), "TableView2", "details", "A");
+
+      // full order was A,B,C; without A it is B,C, so B is now slot 0
+      assertEquals(0, hiddenPositionOf(table, "B"));
+   }
+
+   /** Bug #78852 review M9: a bare shown column must not be taken for an entity-qualified hidden one. */
+   @Test
+   void readKeepsABareColumnAndAnEntityQualifiedHiddenColumnOfTheSameAttributeApart()
+      throws Exception
+   {
+      TableVSAssembly table = tableWithColumns("TableView2", "Id", "Name");
+      inetsoft.uql.ColumnSelection hidden = new inetsoft.uql.ColumnSelection();
+      inetsoft.uql.asset.ColumnRef product = new inetsoft.uql.asset.ColumnRef(
+         new inetsoft.uql.erm.AttributeRef("Product", "Name"));
+      product.setHiddenPosition(0);
+      hidden.addAttribute(product);
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hidden);
+      TableBindingService service = hiddenColumnService(table, null);
+
+      Map<String, Object> read = service.read("tok", principal(), "TableView2");
+
+      @SuppressWarnings("unchecked")
+      Map<String, List<FieldRef>> shelves =
+         (Map<String, List<FieldRef>>) (Map<String, ?>) read.get("shelves");
+      List<FieldRef> details = shelves.get("details");
+      assertEquals(List.of("Product.Name", "Id", "Name"),
+                   details.stream().map(FieldRef::column).toList());
+      assertEquals(List.of(Boolean.FALSE, Boolean.TRUE, Boolean.TRUE),
+                   details.stream().map(FieldRef::visible).toList());
+   }
+
+   @Test
+   void addFieldRestampsSeveralHiddenColumnsTogether() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "E");
+      inetsoft.uql.ColumnSelection hidden = columnRefSelectionOf("B", "D");
+      ((inetsoft.uql.asset.ColumnRef) hidden.getAttribute(0)).setHiddenPosition(1);
+      ((inetsoft.uql.asset.ColumnRef) hidden.getAttribute(1)).setHiddenPosition(3);
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hidden);
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      // full order A,B,C,D,E: Z at 3 goes between C and D
+      service.addField("tok", principal(), "TableView2", "details", dim("Z"), 3, null);
+
+      assertEquals(List.of("A", "C", "Z", "E"),
+                   written[0].getDetails().stream().map(d -> d.getName()).toList());
+      assertEquals(1, hiddenPositionOf(table, "B"));
+      assertEquals(4, hiddenPositionOf(table, "D"));
+   }
+
+   @Test
+   void addFieldReaddingAHiddenColumnPlacesItAtTheRequestedSlot() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "D", "E");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      service.addField("tok", principal(), "TableView2", "details", dim("B"), 3, null);
+
+      assertEquals(List.of("A", "C", "D", "B", "E"),
+                   written[0].getDetails().stream().map(d -> d.getName()).toList());
+   }
+
+   @Test
+   void addFieldPositionErrorForAHiddenReaddNamesTheCountItUses() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "D", "E");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.addField("tok", principal(), "TableView2", "details", dim("B"), 5, null));
+      assertTrue(e.getMessage().contains("0 to 4") && e.getMessage().contains("'B'"),
+                 e.getMessage());
+      assertFalse(e.getMessage().contains("holds 4 field(s)"), e.getMessage());
+   }
+
    private static TableVSAssembly tableWithHiddenB() {
       TableVSAssembly table = tableWithColumns("TableView2", "A", "C");
       ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
