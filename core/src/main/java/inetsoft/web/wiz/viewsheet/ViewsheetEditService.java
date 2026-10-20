@@ -199,6 +199,7 @@ public class ViewsheetEditService {
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          AssemblyNode current = requireExisting(rvs, request.assembly());
          requireUnlocked(rvs, request);
+         requireOwnSize(rvs, request.assembly());
          ensureTableDataReady(rvs, request.assembly());
 
          ResizeVSObjectEvent event = new ResizeVSObjectEvent();
@@ -1103,6 +1104,37 @@ public class ViewsheetEditService {
             "'" + name + "' is a " + assembly.getClass().getSimpleName() + ", so 'set_lock' " +
             "does not apply to it. Locking only applies to images and shapes (lines, " +
             "rectangles, ovals).");
+      }
+   }
+
+   /**
+    * Refuses {@code resize} on an assembly whose size is not its own but re-derived by layout:
+    * a group container (always the bounding box of its members,
+    * {@code GroupContainerVSAssembly.updateGridSize}) and an embedded viewsheet (always the size
+    * of its own contents, reset by {@code Viewsheet.layout}).
+    *
+    * <p>{@code resizeObject} writes the new size anyway, and the next layout pass throws it
+    * away — for a group container within the same call — so the op reported success while
+    * nothing changed. The human Composer offers no resize for either: its
+    * {@code isPreventResize()} withholds the resize handles for exactly these two types.
+    * A tab or a selection container has a size of its own and resizes normally.
+    */
+   private void requireOwnSize(RuntimeViewsheet rvs, String name) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(name);
+
+      if(assembly instanceof GroupContainerVSAssembly) {
+         throw new IllegalArgumentException(
+            "'" + name + "' is a group container, so 'resize' does not apply to it: its size " +
+            "is always the bounding box of its members. Resize the member assemblies instead " +
+            "(the group re-fits to them), or use 'move' to move the whole group.");
+      }
+
+      if(assembly instanceof Viewsheet) {
+         throw new IllegalArgumentException(
+            "'" + name + "' is an embedded viewsheet, so 'resize' does not apply to it: its " +
+            "size always follows the embedded viewsheet's own contents. Use 'move' to " +
+            "reposition it.");
       }
    }
 
