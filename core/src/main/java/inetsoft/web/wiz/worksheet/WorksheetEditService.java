@@ -1534,6 +1534,13 @@ public class WorksheetEditService {
 
          String origType = ref instanceof ColumnRef cr2 ? cr2.getDataType() : null;
 
+         if(ref instanceof ColumnRef cr3 && cr3.getDataRef() instanceof DateRangeRef) {
+            throw new PairingException(
+               "Column \"" + column + "\" is already a date range column. Add the range on " +
+               "its source date column instead, or use edit_date_range_column to change its " +
+               "level.");
+         }
+
          if(!XSchema.isDateType(origType)) {
             throw new PairingException(
                "Column \"" + column + "\" is not a date type (type=" + origType +
@@ -1557,7 +1564,7 @@ public class WorksheetEditService {
          requireDerivedColumnFits(cs, rangeName, table);
 
          ColumnRef colRef = new ColumnRef(dateRef);
-         colRef.setDataType(XSchema.STRING);
+         colRef.setDataType(dateRef.getDataType());
          cs.addAttribute(colRef);
          t.setColumnSelection(cs, false);
       }
@@ -1747,6 +1754,12 @@ public class WorksheetEditService {
 
          dateRef.setDateOption(option);
          dateRef.setName(newName);
+
+         if(ref instanceof ColumnRef typed) {
+            // The wrapper's own type wins over the DateRangeRef's, so re-derive it: a level
+            // change between truncating (timeInstant) and part (integer) options flips it.
+            typed.setDataType(dateRef.getDataType());
+         }
 
          // AbstractDataRef.hashCode() caches its result (chash) from getEntity()+getAttribute()
          // at first use, and ColumnRef.getAttribute() delegates live to the wrapped ref's — so
