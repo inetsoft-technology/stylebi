@@ -436,6 +436,9 @@ public class WorksheetReadService {
 
       List<WorksheetModel.ColumnModel> columns = new ArrayList<>();
       int count = cs.getAttributeCount();
+      // Bug #78896: a concatenation's stored type is its first subtable's, not the merged type
+      // its rows carry.
+      ColumnSelection merged = WorksheetMutationSupport.mergedConcatSelection(t);
 
       for(int i = 0; i < count; i++) {
          DataRef ref = cs.getAttribute(i);
@@ -445,16 +448,21 @@ public class WorksheetReadService {
          }
 
          if(ref instanceof ColumnRef cr) {
-            columns.add(readColumn(cr));
+            columns.add(readColumn(cr, merged));
          }
       }
 
       return columns;
    }
 
-   private WorksheetModel.ColumnModel readColumn(ColumnRef ref) {
+   private WorksheetModel.ColumnModel readColumn(ColumnRef ref, ColumnSelection merged) {
       String name = ref.getAttribute();
       String type = ref.getTypeNode() != null ? ref.getTypeNode().getType() : null;
+
+      if(type != null) {
+         type = WorksheetMutationSupport.effectiveType(merged, ref);
+      }
+
       String alias = ref.getAlias();
       String expression = null;
       String description = ref.getDescription();

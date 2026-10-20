@@ -170,8 +170,20 @@ final class ConcatReorderGuard {
 
       Set<String> keptNames = new HashSet<>();
 
+      // the stored type is the first subtable's; what a join key sees today is the merged one
+      ColumnSelection merged = WorksheetMutationSupport.mergedConcatSelection(table);
+
       for(ColumnRef column : oldColumns) {
-         before.addAttribute(column);
+         String type = WorksheetMutationSupport.effectiveType(merged, column);
+
+         if(Tool.equals(type, column.getDataType())) {
+            before.addAttribute(column);
+         }
+         else {
+            ColumnRef retyped = (ColumnRef) column.clone();
+            retyped.setDataType(type);
+            before.addAttribute(retyped);
+         }
 
          // a dependent reads the column by the name it is displayed under
          if(freshNames.contains(column.getDisplayName())) {
