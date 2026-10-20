@@ -20,9 +20,18 @@ package inetsoft.web.composer.vs.objects.event;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.immutables.value.Value;
 
+import javax.annotation.Nullable;
+
 @Value.Immutable
 @JsonDeserialize(as = ImmutableResizeTableCellEvent.class)
 public interface ResizeTableCellEvent {
    ResizeTableColumnEvent colEvent();
    ResizeTableRowEvent rowEvent();
+
+   /**
+    * The composer's "follow the default density" box for the cell's row type, or null where the
+    * dialog showed no box, which keeps the row resize as it always was.
+    */
+   @Nullable
+   Boolean followsDensity();
 }
