@@ -19,11 +19,16 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.graph.data.DataSet;
 import inetsoft.report.Hyperlink;
+import inetsoft.report.TableDataDescriptor;
+import inetsoft.report.TableDataPath;
 import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.table.RuntimeCalcTableLens;
+import inetsoft.report.internal.table.TableAttr;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.security.IdentityID;
@@ -41,6 +46,7 @@ import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.DataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -144,7 +150,8 @@ public class AssemblyHyperlinkService {
       HyperlinkDialogModel model = hyperlinkService.getHyperlinkDialogModel(
          rvs.getID(), assemblyName, cell.row(), cell.col(), target.colName(), target.axis(),
          target.text(), target.titleLink(), target.emptyPlotLink(), user);
-      Map<String, Object> out = describe(assemblyName, model, target);
+      Map<String, Object> out = describe(assemblyName, model, target,
+         model == null ? null : tableLinkScope(rvs, assemblyName, cell, model.isApplyToRow()));
 
       // A freehand table cell is addressed by layout row/col and read at its runtime instance;
       // echo the cell the caller named, not the runtime one it rendered at.
@@ -180,6 +187,7 @@ public class AssemblyHyperlinkService {
       // silently drop (wrong linkType, or a name matching no VSBookmarkInfo) is refused instead.
       requireValidBookmark(type, link, assetId, user);
 
+      CellLinkScope[] scope = new CellLinkScope[1];
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireTableRendered(rvs, assemblyName);
          Region target = region == null ? Region.whole() : region;
@@ -190,6 +198,7 @@ public class AssemblyHyperlinkService {
             target.axis(), target.text(), target.titleLink(), target.emptyPlotLink(), user);
 
          applyRowScope(assemblyName, model, link, rowLinkTarget(rvs, assemblyName, target.row()));
+         scope[0] = tableLinkScope(rvs, assemblyName, cell, model.isApplyToRow());
          apply(rvs, assemblyName, model, type, link, assetId);
          model.setRejectDerivedMeasure(true);
          ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
@@ -197,7 +206,16 @@ public class AssemblyHyperlinkService {
                                                      user, dispatcher));
       });
 
-      return warnings == null ? List.of() : warnings;
+      List<String> out = warnings == null ? new ArrayList<>() : new ArrayList<>(warnings);
+
+      // The caller addressed one cell; when the link it wrote is really the link of every cell of
+      // that kind, say so (bug #78931), as get_hyperlink's cellLinkScope does on a read.
+      if(scope[0] != null && scope[0].sharedByKind()) {
+         out.add("The link on '" + assemblyName + "' was " +
+                 ("none".equals(type) ? "cleared" : "set") + " for " + scope[0].scope() + ".");
+      }
+
+      return out;
    }
 
    /**
@@ -216,8 +234,8 @@ public class AssemblyHyperlinkService {
 
       if(source != null && !source.isEmpty() && rvs.getViewsheetSandbox().isPresent()) {
          TableLensGuard.requireRenderedLens(
-            rvs, assembly, assemblyName, "its hyperlinks cannot be addressed (they are stored " +
-            "per rendered cell)");
+            rvs, assembly, assemblyName, "its hyperlinks cannot be addressed (a cell link is " +
+            "stored under the rendered cell's kind, its TableDataPath)");
       }
    }
 
@@ -312,7 +330,8 @@ public class AssemblyHyperlinkService {
 
       return TableLensGuard.requireRenderedCell(
          rvs, table, assemblyName, row, col,
-         "no hyperlink can be addressed there (a table's links are stored per rendered cell)");
+         "no hyperlink can be addressed there (a table's links are stored under a rendered " +
+         "cell's kind, its TableDataPath)");
    }
 
    /**
@@ -347,8 +366,9 @@ public class AssemblyHyperlinkService {
          if(model.isApplyToRow() || hasRowLink) {
             String prefix = "'" + assemblyName + "' has a row hyperlink, which every data cell " +
                "of the table fires, and setting a link on this cell would remove it. ";
-            String cellOnly = "link.applyToRow:false to put a link on this cell only -- which " +
-               "removes the row link, since a table holds one or the other.";
+            String cellOnly = "link.applyToRow:false to set a cell link instead -- shared by " +
+               "every cell of this cell's kind (get_hyperlink's cellLinkScope names them), and " +
+               "it removes the row link, since a table holds one or the other.";
 
             // Advise only what the showRow check below accepts (bug #78400): applyToRow:true is
             // refused on a header row and on an embedded table, so it isn't offered there.
@@ -1042,7 +1062,7 @@ public class AssemblyHyperlinkService {
    }
 
    private static Map<String, Object> describe(String assemblyName, HyperlinkDialogModel model,
-                                               Region asked)
+                                               Region asked, CellLinkScope scope)
    {
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
@@ -1100,7 +1120,202 @@ public class AssemblyHyperlinkService {
       out.put("axisAndDataPointShareLink",
               model.getColName() != null &&
               !(asked != null && (asked.titleLink() || asked.emptyPlotLink())));
+
+      // A table cell's link is stored under the cell's kind, not its position, so the row/col
+      // above only address it; these say which rendered cells actually fire it (bug #78931).
+      if(scope != null) {
+         out.put("cellLinkScope", scope.scope());
+         out.put("cellLinkSharedByKind", scope.sharedByKind());
+      }
+
       return out;
+   }
+
+   /**
+    * Which rendered cells fire the link a table-type assembly holds at a cell, in words, and
+    * whether that is more than the one cell by its nature (bug #78931).
+    *
+    * <p>{@code HyperlinkDialogService} stores a cell link in {@code TableHyperlinkAttr} under the
+    * cell's {@link TableDataPath}, exactly as the Composer's hyperlink dialog does, and the
+    * Viewer fires it on every cell that path matches. That path names a cell's kind, never a
+    * row or a value, so a link set "on a cell" is the link of a whole set of cells.
+    */
+   record CellLinkScope(String scope, boolean sharedByKind) {
+   }
+
+   /** {@code null} for a non-table assembly or a table that did not render. */
+   private static CellLinkScope tableLinkScope(RuntimeViewsheet rvs, String assemblyName,
+                                               TableLensGuard.Cell cell, boolean rowLink)
+      throws Exception
+   {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof TableDataVSAssembly)) {
+         return null;
+      }
+
+      if(rowLink) {
+         return rowLinkScope(assembly.getVSAssemblyInfo() instanceof TableVSAssemblyInfo info &&
+                             info.getFormValue());
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      VSTableLens lens = box == null || box.isEmpty()
+         ? null : TableLensGuard.lensOrNull(box.get(), assemblyName, false);
+      return lens == null ? null : cellLinkScope(lens, cell.row(), cell.col());
+   }
+
+   /**
+    * A row link: {@code BaseTableService.getRowHyperlinks} sends it for every data row, except
+    * on a Form table, where it is never sent.
+    */
+   static CellLinkScope rowLinkScope(boolean form) {
+      String stored = "a table holding a row link has no cell links (writing one removed every " +
+         "cell link in the table, header cells and other columns included)";
+
+      if(form) {
+         return new CellLinkScope(
+            "the table's row hyperlink (Apply to Row), which no cell fires: this is a Form " +
+            "table, and the Viewer does not fire a row hyperlink on one; " + stored, true);
+      }
+
+      return new CellLinkScope(
+         "the table's row hyperlink (Apply to Row): every data cell of every row fires it; " +
+         stored, true);
+   }
+
+   /**
+    * The scope of the cell link at a rendered cell, matched the way the Viewer matches it
+    * ({@code TableHyperlinkAttr.HyperlinkTableLens}): on a crosstab and a freehand table, every
+    * cell whose path equals this one; on a plain table, every row of the right type in the
+    * <b>first</b> column whose header equals the path's ({@code TableAttr.getColumns}), which on
+    * a duplicate header is not the addressed column. {@code null} when the cell has no path.
+    */
+   static CellLinkScope cellLinkScope(TableLens lens, int row, int col) {
+      TableDataDescriptor desc = lens == null ? null : lens.getDescriptor();
+      TableDataPath path = desc == null ? null : desc.getCellDataPath(row, col);
+      String[] names = path == null ? null : path.getPath();
+
+      if(names == null || names.length == 0) {
+         return null;
+      }
+
+      return switch(desc.getType()) {
+         case TableDataDescriptor.CROSSTAB_TABLE -> crosstabScope(lens, path, row, col);
+         case TableDataDescriptor.CALC_TABLE -> calcScope(lens, names[0]);
+         default -> plainScope(lens, path, col);
+      };
+   }
+
+   private static CellLinkScope plainScope(TableLens lens, TableDataPath path, int col) {
+      String header = path.getPath()[0];
+
+      if(path.getType() == TableDataPath.HEADER) {
+         return new CellLinkScope(
+            "this header cell only (column " + col + ", '" + header + "')", false);
+      }
+
+      String rows = path.getType() == TableDataPath.TRAILER
+         ? "every summary (trailer) row" : "every data row";
+      String stored = "a table's cell link is stored per column header, not per cell";
+      int[] cols = TableAttr.getColumns(lens, header);
+      int fires = cols == null || cols.length == 0 ? -1 : cols[0];
+
+      if(fires == col) {
+         return new CellLinkScope(
+            rows + " of column " + col + " ('" + header + "'), not just this row: " + stored +
+            ", so every row of the column fires the same link", true);
+      }
+
+      return new CellLinkScope(
+         "no cell of column " + col + ": " + stored + ", and the Viewer fires a link stored " +
+         "under '" + header + "' on " + (fires < 0 ? "no column at all" : rows + " of column " +
+         fires + ", the first column with that header") + ". Rename one of the duplicate " +
+         "headers to link this column", true);
+   }
+
+   private static CellLinkScope crosstabScope(TableLens lens, TableDataPath path, int row,
+                                              int col)
+   {
+      String[] names = path.getPath();
+      String last = names[names.length - 1];
+      boolean colHeader = row < lens.getHeaderRowCount();
+      boolean header = colHeader || col < lens.getHeaderColCount();
+
+      if(path.getType() == TableDataPath.HEADER && last.startsWith("Cell [")) {
+         return new CellLinkScope("this cell only (a corner or empty header cell, which is " +
+                                  "stored by its position)", false);
+      }
+
+      String kind = switch(path.getType()) {
+         case TableDataPath.HEADER ->
+            "every label cell of measure '" + last + "', not just this one -- the label " +
+            "repeats once per column group (once per row group when measures are stacked in " +
+            "rows), and every repeat fires it";
+         case TableDataPath.GROUP_HEADER -> colHeader
+            ? "every column-header cell of this column dimension at this level -- each of its " +
+              "values, across every column -- not just this one"
+            : "every row-header cell of this row dimension at this level -- each of its " +
+              "values, on every row -- not just this one";
+         case TableDataPath.SUMMARY -> header
+            ? "every subtotal ('Total') label cell of this group level, not just this one"
+            : "every aggregate cell of measure '" + last + "' at this same row- and " +
+              "column-group level: every row of that kind (for a subtotal cell, every " +
+              "subtotal row of that level) and, when the crosstab has column headers, every " +
+              "column group of that measure -- not just this cell or this column";
+         case TableDataPath.GRAND_TOTAL -> header
+            ? "the grand-total label cell(s) of this grand-total row or column"
+            : "every grand-total cell of measure '" + last + "' along this grand-total row " +
+              "or column, not just this one";
+         default -> "every cell of this cell's kind (" + path + "), not just this one";
+      };
+
+      return new CellLinkScope(kind + ": a crosstab's cell link is stored per kind of cell " +
+         "(its fields, group level and measure -- never its values), not per cell", true);
+   }
+
+   /** A freehand cell's path is its layout cell, {@code "Cell [r,c]"}; count its copies. */
+   private static CellLinkScope calcScope(TableLens lens, String cellPath) {
+      RuntimeCalcTableLens runtime =
+         (RuntimeCalcTableLens) Util.getNestedTable(lens, RuntimeCalcTableLens.class);
+      String layoutCell = cellPath.substring(Math.max(0, cellPath.indexOf('[')));
+      String stored = "a freehand table's cell link is stored per layout cell, so every " +
+         "rendered copy of it fires the same link";
+      int copies = -1;
+
+      try {
+         String[] rc = cellPath.substring(cellPath.indexOf('[') + 1, cellPath.indexOf(']'))
+            .split(",");
+         int layoutRow = Integer.parseInt(rc[0].trim());
+         int layoutCol = Integer.parseInt(rc[1].trim());
+         int rows = 0;
+         int cols = 0;
+
+         for(int r = 0; runtime != null && runtime.moreRows(r); r++) {
+            rows += runtime.getRow(r) == layoutRow ? 1 : 0;
+         }
+
+         for(int c = 0; runtime != null && c < runtime.getColCount(); c++) {
+            cols += runtime.getCol(c) == layoutCol ? 1 : 0;
+         }
+
+         copies = runtime == null ? -1 : rows * cols;
+      }
+      catch(RuntimeException ignore) {
+         // not a "Cell [r,c]" path: the number of copies stays unknown
+      }
+
+      if(copies == 1) {
+         return new CellLinkScope(
+            "this cell only, layout cell " + layoutCell + ", which renders once right now (" +
+            stored + ", should a group it sits in expand)", false);
+      }
+
+      return new CellLinkScope(
+         "every rendered copy of layout cell " + layoutCell +
+         (copies > 1 ? " -- " + copies + " cells right now, since a group it sits in expands" : "") +
+         " -- not just one of them: " + stored, true);
    }
 
    private static List<Map<String, Object>> describeParamList(
