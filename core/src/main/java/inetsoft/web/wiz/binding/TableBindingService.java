@@ -125,6 +125,7 @@ public class TableBindingService {
          TableBindingMutator.setShelf(model, shelf, fields, rvs, source, refModelService);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          relayNotes(assemblyName, dispatcher);
+         relayShapeWarning(assemblyName, model, dispatcher);
 
          Map<String, ColumnOption> formOptions = captureFormOptions(assembly);
          applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
@@ -1828,6 +1829,24 @@ public class TableBindingService {
       }
    }
 
+   /**
+    * Warns, on a write that can change the crosstab's shape, when the result would render a
+    * PERCENT aggregate as 100% in every cell. Deliberately not called by the labels, widths and
+    * column-visibility writes, which cannot change the shape.
+    */
+   private static void relayShapeWarning(String assemblyName, BaseTableBindingModel model,
+                                         CommandDispatcher dispatcher)
+   {
+      String warning = TableBindingMutator.degeneratePercentWarning(model);
+
+      if(warning != null) {
+         MessageCommand command = new MessageCommand();
+         command.setType(MessageCommand.Type.WARNING);
+         command.setMessage(warning);
+         dispatcher.sendCommand(assemblyName, command);
+      }
+   }
+
    private List<String> applyWithContext(String sessionToken, Principal user, String assemblyName,
                                  String shelf, ContextualShelfMutation mutation) throws Exception
    {
@@ -1841,6 +1860,7 @@ public class TableBindingService {
          mutation.accept(model, rvs, source);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          relayNotes(assemblyName, dispatcher);
+         relayShapeWarning(assemblyName, model, dispatcher);
 
          Map<String, ColumnOption> formOptions = captureFormOptions(assembly);
          applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
@@ -1882,6 +1902,7 @@ public class TableBindingService {
             TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          }
 
+         relayShapeWarning(assemblyName, model, dispatcher);
          applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
       });
    }

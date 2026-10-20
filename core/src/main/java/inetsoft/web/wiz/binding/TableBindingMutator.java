@@ -1644,6 +1644,64 @@ public final class TableBindingMutator {
    /** Prefix of every message {@link #drainNotes} returns; the plugin splits on it. */
    public static final String NOTE_PREFIX = "Binding reset: ";
 
+   /** Prefix of a warning about a shape that renders misleadingly; the plugin splits on it. */
+   public static final String WARNING_PREFIX = "Binding warning: ";
+
+   /**
+    * A warning when a crosstab's PERCENT aggregate would render 100% in every cell: the effective
+    * percentageBy direction (unset reads as col) names a shelf that is empty, so each cell is its
+    * own total. Null when the shape is fine, percentageBy is none or dynamic, or the model is not
+    * a crosstab.
+    */
+   public static String degeneratePercentWarning(BaseTableBindingModel model) {
+      if(!(model instanceof CrosstabBindingModel crosstab)) {
+         return null;
+      }
+
+      String stored = crosstab.getOption() == null ? null : crosstab.getOption().getPercentageByValue();
+      String token = stored == null ? "" : stored.trim();
+      boolean byCol;
+
+      if(token.isEmpty() || "1".equals(token)) {
+         byCol = true;
+      }
+      else if("2".equals(token)) {
+         byCol = false;
+      }
+      else {
+         return null;
+      }
+
+      List<BDimensionRefModel> shelf = byCol ? crosstab.getCols() : crosstab.getRows();
+
+      if(shelf != null && !shelf.isEmpty() || crosstab.getAggregates() == null) {
+         return null;
+      }
+
+      for(BAggregateRefModel agg : crosstab.getAggregates()) {
+         if(isPercent(agg)) {
+            String name = agg.getFullName() != null ? agg.getFullName() : agg.getColumnValue();
+            String empty = byCol ? "cols" : "rows";
+            return WARNING_PREFIX + "PERCENT on " + name + " renders 100% in every cell: " +
+               "percentageBy is " + (byCol ? "col" : "row") + (token.isEmpty() ? " (the default)" : "") +
+               " but the " + empty + " shelf is empty, so each cell is its own total. Set " +
+               "percentageBy to " + (byCol ? "row" : "col") + " for grand-total shares, or bind a " +
+               "field to " + empty + ".";
+         }
+      }
+
+      return null;
+   }
+
+   private static boolean isPercent(BAggregateRefModel agg) {
+      if(agg.getCalculateInfo() instanceof inetsoft.web.binding.model.graph.calc.PercentCalcInfo) {
+         return true;
+      }
+
+      String percentage = agg.getPercentage();
+      return percentage != null && !percentage.isBlank() && !"0".equals(percentage.trim());
+   }
+
    private static final ThreadLocal<List<String>> NOTES = ThreadLocal.withInitial(ArrayList::new);
 
    private static List<String> notes() {
@@ -2388,10 +2446,6 @@ public final class TableBindingMutator {
    }
 
    /**
-    * Percentage-by is positional and only meaningful when the shelf it refers to is populated.
-    * By-column with no columns bound renders zeros rather than failing.
-    */
-   /**
     * The name of a stored percentage direction, for reporting.
     *
     * <p>Stored as an {@code XConstants} number — and {@code PERCENTAGE_BY_COL} is 1, which is also
@@ -2436,7 +2490,7 @@ public final class TableBindingMutator {
       {
          throw new IllegalArgumentException(
             "'percentageBy: col' needs at least one field on the cols shelf. With none bound the " +
-            "crosstab renders zeros rather than failing.");
+            "crosstab shows 100% in every cell. Use 'percentageBy: row' for shares when only rows are bound.");
       }
 
       if(value == XConstants.PERCENTAGE_BY_ROW &&
@@ -2444,7 +2498,7 @@ public final class TableBindingMutator {
       {
          throw new IllegalArgumentException(
             "'percentageBy: row' needs at least one field on the rows shelf. With none bound the " +
-            "crosstab renders zeros rather than failing.");
+            "crosstab shows 100% in every cell. Use 'percentageBy: col' for shares when only cols are bound.");
       }
 
       return String.valueOf(value);
