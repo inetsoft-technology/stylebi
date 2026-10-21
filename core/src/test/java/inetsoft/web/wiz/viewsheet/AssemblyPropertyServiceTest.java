@@ -3801,6 +3801,250 @@ class AssemblyPropertyServiceTest {
                       .getMinimum());
    }
 
+   // ── #79095: TextInput Text/Password regex pattern ──
+
+   private static TextInputPropertyDialogModel textInputWithType(String type) {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getTextInputColumnOptionPaneModel().setType(type);
+      return model;
+   }
+
+   private static Map<String, Object> patchOf(Object... keysAndValues) {
+      Map<String, Object> patch = new LinkedHashMap<>();
+
+      for(int i = 0; i < keysAndValues.length; i += 2) {
+         patch.put((String) keysAndValues[i], keysAndValues[i + 1]);
+      }
+
+      return patch;
+   }
+
+   @Test
+   void bug79095TextInputTextPatternUnclosedClassIsRefusedByName() {
+      TextInputPropertyDialogModel model = textInputWithType("Text");
+      Map<String, Object> patch =
+         patchOf("textInputColumnOptionPaneModel.textEditorModel.pattern", "[");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setTextInputColumnOption(model, patch));
+
+      assertTrue(e.getMessage().contains("textEditorModel.pattern"), e.getMessage());
+      assertTrue(e.getMessage().contains("Unclosed"), e.getMessage());
+   }
+
+   @Test
+   void bug79095TextInputPasswordPatternUnclosedClassIsRefusedByName() {
+      TextInputPropertyDialogModel model = textInputWithType("Password");
+      Map<String, Object> patch =
+         patchOf("textInputColumnOptionPaneModel.passwordEditorModel.pattern", "[");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setTextInputColumnOption(model, patch));
+
+      assertTrue(e.getMessage().contains("passwordEditorModel.pattern"), e.getMessage());
+      assertTrue(e.getMessage().contains("Unclosed"), e.getMessage());
+   }
+
+   @Test
+   void bug79095TextInputPatternIsRefusedUnderACapitalizedSpelling() {
+      TextInputPropertyDialogModel model = textInputWithType("Text");
+      Map<String, Object> patch =
+         patchOf("TextInputColumnOptionPaneModel.TextEditorModel.Pattern", "(");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setTextInputColumnOption(model, patch));
+
+      assertTrue(e.getMessage().contains("textEditorModel.pattern"), e.getMessage());
+   }
+
+   @Test
+   void bug79095TextInputValidNullAndEmptyPatternsAreAccepted() {
+      for(String pattern : new String[] { "\\d{3}-\\d{4}", "(?i)abc", "", null }) {
+         TextInputPropertyDialogModel text = textInputWithType("Text");
+         assertDoesNotThrow(() -> setTextInputColumnOption(
+            text, patchOf("textInputColumnOptionPaneModel.textEditorModel.pattern", pattern)),
+            "Text pattern " + pattern);
+         assertEquals(pattern, text.getTextInputColumnOptionPaneModel().getTextEditorModel()
+                         .getPattern());
+
+         TextInputPropertyDialogModel password = textInputWithType("Password");
+         assertDoesNotThrow(() -> setTextInputColumnOption(
+            password,
+            patchOf("textInputColumnOptionPaneModel.passwordEditorModel.pattern", pattern)),
+            "Password pattern " + pattern);
+      }
+   }
+
+   @Test
+   void bug79095TextInputPatternOfTheInactiveEditorIsNotChecked() {
+      TextInputPropertyDialogModel model = textInputWithType("Integer");
+
+      assertDoesNotThrow(() -> setTextInputColumnOption(
+         model, patchOf("textInputColumnOptionPaneModel.passwordEditorModel.pattern", "[")));
+      assertDoesNotThrow(() -> setTextInputColumnOption(
+         textInputWithType("Password"),
+         patchOf("textInputColumnOptionPaneModel.textEditorModel.pattern", "[")));
+   }
+
+   @Test
+   void bug79095TextInputStoredBadPatternBlocksOnlyWritesThatTouchTheActivePane() {
+      // Switching to another type, or writing another pane, is never blocked by stale state.
+      for(Map<String, Object> patch : List.of(
+         patchOf("textInputColumnOptionPaneModel.type", "Integer"),
+         patchOf("textInputColumnOptionPaneModel.type", "Password"),
+         patchOf("dataInputPaneModel.writeBackDirectly", true)))
+      {
+         TextInputPropertyDialogModel model = textInputWithType("Text");
+         model.getTextInputColumnOptionPaneModel().getTextEditorModel().setPattern("[");
+         assertDoesNotThrow(() -> setTextInputColumnOption(model, patch), patch.toString());
+      }
+
+      // A pane write while the active pattern is bad names the pattern (accepted side effect) ...
+      TextInputPropertyDialogModel stuck = textInputWithType("Text");
+      stuck.getTextInputColumnOptionPaneModel().getTextEditorModel().setPattern("[");
+      Exception e = assertThrows(IllegalArgumentException.class, () -> setTextInputColumnOption(
+         stuck, patchOf("textInputColumnOptionPaneModel.textEditorModel.errorMessage", "bad")));
+      assertTrue(e.getMessage().contains("textEditorModel.pattern"), e.getMessage());
+
+      // ... and the same patch carrying a valid pattern goes through.
+      assertDoesNotThrow(() -> setTextInputColumnOption(stuck, patchOf(
+         "textInputColumnOptionPaneModel.textEditorModel.errorMessage", "bad",
+         "textInputColumnOptionPaneModel.textEditorModel.pattern", "\\d+")));
+   }
+
+   // ── #79094: combobox dateFormatPattern ──
+
+   private static final String QDF = "dataInputPaneModel.queryDateFormat";
+   private static final String DFP = "dataInputPaneModel.dateFormatPattern";
+
+   /** A model in the state the real getter returns: the info's default pattern, format off. */
+   private static ComboboxPropertyDialogModel seededComboboxModel(boolean qdf, String pattern) {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      model.getDataInputPaneModel().setQueryDateFormat(qdf);
+      model.getDataInputPaneModel().setDateFormatPattern(pattern);
+      return model;
+   }
+
+   private static void setCombobox(ComboboxPropertyDialogModel model,
+                                   Map<String, Object> patch) throws Exception
+   {
+      serviceWithCombobox(mock(ComboBoxVSAssembly.class), model, new Worksheet())
+         .set("tok", principal(), "Combo1", patch, "");
+   }
+
+   private void assertComboboxRefused(ComboboxPropertyDialogModel model,
+                                      Map<String, Object> patch, String... fragments)
+   {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setCombobox(model, patch), patch.toString());
+
+      assertTrue(e.getMessage().contains("dataInputPaneModel.dateFormatPattern"),
+                 e.getMessage());
+      assertFalse(e.getMessage().startsWith("Setting"),
+                  "must be refused by the pre-write guard, before the setter runs");
+
+      for(String fragment : fragments) {
+         assertTrue(e.getMessage().contains(fragment), e.getMessage());
+      }
+   }
+
+   @Test
+   void bug79094InvalidPatternWithQueryDateFormatTrueInSamePatchIsRefused() {
+      assertComboboxRefused(seededComboboxModel(false, "yyyy-MM-dd"),
+                            patchOf(QDF, true, DFP, "abc"), "abc");
+   }
+
+   @Test
+   void bug79094InvalidPatternAloneWithQueryDateFormatFalseIsRefused() {
+      assertComboboxRefused(seededComboboxModel(false, "yyyy-MM-dd"), patchOf(DFP, "abc"),
+                            "abc");
+      assertComboboxRefused(seededComboboxModel(false, "yyyy-MM-dd"),
+                            patchOf(DFP, "yyyy-MM-dd'"), "yyyy-MM-dd'");
+   }
+
+   @Test
+   void bug79094InvalidPatternAloneWithQueryDateFormatTrueIsRefused() {
+      assertComboboxRefused(seededComboboxModel(true, "yyyy-MM-dd"), patchOf(DFP, "abc"),
+                            "abc");
+   }
+
+   @Test
+   void bug79094PatternsThatCannotFormatADateAreRefused() {
+      for(String pattern : new String[] { "yyyy-MM-dd HH:mm", "HH", "yyyy-MM-dd z",
+                                          "YYYY-mm-dd" })
+      {
+         assertComboboxRefused(seededComboboxModel(false, "yyyy-MM-dd"),
+                               patchOf(DFP, pattern), pattern);
+      }
+   }
+
+   @Test
+   void bug79094PatternsTheRuntimeHonoursAreAcceptedVerbatim() throws Exception {
+      for(boolean qdf : new boolean[] { false, true }) {
+         for(String pattern : new String[] { "yyyy-MM", "yyyy_MM_dd", "dd.MM.yyyy", "'abc'",
+                                             "MMM d, yyyy", "yyyy-MM-dd 'HH:mm'" })
+         {
+            ComboboxPropertyDialogModel model = seededComboboxModel(qdf, "yyyy-MM-dd");
+            setCombobox(model, patchOf(DFP, pattern));
+            assertEquals(pattern, model.getDataInputPaneModel().getDateFormatPattern());
+         }
+      }
+   }
+
+   @Test
+   void bug79094BlankPatternIsRefusedOnlyWhenQueryDateFormatIsOn() throws Exception {
+      assertComboboxRefused(seededComboboxModel(true, "yyyy-MM-dd"), patchOf(DFP, ""));
+      assertComboboxRefused(seededComboboxModel(true, "yyyy-MM-dd"), patchOf(DFP, "  "));
+      assertComboboxRefused(seededComboboxModel(false, "yyyy-MM-dd"), patchOf(QDF, true, DFP, ""));
+      assertComboboxRefused(seededComboboxModel(false, "yyyy-MM-dd"),
+                            patchOf(QDF, true, DFP, "   "));
+
+      Map<String, Object> blankNull = new LinkedHashMap<>();
+      blankNull.put(DFP, null);
+      assertComboboxRefused(seededComboboxModel(true, "yyyy-MM-dd"), blankNull);
+
+      // With the format off a blank pattern is inactive; a whitespace-only one is stored as-is
+      // by the setter, which only tests isEmpty().
+      assertDoesNotThrow(() -> setCombobox(seededComboboxModel(false, "yyyy-MM-dd"),
+                                           patchOf(DFP, "")));
+      assertDoesNotThrow(() -> setCombobox(seededComboboxModel(false, "yyyy-MM-dd"),
+                                           patchOf(DFP, "  ")));
+      assertDoesNotThrow(() -> setCombobox(seededComboboxModel(false, "yyyy-MM-dd"), blankNull));
+   }
+
+   @Test
+   void bug79094QueryDateFormatAloneChecksTheStoredPatternOnlyWhenTurningItOn()
+      throws Exception
+   {
+      assertDoesNotThrow(() -> setCombobox(seededComboboxModel(false, "yyyy-MM-dd"),
+                                           patchOf(QDF, true)));
+      assertComboboxRefused(seededComboboxModel(false, null), patchOf(QDF, true));
+      assertComboboxRefused(seededComboboxModel(false, "abc"), patchOf(QDF, true), "abc");
+      assertDoesNotThrow(() -> setCombobox(seededComboboxModel(true, "abc"),
+                                           patchOf(QDF, false)));
+   }
+
+   @Test
+   void bug79094StoredBadPatternNeverBlocksAnUnrelatedWrite() {
+      for(Map<String, Object> patch : List.of(
+         patchOf("inputLabelPaneModel.labelText", "x"),
+         patchOf("dataInputPaneModel.writeBackDirectly", true),
+         patchOf(QDF, false),
+         patchOf(DFP, "yyyy-MM-dd")))
+      {
+         assertDoesNotThrow(() -> setCombobox(seededComboboxModel(true, "abc"), patch),
+                            patch.toString());
+      }
+   }
+
+   @Test
+   void bug79094CapitalizedSpellingsAreRefusedToo() {
+      assertComboboxRefused(seededComboboxModel(true, "yyyy-MM-dd"),
+                            patchOf("DataInputPaneModel.dateFormatPattern", "abc"));
+      assertComboboxRefused(seededComboboxModel(true, "yyyy-MM-dd"),
+                            patchOf("dataInputPaneModel.DateFormatPattern", "abc"));
+   }
+
    // ── #78393: capitalised raw paths and list-input embedded/query-source checks ──
 
    /**

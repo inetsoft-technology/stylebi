@@ -27,10 +27,13 @@ import inetsoft.web.composer.model.vs.EditorModel;
 import inetsoft.web.composer.model.vs.FloatEditorModel;
 import inetsoft.web.composer.model.vs.IntegerEditorModel;
 import inetsoft.web.composer.model.vs.SelectionListEditorModel;
+import inetsoft.web.composer.model.vs.TextEditorModel;
 import inetsoft.web.composer.model.vs.VariableListDialogModel;
 
 import java.security.Principal;
 import java.util.Date;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -40,6 +43,10 @@ import java.util.stream.IntStream;
  * Column Options) and {@link AssemblyPropertyService}'s TextInput hook
  * ({@code textInputColumnOptionPaneModel}). A guard on only one of them leaves the other
  * accepting the same bad input with {@code ok:true}.
+ *
+ * <p>A Text/Password editor's {@code pattern} is compiled with {@link Pattern#compile}, the
+ * same call {@code TextColumnOption.validate()} makes on every value written, so a pattern that
+ * would make every later value write throw is refused at the write that stores it (bug #79095).
  *
  * <p>Ordering policy: {@code minimum > maximum} is refused; {@code minimum == maximum} is
  * allowed (an exact-value range). The Composer dialog is stricter and also refuses equal
@@ -82,6 +89,30 @@ final class WizColumnOptionValidator {
          if(min != null && max != null && min > max) {
             throw inverted(tool, base, min, max);
          }
+      }
+      else if(editor instanceof TextEditorModel text) {
+         requireCompilablePattern(text.getPattern(), tool, base + "pattern");
+      }
+   }
+
+   /**
+    * {@code TextColumnOption.validate()} skips a null or empty pattern and otherwise calls
+    * {@code Pattern.compile} uncaught on every value written, so an uncompilable pattern stored
+    * once makes every later value write throw. Compiling here refuses exactly those.
+    */
+   private static void requireCompilablePattern(String pattern, String tool, String field) {
+      if(pattern == null || pattern.isEmpty()) {
+         return;
+      }
+
+      try {
+         Pattern.compile(pattern);
+      }
+      catch(PatternSyntaxException ex) {
+         throw new IllegalArgumentException(
+            tool + ": '" + field + "' is not a valid regular expression -- " +
+            ex.getDescription() + " near index " + ex.getIndex() + " in '" + pattern +
+            "'. The pattern is a java.util.regex pattern matched against the whole value.", ex);
       }
    }
 

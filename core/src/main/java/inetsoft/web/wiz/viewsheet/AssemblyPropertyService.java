@@ -42,6 +42,7 @@ import inetsoft.web.adhoc.model.property.TargetInfo;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
+import inetsoft.web.composer.model.vs.DataInputPaneModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.OutputColumnRefModel;
@@ -65,6 +66,9 @@ import org.springframework.stereotype.Service;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.Principal;
+import java.time.DateTimeException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -390,6 +394,13 @@ public class AssemblyPropertyService {
             .anyMatch(path -> path.startsWith("textInputColumnOptionPaneModel.")))
          {
             requireValidTextInputColumnOption(model);
+         }
+
+         if("combobox".equals(type) && resolved.values().stream()
+            .anyMatch(path -> path.equals(DATE_FORMAT_PATTERN_PATH) ||
+                              path.equals(QUERY_DATE_FORMAT_PATH)))
+         {
+            requireValidComboboxDateFormat(model, resolved.values());
          }
 
          // An unchanged tipView is a no-op, so it must not turn view tips on either.
@@ -871,13 +882,83 @@ public class AssemblyPropertyService {
    private static final Map<String, String> LIST_INPUT_NAMES =
       Map.of("checkbox", "CheckBox", "combobox", "ComboBox", "radiobutton", "RadioButton");
 
+   private static final String DATE_FORMAT_PATTERN_PATH = "dataInputPaneModel.dateFormatPattern";
+   private static final String QUERY_DATE_FORMAT_PATH = "dataInputPaneModel.queryDateFormat";
+
+   /**
+    * {@code VSInputService.setComboboxPropertyDialogModel} validates the date format pattern with
+    * {@code DateTimeFormatter.ofPattern}, whatever {@code queryDateFormat} says, swallows the
+    * failure and stores {@code yyyy-MM-dd} instead (it also replaces a null or empty pattern),
+    * so a caller writing {@code abc} got {@code ok:true} and a different pattern than it sent
+    * (bug #79094). Runs on the post-patch model and only when the patch touched the pattern or
+    * {@code queryDateFormat}, so an unrelated write is never blocked by an existing value.
+    *
+    * <ul>
+    *   <li>a non-blank pattern must format a {@code LocalDate} -- the exact call
+    *       {@code XUtil.replaceVariable} makes, which falls back to {@code toString()} when it
+    *       fails, so a refused pattern (time-of-day or zone fields, an unknown letter, an
+    *       unclosed quote) is one whose format was never applied anyway. Checked whenever the
+    *       patch touches the pattern or turns the format on, regardless of
+    *       {@code queryDateFormat}, because the setter replaces it either way;</li>
+    *   <li>a null or blank pattern is refused only when {@code queryDateFormat} is on after the
+    *       patch (the setter would replace it); with the format off it is inactive.</li>
+    * </ul>
+    *
+    * <p>This follows the runtime on purpose, not the Angular dialog: the dialog also requires
+    * y, M and d and so refuses {@code yyyy-MM}, which the runtime honours.
+    */
+   private static void requireValidComboboxDateFormat(Object model,
+                                                      Collection<String> resolvedPaths)
+   {
+      Object pane = PropertyPath.get(model, "dataInputPaneModel");
+
+      if(!(pane instanceof DataInputPaneModel input)) {
+         return;
+      }
+
+      String pattern = input.getDateFormatPattern();
+      boolean blank = pattern == null || pattern.isBlank();
+
+      if(blank) {
+         if(input.isQueryDateFormat()) {
+            throw new IllegalArgumentException(
+               "set_assembly_properties: '" + DATE_FORMAT_PATTERN_PATH + "' must not be " +
+               "empty when 'dataInputPaneModel.queryDateFormat' is true -- StyleBI would " +
+               "silently store yyyy-MM-dd instead. Use a java.time pattern such as yyyy-MM-dd " +
+               "or dd.MM.yyyy.");
+         }
+
+         return;
+      }
+
+      // A bad stored pattern only matters to a write that touches the pattern or turns the
+      // format on; turning it off, or any other write, is left alone.
+      if(!resolvedPaths.contains(DATE_FORMAT_PATTERN_PATH) && !input.isQueryDateFormat()) {
+         return;
+      }
+
+      try {
+         LocalDate.of(2000, 1, 2).format(DateTimeFormatter.ofPattern(pattern));
+      }
+      catch(IllegalArgumentException | DateTimeException ex) {
+         throw new IllegalArgumentException(
+            "set_assembly_properties: '" + DATE_FORMAT_PATTERN_PATH + "' is not a usable date " +
+            "format -- '" + pattern + "': " + ex.getMessage() + ". The pattern is applied to " +
+            "a date, so time-of-day and zone fields are not supported; use a java.time " +
+            "pattern such as yyyy-MM-dd or dd.MM.yyyy. StyleBI would otherwise silently " +
+            "store yyyy-MM-dd instead.", ex);
+      }
+   }
+
    /**
     * A TextInput's Date/Integer/Float editor is built by {@code setTextInputPropertyDialogModel}
     * straight from the patched pane with no value check, so an unparseable Date bound (which
     * makes {@code DateColumnOption.validate()} reject every value forever) or inverted bounds
     * were stored silently. Runs the same checks {@link ColumnOptionService} runs for a Table
     * column, on whichever editor the pane's {@code type} selects, and only when the patch
-    * touched the pane (so an unrelated patch is never blocked by an existing value).
+    * touched the pane (so an unrelated patch is never blocked by an existing value). A Text or
+    * Password editor's regex {@code pattern} is checked too (bug #79095), for the active type's
+    * editor only.
     */
    private static void requireValidTextInputColumnOption(Object model) {
       Object pane = PropertyPath.get(model, "textInputColumnOptionPaneModel");
@@ -903,6 +984,15 @@ public class AssemblyPropertyService {
       case ColumnOption.FLOAT:
          WizColumnOptionValidator.validate(columnOption.getFloatEditorModel(),
                                            "set_assembly_properties", base + "floatEditorModel.");
+         break;
+      case ColumnOption.TEXT:
+         WizColumnOptionValidator.validate(columnOption.getTextEditorModel(),
+                                           "set_assembly_properties", base + "textEditorModel.");
+         break;
+      case ColumnOption.PASSWORD:
+         WizColumnOptionValidator.validate(columnOption.getPasswordEditorModel(),
+                                           "set_assembly_properties",
+                                           base + "passwordEditorModel.");
          break;
       default:
          break;
