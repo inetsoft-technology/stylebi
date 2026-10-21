@@ -189,6 +189,71 @@ class JoinConcatSubQueryUserMessageTest {
          "missing the real cause text: " + ex.getMessage());
    }
 
+   /**
+    * Bug #78972 (round 2): the SERIAL execution path (a worksheet script/expression holding
+    * this sandbox's script-execution lock, per the {@code @by Bug #75614}/{@code #77873}
+    * comments on the {@code serial} flag) runs every sub-query's task synchronously on the
+    * SAME calling thread, rather than fanning it out to a pool thread -- so the class-name
+    * leak must be fixed there too, not only in the pool path the other two leak-check tests
+    * above exercise.
+    */
+   @Test
+   void concatFailingFirstSubQuerySerialModeDoesNotLeakClassName() throws Exception {
+      ConcatenatedQuery query = concatQuery(2, -1);
+      forceSerialMode(query);
+      AssetQuery[] subs = (AssetQuery[]) getField(ConcatenatedQuery.class, query, "queries");
+      doAnswer(inv -> {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set(
+            "Multiple DISTINCT aggregates are not supported at this time.");
+         Tool.addUserWarning("Failed to get table data for query: Q0: " +
+            "java.sql.SQLSyntaxErrorException: Multiple DISTINCT aggregates are not " +
+            "supported at this time.");
+         return null;
+      }).when(subs[0]).getTableLens(any());
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> query.getPostBaseTableLens(new VariableTable()));
+      assertNoLeakedClassName(ex.getMessage());
+      assertTrue(ex.getMessage().contains(
+         "Multiple DISTINCT aggregates are not supported at this time."),
+         "missing the real cause text: " + ex.getMessage());
+   }
+
+   @Test
+   void joinFailingFirstSubQuerySerialModeDoesNotLeakClassName() throws Exception {
+      JoinQuery query = joinQuery(2, -1);
+      forceSerialMode(query);
+      AssetQuery[] subs = (AssetQuery[]) getField(JoinQuery.class, query, "queries");
+      doAnswer(inv -> {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set(
+            "Multiple DISTINCT aggregates are not supported at this time.");
+         Tool.addUserWarning("Failed to get table data for query: Q0: " +
+            "java.sql.SQLSyntaxErrorException: Multiple DISTINCT aggregates are not " +
+            "supported at this time.");
+         return null;
+      }).when(subs[0]).getTableLens(any());
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> query.getPostBaseTableLens0(new VariableTable()));
+      assertNoLeakedClassName(ex.getMessage());
+      assertTrue(ex.getMessage().contains(
+         "Multiple DISTINCT aggregates are not supported at this time."),
+         "missing the real cause text: " + ex.getMessage());
+   }
+
+   /**
+    * Forces {@code serial} (the {@code JoinQuery}/{@code ConcatenatedQuery} fan-out-vs-serial
+    * flag) to true via {@code box.holdsScriptExecutionLock()}, the same alternative the real
+    * code checks alongside {@code JavaScriptEngine.isScriptThread()} -- mirroring a caller that
+    * holds this sandbox's script-execution lock outside an actual script evaluation
+    * ({@code @by Bug #77873}).
+    */
+   private static void forceSerialMode(Object query) throws Exception {
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.holdsScriptExecutionLock()).thenReturn(true);
+      setField(PreAssetQuery.class, query, "box", box);
+   }
+
    private static void assertOwnFailureMessage(Exception ex) {
       assertInstanceOf(MessageException.class, ex);
       assertFalse(ex.getMessage().contains("warning"),

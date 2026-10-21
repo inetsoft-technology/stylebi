@@ -206,8 +206,20 @@ public class ConcatenatedQuery extends AssetQuery {
                   // messages already are, so only drain a pool thread
                   if(!serial) {
                      subMessages[index] = Tool.getUserMessage();
-                     subFailureCauses[index] = XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get();
                   }
+
+                  // @by Bug #78972: unlike subMessages[] above, this must be captured
+                  // unconditionally, including in the serial path. In serial mode every
+                  // sub-query's task runs synchronously, one fully finishing before the
+                  // next one's own task starts, all on this SAME calling thread -- and
+                  // each sub-query's own XSessionManager.getXNodeTableLens call
+                  // self-clears this same thread-local slot at its own start
+                  // (XSessionManager.java:517). Without capturing it here, a later
+                  // sub-query (success or failure) silently overwrites or clears an
+                  // earlier sub-query's own clean cause before the result-processing
+                  // loop below ever reads it -- unlike subMessages[], which does not need
+                  // this because it is read directly off the thread it was raised on.
+                  subFailureCauses[index] = XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get();
                }
             };
 
