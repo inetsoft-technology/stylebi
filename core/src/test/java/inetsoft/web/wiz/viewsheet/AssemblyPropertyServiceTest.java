@@ -374,6 +374,112 @@ class AssemblyPropertyServiceTest {
          model.getGaugeAdvancedPaneModel().getRangePaneModel().getRangeValues());
    }
 
+   // ── gauge face write-time validation (bug #79090) ────────────────────────
+   //
+   // A face VSGauge.getGauge cannot resolve used to be stored verbatim and then broke every
+   // render/export of the viewsheet. Valid = what the engine can render: the advertised
+   // prefixes plus legacy ids that still resolve.
+
+   private static int gaugeFace(GaugePropertyDialogModel model) {
+      return model.getGaugeGeneralPaneModel().getFacePaneModel().getFace();
+   }
+
+   private void assertGaugeFaceRefused(Object bad) {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getGaugeGeneralPaneModel().getFacePaneModel().setFace(10120);
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1", Map.of("face", bad), ""));
+
+      assertTrue(thrown.getMessage().contains("face"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("10120"),
+                 "must list the valid ids: " + thrown.getMessage());
+      assertEquals(10120, gaugeFace(model), "a refused patch must not change the face");
+   }
+
+   @Test
+   void refusesAnUnknownGaugeFace() {
+      assertGaugeFaceRefused(99999);
+   }
+
+   @Test
+   void refusesAGaugeFaceThatIsAThemeSuffixedMapKeyNotAStoredPrefix() {
+      assertGaugeFaceRefused(10125);
+      assertGaugeFaceRefused(10126);
+   }
+
+   @Test
+   void refusesAFractionalOrNonNumericGaugeFace() {
+      assertGaugeFaceRefused(10120.5);
+      assertGaugeFaceRefused("abc");
+   }
+
+   @Test
+   void refusesAnOutOfRangeOrNonFiniteGaugeFace() {
+      assertGaugeFaceRefused(1.0E12);
+      assertGaugeFaceRefused(Double.NaN);
+      assertGaugeFaceRefused(Double.POSITIVE_INFINITY);
+   }
+
+   @Test
+   void allowsAWholeValuedDoubleGaugeFace() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      service.set("tok", principal(), "Gauge1", Map.of("face", 90820.0), "");
+      assertEquals(90820, gaugeFace(model));
+
+      service.set("tok", principal(), "Gauge1", Map.of("face", "10120.0"), "");
+      assertEquals(10120, gaugeFace(model));
+   }
+
+   @Test
+   void allowsAnAdvertisedGaugeFaceAsNumberOrNumericString() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      service.set("tok", principal(), "Gauge1", Map.of("face", 90820), "");
+      assertEquals(90820, gaugeFace(model));
+
+      service.set("tok", principal(), "Gauge1", Map.of("face", "10120"), "");
+      assertEquals(10120, gaugeFace(model));
+   }
+
+   @Test
+   void allowsAGaugeFaceViaTheRawPath() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      service.set("tok", principal(), "Gauge1",
+                  Map.of("gaugeGeneralPaneModel.facePaneModel.face", 10220), "");
+
+      assertEquals(10220, gaugeFace(model));
+   }
+
+   @Test
+   void refusesAnUnknownGaugeFaceViaTheRawPath() {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1",
+                           Map.of("gaugeGeneralPaneModel.facePaneModel.face", 99999), ""));
+
+      assertTrue(thrown.getMessage().contains("face"), thrown.getMessage());
+   }
+
+   /** A stale legacy id the engine still renders must round-trip. */
+   @Test
+   void allowsALegacyGaugeFaceTheEngineStillRenders() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      service.set("tok", principal(), "Gauge1", Map.of("face", 40), "");
+
+      assertEquals(40, gaugeFace(model));
+   }
+
    /**
     * VBM-006: a trailing blank {@code rangeValues} entry (e.g. {@code ["60","90","",""]}) is an
     * unambiguous "extend the last color band to the gauge's own max" request that the renderer

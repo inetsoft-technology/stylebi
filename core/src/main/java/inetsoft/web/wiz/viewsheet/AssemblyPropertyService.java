@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.graph.GraphConstants;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.gui.viewsheet.gauge.VSGauge;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.ColumnRef;
@@ -41,6 +42,7 @@ import inetsoft.web.adhoc.model.property.TargetInfo;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
+import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
@@ -314,6 +316,12 @@ public class AssemblyPropertyService {
 
             if(entry.getValue().endsWith(".imagePreviewPaneModel.selectedImage")) {
                value = requireKnownSelectedImage(model, entry.getValue(), value);
+            }
+
+            if(model instanceof GaugePropertyDialogModel &&
+               entry.getValue().endsWith(".facePaneModel.face"))
+            {
+               value = requireKnownGaugeFace(value);
             }
 
             AssemblyReference reference = references.get(entry.getValue());
@@ -1791,6 +1799,47 @@ public class AssemblyPropertyService {
          "This field takes an assembly name, not a variable or expression. A computed tip or " +
          "pop view is set from a script (the viewsheet's onLoad, via update_script), not by " +
          "this property.";
+   }
+
+   /**
+    * Refuses a gauge {@code face} the renderer cannot resolve. {@code VSGauge.getGauge} returns
+    * null for an unknown face, which the image/export path dereferences, so a stored bad face
+    * fails every render of the assembly (and of the whole viewsheet export) with no hint at the
+    * cause. Accepts exactly what the engine itself can render, so a legacy id that still
+    * resolves can be written back unchanged; the error lists the advertised ids. Resolved
+    * lazily because {@code VSGauge} needs the Spring context to initialize.
+    *
+    * @return the face as an {@code Integer}.
+    */
+   private Object requireKnownGaugeFace(Object value) {
+      if(value == null) {
+         return null;
+      }
+
+      String text = String.valueOf(value).trim();
+      Integer face = null;
+
+      try {
+         // Whole-valued doubles ("10120.0" from a JSON float) are the same face; parsed == raw
+         // also refuses a fraction, NaN, Infinity and anything outside the int range.
+         double raw = Double.parseDouble(text);
+         int parsed = (int) raw;
+
+         if(parsed == raw) {
+            face = parsed;
+         }
+      }
+      catch(NumberFormatException ignore) {
+      }
+
+      if(face != null && VSGauge.getGauge(face) != null) {
+         return face;
+      }
+
+      throw new IllegalArgumentException(
+         "'face' on a gauge accepts only " + Arrays.toString(VSGauge.getPrefixIDs()) + "; '" +
+         text + "' is not one of them. StyleBI stores an unknown face unchanged and then fails " +
+         "to render the gauge.");
    }
 
    /**
