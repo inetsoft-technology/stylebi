@@ -1980,8 +1980,19 @@ public final class WorksheetMutationSupport {
                                            UniformSQL sql, Object session)
    {
       int n = columns.getAttributeCount();
-      XSelection selection = sql == null ? null : sql.getSelection();
-      boolean sameCount = selection != null && selection.getColumnCount() == n;
+
+      // Mirror QueryManagerService.getColumnSelection's parsed-branch condition: otherwise every
+      // column was already typed from the result metadata and there is nothing to fill in.
+      if(sql == null ||
+         sql.getParseResult() != UniformSQL.PARSE_SUCCESS &&
+            sql.getParseResult() != UniformSQL.PARSE_PARTIALLY ||
+         sql.getSelection().getColumnCount() != n ||
+         n == 0 || UniformSQL.hasWildcard(sql.getSelection()))
+      {
+         return List.of();
+      }
+
+      XSelection selection = sql.getSelection();
       Set<Integer> untyped = new LinkedHashSet<>();
 
       for(int i = 0; i < n; i++) {
@@ -1989,13 +2000,9 @@ public final class WorksheetMutationSupport {
             continue;
          }
 
-         String parsed = null;
+         String parsed = selection.getType(selection.getColumn(i));
 
-         if(sameCount) {
-            parsed = selection.getType(selection.getColumn(i));
-         }
-
-         if(!sameCount || parsed == null || parsed.isEmpty()) {
+         if(parsed == null || parsed.isEmpty()) {
             untyped.add(i);
          }
       }
