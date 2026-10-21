@@ -22,6 +22,7 @@ import inetsoft.report.filter.*;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.util.TableLoadException;
+import inetsoft.util.MessageException;
 import inetsoft.util.ThreadPool;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
@@ -29,6 +30,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
@@ -771,6 +773,7 @@ public class DistinctTableLens extends AbstractTableLens
 
          // nor a stopped script of the base (bug #78134)
          ScriptTimeoutGuard.rethrowStop(ex);
+         rethrowMessageFailure(ex);
 
          synchronized(this) {
             completed = true;
@@ -832,9 +835,54 @@ public class DistinctTableLens extends AbstractTableLens
          baseFailure = TableLoadException.find(ex);
       }
 
+      if(baseFailure != null) {
+         return baseFailure;
+      }
+
       // a stopped script of the base, which fails every read as a stopped cell of a formula
       // table does (bug #78134)
-      return baseFailure != null ? baseFailure : ScriptTimeoutGuard.copyStop(ex);
+      baseFailure = ScriptTimeoutGuard.copyStop(ex);
+
+      // nor a failure to read the base, e.g. of a set table whose merge failed, as SortFilter
+      // fails it (bug #77524). a script failure is not one (bug #77875)
+      return baseFailure != null ? baseFailure : findMessageFailure(ex);
+   }
+
+   /**
+    * Find the message exception in the cause chain of a failure of the base, e.g. the failed
+    * merge of a set table, other than that of a script.
+    */
+   private static MessageException findMessageFailure(Throwable ex) {
+      return ex instanceof ScriptException ? null : MessageException.find(ex);
+   }
+
+   /**
+    * Rethrow the message exception of a failure of the base, which must not look like the end
+    * of the table either (bug #77524).
+    */
+   private static void rethrowMessageFailure(Throwable ex) {
+      MessageException failure = findMessageFailure(ex);
+
+      if(failure != null) {
+         throw failure;
+      }
+   }
+
+   /**
+    * A copy of a message exception, with the same message, levels, cause and stack trace.
+    */
+   private static MessageException copyMessage(MessageException failure) {
+      MessageException copy = new MessageException(
+         failure.getMessage(), failure.getLogLevel(), failure.isDumpStack(),
+         failure.getWarningLevel());
+
+      if(failure.getCause() != null) {
+         copy.initCause(failure.getCause());
+      }
+
+      copy.setKeywords(failure.getKeywords());
+      copy.setStackTrace(failure.getStackTrace());
+      return copy;
    }
 
    /**
@@ -849,6 +897,10 @@ public class DistinctTableLens extends AbstractTableLens
 
          if(stop != null) {
             return stop;
+         }
+
+         if(failure instanceof MessageException message) {
+            return copyMessage(message);
          }
       }
 
@@ -925,6 +977,7 @@ public class DistinctTableLens extends AbstractTableLens
 
          // nor a stopped script of the base (bug #78134)
          ScriptTimeoutGuard.rethrowStop(ex);
+         rethrowMessageFailure(ex);
 
          completed = true;
          LOG.error("Failed to validate table rows when getting row count", ex);
