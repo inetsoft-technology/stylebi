@@ -22,6 +22,7 @@ import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.script.viewsheet.CalcTableVSAScriptable;
+import inetsoft.report.script.viewsheet.TableDataVSAScriptable;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
@@ -104,6 +105,12 @@ class VSFormatTableLensFormatErrorTest {
          VSFormatTableLens lens = formatLens("=while(true) {}; 0xFF0000", null);
          Throwable ex = assertThrows(Throwable.class, () -> lens.getForeground(1, 2));
          assertTrue(inetsoft.util.script.graal.ScriptTimeoutGuard.isStop(ex), ex.toString());
+
+         // the row/col of the failed cell are thread-wide, they must not outlive it
+         TableDataVSAScriptable scriptable =
+            (TableDataVSAScriptable) lastBox.getScope().getVSAScriptable("Calc1");
+         assertEquals(-1, scriptable.getRow());
+         assertEquals(-1, scriptable.getCol());
       }
       finally {
          Thread.interrupted();
@@ -162,8 +169,10 @@ class VSFormatTableLensFormatErrorTest {
                                         "Fmt78493b", null);
       ViewsheetSandbox box = new ViewsheetSandbox(
          vs, AbstractSheet.SHEET_RUNTIME_MODE, null, false, entry);
+      lastBox = box;
       return new VSFormatTableLens(box, "Calc1", runtime, false);
    }
 
    private GraalJavaScriptEnv env;
+   private ViewsheetSandbox lastBox;
 }

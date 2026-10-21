@@ -410,9 +410,12 @@ public final class VSFormatTableLens extends FormatTableLens {
             }
          }
          catch(RuntimeException ex) {
+            // row/col are thread-wide: don't leave this cell's location behind on a failure
+            restoreScriptableCell(scriptable, orow, ocol);
             throw ex;
          }
          catch(Exception ex) {
+            restoreScriptableCell(scriptable, orow, ocol);
             LOG.warn("Failed to set dynamic values", ex);
             throw new RuntimeException(ex);
          }
@@ -655,6 +658,15 @@ public final class VSFormatTableLens extends FormatTableLens {
          for(String ref : refs) {
             scriptable.removeMember(ref);
          }
+      }
+   }
+
+   private static void restoreScriptableCell(TableDataVSAScriptable scriptable, int orow,
+                                              int ocol)
+   {
+      if(scriptable != null) {
+         scriptable.setRow(orow);
+         scriptable.setCol(ocol);
       }
    }
 
