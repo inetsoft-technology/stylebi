@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.schedule;
 
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
 import org.apache.ignite.binary.*;
@@ -302,6 +303,25 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       return curr >= scheduleTime;
    }
 
+   /**
+    * Get the <code>week.start</code> setting of an organization without consulting the thread's
+    * principal: the organization's own <code>inetsoft.org.&lt;org&gt;.week.start</code> override
+    * if it has one, otherwise the site-wide value, as a property read in that organization
+    * resolves it.
+    */
+   private static String getWeekStart(String orgId) {
+      if(orgId != null) {
+         String value = SreeEnv.getProperty(
+            PropertiesEngine.getOrgPropertyPrefix(orgId) + "week.start", false, false);
+
+         if(value != null) {
+            return value;
+         }
+      }
+
+      return SreeEnv.getProperty("week.start", false, false);
+   }
+
    @Override
    public long getRetryTime(long curr) {
       return getRetryTime(curr, curr);
@@ -317,6 +337,23 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
     * @return the next time to retry. Negative value to stop retry.
     */
    public long getRetryTime(long curr, long lastRun) {
+      return getRetryTime(curr, lastRun, null);
+   }
+
+   /**
+    * Get the next time to retry the condition, with the weeks of an every-N-weeks condition
+    * starting on the <code>week.start</code> day of the organization that owns the task.
+    * The organization is passed in rather than taken from the calling thread, because the
+    * scheduler threads that call this carry the principal of an unrelated task.
+    *
+    * @param curr    current time.
+    * @param lastRun last time the task is run.
+    * @param orgId   the id of the organization of the task that owns this condition, or
+    *                <code>null</code> for the site-wide <code>week.start</code>.
+    *
+    * @return the next time to retry. Negative value to stop retry.
+    */
+   public long getRetryTime(long curr, long lastRun, String orgId) {
       if(type == AT) {
          if(time.getTime() >= curr) {
             scheduleTime = time.getTime();
@@ -375,11 +412,11 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          boolean satisfied = false;
 
          if(getInterval() > 1) {
-            // The weeks of an every-N-weeks schedule start on the site-wide week.start day,
-            // never on the first day of the JVM locale. The organization of the calling
-            // thread is not consulted, so the cycle is the same on every thread.
-            int firstDay = Tool.parseFirstDayOfWeek(
-               SreeEnv.getProperty("week.start", false, false));
+            // The weeks of an every-N-weeks schedule start on the week.start day of the task's
+            // organization (the site-wide value when it has no override), never on the first
+            // day of the JVM locale. The organization of the calling thread is not consulted,
+            // so the cycle is the same on every thread.
+            int firstDay = Tool.parseFirstDayOfWeek(getWeekStart(orgId));
             // days left in the seed's week after the seed day, counted from firstDay
             int left = 6 - Math.floorMod(cal1.get(Calendar.DAY_OF_WEEK) - firstDay, 7);
 
