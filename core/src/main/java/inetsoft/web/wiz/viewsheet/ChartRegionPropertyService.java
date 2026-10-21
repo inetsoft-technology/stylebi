@@ -21,6 +21,8 @@ import inetsoft.graph.data.PairsDataSet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.report.composition.region.AxisArea;
+import inetsoft.report.composition.region.ChartArea;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.XDimensionRef;
@@ -104,6 +106,7 @@ public class ChartRegionPropertyService {
       if("axis".equals(name)) {
          field = resolveAxisField(sessionToken, user, assembly, key, field);
          requireUnambiguousAxis(sessionToken, user, assembly, key, field);
+         requireDrawnAxis(sessionToken, user, assembly, key, field, true);
       }
 
       Object model = readModel(sessionToken, user, assembly, name, key, field);
@@ -248,6 +251,12 @@ public class ChartRegionPropertyService {
       List<Map<?, ?>> aliasEntries = properties.containsKey("aliases")
                                      && ("axis".equals(name) || "legend".equals(name))
          ? parseAliasEntries(properties.get("aliases")) : null;
+
+      // After every value check, which refuse without touching the region service, and with the
+      // field as the write will send it (a time axis names its own field above).
+      if("axis".equals(name)) {
+         requireDrawnAxis(sessionToken, user, assembly, key, field, false);
+      }
 
       Object model = readModel(sessionToken, user, assembly, name, key, field);
 
@@ -521,6 +530,87 @@ public class ChartRegionPropertyService {
                .map(ChartRef::getFullName).collect(Collectors.joining(", "))) +
             ". Omit 'field' when the axis has only one.");
       });
+   }
+
+   /**
+    * Refuses an axis read, or a write with a blank {@code field}, when the axis is hidden (bug
+    * #79111).
+    *
+    * <p>Hiding an axis (label and line both off) leaves its {@code ChartArea} axis area with no
+    * children. A blank field resolves its column from area index 0, so the read and the write both
+    * threw an ArrayIndexOutOfBoundsException in {@code ChartRegionHandler.getAxisColumnName}, a
+    * raw HTTP 500. The signal is therefore the very thing that call trips on, the laid-out area
+    * of this axis position being empty, not the descriptor's flags: coordinates rewrite those
+    * flags, so an axis can be descriptor-hidden and still have an area (a facet or inner axis),
+    * and that one must keep reading.
+    *
+    * <p>With a field the handler does not index the area, so a write is not refused (it works
+    * and changes nothing the area holds). A read is: the aliases come from the rendered labels
+    * and come back as an empty list for a hidden axis, which reads as "no aliases" when it means
+    * "not drawn". That one also needs the field's own descriptor to say hidden, so an axis that
+    * is merely not laid out for another reason (no data) is read as before.
+    *
+    * <p>Fails open: no laid-out chart area (no sandbox, unbound or still computing) is not
+    * refused here, the existing paths report that.
+    *
+    * @param read true for a read; false for a write.
+    */
+   private void requireDrawnAxis(String sessionToken, Principal user, String assembly,
+                                 String axisTarget, String field, boolean read)
+      throws Exception
+   {
+      boolean blank = field == null || field.isBlank();
+
+      if(!read && !blank) {
+         return;
+      }
+
+      String hidden = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = ChartRegionResolver.requireChart(rvs, assembly);
+         VSChartInfo info = chart.getVSChartInfo();
+         ChartArea chartArea = regions.getChartArea(
+            rvs, chart, "", rvs.getViewsheet().isMaxMode());
+
+         if(chartArea == null) {
+            return null;
+         }
+
+         AxisArea area = switch(ChartRegionResolver.canonical(axisTarget)) {
+            case "x" -> chartArea.getBottomXAxisArea();
+            case "x2" -> chartArea.getTopXAxisArea();
+            case "y" -> chartArea.getLeftYAxisArea();
+            case "y2" -> chartArea.getRightYAxisArea();
+            default -> null;
+         };
+
+         if(area == null || area.getAllAreas().length > 0) {
+            return null;
+         }
+
+         if(blank) {
+            ChartRef[] refs = axisCandidates(info, ChartRegionResolver.canonical(axisTarget));
+            return refs.length > 0 ? refs[0].getFullName() : "";
+         }
+
+         AxisDescriptor desc = regionHandler.getAxisDescriptor(
+            info, field, axisType(axisTarget), new AtomicBoolean());
+         boolean max = rvs.getViewsheet().isMaxMode() && chart.getChartInfo() != null &&
+            chart.getChartInfo().getMaxSize() != null;
+         boolean off = max ? !desc.isMaxModeLabelVisible() && !desc.isMaxModeLineVisible()
+            : !desc.isLabelVisible() && !desc.isLineVisible();
+         return off ? field : null;
+      });
+
+      if(hidden != null) {
+         String column = hidden.isEmpty() ? "<its column>" : hidden;
+
+         throw new IllegalArgumentException(
+            "Axis '" + axisTarget + "' is hidden, so there is nothing drawn to " +
+            (read ? "read" : "write") + " here" +
+            (read && !blank ? " (its labels are what supply the aliases)" : "") + ". Show it " +
+            "first with set_chart_element_visibility {element: 'axis', target: '" + column +
+            "', visible: true} (showing restores all axes), then retry.");
+      }
    }
 
    /**
