@@ -96,11 +96,9 @@ $line-handle-width: 10px;
 }
 
 :host-context(.viz-modern) {
-  // A selected annotation is chrome, so it takes the chrome treatment: solid 2px in the same primary
-  // as every other chrome selection. The dotted darkgray was the product's third way of saying
-  // "selected"; there is now one.
+  // matches the assembly's selection outline
   .vs-annotation__rectangle--selected {
-    border: 2px solid var(--inet-primary-color);
+    border: 2px dashed var(--inet-viz-selected-border);
   }
 
   // A named colour cannot follow a theme — annotation body text was black in dark mode too.
