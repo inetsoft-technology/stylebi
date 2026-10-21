@@ -296,10 +296,16 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
     * {@link #clear()} until the new list is set. The read lock is taken before the reload lock,
     * the same order as an edit that saves the chain under the write lock. The caller must not
     * hold a provider's locks.
+    * <p>
+    * A reload that takes long is logged, but this keeps waiting for it: the list may be empty
+    * until it ends, so not waiting would lose the caller's work. Waiting can't deadlock, because
+    * no thread that holds the reload lock waits for the read lock.
+    *
+    * @param waiter what is waiting for the reload, for the log.
     *
     * @return the security providers.
     */
-   List<T> getProvidersAfterReload() {
+   List<T> getProvidersAfterReload(String waiter) {
       readWriteLock.readLock().lock();
 
       try {
@@ -313,9 +319,9 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
          }
 
          if(!locked) {
-            LOG.warn("A reload of {} did not finish within {} s, using the current providers",
-                     getConfigFile(), RELOAD_WAIT_SECONDS);
-            return new ArrayList<>(getProviderList());
+            LOG.warn("A reload of {} has not finished within {} s, {} keeps waiting for it",
+                     getConfigFile(), RELOAD_WAIT_SECONDS, waiter);
+            lock.lock();
          }
 
          try {

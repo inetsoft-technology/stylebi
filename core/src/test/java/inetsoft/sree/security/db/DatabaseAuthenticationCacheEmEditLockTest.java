@@ -59,7 +59,10 @@ class DatabaseAuthenticationCacheEmEditLockTest {
    @AfterEach
    void tearDown() {
       // after a deadlock the chain's locks are never released: detach the chain from the engine
-      // so that the next init and the context close don't tear it down and hang the fork
+      // so that the next init and the context close don't tear it down and hang the fork. The
+      // test has already failed with the deadlocked threads. The static AuthenticationChainReload
+      // thread may stay deadlocked, so later classes in the same fork that need it (the reload
+      // hook and lock-order tests) can fail as well: triage the first failure.
       if(deadlocked) {
          try {
             Field field = SecurityEngine.class.getDeclaredField("provider");

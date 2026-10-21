@@ -80,8 +80,8 @@ public final class DatabaseCacheTestSupport {
    }
 
    /**
-    * A provider whose tear-down signals {@link #inTearDown} and then takes 800 ms while the
-    * latch is set, to hold a chain reload between clearing the provider list and setting the
+    * A provider whose tear-down signals {@link #inTearDown} and then takes {@link #sleepMs}
+    * (800 ms by default) while the latch is set, to hold a chain reload between clearing the provider list and setting the
     * new one.
     */
    public static class SlowTearDownProvider extends SeamProvider {
@@ -93,7 +93,7 @@ public final class DatabaseCacheTestSupport {
             latch.countDown();
 
             try {
-               Thread.sleep(800);
+               Thread.sleep(sleepMs);
             }
             catch(InterruptedException e) {
                Thread.currentThread().interrupt();
@@ -104,6 +104,7 @@ public final class DatabaseCacheTestSupport {
       }
 
       public static volatile CountDownLatch inTearDown;
+      public static volatile long sleepMs = 800L;
    }
 
    /**

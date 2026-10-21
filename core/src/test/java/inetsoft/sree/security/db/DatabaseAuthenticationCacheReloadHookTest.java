@@ -71,6 +71,7 @@ class DatabaseAuthenticationCacheReloadHookTest {
    void tearDown() {
       BlockingProvider.gate = null;
       SlowTearDownProvider.inTearDown = null;
+      SlowTearDownProvider.sleepMs = 800L;
 
       if(writer != null) {
          writer.tearDown();
@@ -111,8 +112,8 @@ class DatabaseAuthenticationCacheReloadHookTest {
       find(host, "q78793").clearCache();
       assertTrue(await(() -> clusterLong("q78793", "loadingCount") == 1L, 2_000));
       save(base(), support.provider("q78793", ALL_USERS));
+      // the old load may already have failed here: the reload's dispose closes its connection
       reload(host);
-      assertEquals(1L, clusterLong("q78793", "loadingCount"), "the old load is still running");
 
       // the hook's refresh lost the load lock; it runs again after the old load
       assertTrue(await(() -> cachedAlice("q78793"), 5_000), "the new configuration was never loaded");
@@ -261,6 +262,64 @@ class DatabaseAuthenticationCacheReloadHookTest {
       Field field = AuthenticationChain.class.getDeclaredField("RELOAD_EXECUTOR");
       field.setAccessible(true);
       return (ExecutorService) field.get(null);
+   }
+
+   /**
+    * The same as {@link #queuedRefreshRunningDuringASecondReloadIsNotLost()}, but reload 2's
+    * dispose takes longer than the refresh's bounded wait for the reload lock: the refresh must
+    * keep waiting rather than find the empty list and skip x (review round 5).
+    */
+   @Test
+   void queuedRefreshOutlastingTheReloadWaitIsNotLost() throws Exception {
+      SlowTearDownProvider.sleepMs = 12_000L;
+      AuthenticationChain host = support.initEngine(List.of(
+         support.provider("xw78793", NO_ALICE), support.slowTearDownProvider("yw78793", ALL_USERS)));
+      DataSpace.getDataSpace().removeChangeListener(null, "authc-chain.json", host);
+      load(host, "xw78793");
+      writer = new AuthenticationChain();
+      // hold the refresh thread so that x's refresh is queued
+      CountDownLatch busy = new CountDownLatch(1);
+      refreshExecutor().execute(() -> {
+         try {
+            busy.await(20, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+         }
+      });
+      Thread reload2 = null;
+
+      try {
+         // reload 1 changes x: its refresh is queued
+         save(support.provider("xw78793", ALL_USERS),
+              support.slowTearDownProvider("yw78793", ALL_USERS));
+         reload(host);
+         // reload 2 changes only y, and its 12 s dispose holds it between clearing the list and
+         // setting the new one
+         save(support.provider("xw78793", ALL_USERS),
+              support.slowTearDownProvider("yw78793", NO_ALICE));
+         SlowTearDownProvider.inTearDown = new CountDownLatch(1);
+         reload2 = new Thread(() -> {
+            try {
+               reload(host);
+            }
+            catch(Exception e) {
+               throw new RuntimeException(e);
+            }
+         }, "reload2");
+         reload2.start();
+         assertTrue(SlowTearDownProvider.inTearDown.await(5, TimeUnit.SECONDS));
+         assertTrue(host.getProviders().isEmpty(), "reload 2 is between clear and set");
+      }
+      finally {
+         // x's queued refresh runs now and waits for reload 2 longer than its bounded wait
+         busy.countDown();
+      }
+
+      reload2.join(25_000);
+      SlowTearDownProvider.inTearDown = null;
+      assertFalse(reload2.isAlive(), "reload 2 never finished");
+      assertTrue(await(() -> cachedAlice("xw78793"), 5_000), "x's refresh was lost");
    }
 
    @Test
