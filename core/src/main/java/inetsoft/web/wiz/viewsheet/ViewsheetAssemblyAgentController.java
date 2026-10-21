@@ -58,6 +58,7 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.report.io.viewsheet.excel.CSVUtil;
 import inetsoft.util.Catalog;
+import inetsoft.util.InvalidUserException;
 import inetsoft.util.MessageException;
 import inetsoft.util.audit.AuditRecordUtils;
 import inetsoft.util.audit.BookmarkRecord;
@@ -70,6 +71,7 @@ import inetsoft.web.viewsheet.event.ImmutableVSEditBookmarkEvent;
 import inetsoft.web.viewsheet.event.VSEditBookmarkEvent;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import inetsoft.web.viewsheet.service.VSBookmarkService;
+import inetsoft.web.viewsheet.service.ExportInProgressException;
 import inetsoft.web.viewsheet.service.ExportResponse;
 import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.script.ScriptImageService;
@@ -398,6 +400,9 @@ public class ViewsheetAssemblyAgentController {
       }
       catch(ScriptException e) {
          throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
+      }
+      catch(ExportInProgressException | InvalidUserException e) {
+         throw e;
       }
       catch(MessageException e) {
          throw new PairingException(e.getMessage());
@@ -1104,6 +1109,9 @@ public class ViewsheetAssemblyAgentController {
             catch(ScriptException e) {
                throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
             }
+            catch(ExportInProgressException | InvalidUserException e) {
+               throw e;
+            }
             catch(MessageException e) {
                throw new PairingException(e.getMessage());
             }
@@ -1184,6 +1192,9 @@ public class ViewsheetAssemblyAgentController {
       }
       catch(ScriptException e) {
          throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
+      }
+      catch(ExportInProgressException | InvalidUserException e) {
+         throw e;
       }
       catch(MessageException e) {
          throw new PairingException(e.getMessage());
