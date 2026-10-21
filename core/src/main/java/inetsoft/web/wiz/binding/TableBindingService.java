@@ -2151,9 +2151,9 @@ public class TableBindingService {
          {
             MessageCommand command = new MessageCommand();
             command.setType(MessageCommand.Type.WARNING);
-            command.setMessage("Column '" + field.column() + "' was hidden and is shown again: " +
-               "a hidden column named in a details write is shown. Leave it out of the list to " +
-               "keep it hidden.");
+            command.setMessage(TableBindingMutator.WARNING_PREFIX + "Column '" + field.column() +
+               "' was hidden and is shown again: a hidden column named in a details write is " +
+               "shown. Leave it out of the list to keep it hidden.");
             dispatcher.sendCommand(assemblyName, command);
          }
       }

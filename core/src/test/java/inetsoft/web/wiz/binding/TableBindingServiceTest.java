@@ -359,7 +359,7 @@ class TableBindingServiceTest {
       ArgumentCaptor<inetsoft.web.viewsheet.command.MessageCommand> sent =
          ArgumentCaptor.forClass(inetsoft.web.viewsheet.command.MessageCommand.class);
       verify(dispatcher, times(1)).sendCommand(eq("Table1"), sent.capture());
-      assertTrue(sent.getValue().getMessage().contains("'state' was hidden and is shown again"),
+      assertTrue(sent.getValue().getMessage().startsWith("Binding warning: Column 'state' was hidden and is shown again"),
                  sent.getValue().getMessage());
    }
 
