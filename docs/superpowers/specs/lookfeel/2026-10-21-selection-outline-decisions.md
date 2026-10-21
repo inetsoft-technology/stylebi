@@ -1,8 +1,9 @@
 # Selection outlines — one style for inner and outer selection
 
 **Date:** 2026-10-21
-**Status:** decided; implemented on `feature-selection-outline`
-**Verified against:** community `epic-74519` @ `1f2a5bc5d8`
+**Issue:** Bug #78999
+**Status:** decided; implemented on `bug-78999`
+**Verified against:** community `bug-78999` (off `epic-74519` @ `1f2a5bc5d8`); line numbers are as of this branch
 **Scope:** browser-only. No server, export or persisted-state change.
 
 This file records the decisions behind the change and the reasoning for each, so a reviewer can
@@ -31,7 +32,7 @@ the composer and in the viewer. Worksheet tables and other non-viewsheet surface
 | 1 | Inner selections use the outer's style: 2px dashed `--inet-viz-selected-border` | owner | the whole change |
 | 2 | Only modern/dark (marked) objects change; legacy objects keep today's look | builder | one selector per rule |
 | 3 | Viewer keyboard focus and mobile tap outlines change too | owner | one rule (outer), or a class split at 28 bindings (inner) |
-| 4 | Selected chart marks (bars, points) do not change | owner | one branch in `drawRegions` |
+| 4 | Selected chart marks (bars, points) stay solid; light-mode colour (orange or blue) still open | owner | one branch in `drawRegions` |
 | 5 | Inner resize handles take the outer's hollow style, ungated like the outer | owner; ungated is builder | one rule |
 | 6 | Dark chart chrome takes the border token, not the lighter ink | builder | one CSS value |
 
@@ -50,9 +51,9 @@ one look:
 
 | Path | Where | Today (modern) | Covers |
 |---|---|---|---|
-| `.bd-selected-cell`, and `.selected-cell:before` which `@extend`s it | `_themeable.scss:112`, `:460-474` | 2px solid blue | **Titles:** chart, table, crosstab, freehand table, checkbox, radio button, selection container (`vs-title`); selection list/tree and current-selection rows (`title-cell`); calendar title and month/year header; range slider title. **Cells:** table, crosstab and freehand table cells and headers; selection list/tree label, measure text and measure bar; checkbox and radio items. **Labels:** combo box, slider, spinner, text input |
-| Chart canvas, chrome areas (stroke only) | `chart-tool.ts:783` `drawRegions`, colour from `_themeable.scss:1349` | 2px solid orange | the 4 axes, legend content, legend title, the 4 axis titles — composer and viewer |
-| Annotation | `vs-annotation.component.scss:102` | 2px solid orange | annotations on every object type that hosts one |
+| `.bd-selected-cell`, and `.selected-cell:before` which `@extend`s it | `_themeable.scss:112`, `:473-487` | 2px solid blue | **Titles:** chart, table, crosstab, freehand table, checkbox, radio button, selection container (`vs-title`); selection list/tree and current-selection rows (`title-cell`); calendar title and month/year header; range slider title. **Cells:** table, crosstab and freehand table cells and headers; selection list/tree label, measure text and measure bar; checkbox and radio items. **Labels:** combo box, slider, spinner, text input |
+| Chart canvas, chrome areas (stroke only) | `chart-tool.ts:786` `drawRegions`, colour from `_themeable.scss:1362` | 2px solid orange | the 4 axes, legend content, legend title, the 4 axis titles — composer and viewer |
+| Annotation | `vs-annotation.component.scss:100` | 2px solid orange | annotations on every object type that hosts one |
 | `.bd-selected-assembly` | `_themeable.scss:116` | 1px dotted orange | see decision 3 |
 | Inner resize handles | `bg-primary` in vs-title, title-cell, calendar title, and 4 in `selection-list-cell` | solid orange | see decision 5 |
 
@@ -65,7 +66,7 @@ composer container and so the outer rule.
 - `chart-card-slice1-design.md` §4 ("selection vocabulary"): every chrome selection drawn solid 2px
   in the primary orange. That decision was taken before the outer outline moved to dashed blue, and the
   two have disagreed since #5246.
-- The annotation comment at `vs-annotation.component.scss:98-101` that states it.
+- The annotation comment that stated it, replaced in this change.
 
 **Overturning it.** Revert the change. Nothing persisted depends on it.
 
@@ -145,28 +146,94 @@ dashed blue on marked objects.
 - **All keyboard focus:** give the 28 focus bindings their own class (same style as today's
   `bd-selected-cell`) and leave it out of the dashed rule.
 
-## Decision 4 — selected chart marks do not change
+## Decision 4 — selected chart marks stay solid
 
 **Decision.** Selected bars, points and other data marks (the `plot_area` path in `drawRegions`) keep
-their fill and their solid outline: orange in light, the `#A8EEF5` ink in dark.
+their fill and a **solid** outline: orange in light, the `#A8EEF5` ink in dark. Reviewed a second time
+the same day, after asking whether the orange outline reaches exports. It does not, and that changes
+nothing here: export was never one of the reasons. **Still open:** whether light mode's solid outline
+and fill move from orange to the blue `#BFDDE5`. That needs a side-by-side look in the browser (see
+"The colour question" below).
 
-**Why.**
+**The outline never reaches an export.** Every step was checked against the code:
 
-- **It is a different state.** The code already separates the two: chrome selections mean "this
-  part, so I can act on it", data selections mean "these values" (`chart-tool.ts:753-760`). The fill is
-  what shows which values are selected. An outline alone would stop marking them.
+- **It is a browser-only overlay.** It is drawn by `drawRegions` (`chart-tool.ts:786`) on a
+  `<canvas class="chart-object-canvas">` laid over the server-rendered chart image.
+- **Clicking a mark does not tell the server.** `selectRegion` (`vs-chart.component.ts:918`) sends
+  nothing. The selection lives only in the browser's chart model.
+- **The server learns of a selection only when the user acts on it.** Brush, Zoom, Exclude, Drill,
+  Show Details, Flyover and Add Filter each send it, and each turns it into a data condition. No
+  server-side chart or export code draws a selection outline; there is no selection colour anywhere in
+  it.
+- **Exports are rendered on the server.** The export endpoints (`/export/viewsheet`, `/export/vs-chart`,
+  `ExportController.java:87`, `:290`) are GET requests carrying format options only, with no image and
+  no selection. Scheduled exports have no browser involved at all.
+- **The one browser-side image copy drops it.** During a refresh the chart is cloned to avoid
+  flicker, and the canvases are deleted first (`vs-chart.component.ts:1204-1205`; the code calls them
+  "only selection overlays").
+
+The closest export-visible effect is **Brush**. After a Brush, the server re-renders the chart with the
+brushed marks highlighted and the rest dimmed, and that is exported. But it is mark colour (red by
+default from `BrushingColor.getHighlightColor()`, companion colours on modern charts), not the outline.
+The same holds for every other selection this change touches: cells, titles, chart chrome and
+annotations are all browser overlays.
+
+Not yet confirmed by selecting marks and then exporting. That needs the browser, which was not
+available on 2026-10-21.
+
+**Why not dashed.**
+
+- **Dashes already mean something in chart data.** A series can be given dotted, dashed,
+  medium-dash or large-dash lines (`GraphConstants.java:100-112`, the line-style frames), and target
+  lines are often dashed. A selected line series with a dashed outline looks like a line-style change.
+  In the composer, that happens exactly when the user has selected the line in order to set its style.
+- **Dashes break up on small marks.** A `[6, 4]` dash around a point marker or a thin stacked segment
+  comes out as one or two fragments rather than an outline. Chrome selections surround labels and
+  bands, which are large enough to carry the dash.
 - **Dark mode cannot take the border colour on marks.** `#2DD4BF` sits ΔE 0.072 from the Modern Dark
   palette's own teal series `#2DEEC6`, under the design set's 0.106 line. That is why dark mark
-  selection was moved to the lighter ink (`_themeable.scss:1355-1365`). A selection outlined in the
+  selection was moved to the lighter ink (`_themeable.scss:1367-1378`). A selection outlined in the
   border colour would not stand apart from the teal series under it.
+- **It is a different state.** The code separates the two: chrome selections mean "this part, so I
+  can act on it", data selections mean "these values" (`chart-tool.ts:753-759`). The fill is what
+  shows which values are selected, so it stays whatever the outline does.
 - **Data selection has its own owner.** Roadmap item #3 (§07 derived selection fill) covers how
-  selected values look. Changing marks here would pre-empt it.
+  selected values look.
 
-**Consequence accepted.** In the composer, selecting a bar to format it still draws an orange fill and
-a solid orange outline inside the dashed blue outer outline. This is the one mismatch left on purpose.
+**The colour question.** In light mode, colour is not the obstacle. Measured against the eight head
+colours of the modern palettes (`VSChartPaletteDefaults.java:369-377`). Contrast is WCAG relative
+luminance; ΔE is OKLab distance; fill shift is the ΔE between a mark and the same mark under the 28%
+selection fill.
 
-**Overturning it.** Apply the chrome branch (dashed, selection colour) to data areas too, and decide
-separately what happens to the fill.
+| Outline / fill | On its plot | Series it outlines below 3:1 | Nearest series (ΔE) | Weakest fill shift |
+|---|---|---|---|---|
+| Light, orange `#E58A2A` (today) | 2.62:1 on `#FFFFFF` | 7 of 8 | 0.106, coral `#FF5A35` | 0.026, coral |
+| Light, blue `#BFDDE5` | 1.43:1 on `#FFFFFF` | 5 of 8 | 0.155, teal `#03D9B3` | 0.024, teal |
+| Dark, ink `#A8EEF5` (today) | 11.91:1 on `#252428` | 6 of 8 | 0.114, teal `#2DEEC6` | 0.025, teal |
+| Dark, blue `#2DD4BF` | 8.28:1 on `#252428` | 7 of 8 | **0.072**, teal `#2DEEC6` | 0.020, teal |
+
+- **Today's light orange is itself borderline.** It sits exactly on the 0.106 line against the coral
+  series.
+- **On the marks, blue is no worse.** In light mode it is further from every series, and its fill is
+  about as visible as orange's. They have different weak spots: orange on coral and amber, blue on
+  teal and green.
+- **Against the plot, blue is much fainter.** Where the outline runs over the white plot it is 1.43:1,
+  against 2.62:1 today. That is the half of the stroke a small or light mark depends on.
+
+The real choice in light mode is **solid orange (today)** or **solid blue**. Blue would remove the
+last orange from composer selections and costs the plot-side contrast. Numbers cannot settle that; a
+look at a real chart can. Dark mode stays on the ink either way, for the collision above.
+
+**Consequence accepted, for now.** In the composer, selecting a bar to format it still draws an orange
+fill and a solid orange outline inside the dashed blue outer outline. It is the one mismatch left, and
+the colour question above is what would remove it.
+
+**Overturning it.**
+
+- **Solid blue in light mode:** give data areas the selection-border token for the stroke and a
+  matching tint for the fill, without the dash. Keep dark on the ink.
+- **Fully dashed blue:** apply the chrome branch to data areas too, accept the three costs under "Why
+  not dashed", and decide separately what happens to the fill.
 
 ## Decision 5 — inner resize handles match the outer handles
 
