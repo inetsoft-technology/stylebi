@@ -1667,12 +1667,6 @@ class ChartRegionPropertyServiceTest {
                                                             any(Principal.class), any());
    }
 
-   /**
-    * Bug #77027 item 6, round r1 (reviewer B1): {@code LegendDescriptor.setSymbolSize}
-    * unconditionally clamps to {@code [6, 50]} with no indication -- refused loudly here rather
-    * than let the value reach that clamp, per the lead's dispatched decision. Server-side so the
-    * refusal applies to every caller, not only the wiz plugin's own client-side check.
-    */
    private Harness legendHarness(boolean dimension, boolean time) throws Exception {
       Harness h = harness();
       LegendFormatDialogModel model = legendModel();
@@ -1808,6 +1802,12 @@ class ChartRegionPropertyServiceTest {
       assertNull(listed.get("note"));
    }
 
+   /**
+    * Bug #77027 item 6, round r1 (reviewer B1): {@code LegendDescriptor.setSymbolSize}
+    * unconditionally clamps to {@code [6, 50]} with no indication -- refused loudly here rather
+    * than let the value reach that clamp, per the lead's dispatched decision. Server-side so the
+    * refusal applies to every caller, not only the wiz plugin's own client-side check.
+    */
    @Test
    void refusesSymbolSizeAboveTheSupportedRange() throws Exception {
       Harness h = harness();

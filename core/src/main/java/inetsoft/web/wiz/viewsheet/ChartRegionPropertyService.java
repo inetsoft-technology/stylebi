@@ -1208,16 +1208,6 @@ public class ChartRegionPropertyService {
    private static final int LEGEND_SYMBOL_SIZE_MIN = 6;
    private static final int LEGEND_SYMBOL_SIZE_MAX = 50;
 
-   /**
-    * Refuses a legend {@code symbolSize} outside {@code [6, 50]} rather than letting it reach
-    * {@code LegendDescriptor.setSymbolSize}, which unconditionally clamps to that range with no
-    * indication (round r1: the lead's dispatched decision is a loud refusal here, not a
-    * warn-and-proceed shape -- the plugin's own client-side check mirrors this, and this
-    * server-side guard is what makes the refusal apply no matter which caller reaches this
-    * method, not only the wiz plugin). Same pattern as {@link #canonicalRotation}: parse, and
-    * name the accepted range in the refusal rather than letting a raw parse failure or a silent
-    * clamp through.
-    */
    private static final List<String> LEGEND_SCALE_KEYS =
       List.of("logarithmicScale", "reverse", "includeZero");
 
@@ -1268,6 +1258,16 @@ public class ChartRegionPropertyService {
       return !text.isEmpty() && !"false".equalsIgnoreCase(text);
    }
 
+   /**
+    * Refuses a legend {@code symbolSize} outside {@code [6, 50]} rather than letting it reach
+    * {@code LegendDescriptor.setSymbolSize}, which unconditionally clamps to that range with no
+    * indication (round r1: the lead's dispatched decision is a loud refusal here, not a
+    * warn-and-proceed shape -- the plugin's own client-side check mirrors this, and this
+    * server-side guard is what makes the refusal apply no matter which caller reaches this
+    * method, not only the wiz plugin). Same pattern as {@link #canonicalRotation}: parse, and
+    * name the accepted range in the refusal rather than letting a raw parse failure or a silent
+    * clamp through.
+    */
    private static void requireSymbolSizeInRange(Map<String, Object> properties) {
       if(!properties.containsKey("symbolSize")) {
          return;
