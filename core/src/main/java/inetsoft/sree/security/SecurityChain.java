@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.*;
 import java.util.stream.Stream;
 
@@ -290,20 +291,55 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
    }
 
    /**
-    * Gets the providers, waiting for a reload of the configuration file that is replacing them
-    * to finish. During a reload the list is empty from {@link #clear()} until the new list is set.
+    * Gets the providers, waiting for an edit holding {@link #writeLock()} and for a reload of the
+    * configuration file that is replacing them to finish. During a reload the list is empty from
+    * {@link #clear()} until the new list is set. The read lock is taken before the reload lock,
+    * the same order as an edit that saves the chain under the write lock. The caller must not
+    * hold a provider's locks.
     *
     * @return the security providers.
     */
    List<T> getProvidersAfterReload() {
-      lock.lock();
+      readWriteLock.readLock().lock();
 
       try {
-         return new ArrayList<>(getProviderList());
+         boolean locked = false;
+
+         try {
+            locked = lock.tryLock(RELOAD_WAIT_SECONDS, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+         }
+
+         if(!locked) {
+            LOG.warn("A reload of {} did not finish within {} s, using the current providers",
+                     getConfigFile(), RELOAD_WAIT_SECONDS);
+            return new ArrayList<>(getProviderList());
+         }
+
+         try {
+            return new ArrayList<>(getProviderList());
+         }
+         finally {
+            lock.unlock();
+         }
       }
       finally {
-         lock.unlock();
+         readWriteLock.readLock().unlock();
       }
+   }
+
+   /**
+    * Gets a copy of the providers without waiting for an edit that holds {@link #writeLock()}.
+    * The edit may be replacing the returned providers. This is for code that may hold a
+    * provider's own locks, such as the Database cache service: an edit takes those locks under
+    * the write lock when it tears the replaced provider down.
+    *
+    * @return the security providers.
+    */
+   public List<T> peekProviders() {
+      return new ArrayList<>(getProviderList());
    }
 
    /**
@@ -432,6 +468,7 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
    private volatile long timestamp = 0L;
    private final Lock lock = new ReentrantLock();
    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+   private static final long RELOAD_WAIT_SECONDS = 10L;
 
    private static final Logger LOG = LoggerFactory.getLogger(SecurityChain.class);
 }

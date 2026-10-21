@@ -488,7 +488,9 @@ public class AuthenticationChain
 
    @Override
    void setProviderList(List<AuthenticationProvider> list) {
-      stream()
+      // Without the chain's read lock: a reload calls this while it holds the reload lock, and an
+      // edit holding the write lock waits for the reload lock when it saves the chain.
+      getProviderList().stream()
          .filter(EditableAuthenticationProvider.class::isInstance)
          .map(EditableAuthenticationProvider.class::cast)
          .forEach(l -> l.removeAuthenticationChangeListener(changeDelegate));
@@ -502,7 +504,7 @@ public class AuthenticationChain
          LOG.debug("Failed to send authentication providers changed message", ex);
       }
 
-      stream()
+      list.stream()
          .filter(EditableAuthenticationProvider.class::isInstance)
          .map(EditableAuthenticationProvider.class::cast)
          .forEach(l -> l.addAuthenticationChangeListener(changeDelegate));

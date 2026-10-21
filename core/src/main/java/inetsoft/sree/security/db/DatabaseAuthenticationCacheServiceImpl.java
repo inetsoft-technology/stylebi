@@ -523,8 +523,9 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
    }
 
    private static DatabaseAuthenticationProvider getProvider(String providerName) {
-      // Without the engine's init lock: the callers may hold the provider's cache locks, which
-      // the engine takes while it holds the init lock to tear the providers down.
+      // Without the engine's init lock or the chain's read lock: the callers may hold the
+      // provider's cache locks, which the engine takes while it holds the init lock, and an EM
+      // edit takes while it holds the chain's write lock, to tear the providers down.
       SecurityProvider root = SecurityEngine.getSecurity().peekSecurityProvider();
 
       if(root == null) {
@@ -540,7 +541,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          provider = db;
       }
       else if(rootAuthentication instanceof AuthenticationChain chain) {
-         for(AuthenticationProvider child : chain.getProviders()) {
+         for(AuthenticationProvider child : chain.peekProviders()) {
             if(child instanceof DatabaseAuthenticationProvider db &&
                Objects.equals(providerName, db.getProviderName()))
             {

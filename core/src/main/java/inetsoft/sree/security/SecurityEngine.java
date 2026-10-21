@@ -1181,7 +1181,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
     * provider that an init in progress is about to replace.
     *
     * @return a <code>SecurityProvider</code> instance or <code>null</code>
-    *         if no security provided is defined
+    *         if no security provider is defined
     */
    public SecurityProvider peekSecurityProvider() {
       SecurityProvider p = provider;
