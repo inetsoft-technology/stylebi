@@ -569,8 +569,12 @@ public class VGraphPair {
                }
             }
 
-            sortFrameValues(egraph, this.data);
-            sortFrameValues(egraph2, this.data);
+            try(CategoricalColorFrameContext.Scope scope3 =
+                   CategoricalColorFrameContext.bind(box.getViewsheet()))
+            {
+               sortFrameValues(egraph, this.data);
+               sortFrameValues(egraph2, this.data);
+            }
 
             // repopulate the properties changed by script
             info = chart.getVSChartInfo();
