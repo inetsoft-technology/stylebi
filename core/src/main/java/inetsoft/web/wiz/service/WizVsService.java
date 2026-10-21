@@ -56,6 +56,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
@@ -4362,7 +4363,15 @@ public class WizVsService {
 
       if(config != null && config.getBindingInfo() instanceof ChartBinding binding) {
          applyChartBinding(chartInfo, binding, chartType);
-         GraphUtil.fixVisualFrames(chartInfo);
+         CategoricalColorFrameContext.bind(vs);
+
+         try {
+            GraphUtil.fixVisualFrames(chartInfo);
+         }
+         finally {
+            CategoricalColorFrameContext.clear();
+         }
+
       }
 
       ChartDescriptor chartDescriptor = chart.getChartDescriptor();

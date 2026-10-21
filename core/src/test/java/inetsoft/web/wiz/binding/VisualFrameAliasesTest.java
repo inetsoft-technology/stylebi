@@ -336,6 +336,47 @@ class VisualFrameAliasesTest {
       assertFalse(described.containsKey("clazz"), "an FQCN must never reach the agent");
    }
 
+   private static CategoricalColorModel pinned(boolean share, String globalOption,
+                                               String frameOption)
+   {
+      CategoricalColorModel model = new CategoricalColorModel();
+      model.setUseGlobal(share);
+
+      if(globalOption != null) {
+         model.setGlobalColorMaps(new ColorMapModel[]{ new ColorMapModel(globalOption, "#D64541") });
+      }
+
+      if(frameOption != null) {
+         model.setColorMaps(new ColorMapModel[]{ new ColorMapModel(frameOption, "#F28E2C") });
+      }
+
+      return model;
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void aSharedFrameReportsItsFrameOnlyPinsSeparately() {
+      Map<String, Object> described = VisualFrameAliases.describe(pinned(true, "East", "West"));
+
+      assertEquals(Map.of("East", "#D64541"), described.get("mapping"));
+      assertEquals(Map.of("West", "#F28E2C"), described.get("frameOnlyPins"));
+   }
+
+   @Test
+   void aKeyInBothMapsIsNotReportedAsFrameOnly() {
+      Map<String, Object> described = VisualFrameAliases.describe(pinned(true, "East", "East"));
+
+      assertFalse(described.containsKey("frameOnlyPins"));
+   }
+
+   @Test
+   void anUnsharedFrameNeverReportsFrameOnlyPins() {
+      Map<String, Object> described = VisualFrameAliases.describe(pinned(false, "East", "West"));
+
+      assertEquals(Map.of("West", "#F28E2C"), described.get("mapping"));
+      assertFalse(described.containsKey("frameOnlyPins"));
+   }
+
    @Test
    void describesAPaletteFrameByItsName() {
       Map<String, Object> described = VisualFrameAliases.describe(new BluesColorModel());

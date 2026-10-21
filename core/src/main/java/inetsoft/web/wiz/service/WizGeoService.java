@@ -43,6 +43,7 @@ import inetsoft.uql.viewsheet.graph.FeatureMapping;
 import inetsoft.uql.viewsheet.graph.GeoRef;
 import inetsoft.uql.viewsheet.graph.GeographicOption;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
@@ -176,7 +177,14 @@ public class WizGeoService {
             // Assign visual frames for the (re-homed) aesthetic fields. ChangeChartTypeProcessor
             // already ran this once, but BEFORE we moved the category onto color — without it the
             // color field has a null VisualFrame and graph generation NPEs ("graph.gen.failed").
-            GraphUtil.fixVisualFrames(mapInfo);
+            CategoricalColorFrameContext.bind(vs);
+
+            try {
+               GraphUtil.fixVisualFrames(mapInfo);
+            }
+            finally {
+               CategoricalColorFrameContext.clear();
+            }
 
             chart.setVSChartInfo(mapInfo);
             cinfo = mapInfo;

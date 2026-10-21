@@ -1585,6 +1585,47 @@ class ChartAestheticMutatorTest {
                    "naming one value must not unpin the others");
    }
 
+   /**
+    * A write on a shared frame empties the frame's own colour map and promotes its pins to the
+    * viewsheet level, so describe() never reports frameOnlyPins afterwards and a per-value null
+    * removes the pin.
+    */
+   @Test
+   void aSharedWritePromotesFrameOnlyPinsAndNullRemovesThem() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      CategoricalColorModel existing = (CategoricalColorModel) model.getColorField().getFrame();
+      existing.setUseGlobal(true);
+      existing.setColorMaps(new ColorMapModel[]{ new ColorMapModel("West", "#F28E2C") });
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "shareColors", true, "mapping", Map.of("East", "#D64541")));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertEquals(0, frame.getColorMaps().length, "sharing must leave the frame's own map empty");
+      assertEquals(2, frame.getGlobalColorMaps().length);
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "shareColors", true, "mapping", Map.of("West", CoreTool.NULL)));
+
+      frame = assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      Map<String, String> pins = new LinkedHashMap<>();
+
+      for(ColorMapModel pin : frame.getGlobalColorMaps()) {
+         pins.put(pin.getOption(), pin.getColor());
+      }
+
+      assertEquals(CoreTool.NULL, pins.get("West"),
+                   "the promoted pin must carry the delete sentinel to Viewsheet.setDimensionColors");
+      assertEquals("#D64541", pins.get("East"));
+   }
+
    /** Naming a value that is already pinned re-colours it rather than duplicating it. */
    @Test
    void aSharedMappingOverwritesAPinItNames() {
