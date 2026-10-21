@@ -30,6 +30,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -38,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The days a Date Comparison keeps: the whole condition list from
  * {@link DateComparisonInfo#getDateComparisonConditions}, evaluated with the real
- * {@link ConditionGroup} on every day of a window.
+ * {@link ConditionGroup} on one day of each stretch where the answer cannot change.
  */
 public final class DcDays {
    private DcDays() {
@@ -64,8 +65,10 @@ public final class DcDays {
       ConditionList conditions = dc.getDateComparisonConditions(ref);
       assertNotNull(conditions);
 
-      LocalDate lo = null;
-      LocalDate hi = null;
+      // The days are midnights and every item is a BETWEEN on the date, so whether a day is kept
+      // can only change at a bound of a range (or the day after it). Between two such points the
+      // answer is the same for every day: evaluate the real condition list once per stretch.
+      TreeSet<LocalDate> points = new TreeSet<>();
 
       for(int i = 0; i < conditions.getSize(); i++) {
          if(conditions.getConditionItem(i) == null) {
@@ -80,21 +83,41 @@ public final class DcDays {
          for(Object value : condition.getValues()) {
             assertTrue(value instanceof Date, "range bound " + value);
             LocalDate day = DcPeriods.toLocal((Date) value);
-            lo = lo == null || day.isBefore(lo) ? day : lo;
-            hi = hi == null || day.isAfter(hi) ? day : hi;
+            points.add(day);
+            points.add(day.plusDays(1));
          }
       }
 
-      List<LocalDate> days = new ArrayList<>();
-
-      if(lo == null) {
-         lo = from;
-         hi = to;
+      if(points.isEmpty()) {
+         points.add(from);
+         points.add(to.plusDays(1));
       }
 
       ConditionGroup group = new ConditionGroup(conditions);
+      List<LocalDate> days = new ArrayList<>();
+      LocalDate stretch = null;
 
-      for(LocalDate day = lo; !day.isAfter(hi); day = day.plusDays(1)) {
+      for(LocalDate point : points) {
+         if(stretch != null && group.evaluate(new Object[] { DcPeriods.toDate(stretch) })) {
+            for(LocalDate day = stretch; day.isBefore(point); day = day.plusDays(1)) {
+               days.add(day);
+            }
+         }
+
+         stretch = point;
+      }
+
+      return days;
+   }
+
+   /** The same days found by evaluating the condition list on every day, to check {@link #kept}. */
+   public static List<LocalDate> keptDayByDay(DateComparisonInfo dc, LocalDate from, LocalDate to) {
+      ColumnRef ref = new ColumnRef(new AttributeRef(null, "Order Date"));
+      ref.setDataType(XSchema.DATE);
+      ConditionGroup group = new ConditionGroup(dc.getDateComparisonConditions(ref));
+      List<LocalDate> days = new ArrayList<>();
+
+      for(LocalDate day = from; !day.isAfter(to); day = day.plusDays(1)) {
          if(group.evaluate(new Object[] { DcPeriods.toDate(day) })) {
             days.add(day);
          }

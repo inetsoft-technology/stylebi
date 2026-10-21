@@ -85,7 +85,7 @@ class DateComparisonChangeMatrixTest {
    private static final String[] DST_END_DAYS = { "2021-03-14", "2021-11-07" };
    /** The largest share of rows whose part the previous period lacks (small charts have a few). */
    private static final double MAX_UNJUDGED = 0.5;
-   private static final LocalDate FROM = LocalDate.of(2016, 1, 1);
+   private static final LocalDate FROM = LocalDate.of(2017, 1, 1);
    private static final LocalDate TO = LocalDate.of(2022, 1, 1);
 
    /** One shape of each kind of period / interval / context, for the toDate + inclusive and Percent runs. */

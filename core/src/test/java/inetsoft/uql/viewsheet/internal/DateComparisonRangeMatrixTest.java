@@ -120,6 +120,35 @@ class DateComparisonRangeMatrixTest {
       }
    }
 
+   /**
+    * The matrix finds the kept days by evaluating the real condition list once per stretch
+    * between range bounds ({@link DcDays#kept}); that must give the days of evaluating it on
+    * every day.
+    */
+   @Test
+   void keptDaysFoundPerStretchAreTheDaysFoundPerDay() {
+      LocalDate from = LocalDate.of(2015, 1, 1);
+      LocalDate to = LocalDate.of(2023, 12, 31);
+
+      for(DcShape shape : DcShape.all()) {
+         if(shape.isCustom()) {
+            continue;
+         }
+
+         for(String weekStart : shape.usesWeeks() ? WEEK_STARTS : new String[] { "sunday" }) {
+            for(boolean inclusive : new boolean[] { false, true }) {
+               String end = inclusive ? "2021-01-02" : DATATEST_END;
+               DateComparisonInfo dc = info(shape, variant(end, false, inclusive));
+               List<LocalDate> days = WeekStartUtil.withWeekStart(weekStart, () -> {
+                  assertEquals(DcDays.keptDayByDay(dc, from, to), DcDays.kept(dc),
+                               () -> shape + " " + weekStart + " end=" + end);
+                  return null;
+               });
+            }
+         }
+      }
+   }
+
    /** The oracle derives week alignment from the shape; the product has to agree. */
    @Test
    void alignWeekMatchesTheShape() {
