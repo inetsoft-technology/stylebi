@@ -83,6 +83,15 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
    public static final int LAST_DAY_OF_MONTH = -1;
 
    /**
+    * The most days the monthly walk in getRetryTime goes past the date it must reach before it
+    * gives up and returns -1. 40 years: the longest gap a valid monthly rule can leave is "5th
+    * weekday of February" (14,609 days, across the skipped leap year 2100); Feb 29 alone needs
+    * at most 8 years. Do not lower it.
+    */
+   private static final int MAX_WALK_DAYS = 366 * 40;
+   private static final int[] MONTH_LENGTHS = { 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+   /**
     * Create a default time condition.
     */
    public TimeCondition() {
@@ -324,6 +333,13 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          cal1.setTimeInMillis(lastRun);
       }
 
+      // Days between the date the walk starts from (the clock, or lastRun when interval > 1) and
+      // curr. The walks below advance one day at a time until they reach curr, so a stale lastRun
+      // legitimately needs that many steps; every walk limit is staleDays plus how far past curr
+      // a valid day can be, so a limit never turns a stale seed into "never".
+      long seedTime = cal1.getTimeInMillis();
+      long staleDays = curr > seedTime ? (curr - seedTime) / 86400000L : 0L;
+
       cal1.set(Calendar.HOUR_OF_DAY, hour);
       cal1.set(Calendar.MINUTE, minute);
       cal1.set(Calendar.SECOND, second);
@@ -352,7 +368,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
 
          break;
       case EVERY_WEEK:
-         if(days_of_week.length <= 0) {
+         if(!containsValidDayOfWeek()) {
             return -1;
          }
 
@@ -374,24 +390,48 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
 
          // increase every week to next
          if(getInterval() > 1) {
-            cal1.add(Calendar.DATE, (getInterval() - 1) * 7);
+            long skip = (long) (getInterval() - 1) * 7;
+
+            // Calendar.add takes an int; the int product used to wrap around for a huge interval
+            if(skip > Integer.MAX_VALUE) {
+               return -1;
+            }
+
+            cal1.add(Calendar.DATE, (int) skip);
          }
 
-         while(containsIn(days_of_week, cal1.get(Calendar.DAY_OF_WEEK)) &&
-            cal1.get(Calendar.DAY_OF_WEEK) != days_of_week[0])
-         {
-            cal1.add(Calendar.DATE, 1);
+         // this loop never ends if every day is selected and days_of_week[0] is not a valid day
+         // (every day matches, so there is nothing to skip)
+         if(!containsAllDaysOfWeek() || containsValidDayOfWeek(days_of_week[0])) {
+            while(containsIn(days_of_week, cal1.get(Calendar.DAY_OF_WEEK)) &&
+               cal1.get(Calendar.DAY_OF_WEEK) != days_of_week[0])
+            {
+               cal1.add(Calendar.DATE, 1);
+            }
          }
+
+         // A valid day exists, so once the walk reaches curr the next one is at most 7 days
+         // away; the measured worst case is staleDays + 8, the rest is slack
+         long weeklyMaxDays = staleDays + 16;
 
          while(!containsIn(days_of_week, cal1.get(Calendar.DAY_OF_WEEK)) ||
             cal1.getTimeInMillis() < curr)
          {
+            if(weeklyMaxDays-- <= 0) {
+               return -1;
+            }
+
             cal1.add(Calendar.DATE, 1);
          }
 
          break;
       case EVERY_HOUR:
-         if(days_of_week.length <= 0 || getHourlyInterval() <= 0) {
+         float hourlyInterval = getHourlyInterval();
+
+         // !(x > 0) also rejects NaN
+         if(!containsValidDayOfWeek() || !(hourlyInterval > 0) ||
+            Float.isInfinite(hourlyInterval))
+         {
             return -1;
          }
 
@@ -405,7 +445,16 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
             calEnd.set(Calendar.MINUTE, minute_end);
             calEnd.set(Calendar.SECOND, second_end);
             long end = calEnd.getTimeInMillis();
-            long interval = (long) (getHourlyInterval() * 3600000);
+            long interval = (long) (hourlyInterval * 3600000);
+
+            // a step under 1 ms never advances start
+            if(interval < 1) {
+               return -1;
+            }
+
+            // keep start += interval from overflowing for a huge interval; any step this long
+            // is past the end of the window anyway
+            interval = Math.min(interval, Long.MAX_VALUE / 4);
 
             while(start < end && end > curr) {
                if(start >= curr) {
@@ -422,7 +471,14 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
             cal1.setTimeInMillis(start);
          }
          else {
+            // a valid day exists, so it is at most 7 days away
+            int hourMaxDays = 8;
+
             while(true) {
+               if(hourMaxDays-- <= 0) {
+                  return -1;
+               }
+
                cal1.add(Calendar.DATE, 1);
 
                if(containsIn(days_of_week, cal1.get(Calendar.DAY_OF_WEEK))) {
@@ -452,32 +508,51 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
 
          break;
       case EVERY_MONTH:
-         if(months_of_year.length <= 0) {
+         int monthMaxLength = getMaxDaysInSelectedMonths();
+
+         if(monthMaxLength <= 0) {
             return -1;
          }
 
          if(getWeekOfMonth() >= 0) {
-            int maxDays = 2 * 365;
+            // no month has a 6th week (isNthSpecifiedDayOfMonth)
+            if(getWeekOfMonth() > 5) {
+               return -1;
+            }
+
+            long maxDays = staleDays + MAX_WALK_DAYS;
 
             while(!isNthSpecifiedDayOfMonth(cal1) ||
                cal1.getTimeInMillis() < curr ||
                !containsIn(months_of_year, cal1.get(Calendar.MONTH)))
             {
-               cal1.add(Calendar.DATE, 1);
-
-               // a condition may not be possible (e.g. 6th week of a month
-               // and friday), avoid infinite loop
-               if(maxDays-- < 0) {
-                  break;
+               // a condition may not be possible (e.g. a weekday that is never the 5th one of
+               // the selected months), avoid infinite loop
+               if(maxDays-- <= 0) {
+                  return -1;
                }
+
+               cal1.add(Calendar.DATE, 1);
             }
          }
          else {
+            // no selected month is long enough (e.g. day 31 for April, day 32)
+            if(day_of_month > monthMaxLength) {
+               return -1;
+            }
+
+            long maxDays = staleDays + MAX_WALK_DAYS;
+
             while(!containsIn(months_of_year, cal1.get(Calendar.MONTH)) ||
                cal1.getTimeInMillis() < curr ||
                day_of_month < 0 && !isNthLastDayOfMonth(-day_of_month, cal1) ||
                day_of_month > 0 && !isNthFirstDayOfMonth(day_of_month, cal1))
             {
+               // a negative day that no month has is not pre-checked
+               if(maxDays-- <= 0) {
+                  return -1;
+               }
+
                cal1.add(Calendar.DATE, 1);
             }
          }
@@ -1377,6 +1452,53 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       }
 
       return true;
+   }
+
+   private static boolean containsValidDayOfWeek(int day) {
+      return day >= Calendar.SUNDAY && day <= Calendar.SATURDAY;
+   }
+
+   /**
+    * Check if days_of_week has at least one valid day (Calendar.SUNDAY..SATURDAY). Other
+    * elements are ignored by the walks, so a condition with only invalid days never fires.
+    */
+   private boolean containsValidDayOfWeek() {
+      for(int day : days_of_week) {
+         if(containsValidDayOfWeek(day)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if every day of the week (Calendar.SUNDAY..SATURDAY) is in days_of_week.
+    */
+   private boolean containsAllDaysOfWeek() {
+      for(int day = Calendar.SUNDAY; day <= Calendar.SATURDAY; day++) {
+         if(!containsIn(days_of_week, day)) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Get the number of days of the longest month in months_of_year (February counts 29), or 0 if
+    * there is no valid month (Calendar.JANUARY..DECEMBER).
+    */
+   private int getMaxDaysInSelectedMonths() {
+      int max = 0;
+
+      for(int month : months_of_year) {
+         if(month >= Calendar.JANUARY && month <= Calendar.DECEMBER) {
+            max = Math.max(max, MONTH_LENGTHS[month]);
+         }
+      }
+
+      return max;
    }
 
    /**
