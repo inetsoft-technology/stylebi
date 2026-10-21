@@ -303,6 +303,34 @@ class AssemblyConvertServiceTest {
          () -> h.service.convert("tok", principal(), "  ", "freehand_table", ""));
    }
 
+   // ── script-failure relay (bug #78406 round 5) ─────────────────────────────
+
+   /** A table that re-ran during the conversion and failed its script is reported, not lost. */
+   @Test
+   void relaysTheWarningsTheMutationCaptured() throws Exception {
+      SelectionListVSAssembly list = selectionList(mock(CurrentSelectionVSAssembly.class), false);
+      Harness h = harness(list, "Filter1", null, List.of("Script execution error in Bad"));
+
+      Map<String, Object> result =
+         h.service.convert("tok", principal(), "Filter1", "range_slider", "");
+
+      assertEquals(List.of("Script execution error in Bad"), result.get("warnings"));
+      assertEquals("range_slider", result.get("to"));
+   }
+
+   /** A clean conversion keeps the response exactly as it was: no {@code warnings} key at all. */
+   @Test
+   void omitsTheWarningsKeyWhenNothingFailed() throws Exception {
+      SelectionListVSAssembly list = selectionList(mock(CurrentSelectionVSAssembly.class), false);
+
+      for(List<String> captured : Arrays.<List<String>>asList(List.of(), null)) {
+         Harness h = harness(list, "Filter1", null, captured);
+
+         assertFalse(h.service.convert("tok", principal(), "Filter1", "range_slider", "")
+                        .containsKey("warnings"), "captured: " + captured);
+      }
+   }
+
    // ── the unrendered-table refusal (bug #78406 round 3) ─────────────────────
 
    /**
@@ -437,6 +465,13 @@ class AssemblyConvertServiceTest {
    }
 
    private static Harness harness(VSAssembly assembly, String name, ViewsheetSandbox box) {
+      return harness(assembly, name, box, null);
+   }
+
+   /** {@code mutateResult} is what the mocked {@code mutate} returns, i.e. the captured warnings. */
+   private static Harness harness(VSAssembly assembly, String name, ViewsheetSandbox box,
+                                  List<String> mutateResult)
+   {
       ViewsheetInfo vinfo = mock(ViewsheetInfo.class);
       when(vinfo.isMetadata()).thenReturn(false);
 
@@ -454,7 +489,7 @@ class AssemblyConvertServiceTest {
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
             mutation.run(rvs, "rt1", null);
-            return null;
+            return mutateResult;
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
       }
       catch(Exception e) {

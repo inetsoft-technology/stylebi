@@ -116,7 +116,9 @@ public class AssemblyConvertService {
     * @param to           the target type — see {@link #vocabulary()}.
     *
     * @return what happened: the source and target types, anything the conversion discarded, and the
-    *         staleness note. Never a bare "ok": the caller cannot see the discarded state.
+    *         staleness note, and {@code warnings} when a table that re-ran during the conversion
+    *         failed its script (key absent when clean). Never a bare "ok": the caller cannot see
+    *         the discarded state.
     */
    public Map<String, Object> convert(String sessionToken, Principal user, String assemblyName,
                                       String to, String linkUri)
@@ -129,7 +131,7 @@ public class AssemblyConvertService {
       final String target = requireTarget(to);
       final Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      final List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          VSAssembly assembly = resolve(rvs, assemblyName);
          String from = describe(assembly);
 
@@ -163,6 +165,9 @@ public class AssemblyConvertService {
                  "The assembly was replaced, not edited — re-read the viewsheet model before " +
                  "addressing it again. A binding-editor session paired to it is no longer valid. " +
                  "This conversion is undoable within the session.");
+      // Converting re-executes the tables the old assembly filtered; one whose script throws is
+      // reported here rather than lost. The conversion itself was applied.
+      ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
    }
 
