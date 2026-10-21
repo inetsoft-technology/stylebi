@@ -25,6 +25,10 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.web.viewsheet.controller.chart.*;
 import inetsoft.web.viewsheet.event.chart.*;
+import inetsoft.test.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -37,6 +41,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class ChartElementServiceTest {
    /**
@@ -75,7 +83,7 @@ class ChartElementServiceTest {
     */
    @Test
    void aScriptErrorFromTheInnerServiceDoesNotEscapeButOtherErrorsDo() throws Exception {
-      Harness h = harness(mock(ChartVSAssembly.class));
+      Harness h = harness(axisChart(false));
       doThrow(new RuntimeException(new inetsoft.util.script.ScriptException("undefinedFn is not defined"))).when(h.axes).eventHandler(
          anyString(), any(), anyString(), any(Principal.class), any());
 
@@ -83,7 +91,7 @@ class ChartElementServiceTest {
          "tok", principal(), "Chart1", "axis", "Region", false, false, ""));
       verify(h.axes).eventHandler(anyString(), any(), anyString(), any(Principal.class), any());
 
-      Harness other = harness(mock(ChartVSAssembly.class));
+      Harness other = harness(axisChart(false));
       doThrow(new IllegalStateException("boom")).when(other.axes).eventHandler(
          anyString(), any(), anyString(), any(Principal.class), any());
 
@@ -94,7 +102,7 @@ class ChartElementServiceTest {
    /** Bug #78439: both write methods return the warnings the write captured. */
    @Test
    void returnsTheWarningsTheWriteCaptured() throws Exception {
-      Harness h = harness(mock(ChartVSAssembly.class));
+      Harness h = harness(axisChart(false));
       doReturn(List.of("chart warning")).when(h.sessions)
          .mutate(anyString(), any(Principal.class), any());
 
@@ -106,7 +114,7 @@ class ChartElementServiceTest {
 
    @Test
    void hidesOneAxisByColumnName() throws Exception {
-      Harness h = harness(mock(ChartVSAssembly.class));
+      Harness h = harness(axisChart(false));
 
       h.service.setVisibility("tok", principal(), "Chart1", "axis", "Region", false, false, "");
 
@@ -128,22 +136,22 @@ class ChartElementServiceTest {
     */
    @Test
    void hidesTheSecondaryAxisWhenAskedFor() throws Exception {
-      Harness h = harness(mock(ChartVSAssembly.class));
+      Harness h = harness(axisChart(false));
 
-      h.service.setVisibility("tok", principal(), "Chart1", "axis", "Revenue", false, true, "");
+      h.service.setVisibility("tok", principal(), "Chart1", "axis", ORDERS, false, true, "");
 
       ArgumentCaptor<VSChartAxesVisibilityEvent> captor =
          ArgumentCaptor.forClass(VSChartAxesVisibilityEvent.class);
       verify(h.axes).eventHandler(eq("rt1"), captor.capture(), anyString(),
                                   any(Principal.class), any());
-      assertEquals("Revenue", captor.getValue().getColumnName());
+      assertEquals(ORDERS, captor.getValue().getColumnName());
       assertTrue(captor.getValue().isSecondary());
    }
 
    /** Omitting 'secondary' must still default to the primary axis, unchanged from before. */
    @Test
    void defaultsToThePrimaryAxisWhenSecondaryIsOmitted() throws Exception {
-      Harness h = harness(mock(ChartVSAssembly.class));
+      Harness h = harness(axisChart(false));
 
       h.service.setVisibility("tok", principal(), "Chart1", "axis", "Region", false, false, "");
 
@@ -566,9 +574,52 @@ class ChartElementServiceTest {
       verifyNoInteractions(h.sessions);
    }
 
+   /**
+    * Bug #79110: an axis name the chart does not have used to fall through to a measure axis and
+    * hide it. It is refused now, before the runtime is mutated, so it costs no undo step and the
+    * axes service is never reached - on a merged and on a separated chart alike.
+    */
+   @Test
+   void anUnresolvedAxisTargetIsRefusedBeforeTheRuntimeIsMutated() throws Exception {
+      for(boolean separated : new boolean[] { false, true }) {
+         Harness h = harness(axisChart(separated));
+
+         IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> h.service.setVisibility("tok", principal(), "Chart1", "axis", "NoSuchColumn",
+                                          false, false, ""));
+
+         assertTrue(e.getMessage().contains("NoSuchColumn"));
+         verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+         verifyNoInteractions(h.axes);
+      }
+   }
+
+   /** Bug #79110: a valid name with the other axis's secondary flag would hide the wrong axis. */
+   @Test
+   void aSecondaryFlagThatContradictsTheNamedMeasureIsRefused() throws Exception {
+      Harness h = harness(axisChart(false));
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.setVisibility("tok", principal(), "Chart1", "axis", ORDERS,
+                                                 false, false, ""));
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verifyNoInteractions(h.axes);
+   }
+
+   /** Showing takes no target, so it never needs the chart read. */
+   @Test
+   void showingAllAxesDoesNotResolveATarget() throws Exception {
+      Harness h = harness(mock(ChartVSAssembly.class));
+
+      h.service.setVisibility("tok", principal(), "Chart1", "axis", null, true, false, "");
+
+      verify(h.sessions, never()).read(anyString(), any(Principal.class), any());
+   }
+
    @Test
    void eachVisibilityChangeIsOneCheckpoint() throws Exception {
-      Harness h = harness(mock(ChartVSAssembly.class));
+      Harness h = harness(axisChart(false));
 
       h.service.setVisibility("tok", principal(), "Chart1", "axis", "Region", false, false, "");
 
@@ -732,6 +783,33 @@ class ChartElementServiceTest {
       verify(h.titles).eventHandler(eq("rt1"), captor.capture(), anyString(),
                                     any(Principal.class), any());
       return captor.getValue();
+   }
+
+   static final String ORDERS = "Sum(Orders)";
+
+   /**
+    * A chart with real binding refs, which is what the axis-target pre-check reads: Region on x,
+    * Sum(Revenue) on the primary Y and Sum(Orders) on the secondary Y.
+    */
+   static ChartVSAssembly axisChart(boolean separated) {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.setSeparatedGraph(separated);
+      info.addXField(new VSChartDimensionRef(new inetsoft.uql.asset.ColumnRef(
+         new inetsoft.uql.erm.AttributeRef(null, "Region"))));
+      info.addYField(measure("Revenue", false));
+      info.addYField(measure("Orders", true));
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      when(assembly.getVSChartInfo()).thenReturn(info);
+      when(assembly.getChartInfo()).thenReturn(mock(inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo.class));
+      return assembly;
+   }
+
+   private static VSChartAggregateRef measure(String column, boolean secondary) {
+      VSChartAggregateRef ref = new VSChartAggregateRef();
+      ref.setColumnValue(column);
+      ref.setFormulaValue("Sum");
+      ref.setSecondaryY(secondary);
+      return ref;
    }
 
    private static Harness harness(VSAssembly assembly) {

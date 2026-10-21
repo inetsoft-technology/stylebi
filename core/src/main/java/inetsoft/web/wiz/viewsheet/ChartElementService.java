@@ -159,6 +159,18 @@ public class ChartElementService {
       VSChartLegendsVisibilityEvent legendEvent = "legend".equals(kind)
          ? legendEvent(sessionToken, user, assemblyName, target0, visible) : null;
 
+      // The axis counterpart of the legend resolution above, read the same way so a refusal costs
+      // no undo step. Without it an unresolved name was not an inert no-op: on a merged layout
+      // VSChartAxesVisibilityService.hideAxis fell back to the primary (or, with 'secondary', the
+      // secondary) measure axis, so the call hid a different axis and reported having hidden the
+      // one it named. A blank target is refused above, and showing takes no target.
+      if("axis".equals(kind) && !visible) {
+         sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+            ChartAxisTargets.requireAxisTarget(requireChart(rvs, assemblyName), target0, secondary);
+            return null;
+         });
+      }
+
       return sessions.mutate(sessionToken, user,
          ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          requireChart(rvs, assemblyName);
