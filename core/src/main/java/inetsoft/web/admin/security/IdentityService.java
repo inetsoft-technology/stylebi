@@ -4405,8 +4405,11 @@ public class IdentityService {
       // Bug #78502, an organization that predates the (name, id) key has its grant under the
       // legacy (id, id) key, which the permission checks still read when the (name, id) key is
       // absent. When the name differs from the id, the key is moved to (newName, newId), the key
-      // the checks read, and not to (oldId, newId), which nothing reads.
-      if(type == ResourceType.SECURITY_ORGANIZATION && oorgID != null && nIdentityName != null &&
+      // the checks read, and not to (oldId, newId), which nothing reads. Only for an organization
+      // rename: for a user, group or role rename oIdentityName is that identity's name, not the
+      // organization's, and the organization's own key must be left alone.
+      if(type == ResourceType.SECURITY_ORGANIZATION &&
+         changeIdentityType == Identity.ORGANIZATION && oorgID != null && nIdentityName != null &&
          norgID != null && !Tool.equals(oIdentityName, oorgID) &&
          Tool.equals(path, new IdentityID(oorgID, oorgID).convertToKey()) &&
          !hasOrganizationKey(allPermissions, new IdentityID(oIdentityName, oorgID).convertToKey()))

@@ -206,6 +206,34 @@ class IdentityServiceRenameOrgLeftoverPermissionTest {
       assertSame(current, store.get(orgKey("Acme", NEW_ORG, NEW_ORG)), store.toString());
    }
 
+   // Bug #78502, a user, group or role renamed inside an org must not move the org's own legacy
+   // (id, id) key: oIdentityName is then the renamed identity's name, not the org's
+   @Test
+   void renameUser_legacyIdIdOrgKey_untouched() throws Exception {
+      assertOrgKeyUntouchedByRename(Identity.USER, "alice", "alice2");
+   }
+
+   @Test
+   void renameGroup_legacyIdIdOrgKey_untouched() throws Exception {
+      assertOrgKeyUntouchedByRename(Identity.GROUP, "staff", "staff2");
+   }
+
+   @Test
+   void renameRole_legacyIdIdOrgKey_untouched() throws Exception {
+      assertOrgKeyUntouchedByRename(Identity.ROLE, "analyst", "analyst2");
+   }
+
+   private void assertOrgKeyUntouchedByRename(int type, String oldName, String newName) {
+      Permission legacy = grant();
+      store.put(orgKey(OLD_ORG, OLD_ORG, OLD_ORG), legacy);
+
+      service.updateIdentityPermissions(type, new IdentityID(oldName, OLD_ORG),
+                                        new IdentityID(newName, OLD_ORG), OLD_ORG, OLD_ORG, true);
+
+      assertSame(legacy, store.get(orgKey(OLD_ORG, OLD_ORG, OLD_ORG)), store.toString());
+      assertFalse(store.containsKey(orgKey(newName, OLD_ORG, OLD_ORG)), store.toString());
+   }
+
    private void renameOrg(String oldOrgId, String newOrgId, String oldName, String newName)
       throws Exception
    {
