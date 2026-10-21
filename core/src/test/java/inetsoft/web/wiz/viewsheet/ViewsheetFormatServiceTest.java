@@ -2088,7 +2088,7 @@ class ViewsheetFormatServiceTest {
 
    // ── Bug #77597 part C: target "field", and no value format on a chart's object/title ──
 
-   private static ViewsheetFormatService.FormatRequest jsonRequest(String json) throws Exception {
+   static ViewsheetFormatService.FormatRequest jsonRequest(String json) throws Exception {
       return new ObjectMapper().readValue(json, ViewsheetFormatService.FormatRequest.class);
    }
 
@@ -2472,7 +2472,7 @@ class ViewsheetFormatServiceTest {
 
    // ---- Bug #77044 items 3-5: perturbed original format and seeded stored values ----
 
-   private static ViewsheetFormatService.FormatRequest jsonRequest(String assemblies,
+   static ViewsheetFormatService.FormatRequest jsonRequest(String assemblies,
                                                                    String target, String format)
       throws Exception
    {
@@ -2481,7 +2481,7 @@ class ViewsheetFormatServiceTest {
          "}", ViewsheetFormatService.FormatRequest.class);
    }
 
-   private static GaugeVSAssemblyInfo gaugeInfo() {
+   static GaugeVSAssemblyInfo gaugeInfo() {
       GaugeVSAssemblyInfo info = mock(GaugeVSAssemblyInfo.class);
       when(info.getFormatInfo()).thenReturn(new FormatInfo());
       return info;
@@ -2493,7 +2493,7 @@ class ViewsheetFormatServiceTest {
       return info;
    }
 
-   private static RuntimeViewsheet rvsOf(Map<String, VSAssemblyInfo> infos) {
+   static RuntimeViewsheet rvsOf(Map<String, VSAssemblyInfo> infos) {
       Viewsheet viewsheet = mock(Viewsheet.class);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
@@ -2517,7 +2517,7 @@ class ViewsheetFormatServiceTest {
       info.getFormatInfo().setFormat(VSAssemblyInfo.OBJECTPATH, format);
    }
 
-   private static List<FormatVSObjectEvent> paintedEvents(FormatPainterService painter,
+   static List<FormatVSObjectEvent> paintedEvents(FormatPainterService painter,
                                                           int times)
       throws Exception
    {
