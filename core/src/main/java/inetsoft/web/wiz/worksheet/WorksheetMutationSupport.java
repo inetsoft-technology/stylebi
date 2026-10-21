@@ -30,15 +30,20 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.DataRefWrapper;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.jdbc.JDBCQuery;
 import inetsoft.uql.jdbc.SelectTable;
 import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.schema.XTypeNode;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.PairingException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
@@ -51,6 +56,7 @@ import java.util.*;
  * mutation completes.</p>
  */
 public final class WorksheetMutationSupport {
+   private static final Logger LOG = LoggerFactory.getLogger(WorksheetMutationSupport.class);
 
    private WorksheetMutationSupport() {}
 
@@ -1958,6 +1964,102 @@ public final class WorksheetMutationSupport {
    /** Matches a trailing double-quoted identifier, e.g. the {@code title} in {@code "f"."title"}. */
    private static final java.util.regex.Pattern QUOTED_TAIL =
       java.util.regex.Pattern.compile("\"([^\"]+)\"$");
+
+   /**
+    * Fills in the types of SQL-bound table columns the SQL parser left untyped. The parsed
+    * selection only types select items that resolve to a physical table field; expressions,
+    * aggregates, window functions, literals and CASTs get no type and {@link ColumnRef} then
+    * defaults them to "string", which hides numeric measures from aggregate/condition tools.
+    * The result-set metadata is only fetched when at least one column is untyped, and only the
+    * untyped columns are overwritten. Columns are matched by index when the counts are equal,
+    * else by case-insensitive name. A metadata failure never fails the caller.
+    *
+    * @return the names of the columns whose type could not be determined (left as string).
+    */
+   static List<String> applySqlResultTypes(ColumnSelection columns, JDBCQuery query,
+                                           UniformSQL sql, Object session)
+   {
+      int n = columns.getAttributeCount();
+      XSelection selection = sql == null ? null : sql.getSelection();
+      boolean sameCount = selection != null && selection.getColumnCount() == n;
+      Set<Integer> untyped = new LinkedHashSet<>();
+
+      for(int i = 0; i < n; i++) {
+         if(!(columns.getAttribute(i) instanceof ColumnRef)) {
+            continue;
+         }
+
+         String parsed = null;
+
+         if(sameCount) {
+            parsed = selection.getType(selection.getColumn(i));
+         }
+
+         if(!sameCount || parsed == null || parsed.isEmpty()) {
+            untyped.add(i);
+         }
+      }
+
+      if(untyped.isEmpty()) {
+         return List.of();
+      }
+
+      try {
+         XTypeNode meta = query.getOutputTypeForNonParseableSQL(
+            new XTypeNode("table"), new VariableTable(), session);
+
+         if(meta != null && meta.getChildCount() > 0) {
+            boolean byIndex = meta.getChildCount() == n;
+            Map<String, String> byName = new HashMap<>();
+
+            for(int i = 0; i < meta.getChildCount(); i++) {
+               XTypeNode node = (XTypeNode) meta.getChild(i);
+
+               if(node.getName() != null && node.getType() != null) {
+                  byName.putIfAbsent(node.getName().toLowerCase(), node.getType());
+               }
+            }
+
+            for(Iterator<Integer> it = untyped.iterator(); it.hasNext();) {
+               int i = it.next();
+               ColumnRef cr = (ColumnRef) columns.getAttribute(i);
+               String type = byIndex ? ((XTypeNode) meta.getChild(i)).getType() : null;
+
+               if(type == null || type.isEmpty()) {
+                  type = cr.getName() == null ? null : byName.get(cr.getName().toLowerCase());
+               }
+
+               if(type != null && !type.isEmpty()) {
+                  cr.setDataType(type);
+                  it.remove();
+               }
+            }
+         }
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to resolve SQL result types for sql query table", ex);
+      }
+
+      List<String> names = new ArrayList<>();
+
+      for(int i : untyped) {
+         names.add(columns.getAttribute(i).getName());
+      }
+
+      return names;
+   }
+
+   /**
+    * Builds the warning list for {@link #applySqlResultTypes} leftovers, or an empty list.
+    */
+   static List<String> untypedColumnWarnings(List<String> untypedColumns) {
+      if(untypedColumns.isEmpty()) {
+         return List.of();
+      }
+
+      return List.of("Could not determine the data type of column(s) " + untypedColumns +
+         "; they were left as string. If they hold numbers, set the type with change_column_type.");
+   }
 
    /**
     * Cleans up column names mangled by the freeform-SQL parser for unaliased QUALIFIED

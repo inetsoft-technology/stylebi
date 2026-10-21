@@ -4471,6 +4471,8 @@ public class WorksheetAgentController {
                "SQL could not be parsed or no columns detected — check syntax and table references.");
          }
 
+         List<String> sqlWarnings = WorksheetMutationSupport.untypedColumnWarnings(
+            WorksheetMutationSupport.applySqlResultTypes(columns, scratchQuery, sql, metaSession));
          WorksheetMutationSupport.sanitizeSqlColumnNames(columns);
          WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
 
@@ -4504,7 +4506,7 @@ public class WorksheetAgentController {
             (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
 
          return new SqlQueryResponse(table, detectUndeclaredVariables(rws),
-            detectVariablesNeedingSessionValue(rws));
+            detectVariablesNeedingSessionValue(rws), sqlWarnings);
       });
    }
 
@@ -5663,9 +5665,14 @@ public class WorksheetAgentController {
     *                                worth surfacing so a subsequent {@code preview_worksheet_data}
     *                                call on this table isn't mistaken for a genuinely-filtered
     *                                result.
+    * @param warnings                columns whose data type could not be determined (left as
+    *                                string), e.g. computed columns in SQL with {@code $(var)}
+    *                                references where result metadata is unavailable. Empty when
+    *                                every column was typed.
     */
    public record SqlQueryResponse(String tableName, List<String> undeclaredVariables,
-                                   List<String> variablesNeedingValues) {}
+                                   List<String> variablesNeedingValues,
+                                   List<String> warnings) {}
 
    /**
     * Create a new SQL query table assembly in the worksheet.
@@ -5818,13 +5825,15 @@ public class WorksheetAgentController {
                "SQL could not be parsed or no columns detected — check syntax and table references.");
          }
 
+         List<String> sqlWarnings = WorksheetMutationSupport.untypedColumnWarnings(
+            WorksheetMutationSupport.applySqlResultTypes(columns, query, sql, metaSession));
          WorksheetMutationSupport.sanitizeSqlColumnNames(columns);
          WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
          assembly.setColumnSelection(columns);
          ws.addAssembly(assembly);
 
          return new SqlQueryResponse(tableName, detectUndeclaredVariables(rws),
-            detectVariablesNeedingSessionValue(rws));
+            detectVariablesNeedingSessionValue(rws), sqlWarnings);
       });
    }
 
