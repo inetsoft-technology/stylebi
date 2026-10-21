@@ -553,26 +553,21 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
       }
 
       String lit = Double.toString(d);
-      // a float column holds the float nearest to the typed value, which can differ from the
-      // double of the same decimal by about 6e-8 relative; compare with a margin for FLOAT
-      String tol = isFloat ? "0.000001 * Math.max(1, Math.abs(" + lit + "))" : "0";
+      // a float column holds the float nearest to the typed value, so compare against that
+      // float exactly (no margin); a margin would misclassify distinct floats near the bound
+      String bound = isFloat ? "Math.fround(" + lit + ")" : lit;
+      String num = "Number(" + field + ")";
       String pred;
 
       switch(op) {
       case XCondition.EQUAL_TO:
-         pred = "Math.abs(" + lit + " - Number(" + field + ")) < " + tol;
+         pred = bound + " == " + num; // DOUBLE EQUAL_TO returned above
          break;
       case XCondition.LESS_THAN:
-         pred = isFloat ?
-            "Number(" + field + ") " + (condition.isEqual() ? "<= " : "< ") + lit +
-               (condition.isEqual() ? " + " : " - ") + tol :
-            "Number(" + field + ") " + (condition.isEqual() ? "<= " : "< ") + lit;
+         pred = num + (condition.isEqual() ? " <= " : " < ") + bound;
          break;
       case XCondition.GREATER_THAN:
-         pred = isFloat ?
-            "Number(" + field + ") " + (condition.isEqual() ? ">= " : "> ") + lit +
-               (condition.isEqual() ? " - " : " + ") + tol :
-            "Number(" + field + ") " + (condition.isEqual() ? ">= " : "> ") + lit;
+         pred = num + (condition.isEqual() ? " >= " : " > ") + bound;
          break;
       default:
          pred = "false";

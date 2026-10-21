@@ -436,6 +436,78 @@ class NamedRangeRefTest {
    }
 
    @Test
+   void floatNearBoundaryUsesExactFloatSemantics() {
+      // distinct floats within 1e-5 of the bound must fall on their own side, no margin
+      String[] near = { "9.999995", "10", "10.000005", "0.0009995", "0.001", "0.0010005" };
+
+      for(String bound : new String[] { "10", "0.001" }) {
+         float b = Float.parseFloat(bound);
+         int[] ops = { XCondition.LESS_THAN, XCondition.GREATER_THAN, XCondition.EQUAL_TO };
+
+         for(int op : ops) {
+            for(boolean eq : new boolean[] { false, true }) {
+               if(op == XCondition.EQUAL_TO && eq) {
+                  continue;
+               }
+
+               Condition c = cond(XSchema.FLOAT, op, bound);
+               c.setEqual(eq);
+               NamedRangeRef r = ref(XSchema.FLOAT, "derby", list(c));
+               StringBuilder expected = new StringBuilder();
+               StringBuilder actual = new StringBuilder();
+
+               for(String row : near) {
+                  float f = Float.parseFloat(row);
+                  boolean in = op == XCondition.EQUAL_TO ? f == b :
+                     op == XCondition.LESS_THAN ? (eq ? f <= b : f < b) :
+                        (eq ? f >= b : f > b);
+
+                  if(in) {
+                     expected.append(expected.length() > 0 ? "," : "").append(row);
+                  }
+
+                  if("G".equals(evalRaw(r, "Math.fround(" + row + ")"))) {
+                     actual.append(actual.length() > 0 ? "," : "").append(row);
+                  }
+               }
+
+               assertEquals(expected.toString(), actual.toString(),
+                  "bound " + bound + " op " + op + " equal " + eq);
+            }
+         }
+      }
+   }
+
+   @Test
+   void floatNearBoundaryExplicitCases() {
+      String t = XSchema.FLOAT;
+      assertEquals("10.000005", nearRows(cond(t, XCondition.GREATER_THAN, "10")));
+      assertEquals("9.999995", nearRows(cond(t, XCondition.LESS_THAN, "10")));
+      assertEquals("9.999995,10", nearRows(le(t, "10")));
+      assertEquals("10,10.000005", nearRows(ge(t, "10")));
+      assertEquals("10", nearRows(cond(t, XCondition.EQUAL_TO, "10")));
+      assertEquals("0.0010005", nearRows(cond(t, XCondition.GREATER_THAN, "0.001")));
+      assertEquals("0.0009995,0.001", nearRows(le(t, "0.001")));
+   }
+
+   private static String nearRows(Condition c) {
+      NamedRangeRef r = ref(XSchema.FLOAT, "derby", list(c));
+      StringBuilder sb = new StringBuilder();
+
+      for(String row : new String[] {
+         "9.999995", "10", "10.000005", "0.0009995", "0.001", "0.0010005" }) {
+         boolean tenSide = !row.startsWith("0.");
+         boolean tenBound = c.getValue(0).toString().startsWith("10");
+
+         if(tenSide == tenBound && "G".equals(evalRaw(r, "Math.fround(" + row + ")"))) {
+            sb.append(sb.length() > 0 ? "," : "").append(row);
+         }
+      }
+
+      return sb.toString();
+   }
+
+   @Test
    void floatingNullAndNonNumericNeverMatch() {
       for(String t : FP_TYPES) {
          assertFalse(grouped(t, cond(t, XCondition.LESS_THAN, "10"), "null"), t);

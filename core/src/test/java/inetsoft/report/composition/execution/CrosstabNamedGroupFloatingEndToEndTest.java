@@ -78,6 +78,12 @@ class CrosstabNamedGroupFloatingEndToEndTest {
    private static final String[] TYPES = { XSchema.DOUBLE, XSchema.FLOAT };
 
    private Map<String, Integer> run(String type, ConditionList conds) throws Exception {
+      return run(type, conds, VALUES);
+   }
+
+   private Map<String, Integer> run(String type, ConditionList conds, String[] values)
+      throws Exception
+   {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "Query1");
       ColumnSelection cs = new ColumnSelection();
@@ -87,12 +93,12 @@ class CrosstabNamedGroupFloatingEndToEndTest {
       cs.addAttribute(new ColumnRef(new AttributeRef("ID")));
       table.setColumnSelection(cs, false);
 
-      Object[][] rows = new Object[VALUES.length + 1][];
+      Object[][] rows = new Object[values.length + 1][];
       rows[0] = new Object[]{ "PRICE", "ID" };
 
-      for(int i = 0; i < VALUES.length; i++) {
+      for(int i = 0; i < values.length; i++) {
          Object price = XSchema.FLOAT.equals(type) ?
-            (Object) Float.valueOf(VALUES[i]) : (Object) Double.valueOf(VALUES[i]);
+            (Object) Float.valueOf(values[i]) : (Object) Double.valueOf(values[i]);
          rows[i + 1] = new Object[]{ price, "C" + i };
       }
 
@@ -180,6 +186,31 @@ class CrosstabNamedGroupFloatingEndToEndTest {
       assertEquals(expectedInGroup, result.getOrDefault("G", 0).intValue(), type + " " + result);
       int total = result.values().stream().mapToInt(Integer::intValue).sum();
       assertEquals(VALUES.length, total, type + " " + result);
+   }
+
+   private static final String[] NEAR = {
+      "9.999995", "10", "10.000005", "0.0009995", "0.001", "0.0010005" };
+
+   private void checkNear(ConditionList conds, int expectedInGroup) throws Exception {
+      Map<String, Integer> result = run(XSchema.FLOAT, conds, NEAR);
+      assertEquals(expectedInGroup, result.getOrDefault("G", 0).intValue(), "" + result);
+      assertEquals(NEAR.length,
+         result.values().stream().mapToInt(Integer::intValue).sum(), "" + result);
+   }
+
+   @Test
+   void floatNearBoundaryHasExactSemantics() throws Exception {
+      String t = XSchema.FLOAT;
+      checkNear(single(cond(t, XCondition.LESS_THAN, false, "10")), 4);
+      checkNear(single(cond(t, XCondition.LESS_THAN, true, "10")), 5);
+      checkNear(single(cond(t, XCondition.GREATER_THAN, false, "10")), 1);
+      checkNear(single(cond(t, XCondition.GREATER_THAN, true, "10")), 2);
+      checkNear(single(cond(t, XCondition.EQUAL_TO, false, "10")), 1);
+      checkNear(single(cond(t, XCondition.LESS_THAN, false, "0.001")), 1);
+      checkNear(single(cond(t, XCondition.LESS_THAN, true, "0.001")), 2);
+      checkNear(single(cond(t, XCondition.GREATER_THAN, false, "0.001")), 4);
+      checkNear(single(cond(t, XCondition.GREATER_THAN, true, "0.001")), 5);
+      checkNear(single(cond(t, XCondition.EQUAL_TO, false, "0.001")), 1);
    }
 
    @Test
