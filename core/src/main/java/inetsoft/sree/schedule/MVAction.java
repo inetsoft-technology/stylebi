@@ -258,6 +258,10 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
             long timeout = ScheduleTask.getTaskTimeout();
 
             try {
+               // Bug #78643, don't marshal the live worksheet (may hold plugin classes the
+               // scheduler node's Ignite loader can't resolve); the scheduler fills it from
+               // the MV manager in createMV0
+               mv.detachWorksheetForDispatch();
                MVCallable creator = new MVCallable(mv, principal);
                mvFuture = Cluster.getInstance().submit(creator, true);
                String message;
