@@ -48,6 +48,7 @@ import inetsoft.uql.viewsheet.OutputVSAssembly;
 import inetsoft.uql.viewsheet.ScalarBindingInfo;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.CalculateRef;
@@ -245,6 +246,73 @@ class ModifyCalculateFieldServiceTest {
       assertEquals(1, aggrs.length);
       assertEquals("Net Revenue", aggrs[0].getDataRef().getAttribute());
       assertEquals("double", aggrs[0].getDataRef().getDataType());
+   }
+
+   /**
+    * Bug #78978: applying a selection list re-executes the tables it filters. When the selection
+    * list precedes a table in the viewsheet, that table was still bound to the old calc field name
+    * at that point and had the column pruned. Every binding must be renamed before the first
+    * assembly is applied.
+    */
+   @Test
+   void renameUpdatesEveryBindingBeforeApplyingAnyAssembly() throws Exception {
+      String id = "rt-calcfield-78978";
+      String table = "Orders";
+      Principal principal = mock(Principal.class);
+
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField(table, calc("Probe A", "field['Total']", true));
+
+      TableVSAssembly sel = mock(TableVSAssembly.class);
+      TableVSAssembly tbl = mock(TableVSAssembly.class);
+      VSAssemblyInfo selInfo = mock(VSAssemblyInfo.class);
+      VSAssemblyInfo tblInfo = mock(VSAssemblyInfo.class);
+
+      for(Object[] o : new Object[][] { { sel, selInfo }, { tbl, tblInfo } }) {
+         TableVSAssembly a = (TableVSAssembly) o[0];
+         VSAssemblyInfo info = (VSAssemblyInfo) o[1];
+         when(a.getTableName()).thenReturn(table);
+         when(a.getName()).thenReturn("A" + System.identityHashCode(a));
+         when(a.getVSAssemblyInfo()).thenReturn(info);
+         when(info.clone()).thenReturn(info);
+      }
+
+      Viewsheet spy = spy(vs);
+      doReturn(new Assembly[] { sel, tbl }).when(spy).getAssemblies();
+
+      CalculateRef renamed = calc("Probe A2", "field['Total']", true);
+      CalculateRefModel calcModel = mock(CalculateRefModel.class);
+      when(calcModel.createDataRef()).thenReturn(renamed);
+
+      ModifyCalculateFieldEvent event = mock(ModifyCalculateFieldEvent.class);
+      when(event.calculateRef()).thenReturn(calcModel);
+      when(event.tableName()).thenReturn(table);
+      when(event.refName()).thenReturn("Probe A");
+      when(event.create()).thenReturn(false);
+      when(event.remove()).thenReturn(false);
+      when(event.wizard()).thenReturn(false);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(spy);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(mock(ViewsheetSandbox.class)));
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      when(viewsheetService.getViewsheet(eq(id), eq(principal))).thenReturn(rvs);
+
+      VSAssemblyInfoHandler handler = mock(VSAssemblyInfoHandler.class);
+      ModifyCalculateFieldService service = new ModifyCalculateFieldService(
+         mock(VSBindingService.class), mock(VSBindingTreeControllerServiceProxy.class),
+         mock(VSChartHandler.class), mock(XRepository.class), mock(VSWizardBindingHandler.class),
+         mock(VSRefreshController.class), viewsheetService, handler,
+         mock(DataSourceRegistry.class), mock(QueryManagerService.class));
+
+      service.modifyCalculateField(id, event, principal, mock(CommandDispatcher.class), "");
+
+      org.mockito.InOrder order = inOrder(sel, tbl, handler);
+      order.verify(sel).renameBindingCol("Probe A", "Probe A2");
+      order.verify(tbl).renameBindingCol("Probe A", "Probe A2");
+      order.verify(handler, times(2)).apply(
+         any(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), any(),
+         any(), any(), any(), any());
    }
 
    /** Bug #78441: the dot form is rewritten, and an ambiguous case-different name is not. */

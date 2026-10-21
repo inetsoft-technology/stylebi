@@ -188,13 +188,16 @@ public class ModifyCalculateFieldService {
                vs.addCalcField(tname, cref);
                renameCalcFieldDependents(vs, tname, refname, cref.getName(),
                                          dottedBaseColumns(vs, tname));
-               syncAssemblies(tname, refname, vs, rename, changeCalcType, cref, dispatcher, rvs, linkUri);
                Assembly assembly = vs.getAssembly(event.name());
 
+               // rename the layout before syncAssemblies re-executes assemblies, so a calc
+               // table never executes against the old name
                if(assembly instanceof CalcTableVSAssembly) {
                   renameCol(((CalcTableVSAssembly) assembly).getTableLayout(),
                             refname, cref.getName());
                }
+
+               syncAssemblies(tname, refname, vs, rename, changeCalcType, cref, dispatcher, rvs, linkUri);
             }
             // If only change calc type, not change name. Check if support or not. If not, remove it
             else if(changeCalcType) {
@@ -657,6 +660,7 @@ public class ModifyCalculateFieldService {
       throws Exception
    {
       Assembly[] assembies = vs.getAssemblies();
+      List<BindableVSAssembly> binds = new ArrayList<>();
 
       for(int i = 0; i < assembies.length; i++) {
          if(!(assembies[i] instanceof BindableVSAssembly) ||
@@ -672,6 +676,13 @@ public class ModifyCalculateFieldService {
             continue;
          }
 
+         binds.add(bind);
+      }
+
+      // pass 1: update every binding first. Applying an assembly re-executes the assemblies it
+      // affects (e.g. a selection list re-executes the tables it filters); an assembly not yet
+      // updated would be executed against the stale column name and have the column pruned.
+      for(BindableVSAssembly bind : binds) {
          // when rename and change calc type affect on one action, fix calc type before
          // rename. So the refname will same when change calc type.
          if(rename) {
@@ -687,7 +698,10 @@ public class ModifyCalculateFieldService {
          else {
             bind.removeBindingCol(refname);
          }
+      }
 
+      // pass 2: apply (and re-execute) with the fully updated info
+      for(BindableVSAssembly bind : binds) {
          assemblyInfoHandler.apply(rvs, bind.getVSAssemblyInfo().clone(), viewsheetService,
                                    false, false, false, false, dispatcher, null, null,
                                    linkUri, null);
