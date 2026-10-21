@@ -23,6 +23,8 @@ import inetsoft.uql.rest.RestRequest;
 import inetsoft.uql.rest.json.HttpRestDataIteratorStrategy;
 import inetsoft.uql.rest.pagination.PaginationSpec;
 import inetsoft.uql.rest.pagination.PaginationType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 
@@ -77,6 +79,11 @@ class XMLPagedPageCountIteratorStrategy extends HttpRestDataIteratorStrategy<Res
          return fetchPage();
       }
       finally {
+         if(lastPage == null && transformer.getPageCount() < 0) {
+            LOG.warn("Page count xpath {} matched nothing on the first page; " +
+                     "returning a single page", query.getPaginationSpec().getPageCountXpath().getValue());
+         }
+
          lastPage = getLastPage();
       }
    }
@@ -98,6 +105,7 @@ class XMLPagedPageCountIteratorStrategy extends HttpRestDataIteratorStrategy<Res
       return zeroBased ? pageCount - 1 : pageCount;
    }
 
+   private static final Logger LOG = LoggerFactory.getLogger(XMLPagedPageCountIteratorStrategy.class);
    private Integer currentPage;
    private Integer lastPage;
 }
