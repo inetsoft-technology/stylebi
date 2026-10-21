@@ -1077,6 +1077,42 @@ class TableBindingServiceTest {
    }
 
    /**
+    * Bug #78862 R1: the repoint re-resolves the dimensions it keeps, and a kept dimension's
+    * inline group stored before the cross-group refusal existed may list a value in two groups.
+    * The repoint must not fail on a field the caller never sent; it drops the values the render
+    * never assigns (TX always rendered in GroupA; GroupC's only value matched GroupA's), so the
+    * render is unchanged and the read-back now matches it.
+    */
+   @Test
+   void setSourceKeepsADimensionWhoseStoredInlineGroupListsAValueTwice() throws Exception {
+      CrosstabBindingModel existing = withTablesAndColumns(
+         Map.of("ORDERS", List.of("STATE", "REGION"), "ORDERS_V2", List.of("STATE")));
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("STATE"), dim("REGION")));
+      inetsoft.web.binding.model.NamedGroupInfoModel stored =
+         new inetsoft.web.binding.model.NamedGroupInfoModel();
+      stored.setType(inetsoft.uql.util.XNamedGroupInfo.SIMPLE_NAMEDGROUP_INFO);
+      stored.addGroup(new inetsoft.web.binding.model.GroupCondition(
+         "GroupA", List.of("CA", "TX")));
+      stored.addGroup(new inetsoft.web.binding.model.GroupCondition(
+         "GroupB", List.of("TX", "NY")));
+      stored.addGroup(new inetsoft.web.binding.model.GroupCondition("GroupC", List.of("ca")));
+      existing.getRows().get(0).setNamedGroupInfo(stored);
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+         .setSource("tok", principal(), "Crosstab1", "ORDERS_V2", true);
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals(1, posted.getRows().size(), "STATE survives, REGION does not");
+      FieldRef state = TableBindingMutator.read(posted, "rows").get(0);
+      assertEquals("STATE", state.column());
+      assertEquals(List.of(
+         new FieldRef.NamedGroupValues.Clause("GroupA", List.of("CA", "TX")),
+         new FieldRef.NamedGroupValues.Clause("GroupB", List.of("NY"))),
+         state.namedGroupValues().groups());
+   }
+
+   /**
     * The regression for the repair-review finding on the fix above: {@link #columnsOf} already
     * matches a qualified new-source column ({@code "table.attribute"}) against an unqualified
     * old field, but the reverse direction -- an old bound field whose own column name is

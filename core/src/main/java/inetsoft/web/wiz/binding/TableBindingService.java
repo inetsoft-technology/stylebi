@@ -409,7 +409,7 @@ public class TableBindingService {
                   c -> c.equalsIgnoreCase(field.column()) ||
                        c.equalsIgnoreCase(unqualified(field.column()))))
             {
-               stillResolves.add(field);
+               stillResolves.add(withoutShadowedValues(model, field));
             }
          }
 
@@ -421,6 +421,29 @@ public class TableBindingService {
       // A kept dimension's by-value sort/ranking now survives the discard (bug #77025 R1), so one
       // that named an aggregate this repoint discarded must not be left pointing at it.
       TableBindingMutator.clearDanglingAggregateReferences(model, aggregatesBefore);
+   }
+
+   /**
+    * Bug #78862 R1: the re-resolve above runs a kept dimension's stored {@code namedGroupValues}
+    * back through the write-time check that refuses a value listed in two groups, so an overlap
+    * stored before that check existed would fail this repoint over a field the caller never
+    * sent. Drop the values the render never assigns to their group instead (it is unchanged),
+    * typed exactly as the context-less {@code setShelf} below checks them.
+    */
+   private static FieldRef withoutShadowedValues(BaseTableBindingModel model, FieldRef field) {
+      if(field.namedGroupValues() == null) {
+         return field;
+      }
+
+      FieldRef.NamedGroupValues values = FieldRefFactory.withoutShadowedValues(
+         field.namedGroupValues(), field.column(),
+         FieldRefFactory.dimensionDataType(model, null, null, field.column()));
+
+      return values == field.namedGroupValues() ? field :
+         new FieldRef(field.column(), field.type(), field.aggregate(), field.dateLevel(),
+                      field.namedGroup(), field.chartType(), field.runtimeChartType(), values,
+                      field.calculateInfo(), field.label(), field.secondaryY(), field.visible(),
+                      field.timeSeries(), field.secondaryColumn(), field.operand());
    }
 
    /**

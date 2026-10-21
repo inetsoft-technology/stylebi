@@ -836,18 +836,21 @@ public final class TableBindingMutator {
          boolean hadGroup = matchedPrevious != null && matchedPrevious.getNamedGroupInfo() != null &&
             matchedPrevious.getNamedGroupInfo().getType() != 0;
 
+         String dimensionType = null;
+
          // An echoed stored group (placeholder name) is not a new write; only a group the
          // request itself defines or names is refused on a date column.
          if(echoed == null) {
-            FieldRefFactory.refuseNamedGroupOnDateDimension(field,
-               ref.getDataType() != null ? ref.getDataType()
-                  : FieldRefFactory.dimensionDataType(model, rvs, source, field.column()));
+            dimensionType = ref.getDataType() != null ? ref.getDataType()
+               : FieldRefFactory.dimensionDataType(model, rvs, source, field.column());
+            FieldRefFactory.refuseNamedGroupOnDateDimension(field, dimensionType);
          }
 
          if(field.namedGroupValues() != null || (field.namedGroup() != null && rvs != null)) {
             try {
                ref.setNamedGroupInfo(
-                  FieldRefFactory.resolveNamedGroupInfo(field, rvs, source, refModelService));
+                  FieldRefFactory.resolveNamedGroupInfo(
+                     field, rvs, source, refModelService, dimensionType));
                resolved = true;
             }
             catch(IllegalArgumentException e) {

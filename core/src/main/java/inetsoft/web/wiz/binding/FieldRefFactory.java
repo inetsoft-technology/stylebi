@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.filter.ConditionGroup;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.report.internal.binding.SummaryAttr;
 import inetsoft.uql.XCondition;
@@ -25,6 +26,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.JunctionOperator;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
+import inetsoft.uql.asset.SNamedGroupInfo;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -34,6 +36,7 @@ import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
@@ -54,6 +57,7 @@ import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -157,9 +161,10 @@ public final class FieldRefFactory {
          ref.setDateLevel(DateLevels.normalize(field.dateLevel()));
       }
 
-      refuseNamedGroupOnDateDimension(
-         field, dimensionDataType(model, rvs, source, field.column()));
-      NamedGroupInfoModel namedGroupInfo = resolveNamedGroupInfo(field, rvs, source, refModelService);
+      String dimensionType = dimensionDataType(model, rvs, source, field.column());
+      refuseNamedGroupOnDateDimension(field, dimensionType);
+      NamedGroupInfoModel namedGroupInfo =
+         resolveNamedGroupInfo(field, rvs, source, refModelService, dimensionType);
 
       if(namedGroupInfo != null) {
          ref.setNamedGroupInfo(namedGroupInfo);
@@ -212,10 +217,26 @@ public final class FieldRefFactory {
     * Resolves whichever of {@code namedGroup} (by name) or {@code namedGroupValues} (inline) the
     * field carries, or {@code null} if it carries neither. Shared by the chart and table/crosstab
     * binding paths so both learned this at once rather than one at a time.
+    * <p>
+    * Prefer {@link #resolveNamedGroupInfo(FieldRef, RuntimeViewsheet, SourceInfo,
+    * DataRefModelFactoryService, String)}: without the column's data type an inline group's
+    * cross-group value check falls back to comparing the values as strings.
     */
    public static NamedGroupInfoModel resolveNamedGroupInfo(
       FieldRef field, RuntimeViewsheet rvs, SourceInfo source,
       DataRefModelFactoryService refModelService) throws Exception
+   {
+      return resolveNamedGroupInfo(field, rvs, source, refModelService, null);
+   }
+
+   /**
+    * As {@link #resolveNamedGroupInfo(FieldRef, RuntimeViewsheet, SourceInfo,
+    * DataRefModelFactoryService)}, given the dimension column's data type (or {@code null} if
+    * unknown), which an inline group needs to tell when two of its groups list the same value.
+    */
+   public static NamedGroupInfoModel resolveNamedGroupInfo(
+      FieldRef field, RuntimeViewsheet rvs, SourceInfo source,
+      DataRefModelFactoryService refModelService, String dataType) throws Exception
    {
       if(field.namedGroup() != null && field.namedGroupValues() != null) {
          throw new IllegalArgumentException(
@@ -225,7 +246,7 @@ public final class FieldRefFactory {
       }
 
       if(field.namedGroupValues() != null) {
-         return buildInlineNamedGroupInfo(field.namedGroupValues(), field.column());
+         return buildInlineNamedGroupInfo(field.namedGroupValues(), field.column(), dataType);
       }
 
       if(field.namedGroup() != null) {
@@ -243,9 +264,12 @@ public final class FieldRefFactory {
     * {@code createNamedGroupInfo} already knows how to turn into a live
     * {@code SimpleNamedGroupInfo}. Nothing here needs a worksheet or repository lookup, unlike
     * the by-name path above, because the caller supplied the membership directly.
+    *
+    * @param dataType the column's data type, or {@code null} if unknown; used to refuse a value
+    *                 that more than one group lists (see {@link #refuseValueInTwoGroups}).
     */
    public static NamedGroupInfoModel buildInlineNamedGroupInfo(
-      FieldRef.NamedGroupValues spec, String column)
+      FieldRef.NamedGroupValues spec, String column, String dataType)
    {
       if(spec.others() != null) {
          throw new IllegalArgumentException(
@@ -288,7 +312,200 @@ public final class FieldRefFactory {
          model.addGroup(new GroupCondition(clause.name(), clause.values()));
       }
 
+      refuseValueInTwoGroups(spec, column, dataType);
       return model;
+   }
+
+   /**
+    * Bug #78862: the render ({@code SortOrder.findGroup}) puts a value in the FIRST group whose
+    * condition matches it, so a value that a later group also lists never lands there -- yet the
+    * read-back reports it in both groups. Refuses that overlap instead of storing it.
+    * <p>
+    * Two values are "the same" exactly when the render would match them to the same rows: each
+    * value becomes the condition {@link SNamedGroupInfo#getGroupCondition} builds for it (typed
+    * by the column's data type, {@code ""} and {@code null} both meaning null, {@code "null"}
+    * being the literal text, strings compared per {@code string.compare.casesensitive}), and a
+    * later group's value collides when an earlier group's condition matches it, through the same
+    * {@link ConditionGroup#evaluate(Object[])} the render calls. Repeating a value inside one
+    * group is harmless (the render dedups it) and stays accepted.
+    *
+    * @param dataType the column's data type, or {@code null} if unknown, in which case the values
+    *                 are compared as strings.
+    */
+   private static void refuseValueInTwoGroups(FieldRef.NamedGroupValues spec, String column,
+                                              String dataType)
+   {
+      if(spec.groups().size() < 2) {
+         return;
+      }
+
+      GroupValueMatcher matcher = new GroupValueMatcher(column, dataType);
+
+      for(FieldRef.NamedGroupValues.Clause clause : spec.groups()) {
+         // only the groups before this one: a repeat inside this group is harmless
+         int earlier = matcher.size();
+
+         for(Object value : clause.values()) {
+            int i = matcher.match(value, earlier);
+
+            if(i >= 0) {
+               throw overlap(column, matcher, clause.name(), value, i);
+            }
+
+            matcher.add(clause.name(), value);
+         }
+      }
+   }
+
+   private static IllegalArgumentException overlap(String column, GroupValueMatcher matcher,
+                                                   String group, Object value, int i)
+   {
+      String first = matcher.group(i);
+      Object firstValue = matcher.value(i);
+      boolean unconvertible = value != null && !"".equals(value) &&
+         matcher.rendered(value) == null;
+      return new IllegalArgumentException(
+         "Field '" + column + "'s 'namedGroupValues' lists value " + describe(value) +
+         " in group '" + group + "', but group '" + first + "' already " +
+         (Tool.equals(value, firstValue) ? "lists it" :
+            "lists " + describe(firstValue) + ", which matches the same rows") +
+         (unconvertible ? " (" + describe(value) + " is not a valid " + matcher.type() +
+            " value, so it matches only the column's null rows)" : "") +
+         " -- a value can belong to only one group. The render puts it in the first " +
+         "group that lists it ('" + first + "'), so group '" + group + "' never gets it. " +
+         "Remove " + describe(value) + " from group '" + group + "' (and from any later " +
+         "group that lists it): that leaves the rendered grouping exactly as it is now. To " +
+         "put it in '" + group + "' instead, remove " + describe(firstValue) + " from '" +
+         first + "'.");
+   }
+
+   /**
+    * Bug #78862 R1: {@code spec} without the values the render never assigns to their group --
+    * those an EARLIER group already matches (same equality as {@link #refuseValueInTwoGroups}),
+    * dropping a group left with no value. The render is unchanged: a dropped value is one
+    * {@code SortOrder.findGroup} always put in the earlier group, and a dropped group is one
+    * that never matched a row. For a path that rewrites a binding already stored (a table
+    * source change re-resolving the dimensions it keeps) rather than one the caller wrote, so an
+    * overlap stored before the refusal existed does not fail a write that never sent it.
+    *
+    * @param dataType the column's data type, or {@code null} if unknown -- pass the type the
+    *                 re-resolving write will check with, so nothing it would refuse is left.
+    * @return {@code spec} itself when nothing is shadowed.
+    */
+   public static FieldRef.NamedGroupValues withoutShadowedValues(
+      FieldRef.NamedGroupValues spec, String column, String dataType)
+   {
+      if(spec == null || spec.groups() == null || spec.groups().size() < 2) {
+         return spec;
+      }
+
+      GroupValueMatcher matcher = new GroupValueMatcher(column, dataType);
+      List<FieldRef.NamedGroupValues.Clause> kept = new ArrayList<>();
+      boolean changed = false;
+
+      for(FieldRef.NamedGroupValues.Clause clause : spec.groups()) {
+         int earlier = matcher.size();
+         List<Object> values = new ArrayList<>();
+
+         for(Object value : clause.values() == null ? List.of() : clause.values()) {
+            if(matcher.match(value, earlier) >= 0) {
+               changed = true;
+            }
+            else {
+               values.add(value);
+            }
+
+            // every listed value stays a condition of its group in the render, dead or not
+            matcher.add(clause.name(), value);
+         }
+
+         if(!values.isEmpty() || clause.values() == null || clause.values().isEmpty()) {
+            kept.add(new FieldRef.NamedGroupValues.Clause(clause.name(), values.isEmpty() ?
+               clause.values() : values));
+         }
+      }
+
+      return changed ? new FieldRef.NamedGroupValues(kept, spec.others()) : spec;
+   }
+
+   /**
+    * The group values seen so far, each as the condition the render builds for it, so a later
+    * value can be matched against them the way {@code SortOrder.findGroup} matches a row.
+    */
+   private static final class GroupValueMatcher {
+      GroupValueMatcher(String column, String dataType) {
+         type = dataType != null ? dataType : XSchema.STRING;
+         AttributeRef ref = new AttributeRef(column);
+         ref.setDataType(type);
+         probeInfo.setDataRef(ref);
+      }
+
+      String type() {
+         return type;
+      }
+
+      int size() {
+         return groups.size();
+      }
+
+      String group(int i) {
+         return groups.get(i);
+      }
+
+      Object value(int i) {
+         return values.get(i);
+      }
+
+      Object rendered(Object value) {
+         return renderedValue(value, type);
+      }
+
+      /** The first of the first {@code upTo} seen values whose condition matches, or -1. */
+      int match(Object value, int upTo) {
+         Object[] row = { rendered(value) };
+
+         for(int i = 0; i < upTo; i++) {
+            if(conditions.get(i).evaluate(row)) {
+               return i;
+            }
+         }
+
+         return -1;
+      }
+
+      void add(String group, Object value) {
+         probeInfo.setGroupValue("v", Collections.singletonList(value));
+         groups.add(group);
+         values.add(value);
+         conditions.add(new ConditionGroup(0, probeInfo.getGroupCondition("v")));
+      }
+
+      private final String type;
+      private final SNamedGroupInfo probeInfo = new SNamedGroupInfo();
+      private final List<String> groups = new ArrayList<>();
+      private final List<Object> values = new ArrayList<>();
+      private final List<ConditionGroup> conditions = new ArrayList<>();
+   }
+
+   /**
+    * The column value a row matched by {@code value} holds, typed the way the render's condition
+    * for it ({@link SNamedGroupInfo#getGroupCondition}) types it: {@code ""} and {@code null} are
+    * null, {@code "null"} in any case is the literal text {@code "null"}, and anything else is
+    * converted to the column's data type (a value that doesn't convert is null, as it is there).
+    */
+   private static Object renderedValue(Object value, String type) {
+      if(value == null || "".equals(value)) {
+         return null;
+      }
+
+      String text = value instanceof String && "null".equalsIgnoreCase((String) value) ?
+         "null" : String.valueOf(value);
+      return Tool.getData(type, text, true);
+   }
+
+   private static String describe(Object value) {
+      return value == null ? "null" :
+         value instanceof String ? "'" + value + "'" : String.valueOf(value);
    }
 
    /**
