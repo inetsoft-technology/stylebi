@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * {@code updateGroupExpandPath}'s two casts to {@code SNamedGroupInfo} widen to
@@ -182,6 +183,86 @@ class CrosstabVSAssemblyTest {
       assertEquals("Sum(Net Sales)", rowRef.getRankingColValue());
       assertEquals("Sum(Net Sales)", rowRef.getSortByColValue(),
          "a row header's value sort must follow a calc-field rename just like its ranking does");
+   }
+
+   /**
+    * Bug #78974: renaming a calc-field-backed aggregate ('Net Sales' -> 'Net Revenue') left a
+    * crosstab highlight's condition attribute (a {@code BaseField}, the real runtime type a
+    * crosstab highlight condition's attribute is built as -- not a bare {@code AttributeRef})
+    * pointed at the old formula-wrapped name ('Sum(Net Sales)'), because
+    * {@code VSUtil.renameDataRef} has no branch for that shape and silently no-ops. The stale
+    * reference then failed {@code VSAssemblyInfoHandler.cleanHighlight}'s column-resolution check
+    * (invoked separately, right after the rename, on every crosstab binding re-apply) and the
+    * whole highlight was deleted. This test proves both halves of the fix: the condition's
+    * attribute is actually renamed (and keeps its concrete {@code BaseField} type, not downgraded
+    * to a plain {@code AttributeRef}), and the highlight survives the real
+    * {@code cleanHighlight} pass once that rename has happened.
+    */
+   @Test
+   void renameBindingColRenamesHighlightConditionBaseFieldAndSurvivesCleanHighlight() throws Exception {
+      ExpressionRef expr = new ExpressionRef(null, "Net Sales");
+      expr.setExpression("field['Total']");
+      CalculateRef resolved = new CalculateRef(true);
+      resolved.setDataRef(expr);
+
+      VSAggregateRef aggr = new VSAggregateRef();
+      aggr.setColumnValue("Net Sales");
+      aggr.setFormulaValue("Sum");
+      aggr.setDataRef(resolved);
+
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      cinfo.setDesignAggregates(new inetsoft.uql.erm.DataRef[] { aggr });
+      cinfo.setAggregateInfo(new AggregateInfo());
+      CrosstabVSAssembly assembly = new CrosstabVSAssembly();
+      assembly.setVSCrosstabInfo(cinfo);
+
+      inetsoft.report.internal.binding.BaseField condAttr =
+         new inetsoft.report.internal.binding.BaseField(null, "Sum(Net Sales)");
+      condAttr.setDataType(XSchema.DOUBLE);
+      inetsoft.uql.Condition cond = new inetsoft.uql.Condition();
+      cond.setOperation(inetsoft.uql.XCondition.GREATER_THAN);
+      cond.addValue(3000000d);
+      inetsoft.uql.ConditionList clist = new inetsoft.uql.ConditionList();
+      clist.append(new inetsoft.uql.ConditionItem(condAttr, cond, 0));
+
+      inetsoft.report.filter.ColumnHighlight highlight = new inetsoft.report.filter.ColumnHighlight();
+      highlight.setConditionGroup(clist);
+      inetsoft.report.filter.HighlightGroup hgroup = new inetsoft.report.filter.HighlightGroup();
+      hgroup.addHighlight("Above3M", highlight);
+
+      inetsoft.report.internal.table.TableHighlightAttr thattr =
+         new inetsoft.report.internal.table.TableHighlightAttr();
+      inetsoft.report.TableDataPath path = new inetsoft.report.TableDataPath("Sum(Net Sales)");
+      path.setType(inetsoft.report.TableDataPath.SUMMARY);
+      thattr.setHighlight(path, hgroup);
+      assembly.getCrosstabInfo().setHighlightAttr(thattr);
+
+      assembly.renameBindingCol("Net Sales", "Net Revenue");
+
+      // 1. the condition's attribute was actually renamed, and kept its concrete BaseField type
+      inetsoft.uql.erm.DataRef renamedRef = clist.getConditionItem(0).getAttribute();
+      assertEquals("Sum(Net Revenue)", renamedRef.getName(),
+         "the highlight condition's BaseField attribute must follow the rename, not stay stale");
+      assertInstanceOf(inetsoft.report.internal.binding.BaseField.class, renamedRef,
+         "the renamed ref must stay a BaseField, not be downgraded to a plain AttributeRef");
+
+      // 2. the highlight survives the real cleanHighlight pass that runs right after a rename
+      inetsoft.web.binding.handler.VSAssemblyInfoHandler handler =
+         new inetsoft.web.binding.handler.VSAssemblyInfoHandler(
+            mock(inetsoft.web.viewsheet.service.CoreLifecycleService.class),
+            mock(inetsoft.web.binding.service.DataRefModelFactoryService.class),
+            mock(inetsoft.web.viewsheet.service.ParameterService.class),
+            mock(inetsoft.uql.service.DataSourceRegistry.class),
+            mock(inetsoft.web.portal.controller.database.QueryManagerService.class));
+      Method cleanHighlight = inetsoft.web.binding.handler.VSAssemblyInfoHandler.class
+         .getDeclaredMethod("cleanHighlight",
+            inetsoft.report.internal.table.TableHighlightAttr.class,
+            inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo.class);
+      cleanHighlight.setAccessible(true);
+      cleanHighlight.invoke(handler, thattr, assembly.getCrosstabInfo());
+
+      assertNotNull(hgroup.getHighlight("Above3M"),
+         "the highlight must survive cleanHighlight once its condition is correctly renamed");
    }
 
    @Test

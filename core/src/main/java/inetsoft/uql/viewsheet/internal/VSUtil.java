@@ -5012,6 +5012,41 @@ public final class VSUtil {
    }
 
    /**
+    * Renames a DataRef's name for a condition attribute. For a ColumnRef/VSDimensionRef (the
+    * shapes renameDataRef already mutates in place), defers to renameDataRef and returns the
+    * SAME instance. For a bare AttributeRef/BaseField leaf -- which has no settable name slot,
+    * unlike ColumnRef's mutable wrapped-ref slot -- constructs and returns a NEW instance
+    * carrying the renamed attribute, preserving entity and data type. Callers must use the
+    * RETURNED ref; for a leaf it is a different object from the one passed in.
+    */
+   private static DataRef renameConditionAttribute(DataRef ref, String nname) {
+      if(ref instanceof ColumnRef || ref instanceof VSDimensionRef) {
+         renameDataRef(ref, nname);
+         return ref;
+      }
+
+      // BaseField before the generic AttributeRef check -- BaseField extends AttributeRef, and
+      // preserving the concrete type (rather than downgrading to a plain AttributeRef) avoids
+      // surprising any other code that may check instanceof BaseField/Field/SourceField on a
+      // highlight/condition attribute later.
+      if(ref instanceof BaseField) {
+         BaseField bf = (BaseField) ref;
+         BaseField nref = new BaseField(bf.getEntity(), getMatchRefName(bf.getName(), nname));
+         nref.setDataType(bf.getDataType());
+         return nref;
+      }
+
+      if(ref instanceof AttributeRef) {
+         AttributeRef aref = (AttributeRef) ref;
+         AttributeRef nref = new AttributeRef(aref.getEntity(), getMatchRefName(aref.getName(), nname));
+         nref.setDataType(aref.getDataType());
+         return nref;
+      }
+
+      return ref;
+   }
+
+   /**
     * Set VSAggregateRef name.
     */
    public static void setVSAggregateRefName(VSAggregateRef aref,
@@ -5174,8 +5209,7 @@ public final class VSUtil {
             DataRef cref = item.getAttribute();
 
             if(VSUtil.matchRef(cref, oname)) {
-               VSUtil.renameDataRef(cref, nname);
-               item.setAttribute(cref);
+               item.setAttribute(renameConditionAttribute(cref, nname));
             }
 
             Condition cond = item.getCondition();
