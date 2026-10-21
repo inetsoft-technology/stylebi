@@ -164,4 +164,71 @@ class LayoutToolTest {
       assertTrue(exp != null && exp.startsWith("none("),
          "expected expression to be wrapped in none(...), was: " + exp);
    }
+
+   /**
+    * #79030: an explicit "_TABLE_ROOT_" row/column group (the only way to attach an
+    * expanding group cell to the table root as an independent list) must survive
+    * validateLayout and buildTree on the stored layout; an unknown name is still reset,
+    * and merge groups are unchanged.
+    */
+   @Test
+   void keepsRootGroupForRowAndColGroupButStillResetsUnknownNames() throws Exception {
+      TableLayout layout = rootGroupLayout();
+      TableCellBinding cell = (TableCellBinding) layout.getCellBinding(0, 1);
+      cell.setRowGroup(CalcTableLens.ROOT_GROUP);
+      cell.setColGroup(CalcTableLens.ROOT_GROUP);
+      cell.setMergeRowGroup(CalcTableLens.ROOT_GROUP);
+      cell.setMergeColGroup("NoSuchCell");
+      TableCellBinding other = (TableCellBinding) layout.getCellBinding(0, 0);
+      other.setRowGroup("NoSuchCell");
+      other.setColGroup("NoSuchCell");
+
+      Method method = LayoutTool.class.getDeclaredMethod("validateLayout", TableLayout.class);
+      method.setAccessible(true);
+      method.invoke(null, layout);
+
+      assertEquals(CalcTableLens.ROOT_GROUP, cell.getRowGroup());
+      assertEquals(CalcTableLens.ROOT_GROUP, cell.getColGroup());
+      assertEquals(TableCellBinding.DEFAULT_GROUP, cell.getMergeRowGroup());
+      assertEquals(TableCellBinding.DEFAULT_GROUP, cell.getMergeColGroup());
+      assertEquals(TableCellBinding.DEFAULT_GROUP, other.getRowGroup());
+      assertEquals(TableCellBinding.DEFAULT_GROUP, other.getColGroup());
+   }
+
+   @Test
+   void buildTreeDoesNotRewriteRootGroupOnTheStoredLayout() throws Exception {
+      TableLayout layout = rootGroupLayout();
+      TableCellBinding cell = (TableCellBinding) layout.getCellBinding(0, 1);
+      cell.setRowGroup(CalcTableLens.ROOT_GROUP);
+
+      LayoutTool.buildTree(layout);
+
+      assertEquals(CalcTableLens.ROOT_GROUP, cell.getRowGroup());
+   }
+
+   private static TableLayout rootGroupLayout() {
+      DefaultTableLens base = new DefaultTableLens(new Object[][] {
+         { "A", "B" },
+         { 1, 2 }
+      });
+      TableLayout layout = new TableLayout();
+      layout.setColCount(2);
+      TableDataPath rpath = base.getDescriptor().getRowDataPath(0);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(1);
+      layout.addRegion(rpath, region);
+
+      String[] cols = { "A", "B" };
+      String[] names = { "RG", "CG" };
+
+      for(int i = 0; i < 2; i++) {
+         TableCellBinding cell = new TableCellBinding(CellBinding.BIND_COLUMN, cols[i]);
+         cell.setBType(TableCellBinding.GROUP);
+         cell.setExpansion(TableCellBinding.EXPAND_V);
+         cell.setCellName(names[i]);
+         layout.setCellBinding(0, i, cell);
+      }
+
+      return layout;
+   }
 }
