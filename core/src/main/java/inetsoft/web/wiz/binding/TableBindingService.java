@@ -443,7 +443,7 @@ public class TableBindingService {
          new FieldRef(field.column(), field.type(), field.aggregate(), field.dateLevel(),
                       field.namedGroup(), field.chartType(), field.runtimeChartType(), values,
                       field.calculateInfo(), field.label(), field.secondaryY(), field.visible(),
-                      field.timeSeries(), field.secondaryColumn());
+                      field.timeSeries(), field.secondaryColumn(), field.operand());
    }
 
    /**
