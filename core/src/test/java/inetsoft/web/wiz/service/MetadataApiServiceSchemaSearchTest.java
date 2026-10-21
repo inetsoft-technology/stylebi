@@ -196,6 +196,36 @@ class MetadataApiServiceSchemaSearchTest {
       assertEquals("orders", response.getResults().get(0).getTable());
    }
 
+   private int fieldsOnlyResultCount(String requestedField, String columnName) throws Exception {
+      MetadataApiService service = createSpiedService(
+         oneTableFixture("orders"), columnFixture(columnName));
+
+      SchemaSearchRequest request = new SchemaSearchRequest();
+      request.setQuery("");
+      request.setFields(List.of(requestedField));
+
+      return service.searchSchema(request, mock(Principal.class)).getResults().size();
+   }
+
+   /**
+    * Bug #78986 B2: the column-name match was bidirectional, so a column whose name is a
+    * fragment of the requested name matched it (RMA_NUMBER for RMA_NUMBER_SUFFIX, ID for
+    * PRODUCT_ID).
+    */
+   @Test
+   void shorterColumnDoesNotMatchLongerRequestedField() throws Exception {
+      assertEquals(0, fieldsOnlyResultCount("RMA_NUMBER_SUFFIX", "RMA_NUMBER"));
+      assertEquals(0, fieldsOnlyResultCount("PRODUCT_ID", "ID"));
+   }
+
+   @Test
+   void columnContainingRequestedFieldStillMatches() throws Exception {
+      // exact, case-insensitive, and forward-substring (requested "id" vs column "customer_id")
+      assertEquals(1, fieldsOnlyResultCount("RMA_NUMBER", "RMA_NUMBER"));
+      assertEquals(1, fieldsOnlyResultCount("rma_number", "RMA_NUMBER_SUFFIX"));
+      assertEquals(1, fieldsOnlyResultCount("id", "customer_id"));
+   }
+
    @Test
    void emptyQueryAndEmptyFieldsStillShortCircuitsToNoResults() throws Exception {
       MetadataApiService service = createSpiedService(oneTableFixture("orders"), null);
