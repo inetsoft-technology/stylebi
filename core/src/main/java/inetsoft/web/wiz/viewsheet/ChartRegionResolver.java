@@ -367,14 +367,22 @@ final class ChartRegionResolver {
     * <p>The index is the one target in this vocabulary with a knowable bound, so it is also the
     * easiest to check - and it was the one returning a bare 500.
     *
-    * <p><b>Only when the count was actually measured.</b> An unmeasured count is zero because
-    * there was no graph to count, not because the chart has no legends, and refusing on that
-    * would block a legitimate write whenever the layout was unavailable - the same
-    * "never subtract on missing evidence" rule the axis side follows. Unmeasured lets the call
-    * through to whatever the server says, which is no worse than before this guard existed.
+    * <p><b>An unmeasured count is refused too</b> (bug #79112). It is zero because there was no
+    * laid-out graph (unbound, empty or still computing), and the legend dialog model cannot be
+    * built from no graph either: letting the call through ended in a raw HTTP 500. This differs
+    * from the axis side's "never subtract on missing evidence" rule because nothing here is
+    * subtracted - a legend region needs the graph itself, so without one there is nothing to
+    * read or write. Same wording as {@link #requireLegendField}.
     */
    static void requireLegend(Legends legends, int index) {
-      if(!legends.measured() || index >= 0 && index < legends.count()) {
+      if(!legends.measured()) {
+         throw new IllegalArgumentException(
+            "This chart has no laid-out graph yet - it is unbound, empty, or still computing - " +
+            "so its legends cannot be resolved. Bind an aesthetic field, or retry once the " +
+            "chart has rendered.");
+      }
+
+      if(index >= 0 && index < legends.count()) {
          return;
       }
 
