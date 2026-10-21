@@ -253,7 +253,8 @@ class ScriptTimeoutWatchdogTest {
    @Test void everyLoopingExecIsInterruptedAndNoneEarlyAt160Threads() throws Exception {
       int threads = 160;
       int iters = 8;
-      long timeoutMs = 300;
+      // 1200 ms: at 160 threads a Context can take over a second to start (bug #79131)
+      long timeoutMs = 1200;
       AtomicInteger loops = new AtomicInteger();
       AtomicInteger loopsInterrupted = new AtomicInteger();
       AtomicInteger early = new AtomicInteger();
@@ -268,6 +269,10 @@ class ScriptTimeoutWatchdogTest {
             int tid = t;
             futures.add(pool.submit(() -> {
                try(Context ctx = Context.newBuilder("js").engine(engine).build()) {
+                  // initialize the JS language before the guards open, otherwise the first exec
+                  // enters the context after its deadline and its interrupt is already spent
+                  ctx.eval("js", "1");
+
                   for(int i = 0; i < iters; i++) {
                      boolean loop = (tid + i) % 4 == 0;
                      long start = System.nanoTime();
