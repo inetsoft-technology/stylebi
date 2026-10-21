@@ -478,7 +478,8 @@ public class CalcTableService {
          FieldRef ref = new FieldRef(column, null, null, null, null);
          FieldRef canonical =
             BindableColumns.canonicalize(tables, assemblyName, null, List.of(ref)).get(0);
-         BindableColumns.require(tables, assemblyName, canonical);
+         BindableColumns.require(tables, assemblyName, BindableColumns.TABLE_REPOINT_TOOL,
+                                List.of(canonical));
          return canonical.column();
       }
       catch(IllegalArgumentException e) {

@@ -64,6 +64,9 @@ public final class BindableColumns {
    private BindableColumns() {
    }
 
+   public static final String CHART_REPOINT_TOOL = "set_chart_source";
+   public static final String TABLE_REPOINT_TOOL = "set_table_source";
+
    /**
     * @throws IllegalArgumentException naming the column and what is available, if a field names a
     *                                  column that appears in no bindable table.
@@ -73,6 +76,17 @@ public final class BindableColumns {
    }
 
    public static void require(List<BindableTable> tables, String assembly,
+                              Collection<FieldRef> fields)
+   {
+      require(tables, assembly, CHART_REPOINT_TOOL, fields);
+   }
+
+   /**
+    * @param repointTool the tool that moves this kind of assembly to another source, named in the
+    *                    refusal so it is not a dead end ({@code set_chart_source} refuses a
+    *                    crosstab, {@code set_table_source} refuses a chart)
+    */
+   public static void require(List<BindableTable> tables, String assembly, String repointTool,
                               Collection<FieldRef> fields)
    {
       if(fields == null || fields.isEmpty()) {
@@ -122,7 +136,7 @@ public final class BindableColumns {
                (source == null ? ""
                   : " Every field on an assembly must come from its one source, so a column of " +
                     "another table is not an option here — either pick one of the above, or " +
-                    "repoint the assembly, which discards every field already bound to it."));
+                    "repoint the assembly with " + repointTool + "."));
          }
       }
    }
@@ -247,6 +261,18 @@ public final class BindableColumns {
    public static String requireSource(List<BindableTable> tables, String assembly,
                                       String requested, Collection<FieldRef> fields)
    {
+      return requireSource(tables, assembly, requested, CHART_REPOINT_TOOL, fields);
+   }
+
+   /**
+    * @param repointTool the tool that moves this kind of assembly to another source
+    *                    ({@code set_chart_source} or {@code set_table_source}), named in the
+    *                    repoint refusal
+    */
+   public static String requireSource(List<BindableTable> tables, String assembly,
+                                      String requested, String repointTool,
+                                      Collection<FieldRef> fields)
+   {
       List<BindableTable> listed = tables == null ? List.of() : tables;
       List<FieldRef> named = named(fields);
 
@@ -272,8 +298,9 @@ public final class BindableColumns {
                "'" + assembly + "' is bound to '" + current + "', and '" + requested +
                "' is a different table. Every field on an assembly comes from its one source, so " +
                "this is either the wrong column or a deliberate repoint — and repointing discards " +
-               "every field already bound, so it is not done implicitly. Pick a column from '" +
-               current + "', or call set_chart_source with force: true to move the assembly.");
+               "the bound fields the new table does not have, so it is not done implicitly. " +
+               "Pick a column from '" + current + "', or call " + repointTool +
+               " with force: true to move the assembly.");
          }
 
          // Already sourced: nothing to establish, and require() narrows the column check to it.
