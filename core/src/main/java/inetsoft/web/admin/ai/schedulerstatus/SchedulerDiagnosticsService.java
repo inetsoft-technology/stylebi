@@ -75,6 +75,10 @@ public class SchedulerDiagnosticsService {
    public SchedulerHeapDumpToken createHeapDump(String clusterNode) throws Exception {
       String node = resolveSchedulerNode(clusterNode);
       String heapId = serverService.createHeapDump(node);
+      // Record the issued token and the node it runs on. The scheduler-side listener only
+      // remembers the one in-flight id, so without this an unissued token is indistinguishable
+      // from a finished one. A String value cannot be null, so cloud-runner "local" is a sentinel.
+      cluster.<String, String>getMap(ISSUED_HEAP_DUMPS).set(heapId, node == null ? LOCAL_NODE : node);
       return new SchedulerHeapDumpToken(heapId, node);
    }
 
@@ -92,6 +96,21 @@ public class SchedulerDiagnosticsService {
          return cached;
       }
 
+      // Reject a token this area never issued BEFORE asking the scheduler: isHeapDumpComplete is
+      // "not the in-flight id", which is true for any unknown id, and the failed result for it
+      // would otherwise be cached and replayed. Nothing is cached for an unknown token.
+      String registered =
+         token == null ? null : cluster.<String, String>getMap(ISSUED_HEAP_DUMPS).get(token);
+
+      if(registered == null) {
+         throw new IllegalArgumentException(
+            "token: unknown heap dump token (not issued by kick_off_scheduler_heap_dump, or " +
+            "already expired)");
+      }
+
+      // Use the node the dump was issued on, not the caller's clusterNode: an omitted/wrong
+      // clusterNode would otherwise query this web JVM and report a premature "complete".
+      clusterNode = LOCAL_NODE.equals(registered) ? null : registered;
       boolean complete;
 
       try {
@@ -258,6 +277,11 @@ public class SchedulerDiagnosticsService {
       return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
    }
 
+   /** Cluster map of issued heap dump token -> resolved node, visible to every web node. Entries
+    * are never removed on materialize (a repeat poll may land on another web node whose own
+    * {@code completed} cache is empty); DistributedMap has no TTL. */
+   private static final String ISSUED_HEAP_DUMPS = "SchedulerDiagnosticsService.issuedHeapDumps";
+   private static final String LOCAL_NODE = "";
    private final Cluster cluster;
    private final ServerService serverService;
    private final ExternalStorageService externalStorageService;
