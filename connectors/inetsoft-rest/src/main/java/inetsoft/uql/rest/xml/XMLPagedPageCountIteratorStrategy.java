@@ -76,14 +76,17 @@ class XMLPagedPageCountIteratorStrategy extends HttpRestDataIteratorStrategy<Res
    @Override
    protected Object fetchNextResult() throws Exception {
       try {
-         return fetchPage();
-      }
-      finally {
+         final Object result = fetchPage();
+
          if(lastPage == null && transformer.getPageCount() < 0) {
             LOG.warn("Page count xpath {} matched nothing on the first page; " +
-                     "returning a single page", query.getPaginationSpec().getPageCountXpath().getValue());
+                     "returning a single page",
+                     query.getPaginationSpec().getPageCountXpath().getValue());
          }
 
+         return result;
+      }
+      finally {
          lastPage = getLastPage();
       }
    }

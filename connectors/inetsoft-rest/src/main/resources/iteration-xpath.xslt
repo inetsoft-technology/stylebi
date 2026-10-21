@@ -33,8 +33,6 @@
   <xsl:template match="/">
     <xsl:apply-templates mode="xpath"/>
     <xsl:apply-templates mode="pageOffset"/>
-    <!-- attributes are not children, so a page offset xpath ending in @attr needs its own visit -->
-    <xsl:apply-templates select="//@*" mode="pageOffset"/>
     <xsl:apply-templates mode="hasNext"/>
   </xsl:template>
 

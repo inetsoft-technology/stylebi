@@ -18,6 +18,8 @@
 package inetsoft.uql.rest.xml;
 
 import inetsoft.test.*;
+import inetsoft.uql.rest.HttpResponse;
+import inetsoft.uql.rest.IHttpHandler;
 import inetsoft.uql.rest.RestErrorHandler;
 import inetsoft.uql.rest.RestRequest;
 import inetsoft.uql.rest.pagination.PaginationParamType;
@@ -157,6 +159,56 @@ public class XMLPagedPageCountIteratorStrategyTest {
            "<data><n>1</n><n>2</n><id>1</id></data>",
            "<data><n>1</n><n>2</n><id>2</id></data>" };
         assertEquals(Arrays.asList(1, 2), run("//n", "/data/id/text()", false, 1, pages));
+    }
+
+    @Test
+    public void failedFirstRequestDoesNotWarnAboutPageCount() throws Exception {
+        final RestXMLQuery query = new RestXMLQuery();
+        final RestXMLDataSource datasource = new RestXMLDataSource();
+        datasource.setURL("http://host/{{pageNumber}}");
+        query.setDataSource(datasource);
+        query.setXpath("/data/id/text()");
+        final PaginationSpec spec = query.getPaginationSpec();
+        spec.setType(PaginationType.PAGE_COUNT);
+        spec.setPageNumberUrlVariable(new PaginationParameter("pageNumber", PaginationParamType.URL_VARIABLE));
+        spec.setPageCountXpath(new PaginationParameter("/data/@pages", PaginationParamType.XPATH));
+        spec.setZeroBasedPageIndex(false);
+
+        final IHttpHandler failing = new IHttpHandler() {
+            @Override
+            public HttpResponse executeRequest(RestRequest request) throws java.io.IOException {
+                throw new java.io.IOException("boom");
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+
+        final XMLPagedPageCountIteratorStrategy strategy = new XMLPagedPageCountIteratorStrategy(
+           query, new XMLPagedStreamTransformer(query), failing, new RestErrorHandler());
+        final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+           org.slf4j.LoggerFactory.getLogger(XMLPagedPageCountIteratorStrategy.class);
+        final ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>
+           appender = new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            final Throwable thrown = assertThrows(Throwable.class, strategy::next);
+            Throwable root = thrown;
+
+            while(root.getCause() != null) {
+                root = root.getCause();
+            }
+
+            assertEquals("boom", root.getMessage());
+            assertTrue(appender.list.stream()
+               .noneMatch(e -> e.getFormattedMessage().contains("matched nothing")));
+        }
+        finally {
+            logger.detachAppender(appender);
+        }
     }
 
     /**
