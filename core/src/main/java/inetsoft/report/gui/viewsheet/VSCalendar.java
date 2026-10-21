@@ -83,6 +83,12 @@ public class VSCalendar extends VSFloatable {
       // the year grid's cell edges must stay inside the border, so lay it out within it
       int yearW = w - (int) (getBW(LEFT) + getBW(RIGHT));
       int yearH = h - (int) (getBW(TOP) + getBW(BOTTOM));
+
+      // a rounded 3px border is drawn 1px further inside than a square one
+      // (ExportUtil.drawBorders), so leave that pixel for each such side as well
+      yearW -= getRoundedThickGap(LEFT) + getRoundedThickGap(RIGHT);
+      yearH -= getRoundedThickGap(TOP) + getRoundedThickGap(BOTTOM);
+
       int headerH = (int) getTitleHeight(true);
       int header2H = 5;
       String[] seldates = info.getDates();
@@ -169,6 +175,25 @@ public class VSCalendar extends VSFloatable {
       }
 
       g.dispose();
+   }
+
+   /**
+    * Get the extra pixel a rounded 3px border takes inside the box, 0 otherwise.
+    */
+   private int getRoundedThickGap(int pos) {
+      inetsoft.uql.viewsheet.internal.VSAssemblyInfo vinfo = getAssemblyInfo();
+      VSCompositeFormat format = vinfo == null ? null : vinfo.getFormat();
+
+      Insets borders = format == null ? null : format.getBorders();
+
+      if(borders == null || format.getRoundCorner() <= 0) {
+         return 0;
+      }
+
+      int style = pos == TOP ? borders.top : pos == LEFT ? borders.left :
+         pos == BOTTOM ? borders.bottom : borders.right;
+
+      return Common.getLineWidth(style) == 3 ? 1 : 0;
    }
 
    private String fixDateByRange(String dateStr, boolean isYear, CalendarVSAssemblyInfo info) {
