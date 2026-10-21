@@ -293,6 +293,7 @@ class TableBindingServiceTest {
       formatInfo.setFormat(oldPath, oldFormat);
 
       TableVSAssembly assembly = mock(TableVSAssembly.class);
+      when(assembly.getVSAssemblyInfo()).thenReturn(new TableVSAssemblyInfo());
       when(assembly.getFormatInfo()).thenReturn(formatInfo);
       inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo mockedTableDataVSAssemblyInfo =
          mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
@@ -320,6 +321,61 @@ class TableBindingServiceTest {
       assertEquals("Sales Region",
          ((inetsoft.web.binding.drm.ColumnRefModel) posted.getDetails().get(0)).getAlias());
       assertEquals(List.of("REGION -> Sales Region"), applied);
+   }
+
+   /**
+    * Bug #78981 item 3: the alias must also be set on the live column before the model is
+    * applied, because VSTableBindingFactory.updateTableAssembly finds a Form column's option by
+    * the NEW name. Found by display name (alias or attribute), so a second relabel works too.
+    */
+   @Test
+   void setColumnLabelsSetsTheAliasOnTheLiveColumnByItsOldDisplayName() throws Exception {
+      TableBindingModel existing = new TableBindingModel();
+      TableBindingMutator.setShelf(existing, "details", List.of(dim("REGION")));
+      TableVSAssembly table = tableWithColumns("Table1", "REGION", "CITY");
+
+      serviceWith(sessionsFor(table), existing, mock(VSBindingModelService.class))
+         .setColumnLabels("tok", principal(), "Table1", Map.of("REGION", "Sales Region"), null);
+
+      inetsoft.uql.ColumnSelection live =
+         ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getColumnSelection();
+      assertEquals("Sales Region", live.getAttribute(0).getName());
+      assertEquals("CITY", live.getAttribute(1).getName(), "an unrelated column must be left alone");
+   }
+
+   /**
+    * Bug #78981 item 5: a details write naming a currently hidden column shows it again, and says so.
+    */
+   @Test
+   void relayUnhiddenNotesWarnsForAHiddenColumnNamedInADetailsWrite() {
+      TableVSAssembly table = tableWithShownAndHidden(
+         "Table1", new String[] {"Region", "City"}, new String[] {"State"});
+      inetsoft.web.viewsheet.service.CommandDispatcher dispatcher =
+         mock(inetsoft.web.viewsheet.service.CommandDispatcher.class);
+
+      TableBindingService.relayUnhiddenNotes(
+         "Table1", table, "details", List.of(dim("Region"), dim("state"), dim("City")), dispatcher);
+
+      ArgumentCaptor<inetsoft.web.viewsheet.command.MessageCommand> sent =
+         ArgumentCaptor.forClass(inetsoft.web.viewsheet.command.MessageCommand.class);
+      verify(dispatcher, times(1)).sendCommand(eq("Table1"), sent.capture());
+      assertTrue(sent.getValue().getMessage().startsWith("Binding warning: Column 'state' was hidden and is shown again"),
+                 sent.getValue().getMessage());
+   }
+
+   @Test
+   void relayUnhiddenNotesStaysSilentWhenNothingHiddenIsNamedOrTheShelfIsNotDetails() {
+      TableVSAssembly table = tableWithShownAndHidden(
+         "Table1", new String[] {"Region", "City"}, new String[] {"State"});
+      inetsoft.web.viewsheet.service.CommandDispatcher dispatcher =
+         mock(inetsoft.web.viewsheet.service.CommandDispatcher.class);
+
+      TableBindingService.relayUnhiddenNotes(
+         "Table1", table, "details", List.of(dim("Region"), dim("City")), dispatcher);
+      TableBindingService.relayUnhiddenNotes(
+         "Table1", table, "rows", List.of(dim("State")), dispatcher);
+
+      verifyNoInteractions(dispatcher);
    }
 
    /**
@@ -357,6 +413,7 @@ class TableBindingServiceTest {
       hattr.setHighlight(oldPath, group);
 
       TableVSAssembly assembly = mock(TableVSAssembly.class);
+      when(assembly.getVSAssemblyInfo()).thenReturn(new TableVSAssemblyInfo());
       when(assembly.getFormatInfo()).thenReturn(new inetsoft.uql.viewsheet.FormatInfo());
       inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo mockedTableDataVSAssemblyInfo =
          mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
@@ -2797,7 +2854,7 @@ class TableBindingServiceTest {
       try {
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
-            mutation.run(rvs, "rt1", null);
+            mutation.run(rvs, "rt1", mock(inetsoft.web.wiz.dispatch.CapturingCommandDispatcher.class));
             return null;
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
          when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);

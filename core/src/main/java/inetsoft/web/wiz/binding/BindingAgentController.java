@@ -647,9 +647,8 @@ public class BindingAgentController {
             "coordinate.");
       }
 
-      return ViewsheetSessionService.warningsBody(
-         calcService.setCellBinding(sessionToken, user, request.assembly(), request.row(),
-                                    request.col(), request.binding()));
+      return calcService.setCellBinding(sessionToken, user, request.assembly(), request.row(),
+                                        request.col(), request.binding());
    }
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/cell/format")
