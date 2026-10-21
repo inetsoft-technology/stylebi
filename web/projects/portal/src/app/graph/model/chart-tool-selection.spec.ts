@@ -142,7 +142,7 @@ describe("drawRegions chrome selection outline", () => {
    it("keeps the canvas stroke colour when no selection-border token resolves", () => {
       const ctx = fakeContext();
       ChartTool.drawRegions(ctx, [region], 0, 0, 1, undefined, undefined, false, "legend_content", true);
-      expect(ctx.strokes.length).toBe(1);
-      expect(ctx.strokes[0].style).not.toBe("");
+      // no stylesheet is loaded, so the canvas rule's colour is drawRegions' own default
+      expect(ctx.strokes).toEqual([{style: "#dc581e", dash: [6, 4]}]);
    });
 });

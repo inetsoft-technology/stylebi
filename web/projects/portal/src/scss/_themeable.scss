@@ -116,6 +116,7 @@ body {
 .bd-selected-assembly {
   // active, not selected: the class binds to isFocused(). --inet-viz-active-border is the
   // outline-no-fill token that names this state; --inet-viz-selected-border is the teal family.
+  // Legacy only: marked assemblies draw focus like selection (below).
   border: 1px dotted var(--inet-viz-active-border) !important;
 }
 

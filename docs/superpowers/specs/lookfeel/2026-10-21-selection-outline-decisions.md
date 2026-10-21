@@ -73,7 +73,8 @@ composer container and so the outer rule.
 ## Decision 2 — marked objects only; legacy keeps its look
 
 **Decision.** Every new rule is scoped to the per-object `.viz-modern` / `.viz-dark` wrapper. An
-unmarked or reverted object keeps its current selection look: dotted outer, solid inner.
+unmarked or reverted object keeps its current selection look: dotted outer, solid inner. There is one
+exception, inside embedded viewsheets, described below.
 
 **Why.**
 
@@ -93,6 +94,17 @@ unmarked or reverted object keeps its current selection look: dotted outer, soli
 (`composer/app.component.ts:142`, `_viz-tokens.scss:109-114`). So a legacy object in such an org already
 draws its selections in the blue, dotted outer and solid inner. Only in a gate-off org is a legacy
 object's selection orange.
+
+**One exception: unmarked objects inside a marked embedded viewsheet.** Modernize marks an
+embedded-viewsheet container with the host's mark but leaves the embedded asset's own objects alone
+(`VizModernizeUtil.collect()`, `VizModernizeUtil.java:272`). In the viewer those objects render inside
+the container's `.viz-modern` wrapper (`vs-object-container.component.html:50`), so the descendant
+selector `.viz-modern .bd-selected-cell` reaches them: their selected and keyboard-focused cells draw
+dashed. Their outer focus outline does not change, because `.viz-modern.bd-selected-assembly` is a
+compound selector, and neither do their chart outlines, because the chart reads the object's own mark.
+The existing modern rules already scope this way (`.viz-modern .chart-object-canvas`,
+`:host-context(.viz-modern)`), and the selection colour already inherits the same way, so the exception
+is accepted rather than worked around.
 
 **Overturning it.** Add `.viz-shell` (or drop the scope) on each new selector. Expect worksheet and
 data-model selections to change with it unless they are excluded explicitly.
@@ -298,13 +310,17 @@ border and the viewer focus outline. They all read the one token, so a retiremen
 moves them all together with the outer outline. That is the consistency this change is for. A
 retirement that *replaces* the token has these sites to migrate as well.
 
-## Verification planned
+## Verification
 
 - **Unit:** `chart-tool-selection.spec.ts` covers the path split. A chrome area gets a dash and the
-  selection colour; the plot area stays solid with its fill; gate-off stays solid orange with the fill.
-  Run with `ng test portal`, not `npm run test:portal`, which resolves to `em`.
-- **Compiled CSS:** grep the compiled stylesheet for the extended selectors
+  selection colour; the plot area stays solid with its fill; gate-off stays solid with its fill; with
+  no token, the stroke stays the canvas's own `#dc581e`. Run with `ng test portal`.
+- **Compiled CSS:** the compiled stylesheet carries the extended selectors
   (`.viz-modern .selected-cell:before` and the table cell overlay).
-- **Browser:** composer and viewer, light and dark. Check each row of decision 1's table, keyboard Tab
-  focus in the viewer, a mobile tap, an annotation on a chart and on a table, a reverted dashboard
-  (unchanged) and a worksheet (unchanged).
+- **Browser, confirmed by the owner on 2026-10-21:** composer and viewer, light and dark. Each row of
+  decision 1's table, keyboard Tab focus in the viewer, a mobile tap, an annotation on a chart and on a
+  table, a reverted dashboard (unchanged) and a worksheet (unchanged).
+- **Narrow selected titles.** A title under 120px has a full-width resize line along its bottom edge
+  as a drag target. It showed through the dashed border's gaps until it was made transparent while
+  the title is selected (`_moving-resize.scss`). A dropdown list's title shows the line when only the
+  object is selected, and keeps it there.

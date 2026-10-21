@@ -106,6 +106,7 @@
 // unchanged, so gate-off is byte-identical. State values are density-independent, so one block covers
 // all modes. The selection family is a visualization-owned teal, kept distinct from shell/Composer
 // selection; active stays on the primary accent (outline, no fill) so it reads apart from selection.
+// Assembly focus is the exception: a marked assembly's focus outline uses the selected border.
 .viz-modern,
 .viz-shell,
 [data-viz-theme="v2"] {
