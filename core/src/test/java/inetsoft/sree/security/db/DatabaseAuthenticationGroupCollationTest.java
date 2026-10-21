@@ -451,9 +451,11 @@ class DatabaseAuthenticationGroupCollationTest {
       assertEquals(cache, p.isCacheEnabled());
 
       if(cache) {
-         // A load that the chain reload starts on an instance that the chain is swapping out
-         // can fail, which blocks the scheduled retry for a minute, and a load requested while
+         // A failed load blocks the scheduled retry for a minute, and a load requested while
          // another one runs is dropped. So ask again until one is accepted and succeeds.
+         // A failed load was observed once (closed connection, "No current connection"); its
+         // cause is inferred from the log (a load on a provider instance being swapped out by
+         // the chain reload), not isolated by experiment.
          Awaitility.await().atMost(Duration.ofMinutes(1)).pollInterval(Duration.ofMillis(250))
             .until(() -> {
                if(!p.isCacheInitialized()) {
