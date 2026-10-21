@@ -5832,8 +5832,16 @@ public class WorksheetAgentController {
          assembly.setColumnSelection(columns);
          ws.addAssembly(assembly);
 
-         return new SqlQueryResponse(tableName, detectUndeclaredVariables(rws),
-            detectVariablesNeedingSessionValue(rws), sqlWarnings);
+         // the variable scans run against the live worksheet, so the new table has to be in it
+         // first; a failure there must not leave the half-added table behind
+         try {
+            return new SqlQueryResponse(tableName, detectUndeclaredVariables(rws),
+               detectVariablesNeedingSessionValue(rws), sqlWarnings);
+         }
+         catch(Throwable e) {
+            ws.removeAssembly(tableName);
+            throw e;
+         }
       });
    }
 

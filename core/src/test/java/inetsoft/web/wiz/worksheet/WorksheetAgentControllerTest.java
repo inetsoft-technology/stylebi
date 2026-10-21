@@ -10767,6 +10767,69 @@ class WorksheetAgentControllerTest {
       }
    }
 
+   /**
+    * Bug #79097: the variable scans in {@code addSqlQuery} run after the table is added, so a
+    * failure there used to leave the table in the worksheet (and a retry added a duplicate).
+    * The post-add failure must roll the new table back and still surface the error.
+    */
+   @Test
+   void addSqlQueryRemovesTheTableWhenTheVariableScanFails() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
+      when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-SQ-ROLLBACK"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      ColumnSelection columns = new ColumnSelection();
+      columns.addAttribute(new ColumnRef(new AttributeRef(null, "a")));
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(columns);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, mock(MetadataApiService.class),
+         xrepository, queryManagerService);
+
+      WorksheetAgentController.SqlQueryRequest body =
+         new WorksheetAgentController.SqlQueryRequest("MyDatasource", "SELECT 1", null);
+
+      try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
+             (m, ctx) -> stubUniformSqlConstruction(m, UniformSQL.PARSE_SUCCESS));
+          MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS))
+      {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), anyBoolean()))
+            .thenThrow(new IllegalStateException("variable scan failed"));
+
+         for(int i = 0; i < 2; i++) {
+            IllegalStateException ex = assertThrows(IllegalStateException.class,
+               () -> ctrl.addSqlQuery("TOK-SQ-ROLLBACK", body, agent));
+            assertEquals("variable scan failed", ex.getMessage());
+            assertEquals(0, ws.getAssemblies().length,
+                         "a failed add must not leave a table behind, retries included");
+         }
+      }
+   }
+
    // ---------------------------------------------------------------------------
    // Whole-branch review finding 1 (CRITICAL) -- a pane-scoped code is not a
    // whole-sheet write handle

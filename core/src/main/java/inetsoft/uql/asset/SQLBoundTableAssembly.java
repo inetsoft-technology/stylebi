@@ -322,10 +322,23 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
             return;
          }
 
-         UserVariable var = getVariable(varName, list);
-         String type = condition.getExpression1().getType();
+         varName = varName.trim();
 
-         UserVariable userVariable = (UserVariable) var;
+         // a raw-embed placeholder is spliced into the SQL text as is, so it must not retype
+         // the declared variable from the compared column or make it multi-select
+         if(varName.startsWith("@")) {
+            return;
+         }
+
+         UserVariable var = getVariable(varName, list);
+
+         // the placeholder may not be a collected user variable, e.g. a vpm control point
+         if(!(var instanceof UserVariable)) {
+            return;
+         }
+
+         String type = condition.getExpression1().getType();
+         UserVariable userVariable = var;
 
          if("IN".equals(condition.getOp())) {
             userVariable.setMultipleSelection(true);
