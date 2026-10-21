@@ -29,6 +29,9 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
@@ -1060,6 +1063,146 @@ class AssemblyHyperlinkServiceTest {
                                                            false));
 
       assertEquals(false, read.get("axisAndDataPointShareLink"));
+   }
+
+   // ── Bug #78912: a chart colName matching no bound field is refused on read too ──
+
+   /**
+    * A chart binding Month(ORDER_DATE) by Sum(REVENUE), wired as Chart1. Mocked rather than built
+    * for real because a real ChartVSAssembly needs the Spring context.
+    */
+   private static Harness chartHarness() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      ChartRef month = chartRef("Month(ORDER_DATE)", "ORDER_DATE");
+      ChartRef sum = chartRef("Sum(REVENUE)", "REVENUE");
+      ChartRef[] bound = {month, sum};
+
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getFields()).thenReturn(bound);
+      when(info.getXFields()).thenReturn(new ChartRef[] {month});
+      when(info.getYFields()).thenReturn(new ChartRef[] {sum});
+      when(info.getBindingRefs(anyBoolean())).thenReturn(bound);
+      when(info.getRuntimeDateComparisonRefs()).thenReturn(new ChartRef[0]);
+      when(info.getFieldByName(anyString(), anyBoolean())).thenAnswer(inv -> {
+         for(ChartRef ref : bound) {
+            if(ref.getFullName().equals(inv.getArgument(0))) {
+               return ref;
+            }
+         }
+
+         return null;
+      });
+      when(info.getFields(anyString(), anyBoolean())).thenAnswer(inv -> {
+         for(ChartRef ref : bound) {
+            if(ref.getFullName().equals(inv.getArgument(0))) {
+               return new ChartRef[] {ref};
+            }
+         }
+
+         return new ChartRef[0];
+      });
+
+      ChartVSAssemblyInfo assemblyInfo = mock(ChartVSAssemblyInfo.class);
+      when(assemblyInfo.getVSChartInfo()).thenReturn(info);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSAssemblyInfo()).thenReturn(assemblyInfo);
+      wireRuntimeData(h, "Chart1", chart);
+      return h;
+   }
+
+   private static ChartRef chartRef(String fullName, String name) {
+      ChartRef ref = mock(ChartRef.class);
+      when(ref.getFullName()).thenReturn(fullName);
+      when(ref.getName()).thenReturn(name);
+      return ref;
+   }
+
+   private static Map<String, Object> readChart(Harness h, String colName, boolean axis,
+                                                boolean titleLink, boolean emptyPlotLink)
+      throws Exception
+   {
+      return h.service.read(
+         "tok", principal(), "Chart1",
+         new AssemblyHyperlinkService.Region(null, null, colName, axis, false, titleLink,
+                                             emptyPlotLink));
+   }
+
+   @Test
+   void readRefusesAChartColNameMatchingNoBoundField() throws Exception {
+      Harness h = chartHarness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class, () -> readChart(h, "NOT_A_FIELD", false, false, false));
+
+      assertTrue(thrown.getMessage().contains("NOT_A_FIELD"), "names the bad colName");
+      assertTrue(thrown.getMessage().contains("Sum(REVENUE)"), "lists the chart's fields");
+      verifyNoInteractions(h.links);
+   }
+
+   @Test
+   void readRefusesABogusChartColNameOnAnAxisToo() throws Exception {
+      Harness h = chartHarness();
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> readChart(h, "NOT_A_FIELD", true, false, false));
+   }
+
+   @Test
+   void readStillAcceptsTheExactAndDerivedChartFieldNames() throws Exception {
+      Harness h = chartHarness();
+
+      assertDoesNotThrow(() -> readChart(h, "Sum(REVENUE)", false, false, false));
+      assertDoesNotThrow(() -> readChart(h, "Month(ORDER_DATE)", false, false, false));
+      assertDoesNotThrow(() -> readChart(h, "Month(ORDER_DATE)", true, false, false));
+   }
+
+   @Test
+   void readStillAcceptsAWrongCaseChartFieldName() throws Exception {
+      Harness h = chartHarness();
+
+      assertDoesNotThrow(() -> readChart(h, "month(order_date)", false, false, false));
+      assertDoesNotThrow(() -> readChart(h, "sum(revenue)", false, false, false));
+   }
+
+   @Test
+   void readOfATitleOrEmptyPlotLinkIgnoresTheColName() throws Exception {
+      Harness h = chartHarness();
+
+      assertDoesNotThrow(() -> readChart(h, null, false, true, false));
+      assertDoesNotThrow(() -> readChart(h, null, false, false, true));
+      assertDoesNotThrow(() -> readChart(h, "NOT_A_FIELD", false, true, false));
+      assertDoesNotThrow(() -> readChart(h, "NOT_A_FIELD", false, false, true));
+   }
+
+   @Test
+   void readWithNoColNameOnAChartIsUnaffected() throws Exception {
+      assertDoesNotThrow(() -> readChart(chartHarness(), null, false, false, false));
+      assertDoesNotThrow(() -> readChart(chartHarness(), "", false, false, false));
+   }
+
+   /** Whatever set_hyperlink accepts for a colName must still read back. */
+   @Test
+   void aLinkWrittenByColNameReadsBackThroughTheSameName() throws Exception {
+      Harness h = chartHarness();
+      AssemblyHyperlinkService.Region region = new AssemblyHyperlinkService.Region(
+         null, null, "Month(ORDER_DATE)", false, false, false, false);
+
+      h.service.set("tok", principal(), "Chart1", region,
+                    link("linkType", "web", "webLink", "https://example.com"), "");
+
+      assertDoesNotThrow(() -> h.service.read("tok", principal(), "Chart1", region));
+   }
+
+   /** Only a chart's colName is checked: a table keeps its own resolution. */
+   @Test
+   void readOfANonChartAssemblyIsNotCheckedAgainstChartFields() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      wireRuntimeData(h, "Table1", table);
+
+      assertDoesNotThrow(() -> h.service.read(
+         "tok", principal(), "Table1",
+         new AssemblyHyperlinkService.Region(2, 1, null, false, false, false, false)));
    }
 
    // ── VHL-003: link.bookmark silently dropped ─────────────────────────────────

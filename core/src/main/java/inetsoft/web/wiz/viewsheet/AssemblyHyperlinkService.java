@@ -44,6 +44,7 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
@@ -148,6 +149,7 @@ public class AssemblyHyperlinkService {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       int col = resolveCol(rvs, assemblyName, target);
       TableLensGuard.Cell cell = requireTableCell(rvs, assemblyName, target.row(), col);
+      requireBoundChartColName(rvs, assemblyName, target);
       HyperlinkDialogModel model = hyperlinkService.getHyperlinkDialogModel(
          rvs.getID(), assemblyName, cell.row(), cell.col(), target.colName(), target.axis(),
          target.text(), target.titleLink(), target.emptyPlotLink(), user);
@@ -162,6 +164,25 @@ public class AssemblyHyperlinkService {
       }
 
       return out;
+   }
+
+   /**
+    * A chart colName matching no bound field read back as "no link", while the same name is
+    * refused on a write; refused here too so a typo is not mistaken for a field with no link.
+    * Kept out of the shared dialog read, which the Composer's own dialog also uses.
+    */
+   private static void requireBoundChartColName(RuntimeViewsheet rvs, String assemblyName,
+                                                Region target)
+   {
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(assembly instanceof ChartVSAssembly &&
+         assembly.getVSAssemblyInfo() instanceof ChartVSAssemblyInfo info &&
+         !target.titleLink() && !target.emptyPlotLink())
+      {
+         HyperlinkDialogService.requireChartColName(info, target.colName(), target.axis());
+      }
    }
 
    /** One {@code sessions.mutate}, so one undo checkpoint. */
