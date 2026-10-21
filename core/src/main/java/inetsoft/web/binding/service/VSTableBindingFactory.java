@@ -78,9 +78,7 @@ public class VSTableBindingFactory extends VSBindingFactory<TableVSAssembly, Tab
          DataRef ref = field.createDataRef();
          DataRef oref = cols.getAttribute(ref.getName());
 
-         if(ref instanceof FormRef) {
-            FormRef oform = (FormRef) oref;
-            FormRef form = (FormRef) ref;
+         if(ref instanceof FormRef form && oref instanceof FormRef oform) {
             form.setOption(oform.getOption());
          }
          

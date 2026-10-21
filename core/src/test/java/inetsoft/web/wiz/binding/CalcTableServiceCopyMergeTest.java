@@ -30,11 +30,16 @@ import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.web.binding.controller.VSTableLayoutService;
+import inetsoft.web.binding.model.table.TableCell;
 import inetsoft.web.binding.event.CopyCutCalcCellEvent;
+import inetsoft.web.binding.event.SetCellBindingEvent;
+import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.binding.event.ModifyTableLayoutEvent;
 import inetsoft.web.binding.handler.TableLayoutHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
+import inetsoft.web.wiz.binding.model.BindableField;
+import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +52,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.awt.Dimension;
 import java.awt.Rectangle;
 import java.security.Principal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -555,8 +561,11 @@ class CalcTableServiceCopyMergeTest {
                                              anyBoolean(), anyBoolean(), anyBoolean(),
                                              anyBoolean(), anyBoolean()))
          .thenReturn(columns);
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(anyString(), anyString(), any(Principal.class))).thenReturn(
+         List.of(new BindableTable("T", true, List.of(new BindableField("Region", "string", "dimension")))));
       return new CalcTableService(sessions, layoutService, mock(DataRefModelFactoryService.class),
-                                  mock(BindableFieldsService.class), columnsHandler, handler);
+                                  fields, columnsHandler, handler);
    }
 
    private int topnCol() {
@@ -713,6 +722,127 @@ class CalcTableServiceCopyMergeTest {
       assertEquals(TableCellBinding.GROUP, moved.getBType());
       assertEquals(0, moved.getOrderInfo(false).getSortByCol());
       assertEquals(0, moved.getTopN(false).getTopNSummaryCol());
+   }
+
+   // ── #78981 item 2: set_cell_binding must remap/clear rankings like copy/modify do ─────────
+
+   /** Applies the event's binding to the layout the way the real layout service would. */
+   private void stubSetCellBinding() throws Exception {
+      doAnswer(invocation -> {
+         SetCellBindingEvent event = invocation.getArgument(1);
+         TableCell cell = event.getSelectCells()[0];
+         CellBindingInfo binding = event.getBinding();
+         TableCellBinding written;
+
+         if(binding.getType() == CellBinding.BIND_TEXT) {
+            written = new TableCellBinding(CellBinding.BIND_TEXT, binding.getValue());
+         }
+         else {
+            written = TableCellBinding.getGroupBinding(binding.getValue());
+            written.getOrderInfo(true).setOrder(binding.getOrder().getType());
+            written.getOrderInfo(true).setSortByCol(binding.getOrder().getSortCol());
+            written.getTopN(true).setTopN(binding.getTopn().getTopn());
+            written.getTopN(true).setTopNSummaryCol(binding.getTopn().getSumCol());
+         }
+
+         layout().setCellBinding(cell.getRow(), cell.getCol(), written);
+         return null;
+      }).when(layoutService).setCellBinding(anyString(), any(), any(Principal.class), any());
+   }
+
+   private static java.util.Map<String, Object> textCell() {
+      return new java.util.HashMap<>(java.util.Map.of("content", "text", "value", "x"));
+   }
+
+   @Test
+   void rebindingTheRankedSummaryToTextClearsTheRankingAndDisclosesIt() throws Exception {
+      summary(0, 1, "Total", "Sum");
+      summary(0, 2, "Price", "Sum");
+      group(0, 0, 0, 0);
+      service = rankingService();
+      stubSetCellBinding();
+
+      java.util.Map<String, Object> result =
+         service.setCellBinding("tok", principal(), "Calc1", 0, 1, textCell());
+
+      TableCellBinding group = (TableCellBinding) layout().getCellBinding(0, 0);
+      assertFalse(group.getOrderInfo(false).isSortByVal(), "sort must not follow Sum(Price)");
+      assertEquals(0, group.getTopN(false).getTopN());
+      String notes = String.valueOf(result.get("rankingNotes"));
+      assertTrue(notes.contains("Sum(Total)"), notes);
+      assertTrue(notes.contains("[0,0]"), notes);
+      assertNull(result.get("warnings"));
+   }
+
+   @Test
+   void rebindingAnUnrelatedEarlierSummaryMakesTheRankingFollowItsSummary() throws Exception {
+      summary(0, 1, "Total", "Sum");
+      summary(0, 2, "Price", "Sum");
+      summary(0, 3, "Qty", "Average");
+      group(0, 0, 2, 2);
+      service = rankingService();
+      stubSetCellBinding();
+
+      java.util.Map<String, Object> result =
+         service.setCellBinding("tok", principal(), "Calc1", 0, 1, textCell());
+
+      assertEquals(1, sortCol());
+      assertEquals(1, topnCol());
+      assertNull(result);
+   }
+
+   @Test
+   void rebindingAnUnrelatedCellReturnsNothingToRelay() throws Exception {
+      summary(0, 1, "Total", "Sum");
+      group(0, 0, 0, 0);
+      text(1, 1, "y");
+      service = rankingService();
+      stubSetCellBinding();
+
+      assertNull(service.setCellBinding("tok", principal(), "Calc1", 1, 1, textCell()));
+      assertEquals(0, sortCol());
+   }
+
+   @Test
+   void rewritingTheRankedGroupCellKeepsItsNewRankBy() throws Exception {
+      summary(0, 1, "Total", "Sum");
+      summary(0, 2, "Price", "Sum");
+      group(0, 0, 0, 0);
+      service = rankingService();
+      stubSetCellBinding();
+
+      java.util.Map<String, Object> binding = new java.util.HashMap<>();
+      binding.put("content", "column");
+      binding.put("grouping", "group");
+      binding.put("field", new java.util.HashMap<>(
+         java.util.Map.of("column", "Region", "type", "dimension")));
+      java.util.Map<String, Object> rankBy = java.util.Map.of("column", "Price", "formula", "Sum");
+      binding.put("sort", new java.util.HashMap<>(
+         java.util.Map.of("direction", "value_desc", "rankBy", rankBy)));
+      binding.put("topn", new java.util.HashMap<>(
+         java.util.Map.of("mode", "top", "n", 3, "rankBy", rankBy)));
+
+      java.util.Map<String, Object> result =
+         service.setCellBinding("tok", principal(), "Calc1", 0, 0, binding);
+
+      assertEquals(1, sortCol());
+      assertEquals(1, topnCol());
+      assertNull(result);
+   }
+
+   @Test
+   void twoCorrelationsDifferingOnlyBySecondaryColumnKeepTheirOwnIdentity() throws Exception {
+      summary(0, 1, "Total", "Sum");
+      summary(0, 2, "Total", "Correlation(Price)");
+      summary(0, 3, "Total", "Correlation(Qty)");
+      group(0, 0, 2, 2);
+      service = rankingService();
+      stubSetCellBinding();
+
+      service.setCellBinding("tok", principal(), "Calc1", 0, 1, textCell());
+
+      assertEquals(1, sortCol(), "must still rank by Correlation(Qty), not the first Correlation");
+      assertEquals(1, topnCol());
    }
 
    // ── helpers ───────────────────────────────────────────────────────────────

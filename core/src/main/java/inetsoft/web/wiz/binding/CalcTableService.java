@@ -355,8 +355,13 @@ public class CalcTableService {
       });
    }
 
-   /** Binds one cell. One {@code sessions.mutate}, so one undo checkpoint. */
-   public List<String> setCellBinding(String sessionToken, Principal user, String assemblyName,
+   /**
+    * Binds one cell. One {@code sessions.mutate}, so one undo checkpoint.
+    *
+    * @return {@code warnings} and {@code rankingNotes} (a group cell's summary ranking this write
+    *         reset), or null when there is neither
+    */
+   public Map<String, Object> setCellBinding(String sessionToken, Principal user, String assemblyName,
                               int row, int col, Map<String, Object> binding)
       throws Exception
    {
@@ -364,7 +369,8 @@ public class CalcTableService {
       // reject here, and opens no checkpoint the caller then has to undo.
       CalcCellVocabulary.validate(binding);
 
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> rankWarnings = new ArrayList<>();
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          requireInGrid(layoutOf(assembly), row, col);
          requireNotMerged(layoutOf(assembly), row, col);
@@ -426,8 +432,19 @@ public class CalcTableService {
          event.setName(assemblyName);
          event.setSelectCells(new TableCell[]{ cellAt(row, col) });
          event.setBinding(cellBindingInfo);
+
+         // Ranking is stored as an index into the summary list, which this write can shift or
+         // shrink (a summary cell rebound to text/another column/formula). Snapshotted after
+         // toCellBindingInfo, which resolved a new rankBy against that same pre-write list.
+         List<RankTarget> rankings = snapshotRankings(rvs, assembly);
          layoutService.setCellBinding(runtimeId, event, user, dispatcher);
+         remapRankings(rvs, assembly, rankings, rankWarnings);
       });
+
+      Map<String, Object> body = new LinkedHashMap<>();
+      ViewsheetSessionService.relayWarnings(body, warnings);
+      relayRankingNotes(body, rankWarnings);
+      return body.isEmpty() ? null : body;
    }
 
    /**

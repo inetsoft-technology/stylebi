@@ -124,6 +124,7 @@ public class TableBindingService {
          String livePercentageBy = livePercentageByValue(assembly);
          TableBindingMutator.drainNotes();
          TableBindingMutator.setShelf(model, shelf, fields, rvs, source, refModelService);
+         relayUnhiddenNotes(assemblyName, assembly, shelf, fields, dispatcher);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          relayNotes(assemblyName, dispatcher);
          relayShapeWarning(assemblyName, model, dispatcher);
@@ -478,6 +479,7 @@ public class TableBindingService {
                         FieldRef field, Integer position, String sourceTable) throws Exception
    {
       return applyWithContext(sessionToken, user, assemblyName, shelf,
+         field == null ? List.of() : List.of(field),
          (model, rvs, source) -> {
             applySource(model, sourceTable);
             requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
@@ -1168,6 +1170,7 @@ public class TableBindingService {
 
          if(!write.tableRenames().isEmpty() && assembly instanceof TableVSAssembly table) {
             rekeyTableFormatWidthAndHighlight(table, write.tableRenames());
+            aliasLiveColumns(table, write.tableRenames());
 
             for(TableBindingMutator.Rename rename : write.tableRenames()) {
                applied.add(rename.oldDisplayName() + " -> " + rename.newDisplayName());
@@ -1186,6 +1189,33 @@ public class TableBindingService {
       });
 
       return new TableWrite(applied, warnings);
+   }
+
+   /**
+    * Sets each renamed column's alias on the live {@code ColumnRef}, the way {@code
+    * ComposerVSTableService.changeColumnTitle} does, before the model is applied. {@link
+    * VSTableBindingFactory#updateTableAssembly} looks the old column up by the NEW (aliased) name
+    * to carry a Form column's {@code ColumnOption} across; with the alias only on the model that
+    * lookup missed and a Form Table's relabel crashed. The column is found by its old display
+    * name (alias when set, else attribute name), not by the attribute-keyed {@code refKey}.
+    */
+   private static void aliasLiveColumns(TableVSAssembly table,
+                                        List<TableBindingMutator.Rename> renames)
+   {
+      ColumnSelection cols = ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getColumnSelection();
+
+      for(TableBindingMutator.Rename rename : renames) {
+         Enumeration<DataRef> refs = cols.getAttributes();
+
+         while(refs.hasMoreElements()) {
+            if(refs.nextElement() instanceof ColumnRef column &&
+               rename.oldDisplayName().equals(column.getName()))
+            {
+               column.setAlias(rename.newDisplayName());
+               break;
+            }
+         }
+      }
    }
 
    /**
@@ -2099,6 +2129,37 @@ public class TableBindingService {
    }
 
    /**
+    * A Table details write that names a currently hidden column shows it again (bug #76820: the
+    * whole-shelf write cannot tell a re-add from a read-back round trip), and nothing in the
+    * write's own result says so. Evaluated against the hidden set as it is BEFORE the write, keyed
+    * on the column's attribute name rather than its alias.
+    */
+   static void relayUnhiddenNotes(String assemblyName, VSAssembly assembly, String shelf,
+                                  List<FieldRef> written, CommandDispatcher dispatcher)
+   {
+      if(!(assembly instanceof TableVSAssembly table) || !"details".equals(shelf) ||
+         written == null)
+      {
+         return;
+      }
+
+      Set<String> seen = new HashSet<>();
+
+      for(FieldRef field : written) {
+         if(field != null && field.column() != null && isHidden(table, field.column()) &&
+            seen.add(field.column().toLowerCase()))
+         {
+            MessageCommand command = new MessageCommand();
+            command.setType(MessageCommand.Type.WARNING);
+            command.setMessage("Column '" + field.column() + "' was hidden and is shown again: " +
+               "a hidden column named in a details write is shown. Leave it out of the list to " +
+               "keep it hidden.");
+            dispatcher.sendCommand(assemblyName, command);
+         }
+      }
+   }
+
+   /**
     * Reports what the mutator reset on its own as WARNING messages, so the caller is told rather
     * than finding a sort or ranking gone (bug #77025 review F1).
     */
@@ -2132,6 +2193,14 @@ public class TableBindingService {
    private List<String> applyWithContext(String sessionToken, Principal user, String assemblyName,
                                  String shelf, ContextualShelfMutation mutation) throws Exception
    {
+      return applyWithContext(sessionToken, user, assemblyName, shelf, List.of(), mutation);
+   }
+
+   /** @param unhiddenCandidates the fields a details write is about to name, for relayUnhiddenNotes */
+   private List<String> applyWithContext(String sessionToken, Principal user, String assemblyName,
+                                 String shelf, List<FieldRef> unhiddenCandidates,
+                                 ContextualShelfMutation mutation) throws Exception
+   {
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
@@ -2140,6 +2209,7 @@ public class TableBindingService {
          String livePercentageBy = livePercentageByValue(assembly);
          TableBindingMutator.drainNotes();
          mutation.accept(model, rvs, source);
+         relayUnhiddenNotes(assemblyName, assembly, shelf, unhiddenCandidates, dispatcher);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          relayNotes(assemblyName, dispatcher);
          relayShapeWarning(assemblyName, model, dispatcher);
