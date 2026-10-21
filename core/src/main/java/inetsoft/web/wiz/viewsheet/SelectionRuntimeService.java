@@ -405,9 +405,18 @@ public class SelectionRuntimeService {
                // Diffs against effectiveValues (the post-search-filter set), not the raw request,
                // so a value the search dropped is not treated as "kept" and excluded from the
                // deselect it would otherwise need.
+               // Under a search only the paths the widget shows are diffed: a search-hidden
+               // selected path that shares a top-level ancestor with a visible match would be
+               // dropped by VSSelectionService's merge-back once it is sent as selected=false,
+               // unreported (bug-78983). deselectTargets still gets every selected path so a
+               // target never collapses to a shared ancestor that would clear the hidden ones.
+               // A tree with single-select levels keeps the full diff: its levels replace their
+               // siblings by definition, which the search does not change.
                List<List<String>> currentPaths = selectedPaths(assembly);
+               List<List<String>> diffed = singleLevels.isEmpty() ?
+                  visibleWhenSearching(assembly, currentPaths) : currentPaths;
                List<List<String>> toRemove = keepAutoExtended(
-                  toDeselect(currentPaths, effectiveValues), effectiveValues, singleLevels);
+                  toDeselect(diffed, effectiveValues), effectiveValues, singleLevels);
 
                if(!toRemove.isEmpty()) {
                   selections.applySelection(runtimeId, assemblyName,
@@ -1046,12 +1055,15 @@ public class SelectionRuntimeService {
 
          String subtreeSearch = searchString((SelectionVSAssemblyInfo) tree.getInfo());
 
-         if(!select && !tree.isIDMode() && subtreeSearch != null && !subtreeSearch.isBlank()) {
+         if(!select && subtreeSearch != null && !subtreeSearch.isBlank()) {
             // selectSubtree clears the whole subtree, hidden nodes included, and then relies on a
             // merge-back that loses a search-hidden selection sharing a top-level ancestor with a
-            // visible match (bug-78787). Like the widget, send only the visible selected values.
-            List<List<String>> targets = deselectTargets(wholeBefore,
-                                                         visibleWhenSearching(assembly, before));
+            // visible match (bug-78787, bug-78983). Like the widget, send only the visible
+            // selected values. An ID-mode tree deselects the visible node ids one by one, as
+            // idModeReplaceEvent does; its subtree root is not in before and is never deselected.
+            List<List<String>> targets = tree.isIDMode() ?
+               filterBySearch(selectionListOf(assembly), before, true, subtreeSearch) :
+               deselectTargets(wholeBefore, visibleWhenSearching(assembly, before));
 
             if(!targets.isEmpty()) {
                selections.applySelection(runtimeId, assemblyName, deselectEvent(targets), user,

@@ -308,21 +308,23 @@ class SelectionRuntimeServiceSubtreeClearReportTest {
    void idModeClearUnderASearchScopesToTheSubtreeDescendantsAndExcludesTheRoot() throws Exception {
       SelectionList domain = idDomain();
       SelectionRuntimeServiceTest.Harness h = harness(true, domain, "A1");
-      onApply(h, () -> deselect(domain, 0, 1));
+      // bug-78983: only the visible id A1 is sent; the hidden A2 is never deselected
+      onApplySelection(h, () -> deselect(domain, 0, 0));
 
       Map<String, Object> result = clear(h, "A");
 
-      assertEquals(1, result.get("clearedCount"), "A2 cleared");
-      assertEquals(1, result.get("remainingUnderSubtree"), "A1 only: not root A, not B");
-      assertEquals(List.of(List.of("A1")), result.get("scopedBySearchRetained"));
+      assertEquals(1, result.get("clearedCount"), "A1 cleared");
+      assertEquals(1, result.get("remainingUnderSubtree"), "A2 only: not root A, not B");
+      assertEquals(List.of(List.of("A2")), result.get("scopedBySearchRetained"));
    }
 
    /** The ID subtree root stays selected natively; that is not a search-retained value. */
    @Test
    void idModeClearThatLeavesOnlyTheSelectedRootReportsNothingRetained() throws Exception {
       SelectionList domain = idDomain();
-      SelectionRuntimeServiceTest.Harness h = harness(true, domain, "A1");
-      onApply(h, () -> deselect(domain, 0, 0, 1));
+      // "A" matches the root's label, so the widget shows the whole subtree
+      SelectionRuntimeServiceTest.Harness h = harness(true, domain, "A");
+      onApplySelection(h, () -> deselect(domain, 0, 0, 1));
 
       Map<String, Object> result = clear(h, "A");
 
