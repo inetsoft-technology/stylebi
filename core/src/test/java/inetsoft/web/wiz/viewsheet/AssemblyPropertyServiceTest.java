@@ -3912,6 +3912,139 @@ class AssemblyPropertyServiceTest {
          "textInputColumnOptionPaneModel.textEditorModel.pattern", "\\d+")));
    }
 
+   // ── #79094: combobox dateFormatPattern ──
+
+   private static final String QDF = "dataInputPaneModel.queryDateFormat";
+   private static final String DFP = "dataInputPaneModel.dateFormatPattern";
+
+   /** A model in the state the real getter returns: the info's default pattern, format off. */
+   private static ComboboxPropertyDialogModel seededComboboxModel(boolean qdf, String pattern) {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      model.getDataInputPaneModel().setQueryDateFormat(qdf);
+      model.getDataInputPaneModel().setDateFormatPattern(pattern);
+      return model;
+   }
+
+   private static void setCombobox(ComboboxPropertyDialogModel model,
+                                   Map<String, Object> patch) throws Exception
+   {
+      serviceWithCombobox(mock(ComboBoxVSAssembly.class), model, new Worksheet())
+         .set("tok", principal(), "Combo1", patch, "");
+   }
+
+   private void assertComboboxRefused(ComboboxPropertyDialogModel model,
+                                      Map<String, Object> patch, String... fragments)
+   {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setCombobox(model, patch), patch.toString());
+
+      assertTrue(e.getMessage().contains("dataInputPaneModel.dateFormatPattern"),
+                 e.getMessage());
+      assertFalse(e.getMessage().startsWith("Setting"),
+                  "must be refused by the pre-write guard, before the setter runs");
+
+      for(String fragment : fragments) {
+         assertTrue(e.getMessage().contains(fragment), e.getMessage());
+      }
+   }
+
+   @Test
+   void bug79094InvalidPatternWithQueryDateFormatTrueInSamePatchIsRefused() {
+      assertComboboxRefused(seededComboboxModel(false, "yyyy-MM-dd"),
+                            patchOf(QDF, true, DFP, "abc"), "abc");
+   }
+
+   @Test
+   void bug79094InvalidPatternAloneWithQueryDateFormatFalseIsRefused() {
+      assertComboboxRefused(seededComboboxModel(false, "yyyy-MM-dd"), patchOf(DFP, "abc"),
+                            "abc");
+      assertComboboxRefused(seededComboboxModel(false, "yyyy-MM-dd"),
+                            patchOf(DFP, "yyyy-MM-dd'"), "yyyy-MM-dd'");
+   }
+
+   @Test
+   void bug79094InvalidPatternAloneWithQueryDateFormatTrueIsRefused() {
+      assertComboboxRefused(seededComboboxModel(true, "yyyy-MM-dd"), patchOf(DFP, "abc"),
+                            "abc");
+   }
+
+   @Test
+   void bug79094PatternsThatCannotFormatADateAreRefused() {
+      for(String pattern : new String[] { "yyyy-MM-dd HH:mm", "HH", "yyyy-MM-dd z",
+                                          "YYYY-mm-dd" })
+      {
+         assertComboboxRefused(seededComboboxModel(false, "yyyy-MM-dd"),
+                               patchOf(DFP, pattern), pattern);
+      }
+   }
+
+   @Test
+   void bug79094PatternsTheRuntimeHonoursAreAcceptedVerbatim() throws Exception {
+      for(boolean qdf : new boolean[] { false, true }) {
+         for(String pattern : new String[] { "yyyy-MM", "yyyy_MM_dd", "dd.MM.yyyy", "'abc'",
+                                             "MMM d, yyyy", "yyyy-MM-dd 'HH:mm'" })
+         {
+            ComboboxPropertyDialogModel model = seededComboboxModel(qdf, "yyyy-MM-dd");
+            setCombobox(model, patchOf(DFP, pattern));
+            assertEquals(pattern, model.getDataInputPaneModel().getDateFormatPattern());
+         }
+      }
+   }
+
+   @Test
+   void bug79094BlankPatternIsRefusedOnlyWhenQueryDateFormatIsOn() throws Exception {
+      assertComboboxRefused(seededComboboxModel(true, "yyyy-MM-dd"), patchOf(DFP, ""));
+      assertComboboxRefused(seededComboboxModel(true, "yyyy-MM-dd"), patchOf(DFP, "  "));
+      assertComboboxRefused(seededComboboxModel(false, "yyyy-MM-dd"), patchOf(QDF, true, DFP, ""));
+      assertComboboxRefused(seededComboboxModel(false, "yyyy-MM-dd"),
+                            patchOf(QDF, true, DFP, "   "));
+
+      Map<String, Object> blankNull = new LinkedHashMap<>();
+      blankNull.put(DFP, null);
+      assertComboboxRefused(seededComboboxModel(true, "yyyy-MM-dd"), blankNull);
+
+      // With the format off a blank pattern is inactive; a whitespace-only one is stored as-is
+      // by the setter, which only tests isEmpty().
+      assertDoesNotThrow(() -> setCombobox(seededComboboxModel(false, "yyyy-MM-dd"),
+                                           patchOf(DFP, "")));
+      assertDoesNotThrow(() -> setCombobox(seededComboboxModel(false, "yyyy-MM-dd"),
+                                           patchOf(DFP, "  ")));
+      assertDoesNotThrow(() -> setCombobox(seededComboboxModel(false, "yyyy-MM-dd"), blankNull));
+   }
+
+   @Test
+   void bug79094QueryDateFormatAloneChecksTheStoredPatternOnlyWhenTurningItOn()
+      throws Exception
+   {
+      assertDoesNotThrow(() -> setCombobox(seededComboboxModel(false, "yyyy-MM-dd"),
+                                           patchOf(QDF, true)));
+      assertComboboxRefused(seededComboboxModel(false, null), patchOf(QDF, true));
+      assertComboboxRefused(seededComboboxModel(false, "abc"), patchOf(QDF, true), "abc");
+      assertDoesNotThrow(() -> setCombobox(seededComboboxModel(true, "abc"),
+                                           patchOf(QDF, false)));
+   }
+
+   @Test
+   void bug79094StoredBadPatternNeverBlocksAnUnrelatedWrite() {
+      for(Map<String, Object> patch : List.of(
+         patchOf("inputLabelPaneModel.labelText", "x"),
+         patchOf("dataInputPaneModel.writeBackDirectly", true),
+         patchOf(QDF, false),
+         patchOf(DFP, "yyyy-MM-dd")))
+      {
+         assertDoesNotThrow(() -> setCombobox(seededComboboxModel(true, "abc"), patch),
+                            patch.toString());
+      }
+   }
+
+   @Test
+   void bug79094CapitalizedSpellingsAreRefusedToo() {
+      assertComboboxRefused(seededComboboxModel(true, "yyyy-MM-dd"),
+                            patchOf("DataInputPaneModel.dateFormatPattern", "abc"));
+      assertComboboxRefused(seededComboboxModel(true, "yyyy-MM-dd"),
+                            patchOf("dataInputPaneModel.DateFormatPattern", "abc"));
+   }
+
    // ── #78393: capitalised raw paths and list-input embedded/query-source checks ──
 
    /**
