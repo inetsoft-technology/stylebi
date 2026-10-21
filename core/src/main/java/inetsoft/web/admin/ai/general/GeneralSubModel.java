@@ -164,8 +164,8 @@ public enum GeneralSubModel {
    }
 
    /** The subset of {@link #fieldNames()} whose values are secret-classified: masked on every read
-    * and plan projection ({@link GeneralJson#maskSecrets}) and refused outright in a write
-    * {@code spec} ({@code GeneralChangePlanService.requireNoSecretFields}). Empty for the other
+    * and plan projection ({@link GeneralJson#maskSecrets}) and refused in a write
+    * {@code spec} (this verb deliberately does not carry credentials) ({@code GeneralChangePlanService.requireNoSecretFields}). Empty for the other
     * five sub-models.
     *
     * <p>A property OF the sub-model rather than a condition at each call site, for the reason

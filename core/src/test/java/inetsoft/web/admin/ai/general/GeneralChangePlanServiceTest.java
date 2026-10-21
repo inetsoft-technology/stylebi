@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.ai.AdminPropertyCatalog;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.general.model.*;
 import inetsoft.web.admin.general.model.model.SMTPAuthType;
@@ -257,6 +258,26 @@ class GeneralChangePlanServiceTest {
 
          assertTrue(e.getMessage().contains(secret), e.getMessage());
          assertTrue(e.getMessage().contains("Enterprise Manager"), e.getMessage());
+         // the refusal names the route that works, not just a dead end
+         assertTrue(e.getMessage().contains("preview_changes"), e.getMessage());
+         assertTrue(e.getMessage().contains(GeneralJson.EMAIL_SECRET_PROPERTIES.get(secret)),
+                    e.getMessage());
+         // and must not repeat the false premise that the generic path withholds these on write
+         assertFalse(e.getMessage().contains("withheld on the generic"), e.getMessage());
+      }
+   }
+
+   /**
+    * The refusal points the agent at the generic property path, so every property it names must
+    * really be one that path accepts and encrypts on write. Asserted against the constant the
+    * message is built from, not by scraping the message (Bug #78963).
+    */
+   @Test
+   void emailSecretRefusalPointsAtPropertiesTheGenericPathWrites() {
+      assertEquals(GeneralJson.EMAIL_SECRET_FIELDS, GeneralJson.EMAIL_SECRET_PROPERTIES.keySet());
+
+      for(String property : GeneralJson.EMAIL_SECRET_PROPERTIES.values()) {
+         assertTrue(AdminPropertyCatalog.isEncryptedCredential(property), property);
       }
    }
 
