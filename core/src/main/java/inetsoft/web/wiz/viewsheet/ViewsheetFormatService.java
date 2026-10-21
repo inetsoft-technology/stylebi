@@ -59,6 +59,7 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
@@ -85,6 +86,7 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -746,6 +748,12 @@ public class ViewsheetFormatService {
             List<String> names = Arrays.asList(part.getObjects());
             Set<String> engineMessages = new LinkedHashSet<>();
 
+            // Before the painter, which can null the request's own format in place.
+            if(!"text".equals(target)) {
+               warnSharedEdgeBorderColor(rvs, request.reset(), part.getFormat(),
+                                         request.formatKeys(), names, part.getData(), warnings);
+            }
+
             try {
                painter.setFormat(runtimeId, part, user, dispatcher, linkUri);
             }
@@ -927,6 +935,12 @@ public class ViewsheetFormatService {
             Insets insets = user == null ? null : user.getBordersValue();
             BorderColors colors = user == null ? null : user.getBorderColorsValue();
             String[] seed = new String[8];
+            // Bug #79096: with no user layer the painter turns every unsent style side into 0
+            // (forced none). On a table-region cell, -1 is FormatTableLens.mergeLineStyle's "use
+            // the default" marker, so seeding it leaves those sides on the table's own grid.
+            // A colour-only write sends no style, so it keeps storing no borders (nothing drawn).
+            boolean useDefault = insets == null && isTableCellPath(info, path) &&
+               BORDER_SIDES.stream().anyMatch(s -> styleSent(keys, s));
 
             for(int i = 0; i < 4; i++) {
                String side = BORDER_SIDES.get(i);
@@ -938,6 +952,9 @@ public class ViewsheetFormatService {
                      case 2 -> insets.bottom;
                      default -> insets.right;
                   });
+               }
+               else if(useDefault && !styleSent(keys, side)) {
+                  seed[i] = "-1";
                }
 
                Color color = colors == null || colorSent(keys, side) ? null : switch(i) {
@@ -955,6 +972,16 @@ public class ViewsheetFormatService {
       }
 
       return new SeedKey(valueFill, roundTop, roundBottom, cssClass, cssId, borderSeed);
+   }
+
+   /**
+    * True for a cell path of a table, crosstab or calc table: the assemblies whose borders are
+    * resolved by {@code FormatTableLens}, the only renderer that understands a -1 side. The
+    * object and title paths are drawn directly and have no such default.
+    */
+   private static boolean isTableCellPath(VSAssemblyInfo info, TableDataPath path) {
+      return info instanceof TableDataVSAssemblyInfo && path != null &&
+         !VSAssemblyInfo.OBJECTPATH.equals(path) && !VSAssemblyInfo.TITLEPATH.equals(path);
    }
 
    private static void applySeed(VSObjectFormatInfoModel model, SeedKey seed, Set<String> keys) {
@@ -1140,6 +1167,86 @@ public class ViewsheetFormatService {
                "border style, so nothing is drawn yet; also set borderTopStyle/" +
                "borderLeftStyle/borderBottomStyle/borderRightStyle to show it.");
          }
+      }
+   }
+
+   private static final int DEFAULT_BORDER_RGB = new Color(0xDADADA).getRGB();
+
+   /**
+    * Bug #79096: on a table cell, an edge is shared with the adjacent cell and
+    * {@code FormatTableLens.mergeLineColor} draws it in the lighter (larger signed rgb) of the two
+    * border colours, so a colour darker than the default grid colour may be hidden by the
+    * neighbour's default. Said once per call, naming the sides and colours sent.
+    */
+   private static void warnSharedEdgeBorderColor(RuntimeViewsheet rvs, boolean reset,
+                                                 VSObjectFormatInfoModel format, Set<String> keys,
+                                                 List<String> names, List<TableDataPath[]> data,
+                                                 Collection<String> warnings)
+   {
+      if(reset || keys == null || format == null || rvs == null || rvs.getViewsheet() == null ||
+         data == null)
+      {
+         return;
+      }
+
+      boolean table = false;
+
+      for(int i = 0; i < names.size() && !table; i++) {
+         VSAssembly assembly = rvs.getViewsheet().getAssembly(names.get(i));
+         VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
+         TableDataPath[] paths = data.size() > i ? data.get(i) : null;
+
+         if(paths != null) {
+            table = Arrays.stream(paths).anyMatch(p -> isTableCellPath(info, p));
+         }
+      }
+
+      if(!table) {
+         return;
+      }
+
+      List<String> dark = new ArrayList<>();
+
+      for(String side : BORDER_SIDES) {
+         if(!colorSent(keys, side)) {
+            continue;
+         }
+
+         String hex = switch(side) {
+            case "Top" -> format.getBorderTopColor();
+            case "Left" -> format.getBorderLeftColor();
+            case "Bottom" -> format.getBorderBottomColor();
+            default -> format.getBorderRightColor();
+         };
+         Color color = parseHexColor(hex);
+
+         if(color != null && color.getRGB() < DEFAULT_BORDER_RGB) {
+            dark.add(side.toLowerCase() + " border colour " + hex);
+         }
+      }
+
+      if(!dark.isEmpty()) {
+         warnings.add(
+            "The " + String.join(", ", dark) + " may not show: it sits on an edge shared with " +
+            "the adjacent cell, and StyleBI draws a shared edge in the lighter of the two " +
+            "border colours (the default grid colour is #dadada). To make it show, set the " +
+            "adjacent cell's facing border to the same colour; if that cell expands into " +
+            "several rows, every row it covers changes.");
+      }
+   }
+
+   private static Color parseHexColor(String hex) {
+      if(hex == null) {
+         return null;
+      }
+
+      String h = hex.startsWith("#") ? hex.substring(1) : hex;
+
+      try {
+         return h.length() == 6 ? new Color(Integer.parseInt(h, 16)) : null;
+      }
+      catch(NumberFormatException e) {
+         return null;
       }
    }
 
@@ -2271,7 +2378,10 @@ public class ViewsheetFormatService {
             "set_calc_cell_format requires 'format' unless 'reset' is true.");
       }
 
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> borderWarnings = new ArrayList<>();
+
+      List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId,
+                                                                          dispatcher) -> {
          TableDataPath cellPath =
             calcService.cellFormatPath(rvs, request.assembly(), request.row(), request.col());
          calcService.requireNotMerged(rvs, request.assembly(), request.row(), request.col());
@@ -2286,6 +2396,9 @@ public class ViewsheetFormatService {
          data.add(new TableDataPath[]{ cellPath });
          event.setData(data);
 
+         warnSharedEdgeBorderColor(rvs, request.reset(), request.format(), request.formatKeys(),
+                                   List.of(request.assembly()), data, borderWarnings);
+
          for(FormatVSObjectEvent part :
             seededEvents(rvs, request.format(), request.reset(), request.formatKeys(),
                          List.of(request.assembly()), data, event))
@@ -2293,6 +2406,12 @@ public class ViewsheetFormatService {
             painter.setFormat(runtimeId, part, user, dispatcher, linkUri);
          }
       });
+
+      if(sessionWarnings != null) {
+         borderWarnings.addAll(sessionWarnings);
+      }
+
+      return borderWarnings;
    }
 
    /**
