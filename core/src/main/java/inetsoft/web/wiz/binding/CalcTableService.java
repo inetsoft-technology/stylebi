@@ -1852,7 +1852,12 @@ public class CalcTableService {
 
       AggregateFormula formula = "countDistinct".equals(finfo.formula) ?
          AggregateFormula.COUNT_DISTINCT : AggregateFormula.getFormula(finfo.formula);
-      String type = formula == null ? null : formula.getDataType();
+
+      if(formula == null) {
+         return null;
+      }
+
+      String type = formula.getDataType();
 
       if(type == null) {
          return srcType;

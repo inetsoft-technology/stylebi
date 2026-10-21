@@ -2827,6 +2827,20 @@ class ViewsheetFormatServiceTest {
    }
 
    @Test
+   void refusesADateFormatOnADecimalCalcCell() throws Exception {
+      ViewsheetSessionService sessions = sessionsFor(mock(RuntimeViewsheet.class));
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service(sessions, mock(FormatPainterService.class),
+                       calcCellOfType(XSchema.DECIMAL))
+            .setCellFormat("tok", principal(), cellRequest("DateFormat", false), ""));
+
+      assertTrue(DATE_ON_NUMBER.matcher(thrown.getMessage()).find(), thrown.getMessage());
+      verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   @Test
    void allowsADateFormatOnADateOrUnknownCalcCell() throws Exception {
       for(String type : new String[]{ XSchema.DATE, XSchema.TIME_INSTANT, XSchema.STRING, null }) {
          FormatPainterService painter = mock(FormatPainterService.class);

@@ -2385,7 +2385,7 @@ public class ViewsheetFormatService {
       String type = calcService.cellOutputType(rvs, request.assembly(), request.row(),
                                                request.col());
 
-      if(!XSchema.isNumericType(type)) {
+      if(!XSchema.isNumericType(type) && !XSchema.DECIMAL.equals(type)) {
          return;
       }
 

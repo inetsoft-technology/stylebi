@@ -2185,4 +2185,20 @@ class CalcTableServiceTest {
 
       assertEquals("Sum(Product:Total)", h.service.describeCellBinding(rvs, "Calc1", 1, 1));
    }
+
+   @Test
+   void cellOutputTypeOfADecimalSourceIsDecimalForGroupDetailAndMax() throws Exception {
+      inetsoft.uql.asset.ColumnRef price = typedColumn("Price", XSchema.DECIMAL);
+      assertEquals(XSchema.DECIMAL, outputTypeOf(TableCellBinding.getGroupBinding("Price"), price));
+      assertEquals(XSchema.DECIMAL, outputTypeOf(TableCellBinding.getDetailBinding("Price"), price));
+      assertEquals(XSchema.DECIMAL, outputTypeOf(summary("Price", "Max"), price));
+   }
+
+   @Test
+   void cellOutputTypeOfAnUnrecognizedFormulaIsUnknown() throws Exception {
+      assertNull(outputTypeOf(summary("Order Date", "NoSuchFormula"),
+                              typedColumn("Order Date", XSchema.DATE)));
+      assertNull(outputTypeOf(summary("Total", "NoSuchFormula"),
+                              typedColumn("Total", XSchema.DOUBLE)));
+   }
 }
