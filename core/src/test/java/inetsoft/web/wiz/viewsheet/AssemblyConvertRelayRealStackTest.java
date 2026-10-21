@@ -30,7 +30,10 @@ import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
+import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
+import inetsoft.uql.viewsheet.SelectionValue;
+import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.vs.objects.controller.ComposerRangeSliderService;
@@ -103,6 +106,57 @@ class AssemblyConvertRelayRealStackTest {
 
       assertFalse(convert(rvs, "range_slider").containsKey("warnings"));
       assertFalse(convert(rvs, "selection_list").containsKey("warnings"));
+   }
+
+   // ── dropped slider range disclosure (bug #79054) ──────────────────────────
+
+   @Test
+   void sliderToListNamesANarrowedRange() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addSelectionList(rvs);
+      convert(rvs, "range_slider");
+      slider(rvs, 5, 2, true);
+
+      assertEquals(List.of("selection (a selected range)"),
+                   convert(rvs, "selection_list").get("cleared"));
+   }
+
+   @Test
+   void sliderToListNamesNothingForAFullRange() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addSelectionList(rvs);
+      convert(rvs, "range_slider");
+      slider(rvs, 5, 5, true);
+
+      assertEquals(List.of(), convert(rvs, "selection_list").get("cleared"));
+   }
+
+   @Test
+   void sliderToListNamesNothingForADisabledSlider() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addSelectionList(rvs);
+      convert(rvs, "range_slider");
+      slider(rvs, 5, 2, false);
+
+      assertEquals(List.of(), convert(rvs, "selection_list").get("cleared"));
+   }
+
+   private static void slider(RuntimeViewsheet rvs, int viewCount, int stateCount, boolean enabled) {
+      TimeSliderVSAssembly slider = (TimeSliderVSAssembly)
+         rvs.getViewsheetSandbox().orElseThrow().getViewsheet().getAssembly(FILTER);
+      slider.setSelectionList(values(viewCount));
+      slider.setStateSelectionList(values(stateCount));
+      slider.getVSAssemblyInfo().setEnabled(enabled);
+   }
+
+   private static SelectionList values(int count) {
+      SelectionList list = new SelectionList();
+
+      for(int i = 0; i < count; i++) {
+         list.addSelectionValue(new SelectionValue("v" + i, "v" + i));
+      }
+
+      return list;
    }
 
    @SuppressWarnings("unchecked")

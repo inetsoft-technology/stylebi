@@ -304,6 +304,10 @@ public class AssemblyConvertService {
     * nothing says so.
     */
    private static List<String> discardedBy(VSAssembly assembly, String target) {
+      if(RANGE_SLIDER.equals(target) || SELECTION_LIST.equals(target)) {
+         return discardedSelection(assembly, target);
+      }
+
       if(!FREEHAND_TABLE.equals(target) || !(assembly instanceof TableDataVSAssembly table)) {
          return List.of();
       }
@@ -345,6 +349,43 @@ public class AssemblyConvertService {
       }
 
       return cleared;
+   }
+
+   /**
+    * A selection list and a range slider hold different state (discrete values vs. a contiguous
+    * range), and neither conversion copies it, so a live selection is dropped and the filter it
+    * applied disappears. Named only when there is one; reads fail open so a state that cannot be
+    * read never blocks the conversion.
+    */
+   private static List<String> discardedSelection(VSAssembly assembly, String target) {
+      try {
+         if(RANGE_SLIDER.equals(target) && assembly instanceof SelectionListVSAssembly list) {
+            List<Object> selected = list.getSelectedObjects();
+            int count = selected == null ? 0 : selected.size();
+
+            if(count > 0) {
+               return List.of("selection (" + count + (count == 1 ? " value)" : " values)"));
+            }
+         }
+         else if(SELECTION_LIST.equals(target) && assembly instanceof TimeSliderVSAssembly slider &&
+            slider.isEnabled())
+         {
+            SelectionList state = slider.getStateSelectionList();
+            SelectionList view = slider.getSelectionList();
+
+            // narrowed only: a state count differing from a refreshed view list is not a selection
+            if(state != null && view != null &&
+               state.getSelectionValueCount() < view.getSelectionValueCount())
+            {
+               return List.of("selection (a selected range)");
+            }
+         }
+      }
+      catch(RuntimeException e) {
+         // fail open
+      }
+
+      return List.of();
    }
 
    /** Mirrors {@code ComposerVSTableService.clearCalculators}' predicate without mutating anything. */
