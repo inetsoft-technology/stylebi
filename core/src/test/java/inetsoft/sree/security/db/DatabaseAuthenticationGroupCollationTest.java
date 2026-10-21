@@ -425,7 +425,10 @@ class DatabaseAuthenticationGroupCollationTest {
       SreeEnv.setProperty("security.user.caseSensitive", "true");
       SreeEnv.setProperty("security.users.multiTenant", "false");
 
-      DatabaseAuthenticationProvider cfg = new DatabaseAuthenticationProvider();
+      // the seams are set in the constructor: the security chain re-creates and loads provider
+      // instances from authc-chain.json on its own thread, and an instance without them cannot
+      // find a driver, so its load fails and is not retried for a minute
+      DatabaseAuthenticationProvider cfg = new DatabaseCacheTestSupport.SeamProvider();
       cfg.setDriver(DRIVER);
       cfg.setUrl(url);
       configureQueries(cfg);
@@ -444,16 +447,21 @@ class DatabaseAuthenticationGroupCollationTest {
 
       SecurityProvider root = SecurityEngine.getSecurity().getSecurityProvider();
       DatabaseAuthenticationProvider p = find(root, name);
-      p.setMultiTenantSupplier(() -> false);
-      p.setDriverAvailable(d -> true);
-      p.setDriverSupplier(d -> (Driver) Class.forName(DRIVER).getConstructor().newInstance());
       provider = p;
       assertEquals(cache, p.isCacheEnabled());
 
       if(cache) {
-         p.getCache(true).load();
-         Awaitility.await().atMost(Duration.ofMinutes(1)).pollInterval(Duration.ofMillis(100))
-            .until(p::isCacheInitialized);
+         // A load that the chain reload starts on an instance that the chain is swapping out
+         // can fail, which blocks the scheduled retry for a minute, and a load requested while
+         // another one runs is dropped. So ask again until one is accepted and succeeds.
+         Awaitility.await().atMost(Duration.ofMinutes(1)).pollInterval(Duration.ofMillis(250))
+            .until(() -> {
+               if(!p.isCacheInitialized()) {
+                  p.getCache(true).load();
+               }
+
+               return p.isCacheInitialized();
+            });
       }
 
       return root;
