@@ -633,7 +633,20 @@ public class PPTVSExporter extends AbstractVSExporter {
             shadowed = ((TextVSAssemblyInfo) info).isShadow();
          }
 
-         writeText(txt, coordinator.getBounds(info), getTextFormat(info), shadowed);
+         // padding is an inset of the text area inside the component bounds (as in the viewer
+         // and PDF), in pixels; convert to points like the bounds. all-zero padding keeps the
+         // default 1pt insets.
+         Insets padding = info.getPadding();
+
+         if(padding == null || padding.top == 0 && padding.left == 0 &&
+            padding.bottom == 0 && padding.right == 0)
+         {
+            writeText(txt, coordinator.getBounds(info), getTextFormat(info), shadowed);
+         }
+         else {
+            writeText(txt, coordinator.getBounds(info), getTextFormat(info), shadowed,
+                      padding, coordinator.getScale());
+         }
       }
       catch(Exception e) {
          LOG.error("Failed to write text \"" + txt +
@@ -684,13 +697,23 @@ public class PPTVSExporter extends AbstractVSExporter {
                          VSCompositeFormat format, boolean shadowed,
                          Insets padding)
    {
+      writeText(text, bounds, format, shadowed, padding, 1);
+   }
+
+   /**
+    * Write text with format.
+    * @param paddingScale the factor converting the padding units to points.
+    */
+   private void writeText(String text, Rectangle2D bounds, VSCompositeFormat format,
+                          boolean shadowed, Insets padding, double paddingScale)
+   {
       try {
          PPTValueHelper helper = new PPTValueHelper(slide);
          helper.setBounds(bounds);
          helper.setValue(text);
          helper.setFormat(format);
          helper.setShadowed(shadowed);
-         helper.setPadding(padding);
+         helper.setPadding(padding, paddingScale);
          helper.writeTextBox();
       }
       catch(Exception e) {
