@@ -4127,7 +4127,7 @@ public class IdentityService {
 
                try {
                   updatePermission(aprovider, permissionSet, oldOrgName, newOrgName, oldOrgId,
-                                   newOrgId, doReplace, type);
+                                   newOrgId, doReplace, type, permissionSetList);
                }
                catch(RuntimeException e) {
                   LOG.error("Failed to update the permission of {} {} from {} to {}, it may not " +
@@ -4201,7 +4201,8 @@ public class IdentityService {
    private void updatePermission(AuthorizationProvider provider,
                                  Tuple4<ResourceType, String, String, Permission> permissionSet,
                                  String oIdentityName, String nIdentityName, String oorgId,
-                                 String norgId, boolean doReplace, int changeIdentityType)
+                                 String norgId, boolean doReplace, int changeIdentityType,
+                                 List<Tuple4<ResourceType, String, String, Permission>> allPermissions)
    {
       ResourceType type = permissionSet.getFirst();
       String resourceOrgID = permissionSet.getSecond();
@@ -4209,7 +4210,7 @@ public class IdentityService {
       Permission permission = permissionSet.getForth();
       updateOrgEditedGrantAll(permission, oorgId, norgId);
       String newPath = getNewPermissionPath(permissionSet.getFirst(), path, oorgId, norgId,
-         oIdentityName, nIdentityName, changeIdentityType);
+         oIdentityName, nIdentityName, changeIdentityType, allPermissions);
 
       if(newPath != null) {
          provider.setPermission(type, newPath, permission, norgId);
@@ -4372,6 +4373,14 @@ public class IdentityService {
       }
    }
 
+   private static boolean hasOrganizationKey(
+      List<Tuple4<ResourceType, String, String, Permission>> permissions, String key)
+   {
+      return permissions != null && permissions.stream()
+         .anyMatch(p -> p.getFirst() == ResourceType.SECURITY_ORGANIZATION &&
+                        Tool.equals(p.getThird(), key));
+   }
+
    private boolean containsOrgID(String path, String oorgID) {
       if(path != null && path.contains(IdentityID.KEY_DELIMITER)) {
          IdentityID identityID = IdentityID.getIdentityIDFromKey(path);
@@ -4384,10 +4393,23 @@ public class IdentityService {
 
    private String getNewPermissionPath(ResourceType type, String path,
                                        String oorgID, String norgID, String oIdentityName,
-                                       String nIdentityName, int changeIdentityType)
+                                       String nIdentityName, int changeIdentityType,
+                                       List<Tuple4<ResourceType, String, String, Permission>> allPermissions)
    {
       if(type == ResourceType.SECURITY_ORGANIZATION &&
          Tool.equals(path, new IdentityID(oIdentityName, oorgID).convertToKey()))
+      {
+         return new IdentityID(nIdentityName, norgID).convertToKey();
+      }
+
+      // Bug #78502, an organization that predates the (name, id) key has its grant under the
+      // legacy (id, id) key, which the permission checks still read when the (name, id) key is
+      // absent. When the name differs from the id, the key is moved to (newName, newId), the key
+      // the checks read, and not to (oldId, newId), which nothing reads.
+      if(type == ResourceType.SECURITY_ORGANIZATION && oorgID != null && nIdentityName != null &&
+         norgID != null && !Tool.equals(oIdentityName, oorgID) &&
+         Tool.equals(path, new IdentityID(oorgID, oorgID).convertToKey()) &&
+         !hasOrganizationKey(allPermissions, new IdentityID(oIdentityName, oorgID).convertToKey()))
       {
          return new IdentityID(nIdentityName, norgID).convertToKey();
       }

@@ -143,6 +143,69 @@ class IdentityServiceRenameOrgLeftoverPermissionTest {
       assertNull(Tool.getUserMessage(), "the keys of an organization whose ID is kept are not left");
    }
 
+   private static String orgKey(String name, String id, String resourceOrg) {
+      return "SECURITY_ORGANIZATION:" + resourceOrg + ":" + new IdentityID(name, id).convertToKey();
+   }
+
+   // Bug #78502, a legacy (id, id) org key of an org whose name differs from its id is moved to
+   // the key the checks read, (name, newId), and not to the unread (oldId, newId)
+   @Test
+   void renameOrgId_legacyIdIdKeyNameDiffersFromId_movedToNameNewId() throws Exception {
+      store.put(orgKey(OLD_ORG, OLD_ORG, OLD_ORG), grant());
+
+      renameOrg(OLD_ORG, NEW_ORG, "Acme", "Acme");
+
+      assertTrue(store.containsKey(orgKey("Acme", NEW_ORG, NEW_ORG)), store.toString());
+      assertFalse(store.containsKey(orgKey(OLD_ORG, NEW_ORG, NEW_ORG)), store.toString());
+      assertFalse(store.containsKey(orgKey(OLD_ORG, OLD_ORG, OLD_ORG)), store.toString());
+   }
+
+   // the legacy key follows a name change made together with the id change
+   @Test
+   void renameOrgIdAndName_legacyIdIdKey_movedToNewNameNewId() throws Exception {
+      store.put(orgKey(OLD_ORG, OLD_ORG, OLD_ORG), grant());
+
+      renameOrg(OLD_ORG, NEW_ORG, "Acme", "Acme2");
+
+      assertTrue(store.containsKey(orgKey("Acme2", NEW_ORG, NEW_ORG)), store.toString());
+      assertFalse(store.containsKey(orgKey(OLD_ORG, NEW_ORG, NEW_ORG)), store.toString());
+   }
+
+   // the current (name, id) key keeps its path
+   @Test
+   void renameOrgId_currentNameIdKey_movedToNameNewId() throws Exception {
+      store.put(orgKey("Acme", OLD_ORG, OLD_ORG), grant());
+
+      renameOrg(OLD_ORG, NEW_ORG, "Acme", "Acme");
+
+      assertTrue(store.containsKey(orgKey("Acme", NEW_ORG, NEW_ORG)), store.toString());
+      assertFalse(store.containsKey(orgKey(OLD_ORG, NEW_ORG, NEW_ORG)), store.toString());
+   }
+
+   // name == id: the (id, id) key is the (name, id) key
+   @Test
+   void renameOrgId_nameEqualsId_movedToNameNewId() throws Exception {
+      store.put(orgKey(OLD_ORG, OLD_ORG, OLD_ORG), grant());
+
+      renameOrg(OLD_ORG, NEW_ORG, OLD_ORG, OLD_ORG);
+
+      assertTrue(store.containsKey(orgKey(OLD_ORG, NEW_ORG, NEW_ORG)), store.toString());
+      assertFalse(store.containsKey(orgKey(OLD_ORG, OLD_ORG, OLD_ORG)), store.toString());
+   }
+
+   // when both keys exist, the (name, id) key is the org's grant and the legacy key is not used
+   @Test
+   void renameOrgId_bothKeys_currentKeyKept() throws Exception {
+      Permission legacy = grant();
+      Permission current = grant();
+      store.put(orgKey(OLD_ORG, OLD_ORG, OLD_ORG), legacy);
+      store.put(orgKey("Acme", OLD_ORG, OLD_ORG), current);
+
+      renameOrg(OLD_ORG, NEW_ORG, "Acme", "Acme");
+
+      assertSame(current, store.get(orgKey("Acme", NEW_ORG, NEW_ORG)), store.toString());
+   }
+
    private void renameOrg(String oldOrgId, String newOrgId, String oldName, String newName)
       throws Exception
    {
