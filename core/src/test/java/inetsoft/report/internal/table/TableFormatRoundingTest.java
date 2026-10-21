@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.util.ExtendedDecimalFormat;
 import inetsoft.util.Tool;
+import inetsoft.util.script.JavaScriptEngine;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -153,6 +154,31 @@ class TableFormatRoundingTest {
       assertEquals("40.29", decimal("##0.00").format(40.285));
    }
 
+   /**
+    * Bug #78496: the table and script formatNumber must agree in every rounding mode at decimal
+    * ties whose double is just below the tie (1.015 is 1.01499999999999990...). Same matrix as
+    * RoundDecimalFormatRoundingModeTest.scriptFormatNumberRoundsDecimalTies.
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "ROUND_UP, 1.015, 1.02", "ROUND_DOWN, 1.015, 1.01", "ROUND_CEILING, 1.015, 1.02",
+      "ROUND_FLOOR, 1.015, 1.01", "ROUND_HALF_UP, 1.015, 1.02", "ROUND_HALF_DOWN, 1.015, 1.01",
+      "ROUND_HALF_EVEN, 1.015, 1.02",
+      "ROUND_UP, 2.675, 2.68", "ROUND_DOWN, 2.675, 2.67", "ROUND_CEILING, 2.675, 2.68",
+      "ROUND_FLOOR, 2.675, 2.67", "ROUND_HALF_UP, 2.675, 2.68", "ROUND_HALF_DOWN, 2.675, 2.67",
+      "ROUND_HALF_EVEN, 2.675, 2.68",
+      "ROUND_UP, -1.015, -1.02", "ROUND_DOWN, -1.015, -1.01", "ROUND_CEILING, -1.015, -1.01",
+      "ROUND_FLOOR, -1.015, -1.02", "ROUND_HALF_UP, -1.015, -1.02",
+      "ROUND_HALF_DOWN, -1.015, -1.01", "ROUND_HALF_EVEN, -1.015, -1.02"
+   })
+   void tableAndScriptAgreeAtTies(String rounding, double value, String expected) {
+      SreeEnv.setProperty(NUMBER_ROUND, rounding);
+      assertEquals(expected, decimal("0.00").format(value));
+      assertEquals(expected, JavaScriptEngine.formatNumber(value, "0.00", rounding));
+      assertEquals(decimal("0.00E0").format(value),
+                   JavaScriptEngine.formatNumber(value, "0.00E0", rounding));
+   }
+
    // format.percent.round rounds to a whole percent (Bug #6026), ROUND_HALF_EVEN keeps a decimal
    @ParameterizedTest
    @CsvSource({
@@ -162,7 +188,10 @@ class TableFormatRoundingTest {
       "ROUND_HALF_UP, 0.12341, 12%",
       "ROUND_HALF_EVEN, 0.12345, 12.3%",
       "ROUND_HALF_EVEN, 3.084, 308.4%",
-      "BOGUS, 0.12345, 12.3%"
+      "BOGUS, 0.12345, 12.3%",
+      // Bug #78496: HALF_EVEN rounds the decimal string, so 0.0005 (0.05%) ties to even 0.0%
+      "ROUND_HALF_EVEN, 0.0005, 0%",
+      "ROUND_HALF_EVEN, 0.0015, 0.2%"
    })
    void percentRoundingIsUnchanged(String rounding, double value, String expected) {
       SreeEnv.setProperty(PERCENT_ROUND, rounding);
