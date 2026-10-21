@@ -20,6 +20,7 @@ package inetsoft.web.wiz.worksheet;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
@@ -37,6 +38,7 @@ import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.web.WebConfig;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -316,6 +318,162 @@ class AddMirrorSource78881Test {
          new DefaultDateRangeAssembly(ws, "D")));
    }
 
+   // ------------------------------------------------------------------- read model (#78949)
+
+   @Test
+   void aVariableMirrorIsListedAndItsHiddenCopyIsFlaggedUnderItsAssemblyName() throws Exception {
+      saveVariableSource("am78949_read");
+      Worksheet ws = new Worksheet();
+      addWorksheetMirror(ws, "MV", "am78949_read");
+      String outer = hiddenCopyName(ws);
+
+      WorksheetModel model = new WorksheetReadService().read(rwsOf(ws));
+
+      assertEquals(1, model.mirrors().size());
+      WorksheetModel.MirrorModel mirror = model.mirrors().get(0);
+      assertEquals("MV", mirror.name());
+      assertEquals("variable", mirror.kind());
+      assertEquals("am78949_read", mirror.source());
+      assertTrue(mirror.outerMirror());
+
+      // the copy is reported under the name every write tool resolves, and flagged hidden
+      assertEquals(1, model.variables().size());
+      WorksheetModel.VariableModel copy = model.variables().get(0);
+      assertEquals(outer, copy.name());
+      assertEquals(Boolean.TRUE, copy.hidden());
+   }
+
+   @Test
+   void anOrdinaryVariableIsNotFlaggedHiddenAndNoMirrorsAreListed() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(variable(ws, "V1"));
+
+      WorksheetModel model = new WorksheetReadService().read(rwsOf(ws));
+
+      assertEquals(List.of(), model.mirrors());
+      assertEquals("V1", model.variables().get(0).name());
+      assertNull(model.variables().get(0).hidden());
+   }
+
+   // ------------------------------------------------------------------- variable tools (#78949)
+
+   @Test
+   void variableToolsRefuseAMirrorAndLeaveTheWorksheetUntouched() throws Exception {
+      saveVariableSource("am78949_mirror");
+      Worksheet ws = new Worksheet();
+      addWorksheetMirror(ws, "MV", "am78949_mirror");
+      List<String> before = names(ws);
+
+      assertMirrorRefusal(
+         assertThrows(PairingException.class, () -> service(ws).apply("TOK", agent,
+            ed -> ed.editVariable("MV", null, "x", null, null))));
+      assertMirrorRefusal(
+         assertThrows(PairingException.class, () -> service(ws).apply("TOK", agent,
+            ed -> ed.renameVariable("MV", "MV2"))));
+      PairingException delete = assertThrows(PairingException.class,
+         () -> service(ws).apply("TOK", agent, ed -> ed.deleteVariable("MV")));
+      assertMirrorRefusal(delete);
+      assertTrue(delete.getMessage().contains("delete_table"), delete.getMessage());
+      assertMirrorRefusal(setVariableValues(ws, "MV"));
+      assertEquals(before, names(ws));
+   }
+
+   @Test
+   void variableToolsRefuseTheHiddenCopyBackingAMirror() throws Exception {
+      saveVariableSource("am78949_outer");
+      Worksheet ws = new Worksheet();
+      addWorksheetMirror(ws, "MV", "am78949_outer");
+      String outer = hiddenCopyName(ws);
+      List<String> before = names(ws);
+
+      assertHiddenCopyRefusal(
+         assertThrows(PairingException.class, () -> service(ws).apply("TOK", agent,
+            ed -> ed.editVariable(outer, null, "x", null, null))));
+      assertHiddenCopyRefusal(
+         assertThrows(PairingException.class, () -> service(ws).apply("TOK", agent,
+            ed -> ed.renameVariable(outer, "renamed"))));
+      assertHiddenCopyRefusal(
+         assertThrows(PairingException.class, () -> service(ws).apply("TOK", agent,
+            ed -> ed.deleteVariable(outer))));
+      assertHiddenCopyRefusal(setVariableValues(ws, outer));
+      assertEquals(before, names(ws));
+   }
+
+   @Test
+   void deleteTableRemovesAVariableMirrorTogetherWithItsHiddenCopy() throws Exception {
+      saveVariableSource("am78949_delete");
+      Worksheet ws = new Worksheet();
+      addWorksheetMirror(ws, "MV", "am78949_delete");
+
+      service(ws).apply("TOK", agent, ed -> ed.deleteTable("MV"));
+
+      assertEquals(List.of(), names(ws));
+   }
+
+   @Test
+   void namedGroupToolsRefuseAMirrorAndItsHiddenCopy() throws Exception {
+      saveNamedGroupSource("am78949_group");
+      Worksheet ws = new Worksheet();
+      addWorksheetMirror(ws, "MG", "am78949_group");
+      String outer = hiddenCopyName(ws);
+      List<String> before = names(ws);
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("G2", List.of("c"), null));
+
+      for(String name : List.of("MG", outer)) {
+         PairingException edit = assertThrows(PairingException.class,
+            () -> service(ws).apply("TOK", agent, ed -> ed.editNamedGroup(name, null, mappings, false)));
+         PairingException delete = assertThrows(PairingException.class,
+            () -> service(ws).apply("TOK", agent, ed -> ed.deleteNamedGroup(name)));
+
+         for(PairingException ex : List.of(edit, delete)) {
+            assertFalse(ex.getMessage().contains("not found"), ex.getMessage());
+            assertTrue(ex.getMessage().contains("delete_table"), ex.getMessage());
+            assertTrue(name.equals("MG") ? ex.getMessage().contains("is a mirror of am78949_group")
+                       : ex.getMessage().contains("hidden copy that backs a mirror, not a named group"),
+                       ex.getMessage());
+         }
+      }
+
+      assertEquals(before, names(ws));
+   }
+
+   private static void assertMirrorRefusal(PairingException ex) {
+      assertTrue(ex.getMessage().contains("'MV' is a mirror of am78949_"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("not editable"), ex.getMessage());
+   }
+
+   private static void assertHiddenCopyRefusal(PairingException ex) {
+      assertTrue(ex.getMessage().contains("is a hidden copy that backs a mirror"),
+                 ex.getMessage());
+      assertTrue(ex.getMessage().contains("delete_table"), ex.getMessage());
+   }
+
+   private PairingException setVariableValues(Worksheet ws, String name) throws Exception {
+      WorksheetAgentController controller = controller(ws, mock(AssetQuerySandbox.class));
+      EditRequest request = new WebConfig().objectMapper().readValue(
+         "{\"op\":\"set_variable_values\",\"variableValues\":{\"" + name + "\":\"x\"}}",
+         EditRequest.class);
+
+      return assertThrows(PairingException.class, () -> controller.edit("TOK", request, agent));
+   }
+
+   private static String hiddenCopyName(Worksheet ws) {
+      for(Assembly assembly : ws.getAssemblies()) {
+         if(assembly instanceof WSAssembly wsa && wsa.isOuter()) {
+            return assembly.getName();
+         }
+      }
+
+      throw new AssertionError("no hidden copy in " + names(ws));
+   }
+
+   private static RuntimeWorksheet rwsOf(Worksheet ws) {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      return rws;
+   }
+
    // ------------------------------------------------------------------- fixtures
 
    private ResponseEntity<EditResponse> addWorksheetMirror(Worksheet ws, String name, String path)
@@ -337,11 +495,17 @@ class AddMirrorSource78881Test {
    }
 
    private WorksheetAgentController controller(Worksheet ws) throws Exception {
+      return controller(ws, null);
+   }
+
+   private WorksheetAgentController controller(Worksheet ws, AssetQuerySandbox sandbox)
+      throws Exception
+   {
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
       return new WorksheetAgentController(
          feature, mock(SheetJoinService.class), sessions(), mock(WorksheetReadService.class),
-         service(ws), worksheetService, mock(WorksheetPreviewService.class),
+         service(ws, sandbox), worksheetService, mock(WorksheetPreviewService.class),
          mock(SheetAgentBroadcastService.class), mock(inetsoft.uql.XRepository.class),
          readableRepository(), mock(inetsoft.web.wiz.service.MetadataApiService.class),
          mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
@@ -364,6 +528,12 @@ class AddMirrorSource78881Test {
    }
 
    private WorksheetEditService service(Worksheet ws) throws Exception {
+      return service(ws, null);
+   }
+
+   private WorksheetEditService service(Worksheet ws, AssetQuerySandbox sandbox)
+      throws Exception
+   {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(
          any(), any(ResourceType.class), any(String.class), any(ResourceAction.class)))
@@ -373,6 +543,7 @@ class AddMirrorSource78881Test {
       when(rws.getWorksheet()).thenReturn(ws);
       // skips the mirror's design-time column initialization, which needs a query sandbox
       when(rws.isDisposed()).thenReturn(true);
+      when(rws.getAssetQuerySandbox()).thenReturn(sandbox);
       when(runtimeAccess.getSheetForPairing(
          eq(SheetType.WORKSHEET), eq("Worksheet/ws1"), eq(agent))).thenReturn(rws);
       return new WorksheetEditService(sessions(), runtimeAccess,
@@ -430,6 +601,17 @@ class AddMirrorSource78881Test {
       Worksheet ws = new Worksheet();
       ws.addAssembly(variable(ws, "V"));
       ws.setPrimaryAssembly("V");
+      worksheetService.setWorksheet(ws, entry, null, true, true);
+      repository().clearCache(entry);
+   }
+
+   /** Saves a global worksheet whose primary assembly is a named group. */
+   private void saveNamedGroupSource(String path) throws Exception {
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                        path, null);
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultNamedGroupAssembly(ws, "G"));
+      ws.setPrimaryAssembly("G");
       worksheetService.setWorksheet(ws, entry, null, true, true);
       repository().clearCache(entry);
    }

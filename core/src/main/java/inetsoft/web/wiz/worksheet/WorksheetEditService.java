@@ -2148,6 +2148,54 @@ public class WorksheetEditService {
          return assembly instanceof TableAssembly ? "table" : kindOf(assembly);
       }
 
+      /**
+       * Where a mirror's definition lives: the source worksheet path for an outer mirror, else the
+       * mirrored assembly's name in this worksheet; {@code null} when neither is known.
+       */
+      public static String mirrorSource(MirrorAssembly mirror) {
+         AssetEntry entry = mirror.getEntry();
+
+         if(mirror.isOuterMirror() && entry != null && entry.getPath() != null) {
+            return entry.getPath();
+         }
+
+         return mirror.getAssemblyName();
+      }
+
+      /**
+       * Refuses a variable or named-group tool aimed at a mirror or at the hidden copy that
+       * backs one. A mirror
+       * has no definition of its own (it lives in the source worksheet), and the hidden copy is a
+       * real variable assembly: editing it would silently change what the mirror reports, and
+       * deleting it would orphan the mirror.
+       *
+       * @param remedy what the caller should do instead, appended to a mirror refusal
+       */
+      static void refuseMirrorOrHiddenCopy(Assembly a, String name, String remedy)
+         throws PairingException
+      {
+         if(a instanceof TableAssembly) {
+            return;
+         }
+
+         if(a instanceof MirrorAssembly mirror) {
+            String source = mirrorSource(mirror);
+            throw new PairingException(
+               "'" + name + "' is a mirror" + (source != null ? " of " + source : "") +
+               "; mirrors are not editable. " + remedy);
+         }
+
+         if(a instanceof WSAssembly wsa && wsa.isOuter()) {
+            throw new PairingException(
+               "'" + name + "' is a hidden copy that backs a mirror, not a " + kindOf(a) + " of its own, " +
+               "and cannot be changed directly. Edit the source worksheet, or delete the " +
+               "mirror with delete_table (that removes this copy too).");
+         }
+      }
+
+      private static final String MIRROR_EDIT_REMEDY =
+         "Edit the source worksheet, or delete the mirror with delete_table.";
+
       /** The kind of a non-table worksheet assembly, as a refusal names it. */
       public static String kindOf(Assembly assembly) {
          return switch(assembly.getAssemblyType()) {
@@ -3856,6 +3904,7 @@ public class WorksheetEditService {
          throws PairingException
       {
          Assembly a = ws.getAssembly(name);
+         refuseMirrorOrHiddenCopy(a, name, MIRROR_EDIT_REMEDY);
 
          if(!(a instanceof DefaultVariableAssembly va)) {
             throw new PairingException("Variable assembly not found: " + name);
@@ -3931,6 +3980,7 @@ public class WorksheetEditService {
        */
       public void renameVariable(String oldName, String newName) throws PairingException {
          Assembly a = ws.getAssembly(oldName);
+         refuseMirrorOrHiddenCopy(a, oldName, MIRROR_EDIT_REMEDY);
 
          if(!(a instanceof DefaultVariableAssembly)) {
             throw new PairingException("Variable assembly not found: " + oldName);
@@ -3953,6 +4003,7 @@ public class WorksheetEditService {
        */
       public void deleteVariable(String name) throws PairingException {
          Assembly a = ws.getAssembly(name);
+         refuseMirrorOrHiddenCopy(a, name, "Delete it with delete_table instead.");
 
          if(!(a instanceof DefaultVariableAssembly)) {
             throw new PairingException("Variable assembly not found: " + name);
@@ -4005,6 +4056,7 @@ public class WorksheetEditService {
                                  boolean groupOthers) throws PairingException
       {
          Assembly a = ws.getAssembly(name);
+         refuseMirrorOrHiddenCopy(a, name, MIRROR_EDIT_REMEDY);
 
          if(!(a instanceof DefaultNamedGroupAssembly nga)) {
             throw new PairingException("Named group assembly not found: " + name);
@@ -4126,6 +4178,7 @@ public class WorksheetEditService {
        */
       public void deleteNamedGroup(String name) throws PairingException {
          Assembly a = ws.getAssembly(name);
+         refuseMirrorOrHiddenCopy(a, name, "Delete it with delete_table instead.");
 
          if(!(a instanceof DefaultNamedGroupAssembly)) {
             throw new PairingException("Named group assembly not found: " + name);

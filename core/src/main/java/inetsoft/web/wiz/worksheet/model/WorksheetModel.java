@@ -38,7 +38,29 @@ import java.util.List;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record WorksheetModel(List<TableModel> tables, List<VariableModel> variables,
-                             List<NamedGroupModel> namedGroups) {
+                             List<NamedGroupModel> namedGroups, List<MirrorModel> mirrors) {
+
+   /**
+    * A non-table mirror assembly -- a variable, named group, condition or date range mirrored from
+    * another worksheet. A table mirror is a table and is listed in {@code tables} instead (type
+    * {@code "MIRROR"}). Mirrors of these kinds have no definition of their own: it lives in the
+    * source worksheet, so they cannot be edited here and are removed with {@code delete_table}.
+    *
+    * <p>Adding one also creates hidden copies of the source's assemblies inside this worksheet;
+    * those carry {@code hidden: true} in {@code variables}/{@code namedGroups}/{@code tables} and
+    * are owned by the mirror.</p>
+    *
+    * @param name        the mirror's assembly name
+    * @param kind        {@code "variable"}, {@code "named group"}, {@code "condition"} or
+    *                    {@code "date range"}
+    * @param source      the source worksheet path for an outer mirror, otherwise the name of the
+    *                    mirrored assembly in this worksheet; {@code null} when unknown
+    * @param outerMirror whether the source is another worksheet
+    * @param autoUpdate  whether the mirror follows its source automatically
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record MirrorModel(String name, String kind, String source, boolean outerMirror,
+                             boolean autoUpdate) {}
 
    /**
     * A single table assembly inside the worksheet.
@@ -131,6 +153,9 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                           tokens in its query; for any other table type it reflects whatever
     *                           its own filter/ranking/TopN conditions reference, recursively
     *                           aggregated across upstream sources for a join, concat or mirror table
+    * @param hidden             {@code true} for a hidden copy that backs a mirror (see
+    *                           {@link MirrorModel}); {@code null} otherwise. Such a copy is not
+    *                           user content: it cannot be edited, renamed or deleted directly
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record TableModel(
@@ -162,7 +187,8 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       List<FilterModel> mvUpdatePostConditions,
       List<FilterModel> mvDeletePreConditions,
       List<FilterModel> mvDeletePostConditions,
-      boolean mvForceAppendUpdates
+      boolean mvForceAppendUpdates,
+      Boolean hidden
    ) {}
 
    /**
@@ -361,10 +387,12 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param choices      the variable's "Values" picker, or {@code null} when no picker is
     *                     configured at all (a plain free-form/text-input variable) — not an
     *                     empty/default {@code ChoicesModel}
+    * @param hidden       {@code true} for a hidden copy that backs a mirror (see
+    *                     {@link MirrorModel}); {@code null} otherwise
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record VariableModel(String name, String label, String type, String defaultValue,
-                               ChoicesModel choices) {}
+                               ChoicesModel choices, Boolean hidden) {}
 
    /**
     * A variable's enumerated "Values" picker, mirroring
@@ -410,6 +438,8 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                    field above -- never both non-null
     * @param groupMappings list of group name to values mappings
     * @param groupOthers {@code true} if unmapped values are grouped as "Others"
+    * @param hidden      {@code true} for a hidden copy that backs a mirror (see
+    *                    {@link MirrorModel}); {@code null} otherwise
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record NamedGroupModel(
@@ -422,7 +452,8 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       String attribute,
       String type,
       List<GroupMappingModel> groupMappings,
-      boolean groupOthers
+      boolean groupOthers,
+      Boolean hidden
    ) {}
 
    /**

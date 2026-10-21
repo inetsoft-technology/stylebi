@@ -1721,6 +1721,8 @@ public class WorksheetAgentController {
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
          Assembly a = ws.getAssembly(name);
+         WorksheetEditService.Editor.refuseMirrorOrHiddenCopy(
+            a, name, "Edit the source worksheet, or delete the mirror with delete_table.");
 
          if(!(a instanceof DefaultNamedGroupAssembly nga)) {
             throw new PairingException("Named group assembly not found: " + name);
@@ -4140,6 +4142,8 @@ public class WorksheetAgentController {
             for(Map.Entry<String, Object> entry : req.variableValues().entrySet()) {
                String vname = entry.getKey();
                Assembly assembly = ws.getAssembly(vname);
+               WorksheetEditService.Editor.refuseMirrorOrHiddenCopy(
+                  assembly, vname, "Set values on the source worksheet's variable instead.");
 
                // L2-Group8: mirror VariableInputDialogService.initVariableInfos, which can
                // only ever be invoked for a variable the worksheet actually declares (its
