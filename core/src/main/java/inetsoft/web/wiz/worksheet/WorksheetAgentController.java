@@ -1080,6 +1080,7 @@ public class WorksheetAgentController {
             req.parameters(), null, null, null, dsName);
 
          if(req.maxRows() != null) {
+            WorksheetEditService.requireNonNegativeMaxRows(req.maxRows());
             query.setMaxRows(req.maxRows());
          }
 
@@ -1100,6 +1101,7 @@ public class WorksheetAgentController {
             dsName);
 
          if(req.maxRows() != null) {
+            WorksheetEditService.requireNonNegativeMaxRows(req.maxRows());
             query.setMaxRows(req.maxRows());
          }
 
@@ -1213,6 +1215,10 @@ public class WorksheetAgentController {
                "values and datasource credentials -- see the server log for the cause.");
          }
 
+         if(req.maxRows() != null) {
+            WorksheetEditService.applyAssemblyMaxRows(assembly, req.maxRows());
+         }
+
          ws.addAssembly(assembly);
 
          return null;
@@ -1266,6 +1272,7 @@ public class WorksheetAgentController {
          query, pmap, schema, req.queryParams(), dsName);
 
       if(req.maxRows() != null) {
+         WorksheetEditService.requireNonNegativeMaxRows(req.maxRows());
          query.setMaxRows(req.maxRows());
       }
 
@@ -1309,6 +1316,10 @@ public class WorksheetAgentController {
                (loadError == null ? "" : " (" + loadError + ")") + ". Properties sent: " +
                applied + ". Check the parameter values and datasource credentials -- see the " +
                "server log for the cause.");
+         }
+
+         if(req.maxRows() != null) {
+            WorksheetEditService.applyAssemblyMaxRows(assembly, req.maxRows());
          }
 
          ws.addAssembly(assembly);
@@ -1413,6 +1424,8 @@ public class WorksheetAgentController {
          throw new PairingException("customLookups has " + req.customLookups().size() +
             " entries; a chain can be at most 5 levels deep.");
       }
+
+      WorksheetEditService.requireNonNegativeMaxRows(req.maxRows());
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
@@ -1621,6 +1634,10 @@ public class WorksheetAgentController {
          // Commit: only now does the live assembly's own query/columns actually change.
          liveInfo.setQuery(scratchQuery);
          liveAssembly.setColumnSelection(newColumns, false);
+
+         if(req.maxRows() != null) {
+            WorksheetEditService.applyAssemblyMaxRows(liveAssembly, req.maxRows());
+         }
 
          RenderWaitSupport.awaitOrRetry(() -> {
             WorksheetEventUtil.refreshColumnSelection(rws, tableName, true);

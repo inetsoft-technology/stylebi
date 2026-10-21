@@ -1595,6 +1595,10 @@ public class WorksheetTableService {
       TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) table.getTableInfo();
       info.setQuery(query);
 
+      if(src.getMaxRows() != null && src.getMaxRows() > 0) {
+         WorksheetEditService.applyAssemblyMaxRows(table, src.getMaxRows());
+      }
+
       // Prefix and source are both the data source path, which is what the composer dialog writes
       // too. The endpoint is NOT in the SourceInfo — it lives inside the query bean — so nothing
       // reading only SourceInfo (notably MetadataApiService.extractStructureSource) can say which

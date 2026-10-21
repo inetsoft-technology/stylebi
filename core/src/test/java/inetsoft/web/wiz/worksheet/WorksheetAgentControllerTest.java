@@ -12534,4 +12534,251 @@ class WorksheetAgentControllerTest {
       assertEquals("ex,col1,a,b", csNames(t));
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug #79078: add_table / edit_table must store maxRows on the table assembly (the field the
+   // model read and every render honour), not only on the query. The edit service is mocked so
+   // its applyOnRuntime runs the captured lambda against a REAL Worksheet.
+   // ---------------------------------------------------------------------------
+
+   private static final String MAXROWS_DS = "MyDatasource";
+
+   private record MaxRowsFixture(WorksheetAgentController ctrl, Worksheet ws, Principal agent) {}
+
+   private static MaxRowsFixture maxRowsFixture(String token, Worksheet ws) throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq(MAXROWS_DS), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      TabularDataSource<?> xds = mock(TabularDataSource.class);
+      when(xds.getType()).thenReturn("FakeColumnProducingNamedConnector");
+      when(xrepository.getDataSource(eq(MAXROWS_DS))).thenReturn(xds);
+
+      return new MaxRowsFixture(securityController(editSvc, dataSourceService,
+         mock(SecurityEngine.class), mock(MetadataApiService.class), xrepository,
+         mock(QueryManagerService.class)), ws, agent);
+   }
+
+   private static FakeColumnProducingNamedConnectorQuery maxRowsNamedQuery() {
+      FakeColumnProducingNamedConnectorQuery q = new FakeColumnProducingNamedConnectorQuery();
+      q.setColumnsByEndpoint(Map.of(
+         "Repos", List.of("repoId"), "Issues", List.of("issueId"), "Paged", List.of("pagedId")));
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn(MAXROWS_DS);
+      q.setDataSource(ds);
+      return q;
+   }
+
+   /** A live tabular table whose assembly and query both already carry the given cap. */
+   private static TabularTableAssembly maxRowsLiveTable(
+      Worksheet ws, String endpoint, int assemblyCap, int queryCap) throws Exception
+   {
+      FakeColumnProducingNamedConnectorQuery q = maxRowsNamedQuery();
+      q.setEndpoint(endpoint);
+      q.setMaxRows(queryCap);
+      TabularTableAssembly t = new TabularTableAssembly(ws, "Issues1");
+      ((TabularTableAssemblyInfo) t.getTableInfo()).setQuery(q);
+      t.setMaxRows(assemblyCap);
+      ws.addAssembly(t);
+      t.loadColumnSelection(new VariableTable(), true, null);
+      return t;
+   }
+
+   private static void runAddTabular(
+      MaxRowsFixture f, String token, EditRequest req, TabularQuery query) throws Exception
+   {
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq(MAXROWS_DS))).thenReturn(query);
+         f.ctrl().edit(token, req, f.agent());
+      }
+   }
+
+   @Test
+   void addTableEndpointFormStoresMaxRowsOnTheAssembly() throws Exception {
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-MR1", ws);
+      FakeColumnProducingNamedConnectorQuery q = maxRowsNamedQuery();
+
+      runAddTabular(f, "TOK-MR1",
+         addTabularTableRequestWithMaxRows("Iss", MAXROWS_DS, "Paged", null, 100), q);
+
+      assertEquals(100, ((TableAssembly) ws.getAssembly("Iss")).getMaxRows());
+      assertEquals(100, q.getMaxRows(), "the query-level cap the guard reads is kept");
+   }
+
+   @Test
+   void addTableSuffixFormStoresMaxRowsOnTheAssembly() throws Exception {
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-MR2", ws);
+      FakeColumnProducingCustomRestQuery q = new FakeColumnProducingCustomRestQuery();
+      q.setColumnsBySuffix(Map.of("/paged", List.of("id")));
+
+      runAddTabular(f, "TOK-MR2",
+         addTabularTableRequestWithMaxRows("Iss", MAXROWS_DS, null, "/paged", 30), q);
+
+      assertEquals(30, ((TableAssembly) ws.getAssembly("Iss")).getMaxRows());
+   }
+
+   @Test
+   void addTableWithoutMaxRowsLeavesTheAssemblyUncapped() throws Exception {
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-MR3", ws);
+
+      runAddTabular(f, "TOK-MR3",
+         addTabularTableRequestWithMaxRows("Iss", MAXROWS_DS, "Issues", null, null),
+         maxRowsNamedQuery());
+
+      assertEquals(-1, ((TableAssembly) ws.getAssembly("Iss")).getMaxRows(),
+         "no maxRows supplied: no default is invented");
+   }
+
+   @Test
+   void addTableMaxRowsZeroOnAnUnpagedEndpointStoresUnlimited() throws Exception {
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-MR4", ws);
+
+      runAddTabular(f, "TOK-MR4",
+         addTabularTableRequestWithMaxRows("Iss", MAXROWS_DS, "Issues", null, 0),
+         maxRowsNamedQuery());
+
+      assertEquals(-1, ((TableAssembly) ws.getAssembly("Iss")).getMaxRows());
+   }
+
+   @Test
+   void addTableNegativeMaxRowsIsRefusedBeforeAnythingIsAdded() throws Exception {
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-MR5", ws);
+
+      PairingException ex = assertThrows(PairingException.class, () -> runAddTabular(f, "TOK-MR5",
+         addTabularTableRequestWithMaxRows("Iss", MAXROWS_DS, "Issues", null, -5),
+         maxRowsNamedQuery()));
+
+      assertTrue(ex.getMessage().contains("maxRows cannot be negative (got -5)"), ex.getMessage());
+      assertNull(ws.getAssembly("Iss"));
+   }
+
+   @Test
+   void addTableQueryParamsFormStoresMaxRowsOnTheAssembly() throws Exception {
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-MR6", ws);
+      EditRequest req = addQueryParamsTableRequestWithMaxRows(
+         "Iss", MAXROWS_DS, Map.of("endpoint", "Issues"), 40);
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try {
+         runAddTabular(f, "TOK-MR6", req, maxRowsNamedQuery());
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+
+      assertEquals(40, ((TableAssembly) ws.getAssembly("Iss")).getMaxRows());
+   }
+
+   @Test
+   void editTableLowersTheAssemblyMaxRows() throws Exception {
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly t = maxRowsLiveTable(ws, "Repos", 100, 100);
+      MaxRowsFixture f = maxRowsFixture("TOK-MR7", ws);
+
+      f.ctrl().edit("TOK-MR7",
+         editTableRequest("Issues1", "Issues", null, null, null, null, null, 30), f.agent());
+
+      assertEquals(30, t.getMaxRows());
+   }
+
+   @Test
+   void editTableSuffixFormLowersTheAssemblyMaxRows() throws Exception {
+      Worksheet ws = new Worksheet();
+      FakeColumnProducingCustomRestQuery q = new FakeColumnProducingCustomRestQuery();
+      q.setColumnsBySuffix(Map.of("/a", List.of("a"), "/b", List.of("b")));
+      q.setSuffix("/a");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn(MAXROWS_DS);
+      q.setDataSource(ds);
+      TabularTableAssembly t = new TabularTableAssembly(ws, "Issues1");
+      ((TabularTableAssemblyInfo) t.getTableInfo()).setQuery(q);
+      t.setMaxRows(100);
+      ws.addAssembly(t);
+      t.loadColumnSelection(new VariableTable(), true, null);
+      MaxRowsFixture f = maxRowsFixture("TOK-MR8", ws);
+
+      f.ctrl().edit("TOK-MR8",
+         editTableRequest("Issues1", null, null, null, "/b", null, null, 30), f.agent());
+
+      assertEquals(30, t.getMaxRows());
+   }
+
+   @Test
+   void editTableWithoutMaxRowsKeepsTheExistingAssemblyCap() throws Exception {
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly t = maxRowsLiveTable(ws, "Repos", 100, 100);
+      MaxRowsFixture f = maxRowsFixture("TOK-MR9", ws);
+
+      f.ctrl().edit("TOK-MR9",
+         editTableRequest("Issues1", "Issues", null, null, null, null, null, null), f.agent());
+
+      assertEquals(100, t.getMaxRows());
+   }
+
+   @Test
+   void editTableMaxRowsZeroOnAnUnpagedTableStoresUnlimited() throws Exception {
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly t = maxRowsLiveTable(ws, "Repos", 100, 100);
+      MaxRowsFixture f = maxRowsFixture("TOK-MR10", ws);
+
+      f.ctrl().edit("TOK-MR10",
+         editTableRequest("Issues1", "Issues", null, null, null, null, null, 0), f.agent());
+
+      assertEquals(-1, t.getMaxRows());
+   }
+
+   @Test
+   void editTableMaxRowsZeroOnAPagedTableIsStillRefusedAndKeepsTheCap() throws Exception {
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly t = maxRowsLiveTable(ws, "Paged", 100, 100);
+      MaxRowsFixture f = maxRowsFixture("TOK-MR11", ws);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         f.ctrl().edit("TOK-MR11",
+            editTableRequest("Issues1", "Paged", null, null, null, null, null, 0), f.agent()));
+
+      assertTrue(ex.getMessage().contains("paginated"), ex.getMessage());
+      assertEquals(100, t.getMaxRows());
+   }
+
+   @Test
+   void editTableNegativeMaxRowsIsRefusedBeforeAnyMutation() throws Exception {
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly t = maxRowsLiveTable(ws, "Repos", 100, 100);
+      MaxRowsFixture f = maxRowsFixture("TOK-MR12", ws);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         f.ctrl().edit("TOK-MR12",
+            editTableRequest("Issues1", "Issues", null, null, null, null, null, -1), f.agent()));
+
+      assertTrue(ex.getMessage().contains("maxRows cannot be negative (got -1)"), ex.getMessage());
+      assertEquals(100, t.getMaxRows());
+      assertEquals("Repos", ((FakeColumnProducingNamedConnectorQuery)
+         ((TabularTableAssemblyInfo) t.getTableInfo()).getQuery()).getEndpoint());
+   }
+
 }
