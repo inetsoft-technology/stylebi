@@ -865,7 +865,9 @@ public class AssemblyPropertyService {
     * makes {@code DateColumnOption.validate()} reject every value forever) or inverted bounds
     * were stored silently. Runs the same checks {@link ColumnOptionService} runs for a Table
     * column, on whichever editor the pane's {@code type} selects, and only when the patch
-    * touched the pane (so an unrelated patch is never blocked by an existing value).
+    * touched the pane (so an unrelated patch is never blocked by an existing value). A Text or
+    * Password editor's regex {@code pattern} is checked too (bug #79095), for the active type's
+    * editor only.
     */
    private static void requireValidTextInputColumnOption(Object model) {
       Object pane = PropertyPath.get(model, "textInputColumnOptionPaneModel");
@@ -891,6 +893,15 @@ public class AssemblyPropertyService {
       case ColumnOption.FLOAT:
          WizColumnOptionValidator.validate(columnOption.getFloatEditorModel(),
                                            "set_assembly_properties", base + "floatEditorModel.");
+         break;
+      case ColumnOption.TEXT:
+         WizColumnOptionValidator.validate(columnOption.getTextEditorModel(),
+                                           "set_assembly_properties", base + "textEditorModel.");
+         break;
+      case ColumnOption.PASSWORD:
+         WizColumnOptionValidator.validate(columnOption.getPasswordEditorModel(),
+                                           "set_assembly_properties",
+                                           base + "passwordEditorModel.");
          break;
       default:
          break;

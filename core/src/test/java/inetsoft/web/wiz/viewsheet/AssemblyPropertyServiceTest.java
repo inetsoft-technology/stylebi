@@ -3801,6 +3801,117 @@ class AssemblyPropertyServiceTest {
                       .getMinimum());
    }
 
+   // ── #79095: TextInput Text/Password regex pattern ──
+
+   private static TextInputPropertyDialogModel textInputWithType(String type) {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getTextInputColumnOptionPaneModel().setType(type);
+      return model;
+   }
+
+   private static Map<String, Object> patchOf(Object... keysAndValues) {
+      Map<String, Object> patch = new LinkedHashMap<>();
+
+      for(int i = 0; i < keysAndValues.length; i += 2) {
+         patch.put((String) keysAndValues[i], keysAndValues[i + 1]);
+      }
+
+      return patch;
+   }
+
+   @Test
+   void bug79095TextInputTextPatternUnclosedClassIsRefusedByName() {
+      TextInputPropertyDialogModel model = textInputWithType("Text");
+      Map<String, Object> patch =
+         patchOf("textInputColumnOptionPaneModel.textEditorModel.pattern", "[");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setTextInputColumnOption(model, patch));
+
+      assertTrue(e.getMessage().contains("textEditorModel.pattern"), e.getMessage());
+      assertTrue(e.getMessage().contains("Unclosed"), e.getMessage());
+   }
+
+   @Test
+   void bug79095TextInputPasswordPatternUnclosedClassIsRefusedByName() {
+      TextInputPropertyDialogModel model = textInputWithType("Password");
+      Map<String, Object> patch =
+         patchOf("textInputColumnOptionPaneModel.passwordEditorModel.pattern", "[");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setTextInputColumnOption(model, patch));
+
+      assertTrue(e.getMessage().contains("passwordEditorModel.pattern"), e.getMessage());
+      assertTrue(e.getMessage().contains("Unclosed"), e.getMessage());
+   }
+
+   @Test
+   void bug79095TextInputPatternIsRefusedUnderACapitalizedSpelling() {
+      TextInputPropertyDialogModel model = textInputWithType("Text");
+      Map<String, Object> patch =
+         patchOf("TextInputColumnOptionPaneModel.TextEditorModel.Pattern", "(");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setTextInputColumnOption(model, patch));
+
+      assertTrue(e.getMessage().contains("textEditorModel.pattern"), e.getMessage());
+   }
+
+   @Test
+   void bug79095TextInputValidNullAndEmptyPatternsAreAccepted() {
+      for(String pattern : new String[] { "\\d{3}-\\d{4}", "(?i)abc", "", null }) {
+         TextInputPropertyDialogModel text = textInputWithType("Text");
+         assertDoesNotThrow(() -> setTextInputColumnOption(
+            text, patchOf("textInputColumnOptionPaneModel.textEditorModel.pattern", pattern)),
+            "Text pattern " + pattern);
+         assertEquals(pattern, text.getTextInputColumnOptionPaneModel().getTextEditorModel()
+                         .getPattern());
+
+         TextInputPropertyDialogModel password = textInputWithType("Password");
+         assertDoesNotThrow(() -> setTextInputColumnOption(
+            password,
+            patchOf("textInputColumnOptionPaneModel.passwordEditorModel.pattern", pattern)),
+            "Password pattern " + pattern);
+      }
+   }
+
+   @Test
+   void bug79095TextInputPatternOfTheInactiveEditorIsNotChecked() {
+      TextInputPropertyDialogModel model = textInputWithType("Integer");
+
+      assertDoesNotThrow(() -> setTextInputColumnOption(
+         model, patchOf("textInputColumnOptionPaneModel.passwordEditorModel.pattern", "[")));
+      assertDoesNotThrow(() -> setTextInputColumnOption(
+         textInputWithType("Password"),
+         patchOf("textInputColumnOptionPaneModel.textEditorModel.pattern", "[")));
+   }
+
+   @Test
+   void bug79095TextInputStoredBadPatternBlocksOnlyWritesThatTouchTheActivePane() {
+      // Switching to another type, or writing another pane, is never blocked by stale state.
+      for(Map<String, Object> patch : List.of(
+         patchOf("textInputColumnOptionPaneModel.type", "Integer"),
+         patchOf("textInputColumnOptionPaneModel.type", "Password"),
+         patchOf("dataInputPaneModel.writeBackDirectly", true)))
+      {
+         TextInputPropertyDialogModel model = textInputWithType("Text");
+         model.getTextInputColumnOptionPaneModel().getTextEditorModel().setPattern("[");
+         assertDoesNotThrow(() -> setTextInputColumnOption(model, patch), patch.toString());
+      }
+
+      // A pane write while the active pattern is bad names the pattern (accepted side effect) ...
+      TextInputPropertyDialogModel stuck = textInputWithType("Text");
+      stuck.getTextInputColumnOptionPaneModel().getTextEditorModel().setPattern("[");
+      Exception e = assertThrows(IllegalArgumentException.class, () -> setTextInputColumnOption(
+         stuck, patchOf("textInputColumnOptionPaneModel.textEditorModel.errorMessage", "bad")));
+      assertTrue(e.getMessage().contains("textEditorModel.pattern"), e.getMessage());
+
+      // ... and the same patch carrying a valid pattern goes through.
+      assertDoesNotThrow(() -> setTextInputColumnOption(stuck, patchOf(
+         "textInputColumnOptionPaneModel.textEditorModel.errorMessage", "bad",
+         "textInputColumnOptionPaneModel.textEditorModel.pattern", "\\d+")));
+   }
+
    // ── #78393: capitalised raw paths and list-input embedded/query-source checks ──
 
    /**

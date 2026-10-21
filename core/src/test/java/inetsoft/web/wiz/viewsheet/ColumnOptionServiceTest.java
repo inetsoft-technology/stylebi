@@ -418,6 +418,29 @@ class ColumnOptionServiceTest {
                                                            any(), any());
    }
 
+   // #79095
+   private static TextEditorModel textEditor(String pattern) {
+      TextEditorModel editor = new TextEditorModel();
+      editor.setPattern(pattern);
+      return editor;
+   }
+
+   @Test
+   void refusesAnInvalidTextPattern() throws Exception {
+      assertRefused(harnessWith(columns("A")), "Text", textEditor("["),
+                    "editor.pattern", "Unclosed");
+   }
+
+   @Test
+   void acceptsAValidNullAndEmptyTextPattern() throws Exception {
+      Harness h = harnessWith(columns("A"));
+      h.service.set("tok", h.user, "Table1", 0, true, "Text", textEditor("\\d{3}-\\d{4}"), "");
+      h.service.set("tok", h.user, "Table1", 0, true, "Text", textEditor(null), "");
+      h.service.set("tok", h.user, "Table1", 0, true, "Text", textEditor(""), "");
+      verify(h.inputs, times(3)).setColumnOptionDialogModel(any(), any(), anyInt(), any(), any(),
+                                                           any(), any());
+   }
+
    // S3c
    @Test
    void refusesColumnComboBoxFieldsThatOnlyTheComboBoxAssemblyStores() throws Exception {
