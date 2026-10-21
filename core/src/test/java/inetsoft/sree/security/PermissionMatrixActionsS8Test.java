@@ -291,6 +291,9 @@ class PermissionMatrixActionsS8Test {
 
    private static final String SCHEDULE_OPTION_TIME_RANGE = "timeRange";
 
+   /** Leaves left after exclusions with the 4 bundled portal tabs (39 cases: DASHBOARD has 2). */
+   private static final int EXPECTED_SWEEP_LEAVES = 38;
+
    private static List<SweepLeaf> sweepLeaves;
 
    private record SweepLeaf(ResourceType type, String resource, EnumSet<ResourceAction> actions) {}
@@ -298,6 +301,12 @@ class PermissionMatrixActionsS8Test {
    @BeforeAll
    static void setUpAll() throws Exception {
       sweepLeaves = collectSweepLeaves();
+
+      // Fail loudly, with the actual leaves, when the production action tree or the bundled portal
+      // tabs change, instead of silently changing the parameterized case count. A new leaf needs
+      // a deliberate grant/deny decision here; update EXPECTED_SWEEP_LEAVES when it gets one.
+      Assertions.assertEquals(EXPECTED_SWEEP_LEAVES, sweepLeaves.size(),
+         "sweep leaf count changed; leaves: " + sweepLeaves);
 
       SecurityTestDataBuilder b = SecurityTestDataBuilder.create()
          .addOrg(ORG_NAME, ORG_ID)
@@ -702,8 +711,21 @@ class PermissionMatrixActionsS8Test {
       // bundled default XML, since that fallback path always re-saves). BaseTestConfiguration
       // registers a real Cluster bean (MockCluster) for this Spring context, so Cluster.
       // getInstance() resolves to a working instance instead of null.
+      //
+      // The manager is built over a stub DataSpace, not DataSpace.getDataSpace(): the real one is
+      // shared by every class in the fork, so a portalthemes.xml already persisted there with
+      // fewer tabs (or a reload event for it landing mid-walk) changes the Portal Tabs leaves and
+      // with them the @MethodSource case count (94 -> 88 with one tab, 84 with none; Bug #75792).
+      // The stub has no persisted file (getInputStream returns null), so loadThemes() always takes
+      // the bundled default XML, and no data-change events ever reach the manager. It must return
+      // null: serving the bundled XML as the "persisted" file would skip the fallback path.
+      DataSpace stubSpace = Mockito.mock(DataSpace.class);
+      DataSpace.Transaction stubTx = Mockito.mock(DataSpace.Transaction.class);
+      Mockito.when(stubSpace.beginTransaction()).thenReturn(stubTx);
+      Mockito.when(stubTx.newStream(Mockito.any(), Mockito.anyString()))
+         .thenAnswer(inv -> new java.io.ByteArrayOutputStream());
       PortalThemesManager portalThemesManager =
-         new PortalThemesManager(Cluster.getInstance(), DataSpace.getDataSpace());
+         new PortalThemesManager(Cluster.getInstance(), stubSpace);
       portalThemesManager.loadThemes();
 
       ActionPermissionService actionPermissionService = new ActionPermissionService(
