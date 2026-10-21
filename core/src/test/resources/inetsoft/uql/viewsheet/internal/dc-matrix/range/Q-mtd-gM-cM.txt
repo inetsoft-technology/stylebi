@@ -1,0 +1,103 @@
+# Q-mtd-gM-cM
+[ws=sunday]
+shape value:  alignWeek=false dateSeries=true parent=Q from=- dateDim=MonthOfQuarter(date) temp=[MonthOfQuarter(date)]
+shape change: alignWeek=false dateSeries=true parent=Q from=PREVIOUS_QUARTER dateDim=MonthOfQuarter(date) temp=[MonthOfQuarter(date)]
+end=2020-12-31 td=off inc=off opt=val start=2020-04-01 | 2020Q2 2020-04-01..06-30 14w91d | 2020Q3 2020-07-01..09-30 14w92d
+end=2020-12-31 td=off inc=off opt=chg start=2020-04-01 + | 2020Q1 2020-01-01..03-31 14w91d
+end=2020-12-31 td=on inc=on opt=val start=2020-04-01 | 2020Q2 2020-04-01..06-30 14w91d | 2020Q3 2020-07-01..09-30 14w92d | 2020Q4 2020-10-01..12-31 14w92d
+end=2020-12-31 td=on inc=on opt=chg start=2020-04-01 + | 2020Q1 2020-01-01..03-31 14w91d
+end=2021-01-02 td=off inc=off opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-02 4w6d g58 | 2020Q4 2020-10-01..12-02 3w6d g57
+end=2021-01-02 td=off inc=off opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-02 3w6d g57
+end=2021-01-02 td=on inc=on opt=val start=2020-07-01 | 2020Q3 2020-07-01..07-02 1w2d | 2020Q4 2020-10-01..10-02 1w2d | 2021Q1 2021-01-01..01-02 1w2d
+end=2021-01-02 td=on inc=on opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..04-02 1w2d
+end=2021-01-05 td=off inc=off opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-05 5w15d g52 | 2020Q4 2020-10-01..12-05 4w15d g51
+end=2021-01-05 td=off inc=off opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-05 5w15d g51
+end=2021-01-05 td=on inc=on opt=val start=2020-07-01 | 2020Q3 2020-07-01..07-05 2w5d | 2020Q4 2020-10-01..10-05 2w5d | 2021Q1 2021-01-01..01-05 2w5d
+end=2021-01-05 td=on inc=on opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..04-05 2w5d
+end=2021-03-02 td=off inc=off opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-02 4w6d g58 | 2020Q4 2020-10-01..12-02 3w6d g57
+end=2021-03-02 td=off inc=off opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-02 3w6d g57
+end=2021-03-02 td=on inc=on opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-02 4w6d g58 | 2020Q4 2020-10-01..12-02 3w6d g57 | 2021Q1 2021-01-01..03-02 3w6d g55
+end=2021-03-02 td=on inc=on opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-02 3w6d g57
+end=2021-03-31 td=off inc=off opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-30 14w92d | 2020Q4 2020-10-01..12-31 14w92d
+end=2021-03-31 td=off inc=off opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-30 14w91d
+end=2021-03-31 td=on inc=on opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-30 14w92d | 2020Q4 2020-10-01..12-31 14w92d | 2021Q1 2021-01-01..03-31 14w90d
+end=2021-03-31 td=on inc=on opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-30 14w91d
+end=2021-04-02 td=off inc=off opt=val start=2020-10-01 | 2020Q4 2020-10-01..12-02 3w6d g57 | 2021Q1 2021-01-01..03-02 3w6d g55
+end=2021-04-02 td=off inc=off opt=chg start=2020-10-01 + | 2020Q3 2020-07-01..09-02 4w6d g58
+end=2021-04-02 td=on inc=on opt=val start=2020-10-01 | 2020Q4 2020-10-01..10-02 1w2d | 2021Q1 2021-01-01..01-02 1w2d | 2021Q2 2021-04-01..04-02 1w2d
+end=2021-04-02 td=on inc=on opt=chg start=2020-10-01 + | 2020Q3 2020-07-01..07-02 1w2d
+end=2020-02-29 td=off inc=off opt=val start=2019-07-01 | 2019Q3 2019-07-01..09-29 14w87d g4 | 2019Q4 2019-10-01..12-29 14w87d g3
+end=2020-02-29 td=off inc=off opt=chg start=2019-07-01 + | 2019Q2 2019-04-01..06-29 13w87d g3
+end=2020-02-29 td=on inc=on opt=val start=2019-07-01 | 2019Q3 2019-07-01..08-29 9w58d g2 | 2019Q4 2019-10-01..11-29 9w58d g2 | 2020Q1 2020-01-01..02-29 9w58d g2
+end=2020-02-29 td=on inc=on opt=chg start=2019-07-01 + | 2019Q2 2019-04-01..05-29 9w58d g1
+end=2021-11-10 td=off inc=off opt=val start=2021-04-01 | 2021Q2 2021-04-01..06-10 7w30d g41 | 2021Q3 2021-07-01..09-10 6w30d g42
+end=2021-11-10 td=off inc=off opt=chg start=2021-04-01 + | 2021Q1 2021-01-01..03-10 7w30d g39
+end=2021-11-10 td=on inc=on opt=val start=2021-04-01 | 2021Q2 2021-04-01..05-10 5w20d g20 | 2021Q3 2021-07-01..08-10 4w20d g21 | 2021Q4 2021-10-01..11-10 5w20d g21
+end=2021-11-10 td=on inc=on opt=chg start=2021-04-01 + | 2021Q1 2021-01-01..02-10 5w20d g21
+end=2021-01-02 td=off inc=on opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-02 4w6d g58 | 2020Q4 2020-10-01..12-02 3w6d g57 | 2021Q1 2021-01-01..01-02 1w2d
+end=2021-01-02 td=off inc=on opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-02 3w6d g57
+end=2021-01-02 td=on inc=off opt=val start=2020-07-01 | 2020Q3 2020-07-01..07-02 1w2d | 2020Q4 2020-10-01..10-02 1w2d
+end=2021-01-02 td=on inc=off opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..04-02 1w2d
+end=2021-11-10 td=off inc=on opt=val start=2021-04-01 | 2021Q2 2021-04-01..06-10 7w30d g41 | 2021Q3 2021-07-01..09-10 6w30d g42 | 2021Q4 2021-10-01..11-10 5w20d g21
+end=2021-11-10 td=off inc=on opt=chg start=2021-04-01 + | 2021Q1 2021-01-01..03-10 7w30d g39
+end=2021-11-10 td=on inc=off opt=val start=2021-04-01 | 2021Q2 2021-04-01..05-10 5w20d g20 | 2021Q3 2021-07-01..08-10 4w20d g21
+end=2021-11-10 td=on inc=off opt=chg start=2021-04-01 + | 2021Q1 2021-01-01..02-10 5w20d g21
+end=2021-11-10 td=off inc=off opt=val pre=1 start=2021-07-01 | 2021Q3 2021-07-01..09-10 6w30d g42
+end=2021-11-10 td=off inc=off opt=chg pre=1 start=2021-07-01 + | 2021Q2 2021-04-01..06-10 7w30d g41
+end=2021-11-10 td=off inc=off opt=val pre=3 start=2021-01-01 | 2021Q1 2021-01-01..03-10 7w30d g39 | 2021Q2 2021-04-01..06-10 7w30d g41 | 2021Q3 2021-07-01..09-10 6w30d g42
+end=2021-11-10 td=off inc=off opt=chg pre=3 start=2021-01-01 + | 2020Q4 2020-10-01..12-10 6w30d g41
+end=2021-01-02 td=off inc=off opt=val intInc=off start=2020-07-01 | 2020Q3 2020-07-01..09-01 3w3d g60 | 2020Q4 2020-10-01..12-01 3w3d g59
+end=2021-01-02 td=off inc=off opt=chg intInc=off start=2020-07-01 + | 2020Q2 2020-04-01..06-01 3w3d g59
+end=2021-11-10 td=off inc=off opt=val intInc=off start=2021-04-01 | 2021Q2 2021-04-01..06-09 7w27d g43 | 2021Q3 2021-07-01..09-09 6w27d g44
+end=2021-11-10 td=off inc=off opt=chg intInc=off start=2021-04-01 + | 2021Q1 2021-01-01..03-09 6w27d g41
+[ws=monday]
+shape value:  alignWeek=false dateSeries=true parent=Q from=- dateDim=MonthOfQuarter(date) temp=[MonthOfQuarter(date)]
+shape change: alignWeek=false dateSeries=true parent=Q from=PREVIOUS_QUARTER dateDim=MonthOfQuarter(date) temp=[MonthOfQuarter(date)]
+end=2020-12-31 td=off inc=off opt=val start=2020-04-01 | 2020Q2 2020-04-01..06-30 14w91d | 2020Q3 2020-07-01..09-30 14w92d
+end=2020-12-31 td=off inc=off opt=chg start=2020-04-01 + | 2020Q1 2020-01-01..03-31 14w91d
+end=2020-12-31 td=on inc=on opt=val start=2020-04-01 | 2020Q2 2020-04-01..06-30 14w91d | 2020Q3 2020-07-01..09-30 14w92d | 2020Q4 2020-10-01..12-31 14w92d
+end=2020-12-31 td=on inc=on opt=chg start=2020-04-01 + | 2020Q1 2020-01-01..03-31 14w91d
+end=2021-01-02 td=off inc=off opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-02 3w6d g58 | 2020Q4 2020-10-01..12-02 4w6d g57
+end=2021-01-02 td=off inc=off opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-02 3w6d g57
+end=2021-01-02 td=on inc=on opt=val start=2020-07-01 | 2020Q3 2020-07-01..07-02 1w2d | 2020Q4 2020-10-01..10-02 1w2d | 2021Q1 2021-01-01..01-02 1w2d
+end=2021-01-02 td=on inc=on opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..04-02 1w2d
+end=2021-01-05 td=off inc=off opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-05 4w15d g52 | 2020Q4 2020-10-01..12-05 5w15d g51
+end=2021-01-05 td=off inc=off opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-05 4w15d g51
+end=2021-01-05 td=on inc=on opt=val start=2020-07-01 | 2020Q3 2020-07-01..07-05 1w5d | 2020Q4 2020-10-01..10-05 2w5d | 2021Q1 2021-01-01..01-05 2w5d
+end=2021-01-05 td=on inc=on opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..04-05 1w5d
+end=2021-03-02 td=off inc=off opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-02 3w6d g58 | 2020Q4 2020-10-01..12-02 4w6d g57
+end=2021-03-02 td=off inc=off opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-02 3w6d g57
+end=2021-03-02 td=on inc=on opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-02 3w6d g58 | 2020Q4 2020-10-01..12-02 4w6d g57 | 2021Q1 2021-01-01..03-02 3w6d g55
+end=2021-03-02 td=on inc=on opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-02 3w6d g57
+end=2021-03-31 td=off inc=off opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-30 14w92d | 2020Q4 2020-10-01..12-31 14w92d
+end=2021-03-31 td=off inc=off opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-30 14w91d
+end=2021-03-31 td=on inc=on opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-30 14w92d | 2020Q4 2020-10-01..12-31 14w92d | 2021Q1 2021-01-01..03-31 14w90d
+end=2021-03-31 td=on inc=on opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-30 14w91d
+end=2021-04-02 td=off inc=off opt=val start=2020-10-01 | 2020Q4 2020-10-01..12-02 4w6d g57 | 2021Q1 2021-01-01..03-02 3w6d g55
+end=2021-04-02 td=off inc=off opt=chg start=2020-10-01 + | 2020Q3 2020-07-01..09-02 3w6d g58
+end=2021-04-02 td=on inc=on opt=val start=2020-10-01 | 2020Q4 2020-10-01..10-02 1w2d | 2021Q1 2021-01-01..01-02 1w2d | 2021Q2 2021-04-01..04-02 1w2d
+end=2021-04-02 td=on inc=on opt=chg start=2020-10-01 + | 2020Q3 2020-07-01..07-02 1w2d
+end=2020-02-29 td=off inc=off opt=val start=2019-07-01 | 2019Q3 2019-07-01..09-29 13w87d g4 | 2019Q4 2019-10-01..12-29 13w87d g3
+end=2020-02-29 td=off inc=off opt=chg start=2019-07-01 + | 2019Q2 2019-04-01..06-29 13w87d g3
+end=2020-02-29 td=on inc=on opt=val start=2019-07-01 | 2019Q3 2019-07-01..08-29 9w58d g2 | 2019Q4 2019-10-01..11-29 9w58d g2 | 2020Q1 2020-01-01..02-29 9w58d g2
+end=2020-02-29 td=on inc=on opt=chg start=2019-07-01 + | 2019Q2 2019-04-01..05-29 9w58d g1
+end=2021-11-10 td=off inc=off opt=val start=2021-04-01 | 2021Q2 2021-04-01..06-10 7w30d g41 | 2021Q3 2021-07-01..09-10 7w30d g42
+end=2021-11-10 td=off inc=off opt=chg start=2021-04-01 + | 2021Q1 2021-01-01..03-10 6w30d g39
+end=2021-11-10 td=on inc=on opt=val start=2021-04-01 | 2021Q2 2021-04-01..05-10 5w20d g20 | 2021Q3 2021-07-01..08-10 5w20d g21 | 2021Q4 2021-10-01..11-10 4w20d g21
+end=2021-11-10 td=on inc=on opt=chg start=2021-04-01 + | 2021Q1 2021-01-01..02-10 4w20d g21
+end=2021-01-02 td=off inc=on opt=val start=2020-07-01 | 2020Q3 2020-07-01..09-02 3w6d g58 | 2020Q4 2020-10-01..12-02 4w6d g57 | 2021Q1 2021-01-01..01-02 1w2d
+end=2021-01-02 td=off inc=on opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..06-02 3w6d g57
+end=2021-01-02 td=on inc=off opt=val start=2020-07-01 | 2020Q3 2020-07-01..07-02 1w2d | 2020Q4 2020-10-01..10-02 1w2d
+end=2021-01-02 td=on inc=off opt=chg start=2020-07-01 + | 2020Q2 2020-04-01..04-02 1w2d
+end=2021-11-10 td=off inc=on opt=val start=2021-04-01 | 2021Q2 2021-04-01..06-10 7w30d g41 | 2021Q3 2021-07-01..09-10 7w30d g42 | 2021Q4 2021-10-01..11-10 4w20d g21
+end=2021-11-10 td=off inc=on opt=chg start=2021-04-01 + | 2021Q1 2021-01-01..03-10 6w30d g39
+end=2021-11-10 td=on inc=off opt=val start=2021-04-01 | 2021Q2 2021-04-01..05-10 5w20d g20 | 2021Q3 2021-07-01..08-10 5w20d g21
+end=2021-11-10 td=on inc=off opt=chg start=2021-04-01 + | 2021Q1 2021-01-01..02-10 4w20d g21
+end=2021-11-10 td=off inc=off opt=val pre=1 start=2021-07-01 | 2021Q3 2021-07-01..09-10 7w30d g42
+end=2021-11-10 td=off inc=off opt=chg pre=1 start=2021-07-01 + | 2021Q2 2021-04-01..06-10 7w30d g41
+end=2021-11-10 td=off inc=off opt=val pre=3 start=2021-01-01 | 2021Q1 2021-01-01..03-10 6w30d g39 | 2021Q2 2021-04-01..06-10 7w30d g41 | 2021Q3 2021-07-01..09-10 7w30d g42
+end=2021-11-10 td=off inc=off opt=chg pre=3 start=2021-01-01 + | 2020Q4 2020-10-01..12-10 7w30d g41
+end=2021-01-02 td=off inc=off opt=val intInc=off start=2020-07-01 | 2020Q3 2020-07-01..09-01 3w3d g60 | 2020Q4 2020-10-01..12-01 3w3d g59
+end=2021-01-02 td=off inc=off opt=chg intInc=off start=2020-07-01 + | 2020Q2 2020-04-01..06-01 3w3d g59
+end=2021-11-10 td=off inc=off opt=val intInc=off start=2021-04-01 | 2021Q2 2021-04-01..06-09 6w27d g43 | 2021Q3 2021-07-01..09-09 7w27d g44
+end=2021-11-10 td=off inc=off opt=chg intInc=off start=2021-04-01 + | 2021Q1 2021-01-01..03-09 6w27d g41

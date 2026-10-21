@@ -1,0 +1,95 @@
+# Y-sameM-gW-cY
+[ws=sunday]
+shape value:  alignWeek=true dateSeries=true parent=M from=- dateDim=WeekOfMonth(date) temp=[MonthOfYear(date)]
+shape change: alignWeek=true dateSeries=true parent=M from=PREVIOUS_YEAR dateDim=WeekOfMonth(date) temp=[MonthOfYear(date)]
+end=2020-12-31 td=off inc=off opt=val start=2018-01-01 | 2018 2018-12-02..12-31 5w30d | 2019 2019-12-01..12-31 5w31d
+end=2020-12-31 td=off inc=off opt=chg start=2018-01-01 + | 2017 2017-12-03..12-31 5w29d
+end=2020-12-31 td=on inc=on opt=val start=2018-01-01 | 2018 2018-12-02..12-27 4w26d | 2019 2019-12-01..12-26 4w26d | 2020 2020-12-06..12-31 4w26d
+end=2020-12-31 td=on inc=on opt=chg start=2018-01-01 + | 2017 2017-12-03..12-28 4w26d
+end=2021-01-02 td=off inc=off opt=val start=2018-01-01 | 2018 2018-01-07..01-31 4w25d | 2019 2019-01-06..01-31 4w26d
+end=2021-01-02 td=off inc=off opt=chg start=2018-01-01 + | 2017 2017-01-01..01-31 5w31d
+end=2021-01-02 td=on inc=on opt=val start=2018-01-01 | 2018 2018-01-07..01-31 4w25d | 2019 2019-01-06..01-31 4w26d | 2020 2020-01-05..01-31 4w27d
+end=2021-01-02 td=on inc=on opt=chg start=2018-01-01 + | 2017 2017-01-01..01-31 5w31d
+end=2021-01-05 td=off inc=off opt=val start=2019-01-01 | 2019 2019-01-06..01-31 4w26d | 2020 2020-01-05..01-31 4w27d
+end=2021-01-05 td=off inc=off opt=chg start=2019-01-01 + | 2018 2018-01-07..01-31 4w25d
+end=2021-01-05 td=on inc=on opt=val start=2019-01-01 | 2019 2019-01-06..01-08 1w3d | 2020 2020-01-05..01-07 1w3d | 2021 2021-01-03..01-05 1w3d
+end=2021-01-05 td=on inc=on opt=chg start=2019-01-01 + | 2018 2018-01-07..01-09 1w3d
+end=2021-03-02 td=off inc=off opt=val start=2019-01-01 | 2019 2019-03-03..03-31 5w29d | 2020 2020-03-01..03-31 5w31d
+end=2021-03-02 td=off inc=off opt=chg start=2019-01-01 + | 2018 2018-03-04..03-31 4w28d
+end=2021-03-02 td=on inc=on opt=val start=2019-01-01 ?I2 empty 2019 ?I2 empty 2020 ?I2 empty 2021
+end=2021-03-02 td=on inc=on opt=chg start=2019-01-01 ?I2 empty 2018 ?I2 empty 2019 ?I2 empty 2020 ?I2 empty 2021
+end=2021-03-31 td=off inc=off opt=val start=2019-01-01 | 2019 2019-03-03..03-31 5w29d | 2020 2020-03-01..03-31 5w31d
+end=2021-03-31 td=off inc=off opt=chg start=2019-01-01 + | 2018 2018-03-04..03-31 4w28d
+end=2021-03-31 td=on inc=on opt=val start=2019-01-01 | 2019 2019-03-03..03-27 4w25d | 2020 2020-03-01..03-25 4w25d | 2021 2021-03-07..03-31 4w25d
+end=2021-03-31 td=on inc=on opt=chg start=2019-01-01 + | 2018 2018-03-04..03-28 4w25d
+end=2021-04-02 td=off inc=off opt=val start=2019-01-01 | 2019 2019-04-07..04-30 4w24d | 2020 2020-04-05..04-30 4w26d
+end=2021-04-02 td=off inc=off opt=chg start=2019-01-01 + | 2018 2018-04-01..04-30 5w30d
+end=2021-04-02 td=on inc=on opt=val start=2019-01-01 ?I2 empty 2019 ?I2 empty 2020 ?I2 empty 2021
+end=2021-04-02 td=on inc=on opt=chg start=2019-01-01 ?I2 empty 2018 ?I2 empty 2019 ?I2 empty 2020 ?I2 empty 2021
+end=2020-02-29 td=off inc=off opt=val start=2018-01-01 | 2018 2018-02-04..02-28 4w25d | 2019 2019-02-03..02-28 4w26d
+end=2020-02-29 td=off inc=off opt=chg start=2018-01-01 + | 2017 2017-02-05..02-28 4w24d
+end=2020-02-29 td=on inc=on opt=val start=2018-01-01 | 2018 2018-02-04..02-28 4w25d | 2019 2019-02-03..02-28 4w26d | 2020 2020-02-02..02-29 4w28d
+end=2020-02-29 td=on inc=on opt=chg start=2018-01-01 + | 2017 2017-02-05..02-28 4w24d
+end=2021-11-10 td=off inc=off opt=val start=2019-01-01 | 2019 2019-11-03..11-30 4w28d | 2020 2020-11-01..11-30 5w30d
+end=2021-11-10 td=off inc=off opt=chg start=2019-01-01 + | 2018 2018-11-04..11-30 4w27d
+end=2021-11-10 td=on inc=on opt=val start=2019-01-01 | 2019 2019-11-03..11-06 1w4d | 2020 2020-11-01..11-04 1w4d | 2021 2021-11-07..11-10 1w4d
+end=2021-11-10 td=on inc=on opt=chg start=2019-01-01 + | 2018 2018-11-04..11-07 1w4d
+end=2021-01-02 td=off inc=on opt=val start=2018-01-01 | 2018 2018-01-07..01-31 4w25d | 2019 2019-01-06..01-31 4w26d | 2020 2020-01-05..01-31 4w27d
+end=2021-01-02 td=off inc=on opt=chg start=2018-01-01 + | 2017 2017-01-01..01-31 5w31d
+end=2021-01-02 td=on inc=off opt=val start=2018-01-01 | 2018 2018-01-07..01-31 4w25d | 2019 2019-01-06..01-31 4w26d
+end=2021-01-02 td=on inc=off opt=chg start=2018-01-01 + | 2017 2017-01-01..01-31 5w31d
+end=2021-11-10 td=off inc=on opt=val start=2019-01-01 | 2019 2019-11-03..11-30 4w28d | 2020 2020-11-01..11-30 5w30d | 2021 2021-11-07..11-10 1w4d
+end=2021-11-10 td=off inc=on opt=chg start=2019-01-01 + | 2018 2018-11-04..11-30 4w27d
+end=2021-11-10 td=on inc=off opt=val start=2019-01-01 | 2019 2019-11-03..11-06 1w4d | 2020 2020-11-01..11-04 1w4d
+end=2021-11-10 td=on inc=off opt=chg start=2019-01-01 + | 2018 2018-11-04..11-07 1w4d
+end=2021-11-10 td=off inc=off opt=val pre=1 start=2020-01-01 | 2020 2020-11-01..11-30 5w30d
+end=2021-11-10 td=off inc=off opt=chg pre=1 start=2020-01-01 + | 2019 2019-11-03..11-30 4w28d
+end=2021-11-10 td=off inc=off opt=val pre=3 start=2018-01-01 | 2018 2018-11-04..11-30 4w27d | 2019 2019-11-03..11-30 4w28d | 2020 2020-11-01..11-30 5w30d
+end=2021-11-10 td=off inc=off opt=chg pre=3 start=2018-01-01 + | 2017 2017-11-05..11-30 4w26d
+[ws=monday]
+shape value:  alignWeek=true dateSeries=true parent=M from=- dateDim=WeekOfMonth(date) temp=[MonthOfYear(date)]
+shape change: alignWeek=true dateSeries=true parent=M from=PREVIOUS_YEAR dateDim=WeekOfMonth(date) temp=[MonthOfYear(date)]
+end=2020-12-31 td=off inc=off opt=val start=2018-01-01 | 2018 2018-12-03..12-31 5w29d | 2019 2019-12-02..12-31 5w30d
+end=2020-12-31 td=off inc=off opt=chg start=2018-01-01 + | 2017 2017-12-04..12-31 4w28d
+end=2020-12-31 td=on inc=on opt=val start=2018-01-01 | 2018 2018-12-03..12-27 4w25d | 2019 2019-12-02..12-26 4w25d | 2020 2020-12-07..12-31 4w25d
+end=2020-12-31 td=on inc=on opt=chg start=2018-01-01 + | 2017 2017-12-04..12-28 4w25d
+end=2021-01-02 td=off inc=off opt=val start=2018-01-01 | 2018 2018-01-01..01-31 5w31d | 2019 2019-01-07..01-31 4w25d
+end=2021-01-02 td=off inc=off opt=chg start=2018-01-01 + | 2017 2017-01-02..01-31 5w30d
+end=2021-01-02 td=on inc=on opt=val start=2018-01-01 | 2018 2018-01-01..01-31 5w31d | 2019 2019-01-07..01-31 4w25d | 2020 2020-01-06..01-31 4w26d
+end=2021-01-02 td=on inc=on opt=chg start=2018-01-01 + | 2017 2017-01-02..01-31 5w30d
+end=2021-01-05 td=off inc=off opt=val start=2019-01-01 | 2019 2019-01-07..01-31 4w25d | 2020 2020-01-06..01-31 4w26d
+end=2021-01-05 td=off inc=off opt=chg start=2019-01-01 + | 2018 2018-01-01..01-31 5w31d
+end=2021-01-05 td=on inc=on opt=val start=2019-01-01 | 2019 2019-01-07..01-08 1w2d | 2020 2020-01-06..01-07 1w2d | 2021 2021-01-04..01-05 1w2d
+end=2021-01-05 td=on inc=on opt=chg start=2019-01-01 + | 2018 2018-01-01..01-02 1w2d
+end=2021-03-02 td=off inc=off opt=val start=2019-01-01 | 2019 2019-03-04..03-31 4w28d | 2020 2020-03-02..03-31 5w30d
+end=2021-03-02 td=off inc=off opt=chg start=2019-01-01 + | 2018 2018-03-05..03-31 4w27d
+end=2021-03-02 td=on inc=on opt=val start=2019-01-01 | 2019 2019-03-04..03-05 1w2d | 2020 2020-03-02..03-03 1w2d | 2021 2021-03-01..03-02 1w2d
+end=2021-03-02 td=on inc=on opt=chg start=2019-01-01 + | 2018 2018-03-05..03-06 1w2d
+end=2021-03-31 td=off inc=off opt=val start=2019-01-01 | 2019 2019-03-04..03-31 4w28d | 2020 2020-03-02..03-31 5w30d
+end=2021-03-31 td=off inc=off opt=chg start=2019-01-01 + | 2018 2018-03-05..03-31 4w27d
+end=2021-03-31 td=on inc=on opt=val start=2019-01-01 | 2019 2019-03-04..03-31 4w28d | 2020 2020-03-02..03-31 5w30d | 2021 2021-03-01..03-31 5w31d
+end=2021-03-31 td=on inc=on opt=chg start=2019-01-01 + | 2018 2018-03-05..03-31 4w27d
+end=2021-04-02 td=off inc=off opt=val start=2019-01-01 | 2019 2019-04-01..04-30 5w30d | 2020 2020-04-06..04-30 4w25d
+end=2021-04-02 td=off inc=off opt=chg start=2019-01-01 + | 2018 2018-04-02..04-30 5w29d
+end=2021-04-02 td=on inc=on opt=val start=2019-01-01 | 2019 2019-04-01..04-05 1w5d ?I2 empty 2020 ?I2 empty 2021
+end=2021-04-02 td=on inc=on opt=chg start=2019-01-01 + | 2018 2018-04-02..04-06 1w5d ?I2 empty 2020 ?I2 empty 2021
+end=2020-02-29 td=off inc=off opt=val start=2018-01-01 | 2018 2018-02-05..02-28 4w24d | 2019 2019-02-04..02-28 4w25d
+end=2020-02-29 td=off inc=off opt=chg start=2018-01-01 + | 2017 2017-02-06..02-28 4w23d
+end=2020-02-29 td=on inc=on opt=val start=2018-01-01 | 2018 2018-02-05..02-28 4w24d | 2019 2019-02-04..02-28 4w25d | 2020 2020-02-03..02-29 4w27d
+end=2020-02-29 td=on inc=on opt=chg start=2018-01-01 + | 2017 2017-02-06..02-28 4w23d
+end=2021-11-10 td=off inc=off opt=val start=2019-01-01 | 2019 2019-11-04..11-30 4w27d | 2020 2020-11-02..11-30 5w29d
+end=2021-11-10 td=off inc=off opt=chg start=2019-01-01 + | 2018 2018-11-05..11-30 4w26d
+end=2021-11-10 td=on inc=on opt=val start=2019-01-01 | 2019 2019-11-04..11-13 2w10d | 2020 2020-11-02..11-11 2w10d | 2021 2021-11-01..11-10 2w10d
+end=2021-11-10 td=on inc=on opt=chg start=2019-01-01 + | 2018 2018-11-05..11-14 2w10d
+end=2021-01-02 td=off inc=on opt=val start=2018-01-01 | 2018 2018-01-01..01-31 5w31d | 2019 2019-01-07..01-31 4w25d | 2020 2020-01-06..01-31 4w26d
+end=2021-01-02 td=off inc=on opt=chg start=2018-01-01 + | 2017 2017-01-02..01-31 5w30d
+end=2021-01-02 td=on inc=off opt=val start=2018-01-01 | 2018 2018-01-01..01-31 5w31d | 2019 2019-01-07..01-31 4w25d
+end=2021-01-02 td=on inc=off opt=chg start=2018-01-01 + | 2017 2017-01-02..01-31 5w30d
+end=2021-11-10 td=off inc=on opt=val start=2019-01-01 | 2019 2019-11-04..11-30 4w27d | 2020 2020-11-02..11-30 5w29d | 2021 2021-11-01..11-10 2w10d
+end=2021-11-10 td=off inc=on opt=chg start=2019-01-01 + | 2018 2018-11-05..11-30 4w26d
+end=2021-11-10 td=on inc=off opt=val start=2019-01-01 | 2019 2019-11-04..11-13 2w10d | 2020 2020-11-02..11-11 2w10d
+end=2021-11-10 td=on inc=off opt=chg start=2019-01-01 + | 2018 2018-11-05..11-14 2w10d
+end=2021-11-10 td=off inc=off opt=val pre=1 start=2020-01-01 | 2020 2020-11-02..11-30 5w29d
+end=2021-11-10 td=off inc=off opt=chg pre=1 start=2020-01-01 + | 2019 2019-11-04..11-30 4w27d
+end=2021-11-10 td=off inc=off opt=val pre=3 start=2018-01-01 | 2018 2018-11-05..11-30 4w26d | 2019 2019-11-04..11-30 4w27d | 2020 2020-11-02..11-30 5w29d
+end=2021-11-10 td=off inc=off opt=chg pre=3 start=2018-01-01 + | 2017 2017-11-06..11-30 4w25d

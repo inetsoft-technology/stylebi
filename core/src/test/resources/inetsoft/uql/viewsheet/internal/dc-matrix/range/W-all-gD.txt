@@ -1,0 +1,95 @@
+# W-all-gD
+[ws=sunday]
+shape value:  alignWeek=false dateSeries=true parent=W from=- dateDim=DayOfWeek(date) temp=[]
+shape change: alignWeek=false dateSeries=true parent=W from=PREVIOUS_WEEK dateDim=DayOfWeek(date) temp=[]
+end=2020-12-31 td=off inc=off opt=val start=2020-12-13 | wk2020-12-13 2020-12-13..12-19 1w7d | wk2020-12-20 2020-12-20..12-26 1w7d
+end=2020-12-31 td=off inc=off opt=chg start=2020-12-13 + | wk2020-12-06 2020-12-06..12-12 1w7d
+end=2020-12-31 td=on inc=on opt=val start=2020-12-13 | wk2020-12-13 2020-12-13..12-17 1w5d | wk2020-12-20 2020-12-20..12-24 1w5d | wk2020-12-27 2020-12-27..12-31 1w5d
+end=2020-12-31 td=on inc=on opt=chg start=2020-12-13 + | wk2020-12-06 2020-12-06..12-10 1w5d
+end=2021-01-02 td=off inc=off opt=val start=2020-12-13 | wk2020-12-13 2020-12-13..12-19 1w7d | wk2020-12-20 2020-12-20..12-26 1w7d
+end=2021-01-02 td=off inc=off opt=chg start=2020-12-13 + | wk2020-12-06 2020-12-06..12-12 1w7d
+end=2021-01-02 td=on inc=on opt=val start=2020-12-13 | wk2020-12-13 2020-12-13..12-19 1w7d | wk2020-12-20 2020-12-20..12-26 1w7d | wk2020-12-27 2020-12-27..2021-01-02 1w7d
+end=2021-01-02 td=on inc=on opt=chg start=2020-12-13 + | wk2020-12-06 2020-12-06..12-12 1w7d
+end=2021-01-05 td=off inc=off opt=val start=2020-12-20 | wk2020-12-20 2020-12-20..12-26 1w7d | wk2020-12-27 2020-12-27..2021-01-02 1w7d
+end=2021-01-05 td=off inc=off opt=chg start=2020-12-20 + | wk2020-12-13 2020-12-13..12-19 1w7d
+end=2021-01-05 td=on inc=on opt=val start=2020-12-20 | wk2020-12-20 2020-12-20..12-22 1w3d | wk2020-12-27 2020-12-27..12-29 1w3d | wk2021-01-03 2021-01-03..01-05 1w3d
+end=2021-01-05 td=on inc=on opt=chg start=2020-12-20 + | wk2020-12-13 2020-12-13..12-15 1w3d
+end=2021-03-02 td=off inc=off opt=val start=2021-02-14 | wk2021-02-14 2021-02-14..02-20 1w7d | wk2021-02-21 2021-02-21..02-27 1w7d
+end=2021-03-02 td=off inc=off opt=chg start=2021-02-14 + | wk2021-02-07 2021-02-07..02-13 1w7d
+end=2021-03-02 td=on inc=on opt=val start=2021-02-14 | wk2021-02-14 2021-02-14..02-16 1w3d | wk2021-02-21 2021-02-21..02-23 1w3d | wk2021-02-28 2021-02-28..03-02 1w3d
+end=2021-03-02 td=on inc=on opt=chg start=2021-02-14 + | wk2021-02-07 2021-02-07..02-09 1w3d
+end=2021-03-31 td=off inc=off opt=val start=2021-03-14 | wk2021-03-14 2021-03-14..03-20 1w7d | wk2021-03-21 2021-03-21..03-27 1w7d
+end=2021-03-31 td=off inc=off opt=chg start=2021-03-14 + | wk2021-03-07 2021-03-07..03-13 1w7d
+end=2021-03-31 td=on inc=on opt=val start=2021-03-14 | wk2021-03-14 2021-03-14..03-17 1w4d | wk2021-03-21 2021-03-21..03-24 1w4d | wk2021-03-28 2021-03-28..03-31 1w4d
+end=2021-03-31 td=on inc=on opt=chg start=2021-03-14 + | wk2021-03-07 2021-03-07..03-10 1w4d
+end=2021-04-02 td=off inc=off opt=val start=2021-03-14 | wk2021-03-14 2021-03-14..03-20 1w7d | wk2021-03-21 2021-03-21..03-27 1w7d
+end=2021-04-02 td=off inc=off opt=chg start=2021-03-14 + | wk2021-03-07 2021-03-07..03-13 1w7d
+end=2021-04-02 td=on inc=on opt=val start=2021-03-14 | wk2021-03-14 2021-03-14..03-19 1w6d | wk2021-03-21 2021-03-21..03-26 1w6d | wk2021-03-28 2021-03-28..04-02 1w6d
+end=2021-04-02 td=on inc=on opt=chg start=2021-03-14 + | wk2021-03-07 2021-03-07..03-12 1w6d
+end=2020-02-29 td=off inc=off opt=val start=2020-02-09 | wk2020-02-09 2020-02-09..02-15 1w7d | wk2020-02-16 2020-02-16..02-22 1w7d
+end=2020-02-29 td=off inc=off opt=chg start=2020-02-09 + | wk2020-02-02 2020-02-02..02-08 1w7d
+end=2020-02-29 td=on inc=on opt=val start=2020-02-09 | wk2020-02-09 2020-02-09..02-15 1w7d | wk2020-02-16 2020-02-16..02-22 1w7d | wk2020-02-23 2020-02-23..02-29 1w7d
+end=2020-02-29 td=on inc=on opt=chg start=2020-02-09 + | wk2020-02-02 2020-02-02..02-08 1w7d
+end=2021-11-10 td=off inc=off opt=val start=2021-10-24 | wk2021-10-24 2021-10-24..10-30 1w7d | wk2021-10-31 2021-10-31..11-06 1w7d
+end=2021-11-10 td=off inc=off opt=chg start=2021-10-24 + | wk2021-10-17 2021-10-17..10-23 1w7d
+end=2021-11-10 td=on inc=on opt=val start=2021-10-24 | wk2021-10-24 2021-10-24..10-27 1w4d | wk2021-10-31 2021-10-31..11-03 1w4d | wk2021-11-07 2021-11-07..11-10 1w4d
+end=2021-11-10 td=on inc=on opt=chg start=2021-10-24 + | wk2021-10-17 2021-10-17..10-20 1w4d
+end=2021-01-02 td=off inc=on opt=val start=2020-12-13 | wk2020-12-13 2020-12-13..12-19 1w7d | wk2020-12-20 2020-12-20..12-26 1w7d | wk2020-12-27 2020-12-27..2021-01-02 1w7d
+end=2021-01-02 td=off inc=on opt=chg start=2020-12-13 + | wk2020-12-06 2020-12-06..12-12 1w7d
+end=2021-01-02 td=on inc=off opt=val start=2020-12-13 | wk2020-12-13 2020-12-13..12-19 1w7d | wk2020-12-20 2020-12-20..12-26 1w7d
+end=2021-01-02 td=on inc=off opt=chg start=2020-12-13 + | wk2020-12-06 2020-12-06..12-12 1w7d
+end=2021-11-10 td=off inc=on opt=val start=2021-10-24 | wk2021-10-24 2021-10-24..10-30 1w7d | wk2021-10-31 2021-10-31..11-06 1w7d | wk2021-11-07 2021-11-07..11-10 1w4d
+end=2021-11-10 td=off inc=on opt=chg start=2021-10-24 + | wk2021-10-17 2021-10-17..10-23 1w7d
+end=2021-11-10 td=on inc=off opt=val start=2021-10-24 | wk2021-10-24 2021-10-24..10-27 1w4d | wk2021-10-31 2021-10-31..11-03 1w4d
+end=2021-11-10 td=on inc=off opt=chg start=2021-10-24 + | wk2021-10-17 2021-10-17..10-20 1w4d
+end=2021-11-10 td=off inc=off opt=val pre=1 start=2021-10-31 | wk2021-10-31 2021-10-31..11-06 1w7d
+end=2021-11-10 td=off inc=off opt=chg pre=1 start=2021-10-31 + | wk2021-10-24 2021-10-24..10-30 1w7d
+end=2021-11-10 td=off inc=off opt=val pre=3 start=2021-10-17 | wk2021-10-17 2021-10-17..10-23 1w7d | wk2021-10-24 2021-10-24..10-30 1w7d | wk2021-10-31 2021-10-31..11-06 1w7d
+end=2021-11-10 td=off inc=off opt=chg pre=3 start=2021-10-17 + | wk2021-10-10 2021-10-10..10-16 1w7d
+[ws=monday]
+shape value:  alignWeek=false dateSeries=true parent=W from=- dateDim=DayOfWeek(date) temp=[]
+shape change: alignWeek=false dateSeries=true parent=W from=PREVIOUS_WEEK dateDim=DayOfWeek(date) temp=[]
+end=2020-12-31 td=off inc=off opt=val start=2020-12-14 | wk2020-12-14 2020-12-14..12-20 1w7d | wk2020-12-21 2020-12-21..12-27 1w7d
+end=2020-12-31 td=off inc=off opt=chg start=2020-12-14 + | wk2020-12-07 2020-12-07..12-13 1w7d
+end=2020-12-31 td=on inc=on opt=val start=2020-12-14 | wk2020-12-14 2020-12-14..12-17 1w4d | wk2020-12-21 2020-12-21..12-24 1w4d | wk2020-12-28 2020-12-28..12-31 1w4d
+end=2020-12-31 td=on inc=on opt=chg start=2020-12-14 + | wk2020-12-07 2020-12-07..12-10 1w4d
+end=2021-01-02 td=off inc=off opt=val start=2020-12-14 | wk2020-12-14 2020-12-14..12-20 1w7d | wk2020-12-21 2020-12-21..12-27 1w7d
+end=2021-01-02 td=off inc=off opt=chg start=2020-12-14 + | wk2020-12-07 2020-12-07..12-13 1w7d
+end=2021-01-02 td=on inc=on opt=val start=2020-12-14 | wk2020-12-14 2020-12-14..12-19 1w6d | wk2020-12-21 2020-12-21..12-26 1w6d | wk2020-12-28 2020-12-28..2021-01-02 1w6d
+end=2021-01-02 td=on inc=on opt=chg start=2020-12-14 + | wk2020-12-07 2020-12-07..12-12 1w6d
+end=2021-01-05 td=off inc=off opt=val start=2020-12-21 | wk2020-12-21 2020-12-21..12-27 1w7d | wk2020-12-28 2020-12-28..2021-01-03 1w7d
+end=2021-01-05 td=off inc=off opt=chg start=2020-12-21 + | wk2020-12-14 2020-12-14..12-20 1w7d
+end=2021-01-05 td=on inc=on opt=val start=2020-12-21 | wk2020-12-21 2020-12-21..12-22 1w2d | wk2020-12-28 2020-12-28..12-29 1w2d | wk2021-01-04 2021-01-04..01-05 1w2d
+end=2021-01-05 td=on inc=on opt=chg start=2020-12-21 + | wk2020-12-14 2020-12-14..12-15 1w2d
+end=2021-03-02 td=off inc=off opt=val start=2021-02-15 | wk2021-02-15 2021-02-15..02-21 1w7d | wk2021-02-22 2021-02-22..02-28 1w7d
+end=2021-03-02 td=off inc=off opt=chg start=2021-02-15 + | wk2021-02-08 2021-02-08..02-14 1w7d
+end=2021-03-02 td=on inc=on opt=val start=2021-02-15 | wk2021-02-15 2021-02-15..02-16 1w2d | wk2021-02-22 2021-02-22..02-23 1w2d | wk2021-03-01 2021-03-01..03-02 1w2d
+end=2021-03-02 td=on inc=on opt=chg start=2021-02-15 + | wk2021-02-08 2021-02-08..02-09 1w2d
+end=2021-03-31 td=off inc=off opt=val start=2021-03-15 | wk2021-03-15 2021-03-15..03-21 1w7d | wk2021-03-22 2021-03-22..03-28 1w7d
+end=2021-03-31 td=off inc=off opt=chg start=2021-03-15 + | wk2021-03-08 2021-03-08..03-14 1w7d
+end=2021-03-31 td=on inc=on opt=val start=2021-03-15 | wk2021-03-15 2021-03-15..03-17 1w3d | wk2021-03-22 2021-03-22..03-24 1w3d | wk2021-03-29 2021-03-29..03-31 1w3d
+end=2021-03-31 td=on inc=on opt=chg start=2021-03-15 + | wk2021-03-08 2021-03-08..03-10 1w3d
+end=2021-04-02 td=off inc=off opt=val start=2021-03-15 | wk2021-03-15 2021-03-15..03-21 1w7d | wk2021-03-22 2021-03-22..03-28 1w7d
+end=2021-04-02 td=off inc=off opt=chg start=2021-03-15 + | wk2021-03-08 2021-03-08..03-14 1w7d
+end=2021-04-02 td=on inc=on opt=val start=2021-03-15 | wk2021-03-15 2021-03-15..03-19 1w5d | wk2021-03-22 2021-03-22..03-26 1w5d | wk2021-03-29 2021-03-29..04-02 1w5d
+end=2021-04-02 td=on inc=on opt=chg start=2021-03-15 + | wk2021-03-08 2021-03-08..03-12 1w5d
+end=2020-02-29 td=off inc=off opt=val start=2020-02-10 | wk2020-02-10 2020-02-10..02-16 1w7d | wk2020-02-17 2020-02-17..02-23 1w7d
+end=2020-02-29 td=off inc=off opt=chg start=2020-02-10 + | wk2020-02-03 2020-02-03..02-09 1w7d
+end=2020-02-29 td=on inc=on opt=val start=2020-02-10 | wk2020-02-10 2020-02-10..02-15 1w6d | wk2020-02-17 2020-02-17..02-22 1w6d | wk2020-02-24 2020-02-24..02-29 1w6d
+end=2020-02-29 td=on inc=on opt=chg start=2020-02-10 + | wk2020-02-03 2020-02-03..02-08 1w6d
+end=2021-11-10 td=off inc=off opt=val start=2021-10-25 | wk2021-10-25 2021-10-25..10-31 1w7d | wk2021-11-01 2021-11-01..11-07 1w7d
+end=2021-11-10 td=off inc=off opt=chg start=2021-10-25 + | wk2021-10-18 2021-10-18..10-24 1w7d
+end=2021-11-10 td=on inc=on opt=val start=2021-10-25 | wk2021-10-25 2021-10-25..10-27 1w3d | wk2021-11-01 2021-11-01..11-03 1w3d | wk2021-11-08 2021-11-08..11-10 1w3d
+end=2021-11-10 td=on inc=on opt=chg start=2021-10-25 + | wk2021-10-18 2021-10-18..10-20 1w3d
+end=2021-01-02 td=off inc=on opt=val start=2020-12-14 | wk2020-12-14 2020-12-14..12-20 1w7d | wk2020-12-21 2020-12-21..12-27 1w7d | wk2020-12-28 2020-12-28..2021-01-02 1w6d
+end=2021-01-02 td=off inc=on opt=chg start=2020-12-14 + | wk2020-12-07 2020-12-07..12-13 1w7d
+end=2021-01-02 td=on inc=off opt=val start=2020-12-14 | wk2020-12-14 2020-12-14..12-19 1w6d | wk2020-12-21 2020-12-21..12-26 1w6d
+end=2021-01-02 td=on inc=off opt=chg start=2020-12-14 + | wk2020-12-07 2020-12-07..12-12 1w6d
+end=2021-11-10 td=off inc=on opt=val start=2021-10-25 | wk2021-10-25 2021-10-25..10-31 1w7d | wk2021-11-01 2021-11-01..11-07 1w7d | wk2021-11-08 2021-11-08..11-10 1w3d
+end=2021-11-10 td=off inc=on opt=chg start=2021-10-25 + | wk2021-10-18 2021-10-18..10-24 1w7d
+end=2021-11-10 td=on inc=off opt=val start=2021-10-25 | wk2021-10-25 2021-10-25..10-27 1w3d | wk2021-11-01 2021-11-01..11-03 1w3d
+end=2021-11-10 td=on inc=off opt=chg start=2021-10-25 + | wk2021-10-18 2021-10-18..10-20 1w3d
+end=2021-11-10 td=off inc=off opt=val pre=1 start=2021-11-01 | wk2021-11-01 2021-11-01..11-07 1w7d
+end=2021-11-10 td=off inc=off opt=chg pre=1 start=2021-11-01 + | wk2021-10-25 2021-10-25..10-31 1w7d
+end=2021-11-10 td=off inc=off opt=val pre=3 start=2021-10-18 | wk2021-10-18 2021-10-18..10-24 1w7d | wk2021-10-25 2021-10-25..10-31 1w7d | wk2021-11-01 2021-11-01..11-07 1w7d
+end=2021-11-10 td=off inc=off opt=chg pre=3 start=2021-10-18 + | wk2021-10-11 2021-10-11..10-17 1w7d

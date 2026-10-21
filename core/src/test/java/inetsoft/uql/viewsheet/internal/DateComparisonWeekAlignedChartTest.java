@@ -20,45 +20,23 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphtDataSelector;
-import inetsoft.mv.MVManager;
-import inetsoft.report.composition.execution.*;
 import inetsoft.report.composition.graph.VGraphPair;
-import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.OrganizationManager;
 import inetsoft.test.*;
+import inetsoft.test.dc.DcInMemoryViewsheetFixture;
 import inetsoft.uql.XConstants;
-import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.uql.util.XEmbeddedTable;
-import inetsoft.uql.util.XSourceInfo;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.util.ThreadContext;
-import inetsoft.util.script.graal.pool.PoolConfig;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.lang.reflect.Field;
-import java.security.Principal;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
- * Bug #78454 through the real chart pipeline ({@link ViewsheetSandbox#getVGraphPair}: the DC
+ * Bug #78454 through the real chart pipeline ({@code ViewsheetSandbox#getVGraphPair}: the DC
  * query conditions, ChartDcProcessor's full-week period/part columns and
  * GraphGenerator's applyDateRange() hide selector) for the bug's chart: Year(Date) x Sum(Paid),
  * Previous 2 Years, Week to Date for each week, granularity Week, End Date Saturday 2021-01-02
@@ -68,42 +46,21 @@ import static org.mockito.Mockito.when;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
                                   LibManagerTestConfiguration.class, PluginsTestConfiguration.class,
-                                  DateComparisonWeekAlignedChartTest.TestConfig.class },
+                                  DcInMemoryViewsheetFixture.Config.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("core")
 class DateComparisonWeekAlignedChartTest {
-   @Configuration
-   static class TestConfig {
-      @Bean
-      @SuppressWarnings("unchecked")
-      public AssetDataCache assetDataCache() {
-         ObjectProvider<DistributedTableCacheStore> provider = mock(ObjectProvider.class);
-         when(provider.getObject()).thenReturn(mock(DistributedTableCacheStore.class));
-         return new AssetDataCache(mock(DataSourceRegistry.class), provider);
-      }
-
-      @Bean
-      public MVManager mvManager() {
-         return mock(MVManager.class);
-      }
-   }
+   private final DcInMemoryViewsheetFixture fixture = new DcInMemoryViewsheetFixture();
 
    @BeforeEach
    void setUp() {
-      AssetDataCache.getCache().clearCache();
-      SreeEnv.setProperty(PoolConfig.ENABLED, "false");
-      oldPrincipal = ThreadContext.getPrincipal();
-      ThreadContext.setPrincipal(SUtil.getPrincipal(
-         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
-         null, false));
+      fixture.setUp();
    }
 
    @AfterEach
    void tearDown() {
-      ThreadContext.setPrincipal(oldPrincipal);
-      SreeEnv.remove(PoolConfig.ENABLED);
-      AssetDataCache.getCache().clearCache();
+      fixture.tearDown();
    }
 
    /** Used to plot 53 weeks: the 2018-12-30 week of 2018 plus 2019. */
@@ -153,46 +110,7 @@ class DateComparisonWeekAlignedChartTest {
       return counts;
    }
 
-   private static VGraphPair chart(int option, boolean toDate) throws Exception {
-      Worksheet ws = new Worksheet();
-      List<Object[]> rows = new ArrayList<>();
-      rows.add(new Object[] { "Date", "Paid" });
-      Calendar cal = new GregorianCalendar();
-      cal.clear();
-      cal.set(2016, Calendar.JANUARY, 1);
-
-      while(cal.get(Calendar.YEAR) < 2022) {
-         rows.add(new Object[] { new java.sql.Date(cal.getTimeInMillis()), 1 });
-         cal.add(Calendar.DATE, 1);
-      }
-
-      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "all date");
-      table.setEmbeddedData(new XEmbeddedTable(new String[] { XSchema.DATE, XSchema.INTEGER },
-                                               rows.toArray(new Object[0][])));
-      ws.addAssembly(table);
-
-      Viewsheet vs = new Viewsheet();
-      Field wsField = Viewsheet.class.getDeclaredField("ws");
-      wsField.setAccessible(true);
-      wsField.set(vs, ws);
-
-      ChartVSAssembly chart = new ChartVSAssembly(vs, CHART);
-      chart.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "all date"));
-      VSChartInfo info = chart.getVSChartInfo();
-      ColumnRef date = new ColumnRef(new AttributeRef(null, "Date"));
-      date.setDataType(XSchema.DATE);
-      VSChartDimensionRef dim = new VSChartDimensionRef(date);
-      dim.setGroupColumnValue("Date");
-      dim.setDateLevelValue(XConstants.YEAR_DATE_GROUP + "");
-      dim.setTimeSeries(true);
-      info.addXField(dim);
-      VSChartAggregateRef agg = new VSChartAggregateRef();
-      agg.setColumnValue("Paid");
-      agg.setFormulaValue("Sum");
-      info.addYField(agg);
-      info.setChartType(GraphTypes.CHART_BAR);
-      info.setRTChartType(GraphTypes.CHART_BAR);
-
+   private VGraphPair chart(int option, boolean toDate) throws Exception {
       StandardPeriods periods = new StandardPeriods();
       periods.setPreCount(2);
       periods.setDateLevel(XConstants.YEAR_DATE_GROUP);
@@ -212,24 +130,7 @@ class DateComparisonWeekAlignedChartTest {
       dc.setDateComparisonPeriods(periods);
       dc.setDateComparisonInterval(interval);
       dc.setComparisonOption(option);
-      ChartVSAssemblyInfo chartInfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
-      chartInfo.setDateComparisonEnabled(true);
-      chartInfo.setDateComparisonInfo(dc);
-      vs.addAssembly(chart);
 
-      AssetEntry entry = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
-         "test/DateComparisonWeekAlignedChartTest", null,
-         OrganizationManager.getInstance().getCurrentOrgID());
-      ViewsheetSandbox box = new ViewsheetSandbox(vs, AbstractSheet.SHEET_RUNTIME_MODE, null,
-                                                  false, entry);
-      Field wbox = ViewsheetSandbox.class.getDeclaredField("wbox");
-      wbox.setAccessible(true);
-      wbox.set(box, new AssetQuerySandbox(ws));
-
-      return box.getVGraphPair(CHART);
+      return fixture.yearChart(dc, LocalDate.of(2016, 1, 1), LocalDate.of(2022, 1, 1));
    }
-
-   private static final String CHART = "Chart1";
-   private Principal oldPrincipal;
 }
