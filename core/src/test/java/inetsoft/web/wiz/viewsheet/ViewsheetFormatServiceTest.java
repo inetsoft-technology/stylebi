@@ -2782,6 +2782,119 @@ class ViewsheetFormatServiceTest {
       assertNotEquals(event.getFormat().isWrapText(), event.getOrigFormat().isWrapText());
    }
 
+   // ── Bug #79099: a date/time format on a numeric calc cell is refused before it is written ──
+
+   private static final java.util.regex.Pattern DATE_ON_NUMBER = java.util.regex.Pattern.compile(
+      "\\b(date|time)\\b[^.]*\\b(numeric|number|numbers|1970)\\b|" +
+      "\\b(numeric|number|numbers|1970)\\b[^.]*\\b(date|time)\\b",
+      java.util.regex.Pattern.CASE_INSENSITIVE);
+
+   private static ViewsheetFormatService.CellFormatRequest cellRequest(String format,
+                                                                       boolean reset)
+   {
+      VSObjectFormatInfoModel model = new VSObjectFormatInfoModel();
+      model.setFormat(format);
+      return new ViewsheetFormatService.CellFormatRequest(
+         "RegionSales", 2, 1, reset ? null : model, reset);
+   }
+
+   private static CalcTableService calcCellOfType(String type) {
+      CalcTableService calcService = mock(CalcTableService.class);
+      when(calcService.cellOutputType(any(), eq("RegionSales"), eq(2), eq(1))).thenReturn(type);
+      when(calcService.describeCellBinding(any(), eq("RegionSales"), eq(2), eq(1)))
+         .thenReturn("Sum(Product:Total)");
+      return calcService;
+   }
+
+   @Test
+   void refusesADateFormatOnANumericCalcCellBeforeAnyWrite() throws Exception {
+      for(String format : List.of("DateFormat", "TimeFormat", "TimeInstantFormat")) {
+         FormatPainterService painter = mock(FormatPainterService.class);
+         ViewsheetSessionService sessions = sessionsFor(mock(RuntimeViewsheet.class));
+
+         IllegalArgumentException thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> service(sessions, painter, calcCellOfType(XSchema.DOUBLE))
+               .setCellFormat("tok", principal(), cellRequest(format, false), ""));
+
+         String message = thrown.getMessage();
+         assertTrue(DATE_ON_NUMBER.matcher(message).find(), message);
+         assertTrue(message.contains("[2,1]") && message.contains("'RegionSales'") &&
+                    message.contains("Sum(Product:Total)"), message);
+         verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
+         verifyNoInteractions(painter);
+      }
+   }
+
+   @Test
+   void refusesADateFormatOnADecimalCalcCell() throws Exception {
+      ViewsheetSessionService sessions = sessionsFor(mock(RuntimeViewsheet.class));
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service(sessions, mock(FormatPainterService.class),
+                       calcCellOfType(XSchema.DECIMAL))
+            .setCellFormat("tok", principal(), cellRequest("DateFormat", false), ""));
+
+      assertTrue(DATE_ON_NUMBER.matcher(thrown.getMessage()).find(), thrown.getMessage());
+      verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void allowsADateFormatOnADateOrUnknownCalcCell() throws Exception {
+      for(String type : new String[]{ XSchema.DATE, XSchema.TIME_INSTANT, XSchema.STRING, null }) {
+         FormatPainterService painter = mock(FormatPainterService.class);
+         CalcTableService calcService = calcCellOfType(type);
+         when(calcService.cellFormatPath(any(), eq("RegionSales"), eq(2), eq(1)))
+            .thenReturn(new TableDataPath(-1, TableDataPath.DETAIL));
+
+         serviceWith(painter, calcService, mock(RuntimeViewsheet.class))
+            .setCellFormat("tok", principal(), cellRequest("DateFormat", false), "");
+
+         verify(painter).setFormat(any(), any(), any(Principal.class), any(), anyString());
+      }
+   }
+
+   @Test
+   void leavesNumericAndDurationFormatsAndResetOnANumericCalcCellAlone() throws Exception {
+      for(String format : new String[]{ "DecimalFormat", "CurrencyFormat", "DurationFormat" }) {
+         FormatPainterService painter = mock(FormatPainterService.class);
+         CalcTableService calcService = calcCellOfType(XSchema.DOUBLE);
+         when(calcService.cellFormatPath(any(), eq("RegionSales"), eq(2), eq(1)))
+            .thenReturn(new TableDataPath(-1, TableDataPath.DETAIL));
+
+         serviceWith(painter, calcService, mock(RuntimeViewsheet.class))
+            .setCellFormat("tok", principal(), cellRequest(format, false), "");
+
+         verify(painter).setFormat(any(), any(), any(Principal.class), any(), anyString());
+         verify(calcService, never()).cellOutputType(any(), any(), anyInt(), anyInt());
+      }
+
+      FormatPainterService painter = mock(FormatPainterService.class);
+      CalcTableService calcService = calcCellOfType(XSchema.DOUBLE);
+      when(calcService.cellFormatPath(any(), eq("RegionSales"), eq(2), eq(1)))
+         .thenReturn(new TableDataPath(-1, TableDataPath.DETAIL));
+      serviceWith(painter, calcService, mock(RuntimeViewsheet.class))
+         .setCellFormat("tok", principal(), cellRequest(null, true), "");
+      verify(painter).setFormat(any(), any(), any(Principal.class), any(), anyString());
+      verify(calcService, never()).cellOutputType(any(), any(), anyInt(), anyInt());
+   }
+
+   @Test
+   void aMergedCellKeepsItsErrorOverTheDateOnNumberRefusal() throws Exception {
+      CalcTableService calcService = calcCellOfType(XSchema.DOUBLE);
+      doThrow(new IllegalArgumentException("Cell [2,1] is merged into [2,0]"))
+         .when(calcService).requireNotMerged(any(), eq("RegionSales"), eq(2), eq(1));
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), calcService,
+                           mock(RuntimeViewsheet.class))
+            .setCellFormat("tok", principal(), cellRequest("DateFormat", false), ""));
+
+      assertTrue(thrown.getMessage().contains("merged into [2,0]"), thrown.getMessage());
+   }
+
    static Principal principal() {
       return () -> "admin";
    }
