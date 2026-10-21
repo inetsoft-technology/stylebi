@@ -25,10 +25,34 @@ import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.CalendarVSAssembly;
+import inetsoft.uql.viewsheet.CheckBoxVSAssembly;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
+import inetsoft.uql.viewsheet.ImageVSAssembly;
+import inetsoft.uql.viewsheet.SliderVSAssembly;
+import inetsoft.uql.viewsheet.TabVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CheckBoxVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SliderVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.VSDimensionRef;
+import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
+import inetsoft.web.wiz.binding.CalcTableService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -151,6 +175,132 @@ class ViewsheetFormatServiceTypeCheckTest {
       catch(IllegalArgumentException e) {
          assertFalse(e.getMessage().contains("numeric"), e.getMessage());
       }
+   }
+
+   private static <A extends VSAssembly, I extends VSAssemblyInfo> A assemblyOf(
+      Class<A> type, Class<I> infoType)
+   {
+      A assembly = mock(type);
+      when(assembly.getVSAssemblyInfo()).thenReturn(mock(infoType));
+      return assembly;
+   }
+
+   private static RuntimeViewsheet rvsOfAssemblies(String name, VSAssembly assembly) {
+      return rvsWith(name, assembly);
+   }
+
+   /** Runs set_format and returns the refusal message, or null when it was not refused here. */
+   private static String refusal(RuntimeViewsheet rvs, String target, boolean reset,
+                                 String field, String name)
+      throws Exception
+   {
+      ViewsheetSessionService sessions = sessionsFor(rvs);
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#FF0000");
+
+      try {
+         service(sessions, painter, mock(CalcTableService.class)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of(name), reset ? null : format, reset,
+                                                     target, field, null), "");
+      }
+      catch(IllegalArgumentException e) {
+         verify(sessions, never()).mutate(anyString(), any(java.security.Principal.class), any());
+         verifyNoInteractions(painter);
+         return e.getMessage();
+      }
+      catch(Exception e) {
+         // a later failure on the bare mocks is not a refusal by the new checks
+      }
+
+      return null;
+   }
+
+   private static String titleRefusal(VSAssembly assembly, boolean reset)
+      throws Exception
+   {
+      return refusal(rvsOfAssemblies("A1", assembly), "title", reset, null, "A1");
+   }
+
+   @Test
+   void refusesTitleOnAssembliesWithoutATitleBar() throws Exception {
+      List<VSAssembly> untitled = List.of(
+         assemblyOf(GaugeVSAssembly.class, GaugeVSAssemblyInfo.class),
+         assemblyOf(SliderVSAssembly.class, SliderVSAssemblyInfo.class),
+         assemblyOf(TextVSAssembly.class, TextVSAssemblyInfo.class),
+         assemblyOf(TabVSAssembly.class, TabVSAssemblyInfo.class),
+         assemblyOf(ImageVSAssembly.class, ImageVSAssemblyInfo.class));
+
+      for(VSAssembly assembly : untitled) {
+         String message = titleRefusal(assembly, false);
+         assertNotNull(message, assembly.getClass().getName());
+         assertTrue(message.contains("'A1'") && message.contains("has no title bar"), message);
+         assertTrue(message.contains(assembly.getClass().getSimpleName()), message);
+         assertTrue(message.contains("target 'object'"), message);
+      }
+   }
+
+   @Test
+   void refusesTitleResetOnAnAssemblyWithoutATitleBar() throws Exception {
+      assertNotNull(titleRefusal(
+         assemblyOf(GaugeVSAssembly.class, GaugeVSAssemblyInfo.class), true));
+   }
+
+   @Test
+   void allowsTitleOnAssembliesWithATitleBar() throws Exception {
+      List<VSAssembly> titled = List.of(
+         assemblyOf(TableVSAssembly.class, TableVSAssemblyInfo.class),
+         assemblyOf(CrosstabVSAssembly.class, CrosstabVSAssemblyInfo.class),
+         assemblyOf(ChartVSAssembly.class, ChartVSAssemblyInfo.class),
+         assemblyOf(CheckBoxVSAssembly.class, CheckBoxVSAssemblyInfo.class),
+         assemblyOf(CalendarVSAssembly.class, CalendarVSAssemblyInfo.class));
+
+      for(VSAssembly assembly : titled) {
+         assertNull(titleRefusal(assembly, false), assembly.getClass().getName());
+      }
+   }
+
+   @Test
+   void allowsTitleOnATitledAssemblyWhoseTitleIsHidden() throws Exception {
+      TableVSAssembly table = assemblyOf(TableVSAssembly.class, TableVSAssemblyInfo.class);
+      when(((TableVSAssemblyInfo) table.getVSAssemblyInfo()).isTitleVisible()).thenReturn(false);
+
+      assertNull(titleRefusal(table, false));
+   }
+
+   @Test
+   void titleCheckFailsOpenOnAMissingAssemblyANullInfoAndANullViewsheet() throws Exception {
+      assertNull(refusal(rvsOfAssemblies("A1", null), "title", false, null, "A1"));
+
+      VSAssembly noInfo = mock(GaugeVSAssembly.class);
+      assertNull(titleRefusal(noInfo, false));
+
+      RuntimeViewsheet noViewsheet = mock(RuntimeViewsheet.class);
+      assertNull(refusal(noViewsheet, "title", false, null, "A1"));
+      assertNull(refusal(null, "title", false, null, "A1"));
+   }
+
+   @Test
+   void refusesTextOnANonChartAndOnAMissingAssembly() throws Exception {
+      String gauge = refusal(
+         rvsOfAssemblies("A1", assemblyOf(GaugeVSAssembly.class, GaugeVSAssemblyInfo.class)),
+         "text", false, "x", "A1");
+      assertNotNull(gauge);
+      assertTrue(gauge.contains("only applies to a chart") && gauge.contains("'A1'") &&
+                 gauge.contains("GaugeVSAssembly"), gauge);
+
+      String missing = refusal(rvsOfAssemblies("A1", null), "text", false, "x", "A1");
+      assertNotNull(missing);
+      assertTrue(missing.contains("only applies to a chart") && missing.contains("not found"),
+                 missing);
+   }
+
+   @Test
+   void textOnAChartIsNotRefusedByTheNewCheck() throws Exception {
+      assertNull(refusal(
+         rvsOfAssemblies("A1", assemblyOf(ChartVSAssembly.class, ChartVSAssemblyInfo.class)),
+         "text", false, "x", "A1"));
    }
 
 }

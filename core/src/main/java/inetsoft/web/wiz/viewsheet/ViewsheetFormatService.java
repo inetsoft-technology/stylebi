@@ -60,6 +60,7 @@ import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
@@ -577,6 +578,57 @@ public class ViewsheetFormatService {
       }
    }
 
+   /**
+    * Refuses {@code target:"title"} for an assembly that has no title bar. Only an assembly whose
+    * info is a {@link TitledVSAssemblyInfo} renders a title, so a write to the title path of any
+    * other kind is inert. Fails open when the viewsheet, the assembly or its info cannot be
+    * resolved, and never looks at whether the title is currently visible.
+    */
+   private static void refuseTitleOnUntitledAssemblies(Viewsheet viewsheet, List<String> names) {
+      if(viewsheet == null) {
+         return;
+      }
+
+      List<String> offenders = new ArrayList<>();
+
+      for(String name : names) {
+         VSAssembly assembly = viewsheet.getAssembly(name);
+         VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
+
+         if(info != null && !(info instanceof TitledVSAssemblyInfo)) {
+            offenders.add("'" + name + "' is a " + assembly.getClass().getSimpleName() +
+                          ", which has no title bar");
+         }
+      }
+
+      if(!offenders.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_format: target 'title' only applies to an assembly with a title bar (chart, " +
+            "table, crosstab, freehand table, calendar, range slider, selection list/tree, " +
+            "check box, radio button); " + String.join("; ", offenders) + ". The request was " +
+            "not applied. Use target 'object' to format the whole assembly.");
+      }
+   }
+
+   /**
+    * Refuses {@code target:"text"} for an assembly that is not a chart (including one that is not
+    * found), which the per-chart painter would otherwise cast unguarded. Fails open only when the
+    * viewsheet itself cannot be resolved.
+    */
+   private static void refuseTextOnNonChart(Viewsheet viewsheet, String name) {
+      if(viewsheet == null) {
+         return;
+      }
+
+      VSAssembly assembly = viewsheet.getAssembly(name);
+
+      if(!(assembly instanceof ChartVSAssembly)) {
+         throw new IllegalArgumentException(
+            "set_format: target 'text' only applies to a chart; '" + name + "' is " +
+            (assembly == null ? "not found" : assembly.getClass().getSimpleName()) + ".");
+      }
+   }
+
    private static final List<String> BORDER_STYLES =
       List.of("borderTopStyle", "borderLeftStyle", "borderBottomStyle", "borderRightStyle");
 
@@ -653,6 +705,18 @@ public class ViewsheetFormatService {
                                                    request.format().getFormat());
                }
             }
+         }
+      }
+
+      if("title".equals(target) || "text".equals(target)) {
+         RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
+         Viewsheet viewsheet = resolved == null ? null : resolved.getViewsheet();
+
+         if("title".equals(target)) {
+            refuseTitleOnUntitledAssemblies(viewsheet, request.assemblies());
+         }
+         else {
+            refuseTextOnNonChart(viewsheet, request.assemblies().get(0));
          }
       }
 
