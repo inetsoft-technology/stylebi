@@ -435,6 +435,18 @@ public class HyperlinkDialogService {
    }
 
    /**
+    * Throws when a chart region's {@code colName} matches no field the write path would store a
+    * link on (the same test and message set_hyperlink refuses with), so a read of such a name is
+    * refused instead of reporting "no link". A name that differs from a bound field only by case
+    * passes, as the read path resolves it. The text flag is not part of a read, so it is false.
+    */
+   public static void requireChartColName(ChartVSAssemblyInfo info, String colName,
+                                          boolean isAxis)
+   {
+      resolveChartColName(info, info.getVSChartInfo(), colName, isAxis, false, true);
+   }
+
+   /**
     * Resolves a chart region's colName to the name the write path actually matches. A name the
     * lookups find is returned as is. Otherwise the one bound field that differs from it only by
     * case is returned. With {@code refuse}, a name that still lands nowhere (no match, or
