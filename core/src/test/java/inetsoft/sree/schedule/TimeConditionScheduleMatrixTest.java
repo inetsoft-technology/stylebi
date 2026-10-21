@@ -22,7 +22,11 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
+import org.w3c.dom.Element;
+import org.xml.sax.InputSource;
 
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.*;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
@@ -94,6 +98,74 @@ class TimeConditionScheduleMatrixTest {
       }
 
       assertAll(checks);
+   }
+
+   // A task is written by one JVM and read by another: the server, the scheduler, a cloud
+   // runner, another cluster node, or the same server after its time zone changed. Storage
+   // uses XML; RMI between the server and a local scheduler uses Java serialization.
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("roundTripCases")
+   void conditionWrittenInOneServerZoneFiresTheSameAfterReadingInAnother(
+      String name, ZoneId zone, Function<LocalTime, TimeCondition> factory,
+      List<LocalTime> times)
+   {
+      List<Executable> checks = new ArrayList<>();
+
+      for(String[] servers : SERVER_ZONE_PAIRS) {
+         for(LocalTime time : times) {
+            checks.add(() -> {
+               TimeZone.setDefault(TimeZone.getTimeZone(servers[0]));
+               TimeCondition written = factory.apply(time);
+               written.setTimeZone(TimeZone.getTimeZone(zone));
+               String xml = toXml(written);
+               byte[] serialized = serialize(written);
+
+               TimeZone.setDefault(TimeZone.getTimeZone(servers[1]));
+               TimeCondition parsed = parseXml(xml);
+               TimeCondition copied = deserialize(serialized);
+               String label = "at " + time + ", written in " + servers[0] + ", read in " +
+                  servers[1];
+               List<Instant> fires = chain(written, zone);
+
+               assertEquals(xml, toXml(parsed), label + ": XML written again");
+               assertEquals(fires, chain(parsed, zone), label + ": fire times after XML");
+               assertEquals(fires, chain(copied, zone), label + ": fire times after serialization");
+            });
+         }
+      }
+
+      assertAll(name, checks);
+   }
+
+   // The EM editor sets no time zone when the user picks none
+   // (ScheduleConditionService.getConditionFromModel), so the condition takes the zone of the
+   // server that creates it, and the XML records that zone.
+   @Test
+   void conditionWithoutAZoneKeepsTheZoneOfTheServerThatSavedIt() throws Exception {
+      TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"));
+      TimeCondition written = daily(LocalTime.of(9, 0), 1, false);
+      String xml = toXml(written);
+
+      TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
+      TimeCondition parsed = parseXml(xml);
+
+      assertEquals("Asia/Shanghai", parsed.getTimeZone().getID());
+      assertEquals(dayOracle(DAILY, LocalTime.of(9, 0), ZoneId.of("Asia/Shanghai")),
+                   chain(parsed, ZoneId.of("Asia/Shanghai")));
+   }
+
+   // XML saved before conditions had a time zone attribute
+   @Test
+   void conditionXmlWithoutAZoneTakesTheZoneOfTheServerThatParsesIt() throws Exception {
+      TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
+      TimeCondition parsed = parseXml(
+         "<Condition type=\"TimeCondition\" timeType=\"1\" hour=\"9\" minute=\"0\" " +
+         "second=\"0\" hour_end=\"-1\" minute_end=\"-1\" second_end=\"-1\" weekday=\"false\" " +
+         "interval=\"1\"></Condition>");
+
+      assertEquals("America/New_York", parsed.getTimeZone().getID());
+      assertEquals(dayOracle(DAILY, LocalTime.of(9, 0), ZoneId.of("America/New_York")),
+                   chain(parsed, ZoneId.of("America/New_York")));
    }
 
    // Current behavior, recorded in #79041: the fire time keeps the milliseconds of the clock
@@ -224,6 +296,59 @@ class TimeConditionScheduleMatrixTest {
    private static Stream<Arguments> everyNWeeksBugCases() {
       return DAY_SPECS.stream().flatMap(spec -> spec.bugLocales.stream()
          .map(locale -> dayCase("UTC", spec, locale)));
+   }
+
+   private static Stream<Arguments> roundTripCases() {
+      List<Arguments> cases = new ArrayList<>();
+
+      for(String id : ROUND_TRIP_ZONES) {
+         for(DaySpec spec : DAY_SPECS) {
+            if(!spec.bugLocales.contains(Locale.US)) {
+               cases.add(Arguments.of(id + " " + spec.name, ZoneId.of(id), spec.factory(), TIMES));
+            }
+         }
+
+         for(HourSpec spec : HOUR_SPECS) {
+            // the hourly spec has its own times
+            Function<LocalTime, TimeCondition> factory = t -> spec.create(ZoneId.of(id));
+            cases.add(Arguments.of(id + " " + spec.name, ZoneId.of(id), factory,
+                                   List.of(spec.start())));
+         }
+      }
+
+      return cases.stream();
+   }
+
+   private static String toXml(TimeCondition condition) {
+      StringWriter buffer = new StringWriter();
+      PrintWriter writer = new PrintWriter(buffer);
+      condition.writeXML(writer);
+      writer.flush();
+      return buffer.toString();
+   }
+
+   private static byte[] serialize(TimeCondition condition) throws IOException {
+      ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+      try(ObjectOutputStream out = new ObjectOutputStream(bytes)) {
+         out.writeObject(condition);
+      }
+
+      return bytes.toByteArray();
+   }
+
+   private static TimeCondition deserialize(byte[] bytes) throws Exception {
+      try(ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes))) {
+         return (TimeCondition) in.readObject();
+      }
+   }
+
+   private static TimeCondition parseXml(String xml) throws Exception {
+      Element element = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+         .parse(new InputSource(new StringReader(xml))).getDocumentElement();
+      TimeCondition condition = new TimeCondition();
+      condition.parseXML(element);
+      return condition;
    }
 
    private static Stream<Arguments> hourCases() {
@@ -495,6 +620,15 @@ class TimeConditionScheduleMatrixTest {
    private static final List<String> ZONES = List.of(
       "UTC", "America/New_York", "Europe/London", "Australia/Sydney", "Australia/Lord_Howe",
       "Asia/Kolkata", "Asia/Kathmandu", "Asia/Shanghai");
+
+   private static final List<String> ROUND_TRIP_ZONES = List.of(
+      "UTC", "America/New_York", "Australia/Lord_Howe", "Asia/Kolkata");
+
+   // the server zone that writes the XML and the one that parses it
+   private static final List<String[]> SERVER_ZONE_PAIRS = List.of(
+      new String[] { "Asia/Shanghai", "America/New_York" },
+      new String[] { "America/New_York", "Asia/Kolkata" },
+      new String[] { "UTC", "Australia/Lord_Howe" });
 
    // times that no DST change of the zones above skips or repeats
    private static final List<LocalTime> TIMES = List.of(
