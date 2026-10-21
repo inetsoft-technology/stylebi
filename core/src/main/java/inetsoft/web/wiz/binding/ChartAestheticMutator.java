@@ -913,6 +913,7 @@ public final class ChartAestheticMutator {
       }
 
       carryShareColorState(built, existing, fieldName, spec);
+      carryColorValueState(built, existing, spec);
 
       if(built.getColors() != null && built.getColors().length > 0) {
          return frame;
@@ -930,6 +931,27 @@ public final class ChartAestheticMutator {
          "not currently rendering by category, so there are no categories a 'mapping' could name. " +
          "Bind a dimension to it with set_aesthetic_field first, or pass an explicit 'colors' " +
          "list alongside the mapping.");
+   }
+
+   /**
+    * Keeps the categorical pane's other state from resetting on a write that is not about it. The
+    * builder starts from a bare {@code new CategoricalColorModel()}, so an omitted
+    * {@code colorValueFrame} would read as an explicit false and {@code dateFormat}, which the
+    * spec has no key for, would always be wiped. An explicit {@code colorValueFrame} in the spec
+    * still wins. Covers shareColors on and off, so it runs ahead of the share early return.
+    */
+   private static void carryColorValueState(CategoricalColorModel built, VisualFrameModel existing,
+                                            Map<String, Object> spec)
+   {
+      if(!(existing instanceof CategoricalColorModel current)) {
+         return;
+      }
+
+      if(spec.get("colorValueFrame") == null) {
+         built.setColorValueFrame(current.isColorValueFrame());
+      }
+
+      built.setDateFormat(current.getDateFormat());
    }
 
    /**

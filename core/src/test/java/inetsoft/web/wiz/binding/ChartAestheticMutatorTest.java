@@ -219,6 +219,69 @@ class ChartAestheticMutatorTest {
       assertArrayEquals(new String[]{"#FF0000", "#00FF00"}, frame.getColors());
    }
 
+   private static CategoricalColorModel colorValueFrameOn(ChartBindingModel model) {
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#FF0000", "#00FF00")));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colorValueFrame", true));
+      return assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+   }
+
+   /** Bug 78976: a write that does not name colorValueFrame must leave it alone. */
+   @Test
+   void mappingOnlyWriteKeepsColorValueFrame() {
+      for(boolean share : new boolean[]{true, false}) {
+         ChartBindingModel model = new ChartBindingModel();
+         colorValueFrameOn(model);
+
+         ChartAestheticMutator.setFrame(
+            model, "color", spec("type", "categorical", "mapping", Map.of("East", "#112233"),
+                                 "shareColors", share));
+
+         assertTrue(assertInstanceOf(CategoricalColorModel.class,
+                                     model.getColorField().getFrame()).isColorValueFrame(),
+                    "shareColors=" + share);
+      }
+   }
+
+   @Test
+   void colorsOnlyWriteKeepsColorValueFrame() {
+      ChartBindingModel model = new ChartBindingModel();
+      colorValueFrameOn(model);
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#0000FF", "#00FFFF")));
+
+      assertTrue(assertInstanceOf(CategoricalColorModel.class,
+                                  model.getColorField().getFrame()).isColorValueFrame());
+   }
+
+   @Test
+   void explicitColorValueFrameFalseStillSwitchesItOffWithAMapping() {
+      ChartBindingModel model = new ChartBindingModel();
+      colorValueFrameOn(model);
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colorValueFrame", false,
+                              "mapping", Map.of("East", "#112233")));
+
+      assertFalse(assertInstanceOf(CategoricalColorModel.class,
+                                   model.getColorField().getFrame()).isColorValueFrame());
+   }
+
+   @Test
+   void mappingOnlyWriteKeepsDateFormat() {
+      ChartBindingModel model = new ChartBindingModel();
+      colorValueFrameOn(model).setDateFormat(7);
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "mapping", Map.of("East", "#112233")));
+
+      assertEquals(7, assertInstanceOf(CategoricalColorModel.class,
+                                       model.getColorField().getFrame()).getDateFormat());
+   }
+
    @Test
    void aCategoricalFrameSetOnABoundDimensionLandsOnTheFieldNotTheTopLevelProperty() {
       ChartBindingModel model = new ChartBindingModel();

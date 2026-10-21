@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai.schedulerstatus;
 
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.storage.ExternalStorageService;
 import inetsoft.util.config.CloudRunnerConfig;
 import inetsoft.util.config.InetsoftConfig;
@@ -33,6 +34,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -119,6 +122,7 @@ class SchedulerDiagnosticsServiceTest {
    // -------------------------------------------------------------------------
 
    @Test void createHeapDumpReturnsTheResolvedNodeAlongsideTheToken() throws Exception {
+      stubIssuedMap();
       stubSchedulerNodes("10.0.0.1:8080");
       when(serverService.createHeapDump("10.0.0.1:8080")).thenReturn("heap-123");
 
@@ -144,6 +148,7 @@ class SchedulerDiagnosticsServiceTest {
    {
       when(cluster.getClusterNodes()).thenReturn(Set.of());
       when(serverService.createHeapDump(null)).thenReturn("heap-local");
+      stubIssuedMap();
 
       try(MockedStatic<InetsoftConfig> config = stubCloudRunner(true)) {
          SchedulerHeapDumpToken token = service.createHeapDump(null);
@@ -157,6 +162,7 @@ class SchedulerDiagnosticsServiceTest {
    // -------------------------------------------------------------------------
 
    @Test void heapDumpStatusReportsIncompleteWithoutMaterializing() throws Exception {
+      issueHeapDump("heap-1", "node-a");
       when(serverService.isHeapDumpComplete("heap-1", "node-a")).thenReturn(false);
 
       SchedulerHeapDumpStatus status = service.getHeapDumpStatus("heap-1", "node-a");
@@ -167,6 +173,7 @@ class SchedulerDiagnosticsServiceTest {
    }
 
    @Test void heapDumpStatusMaterializesAndDisposesOnceCompleteThenCachesTheResult() throws Exception {
+      issueHeapDump("heap-1", "node-a");
       File dumpFile = Files.createFile(tempDir.resolve("dump.hprof")).toFile();
       GetHeapDumpTransferCompleteMessage info = new GetHeapDumpTransferCompleteMessage();
       info.setLink("transfer-link-1");
@@ -194,6 +201,7 @@ class SchedulerDiagnosticsServiceTest {
    }
 
    @Test void heapDumpStatusReportsFailedButStillDisposesWhenTransferLinkIsMissing() throws Exception {
+      issueHeapDump("heap-1", "node-a");
       GetHeapDumpTransferCompleteMessage info = new GetHeapDumpTransferCompleteMessage();
       // link left null -- the completed-but-no-transfer-file case.
 
@@ -209,6 +217,7 @@ class SchedulerDiagnosticsServiceTest {
    }
 
    @Test void heapDumpStatusReportsFailedWhenIsCompleteItselfThrows() throws Exception {
+      issueHeapDump("heap-1", "node-a");
       when(serverService.isHeapDumpComplete("heap-1", "node-a"))
          .thenThrow(new IllegalStateException("no such heap dump"));
 
@@ -217,6 +226,61 @@ class SchedulerDiagnosticsServiceTest {
       assertTrue(status.failed());
       assertEquals("no such heap dump", status.error());
       verify(serverService, never()).disposeHeapDump(any(), any());
+   }
+
+   // -------------------------------------------------------------------------
+   // heap dump poll -- tokens that were never issued (Bug #78977)
+   // -------------------------------------------------------------------------
+
+   @Test void heapDumpStatusRejectsATokenThatWasNeverIssuedAndNeverCachesTheRejection()
+      throws Exception
+   {
+      stubIssuedMap();
+
+      // Repeated polls (the axis the cache replay needs): both must be rejected, not just the first.
+      for(int i = 0; i < 2; i++) {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.getHeapDumpStatus("never-issued", "node-a"));
+         assertTrue(ex.getMessage().startsWith("token: unknown heap dump token"));
+      }
+
+      // The scheduler is never asked: isHeapDumpComplete is true for any id but the in-flight one.
+      verify(serverService, never()).isHeapDumpComplete(any(), any());
+      verify(serverService, never()).getHeapDumpInfo(any(), any());
+      verify(serverService, never()).disposeHeapDump(any(), any());
+   }
+
+   @Test void heapDumpStatusRejectsATokenIssuedBeforeARestartLostTheRegistry() throws Exception {
+      issueHeapDump("heap-1", "node-a");
+
+      // A restart empties the registry; a fresh service over an empty map has no record of heap-1.
+      issued.clear();
+      SchedulerDiagnosticsService restarted =
+         new SchedulerDiagnosticsService(cluster, serverService, externalStorageService);
+      assertThrows(IllegalArgumentException.class, () -> restarted.getHeapDumpStatus("heap-1", "node-a"));
+   }
+
+   @Test void heapDumpStatusUsesTheIssuedNodeNotTheCallersClusterNode() throws Exception {
+      issueHeapDump("heap-1", "node-a");
+      when(serverService.isHeapDumpComplete("heap-1", "node-a")).thenReturn(false);
+
+      // The caller omits clusterNode; the status must still be asked of the node that took the dump.
+      assertFalse(service.getHeapDumpStatus("heap-1", null).complete());
+      verify(serverService).isHeapDumpComplete("heap-1", "node-a");
+      verify(serverService, never()).isHeapDumpComplete("heap-1", null);
+   }
+
+   @Test void heapDumpStatusAcceptsATokenIssuedInCloudRunnerLocalMode() throws Exception {
+      stubIssuedMap();
+      when(cluster.getClusterNodes()).thenReturn(Set.of());
+      when(serverService.createHeapDump(null)).thenReturn("heap-local");
+      when(serverService.isHeapDumpComplete("heap-local", null)).thenReturn(false);
+
+      try(MockedStatic<InetsoftConfig> config = stubCloudRunner(true)) {
+         service.createHeapDump(null);
+      }
+
+      assertFalse(service.getHeapDumpStatus("heap-local", null).complete());
    }
 
    // -------------------------------------------------------------------------
@@ -230,6 +294,26 @@ class SchedulerDiagnosticsServiceTest {
       MockedStatic<InetsoftConfig> config = mockStatic(InetsoftConfig.class);
       config.when(InetsoftConfig::getInstance).thenReturn(inetsoftConfig);
       return config;
+   }
+
+   private final Map<String, String> issued = new HashMap<>();
+
+   /** Backs {@code cluster.getMap} with an in-memory map shared by every call (one cluster map). */
+   @SuppressWarnings("unchecked")
+   private void stubIssuedMap() {
+      DistributedMap<String, String> map = mock(DistributedMap.class);
+      lenient().doAnswer(inv -> issued.put(inv.getArgument(0), inv.getArgument(1)))
+         .when(map).set(any(), any());
+      lenient().when(map.get(any())).thenAnswer(inv -> issued.get(inv.<String>getArgument(0)));
+      lenient().when(cluster.getMap(anyString())).thenReturn((DistributedMap) map);
+   }
+
+   /** Kicks a heap dump off through the service so the token is registered, as the REST flow does. */
+   private void issueHeapDump(String token, String node) throws Exception {
+      stubIssuedMap();
+      stubSchedulerNodes(node);
+      when(serverService.createHeapDump(node)).thenReturn(token);
+      service.createHeapDump(null);
    }
 
    private void stubSchedulerNodes(String... nodes) {
