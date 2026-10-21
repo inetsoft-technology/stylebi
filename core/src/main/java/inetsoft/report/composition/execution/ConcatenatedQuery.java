@@ -219,7 +219,20 @@ public class ConcatenatedQuery extends AssetQuery {
                   // earlier sub-query's own clean cause before the result-processing
                   // loop below ever reads it -- unlike subMessages[], which does not need
                   // this because it is read directly off the thread it was raised on.
+                  //
+                  // Not every sub-query type routes through getXNodeTableLens -- only
+                  // BoundQuery does (its sole caller besides AssetQuery itself); a sibling
+                  // (EmbeddedQuery, MirrorQuery, RotatedQuery, UnpivotQuery, DataQuery,
+                  // MVAssetQuery) never touches this thread-local at all. So a plain .get()
+                  // here is not enough: a BoundQuery member's clean cause would otherwise
+                  // survive -- unread, unremoved -- to be misread as a LATER, different
+                  // member's own cause when that later member is one of those six types and
+                  // independently fails too. Remove it immediately after reading, mirroring
+                  // XSessionManager's own self-clear-at-entry convention, so a member that
+                  // never sets it starts (and is captured) clean rather than inheriting a
+                  // neighbor's stale leftover.
                   subFailureCauses[index] = XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get();
+                  XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
                }
             };
 

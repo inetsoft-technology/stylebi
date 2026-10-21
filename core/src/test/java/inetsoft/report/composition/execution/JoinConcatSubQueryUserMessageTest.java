@@ -242,6 +242,78 @@ class JoinConcatSubQueryUserMessageTest {
    }
 
    /**
+    * Review round 1, Finding 1 (confidence 85): a BoundQuery-like member's clean cause
+    * (captured into {@code XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE} by
+    * {@code XSessionManager.getXNodeTableLens}'s own generic failure branch) must not survive,
+    * unread and unremoved, to be misattributed to a LATER, unrelated member's own failure when
+    * that later member is one of the six {@code AssetQuery} subclasses that never touch this
+    * thread-local at all ({@code EmbeddedQuery}, {@code MirrorQuery}, {@code RotatedQuery},
+    * {@code UnpivotQuery}, {@code DataQuery}, {@code MVAssetQuery}). This is reachable with as
+    * few as 2 members in serial mode, where both run on the same thread.
+    *
+    * <p>Member 0 must SUCCEED overall (return a non-null lens, so its own
+    * {@code results.get(0).get()} does not throw and processing reaches member 1) while still
+    * leaving the thread-local dirty as a side effect -- mirroring
+    * {@code XSessionManager.getXNodeTableLens}'s own structure, where {@code table} can already
+    * be assigned a valid, non-null lens before an exception during later post-processing (still
+    * inside the same try block) is caught by the generic {@code catch(Exception)} branch, which
+    * sets the thread-local but does not touch the already-built {@code table} it returns. If
+    * member 0 instead failed outright (its own {@code results.get(0).get()} throwing), its OWN
+    * index-0 catch block would report ITS OWN (correctly attributed) cause and the method would
+    * exit immediately, never reaching member 1 at all -- so that shape would not exercise this
+    * finding.
+    */
+   @Test
+   void concatSerialModeDoesNotMisattributeASecondMembersOwnFailureToAnEarlierSucceedingMembersStaleCause()
+      throws Exception
+   {
+      ConcatenatedQuery query = concatQuery(2, -1);
+      forceSerialMode(query);
+      AssetQuery[] subs = (AssetQuery[]) getField(ConcatenatedQuery.class, query, "queries");
+
+      // member 0: succeeds overall, but leaves XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE dirty
+      // as a side effect.
+      doAnswer(inv -> {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set("member 0's own stale leftover");
+         return new DefaultTableLens(new Object[][] { { "col" }, { 0 } });
+      }).when(subs[0]).getTableLens(any());
+
+      // member 1: a type that never touches XNodeMetaTable (e.g. MirrorQuery/EmbeddedQuery),
+      // failing for a completely unrelated reason of its own.
+      doAnswer(inv -> {
+         throw new IllegalStateException("member 1's own unrelated failure");
+      }).when(subs[1]).getTableLens(any());
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> query.getPostBaseTableLens(new VariableTable()));
+      assertEquals("member 1's own unrelated failure", ex.getMessage(),
+         "member 1's own failure must not be misattributed to member 0's stale leftover cause");
+   }
+
+   @Test
+   void joinSerialModeDoesNotMisattributeASecondMembersOwnFailureToAnEarlierSucceedingMembersStaleCause()
+      throws Exception
+   {
+      JoinQuery query = joinQuery(2, -1);
+      forceSerialMode(query);
+      AssetQuery[] subs = (AssetQuery[]) getField(JoinQuery.class, query, "queries");
+
+      doAnswer(inv -> {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set("member 0's own stale leftover");
+         return new DefaultTableLens(new Object[][] { { "col" }, { 0 } });
+      }).when(subs[0]).getTableLens(any());
+
+      doAnswer(inv -> {
+         throw new IllegalStateException("member 1's own unrelated failure");
+      }).when(subs[1]).getTableLens(any());
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> query.getPostBaseTableLens0(new VariableTable()));
+      assertEquals("member 1's own unrelated failure", ex.getMessage(),
+         "member 1's own failure must not be misattributed to member 0's stale leftover cause");
+   }
+
+   /**
     * Forces {@code serial} (the {@code JoinQuery}/{@code ConcatenatedQuery} fan-out-vs-serial
     * flag) to true via {@code box.holdsScriptExecutionLock()}, the same alternative the real
     * code checks alongside {@code JavaScriptEngine.isScriptThread()} -- mirroring a caller that
