@@ -747,6 +747,7 @@ public class CrosstabVSAssembly extends CrossBaseVSAssembly implements
          for(int i = 0; i < cols.length; i++) {
             VSDimensionRef dref = (VSDimensionRef) cols[i];
             String rankname = dref.getRankingColValue();
+            String sortname = dref.getSortByColValue();
 
             if(Tool.equals(dref.getGroupColumnValue(), oname)) {
                VSUtil.setVSDimensionRefName(dref, nname);
@@ -757,6 +758,13 @@ public class CrosstabVSAssembly extends CrossBaseVSAssembly implements
             }
             else if(rankname != null && rankname.endsWith(": " + oname)) {
                dref.setRankingColValue(rankname.substring(0, rankname.length() - oname.length()) + nname);
+            }
+
+            if(VSUtil.matchRefName(sortname, oname)) {
+               dref.setSortByColValue(VSUtil.getMatchRefName(sortname, nname));
+            }
+            else if(sortname != null && sortname.endsWith(": " + oname)) {
+               dref.setSortByColValue(sortname.substring(0, sortname.length() - oname.length()) + nname);
             }
          }
 
@@ -765,6 +773,7 @@ public class CrosstabVSAssembly extends CrossBaseVSAssembly implements
          for(int i = 0; i < rows.length; i++) {
             VSDimensionRef dref = (VSDimensionRef) rows[i];
             String rankname = dref.getRankingColValue();
+            String sortname = dref.getSortByColValue();
 
             if(Tool.equals(dref.getGroupColumnValue(), oname)) {
                VSUtil.setVSDimensionRefName(dref, nname);
@@ -775,6 +784,13 @@ public class CrosstabVSAssembly extends CrossBaseVSAssembly implements
             }
             else if(rankname != null && rankname.endsWith(": " + oname)) {
                dref.setRankingColValue(rankname.substring(0, rankname.length() - oname.length()) + nname);
+            }
+
+            if(VSUtil.matchRefName(sortname, oname)) {
+               dref.setSortByColValue(VSUtil.getMatchRefName(sortname, nname));
+            }
+            else if(sortname != null && sortname.endsWith(": " + oname)) {
+               dref.setSortByColValue(sortname.substring(0, sortname.length() - oname.length()) + nname);
             }
          }
       }
