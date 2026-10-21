@@ -194,6 +194,31 @@ class ChartAestheticMutatorTest {
       assertNull(model.getColorFrame(), "the top-level property must stay untouched");
    }
 
+   /**
+    * Bug 79002: colorValueFrame:false on its own must flip the flag off, keep the palette the
+    * channel already had, and leave the field bound.
+    */
+   @Test
+   void colorValueFrameFalseAloneSwitchesItOffAndKeepsThePalette() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#FF0000", "#00FF00")));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colorValueFrame", true));
+      assertTrue(assertInstanceOf(CategoricalColorModel.class,
+                                  model.getColorField().getFrame()).isColorValueFrame());
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colorValueFrame", false));
+
+      assertNotNull(model.getColorField());
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertFalse(frame.isColorValueFrame());
+      assertArrayEquals(new String[]{"#FF0000", "#00FF00"}, frame.getColors());
+   }
+
    @Test
    void aCategoricalFrameSetOnABoundDimensionLandsOnTheFieldNotTheTopLevelProperty() {
       ChartBindingModel model = new ChartBindingModel();

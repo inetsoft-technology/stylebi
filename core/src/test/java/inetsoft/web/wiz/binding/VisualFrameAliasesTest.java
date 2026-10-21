@@ -833,16 +833,23 @@ class VisualFrameAliasesTest {
    }
 
    /**
-    * The precondition is satisfied by switching the checkbox ON, because that is what replaces the
-    * thing a palette would otherwise have to supply. An explicit {@code false} says "read the
-    * palette", which leaves the frame with no palette to read — the same half-specified shape the
-    * check exists to refuse, arriving through a key that looks like it answers it.
+    * Any explicit boolean satisfies the precondition. {@code false} on its own switches the
+    * checkbox off and the mutator completes the palette from the channel's existing frame, so it
+    * must reach the backend instead of being refused as "no palette".
     */
    @Test
-   void refusesAnExplicitlyFalseColorValueFrameStandingInForAPalette() {
+   void acceptsAnExplicitlyFalseColorValueFrameOnItsOwn() {
+      CategoricalColorModel frame = assertInstanceOf(
+         CategoricalColorModel.class,
+         VisualFrameAliases.create("color", spec("type", "categorical", "colorValueFrame", false)));
+
+      assertFalse(frame.isColorValueFrame());
+   }
+
+   @Test
+   void stillRefusesACategoricalFrameWithNoPaletteMappingOrColorValueFrame() {
       assertThrows(IllegalArgumentException.class,
-                   () -> VisualFrameAliases.create("color", spec("type", "categorical",
-                                                                 "colorValueFrame", false)));
+                   () -> VisualFrameAliases.create("color", spec("type", "categorical")));
    }
 
    @Test

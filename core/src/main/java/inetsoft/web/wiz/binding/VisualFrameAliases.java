@@ -804,13 +804,14 @@ public final class VisualFrameAliases {
       Map<String, Object> mapping = mapping(spec);
       Boolean colorValueFrame = bool(spec, "colorValueFrame");
 
-      // Tested for TRUE, not for presence: colorValueFrame satisfies this precondition by
-      // replacing what drives the chart, so only switching it on does. An explicit false says
-      // "read the palette", which leaves the frame with no palette to read all over again.
-      if(colors.isEmpty() && mapping.isEmpty() && !Boolean.TRUE.equals(colorValueFrame)) {
+      // Tested for presence: any explicit colorValueFrame satisfies this precondition. A frame
+      // built without colors is completed from the channel's existing palette by
+      // ChartAestheticMutator.carryCategoricalColors, so false on its own switches the checkbox
+      // off and keeps the palette, exactly as unchecking it in the Composer does.
+      if(colors.isEmpty() && mapping.isEmpty() && colorValueFrame == null) {
          throw new IllegalArgumentException(
             "A categorical colour frame needs a non-empty 'colors' list, a 'mapping' of value to " +
-            "colour, or 'colorValueFrame', e.g. " +
+            "colour, or an explicit 'colorValueFrame' true/false, e.g. " +
             "{type: \"categorical\", mapping: {\"East\": \"#4E79A7\"}}.");
       }
 
