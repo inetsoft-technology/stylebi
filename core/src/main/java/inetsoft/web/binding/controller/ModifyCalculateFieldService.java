@@ -738,20 +738,58 @@ public class ModifyCalculateFieldService {
     * Convert the cref used auto create aggregate ref to user create
     * aggregate ref, for example, gauge binding to sum(price),
     * agg calc use it, then delelte the gauge, the agg calc become invalid.
+    *
+    * <p>A ref that is already persisted is left where it is: {@link Viewsheet#addAggrField}
+    * removes a matching ref and appends it, so re-adding would reorder the serialized list.
     */
-   private void convertUsedAggregateRef(CalculateRef calc, String tname,
-                                        Viewsheet vs)
-   {
+   public static void convertUsedAggregateRef(CalculateRef calc, String tname, Viewsheet vs) {
       if(!calc.isBaseOnDetail()) {
          AggregateRef[] all = VSUtil.getAggregates(vs, tname, true);
          ExpressionRef eref = (ExpressionRef) calc.getDataRef();
          String exstr = eref.getExpression();
          List<String> matchs = new ArrayList<>();
          List<AggregateRef> aggs = VSUtil.findAggregate(all, matchs, exstr);
+         AggregateRef[] persisted = vs.getAggrFields(tname);
 
-         for(int i = 0; i < aggs.size(); i++) {
-            AggregateRef aref = aggs.get(i);
-            vs.addAggrField(tname, aref);
+         for(AggregateRef aref : aggs) {
+            boolean present = false;
+
+            if(persisted != null) {
+               for(AggregateRef p : persisted) {
+                  if(aref.equalsContent(p)) {
+                     present = true;
+                     break;
+                  }
+               }
+            }
+
+            if(!present) {
+               vs.addAggrField(tname, aref);
+            }
+         }
+      }
+   }
+
+   /**
+    * Persist, for every table that has an aggregate calc field, the aggregates those calc fields
+    * read ({@code field['Sum(Total)']}) while some assembly is still bound to them. They are
+    * otherwise resolved only from live bindings, so removing the last binder leaves the calc
+    * field with nothing to compute from. Tables without an aggregate calc field cost nothing.
+    */
+   public static void persistUsedAggregateRefs(Viewsheet vs) {
+      for(String table : new ArrayList<>(vs.getCalcFieldSources())) {
+         CalculateRef[] calcs = vs.getCalcFields(table);
+
+         if(calcs == null) {
+            continue;
+         }
+
+         for(CalculateRef calc : calcs) {
+            if(!calc.isBaseOnDetail() && !calc.isSQL() &&
+               calc.getDataRef() instanceof ExpressionRef)
+            {
+               convertUsedAggregateRef(calc, table, vs);
+            }
          }
       }
    }

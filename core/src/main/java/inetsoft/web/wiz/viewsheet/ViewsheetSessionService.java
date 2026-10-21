@@ -21,10 +21,13 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.binding.controller.ModifyCalculateFieldService;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.wiz.dispatch.CommandErrorException;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.script.PaneScopeService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -45,6 +48,8 @@ import java.util.Map;
  */
 @Service
 public class ViewsheetSessionService {
+   private static final Logger LOG = LoggerFactory.getLogger(ViewsheetSessionService.class);
+
    @Autowired
    public ViewsheetSessionService(SheetSessionService sessions,
                                   SheetRuntimeAccess runtimeAccess,
@@ -167,6 +172,8 @@ public class ViewsheetSessionService {
       // while the runtime had moved, the next agent edit built on that divergence, and Ctrl+Z had
       // no step for the partial change. The partial edit is real, so it gets an undo step and the
       // browser is told about it.
+      persistCalcFieldAggregates(rvs);
+
       try {
          warnings = CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
             mutation.run(rvs, session.runtimeId(), dispatcher);
@@ -185,6 +192,8 @@ public class ViewsheetSessionService {
          Viewsheet vs = rvs.getViewsheet();
 
          if(vs != null) {
+            // also covers a binder this very mutation added, and puts it in the undo snapshot
+            persistCalcFieldAggregates(rvs);
             rvs.addCheckpoint(vs.prepareCheckpoint());
          }
 
@@ -205,6 +214,24 @@ public class ViewsheetSessionService {
       }
 
       return warnings;
+   }
+
+   /**
+    * Keeps the aggregates an aggregate calc field reads alive after the assembly binding them
+    * is removed or re-bound (Bug #78969). Best effort: a failure here must never fail or alter
+    * the user's mutation.
+    */
+   private static void persistCalcFieldAggregates(RuntimeViewsheet rvs) {
+      try {
+         Viewsheet vs = rvs.getViewsheet();
+
+         if(vs != null) {
+            ModifyCalculateFieldService.persistUsedAggregateRefs(vs);
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Could not persist the aggregates used by calc fields", e);
+      }
    }
 
    /**
