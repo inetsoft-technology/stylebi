@@ -120,13 +120,25 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
     * @param list the security providers.
     */
    public void setProviders(List<T> list) {
-      setProviderList(list);
+      // Hold the reload lock across setting the list and saving it: otherwise a reload of a change
+      // saved by another node can replace the list between the two (or between the save's read
+      // and write), leaving the file and the runtime chain with different providers (Bug #79127).
+      // The lock is reentrant and is the same one the reload and saveConfiguration() take, after
+      // any chain write lock and SecurityEngine's init lock.
+      lock.lock();
 
       try {
-         saveConfiguration();
+         setProviderList(list);
+
+         try {
+            saveConfiguration();
+         }
+         catch(IOException e) {
+            LOG.error("Failed to save security chain configuration", e);
+         }
       }
-      catch(IOException e) {
-         LOG.error("Failed to save security chain configuration", e);
+      finally {
+         lock.unlock();
       }
    }
 
@@ -378,25 +390,26 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
     */
    public void saveConfiguration() throws IOException {
       ObjectMapper mapper = new ObjectMapper();
-      ObjectNode root = mapper.createObjectNode();
-      ArrayNode providerArray = mapper.createArrayNode();
-      root.set("providers", providerArray);
-
-      List<T> currentProviders = getProviderList();
-
-      for(T provider : currentProviders) {
-         ObjectNode wrapperNode = mapper.createObjectNode();
-         wrapperNode.put("name", provider.getProviderName());
-         wrapperNode.put("providerClass", provider.getClass().getName());
-         wrapperNode.set("configuration", provider.writeConfiguration(mapper));
-         providerArray.add(wrapperNode);
-      }
-
       String configFile = getConfigFile();
 
+      // The provider list is read under the lock that a reload holds while it replaces the list,
+      // so a save never serializes the empty list between a reload's clear() and its set, and
+      // never writes a list that a completed reload has since replaced (Bug #79127).
       lock.lock();
 
       try {
+         ObjectNode root = mapper.createObjectNode();
+         ArrayNode providerArray = mapper.createArrayNode();
+         root.set("providers", providerArray);
+
+         for(T provider : getProviderList()) {
+            ObjectNode wrapperNode = mapper.createObjectNode();
+            wrapperNode.put("name", provider.getProviderName());
+            wrapperNode.put("providerClass", provider.getClass().getName());
+            wrapperNode.set("configuration", provider.writeConfiguration(mapper));
+            providerArray.add(wrapperNode);
+         }
+
          DataSpace dataSpace = DataSpace.getDataSpace();
          dataSpace.withOutputStream(null, configFile, out -> mapper.writeValue(out, root));
          timestamp = dataSpace.getLastModified(null, configFile);
