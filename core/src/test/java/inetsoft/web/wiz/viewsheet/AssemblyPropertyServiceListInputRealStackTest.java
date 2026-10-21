@@ -167,6 +167,35 @@ class AssemblyPropertyServiceListInputRealStackTest {
       assertEquals("2025-10-31", info.getMaxDateValue());
    }
 
+   /**
+    * Bug #79094 through the real {@code VSInputService} setter: it silently replaces an unusable
+    * pattern with yyyy-MM-dd, so the guard must refuse before it, and a usable pattern the
+    * setter keeps verbatim must read back as written.
+    */
+   @Test
+   void refusesAnUnusableDateFormatBeforeTheSetterReplacesItAndKeepsAUsableOne() throws Exception {
+      RealStack stack = realStack();
+      String pattern = "dataInputPaneModel.dateFormatPattern";
+      String query = "dataInputPaneModel.queryDateFormat";
+      stack.info().setDateFormatPattern("dd.MM.yyyy");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> stack.service().set("tok", principal(), "ComboBox1",
+                                   Map.of(pattern, "abc", query, true), ""));
+      assertTrue(e.getMessage().contains(pattern), e.getMessage());
+      assertEquals("dd.MM.yyyy", stack.info().getDateFormatPattern());
+
+      stack.service().set("tok", principal(), "ComboBox1",
+                          Map.of(pattern, "yyyy-MM", query, true), "");
+      assertEquals("yyyy-MM", stack.info().getDateFormatPattern());
+      assertTrue(stack.info().isQueryDateFormat());
+
+      stack.info().setDateFormatPattern(null);
+      e = assertThrows(IllegalArgumentException.class,
+         () -> stack.service().set("tok", principal(), "ComboBox1", Map.of(query, true), ""));
+      assertTrue(e.getMessage().contains(pattern), e.getMessage());
+   }
+
    // ── harness ─────────────────────────────────────────────────────────────
 
    private record RealStack(AssemblyPropertyService service, ComboBoxVSAssembly combo) {
