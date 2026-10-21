@@ -117,6 +117,15 @@ public class ScriptExecuteService {
                       "(?:\\([^)]*\\)|" + ID + ")\\s*=>")
    );
 
+   // Bug #78998: a library entry can also expose functions only as members of a top-level object
+   // (var Ns = {f: function(){}}, Ns.f = ..., A.B.f = ..., IIFE/factory results, Object.assign).
+   // The call site Ns.f() drops the member token, so the entry's top-level ROOT identifiers
+   // (Ns, A) are indexed as well. Only brace-depth-0 targets count, never function-local vars.
+   private static final Pattern ROOT_ASSIGNMENT = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$.])(" + ID + ")((?:\\s*\\.\\s*" + ID + ")*)\\s*=(?![=>])");
+   private static final Pattern OBJECT_ASSIGN = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$.])Object\\s*\\.\\s*assign\\s*\\(\\s*(" + ID + ")");
+
    private static final Logger LOG = LoggerFactory.getLogger(ScriptExecuteService.class);
 
    @Autowired
@@ -762,6 +771,10 @@ public class ScriptExecuteService {
          for(String declared : declaredFunctions(e.getValue())) {
             index.computeIfAbsent(declared, k -> new LinkedHashSet<>()).add(e.getKey());
          }
+
+         for(String root : topLevelRoots(e.getValue())) {
+            index.computeIfAbsent(root, k -> new LinkedHashSet<>()).add(e.getKey());
+         }
       }
 
       Deque<String> work = new ArrayDeque<>(identifiers(stripCommentsAndStrings(scriptText, true), true));
@@ -842,6 +855,62 @@ public class ScriptExecuteService {
       }
 
       return names;
+   }
+
+   /**
+    * Bug #78998: root identifiers a library entry assigns at brace/paren/bracket depth 0, i.e. the
+    * globals it exposes as objects/namespaces. {@code var Ns = ...}, {@code Ns = ...},
+    * {@code A.B.f = ...} (root A) and {@code Object.assign(Ns, ...)} yield the root; for
+    * {@code window.Ns = ...}/{@code this.Ns = ...} the global qualifier is skipped and
+    * {@code Ns} is the root. Function-local declarations are never indexed (a common local name
+    * such as {@code result} must not gate every script that uses it).
+    */
+   private static Set<String> topLevelRoots(String source) {
+      Set<String> roots = new LinkedHashSet<>();
+      String text = stripCommentsAndStrings(source, false);
+      int[] depth = new int[text.length()];
+      StringBuilder top = new StringBuilder(text.length());
+      int d = 0;
+
+      for(int i = 0; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(c == '}' || c == ')' || c == ']') {
+            d = Math.max(0, d - 1);
+         }
+
+         depth[i] = d;
+         top.append(d == 0 ? c : ' ');
+
+         if(c == '{' || c == '(' || c == '[') {
+            d++;
+         }
+      }
+
+      Matcher m = ROOT_ASSIGNMENT.matcher(top);
+
+      while(m.find()) {
+         String root = m.group(1);
+
+         if(GLOBAL_OBJECTS.contains(root)) {
+            Matcher member = IDENTIFIER.matcher(m.group(2));
+            root = member.find() ? member.group() : null;
+         }
+
+         if(root != null && !GLOBAL_OBJECTS.contains(root)) {
+            roots.add(root);
+         }
+      }
+
+      m = OBJECT_ASSIGN.matcher(text);
+
+      while(m.find()) {
+         if(depth[m.start()] == 0 && !GLOBAL_OBJECTS.contains(m.group(1))) {
+            roots.add(m.group(1));
+         }
+      }
+
+      return roots;
    }
 
    private static List<String> identifiers(String text, boolean skipMembers) {
