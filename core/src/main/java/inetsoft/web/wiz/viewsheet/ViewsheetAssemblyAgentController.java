@@ -399,6 +399,9 @@ public class ViewsheetAssemblyAgentController {
       catch(ScriptException e) {
          throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
       }
+      catch(MessageException e) {
+         throw new PairingException(e.getMessage());
+      }
 
       return new ImageResponse(Base64.getEncoder().encodeToString(image.pngBytes()),
                                image.isPng() ? "png" : "svg",
@@ -1101,6 +1104,9 @@ public class ViewsheetAssemblyAgentController {
             catch(ScriptException e) {
                throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
             }
+            catch(MessageException e) {
+               throw new PairingException(e.getMessage());
+            }
 
             writeAttachment(servletResponse, image.pngBytes(), "image/png", target + ".png");
             return null;
@@ -1178,6 +1184,9 @@ public class ViewsheetAssemblyAgentController {
       }
       catch(ScriptException e) {
          throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
+      }
+      catch(MessageException e) {
+         throw new PairingException(e.getMessage());
       }
 
       writeAttachment(servletResponse, out.toByteArray(), VSExportService.getMime(formatType),
