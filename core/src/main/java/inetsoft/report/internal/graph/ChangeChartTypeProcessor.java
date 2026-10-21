@@ -768,13 +768,12 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
             // if the new type does not support 'separate', copy the measures
             // from y to merged info, like the high field, the low field, ect.
             else if(GraphTypes.isMergedGraphType(newType)) {
-               // if the old type supports 'separate', reset the values of
-               // highlight, hyperlink and chart type
+               // if the old type supports 'separate', reset the chart type
                if(!GraphTypes.isMergedGraphType(oldType)) {
                   ChartAggregateRef aref = (ChartAggregateRef) cref;
-                  aref.setHighlightGroup(null);
-                  aref.setTextHighlightGroup(null);
-                  aref.setHyperlink(null);
+                  // even if the setting is not applied, we shouldn't clear highlight, text
+                  // highlight or hyperlink so it's not lost when it's switched back (or if it
+                  // does apply, e.g. funnel) (47364, 79118)
                   aref.setChartType(GraphTypes.CHART_AUTO);
                }
 
