@@ -795,8 +795,12 @@ public class Scheduler {
                trigger.setName(String.format("%s-%d",task.getTaskId(), i + 1));
                trigger.setCondition((TimeCondition) condition);
 
-               long next = (lastRun > 0) ? ((TimeCondition) condition).getRetryTime(now, lastRun, task.getOrgId())
-                  : condition.getRetryTime(now);
+               // a never-run task anchors on now, in the task's organization like the later fires
+               String orgId = task.getOrgId();
+               long next = (lastRun > 0 || orgId != null) ?
+                  ((TimeCondition) condition).getRetryTime(
+                     now, lastRun > 0 ? lastRun : now, orgId) :
+                  condition.getRetryTime(now);
 
                if(next > 0) {
                   setStartAndEndTime(next, trigger, task);

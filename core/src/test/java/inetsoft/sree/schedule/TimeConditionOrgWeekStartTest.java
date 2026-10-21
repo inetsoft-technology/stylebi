@@ -41,11 +41,28 @@ import static org.mockito.Mockito.*;
  * organization of the thread that happens to compute the next run.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = BaseTestConfiguration.class,
+@ContextConfiguration(classes = { BaseTestConfiguration.class,
+                                  TimeConditionOrgWeekStartTest.StatusConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("core")
 class TimeConditionOrgWeekStartTest {
+   /**
+    * The status of the tasks: none, so a task is a never-run task, except the one that has run.
+    */
+   @org.springframework.context.annotation.Configuration
+   static class StatusConfig {
+      @org.springframework.context.annotation.Bean
+      ScheduleStatusDao scheduleStatusDao() {
+         ScheduleStatusDao dao = mock(ScheduleStatusDao.class);
+         ScheduleStatusDao.Status status = mock(ScheduleStatusDao.Status.class);
+         when(status.getLastScheduledStartTime()).thenReturn(ms("2027-07-21T09:00:00"));
+         when(dao.getStatus(RAN_ID)).thenReturn(status);
+         return dao;
+      }
+   }
+
+   private static final String RAN_ID = "owner" + IdentityID.KEY_DELIMITER + "org79133mon:ran-79133";
    private static final ZoneId UTC = ZoneId.of("UTC");
    private static final String MON = "org79133mon";
    private static final String FRI = "org79133fri";
@@ -168,6 +185,70 @@ class TimeConditionOrgWeekStartTest {
       assertNull(ScheduleTask.getOrgId("internal-task"));
       assertNull(ScheduleTask.getOrgId(null));
       assertNull(ScheduleTask.getOrgId("name" + IdentityID.KEY_DELIMITER + "null:x"));
+   }
+
+   @Test
+   void neverRunTaskFirstFireFollowsItsOrganization() {
+      // a brand-new task has no last run: the first fire and the later fires of one task must
+      // use the same weeks, here the Monday weeks of its org
+      runOnUnrelatedThread(() -> {
+         long now = ms("2027-07-21T09:00:30");
+         ScheduleTask task = task("owner", MON, "never-run-79133", weekly(2, days(1, 4)));
+         long first = task.getRetryTime(now);
+         assertEquals(ms("2027-07-25T09:00:00"), first);
+         // the later fire, computed from the first one, stays in the same weeks
+         long second = weekly(2, days(1, 4)).getRetryTime(first + 30_000, first, task.getOrgId());
+         assertEquals(ms("2027-08-04T09:00:00"), second);
+         assertTrue(task.hasNextRuntime(now));
+
+         // another org on the same thread, same condition: its own weeks
+         assertEquals(ms("2027-08-01T09:00:00"),
+                      task("owner", FRI, "never-run-79133", weekly(2, days(1, 4))).getRetryTime(now));
+         // an id without an org, the site value
+         ScheduleTask site = new ScheduleTask("never-run-79133-site");
+         site.addCondition(weekly(2, days(1, 4)));
+         assertEquals(ms("2027-08-01T09:00:00"), site.getRetryTime(now));
+      });
+   }
+
+   @Test
+   void taskOrganizationOfColonCycleHostAndMvIds() {
+      String d = IdentityID.KEY_DELIMITER;
+      // ':' in the task name does not move the org
+      assertEquals(MON, ScheduleTask.getOrgId("owner" + d + MON + ":a:b:c"));
+      assertEquals(MON, ScheduleTask.getOrgId("owner" + d + MON + ":nightly__job"));
+      // data cycle task: owner key, "__", name; the name may contain ':'
+      assertEquals(MON, ScheduleTask.getOrgId("owner" + d + MON + "__cycle"));
+      assertEquals(MON, ScheduleTask.getOrgId("owner" + d + MON + "__cycle:x"));
+      // host org
+      assertEquals("host-org", ScheduleTask.getOrgId("admin" + d + "host-org:task"));
+      // the global org key and no org
+      assertNull(ScheduleTask.getOrgId("admin" + d + "__GLOBAL__:task"));
+      assertNull(ScheduleTask.getOrgId("admin" + d + "__GLOBAL__" + "__cycle"));
+      // an MV task id has no owner key
+      assertNull(ScheduleTask.getOrgId("MV Task:1^128^__NULL__^f1/vs1^host-org"));
+      assertNull(ScheduleTask.getOrgId(""));
+
+      ScheduleTask cycle = new ScheduleTask("cycle", ScheduleTask.Type.CYCLE_TASK);
+      cycle.setOwner(new IdentityID("owner", MON));
+      assertEquals(MON, cycle.getOrgId());
+   }
+
+   @Test
+   void taskThatHasRunUsesItsLastRunAndOrganization() {
+      runOnUnrelatedThread(() -> {
+         // the same series as the never-run task, seeded by the stored last run
+         ScheduleTask task = task("owner", MON, "ran-79133", weekly(2, days(1, 4)));
+         assertEquals(RAN_ID, task.getTaskId());
+         assertEquals(ms("2027-07-25T09:00:00"), task.getRetryTime(ms("2027-07-21T09:00:30")));
+      });
+   }
+
+   private static ScheduleTask task(String owner, String org, String name, TimeCondition c) {
+      ScheduleTask task = new ScheduleTask(name);
+      task.setOwner(new IdentityID(owner, org));
+      task.addCondition(c);
+      return task;
    }
 
    @Test
