@@ -642,7 +642,7 @@ class TableBindingServiceTest {
          .setColumnWidths("tok", principal(), "Table1",
                           java.util.Collections.singletonMap("Region", null)).applied();
 
-      verify(info).setColumnWidthValue(0, Double.NaN);
+      verify(info).removeColumnWidthValue2(0, lens);
       assertEquals(List.of("Region -> auto"), applied);
    }
 

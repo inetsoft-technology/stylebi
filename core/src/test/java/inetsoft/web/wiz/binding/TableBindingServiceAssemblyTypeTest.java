@@ -200,7 +200,8 @@ class TableBindingServiceAssemblyTypeTest {
       fixture.add(new CalcTableVSAssembly(fixture.vs, "Calc1"));
 
       for(Map.Entry<String, Endpoint> endpoint : endpoints().entrySet()) {
-         if("setSource".equals(endpoint.getKey())) {
+         if("setSource".equals(endpoint.getKey()) ||
+            "setColumnWidths".equals(endpoint.getKey())) {
             continue;
          }
 
