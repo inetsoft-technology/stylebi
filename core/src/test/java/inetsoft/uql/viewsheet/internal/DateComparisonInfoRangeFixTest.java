@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -127,26 +128,66 @@ class DateComparisonInfoRangeFixTest {
    // -- finding 7b: week 13 of a quarter -----------------------------------------------------
 
    /**
-    * Week to Date / Same Week by Week in context Quarter, period Year: week 13 of 2017 Q1 starts
-    * on Monday 2017-03-27 (Monday weeks; Jan 1 2017, a Sunday, is the last day of week 1 and
-    * April 1 a Saturday) or Sunday 2017-03-26 (Sunday weeks).
+    * Week to Date / Same Week by Week in context Quarter, period Year. A week belongs to the
+    * quarter it starts in. Week 13 of Q1 is kept where the year starts on the last day of a
+    * week: Monday weeks 2017 (Jan 1 is a Sunday, week 13 starts Mar 27) and Sunday weeks 2022
+    * (Jan 1 is a Saturday, week 13 starts Mar 27).
     */
    @ParameterizedTest
-   @ValueSource(strings = { "sunday", "monday" })
-   void weekOfQuarterThirteenIsKeptWhenTheYearStartsOnTheLastDayOfAWeek(String weekStart) {
-      LocalDate week13 = weekStart.equals("monday") ? LocalDate.of(2017, 3, 27)
-         : LocalDate.of(2017, 3, 26);
+   @CsvSource({ "monday,2017", "sunday,2022" })
+   void weekOfQuarterThirteenIsKeptWhenTheYearStartsOnTheLastDayOfAWeek(String weekStart, int year) {
+      LocalDate week13 = LocalDate.of(year, 3, 27);
+      assertEquals(weekStart.equals("monday") ? DayOfWeek.MONDAY : DayOfWeek.SUNDAY,
+                   week13.getDayOfWeek());
+
+      for(List<LocalDate> kept : keptWeekOfQuarter(weekStart)) {
+         assertTrue(kept.contains(week13), weekStart + " " + year + " kept " + kept);
+      }
+   }
+
+   /**
+    * The comparison keeps week 13 of every quarter (the End Date is in week 13 of its quarter),
+    * so a quarter with only 12 weeks that start in it contributes nothing. 2019 Q1 under Monday
+    * weeks (first week starts Jan 7, last Mar 25, the next starts Apr 1) and 2018 Q1 under
+    * Sunday weeks (first starts Jan 7, last Mar 25, the next starts Apr 1): no day from Jan 1 to
+    * Apr 7 is kept, in particular nothing of the week that starts Apr 1.
+    */
+   @ParameterizedTest
+   @CsvSource({ "monday,2019", "sunday,2018" })
+   void weekOfQuarterThirteenIsAbsentWhenOnlyTwelveWeeksStartInTheQuarter(String weekStart,
+                                                                         int year)
+   {
+      assertEquals(weekStart.equals("monday") ? DayOfWeek.MONDAY : DayOfWeek.SUNDAY,
+                   LocalDate.of(year, 4, 1).getDayOfWeek());
+
+      for(List<LocalDate> kept : keptWeekOfQuarter(weekStart)) {
+         String msg = weekStart + " " + year + " kept " + kept;
+         // other quarters still contribute their week 13, so the comparison is not empty
+         assertFalse(kept.isEmpty(), msg);
+         assertTrue(kept.stream().noneMatch(d -> d.getYear() == year && d.getMonthValue() <= 3),
+                    msg);
+         assertTrue(kept.stream().noneMatch(d -> d.equals(LocalDate.of(year, 4, 1))
+                                            || (d.getYear() == year && d.getMonthValue() == 4
+                                                && d.getDayOfMonth() <= 7)), msg);
+      }
+   }
+
+   /**
+    * Kept days for Week to Date and Same Week, periods 2016 to 2025, End Date 2025-12-31 or
+    * 2026-01-02 (both in week 13 of Q4 2025 under Sunday and Monday weeks).
+    */
+   private static List<List<LocalDate>> keptWeekOfQuarter(String weekStart) {
+      List<List<LocalDate>> result = new ArrayList<>();
 
       for(int level : new int[] { DateComparisonInfo.WEEK_TO_DATE, DateComparisonInfo.SAME_WEEK }) {
-         for(String end : new String[] { "2020-12-31", "2021-01-02" }) {
-            List<LocalDate> kept = WeekStartUtil.withWeekStart(weekStart, () -> keptDays(
+         for(String end : new String[] { "2025-12-31", "2026-01-02" }) {
+            result.add(WeekStartUtil.withWeekStart(weekStart, () -> keptDays(
                standard(XConstants.YEAR_DATE_GROUP, level, DateComparisonInfo.WEEK,
-                        XConstants.QUARTER_DATE_GROUP, end, true, 5)));
-
-            assertTrue(kept.contains(week13),
-                       weekStart + " level=" + level + " end=" + end + " kept " + kept);
+                        XConstants.QUARTER_DATE_GROUP, end, true, 10))));
          }
       }
+
+      return result;
    }
 
    // -- helpers ------------------------------------------------------------------------------
@@ -199,7 +240,7 @@ class DateComparisonInfoRangeFixTest {
       return dc;
    }
 
-   /** The days of 2015 to 2023 the comparison's condition list keeps. */
+   /** The days of 2015 to 2026 the comparison's condition list keeps. */
    private static List<LocalDate> keptDays(DateComparisonInfo dc) {
       ColumnRef ref = new ColumnRef(new AttributeRef(null, "Order Date"));
       ref.setDataType(XSchema.DATE);
@@ -208,7 +249,7 @@ class DateComparisonInfoRangeFixTest {
       ConditionGroup group = new ConditionGroup(conditions);
       List<LocalDate> days = new ArrayList<>();
 
-      for(LocalDate day = LocalDate.of(2015, 1, 1); day.isBefore(LocalDate.of(2024, 1, 1));
+      for(LocalDate day = LocalDate.of(2015, 1, 1); day.isBefore(LocalDate.of(2027, 1, 1));
           day = day.plusDays(1))
       {
          if(group.evaluate(new Object[] { toDate(day) })) {
