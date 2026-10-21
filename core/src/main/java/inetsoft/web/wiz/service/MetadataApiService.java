@@ -2314,7 +2314,10 @@ public class MetadataApiService {
             String colNameLower = col.getName().toLowerCase(Locale.ROOT);
 
             for(String fieldName : fieldNamesLower) {
-               if(colNameLower.contains(fieldName) || fieldName.contains(colNameLower)) {
+               // One direction only: the column must carry the requested name. The reverse
+               // (requested name contains the column name) made a short column such as "id"
+               // match PRODUCT_ID, or RMA_NUMBER match RMA_NUMBER_SUFFIX.
+               if(colNameLower.contains(fieldName)) {
                   SchemaSearchResponse.ColumnMatch match = new SchemaSearchResponse.ColumnMatch();
                   match.setName(col.getName());
                   match.setType(col.getType());
