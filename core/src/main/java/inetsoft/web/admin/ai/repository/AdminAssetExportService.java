@@ -69,9 +69,8 @@ public class AdminAssetExportService {
          selectionResolver.resolve(viewsheetAssetIds, folderPaths, principal);
 
       if(resolution.resolved().isEmpty()) {
-         throw new IllegalArgumentException(
-            "viewsheetAssetIds/folderPaths: none of the given entries resolved to an existing " +
-            "viewsheet or worksheet (" + String.join(", ", resolution.unresolvedEntities()) + ")");
+         throw new IllegalArgumentException(noResolvedEntriesMessage(
+            resolution.unresolvedEntities(), viewsheetAssetIds.size() + folderPaths.size()));
       }
 
       SelectedAssetModelList requested = SelectedAssetModelList.builder()
@@ -102,6 +101,28 @@ public class AdminAssetExportService {
       return new RepositoryExportResult(exportId, name + ".zip", permitted.selectedAssets().size(),
          resolution.unresolvedEntities(), skippedForPermission,
          dependentAssets.stream().map(RequiredAssetModel::name).collect(Collectors.toList()));
+   }
+
+   static String noResolvedEntriesMessage(List<String> unresolved, int requestedCount) {
+      StringBuilder message = new StringBuilder(
+         "viewsheetAssetIds/folderPaths: none of the given entries resolved to an existing " +
+         "viewsheet or worksheet");
+
+      if(!unresolved.isEmpty()) {
+         message.append(" (not found: ").append(String.join(", ", unresolved)).append(")");
+      }
+
+      if(unresolved.size() < requestedCount) {
+         message.append(unresolved.isEmpty() ? " (" : "; ")
+            .append("the other given folders exist but contain no viewsheets or worksheets ")
+            .append("that you can read");
+
+         if(unresolved.isEmpty()) {
+            message.append(")");
+         }
+      }
+
+      return message.toString();
    }
 
    private static List<RequiredAssetModel> applyDependencyMode(RepositoryExportRequest req,
