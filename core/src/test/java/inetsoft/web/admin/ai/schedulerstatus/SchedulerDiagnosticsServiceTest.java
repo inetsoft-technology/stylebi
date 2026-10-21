@@ -19,12 +19,15 @@ package inetsoft.web.admin.ai.schedulerstatus;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.ExternalStorageService;
+import inetsoft.util.config.CloudRunnerConfig;
+import inetsoft.util.config.InetsoftConfig;
 import inetsoft.web.admin.server.GetHeapDumpTransferCompleteMessage;
 import inetsoft.web.admin.server.ServerService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.File;
@@ -90,11 +93,25 @@ class SchedulerDiagnosticsServiceTest {
       assertTrue(ex.getMessage().contains("10.0.0.9"));
    }
 
-   @Test void threadDumpFallsBackToLocalWhenNoSchedulerNodeIsTagged() throws Exception {
+   @Test void threadDumpRefusesWhenNoSchedulerNodeIsTagged() throws Exception {
+      when(cluster.getClusterNodes()).thenReturn(Set.of());
+
+      try(MockedStatic<InetsoftConfig> config = stubCloudRunner(false)) {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.getThreadDump(null));
+         assertTrue(ex.getMessage().contains("scheduler is not running"));
+      }
+
+      verify(serverService, never()).getThreadDump(any());
+   }
+
+   @Test void threadDumpUsesLocalJvmInCloudRunnerModeWhenNoSchedulerNodeIsTagged() throws Exception {
       when(cluster.getClusterNodes()).thenReturn(Set.of());
       when(serverService.getThreadDump(null)).thenReturn("local dump");
 
-      assertEquals("local dump", service.getThreadDump(null));
+      try(MockedStatic<InetsoftConfig> config = stubCloudRunner(true)) {
+         assertEquals("local dump", service.getThreadDump(null));
+      }
    }
 
    // -------------------------------------------------------------------------
@@ -108,6 +125,31 @@ class SchedulerDiagnosticsServiceTest {
       SchedulerHeapDumpToken token = service.createHeapDump(null);
       assertEquals("heap-123", token.token());
       assertEquals("10.0.0.1:8080", token.node());
+   }
+
+   @Test void createHeapDumpRefusesWhenNoSchedulerNodeIsTagged() throws Exception {
+      when(cluster.getClusterNodes()).thenReturn(Set.of());
+
+      try(MockedStatic<InetsoftConfig> config = stubCloudRunner(false)) {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.createHeapDump(null));
+         assertTrue(ex.getMessage().contains("scheduler is not running"));
+      }
+
+      verify(serverService, never()).createHeapDump(any());
+   }
+
+   @Test void createHeapDumpUsesLocalJvmInCloudRunnerModeWhenNoSchedulerNodeIsTagged()
+      throws Exception
+   {
+      when(cluster.getClusterNodes()).thenReturn(Set.of());
+      when(serverService.createHeapDump(null)).thenReturn("heap-local");
+
+      try(MockedStatic<InetsoftConfig> config = stubCloudRunner(true)) {
+         SchedulerHeapDumpToken token = service.createHeapDump(null);
+         assertEquals("heap-local", token.token());
+         assertNull(token.node());
+      }
    }
 
    // -------------------------------------------------------------------------
@@ -180,6 +222,15 @@ class SchedulerDiagnosticsServiceTest {
    // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
+
+   private MockedStatic<InetsoftConfig> stubCloudRunner(boolean cloudRunner) {
+      InetsoftConfig inetsoftConfig = mock(InetsoftConfig.class);
+      when(inetsoftConfig.getCloudRunner())
+         .thenReturn(cloudRunner ? mock(CloudRunnerConfig.class) : null);
+      MockedStatic<InetsoftConfig> config = mockStatic(InetsoftConfig.class);
+      config.when(InetsoftConfig::getInstance).thenReturn(inetsoftConfig);
+      return config;
+   }
 
    private void stubSchedulerNodes(String... nodes) {
       when(cluster.getClusterNodes()).thenReturn(Set.of(nodes));

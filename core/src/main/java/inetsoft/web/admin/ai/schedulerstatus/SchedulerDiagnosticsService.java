@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.schedulerstatus;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.ExternalStorageService;
 import inetsoft.util.Tool;
+import inetsoft.util.config.InetsoftConfig;
 import inetsoft.web.admin.server.GetHeapDumpTransferCompleteMessage;
 import inetsoft.web.admin.server.ServerService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -181,13 +182,21 @@ public class SchedulerDiagnosticsService {
    /**
     * Resolves {@code clusterNode} (an optional IP filter) to the full cluster node address
     * {@link ServerService}'s own methods expect, restricted to nodes tagged {@code scheduler=true}
-    * -- mirrors {@code ServerMonitoringController.writeSchedulerThreadDump}/
-    * {@code writeSchedulerHeapDump}'s own loop exactly, plus the ambiguity refusal this class's own
+    * -- follows {@code ServerMonitoringController.writeSchedulerThreadDump}/
+    * {@code writeSchedulerHeapDump}'s own loop, plus the ambiguity refusal this class's own
     * javadoc describes.
     *
-    * @return the resolved node address, or {@code null} (meaning "local") when no node is tagged
-    *         {@code scheduler=true} at all -- the same convention {@link ServerService#getThreadDump}/
-    *         {@link ServerService#createHeapDump} already use for their own {@code node} parameter.
+    * <p>When no node is tagged {@code scheduler=true} there is no scheduler process to dump, and
+    * the request is refused rather than answered with this web server's own JVM. The one exception
+    * is cloud-runner mode, where the scheduler runs inside the web server JVM and carries no such
+    * tag.
+    *
+    * @return the resolved node address, or {@code null} (meaning "local") only in cloud-runner mode
+    *         when no node is tagged {@code scheduler=true} -- the same convention
+    *         {@link ServerService#getThreadDump}/{@link ServerService#createHeapDump} already use
+    *         for their own {@code node} parameter.
+    * @throws IllegalArgumentException if no scheduler process exists, the named node is not a
+    *         scheduler node, or several scheduler nodes exist and none was named.
     */
    private String resolveSchedulerNode(String clusterNode) {
       List<String> candidates = schedulerNodes();
@@ -212,7 +221,17 @@ public class SchedulerDiagnosticsService {
             "instead so a caller is never left thinking a single dump covers every scheduler node.");
       }
 
-      return candidates.isEmpty() ? null : candidates.get(0);
+      if(candidates.isEmpty()) {
+         if(InetsoftConfig.getInstance().getCloudRunner() != null) {
+            return null;
+         }
+
+         throw new IllegalArgumentException(
+            "The scheduler is not running: no scheduler-tagged cluster node exists, so there " +
+            "is no scheduler process to dump.");
+      }
+
+      return candidates.get(0);
    }
 
    private List<String> schedulerNodes() {
