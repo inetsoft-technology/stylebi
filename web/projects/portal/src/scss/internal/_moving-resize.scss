@@ -171,6 +171,12 @@ $handle-mid: calc(50% - 4px);
   border: 1px solid var(--inet-composer-selected-outline);
 }
 
+// a selected narrow title's full-width drag target; drawn, it shows through a dashed border's gaps
+.selected-cell > .title-resize-handle.resize-line {
+  background-color: transparent !important;
+  border: none;
+}
+
 .container-gutter {
   display: none;
 }
