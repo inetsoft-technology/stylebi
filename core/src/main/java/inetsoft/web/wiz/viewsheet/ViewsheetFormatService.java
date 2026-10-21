@@ -2353,6 +2353,56 @@ public class ViewsheetFormatService {
    private static final int MAX_DATA_REGION_ROWS = 100_000;
 
    /**
+    * Refuses a date/time format on a calc-table cell whose output is known to be numeric. A date
+    * format reads a number as epoch milliseconds, so a Sum or Count cell would render as
+    * 1970-01-01 and nothing downstream would reveal it. Runs before the write (read-only
+    * resolve) so a refused request leaves no undo step, no write-revision bump and no refresh
+    * behind. Only a KNOWN numeric type is refused ({@link CalcTableService#cellOutputType}).
+    *
+    * <p>Unlike {@code set_format}'s field-scoped data write, a cell format has no exemption for
+    * a numeric column that really holds epoch milliseconds: such a cell is refused too, and a
+    * caller who wants a date there should bind the cell to a date field.
+    */
+   private void refuseDateFormatOnNumericCell(String sessionToken, Principal user,
+                                              CellFormatRequest request)
+      throws Exception
+   {
+      if(request.reset() || request.format() == null ||
+         request.format().getFormat() == null ||
+         !DATE_LIKE_FORMATS.contains(request.format().getFormat()))
+      {
+         return;
+      }
+
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+
+      if(rvs == null) {
+         return;
+      }
+
+      calcService.cellFormatPath(rvs, request.assembly(), request.row(), request.col());
+      calcService.requireNotMerged(rvs, request.assembly(), request.row(), request.col());
+      String type = calcService.cellOutputType(rvs, request.assembly(), request.row(),
+                                               request.col());
+
+      if(!XSchema.isNumericType(type)) {
+         return;
+      }
+
+      String bound = calcService.describeCellBinding(rvs, request.assembly(), request.row(),
+                                                     request.col());
+
+      throw new IllegalArgumentException(
+         "set_calc_cell_format: a " + request.format().getFormat() + " on cell [" +
+         request.row() + "," + request.col() + "] of '" + request.assembly() + "'" +
+         (bound == null ? "" : " (" + bound + ")") +
+         " would render its numeric value as a 1970-01-01 date (numbers are read as epoch " +
+         "milliseconds). The request was not applied. Use a numeric format such as " +
+         "DecimalFormat or CurrencyFormat for numbers, or bind the cell to a date field " +
+         "(for example Max or Min of a date column) to format it as a date.");
+   }
+
+   /**
     * {@code set_calc_cell_format}. Applies a format at one {@code CalcTable} cell's own
     * {@code TableDataPath} ({@link CalcTableService#cellFormatPath}) rather than the whole
     * object -- the same {@code event.getData()} per-path mechanism {@link #setFormat}'s
@@ -2377,6 +2427,8 @@ public class ViewsheetFormatService {
          throw new IllegalArgumentException(
             "set_calc_cell_format requires 'format' unless 'reset' is true.");
       }
+
+      refuseDateFormatOnNumericCell(sessionToken, user, request);
 
       List<String> borderWarnings = new ArrayList<>();
 

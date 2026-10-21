@@ -2077,4 +2077,112 @@ class CalcTableServiceTest {
                                              any());
       assertEquals("SumSQFormula", captor.getValue().getBinding().getFormula());
    }
+
+   // ── cellOutputType (bug 79099) ─────────────────────────────────────────────
+
+   private static inetsoft.uql.asset.ColumnRef typedColumn(String name, String type) {
+      inetsoft.uql.asset.ColumnRef column =
+         new inetsoft.uql.asset.ColumnRef(new AttributeRef(null, name));
+      column.setDataType(type);
+      return column;
+   }
+
+   private static String outputTypeOf(TableCellBinding cell, DataRef... columns) throws Exception {
+      Harness h = harness(2, 2);
+      ColumnSelection cols = new ColumnSelection();
+
+      for(DataRef column : columns) {
+         cols.addAttribute(column);
+      }
+
+      when(h.columnsHandler().getColumnSelection(any(), any(), any(), any(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean())).thenReturn(cols);
+      when(h.assemblyInfo().getTableLayout().getCellBinding(1, 1)).thenReturn(cell);
+      return h.service.cellOutputType(h.sessions.resolve("tok", principal()), "Calc1", 1, 1);
+   }
+
+   private static TableCellBinding summary(String column, String formula) {
+      TableCellBinding cell = TableCellBinding.getSummaryBinding(column);
+      cell.setFormula(formula);
+      return cell;
+   }
+
+   @Test
+   void cellOutputTypeOfSumCountAndAverageIsNumeric() throws Exception {
+      inetsoft.uql.asset.ColumnRef total = typedColumn("Total", XSchema.DOUBLE);
+      assertEquals(XSchema.DOUBLE, outputTypeOf(summary("Total", "Sum"), total));
+      assertEquals(XSchema.DOUBLE, outputTypeOf(summary("Total", "Average"), total));
+      assertTrue(XSchema.isNumericType(outputTypeOf(summary("Total", "Count"), total)));
+      assertEquals(XSchema.INTEGER, outputTypeOf(summary("Total", "DistinctCount"), total));
+   }
+
+   @Test
+   void cellOutputTypeOfMaxAndMinKeepsTheSourceType() throws Exception {
+      inetsoft.uql.asset.ColumnRef date = typedColumn("Order Date", XSchema.DATE);
+      assertEquals(XSchema.DATE, outputTypeOf(summary("Order Date", "Max"), date));
+      assertEquals(XSchema.DATE, outputTypeOf(summary("Order Date", "Min"), date));
+      assertEquals(XSchema.DOUBLE,
+                   outputTypeOf(summary("Total", "Max"), typedColumn("Total", XSchema.DOUBLE)));
+   }
+
+   @Test
+   void cellOutputTypeOverADateSourceTrustsOnlyCount() throws Exception {
+      inetsoft.uql.asset.ColumnRef date = typedColumn("Order Date", XSchema.DATE);
+      assertTrue(XSchema.isNumericType(outputTypeOf(summary("Order Date", "Count"), date)));
+      assertEquals(XSchema.INTEGER, outputTypeOf(summary("Order Date", "DistinctCount"), date));
+      assertNull(outputTypeOf(summary("Order Date", "Average"), date));
+      assertNull(outputTypeOf(summary("Order Date", "Sum"), date));
+   }
+
+   @Test
+   void cellOutputTypeOfAFixedNumericFormulaDoesNotNeedTheColumnLookup() throws Exception {
+      assertEquals(XSchema.DOUBLE, outputTypeOf(summary("Gone", "Sum")));
+      assertNull(outputTypeOf(summary("Gone", "Max")));
+   }
+
+   @Test
+   void cellOutputTypeOfAGroupCellFollowsTheDateLevel() throws Exception {
+      inetsoft.uql.asset.ColumnRef date = typedColumn("Order Date", XSchema.DATE);
+      TableCellBinding part = TableCellBinding.getGroupBinding("Order Date");
+      part.setDateOption(XConstants.MONTH_OF_YEAR_DATE_GROUP);
+      assertEquals(XSchema.INTEGER, outputTypeOf(part, date));
+
+      TableCellBinding full = TableCellBinding.getGroupBinding("Order Date");
+      full.setDateOption(XConstants.MONTH_DATE_GROUP);
+      assertEquals(XSchema.TIME_INSTANT, outputTypeOf(full, date));
+
+      TableCellBinding none = TableCellBinding.getGroupBinding("Order Date");
+      none.setDateOption(XConstants.NONE_DATE_GROUP);
+      assertEquals(XSchema.DATE, outputTypeOf(none, date));
+
+      assertEquals(XSchema.STRING,
+                   outputTypeOf(TableCellBinding.getGroupBinding("Region"),
+                                typedColumn("Region", XSchema.STRING)));
+   }
+
+   @Test
+   void cellOutputTypeIsUnknownForTextScriptAndUnboundCells() throws Exception {
+      inetsoft.uql.asset.ColumnRef total = typedColumn("Total", XSchema.DOUBLE);
+      assertNull(outputTypeOf(new TableCellBinding(CellBinding.BIND_TEXT, "Total"), total));
+      assertNull(outputTypeOf(new TableCellBinding(CellBinding.BIND_FORMULA, "1 + 1"), total));
+      assertNull(outputTypeOf(TableCellBinding.getSummaryBinding("Total"), total));
+      TableCellBinding expression = summary("Total", "Sum");
+      expression.setExpression("2 * 2");
+      assertNull(outputTypeOf(expression, total));
+      CalculateRef calculated = new CalculateRef();
+      calculated.setName("Total");
+      calculated.setDataRef(new AttributeRef(null, "Total"));
+      assertNull(outputTypeOf(summary("Total", "Sum"), calculated));
+   }
+
+   @Test
+   void describeCellBindingNamesTheFormulaAndColumn() throws Exception {
+      Harness h = harness(2, 2);
+      when(h.assemblyInfo().getTableLayout().getCellBinding(1, 1))
+         .thenReturn(summary("Product:Total", "Sum"));
+      RuntimeViewsheet rvs = h.sessions.resolve("tok", principal());
+
+      assertEquals("Sum(Product:Total)", h.service.describeCellBinding(rvs, "Calc1", 1, 1));
+   }
 }

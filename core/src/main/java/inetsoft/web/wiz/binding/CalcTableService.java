@@ -30,11 +30,15 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XCondition;
+import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.AggregateRef;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.DataVSAssembly;
@@ -1766,6 +1770,127 @@ public class CalcTableService {
       requireInGrid(layoutOf(assembly), row, col);
       CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getVSAssemblyInfo();
       return info.getCellDataPath(row, col);
+   }
+
+   /**
+    * The data type a calc-table cell renders its values as, for the numeric-versus-date check of
+    * {@code set_calc_cell_format}. Summary cells take the aggregate formula's own result type
+    * (Count is integer, Sum and Avg are double) and, for the formulas that keep their input type
+    * (Max, Min, First, Last, Mode, Nth, Pth), the source column's type. Group and detail cells
+    * take the source column's type; a date source grouped at a part level (such as month of
+    * year) renders integers ({@link DateRangeRef#getDataType(int, String)}).
+    *
+    * <p>Only a KNOWN type is reported. Text cells, script-formula cells, expression cells,
+    * calculated fields and cells whose column cannot be resolved give null, and over a date
+    * source a numeric result is trusted only for Count/Count Distinct (the runtime type of, say,
+    * the average of dates is not modelled). A formula whose result type is fixed numeric is still
+    * reported when the column lookup fails, so the check does not depend on the lookup.
+    *
+    * @return an {@code XSchema} type, or null when it is not known.
+    */
+   public String cellOutputType(RuntimeViewsheet rvs, String assemblyName, int row, int col) {
+      CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
+      TableLayout layout = layoutOf(assembly);
+      requireInGrid(layout, row, col);
+
+      if(!(layout.getCellBinding(row, col) instanceof TableCellBinding cell) ||
+         cell.getType() != CellBinding.BIND_COLUMN || cell.getValue() == null ||
+         cell.getExpression() != null)
+      {
+         return null;
+      }
+
+      int btype = cell.getBType();
+
+      if(btype != CellBinding.GROUP && btype != CellBinding.DETAIL &&
+         btype != CellBinding.SUMMARY)
+      {
+         return null;
+      }
+
+      DataRef ref = null;
+
+      try {
+         ColumnSelection cols = columnSelectionOf(rvs, assembly);
+
+         for(int i = 0; cols != null && i < cols.getAttributeCount() && ref == null; i++) {
+            DataRef attr = cols.getAttribute(i);
+
+            if(Objects.equals(attr.getAttribute(), cell.getValue())) {
+               if(attr instanceof CalculateRef) {
+                  return null;
+               }
+
+               ref = attr;
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Cannot resolve the column of cell [{},{}] on '{}'", row, col, assemblyName, e);
+      }
+
+      String srcType = null;
+
+      try {
+         srcType = ref == null ? null : ref.getDataType();
+      }
+      catch(RuntimeException e) {
+         // unknown type
+      }
+
+      boolean dateSource = XSchema.isDateType(srcType);
+
+      if(btype != CellBinding.SUMMARY) {
+         return dateSource ? DateRangeRef.getDataType(cell.getDateOption(), srcType) : srcType;
+      }
+
+      LayoutTool.FormulaStorage finfo = LayoutTool.parseFormula(cell.getFormula());
+
+      if(finfo == null || finfo.formula == null) {
+         return null;
+      }
+
+      AggregateFormula formula = "countDistinct".equals(finfo.formula) ?
+         AggregateFormula.COUNT_DISTINCT : AggregateFormula.getFormula(finfo.formula);
+      String type = formula == null ? null : formula.getDataType();
+
+      if(type == null) {
+         return srcType;
+      }
+
+      if(dateSource && formula != AggregateFormula.COUNT_ALL &&
+         formula != AggregateFormula.COUNT_DISTINCT)
+      {
+         return null;
+      }
+
+      return type;
+   }
+
+   /**
+    * A short label for what a calc-table cell is bound to, such as {@code Sum(Product:Total)} for
+    * a summary cell or {@code Product:Total} for a group or detail cell, for use in messages.
+    * Null for a cell with no column binding.
+    */
+   public String describeCellBinding(RuntimeViewsheet rvs, String assemblyName, int row, int col) {
+      TableLayout layout = layoutOf(requireCalcTable(rvs, assemblyName));
+      requireInGrid(layout, row, col);
+
+      if(!(layout.getCellBinding(row, col) instanceof TableCellBinding cell) ||
+         cell.getType() != CellBinding.BIND_COLUMN || cell.getValue() == null)
+      {
+         return null;
+      }
+
+      LayoutTool.FormulaStorage finfo =
+         cell.getBType() == CellBinding.SUMMARY ? LayoutTool.parseFormula(cell.getFormula()) : null;
+
+      if(finfo == null || finfo.formula == null) {
+         return cell.getValue();
+      }
+
+      String name = finfo.formula.substring(0, 1).toUpperCase() + finfo.formula.substring(1);
+      return name + "(" + cell.getValue() + ")";
    }
 
    /**
