@@ -8650,16 +8650,57 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void setPrimaryAssemblyAlsoMakesTheTableVisibleToViewsheets() throws Exception {
       Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly other = table(ws, "B", col("id", XSchema.INTEGER));
+      ws.addAssembly(other);
+      ws.setPrimaryAssembly("B");
       EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
       ws.addAssembly(a);
       ((inetsoft.uql.asset.internal.TableAssemblyInfo) a.getTableInfo()).setVisibleTable(false);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.setPrimaryAssembly("A"));
+      boolean[] madeVisible = new boolean[1];
+      svc.apply("TOK", agent, ed -> madeVisible[0] = ed.setPrimaryAssembly("A"));
 
       assertTrue(((inetsoft.uql.asset.internal.TableAssemblyInfo) a.getTableInfo()).isVisibleTable(),
                  "the primary table must be reachable from a viewsheet binding");
+      assertTrue(madeVisible[0], "a hidden table made visible must be reported");
+   }
+
+   /**
+    * Native WSPrimaryService.setAsPrimary only touches visibility when the primary changes, so
+    * re-setting the current primary must not flip a hidden primary back to visible (Bug #78874).
+    */
+   @Test
+   void setPrimaryAssemblyOnTheCurrentPrimaryLeavesVisibilityAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.setPrimaryAssembly("A");
+      ((inetsoft.uql.asset.internal.TableAssemblyInfo) a.getTableInfo()).setVisibleTable(false);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      boolean[] madeVisible = new boolean[1];
+      svc.apply("TOK", agent, ed -> madeVisible[0] = ed.setPrimaryAssembly("A"));
+
+      assertFalse(((inetsoft.uql.asset.internal.TableAssemblyInfo) a.getTableInfo()).isVisibleTable(),
+                  "re-setting the same primary must not change visibility");
+      assertFalse(madeVisible[0]);
+   }
+
+   @Test
+   void setPrimaryAssemblyOnAVisibleTableReportsNothing() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      boolean[] madeVisible = new boolean[1];
+      svc.apply("TOK", agent, ed -> madeVisible[0] = ed.setPrimaryAssembly("A"));
+
+      assertFalse(madeVisible[0]);
    }
 
    /**

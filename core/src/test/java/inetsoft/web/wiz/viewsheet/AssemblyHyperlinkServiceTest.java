@@ -799,7 +799,7 @@ class AssemblyHyperlinkServiceTest {
     * required, because it is the display half of the same link.
     */
    @Test
-   void anExplicitAssetLinkIdIsUsedVerbatimWithoutConsultingTheRepository() throws Exception {
+   void anExplicitAssetLinkIdIsUsedVerbatimAfterAnExistenceCheck() throws Exception {
       Harness h = harness(new HyperlinkDialogModel());
 
       h.service.set("tok", principal(), "Chart1", null,
@@ -807,7 +807,97 @@ class AssemblyHyperlinkServiceTest {
                          "assetLinkId", "1^128^__NULL__^Reports/Detail"), "");
 
       assertEquals("1^128^__NULL__^Reports/Detail", capture(h.links).getAssetLinkId());
-      verify(h.repository, never()).containsEntry(any());
+      verify(h.repository).containsEntry(any());
+   }
+
+   private static void assertIdRefused(Harness h, String path, String id, String... fragments) {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "viewsheet", "assetLinkPath", path,
+                                  "assetLinkId", id), ""));
+      verifyNoInteractions(h.links);
+
+      for(String fragment : fragments) {
+         assertTrue(e.getMessage().contains(fragment), e.getMessage());
+      }
+   }
+
+   /** Bug #78934: path A with the id of B was stored as B. */
+   @Test
+   void anAssetLinkIdForADifferentPathIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      assertIdRefused(h, "Reports/A", "1^128^__NULL__^Reports/B", "Reports/A", "Reports/B");
+   }
+
+   @Test
+   void aNonexistentAssetLinkIdWithAMatchingPathIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+
+      assertIdRefused(h, "Reports/Ghost", "1^128^__NULL__^Reports/Ghost", "No viewsheet with");
+   }
+
+   @Test
+   void aNonexistentAssetLinkIdWithAnotherPathIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+
+      assertIdRefused(h, "Reports/A", "1^128^__NULL__^Reports/Ghost", "Reports/Ghost");
+   }
+
+   /** The documented use of assetLinkId: pin the personal sheet of a name that is also global. */
+   @Test
+   void aPersonalIdWithItsPathPinsThePersonalSheetOfASharedName() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      AssetEntry personal = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Detail",
+         IdentityID.getIdentityIDFromKey("admin"));
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(true);
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+                         "assetLinkId", personal.toIdentifier()), "");
+
+      assertEquals(personal.toIdentifier(), capture(h.links).getAssetLinkId());
+   }
+
+   /** get_hyperlink reads a personal sheet back as "My Dashboards/<path>". */
+   @Test
+   void aPersonalIdAcceptsTheMyDashboardsReadBackPath() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      AssetEntry personal = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Detail",
+         IdentityID.getIdentityIDFromKey("admin"));
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "viewsheet", "assetLinkPath", "My Dashboards/Reports/Detail",
+              "assetLinkId", personal.toIdentifier()), ""));
+   }
+
+   @Test
+   void aGlobalIdDoesNotAcceptAMyDashboardsPath() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      assertIdRefused(h, "My Dashboards/Reports/Detail", "1^128^__NULL__^Reports/Detail",
+                      "different viewsheets");
+   }
+
+   /** An id carrying another organization's id is not verified against this org's storage. */
+   @Test
+   void anOtherOrgIdSkipsTheExistenceCheckButStillMatchesThePath() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+      String id = "1^128^__NULL__^Reports/Detail^some-other-org";
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+              "assetLinkId", id), ""));
+      Harness other = harness(new HyperlinkDialogModel());
+      assertIdRefused(other, "Reports/Other", id, "different viewsheets");
    }
 
    /**
@@ -1793,5 +1883,114 @@ class AssemblyHyperlinkServiceTest {
       Harness rewrite = rowScopeHarness(mock(TableVSAssembly.class), 1, true);
       rewrite.service().set("tok", principal(), "Table1", rowOf(4), web(true), "");
       assertTrue(capture(rewrite.links()).isApplyToRow());
+   }
+
+   // Bug #78921: links to a deleted (Recycle Bin) viewsheet
+
+   private static void assertRefusedAsRecycled(Harness h, Map<String, Object> link) {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null, link, ""));
+      String m = e.getMessage().toLowerCase();
+      assertTrue(m.contains("recycle bin") && m.contains("deleted"), m);
+   }
+
+   @Test
+   void recycledPathIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(true);
+
+      assertRefusedAsRecycled(h, link("linkType", "viewsheet",
+                                      "assetLinkPath", "Recycle Bin/abc-123"));
+   }
+
+   @Test
+   void recycledUserScopePathIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(true);
+
+      assertRefusedAsRecycled(h, link("linkType", "viewsheet",
+                                      "assetLinkPath", "My Dashboards/Recycle Bin/abc-123"));
+   }
+
+   @Test
+   void pathMerelyContainingRecycleBinIsAccepted() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(true);
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "viewsheet", "assetLinkPath", "Reports/Recycle Bin Analysis"), ""));
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "viewsheet", "assetLinkPath", "Recycle Bin Archive/x"), ""));
+   }
+
+   @Test
+   void recycledAssetIdIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      assertRefusedAsRecycled(h, link("linkType", "viewsheet", "assetLinkPath", "Recycle Bin/abc",
+                                      "assetLinkId", "1^128^__NULL__^Recycle Bin/abc^host-org"));
+   }
+
+   @Test
+   void malformedAssetIdIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+                                  "assetLinkId", "not-an-id"), ""));
+      assertTrue(e.getMessage().contains("not a valid viewsheet asset identifier"));
+   }
+
+   @Test
+   void validAssetIdWithOrgIsStillAccepted() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+              "assetLinkId", "1^128^__NULL__^Reports/Detail^host-org"), ""));
+   }
+
+   @Test
+   void readFlagsADeletedViewsheetTarget() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(Hyperlink.VIEWSHEET_LINK);
+      model.setAssetLinkPath("Recycle Bin/abc-123");
+      model.setAssetLinkId("1^128^__NULL__^Recycle Bin/abc-123^host-org");
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      assertEquals(true, read.get("targetDeleted"));
+      assertTrue(((String) read.get("warning")).contains("deleted"));
+      assertEquals("Recycle Bin/abc-123", read.get("assetLinkPath"));
+   }
+
+   @Test
+   void readDoesNotFlagALiveViewsheetTarget() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(Hyperlink.VIEWSHEET_LINK);
+      model.setAssetLinkPath("Reports/Recycle Bin Analysis");
+      model.setAssetLinkId("1^128^__NULL__^Reports/Recycle Bin Analysis^host-org");
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      assertFalse(read.containsKey("targetDeleted"));
+      assertFalse(read.containsKey("warning"));
+   }
+
+   @Test
+   void readDoesNotFlagANonViewsheetLink() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(Hyperlink.WEB_LINK);
+      model.setAssetLinkPath("Recycle Bin/stale");
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      assertFalse(read.containsKey("targetDeleted"));
    }
 }

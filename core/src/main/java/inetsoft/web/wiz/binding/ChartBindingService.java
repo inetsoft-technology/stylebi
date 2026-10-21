@@ -24,8 +24,10 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.XAggregateRef;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartBindable;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.GanttVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -103,7 +105,8 @@ public class ChartBindingService {
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
          ChartBindingMutator.setShelf(
-            model, shelf, fields, rvs, chart.getSourceInfo(), refModelService,
+            model, shelf, fields, rvs,
+            BindingSources.effective(chart.getSourceInfo(), model.getSource()), refModelService,
             chart.getVSChartInfo());
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
@@ -185,11 +188,14 @@ public class ChartBindingService {
          return;
       }
 
+      // Bug #78918: on a Gantt chart the field is bound on the start measure, not the chart.
+      ChartBindable bound = info instanceof GanttVSChartInfo gantt &&
+         gantt.getStartField() instanceof ChartBindable start ? start : info;
       AestheticRef aesthetic = switch(channel == null ? "" : channel.toLowerCase()) {
-         case "color" -> info.getColorField();
-         case "shape" -> info.getShapeField();
-         case "size" -> info.getSizeField();
-         case "text" -> info.getTextField();
+         case "color" -> bound.getColorField();
+         case "shape" -> bound.getShapeField();
+         case "size" -> bound.getSizeField();
+         case "text" -> bound.getTextField();
          default -> null;
       };
 
@@ -503,7 +509,8 @@ public class ChartBindingService {
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
          ChartBindingMutator.setSingleShelf(
-            model, shelf, field, rvs, chart.getSourceInfo(), refModelService,
+            model, shelf, field, rvs,
+            BindingSources.effective(chart.getSourceInfo(), model.getSource()), refModelService,
             chart.getVSChartInfo());
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();

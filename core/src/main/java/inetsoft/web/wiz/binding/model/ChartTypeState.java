@@ -95,6 +95,10 @@ package inetsoft.web.wiz.binding.model;
  * requireNotMultiAesthetic}) checks this value, not {@code multiStyles} — a caller that only read
  * {@code multiStyles} had no way to anticipate that guard firing, or to tell that
  * {@code set_chart_type(multi:false)} could never clear it while the comparison stayed applied.
+ * A Gantt chart is the exception (bug #78918): it renders every aesthetic from its start and
+ * milestone measures whatever either flag says ({@code GanttVSChartInfo.isMultiAesthetic()} is
+ * always true), so the guard does not apply to it and {@code set_aesthetic_field} binds onto those
+ * measures instead.
  *
  * @param assembly            the chart's name
  * @param chartType           the assembly-level GraphTypes code

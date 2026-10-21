@@ -3393,6 +3393,67 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #78940: LIVE/RUNTIME AssetDataCache entries are stored under the key of
+    * AssetQueryCacheNormalizer's prepared clone, so refreshData must clear through
+    * AssetQueryCacheNormalizer.clearCache (all modes) for the refreshed table, its dependents,
+    * and every table in the bulk branch -- the plain getCacheKey(original assembly) removal
+    * misses the entry whenever the clone differs (unsorted columns, hidden column, alias).
+    */
+   @Test
+   void refreshDataClearsNormalizedCacheForTableAndDependents78940() throws Exception {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "zeta", "alpha");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+      MirrorTableAssembly dependent = new MirrorTableAssembly(ws, "Dep1", table);
+      ws.addAssembly(dependent);
+
+      for(String req : new String[] { "Table1", null }) {
+         refreshAndVerifyNormalizedClear(ws, "TOK-78940-" + req, req);
+      }
+   }
+
+   private void refreshAndVerifyNormalizedClear(Worksheet ws, String token, String reqTable)
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq(token), any())).thenReturn(session(token));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      inetsoft.report.composition.execution.AssetDataCache assetDataCache =
+         mock(inetsoft.report.composition.execution.AssetDataCache.class);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetDataCache);
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class);
+          MockedStatic<inetsoft.report.composition.execution.AssetQueryCacheNormalizer> norm =
+             mockStatic(inetsoft.report.composition.execution.AssetQueryCacheNormalizer.class))
+      {
+         ctrl.edit(token, refreshDataRequest(reqTable), agent);
+
+         norm.verify(() -> inetsoft.report.composition.execution.AssetQueryCacheNormalizer
+            .clearCache(eq((TableAssembly) ws.getAssembly("Table1")), eq(box)));
+         norm.verify(() -> inetsoft.report.composition.execution.AssetQueryCacheNormalizer
+            .clearCache(eq((TableAssembly) ws.getAssembly("Dep1")), eq(box)), atLeastOnce());
+      }
+   }
+
+   /**
     * Bug #76711 round 6 re-review finding 1: unlike the single-assembly branch, the bulk branch
     * never calls loadTableData/refreshColumnSelection to execute a query under the table's own
     * mode first -- resetTableLens/AssetDataCache.remove only clear the cache shell, they never
@@ -4197,6 +4258,53 @@ class WorksheetAgentControllerTest {
 
       ObjectMapper mapper = new WebConfig().objectMapper();
       return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   private WorksheetAgentController setPrimaryController(Worksheet ws) throws Exception {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SP"), any())).thenReturn(session("TOK-SP"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         mock(InnerJoinService.class));
+      return controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), editSvc,
+         mock(WorksheetService.class));
+   }
+
+   private static EditRequest setPrimaryRequest(String table) throws Exception {
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(
+         mapper.writeValueAsString(Map.of("op", "set_primary_assembly", "table", table)),
+         EditRequest.class);
+   }
+
+   /** Bug #78874: making a hidden table primary reports it in a 200 body, key absent otherwise. */
+   @Test
+   void setPrimaryAssemblyReportsMadeVisibleOnlyWhenAHiddenTableWasShown() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "B", "id"));
+      ws.setPrimaryAssembly("B");
+      EmbeddedTableAssembly hidden = TestWorksheets.tableWithColumns(ws, "A", "id");
+      ws.addAssembly(hidden);
+      ((inetsoft.uql.asset.internal.TableAssemblyInfo) hidden.getTableInfo())
+         .setVisibleTable(false);
+      WorksheetAgentController ctrl = setPrimaryController(ws);
+      ObjectMapper mapper = new WebConfig().objectMapper();
+
+      ResponseEntity<EditResponse> shown =
+         ctrl.edit("TOK-SP", setPrimaryRequest("A"), agent);
+      assertEquals(org.springframework.http.HttpStatus.OK, shown.getStatusCode());
+      assertEquals("{\"madeVisible\":true}", mapper.writeValueAsString(shown.getBody()));
+
+      // already visible and already primary: nothing to report
+      ResponseEntity<EditResponse> again =
+         ctrl.edit("TOK-SP", setPrimaryRequest("A"), agent);
+      assertEquals(org.springframework.http.HttpStatus.NO_CONTENT, again.getStatusCode());
    }
 
    @Test

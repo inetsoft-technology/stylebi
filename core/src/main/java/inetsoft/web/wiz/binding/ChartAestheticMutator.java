@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Read-modify-write over the thirteen aesthetic fields in {@link ChartBindingFields#AESTHETIC}.
@@ -122,20 +123,39 @@ public final class ChartAestheticMutator {
       // null and GraphUtil.fixVisualFrame fabricates a fresh default (useGlobal=true) at render
       // time, silently shadowing whatever the caller had already set.
       AestheticInfo existing = read(model, name);
+      bindField(model, name, field, rvs, source, refModelService, existing,
+                frameOf(model, name, perMeasureFrameChannels, existing),
+                info -> assign(model, name, info));
+   }
+
+   /**
+    * {@link #setField}'s write into one slot: the chart-level channel, or (#78918) one Gantt
+    * measure's own channel. The slot is put back as it was when a guard refuses the write.
+    *
+    * @param existing     what the slot holds now, mutated in place when non-null.
+    * @param unboundFrame the frame to carry into a new binding when the slot holds nothing.
+    * @param slot         stores an {@code AestheticInfo} (or {@code null}) in the slot.
+    */
+   private static void bindField(ChartBindingModel model, String name, FieldRef field,
+                                 RuntimeViewsheet rvs, SourceInfo source,
+                                 DataRefModelFactoryService refModelService,
+                                 AestheticInfo existing, VisualFrameModel unboundFrame,
+                                 Consumer<AestheticInfo> slot)
+      throws Exception
+   {
       AestheticInfo info = existing != null ? existing : new AestheticInfo();
       // info is existing mutated in place, so the pre-write state is captured first -- for the
       // bug #78214 echo check and to undo the write if the time-series guard refuses it.
       ChartRefModel previousData = existing == null ? null : existing.getDataInfo();
       String previousFullName = existing == null ? null : existing.getFullName();
       VisualFrameModel previousFrame = existing == null ? null : existing.getFrame();
-      VisualFrameModel carriedFrame = info.getFrame() != null
-         ? info.getFrame() : frameOf(model, name, perMeasureFrameChannels, existing);
+      VisualFrameModel carriedFrame = existing != null ? existing.getFrame() : unboundFrame;
       ChartRefModel dataInfo = FieldRefFactory.toChartRef(field, model, rvs, source, refModelService);
       info.setFullName(field.column());
       ChartBindingMutator.carryForwardSameField(previousData, dataInfo, field);
       info.setDataInfo(dataInfo);
       info.setFrame(carriedFrame);
-      assign(model, name, info);
+      slot.accept(info);
 
       // Bug #78214: checked on the post-write model; an aesthetic dimension only supports time
       // series as a CHANGE calculator's column. The channel is put back on a refusal.
@@ -158,7 +178,7 @@ public final class ChartAestheticMutator {
          }
          catch(RuntimeException e) {
             if(existing == null) {
-               assign(model, name, null);
+               slot.accept(null);
             }
             else {
                existing.setFullName(previousFullName);
@@ -177,7 +197,7 @@ public final class ChartAestheticMutator {
          }
          catch(RuntimeException e) {
             if(existing == null) {
-               assign(model, name, null);
+               slot.accept(null);
             }
             else {
                existing.setFullName(previousFullName);
@@ -187,6 +207,148 @@ public final class ChartAestheticMutator {
 
             throw e;
          }
+      }
+   }
+
+   /**
+    * Bug #78918: binds a field on a Gantt chart, where it belongs on the measures and not on the
+    * chart-level slot {@link #setField} writes.
+    *
+    * <p>A Gantt chart is always multi-aesthetic ({@code GanttVSChartInfo.isMultiAesthetic()} is
+    * hard-coded true), so the renderer never reads a chart-level aesthetic field. It builds each
+    * element's frames from the start and milestone aggregates' own fields
+    * ({@code VSFrameVisitor.getAggregates()}), which is where the Composer's Aesthetic pane writes
+    * them too: under its "All" entry it copies the field to every aesthetic aggregate. This does
+    * the same, to {@link #ganttFieldTargets}, and also removes any chart-level leftover on the
+    * channel, which renders nothing but still joins the chart's query.
+    *
+    * <p>Every target is put back as it was when a guard refuses the write.
+    */
+   public static void setGanttField(ChartBindingModel model, String channel, FieldRef field,
+                                    RuntimeViewsheet rvs, SourceInfo source,
+                                    DataRefModelFactoryService refModelService)
+      throws Exception
+   {
+      String name = AestheticChannels.requireFieldChannel(channel, false);
+
+      if(field == null) {
+         throw new IllegalArgumentException(
+            "Binding the " + name + " channel needs a field. To unbind it, use " +
+            "clear_aesthetic_field instead — an absent field is not the same request as an " +
+            "explicit clear.");
+      }
+
+      List<ChartAggregateRefModel> targets = ganttFieldTargets(model, name);
+
+      if(targets.isEmpty()) {
+         throw new IllegalArgumentException(
+            "This Gantt chart has no start field yet. A Gantt chart draws the " + name +
+            " channel from its start and milestone measures, never from the chart as a whole, " +
+            "so there is nothing to bind it to yet. Bind the start and end fields with " +
+            "set_chart_single_shelf first, then bind this channel.");
+      }
+
+      List<AestheticInfo> before = new ArrayList<>();
+      List<AestheticInfo> beforeState = new ArrayList<>();
+
+      for(ChartAggregateRefModel target : targets) {
+         AestheticInfo existing = aggregateFieldOf(target, name);
+         before.add(existing);
+         beforeState.add(existing == null ? null : snapshot(existing));
+      }
+
+      try {
+         for(int i = 0; i < targets.size(); i++) {
+            ChartAggregateRefModel target = targets.get(i);
+            // No field-less frame is carried into a new binding: a measure's field-less frame is
+            // a static one, which GraphUtil.fixVisualFrame replaces for any bound field.
+            bindField(model, name, field, rvs, source, refModelService, before.get(i), null,
+                      info -> assignAggregateField(target, name, info));
+         }
+      }
+      catch(RuntimeException e) {
+         for(int i = 0; i < targets.size(); i++) {
+            AestheticInfo existing = before.get(i);
+
+            if(existing != null) {
+               AestheticInfo state = beforeState.get(i);
+               existing.setFullName(state.getFullName());
+               existing.setDataInfo(state.getDataInfo());
+               existing.setFrame(state.getFrame());
+            }
+
+            assignAggregateField(targets.get(i), name, existing);
+         }
+
+         throw e;
+      }
+
+      assign(model, name, null);
+   }
+
+   /**
+    * Bug #78918: unbinds a channel on a Gantt chart -- from the start and milestone measures
+    * (a shape field left on the milestone by other means is removed too, though
+    * {@link #setGanttField} never writes one) and from the chart-level slot, which a Gantt chart
+    * ignores. The end field is never touched: no Gantt element is drawn from its aesthetics.
+    */
+   public static void clearGanttField(ChartBindingModel model, String channel) {
+      String name = AestheticChannels.requireFieldChannel(channel, false);
+
+      for(ChartRefModel ref : Arrays.asList(model.getStartField(), model.getMilestoneField())) {
+         if(ref instanceof ChartAggregateRefModel aggregate) {
+            assignAggregateField(aggregate, name, null);
+         }
+      }
+
+      assign(model, name, null);
+   }
+
+   /**
+    * The measures a Gantt chart draws a field channel from (#78918): the start field (the bars)
+    * and, when bound, the milestone field (the markers). {@code VSFrameVisitor.getAggregates()}
+    * visits exactly those two, so the end field is never a target.
+    *
+    * <p>Shape goes to the start field only. A Gantt bar reads its shape field as a texture
+    * ({@code GraphUtil.fixVisualFrame} gives it a texture frame, since the chart type supports
+    * texture), but the milestone marker takes its shape from the milestone's field-less static
+    * shape frame alone ({@code GraphGenerator}'s Gantt branch sets it before any field frame is
+    * applied), so a shape field there would be stored and never drawn.
+    */
+   static List<ChartAggregateRefModel> ganttFieldTargets(ChartBindingModel model, String channel) {
+      List<ChartAggregateRefModel> targets = new ArrayList<>();
+
+      if(model.getStartField() instanceof ChartAggregateRefModel start) {
+         targets.add(start);
+      }
+
+      if(!"shape".equals(channel) &&
+         model.getMilestoneField() instanceof ChartAggregateRefModel milestone)
+      {
+         targets.add(milestone);
+      }
+
+      return targets;
+   }
+
+   /** The parts of a binding {@link #bindField} changes, so a refused write can put them back. */
+   private static AestheticInfo snapshot(AestheticInfo info) {
+      AestheticInfo copy = new AestheticInfo();
+      copy.setFullName(info.getFullName());
+      copy.setDataInfo(info.getDataInfo());
+      copy.setFrame(info.getFrame());
+      return copy;
+   }
+
+   private static void assignAggregateField(ChartAggregateRefModel aggregate, String channel,
+                                            AestheticInfo info)
+   {
+      switch(channel) {
+         case "color" -> aggregate.setColorField(info);
+         case "shape" -> aggregate.setShapeField(info);
+         case "size" -> aggregate.setSizeField(info);
+         case "text" -> aggregate.setTextField(info);
+         default -> throw new IllegalArgumentException("Unhandled field channel '" + channel + "'.");
       }
    }
 
@@ -287,7 +449,8 @@ public final class ChartAestheticMutator {
          List<ChartAggregateRefModel> targets = multiAggregates(model);
 
          if(!targets.isEmpty()) {
-            setMultiAestheticFrame(name, spec, relationChart, targets, measure);
+            setMultiAestheticFrame(name, spec, relationChart, targets, measure,
+                                   GraphTypes.isGantt(model.getChartType()));
             return;
          }
       }
@@ -1038,9 +1201,13 @@ public final class ChartAestheticMutator {
          return null;
       }
 
-      List<ChartAggregateRefModel> aggregates = multiTargets.isEmpty()
-         ? aggregates(model) : multiTargets;
+      return divergentFields(multiTargets.isEmpty() ? aggregates(model) : multiTargets, channel);
+   }
 
+   /** One entry per measure when their fields on {@code channel} differ, else {@code null}. */
+   private static Map<String, Object> divergentFields(List<ChartAggregateRefModel> aggregates,
+                                                      String channel)
+   {
       if(aggregates.size() < 2) {
          return null;
       }
@@ -1323,11 +1490,14 @@ public final class ChartAestheticMutator {
     * {@link #setFrame}'s multi-aesthetic branch (#77024 P1): every target is validated before any
     * is written, so a refusal on one measure leaves none half-updated, then each measure gets a
     * fresh frame -- on its own field where it has one, in its field-less slot where it does not.
+    *
+    * @param gantt whether the chart is a Gantt chart, which is multi-aesthetic whatever its
+    *              multi-style setting, so the refusal must not offer turning multi-style off.
     */
    private static void setMultiAestheticFrame(String name, Map<String, Object> spec,
                                               boolean relationChart,
                                               List<ChartAggregateRefModel> targets,
-                                              String measure)
+                                              String measure, boolean gantt)
    {
       List<ChartAggregateRefModel> selected = measure == null
          ? targets : List.of(requireTargetMeasure(targets, name, measure));
@@ -1345,10 +1515,15 @@ public final class ChartAestheticMutator {
                requireStaticShapeOrSizeOnMeasures(name, frame);
             }
             catch(IllegalArgumentException e) {
-               throw new IllegalArgumentException(
-                  e.getMessage() + " This chart is multi-style, where set_aesthetic_field is " +
-                  "refused: turn multi-style off (set_chart_type multi:false), bind the field, " +
-                  "then turn it back on. Measure: " + measureLabel(aggregate) + ".");
+               // Bug #78918: a Gantt chart is multi-aesthetic whatever its multi-style setting,
+               // and set_aesthetic_field binds the field onto its measures directly.
+               throw new IllegalArgumentException(gantt
+                  ? e.getMessage() + " This is a Gantt chart: bind a field with " +
+                    "set_aesthetic_field first (it goes onto the start and milestone measures), " +
+                    "then set this frame. Measure: " + measureLabel(aggregate) + "."
+                  : e.getMessage() + " This chart is multi-style, where set_aesthetic_field is " +
+                    "refused: turn multi-style off (set_chart_type multi:false), bind the field, " +
+                    "then turn it back on. Measure: " + measureLabel(aggregate) + ".");
             }
          }
          else {
@@ -1637,6 +1812,30 @@ public final class ChartAestheticMutator {
    }
 
    /**
+    * The reported {@code acceptsField}: whether {@code set_aesthetic_field} would bind this
+    * channel, so the read and the write cannot disagree (#78918). {@link #rendersField}, and on
+    * top of it: a Gantt chart's field channels need a measure to go onto
+    * ({@link #ganttFieldTargets}); any other multi-aesthetic chart refuses a field write
+    * ({@code ChartAestheticAgentService.requireNotMultiAesthetic}).
+    */
+   private static boolean acceptsFieldWrite(String channel, boolean sizeSupported,
+                                            boolean colorShapeSupported,
+                                            boolean shapeFamilySupported, boolean multiAesthetic,
+                                            boolean ganttField,
+                                            List<ChartAggregateRefModel> ganttTargets)
+   {
+      if(!rendersField(channel, sizeSupported, colorShapeSupported, shapeFamilySupported)) {
+         return false;
+      }
+
+      if(ganttField) {
+         return !ganttTargets.isEmpty();
+      }
+
+      return !multiAesthetic || !AestheticChannels.FIELD_CHANNELS.contains(channel);
+   }
+
+   /**
     * The {@code AestheticInfo} whose frame the renderer reads for this channel, or {@code null}
     * when the channel currently renders from a field-less slot instead.
     *
@@ -1759,23 +1958,38 @@ public final class ChartAestheticMutator {
          multiAesthetic && perMeasureFrameChannels.contains(channel)
             ? multiAggregates(model) : List.of();
       boolean multiView = !multiTargets.isEmpty();
-      AestheticInfo chartLevelField = multiView ? null : frameField(model, channel);
-      AestheticInfo info = multiView
+      // Bug #78918: a Gantt chart's field channels are written to its measures
+      // (setGanttField), so they are read back from the same measures -- text included, which
+      // is not a frame channel and so is not in multiTargets.
+      boolean ganttField = GraphTypes.isGantt(model.getChartType()) &&
+         AestheticChannels.FIELD_CHANNELS.contains(channel);
+      List<ChartAggregateRefModel> ganttTargets =
+         ganttField ? ganttFieldTargets(model, channel) : List.of();
+      AestheticInfo chartLevelField = multiView || ganttField ? null : frameField(model, channel);
+      AestheticInfo info = ganttField
+         ? (ganttTargets.isEmpty() ? null : aggregateFieldOf(ganttTargets.get(0), channel))
+         : multiView
          ? aggregateFieldFor(multiTargets.get(0), channel)
          : reportedField(model, channel, perMeasureFrameChannels);
+      // The binding set_aesthetic_field can write back: the chart-level slot's, or on a Gantt
+      // chart the measures' own, which is where that write puts it.
+      AestheticInfo writableField = ganttField ? info : chartLevelField;
 
       view.put("field", fieldNameOf(info));
       // The structured binding behind "field": what set_aesthetic_field can write, read back
       // in the same vocabulary get_binding uses for shelf fields. Taken from the chart-level
-      // slot only -- a date comparison's injected per-measure field (see reportedField) has a
-      // "field" name but no chart-level binding to describe, and echoing it back is refused.
-      view.put("fieldRef", chartLevelField == null || chartLevelField.getDataInfo() == null
-         ? null : FieldRefFactory.from(chartLevelField.getDataInfo()));
+      // slot only (the measures' on a Gantt chart) -- a date comparison's injected per-measure
+      // field (see reportedField) has a "field" name but no chart-level binding to describe,
+      // and echoing it back is refused.
+      view.put("fieldRef", writableField == null || writableField.getDataInfo() == null
+         ? null : FieldRefFactory.from(writableField.getDataInfo()));
       view.put("frame", VisualFrameAliases.describe(
          multiView ? renderedAggregateFrameOf(multiTargets.get(0), channel)
+            : ganttField && info != null ? info.getFrame()
             : frameOf(model, channel, perMeasureFrameChannels)));
-      view.put("acceptsField", rendersField(channel, sizeSupported, colorShapeSupported,
-                                                 shapeFamilySupported));
+      view.put("acceptsField", acceptsFieldWrite(channel, sizeSupported, colorShapeSupported,
+                                                 shapeFamilySupported, multiAesthetic,
+                                                 ganttField, ganttTargets));
       view.put("acceptsFrame", acceptsFrame(channel, colorShapeSupported));
 
       Map<String, Object> perMeasureFrame =
@@ -1786,9 +2000,10 @@ public final class ChartAestheticMutator {
          view.put("framesByMeasure", perMeasureFrame);
       }
 
-      Map<String, Object> perMeasureField =
-         divergentMeasureFields(model, channel, chartLevelField, perMeasureFrameChannels,
-                                multiTargets);
+      Map<String, Object> perMeasureField = ganttField
+         ? divergentFields(ganttTargets, channel)
+         : divergentMeasureFields(model, channel, chartLevelField, perMeasureFrameChannels,
+                                  multiTargets);
 
       if(perMeasureField != null) {
          view.put("fieldsByMeasure", perMeasureField);

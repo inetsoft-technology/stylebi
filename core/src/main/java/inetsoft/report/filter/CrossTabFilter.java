@@ -4363,6 +4363,13 @@ public class CrossTabFilter extends AbstractTableLens
          return value == CalcColumn.INVALID ? null : calcValsmap.get(pair);
       }
 
+      // with "Compute Trend and Comparison for Totals" off, a total cell falls back to the plain
+      // aggregate. getXMetaInfo formats every cell of a percent calc as a percent, so that raw
+      // total would read as total x 100%. Leave the total of a percent calc blank instead.
+      if(calcValsmap != null && calcValsmap.containsKey(pair) && isAsPercentCalc(k)) {
+         return null;
+      }
+
       Object obj = map.get(pair);
       return getMergedData0(map, k, rtuple, ctuple, obj, false);
    }
@@ -5422,6 +5429,14 @@ public class CrossTabFilter extends AbstractTableLens
       }
 
       return aggCalcMap.get(index);
+   }
+
+   /**
+    * Whether the calc on the aggregate at the given index changes its unit to a percent.
+    */
+   private boolean isAsPercentCalc(int index) {
+      CalcColumn calc = getAggCalc(index);
+      return calc instanceof AbstractColumn && ((AbstractColumn) calc).isAsPercent();
    }
 
    /**

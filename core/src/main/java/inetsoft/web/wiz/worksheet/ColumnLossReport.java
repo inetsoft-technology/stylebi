@@ -258,9 +258,7 @@ final class ColumnLossReport {
          }
 
          if(dependent instanceof TableAssembly dtable) {
-            DataRef outer = AssetUtil.getOuterAttribute(name, ref);
-            ColumnRef mapped =
-               AssetUtil.getColumnRefFromAttribute(dtable.getColumnSelection(), outer);
+            ColumnRef mapped = WorksheetControllerService.mapToDependentColumn(table, dtable, ref);
 
             if(mapped != null) {
                collectKeyDependents(ws, dtable, mapped, out, visited);

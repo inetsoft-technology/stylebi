@@ -86,4 +86,28 @@ final class BindingSources {
    static boolean alreadyPointedAt(SourceInfo current, String table) {
       return current != null && table.equalsIgnoreCase(current.getSource());
    }
+
+   /**
+    * The runtime source to resolve worksheet-local named groups against, for a write that may
+    * establish the source in the same call. The assembly's own {@code SourceInfo} is still empty
+    * until the write is applied, so a first call carrying both {@code table} and a
+    * {@code namedGroup} would otherwise resolve against nothing.
+    *
+    * @param current the assembly's own source, or null
+    * @param model the binding model's source, after {@code applySource}
+    * @return {@code current} when it names a source, else an asset source for the model's table,
+    *         else {@code current}
+    */
+   static inetsoft.uql.asset.SourceInfo effective(inetsoft.uql.asset.SourceInfo current,
+                                                  SourceInfo model)
+   {
+      if(current != null && current.getSource() != null && !current.getSource().isEmpty() ||
+         model == null || model.getSource() == null || model.getSource().isEmpty())
+      {
+         return current;
+      }
+
+      return new inetsoft.uql.asset.SourceInfo(
+         inetsoft.uql.asset.SourceInfo.ASSET, null, model.getSource());
+   }
 }

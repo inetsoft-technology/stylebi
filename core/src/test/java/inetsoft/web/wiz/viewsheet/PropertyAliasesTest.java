@@ -794,6 +794,33 @@ class PropertyAliasesTest {
                          "'enabled' must stay writable on chart");
    }
 
+   /**
+    * Bug #78901: a group container's size is always the bounding box of its members.
+    * {@code setGroupContainerPropertyDialogModel} reads only left/top of its size pane, and the
+    * layout pass re-derives the size, so a width/height write reported success and changed
+    * nothing. Both the alias and the raw path are refused; left/top (which move the group) and a
+    * rectangle's width stay writable.
+    */
+   @Test
+   void refusesGroupContainerWidthAndHeight() {
+      for(String field : List.of("width", "height")) {
+         assertTrue(PropertyAliases.forType("groupcontainer").aliases().containsKey(field),
+                    "groupcontainer should still list '" + field + "' as readable");
+
+         for(String key : List.of(field, sizePositionPath("groupcontainer", field))) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+               () -> PropertyAliases.resolveForWrite("groupcontainer", key), key);
+            assertTrue(e.getMessage().contains("is read-only on groupcontainer") &&
+                       e.getMessage().contains("members"), e.getMessage());
+         }
+
+         assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("rectangle", field));
+      }
+
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("groupcontainer", "left"));
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("groupcontainer", "top"));
+   }
+
    @Test
    void refusesTheNewChartDerivedFlags() {
       for(String flag : java.util.List.of("adhocVisible", "glossyEffectSupported",

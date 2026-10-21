@@ -191,6 +191,21 @@ class CalcTableServiceTest {
       verify(h.layoutService, never()).getCellBindingInfo(any(), eq(0), eq(1));
    }
 
+   /** A calc-cell column binding names a real column; a script belongs in a formula cell. */
+   @Test
+   void refusesAScriptColumnOnAColumnCell() throws Exception {
+      Harness h = harness(1, 2);
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+                                        columnCell("=Radio1.selectedObject")));
+
+      assertTrue(thrown.getMessage().contains("formula cell"));
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class),
+                                                      any());
+   }
+
    /**
     * Redmine #78286: a write addressed to a cell a merge swallowed is stored on the hidden cell,
     * never reaches the anchor, and is overwritten at split, yet reported success. It must be
@@ -1663,6 +1678,10 @@ class CalcTableServiceTest {
 
       AbstractTableAssembly boundTable = mock(AbstractTableAssembly.class);
       when(boundTable.getSourceInfo()).thenReturn(modelSource);
+      inetsoft.uql.ColumnSelection boundColumns = new inetsoft.uql.ColumnSelection();
+      boundColumns.addAttribute(new inetsoft.uql.asset.ColumnRef(
+         new inetsoft.uql.erm.AttributeRef(null, "State")));
+      when(boundTable.getColumnSelection(true)).thenReturn(boundColumns);
 
       Worksheet ws = mock(Worksheet.class);
       when(ws.getAssemblies()).thenReturn(new Assembly[]{ ngAssembly });

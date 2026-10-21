@@ -49,8 +49,9 @@ import java.util.*;
  * trust such a table's field list it lets the write through, the way a listing failure already
  * does, rather than refuse every field with "Available: ."
  *
- * <p>A {@code "$(ComponentName)"} shelf field is the one exception: it is a dynamic reference, not
- * a column name at all, and is resolved against a real value only at render time
+ * <p>A {@code "$(ComponentName)"} or {@code "=script"} shelf field is the one exception: it is a
+ * dynamic reference ({@code VSUtil.isDynamic}), not a column name at all, and is resolved against
+ * a real value only at render time
  * ({@code VSUtil.isVariableValue}/{@code DynamicValue}) — checking it against the source's schema
  * here would refuse a legitimate binding as if it were a typo'd or wrong-table column (#76641).
  * The same exception applies when the assembly has no source established yet: {@link
@@ -104,8 +105,9 @@ public final class BindableColumns {
             continue;
          }
 
-         if(isDynamicVariableReference(field.column())) {
-            // "$(ComponentName)" -- not a real column name to check against the source's schema;
+         if(isDynamicColumn(field.column())) {
+            // "$(ComponentName)" or "=script" -- not a real column name to check against the
+            // source's schema;
             // resolved at render time instead (#76641).
             continue;
          }
@@ -378,7 +380,7 @@ public final class BindableColumns {
 
    private static boolean hasAll(Set<String> columns, List<FieldRef> fields) {
       for(FieldRef field : fields) {
-         if(isDynamicVariableReference(field.column())) {
+         if(isDynamicColumn(field.column())) {
             // "$(ComponentName)" carries no information about which table is correct -- it is not
             // a schema column of any table, so it must not veto a candidate table the other,
             // literal fields do match (#76641).
@@ -397,8 +399,9 @@ public final class BindableColumns {
                                      String assembly)
    {
       for(FieldRef field : fields) {
-         if(isDynamicVariableReference(field.column())) {
-            // "$(ComponentName)" -- not a real column name to check against the source's schema;
+         if(isDynamicColumn(field.column())) {
+            // "$(ComponentName)" or "=script" -- not a real column name to check against the
+            // source's schema;
             // resolved at render time instead (#76641).
             continue;
          }
@@ -433,6 +436,10 @@ public final class BindableColumns {
     */
    private static boolean isDynamicVariableReference(String text) {
       return text != null && text.startsWith("$(") && text.endsWith(")");
+   }
+
+   private static boolean isDynamicColumn(String text) {
+      return isDynamicVariableReference(text) || text != null && text.startsWith("=");
    }
 
    /** The table the assembly is bound to, or {@code null} when the listing does not say. */

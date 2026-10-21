@@ -304,6 +304,22 @@ class ViewsheetChangePlanServiceTest {
       assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
    }
 
+   @Test void resolveDeleteForcePlanDescriptionNamesEveryDependent() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+      var dep1 = dependency("Examples/Census Query");
+      var dep2 = dependency("Examples/Census Summary");
+      dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
+         .thenReturn(List.of(dep1, dep2));
+      ViewsheetChangeRequest change = deleteViewsheetChange(VS_ASSET_ID);
+      change.setForce(true);
+
+      String description = service.resolve(request("task", List.of(change)), user)
+         .changes().get(0).description();
+      assertTrue(description.contains("2 dependent asset(s)"), description);
+      assertTrue(description.contains("Examples/Census Query"), description);
+      assertTrue(description.contains("Examples/Census Summary"), description);
+   }
+
    @Test void resolveDeleteSucceedsWhenNoDependencies() throws Exception {
       stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
 

@@ -506,11 +506,12 @@ public class WorksheetEditService {
 
          WorksheetMutationSupport.assertSnapshotAllowsColumnRemove(t, table, col, toRemove);
 
-         if(toRemove instanceof ColumnRef cr &&
-            !WorksheetControllerService.allowsDeletion(ws, t, cr))
-         {
-            throw new PairingException(Catalog.getCatalog().getString(
-               "common.columnDependency", col));
+         // Bug #78895: same allowsDeletion refusal as before, but naming the dependent join.
+         if(toRemove instanceof ColumnRef cr) {
+            ColumnLossReport.requireNotJoinKey(
+               ws, t, cr, "Cannot remove column \"" + col + "\" from table \"" + table + "\"",
+               "Remove that join, or change its keys to another column, first. " +
+               "Nothing was changed.");
          }
 
          if(toRemove instanceof ColumnRef cr && !confirmed) {
@@ -731,10 +732,13 @@ public class WorksheetEditService {
          DataRef existing = WorksheetMutationSupport.resolveFieldOrNull(t, col, false);
 
          if(existing instanceof ColumnRef cr) {
-            if(!WorksheetControllerService.allowsDeletion(ws, t, cr)) {
-               throw new PairingException(Catalog.getCatalog().getString(
-                  "common.columnDependency", col));
-            }
+            // Bug #78895: same allowsDeletion refusal as before, but naming the dependent join.
+            ColumnLossReport.requireNotJoinKey(
+               ws, t, cr,
+               "Cannot rename column \"" + col + "\" of table \"" + table + "\" to \"" +
+               newName + "\"",
+               "Renaming it changes what that join matches on. Edit the join's keys first. " +
+               "Nothing was changed.");
 
             // No CommandDispatcher exists on this headless bridge -- renameColumn(Worksheet,
             // CommandDispatcher, ...) tolerates a null one (see its own comment) and simply
@@ -1534,6 +1538,13 @@ public class WorksheetEditService {
 
          String origType = ref instanceof ColumnRef cr2 ? cr2.getDataType() : null;
 
+         if(ref instanceof ColumnRef cr3 && cr3.getDataRef() instanceof DateRangeRef) {
+            throw new PairingException(
+               "Column \"" + column + "\" is already a date range column. Add the range on " +
+               "its source date column instead, or use edit_date_range_column to change its " +
+               "level.");
+         }
+
          if(!XSchema.isDateType(origType)) {
             throw new PairingException(
                "Column \"" + column + "\" is not a date type (type=" + origType +
@@ -1557,7 +1568,7 @@ public class WorksheetEditService {
          requireDerivedColumnFits(cs, rangeName, table);
 
          ColumnRef colRef = new ColumnRef(dateRef);
-         colRef.setDataType(XSchema.STRING);
+         colRef.setDataType(dateRef.getDataType());
          cs.addAttribute(colRef);
          t.setColumnSelection(cs, false);
       }
@@ -1747,6 +1758,12 @@ public class WorksheetEditService {
 
          dateRef.setDateOption(option);
          dateRef.setName(newName);
+
+         if(ref instanceof ColumnRef typed) {
+            // The wrapper's own type wins over the DateRangeRef's, so re-derive it: a level
+            // change between truncating (timeInstant) and part (integer) options flips it.
+            typed.setDataType(dateRef.getDataType());
+         }
 
          // AbstractDataRef.hashCode() caches its result (chash) from getEntity()+getAttribute()
          // at first use, and ColumnRef.getAttribute() delegates live to the wrapped ref's — so
@@ -2268,10 +2285,11 @@ public class WorksheetEditService {
          }
 
          if(cr.isVisible() && !visible) {
-            if(!WorksheetControllerService.allowsDeletion(ws, t, cr)) {
-               throw new PairingException(Catalog.getCatalog().getString(
-                  "common.columnDependency", col));
-            }
+            // Bug #78895: same allowsDeletion refusal as before, but naming the dependent join.
+            ColumnLossReport.requireNotJoinKey(
+               ws, t, cr, "Cannot hide column \"" + col + "\" of table \"" + table + "\"",
+               "A hidden column leaves the table's output, so that join would lose its key. " +
+               "Edit the join's keys first. Nothing was changed.");
 
             // Bug #77001 / WBS-088: allowsDeletion only catches a downstream JOIN key
             // conflict -- a table that merely aggregates or groups by this column is
@@ -3783,15 +3801,21 @@ public class WorksheetEditService {
       /**
        * Sets a table as the worksheet's primary assembly.
        *
+       * <p>Like {@code WSPrimaryService.setAsPrimary}, a primary that actually changes is also
+       * exposed to viewsheets; re-setting the current primary leaves its visibility alone.
+       *
        * @param table the assembly name to set as primary
+       * @return {@code true} if a hidden table was made visible to viewsheets
        * @throws PairingException if the assembly is not found
        */
-      public void setPrimaryAssembly(String table) throws PairingException {
+      public boolean setPrimaryAssembly(String table) throws PairingException {
          Assembly a = ws.getAssembly(table);
 
          if(a == null) {
             throw new PairingException("Assembly not found: " + table);
          }
+
+         boolean changed = !table.equals(ws.getPrimaryAssemblyName());
 
          if(!ws.setPrimaryAssembly(table)) {
             throw new PairingException("Failed to set primary assembly: " + table);
@@ -3802,9 +3826,14 @@ public class WorksheetEditService {
          // earlier -- but that table would otherwise stay absent from the viewsheet binding tree
          // (VSBindingService:2006, BaseTreeModelBuilder:143, VSOutputService:239) while being the
          // sheet's primary, which is the one assembly a viewsheet binding is most likely to want.
-         if(a instanceof TableAssembly ta) {
-            ((TableAssemblyInfo) ta.getTableInfo()).setVisibleTable(true);
+         if(changed && a instanceof TableAssembly ta) {
+            TableAssemblyInfo info = (TableAssemblyInfo) ta.getTableInfo();
+            boolean wasHidden = !info.isVisibleTable();
+            info.setVisibleTable(true);
+            return wasHidden;
          }
+
+         return false;
       }
 
       // -----------------------------------------------------------------------

@@ -326,7 +326,8 @@ public class ViewsheetChangePlanService {
       String description = dependencies.length == 0
          ? "delete viewsheet \"" + current.getPath() + "\""
          : "delete viewsheet \"" + current.getPath() + "\" (force: true, " + dependencies.length +
-           " dependent asset(s))";
+           " dependent asset(s): " +
+           auxProjections.get(key) + ")";
       return new PlanChange(key, entry.getOrgID(), beforeProjection, null,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             description);
@@ -575,7 +576,8 @@ public class ViewsheetChangePlanService {
       String description = dependencies.length == 0
          ? "delete worksheet \"" + current.getPath() + "\""
          : "delete worksheet \"" + current.getPath() + "\" (force: true, " + dependencies.length +
-           " dependent asset(s))";
+           " dependent asset(s): " +
+           auxProjections.get(key) + ")";
       return new PlanChange(key, entry.getOrgID(), beforeProjection, null,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             description);

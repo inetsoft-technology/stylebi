@@ -37,8 +37,16 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * may be a table, variable, condition, date range or named group), which no list tool shows for
  * the non-table kinds, so it also reports {@code assemblyKind}. It is omitted from the body for
  * the ops that do not set it.</p>
+ *
+ * <p>{@code set_primary_assembly} populates {@code madeVisible} ({@code true}) when it made a
+ * hidden table visible to viewsheets, as the native primary-assembly action does; the key is
+ * absent otherwise.</p>
  */
-public record EditResponse(String assemblyName,
-                           @JsonInclude(JsonInclude.Include.NON_NULL) String assemblyKind)
+public record EditResponse(@JsonInclude(JsonInclude.Include.NON_NULL) String assemblyName,
+                           @JsonInclude(JsonInclude.Include.NON_NULL) String assemblyKind,
+                           @JsonInclude(JsonInclude.Include.NON_NULL) Boolean madeVisible)
 {
+   public EditResponse(String assemblyName, String assemblyKind) {
+      this(assemblyName, assemblyKind, null);
+   }
 }

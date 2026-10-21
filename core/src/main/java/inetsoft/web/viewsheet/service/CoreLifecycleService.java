@@ -553,6 +553,10 @@ public class CoreLifecycleService {
       // anything else.
       Dimension viewSize = sheet.getPreferredSize(true, false);
       Assembly[] assemblies;
+      // the refresh an export runs on the live sheet before copying it must not change what
+      // the user sees: keep the script-set runtime values and don't rerun onLoad without the
+      // input event. the export reruns onLoad on its copy in prepareForExport(). (78877)
+      boolean exportRefresh = Boolean.TRUE.equals(ViewsheetSandbox.exportRefresh.get());
       // a nested restoreLocks() that fails leaves this thread without the write lock taken
       // here while the frames below catch the error, checked after the unlock (77153)
       long lostLocks = box.get().getLockLostCount();
@@ -565,7 +569,9 @@ public class CoreLifecycleService {
          // clear out values set in onLoad/onInit
          // @by stephenwebster, For Bug #7758, I moved resetRuntimeValues before
          // scale to screen operations so scaled column widths would not get reset.
-         VSUtil.resetRuntimeValues(sheet, false);
+         if(!exportRefresh) {
+            VSUtil.resetRuntimeValues(sheet, false);
+         }
 
          // don't scale viewsheet in design mode or if height or width is set to 0
          if(vsinfo != null && vsinfo.isScaleToScreen() && rvs.isRuntime() &&
@@ -783,7 +789,8 @@ public class CoreLifecycleService {
                return;
             }
             else if(reset) {
-               box.get().reset(null, sheetAssemblies, clist, true, true, null, toggleMaxMode);
+               box.get().reset(null, sheetAssemblies, clist, true, !exportRefresh, null,
+                               toggleMaxMode);
                rvs.refreshAllTipViewOrPopComponentTable();
             }
             else if(initing) {

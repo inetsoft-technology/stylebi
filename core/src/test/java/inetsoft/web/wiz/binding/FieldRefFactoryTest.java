@@ -556,6 +556,10 @@ class FieldRefFactoryTest {
 
       AbstractTableAssembly boundTable = mock(AbstractTableAssembly.class);
       when(boundTable.getSourceInfo()).thenReturn(modelSource);
+      inetsoft.uql.ColumnSelection boundColumns = new inetsoft.uql.ColumnSelection();
+      boundColumns.addAttribute(new inetsoft.uql.asset.ColumnRef(
+         new inetsoft.uql.erm.AttributeRef(null, "State")));
+      when(boundTable.getColumnSelection(true)).thenReturn(boundColumns);
 
       Worksheet ws = mock(Worksheet.class);
       when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[]{ ngAssembly });

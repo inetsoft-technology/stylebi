@@ -24,6 +24,7 @@ import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.execution.AssetQuery;
+import inetsoft.report.composition.execution.AssetQueryCacheNormalizer;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.BoundQuery;
 import inetsoft.report.composition.execution.DataKey;
@@ -378,13 +379,15 @@ public class WorksheetAgentController {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
       String[] resolvedNameHolder = new String[2];
-      editOp(sessionToken, req, user, resolvedNameHolder);
+      boolean[] madeVisibleHolder = new boolean[1];
+      editOp(sessionToken, req, user, resolvedNameHolder, madeVisibleHolder);
 
-      if(resolvedNameHolder[0] == null) {
+      if(resolvedNameHolder[0] == null && !madeVisibleHolder[0]) {
          return ResponseEntity.noContent().build();
       }
 
-      return ResponseEntity.ok(new EditResponse(resolvedNameHolder[0], resolvedNameHolder[1]));
+      return ResponseEntity.ok(new EditResponse(resolvedNameHolder[0], resolvedNameHolder[1],
+                                                madeVisibleHolder[0] ? Boolean.TRUE : null));
    }
 
    /**
@@ -404,7 +407,7 @@ public class WorksheetAgentController {
    public void editOp(String sessionToken, EditRequest req, Principal user)
       throws Exception
    {
-      editOp(sessionToken, req, user, null);
+      editOp(sessionToken, req, user, null, null);
    }
 
    /**
@@ -415,10 +418,18 @@ public class WorksheetAgentController {
     * above passes {@code null} for its one in-process caller, which has no use for the name).
     */
    private void editOp(String sessionToken, EditRequest req, Principal user,
-                       String[] resolvedNameHolder)
+                       String[] resolvedNameHolder, boolean[] madeVisibleHolder)
       throws Exception
    {
       requireEnabled();
+
+      // set_primary_assembly reports whether it made a hidden table visible to viewsheets, so the
+      // caller can disclose the side effect (see EditResponse#madeVisible).
+      if("set_primary_assembly".equals(req.op()) && madeVisibleHolder != null) {
+         editService.apply(sessionToken, user,
+                           editor -> madeVisibleHolder[0] = editor.setPrimaryAssembly(req.table()));
+         return;
+      }
 
       // add_table's extraProperties requires endpoint/suffix identity and excludes queryParams
       // (which is already its own complete, self-sufficient form) -- checked first, before either
@@ -1633,9 +1644,11 @@ public class WorksheetAgentController {
     * grouping in {@code WorksheetEditService.Editor#addNamedGroup}: that mode intentionally
     * records {@code attachedSource} as the worksheet table's own name -- a convention {@code
     * CalcTableService}/{@code FieldRefFactory} rely on to resolve a chart/table/crosstab/
-    * calc-table's {@code field.namedGroup} binding -- so a grouping created here is not
-    * resolvable through that same binding-time matching, and is not attached to any worksheet
-    * table at all.</p>
+    * calc-table's {@code field.namedGroup} binding. A grouping created here is attached to the
+    * datasource/model attribute instead; {@code WorksheetNamedGroupMatcher} resolves it at
+    * binding time by walking the viewsheet's mirror table down to the worksheet table's own
+    * {@code SourceInfo} (and, for a logical model, the same entity). A data-type-only grouping
+    * is not bindable to a column unless it is made a predefined group.</p>
     */
    private void addDatasourceScopedNamedGroup(String sessionToken, EditRequest req, Principal user)
       throws Exception
@@ -3893,7 +3906,7 @@ public class WorksheetAgentController {
 
    /**
     * Same as {@link #dispatch(WorksheetEditService.Editor, EditRequest)}, plus the optional
-    * out-param described on {@link #editOp(String, EditRequest, Principal, String[])}.
+    * out-param described on {@link #editOp(String, EditRequest, Principal, String[], boolean[])}.
     */
    private void dispatch(WorksheetEditService.Editor editor, EditRequest req,
                          String[] resolvedNameHolder)
@@ -4844,6 +4857,13 @@ public class WorksheetAgentController {
                   assetDataCache.remove(runtimeKey);
                }
 
+               // Bug #78940: LIVE/RUNTIME entries are stored under the key of
+               // AssetQueryCacheNormalizer's prepared clone (columns name-sorted, all visible,
+               // removable aliases dropped), so the keys above miss them whenever that clone
+               // differs from the assembly. Must run before loadColumnSelection below, which
+               // changes the column selection the stale entry was keyed on.
+               clearNormalizedCache(table, box);
+
                // Dependents' cached results otherwise survive the refresh (bug 76873).
                WorksheetEventUtil.invalidateDependents(ws, table, box, assetDataCache);
 
@@ -4990,6 +5010,8 @@ public class WorksheetAgentController {
                      assetDataCache.remove(runtimeKey);
                   }
 
+                  // Bug #78940: see the single-table branch.
+                  clearNormalizedCache(table, box);
                   WorksheetEventUtil.invalidateDependents(ws, table, box, assetDataCache);
 
                   try {
@@ -5014,6 +5036,21 @@ public class WorksheetAgentController {
 
          return null;
       });
+   }
+
+   /**
+    * Bug #78940: removes the AssetDataCache entries stored under the key of the table's
+    * normalized clone (what {@code AssetQuery.doGetTableLens} actually stores for LIVE/RUNTIME
+    * reads), in every mode, as {@code WSQueryService.runQuery} does. Best-effort so a failure
+    * cannot fail the whole refresh.
+    */
+   private void clearNormalizedCache(TableAssembly table, AssetQuerySandbox box) {
+      try {
+         AssetQueryCacheNormalizer.clearCache(table, box);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to clear the normalized cache entry for table: " + table.getName(), e);
+      }
    }
 
    /**

@@ -39,6 +39,7 @@ import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.BrowseDataModel;
 import inetsoft.web.composer.model.ws.*;
 import inetsoft.web.composer.ws.RenameColumnController;
+import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.command.SaveWorksheetCommand;
 import inetsoft.web.portal.controller.database.*;
@@ -413,9 +414,7 @@ public class SQLQueryDialogService {
          }
 
          if(tmp instanceof TableAssembly table) {
-            DataRef dataRef = AssetUtil.getOuterAttribute(assemblyName, ref);
-            ColumnRef ref2 =
-               AssetUtil.getColumnRefFromAttribute(table.getColumnSelection(), dataRef);
+            ColumnRef ref2 = WorksheetControllerService.mapToDependentColumn(assembly, table, ref);
 
             if(ref2 != null && !allowsDeletion(ws, table, ref2)) {
                return false;

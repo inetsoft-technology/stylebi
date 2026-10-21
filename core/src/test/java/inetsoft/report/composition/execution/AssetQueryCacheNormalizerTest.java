@@ -64,6 +64,47 @@ public class AssetQueryCacheNormalizerTest {
       assertNull(normalizer.transformTableLens(null));
    }
 
+   // Bug #78940: the AssetDataCache key is derived from this prepared clone, so an invalidation
+   // keyed from the original assembly misses it whenever the clone differs -- unsorted columns,
+   // a hidden column, or a removable alias. Pin the differences clearCache() must account for.
+   @Test
+   public void testPreparedColumnsAreSortedVisibleAndUnaliased78940() {
+      ColumnRef b = new ColumnRef(new AttributeRef(null, "B"));
+      ColumnRef a = new ColumnRef(new AttributeRef(null, "A"));
+      a.setVisible(false);
+      ColumnRef c = new ColumnRef(new AttributeRef(null, "C"));
+      c.setAlias("C0");
+
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(b);
+      cols.addAttribute(a);
+      cols.addAttribute(c);
+
+      TableAssembly table = mock(TableAssembly.class);
+      when(table.getName()).thenReturn("T");
+      when(table.getAggregateInfo()).thenReturn(new AggregateInfo());
+      when(table.getColumnSelection(true)).thenReturn(cols);
+      when(table.getColumnSelection(false)).thenReturn(cols);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getWorksheet()).thenReturn(new Worksheet());
+
+      new AssetQueryCacheNormalizer(table, box, AssetQuerySandbox.RUNTIME_MODE);
+
+      ArgumentCaptor<ColumnSelection> captor = ArgumentCaptor.forClass(ColumnSelection.class);
+      verify(table).setColumnSelection(captor.capture(), eq(false));
+      ColumnSelection prepared = captor.getValue();
+
+      assertEquals(3, prepared.getAttributeCount());
+      String[] expected = { "A", "B", "C" };
+
+      for(int i = 0; i < 3; i++) {
+         ColumnRef col = (ColumnRef) prepared.getAttribute(i);
+         assertEquals(expected[i], col.getAttribute());
+         assertTrue(col.isVisible());
+         assertNull(col.getAlias());
+      }
+   }
+
    // Bug #78679 (problem 2): an expression that reads an aliased column must keep the alias,
    // whichever syntax it reads it with, or the formula table lens no longer finds the column.
    private static String aliasAfterNormalize(String expression) {

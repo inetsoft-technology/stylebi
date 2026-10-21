@@ -791,6 +791,7 @@ public final class TableBindingMutator {
          BDimensionRefModel ref;
          boolean untouched = false;
          BDimensionRefModel echoed = echoOf[i] >= 0 ? previous.get(echoOf[i]) : null;
+         BDimensionRefModel matchedPrevious = echoed;
 
          if(carried != null) {
             BDimensionRefModel carry = i < carried.size() ? carried.get(i) : null;
@@ -802,6 +803,7 @@ public final class TableBindingMutator {
          }
          else {
             int at = previousOccurrence(previous, consumed, fields, i);
+            matchedPrevious = at >= 0 ? previous.get(at) : null;
             ref = at >= 0 ? copyOf(previous.get(at), false) : new BDimensionRefModel();
          }
 
@@ -829,6 +831,10 @@ public final class TableBindingMutator {
          }
 
          boolean resolved = false;
+         // A carried ref that already had a real named group keeps its sort direction when the
+         // group is re-sent (an echo); only a newly-added group switches the order to SPECIFIC.
+         boolean hadGroup = matchedPrevious != null && matchedPrevious.getNamedGroupInfo() != null &&
+            matchedPrevious.getNamedGroupInfo().getType() != 0;
 
          // An echoed stored group (placeholder name) is not a new write; only a group the
          // request itself defines or names is refused on a date column.
@@ -858,7 +864,9 @@ public final class TableBindingMutator {
          }
 
          if(resolved) {
-            ref.setOrder(XConstants.SORT_SPECIFIC);
+            if(!hadGroup) {
+               ref.setOrder(XConstants.SORT_SPECIFIC);
+            }
          }
          else if(echoed != null) {
             ref.setNamedGroupInfo(echoed.getNamedGroupInfo());
@@ -1357,7 +1365,7 @@ public final class TableBindingMutator {
       return formula + "(" + column + ")";
    }
 
-   private static FieldRef fieldOf(DataRefModel ref, String shelf) {
+   static FieldRef fieldOf(DataRefModel ref, String shelf) {
       FieldRef field = FieldRefFactory.from(ref);
 
       // A detail column is neither dimension nor measure on the wire, but the shared

@@ -1428,6 +1428,12 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
          }
 
          String gtext = Tool.toString(arr[i]);
+
+         // an empty selection (e.g. a combo box with a blank value) is an empty ref, same as null
+         if((isVariable() || isScript()) && gtext.isEmpty()) {
+            continue;
+         }
+
          DataRef group = columns.getAttribute(gtext);
 
          if(group == null && !gtext.equals("null") && !gtext.equals("")) {

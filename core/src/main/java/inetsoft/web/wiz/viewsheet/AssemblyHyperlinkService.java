@@ -19,11 +19,16 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.graph.data.DataSet;
 import inetsoft.report.Hyperlink;
+import inetsoft.report.TableDataDescriptor;
+import inetsoft.report.TableDataPath;
 import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.table.RuntimeCalcTableLens;
+import inetsoft.report.internal.table.TableAttr;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.security.IdentityID;
@@ -41,8 +46,10 @@ import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.DataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
+import inetsoft.web.RecycleUtils;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
 import inetsoft.web.composer.model.vs.InputParameterDialogModel;
@@ -144,7 +151,8 @@ public class AssemblyHyperlinkService {
       HyperlinkDialogModel model = hyperlinkService.getHyperlinkDialogModel(
          rvs.getID(), assemblyName, cell.row(), cell.col(), target.colName(), target.axis(),
          target.text(), target.titleLink(), target.emptyPlotLink(), user);
-      Map<String, Object> out = describe(assemblyName, model, target);
+      Map<String, Object> out = describe(assemblyName, model, target,
+         model == null ? null : tableLinkScope(rvs, assemblyName, cell, model.isApplyToRow()));
 
       // A freehand table cell is addressed by layout row/col and read at its runtime instance;
       // echo the cell the caller named, not the runtime one it rendered at.
@@ -180,6 +188,7 @@ public class AssemblyHyperlinkService {
       // silently drop (wrong linkType, or a name matching no VSBookmarkInfo) is refused instead.
       requireValidBookmark(type, link, assetId, user);
 
+      CellLinkScope[] scope = new CellLinkScope[1];
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireTableRendered(rvs, assemblyName);
          Region target = region == null ? Region.whole() : region;
@@ -190,6 +199,7 @@ public class AssemblyHyperlinkService {
             target.axis(), target.text(), target.titleLink(), target.emptyPlotLink(), user);
 
          applyRowScope(assemblyName, model, link, rowLinkTarget(rvs, assemblyName, target.row()));
+         scope[0] = tableLinkScope(rvs, assemblyName, cell, model.isApplyToRow());
          apply(rvs, assemblyName, model, type, link, assetId);
          model.setRejectDerivedMeasure(true);
          ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
@@ -197,7 +207,16 @@ public class AssemblyHyperlinkService {
                                                      user, dispatcher));
       });
 
-      return warnings == null ? List.of() : warnings;
+      List<String> out = warnings == null ? new ArrayList<>() : new ArrayList<>(warnings);
+
+      // The caller addressed one cell; when the link it wrote is really the link of every cell of
+      // that kind, say so (bug #78931), as get_hyperlink's cellLinkScope does on a read.
+      if(scope[0] != null && scope[0].sharedByKind()) {
+         out.add("The link on '" + assemblyName + "' was " +
+                 ("none".equals(type) ? "cleared" : "set") + " for " + scope[0].scope() + ".");
+      }
+
+      return out;
    }
 
    /**
@@ -216,8 +235,8 @@ public class AssemblyHyperlinkService {
 
       if(source != null && !source.isEmpty() && rvs.getViewsheetSandbox().isPresent()) {
          TableLensGuard.requireRenderedLens(
-            rvs, assembly, assemblyName, "its hyperlinks cannot be addressed (they are stored " +
-            "per rendered cell)");
+            rvs, assembly, assemblyName, "its hyperlinks cannot be addressed (a cell link is " +
+            "stored under the rendered cell's kind, its TableDataPath)");
       }
    }
 
@@ -312,7 +331,8 @@ public class AssemblyHyperlinkService {
 
       return TableLensGuard.requireRenderedCell(
          rvs, table, assemblyName, row, col,
-         "no hyperlink can be addressed there (a table's links are stored per rendered cell)");
+         "no hyperlink can be addressed there (a table's links are stored under a rendered " +
+         "cell's kind, its TableDataPath)");
    }
 
    /**
@@ -347,8 +367,9 @@ public class AssemblyHyperlinkService {
          if(model.isApplyToRow() || hasRowLink) {
             String prefix = "'" + assemblyName + "' has a row hyperlink, which every data cell " +
                "of the table fires, and setting a link on this cell would remove it. ";
-            String cellOnly = "link.applyToRow:false to put a link on this cell only -- which " +
-               "removes the row link, since a table holds one or the other.";
+            String cellOnly = "link.applyToRow:false to set a cell link instead -- shared by " +
+               "every cell of this cell's kind (get_hyperlink's cellLinkScope names them), and " +
+               "it removes the row link, since a table holds one or the other.";
 
             // Advise only what the showRow check below accepts (bug #78400): applyToRow:true is
             // refused on a header row and on an embedded table, so it isn't offered there.
@@ -596,10 +617,14 @@ public class AssemblyHyperlinkService {
       String explicit = str(link, "assetLinkId");
 
       if(explicit != null) {
+         AssetRepository idRepository =
+            sessions.resolve(sessionToken, user).getAssetRepository();
+         requireOpenableAssetId(explicit, str(link, "assetLinkPath"), idRepository, user);
          return explicit;
       }
 
       String path = str(link, "assetLinkPath");
+      requireNotRecycled(path);
       AssetRepository repository = sessions.resolve(sessionToken, user).getAssetRepository();
       IdentityID owner = IdentityID.getIdentityIDFromKey(user.getName());
 
@@ -636,8 +661,111 @@ public class AssemblyHyperlinkService {
       throw new IllegalArgumentException(
          "No viewsheet at '" + path + "'. Looked in the global scope and in " + owner.getName() +
          "'s own scope. A link to a viewsheet that does not exist is accepted by the dialog and " +
-         "then does nothing when clicked, so it is refused here instead. Pass 'assetLinkId' " +
-         "directly if you already hold the asset identifier.");
+         "then does nothing when clicked, so it is refused here instead. Use a path from " +
+         "list_hyperlink_targets; to pin a scope, pass its 'assetLinkId' together with the " +
+         "matching 'assetLinkPath'.");
+   }
+
+   /**
+    * True when {@code path} is under the Recycle Bin folder: first segment, optionally after the
+    * {@code My Dashboards/} prefix. Anchored on purpose -- {@code RecycleUtils.isInRecycleBin} is
+    * a substring test and would also match a legitimate "Reports/Recycle Bin Analysis".
+    */
+   static boolean isRecycledPath(String path) {
+      if(path == null) {
+         return false;
+      }
+
+      String p = path;
+      String myPrefix = Tool.MY_DASHBOARD + "/";
+
+      if(p.startsWith(myPrefix)) {
+         p = p.substring(myPrefix.length());
+      }
+
+      String bin = RecycleUtils.RECYCLE_BIN_FOLDER;
+      return p.equals(bin) || p.startsWith(bin + "/");
+   }
+
+   private static void requireNotRecycled(String path) {
+      if(isRecycledPath(path)) {
+         throw new IllegalArgumentException(
+            "The viewsheet at '" + path + "' is in the Recycle Bin (deleted). A link to a " +
+            "deleted viewsheet does nothing when clicked, so it is refused. Restore the " +
+            "viewsheet first, or link to a viewsheet listed by list_hyperlink_targets.");
+      }
+   }
+
+   /**
+    * Validates an explicit {@code assetLinkId}: it must parse as a viewsheet asset identifier,
+    * must not point into the Recycle Bin, must name the same asset as {@code assetLinkPath}
+    * (bug #78934: a path for one sheet with the id of another was stored as the id's sheet), and
+    * must exist. The existence check is skipped for an id carrying another organization's id: the
+    * Composer dialog passes cross-org ids and {@code containsEntry} was never verified to accept
+    * them, so only the path agreement is enforced there.
+    */
+   private static void requireOpenableAssetId(String id, String path, AssetRepository repository,
+                                              Principal user) throws Exception
+   {
+      AssetEntry entry;
+
+      try {
+         entry = AssetEntry.createAssetEntry(id);
+      }
+      catch(RuntimeException e) {
+         entry = null;
+      }
+
+      if(entry == null || entry.getType() != AssetEntry.Type.VIEWSHEET || entry.getPath() == null) {
+         throw new IllegalArgumentException(
+            "'" + id + "' is not a valid viewsheet asset identifier. Pass an 'assetLinkId' " +
+            "exactly as list_hyperlink_targets returns it, or use 'assetLinkPath'.");
+      }
+
+      requireNotRecycled(entry.getPath());
+
+      String expected = entry.getPath();
+      String given = path;
+      String myPrefix = Tool.MY_DASHBOARD + "/";
+
+      if(given != null && entry.getScope() == AssetRepository.USER_SCOPE &&
+         given.startsWith(myPrefix))
+      {
+         given = given.substring(myPrefix.length());
+      }
+
+      if(given != null && !expected.equals(given)) {
+         throw new IllegalArgumentException(
+            "'assetLinkPath' ('" + path + "') and 'assetLinkId' ('" + id + "', path '" +
+            expected + "') name different viewsheets. Pass the assetLinkId together with the " +
+            "assetLinkPath of the same entry from list_hyperlink_targets.");
+      }
+
+      String entryOrg = entry.getOrgID();
+      String callerOrg = IdentityID.getIdentityIDFromKey(user.getName()).getOrgID();
+      boolean otherOrg = entryOrg != null && callerOrg != null &&
+         !entryOrg.equalsIgnoreCase(callerOrg);
+
+      if(!otherOrg && !repository.containsEntry(entry)) {
+         throw new IllegalArgumentException(
+            "No viewsheet with assetLinkId '" + id + "'. A link to a viewsheet that does not " +
+            "exist is accepted by the dialog and then does nothing when clicked, so it is " +
+            "refused here instead. Use an assetLinkId from list_hyperlink_targets.");
+      }
+   }
+
+   private static boolean isRecycledId(String id) {
+      if(id == null) {
+         return false;
+      }
+
+      try {
+         AssetEntry entry = AssetEntry.createAssetEntry(id);
+         return entry != null && isRecycledPath(entry.getPath());
+      }
+      catch(RuntimeException e) {
+         return false;
+      }
    }
 
    /**
@@ -1042,7 +1170,7 @@ public class AssemblyHyperlinkService {
    }
 
    private static Map<String, Object> describe(String assemblyName, HyperlinkDialogModel model,
-                                               Region asked)
+                                               Region asked, CellLinkScope scope)
    {
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
@@ -1061,6 +1189,17 @@ public class AssemblyHyperlinkService {
       // same-named assets across scopes a link actually resolved to.
       out.put("assetLinkId", model.getAssetLinkId());
       out.put("bookmark", model.getBookmark());
+
+      // Deleting a viewsheet moves it to the Recycle Bin and the dependency transformer rewrites
+      // links to it, so the stored target reads back as "Recycle Bin/<uuid>" with no signal.
+      if(model.getLinkType() == Hyperlink.VIEWSHEET_LINK &&
+         (isRecycledPath(model.getAssetLinkPath()) || isRecycledId(model.getAssetLinkId())))
+      {
+         out.put("targetDeleted", true);
+         out.put("warning", "The linked viewsheet was deleted and is in the Recycle Bin; " +
+                 "this link will not open. Restore the viewsheet or set a new target.");
+      }
+
       // model.isSelf() is dialog-model UI sugar: HyperlinkDialogService.getHyperlinkDialogModel
       // blanks targetFrame to "" and sets self=true whenever the persisted Hyperlink.targetFrame
       // was the literal "SELF", so it must be reconstructed here for this class's own wire
@@ -1100,7 +1239,264 @@ public class AssemblyHyperlinkService {
       out.put("axisAndDataPointShareLink",
               model.getColName() != null &&
               !(asked != null && (asked.titleLink() || asked.emptyPlotLink())));
+
+      // A table cell's link is stored under the cell's kind, not its position, so the row/col
+      // above only address it; these say which rendered cells actually fire it (bug #78931).
+      if(scope != null) {
+         out.put("cellLinkScope", scope.scope());
+         out.put("cellLinkSharedByKind", scope.sharedByKind());
+      }
+
       return out;
+   }
+
+   /**
+    * Which rendered cells fire the link a table-type assembly holds at a cell, in words, and
+    * whether that is more than the one cell by its nature (bug #78931).
+    *
+    * <p>{@code HyperlinkDialogService} stores a cell link in {@code TableHyperlinkAttr} under the
+    * cell's {@link TableDataPath}, exactly as the Composer's hyperlink dialog does, and the
+    * Viewer fires it on every cell that path matches. That path names a cell's kind, never a
+    * row or a value, so a link set "on a cell" is the link of a whole set of cells.
+    */
+   record CellLinkScope(String scope, boolean sharedByKind) {
+   }
+
+   /** {@code null} for a non-table assembly or a table that did not render. */
+   private static CellLinkScope tableLinkScope(RuntimeViewsheet rvs, String assemblyName,
+                                               TableLensGuard.Cell cell, boolean rowLink)
+      throws Exception
+   {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof TableDataVSAssembly)) {
+         return null;
+      }
+
+      if(rowLink) {
+         return rowLinkScope(assembly.getVSAssemblyInfo() instanceof TableVSAssemblyInfo info &&
+                             info.getFormValue());
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      VSTableLens lens = box == null || box.isEmpty()
+         ? null : TableLensGuard.lensOrNull(box.get(), assemblyName, false);
+      return lens == null ? null : cellLinkScope(lens, cell.row(), cell.col());
+   }
+
+   /**
+    * A row link: {@code BaseTableService.getRowHyperlinks} sends it for every data row, except
+    * on a Form table, where it is never sent.
+    */
+   static CellLinkScope rowLinkScope(boolean form) {
+      String stored = "a table holding a row link has no cell links (writing one removed every " +
+         "cell link in the table, header cells and other columns included)";
+
+      if(form) {
+         return new CellLinkScope(
+            "the table's row hyperlink (Apply to Row), which no cell fires: this is a Form " +
+            "table, and the Viewer does not fire a row hyperlink on one; " + stored, true);
+      }
+
+      return new CellLinkScope(
+         "the table's row hyperlink (Apply to Row): every data cell of every row fires it; " +
+         stored, true);
+   }
+
+   /**
+    * The scope of the cell link at a rendered cell, matched the way the Viewer matches it
+    * ({@code TableHyperlinkAttr.HyperlinkTableLens}): on a crosstab and a freehand table, every
+    * cell whose path equals this one; on a plain table, every row of the right type in the
+    * <b>first</b> column whose header equals the path's ({@code TableAttr.getColumns}), which on
+    * a duplicate header is not the addressed column. {@code null} when the cell has no path.
+    *
+    * <p>{@code sharedByKind} is whether more than one rendered cell matches right now, counted
+    * by that same rule, never assumed from the cell's kind: a kind that repeats in one crosstab
+    * (a column header) can be a single cell in another (the measure title of a crosstab with no
+    * column dimension, or a grand total).
+    */
+   static CellLinkScope cellLinkScope(TableLens lens, int row, int col) {
+      TableDataDescriptor desc = lens == null ? null : lens.getDescriptor();
+      TableDataPath path = desc == null ? null : desc.getCellDataPath(row, col);
+      String[] names = path == null ? null : path.getPath();
+
+      if(names == null || names.length == 0) {
+         return null;
+      }
+
+      return switch(desc.getType()) {
+         case TableDataDescriptor.CROSSTAB_TABLE -> crosstabScope(lens, path, row, col);
+         case TableDataDescriptor.CALC_TABLE -> calcScope(lens, names[0]);
+         default -> plainScope(lens, path, col);
+      };
+   }
+
+   private static CellLinkScope plainScope(TableLens lens, TableDataPath path, int col) {
+      String header = path.getPath()[0];
+      boolean headerCell = path.getType() == TableDataPath.HEADER;
+      String rows = headerCell ? "every header row"
+         : path.getType() == TableDataPath.TRAILER ? "every summary (trailer) row"
+         : "every data row";
+      String stored = "a table's cell link is stored per column header, not per cell";
+      int[] cols = TableAttr.getColumns(lens, header);
+      int fires = cols == null || cols.length == 0 ? -1 : cols[0];
+
+      if(fires == col) {
+         if(matchingRows(lens, path, col) > 1) {
+            return new CellLinkScope(
+               rows + " of column " + col + " ('" + header + "'), not just this row: " + stored +
+               ", so every row of the column fires the same link", true);
+         }
+
+         return new CellLinkScope(
+            "this " + (headerCell ? "header " : "") + "cell only (column " + col + ", '" +
+            header + "'), the only such row right now" + (headerCell ? "" : "; " + stored +
+            ", so " + rows + " the column gets would fire it too"), false);
+      }
+
+      return new CellLinkScope(
+         "no cell of column " + col + ": " + stored + ", and the Viewer fires a link stored " +
+         "under '" + header + "' on " + (fires < 0 ? "no column at all" : rows + " of column " +
+         fires + ", the first column with that header") + ". Rename one of the duplicate " +
+         "headers to link this column", true);
+   }
+
+   /**
+    * How many rows of column {@code col} the Viewer fires a plain-table link stored under
+    * {@code path} on, counting up to 2: whether it is shared is all that matters, and stopping
+    * there keeps a large table from being loaded in full. A header or data path finds its second
+    * row at once; only a trailer path, at the end of the table, reads to the end.
+    */
+   private static int matchingRows(TableLens lens, TableDataPath path, int col) {
+      TableDataDescriptor desc = lens.getDescriptor();
+      int matches = 0;
+
+      for(int r = 0; matches < 2 && lens.moreRows(r); r++) {
+         if(path.getType() == TableDataPath.HEADER && r >= lens.getHeaderRowCount()) {
+            break;
+         }
+
+         matches += desc.isCellDataPathType(r, col, path) ? 1 : 0;
+      }
+
+      return matches;
+   }
+
+   /**
+    * Whether another rendered cell has this crosstab cell's path (the Viewer's match). Only this
+    * cell's row and column need scanning: a crosstab path fixes the row and column group depth
+    * (and the measure), so if a cell (r2, c2) elsewhere matched, so would (row, c2) on this row,
+    * and a header cell's path fixes its header row or column outright.
+    */
+   private static boolean sharesCrosstabPath(TableLens lens, TableDataPath path, int row,
+                                             int col)
+   {
+      TableDataDescriptor desc = lens.getDescriptor();
+
+      for(int c = 0; c < lens.getColCount(); c++) {
+         if(c != col && path.equals(desc.getCellDataPath(row, c))) {
+            return true;
+         }
+      }
+
+      for(int r = 0; lens.moreRows(r); r++) {
+         if(r != row && path.equals(desc.getCellDataPath(r, col))) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static CellLinkScope crosstabScope(TableLens lens, TableDataPath path, int row,
+                                              int col)
+   {
+      String[] names = path.getPath();
+      String last = names[names.length - 1];
+      boolean colHeader = row < lens.getHeaderRowCount();
+      boolean header = colHeader || col < lens.getHeaderColCount();
+
+      if(path.getType() == TableDataPath.HEADER && last.startsWith("Cell [")) {
+         return new CellLinkScope("this cell only (a corner or empty header cell, which is " +
+                                  "stored by its position)", false);
+      }
+
+      if(!sharesCrosstabPath(lens, path, row, col)) {
+         return new CellLinkScope(
+            "this cell only, the only rendered cell of its kind right now; a crosstab's cell " +
+            "link is stored per kind of cell (its fields, group level and measure -- never its " +
+            "values), so a cell of the same kind added later would fire it too", false);
+      }
+
+      String kind = switch(path.getType()) {
+         case TableDataPath.HEADER ->
+            "every label cell of measure '" + last + "', not just this one -- the label " +
+            "repeats once per column group (once per row group when measures are stacked in " +
+            "rows), and every repeat fires it";
+         case TableDataPath.GROUP_HEADER -> colHeader
+            ? "every column-header cell of this column dimension at this level -- each of its " +
+              "values, across every column -- not just this one"
+            : "every row-header cell of this row dimension at this level -- each of its " +
+              "values, on every row -- not just this one";
+         case TableDataPath.SUMMARY -> header
+            ? "every subtotal ('Total') label cell of this group level, not just this one"
+            : "every aggregate cell of measure '" + last + "' at this same row- and " +
+              "column-group level: every row of that kind (for a subtotal cell, every " +
+              "subtotal row of that level) and, when the crosstab has column headers, every " +
+              "column group of that measure -- not just this cell or this column";
+         case TableDataPath.GRAND_TOTAL -> header
+            ? "the grand-total label cell(s) of this grand-total row or column"
+            : "every grand-total cell of measure '" + last + "' along this grand-total row " +
+              "or column, not just this one";
+         default -> "every cell of this cell's kind (" + path + "), not just this one";
+      };
+
+      return new CellLinkScope(kind + ": a crosstab's cell link is stored per kind of cell " +
+         "(its fields, group level and measure -- never its values), not per cell", true);
+   }
+
+   /** A freehand cell's path is its layout cell, {@code "Cell [r,c]"}; count its copies. */
+   private static CellLinkScope calcScope(TableLens lens, String cellPath) {
+      RuntimeCalcTableLens runtime =
+         (RuntimeCalcTableLens) Util.getNestedTable(lens, RuntimeCalcTableLens.class);
+      String layoutCell = cellPath.substring(Math.max(0, cellPath.indexOf('[')));
+      String stored = "a freehand table's cell link is stored per layout cell, so every " +
+         "rendered copy of it fires the same link";
+      int copies = -1;
+
+      try {
+         String[] rc = cellPath.substring(cellPath.indexOf('[') + 1, cellPath.indexOf(']'))
+            .split(",");
+         int layoutRow = Integer.parseInt(rc[0].trim());
+         int layoutCol = Integer.parseInt(rc[1].trim());
+         int rows = 0;
+         int cols = 0;
+
+         for(int r = 0; runtime != null && runtime.moreRows(r); r++) {
+            rows += runtime.getRow(r) == layoutRow ? 1 : 0;
+         }
+
+         for(int c = 0; runtime != null && c < runtime.getColCount(); c++) {
+            cols += runtime.getCol(c) == layoutCol ? 1 : 0;
+         }
+
+         copies = runtime == null ? -1 : rows * cols;
+      }
+      catch(RuntimeException ignore) {
+         // not a "Cell [r,c]" path: the number of copies stays unknown
+      }
+
+      if(copies == 1) {
+         return new CellLinkScope(
+            "this cell only, layout cell " + layoutCell + ", which renders once right now (" +
+            stored + ", should a group it sits in expand)", false);
+      }
+
+      return new CellLinkScope(
+         "every rendered copy of layout cell " + layoutCell +
+         (copies > 1 ? " -- " + copies + " cells right now, since a group it sits in expands" : "") +
+         " -- not just one of them: " + stored, true);
    }
 
    private static List<Map<String, Object>> describeParamList(
