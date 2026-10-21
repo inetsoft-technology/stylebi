@@ -2099,7 +2099,7 @@ public class WorksheetAgentController {
       try {
          rawDataService.writeLiveWorksheetTableCsvStream(rws, table, response.getOutputStream());
       }
-      catch(RuntimeException e) {
+      catch(Exception e) {
          // an unhandled RuntimeException is a bare 500 with no body; report the cause instead
          if(response.isCommitted()) {
             throw e;

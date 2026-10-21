@@ -38,6 +38,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -236,6 +237,34 @@ class RawDataServiceTest {
     * A failed JS expression column makes the sandbox hand back a failed-query design lens (sample
     * rows, not null). The export must fail loudly, like preview, and write no bytes (Redmine 78271).
     */
+   /**
+    * Bug #78972: a CHECKED exception from the sandbox (e.g. the raw
+    * {@link ExecutionException} a join/concatenation's first sub-query future used to let
+    * escape uncaught before Bug #78972's own {@code JoinQuery}/{@code ConcatenatedQuery} fix)
+    * must not escape this method uncaught -- {@code catch(RuntimeException e)} here used to
+    * miss it entirely, since {@link ExecutionException} is not a {@link RuntimeException},
+    * which produced a bare, body-less HTTP 500 at the controller.
+    */
+   @Test
+   void writeLiveWorksheetTableCsvStreamWrapsACheckedExceptionInsteadOfLettingItEscape()
+      throws Exception
+   {
+      Deps deps = new Deps();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt()))
+         .thenThrow(new ExecutionException("sub-query failed", new IllegalStateException("root cause")));
+      RuntimeWorksheet rws = liveRuntimeWorksheet(ws, box);
+
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> deps.service().writeLiveWorksheetTableCsvStream(rws, "T", new ByteArrayOutputStream()));
+      assertTrue(ex.getMessage().contains("sub-query failed"),
+         "expected the underlying cause, got: " + ex.getMessage());
+   }
+
    @Test
    void writeLiveWorksheetTableCsvStreamFailsLoudlyOnFailedQueryLens() throws Exception {
       Deps deps = new Deps();

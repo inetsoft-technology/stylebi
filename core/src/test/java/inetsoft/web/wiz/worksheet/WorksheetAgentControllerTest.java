@@ -117,6 +117,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -2410,6 +2411,37 @@ class WorksheetAgentControllerTest {
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
          () -> ctrl.exportTable("TOK", "T", agent, servletResponse));
       assertTrue(ex.getReason().contains("undefinedFn is not defined"));
+      verify(servletResponse).reset();
+   }
+
+   /**
+    * Bug #78972: a CHECKED exception from the raw data service (e.g. the raw
+    * {@link ExecutionException} a join/concatenation's first sub-query future used to let
+    * escape uncaught before Bug #78972's own {@code JoinQuery}/{@code ConcatenatedQuery} fix)
+    * must not become a bare, body-less HTTP 500 -- {@code catch(RuntimeException e)} here used
+    * to miss it entirely, since {@link ExecutionException} is not a {@link RuntimeException}.
+    */
+   @Test
+   void exportTableReportsACheckedExceptionAsAResponseStatusException() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      RawDataService rawDataService = mock(RawDataService.class);
+      doThrow(new ExecutionException("sub-query failed", new IllegalStateException("root cause")))
+         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         rawDataService);
+
+      HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.exportTable("TOK", "T", agent, servletResponse));
+      assertTrue(ex.getReason().contains("sub-query failed"));
       verify(servletResponse).reset();
    }
 

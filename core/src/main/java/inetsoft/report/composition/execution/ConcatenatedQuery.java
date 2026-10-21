@@ -21,6 +21,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.QueryTreeModel.QueryNode;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.internal.Util;
+import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.lens.SetTableLens;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
@@ -150,6 +151,15 @@ public class ConcatenatedQuery extends AssetQuery {
          // leaking one task's messages into the next task's MessageException.
          final UserMessage[] subMessages = new UserMessage[queries.length];
 
+         // @by Bug #78972: a sub-query's own clean root-cause text (set by
+         // XSessionManager.getXNodeTableLens's generic catch(Exception) branch via
+         // XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE) is likewise local to the pool
+         // thread that ran it. Without draining it here, the MessageException built
+         // below from the sub-query's own warning text can still carry the raw,
+         // unwrapped exception class name (e.g. "java.sql.SQLSyntaxErrorException: ..."),
+         // same reason as subMessages above.
+         final String[] subFailureCauses = new String[queries.length];
+
          for(int qi = 0; qi < queries.length; qi++) {
             final AssetQuery q = queries[qi];
             final int index = qi;
@@ -197,6 +207,32 @@ public class ConcatenatedQuery extends AssetQuery {
                   if(!serial) {
                      subMessages[index] = Tool.getUserMessage();
                   }
+
+                  // @by Bug #78972: unlike subMessages[] above, this must be captured
+                  // unconditionally, including in the serial path. In serial mode every
+                  // sub-query's task runs synchronously, one fully finishing before the
+                  // next one's own task starts, all on this SAME calling thread -- and
+                  // each sub-query's own XSessionManager.getXNodeTableLens call
+                  // self-clears this same thread-local slot at its own start
+                  // (XSessionManager.java:517). Without capturing it here, a later
+                  // sub-query (success or failure) silently overwrites or clears an
+                  // earlier sub-query's own clean cause before the result-processing
+                  // loop below ever reads it -- unlike subMessages[], which does not need
+                  // this because it is read directly off the thread it was raised on.
+                  //
+                  // Not every sub-query type routes through getXNodeTableLens -- only
+                  // BoundQuery does (its sole caller besides AssetQuery itself); a sibling
+                  // (EmbeddedQuery, MirrorQuery, RotatedQuery, UnpivotQuery, DataQuery,
+                  // MVAssetQuery) never touches this thread-local at all. So a plain .get()
+                  // here is not enough: a BoundQuery member's clean cause would otherwise
+                  // survive -- unread, unremoved -- to be misread as a LATER, different
+                  // member's own cause when that later member is one of those six types and
+                  // independently fails too. Remove it immediately after reading, mirroring
+                  // XSessionManager's own self-clear-at-entry convention, so a member that
+                  // never sets it starts (and is captured) clean rather than inheriting a
+                  // neighbor's stale leftover.
+                  subFailureCauses[index] = XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get();
+                  XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
                }
             };
 
@@ -216,6 +252,9 @@ public class ConcatenatedQuery extends AssetQuery {
 
          try {
             table = results.get(0).get();
+         }
+         catch(ExecutionException ex) {
+            throw toMessageException(ex, subFailureCauses[0]);
          }
          finally {
             Tool.addUserMessage(subMessages[0]);
@@ -248,18 +287,7 @@ public class ConcatenatedQuery extends AssetQuery {
                table2 = results.get(i).get();
             }
             catch(ExecutionException ex) {
-               MessageException mex = new MessageException(ex.getCause().getMessage());
-
-               // need to log in case this is run from scheduler
-               if(ex.getCause() instanceof MessageException) {
-                  mex = (MessageException) ex.getCause();
-                  LOG.warn("Subquery execution error: " + mex.getMessage());
-               }
-               else {
-                  LOG.warn("Subquery execution error: " + ex.getCause(), ex);
-               }
-
-               throw mex;
+               throw toMessageException(ex, subFailureCauses[i]);
             }
             finally {
                Tool.addUserMessage(subMessages[i]);
@@ -309,6 +337,45 @@ public class ConcatenatedQuery extends AssetQuery {
             executor.shutdown();
          }
       }
+   }
+
+   /**
+    * Builds the {@link MessageException} to throw for a failed sub-query future.
+    *
+    * @param ex         the {@link ExecutionException} thrown by {@code Future.get()}.
+    * @param cleanCause the sub-query's clean root-cause text drained from
+    *                    {@link XNodeMetaTable#LAST_FAILED_QUERY_MESSAGE} on that sub-query's
+    *                    own (possibly pooled) thread, or {@code null} if none was captured.
+    * @return the exception to throw.
+    */
+   private MessageException toMessageException(ExecutionException ex, String cleanCause) {
+      MessageException mex;
+
+      // need to log in case this is run from scheduler
+      if(ex.getCause() instanceof MessageException) {
+         mex = (MessageException) ex.getCause();
+
+         // @by Bug #78972: the sub-query's own MessageException message may still carry
+         // the raw, unwrapped exception text (e.g. "java.sql.SQLSyntaxErrorException: ...")
+         // because it was built from Tool.addUserWarning's own un-cleaned text
+         // (XSessionManager.getXNodeTableLens), not from the clean root-cause text that
+         // same method also captures into XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE. Prefer
+         // the clean text when one was drained.
+         if(cleanCause != null && !cleanCause.isBlank()) {
+            mex = new MessageException(cleanCause, mex.getLogLevel(), mex.isDumpStack(),
+                                        mex.getWarningLevel());
+         }
+
+         LOG.warn("Subquery execution error: " + mex.getMessage());
+      }
+      else {
+         String msg = cleanCause != null && !cleanCause.isBlank() ?
+            cleanCause : ex.getCause().getMessage();
+         mex = new MessageException(msg);
+         LOG.warn("Subquery execution error: " + ex.getCause(), ex);
+      }
+
+      return mex;
    }
 
    /**
