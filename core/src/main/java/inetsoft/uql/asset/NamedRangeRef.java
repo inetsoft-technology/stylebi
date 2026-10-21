@@ -525,6 +525,57 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
       return condition.isNegated() ? "!(" + pred + ")" : "(" + pred + ")";
    }
 
+   /**
+    * Render one value of a legacy (EQUAL_TO, LESS_THAN, GREATER_THAN) condition on a
+    * FLOAT/DOUBLE column, honoring the operator. Null fields never match.
+    */
+   private String getFloatingScriptPredicate(Condition condition, int k, String field) {
+      int op = condition.getOperation();
+      boolean isFloat = XSchema.FLOAT.equals(getBaseDataType());
+
+      if(op == XCondition.EQUAL_TO && !isFloat) {
+         return field + " != null && abs(" + condition.getValue(k) + " - " + field +
+            ") < 0.000001 )";
+      }
+
+      Object value = condition.getValue(k);
+      double d;
+
+      try {
+         d = Double.parseDouble(("" + value).trim());
+      }
+      catch(NumberFormatException ex) {
+         return "false)";
+      }
+
+      if(Double.isNaN(d) || Double.isInfinite(d)) {
+         return "false)";
+      }
+
+      String lit = Double.toString(d);
+      // a float column holds the float nearest to the typed value, so compare against that
+      // float exactly (no margin); a margin would misclassify distinct floats near the bound
+      String bound = isFloat ? "Math.fround(" + lit + ")" : lit;
+      String num = "Number(" + field + ")";
+      String pred;
+
+      switch(op) {
+      case XCondition.EQUAL_TO:
+         pred = bound + " == " + num; // DOUBLE EQUAL_TO returned above
+         break;
+      case XCondition.LESS_THAN:
+         pred = num + (condition.isEqual() ? " <= " : " < ") + bound;
+         break;
+      case XCondition.GREATER_THAN:
+         pred = num + (condition.isEqual() ? " >= " : " > ") + bound;
+         break;
+      default:
+         pred = "false";
+      }
+
+      return field + " != null && (" + pred + "))";
+   }
+
    private String getScriptLiteral(Object value, boolean numeric, boolean fdate, boolean cs) {
       if(fdate && value instanceof Date) {
          Calendar calendar = CoreTool.calendar.get();
@@ -774,8 +825,7 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
                   val = encodeScript(val);
 
                   if(fnumber) {
-                     sb.append(field + " != null && abs(" + condition.getValue(k) +
-                        " - " + field + ") < 0.000001 )");
+                     sb.append(getFloatingScriptPredicate(condition, k, field));
                      continue;
                   }
                   else if(fdate && !isNull && value instanceof Date) {

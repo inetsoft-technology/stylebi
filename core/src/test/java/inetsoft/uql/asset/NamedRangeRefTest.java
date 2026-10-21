@@ -319,4 +319,210 @@ class NamedRangeRefTest {
       assertTrue(sql(XSchema.INTEGER, "derby",
          cond(XSchema.INTEGER, XCondition.BETWEEN, 1, 5)).contains("BETWEEN 1 AND 5"));
    }
+
+   // ---------------------------------------------------------------- Bug #79129 FLOAT / DOUBLE
+
+   private static final String[] FP_TYPES = { XSchema.DOUBLE, XSchema.FLOAT };
+
+   /** Evaluate with a raw JS literal as the field value (e.g. Math.fround(999.99)). */
+   private static Object evalRaw(NamedRangeRef ref, String jsLiteral) {
+      String script = "var abs = Math.abs; function numberToString(x) { return String(x); }\n" +
+         "var field = {'" + COL + "': " + jsLiteral + "};\n" + ref.getScriptExpression();
+
+      try(Context ctx = Context.newBuilder("js").build()) {
+         Value v = ctx.eval("js", script);
+         return v.isNull() ? null : v.isNumber() ? v.asDouble() : v.asString();
+      }
+   }
+
+   /** Group "G" for a single-operator condition; rows grouped are those evaluating to "G". */
+   private static boolean grouped(String type, Condition c, String jsValue) {
+      return "G".equals(evalRaw(ref(type, "derby", list(c)), jsValue));
+   }
+
+   private static ConditionList andList(Condition a, Condition b) {
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(new AttributeRef(COL), a, 0));
+      list.append(new JunctionOperator(JunctionOperator.AND, 0));
+      list.append(new ConditionItem(new AttributeRef(COL), b, 0));
+      return list;
+   }
+
+   private static Condition ge(String type, Object v) {
+      Condition c = cond(type, XCondition.GREATER_THAN, v);
+      c.setEqual(true);
+      return c;
+   }
+
+   private static Condition le(String type, Object v) {
+      Condition c = cond(type, XCondition.LESS_THAN, v);
+      c.setEqual(true);
+      return c;
+   }
+
+   private static final String[] ROWS = {
+      "-15.5", "-5.25", "0", "5.5", "10", "15.75", "19.99", "20", "25.5", "999.99" };
+
+   private static String rows(String type, Condition c) {
+      NamedRangeRef r = ref(type, "derby", list(c));
+      return rows(r);
+   }
+
+   private static String rows(NamedRangeRef r) {
+      StringBuilder sb = new StringBuilder();
+
+      for(String row : ROWS) {
+         // a FLOAT column holds the float nearest the decimal, simulate with fround
+         String js = XSchema.FLOAT.equals(r.getBaseDataType()) ?
+            "Math.fround(" + row + ")" : row;
+
+         if("G".equals(evalRaw(r, js))) {
+            sb.append(sb.length() > 0 ? "," : "").append(row);
+         }
+      }
+
+      return sb.toString();
+   }
+
+   @Test
+   void floatingLessThanIsExclusiveOfTheBound() {
+      for(String t : FP_TYPES) {
+         assertEquals("-15.5,-5.25,0,5.5", rows(t, cond(t, XCondition.LESS_THAN, "10")), t);
+         assertEquals("-15.5,-5.25,0,5.5", rows(t, cond(t, XCondition.LESS_THAN, 10.0)), t);
+         assertEquals("-15.5,-5.25,0,5.5,10", rows(t, le(t, "10")), t);
+      }
+   }
+
+   @Test
+   void floatingGreaterThanIsExclusiveOfTheBound() {
+      for(String t : FP_TYPES) {
+         assertEquals("25.5,999.99", rows(t, cond(t, XCondition.GREATER_THAN, "20")), t);
+         assertEquals("20,25.5,999.99", rows(t, ge(t, "20")), t);
+      }
+   }
+
+   @Test
+   void floatingRangePairs() {
+      for(String t : FP_TYPES) {
+         // the Named Group dialog range shape: >= a AND < b
+         assertEquals("10,15.75,19.99", rows(ref(t, "derby",
+            andList(ge(t, "10"), cond(t, XCondition.LESS_THAN, "20")))), t);
+         assertEquals("-5.25", rows(ref(t, "derby",
+            andList(ge(t, "-10"), cond(t, XCondition.LESS_THAN, "0")))), t);
+         // bound that is not exactly representable as a float
+         assertEquals("19.99", rows(ref(t, "derby",
+            andList(ge(t, "19.99"), cond(t, XCondition.LESS_THAN, "20")))), t);
+      }
+   }
+
+   @Test
+   void floatingBetweenNotAndEqualToUnchanged() {
+      for(String t : FP_TYPES) {
+         assertEquals("10,15.75,19.99,20",
+            rows(t, cond(t, XCondition.BETWEEN, "10", "20")), t);
+         assertEquals("10,15.75,19.99,20,25.5,999.99",
+            rows(t, neg(cond(t, XCondition.LESS_THAN, "10"))), t);
+         assertEquals("10", rows(t, cond(t, XCondition.EQUAL_TO, "10")), t);
+         assertEquals("5.5", rows(t, cond(t, XCondition.EQUAL_TO, 5.5)), t);
+      }
+   }
+
+   @Test
+   void floatEqualToLargeValue() {
+      // float 999.99f differs from the double 999.99 by about 1e-5
+      assertEquals("999.99", rows(XSchema.FLOAT, cond(XSchema.FLOAT, XCondition.EQUAL_TO, "999.99")));
+      assertEquals("19.99", rows(XSchema.FLOAT, cond(XSchema.FLOAT, XCondition.EQUAL_TO, "19.99")));
+      assertEquals("999.99", rows(XSchema.DOUBLE, cond(XSchema.DOUBLE, XCondition.EQUAL_TO, "999.99")));
+   }
+
+   @Test
+   void floatNearBoundaryUsesExactFloatSemantics() {
+      // distinct floats within 1e-5 of the bound must fall on their own side, no margin
+      String[] near = { "9.999995", "10", "10.000005", "0.0009995", "0.001", "0.0010005" };
+
+      for(String bound : new String[] { "10", "0.001" }) {
+         float b = Float.parseFloat(bound);
+         int[] ops = { XCondition.LESS_THAN, XCondition.GREATER_THAN, XCondition.EQUAL_TO };
+
+         for(int op : ops) {
+            for(boolean eq : new boolean[] { false, true }) {
+               if(op == XCondition.EQUAL_TO && eq) {
+                  continue;
+               }
+
+               Condition c = cond(XSchema.FLOAT, op, bound);
+               c.setEqual(eq);
+               NamedRangeRef r = ref(XSchema.FLOAT, "derby", list(c));
+               StringBuilder expected = new StringBuilder();
+               StringBuilder actual = new StringBuilder();
+
+               for(String row : near) {
+                  float f = Float.parseFloat(row);
+                  boolean in = op == XCondition.EQUAL_TO ? f == b :
+                     op == XCondition.LESS_THAN ? (eq ? f <= b : f < b) :
+                        (eq ? f >= b : f > b);
+
+                  if(in) {
+                     expected.append(expected.length() > 0 ? "," : "").append(row);
+                  }
+
+                  if("G".equals(evalRaw(r, "Math.fround(" + row + ")"))) {
+                     actual.append(actual.length() > 0 ? "," : "").append(row);
+                  }
+               }
+
+               assertEquals(expected.toString(), actual.toString(),
+                  "bound " + bound + " op " + op + " equal " + eq);
+            }
+         }
+      }
+   }
+
+   @Test
+   void floatNearBoundaryExplicitCases() {
+      String t = XSchema.FLOAT;
+      assertEquals("10.000005", nearRows(cond(t, XCondition.GREATER_THAN, "10")));
+      assertEquals("9.999995", nearRows(cond(t, XCondition.LESS_THAN, "10")));
+      assertEquals("9.999995,10", nearRows(le(t, "10")));
+      assertEquals("10,10.000005", nearRows(ge(t, "10")));
+      assertEquals("10", nearRows(cond(t, XCondition.EQUAL_TO, "10")));
+      assertEquals("0.0010005", nearRows(cond(t, XCondition.GREATER_THAN, "0.001")));
+      assertEquals("0.0009995,0.001", nearRows(le(t, "0.001")));
+   }
+
+   private static String nearRows(Condition c) {
+      NamedRangeRef r = ref(XSchema.FLOAT, "derby", list(c));
+      StringBuilder sb = new StringBuilder();
+
+      for(String row : new String[] {
+         "9.999995", "10", "10.000005", "0.0009995", "0.001", "0.0010005" }) {
+         boolean tenSide = !row.startsWith("0.");
+         boolean tenBound = c.getValue(0).toString().startsWith("10");
+
+         if(tenSide == tenBound && "G".equals(evalRaw(r, "Math.fround(" + row + ")"))) {
+            sb.append(sb.length() > 0 ? "," : "").append(row);
+         }
+      }
+
+      return sb.toString();
+   }
+
+   @Test
+   void floatingNullAndNonNumericNeverMatch() {
+      for(String t : FP_TYPES) {
+         assertFalse(grouped(t, cond(t, XCondition.LESS_THAN, "10"), "null"), t);
+         assertFalse(grouped(t, cond(t, XCondition.GREATER_THAN, "10"), "null"), t);
+         assertFalse(grouped(t, cond(t, XCondition.EQUAL_TO, "10"), "null"), t);
+         assertFalse(grouped(t, cond(t, XCondition.LESS_THAN, "abc"), "5"), t);
+         assertFalse(grouped(t, cond(t, XCondition.LESS_THAN, "10"), "NaN"), t);
+      }
+   }
+
+   @Test
+   void doubleEqualToScriptUnchanged() {
+      assertTrue(script(XSchema.DOUBLE, cond(XSchema.DOUBLE, XCondition.EQUAL_TO, "10"))
+         .contains("field['Customer:State'] != null && abs(10.0 - field['Customer:State']) "
+            + "< 0.000001 )"), script(XSchema.DOUBLE,
+               cond(XSchema.DOUBLE, XCondition.EQUAL_TO, "10")));
+   }
 }
