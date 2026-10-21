@@ -48,4 +48,28 @@ describe("RepositoryDataSourceFolderSettingsViewComponent", () => {
    it("should create", () => {
       expect(component).toBeTruthy();
    });
+
+   // Macros (_#(key)) are expanded server-side by LocalizationService and not in vitest, so the
+   // rendered text is the key itself.
+   it("should show a single full-sentence message for a duplicate folder name", () => {
+      fixture.componentRef.setInput("model", {
+         name: "old",
+         root: false,
+         siblingFolders: ["old", "dup"],
+         siblingDataSources: ["ds1"]
+      });
+      fixture.detectChanges();
+
+      const control = component.form.get("folderName");
+      control.setValue("dup");
+      control.markAsTouched();
+      fixture.detectChanges();
+
+      expect(control.errors?.duplicateName).toBe(true);
+      const text = fixture.nativeElement.textContent;
+      expect(text).toContain("_#(em.dataSource.folderNameDuplicate)");
+      expect(text).not.toContain("em.common.folder.nameDuplicate");
+      expect(text).not.toContain("em.repletFolderName.existAlert2");
+      expect(text).not.toContain("_#(and)");
+   });
 });
