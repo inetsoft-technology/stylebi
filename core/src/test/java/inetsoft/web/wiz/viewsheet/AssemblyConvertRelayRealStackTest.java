@@ -141,6 +141,48 @@ class AssemblyConvertRelayRealStackTest {
       assertEquals(List.of(), convert(rvs, "selection_list").get("cleared"));
    }
 
+   @Test
+   void sliderToListNamesNothingForAFullUpperExclusiveRange() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addSelectionList(rvs);
+      convert(rvs, "range_slider");
+      upperExclusiveSlider(rvs, 4, true);
+
+      assertEquals(List.of(), convert(rvs, "selection_list").get("cleared"));
+   }
+
+   @Test
+   void sliderToListNamesANarrowedUpperExclusiveRange() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addSelectionList(rvs);
+      convert(rvs, "range_slider");
+      upperExclusiveSlider(rvs, 2, true);
+
+      assertEquals(List.of("selection (a selected range)"),
+                   convert(rvs, "selection_list").get("cleared"));
+   }
+
+   @Test
+   void sliderToListNamesNothingWhenTheListsAreUnread() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addSelectionList(rvs);
+      convert(rvs, "range_slider");
+
+      assertEquals(List.of(), convert(rvs, "selection_list").get("cleared"));
+   }
+
+   /** Five view values ending in the end marker; the state holds {@code stateCount} real values. */
+   private static void upperExclusiveSlider(RuntimeViewsheet rvs, int stateCount, boolean enabled) {
+      TimeSliderVSAssembly slider = (TimeSliderVSAssembly)
+         rvs.getViewsheetSandbox().orElseThrow().getViewsheet().getAssembly(FILTER);
+      slider.setUpperInclusiveValue(false);
+      SelectionList view = values(4);
+      view.addSelectionValue(new SelectionValue.UpperExclusiveEndValue());
+      slider.setSelectionList(view);
+      slider.setStateSelectionList(values(stateCount));
+      slider.getVSAssemblyInfo().setEnabled(enabled);
+   }
+
    private static void slider(RuntimeViewsheet rvs, int viewCount, int stateCount, boolean enabled) {
       TimeSliderVSAssembly slider = (TimeSliderVSAssembly)
          rvs.getViewsheetSandbox().orElseThrow().getViewsheet().getAssembly(FILTER);

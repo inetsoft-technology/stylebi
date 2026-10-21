@@ -370,13 +370,8 @@ public class AssemblyConvertService {
          else if(SELECTION_LIST.equals(target) && assembly instanceof TimeSliderVSAssembly slider &&
             slider.isEnabled())
          {
-            SelectionList state = slider.getStateSelectionList();
-            SelectionList view = slider.getSelectionList();
-
-            // narrowed only: a state count differing from a refreshed view list is not a selection
-            if(state != null && view != null &&
-               state.getSelectionValueCount() < view.getSelectionValueCount())
-            {
+            // the same predicate the slider uses to decide whether it filters anything
+            if(slider.hasActiveSelection()) {
                return List.of("selection (a selected range)");
             }
          }
