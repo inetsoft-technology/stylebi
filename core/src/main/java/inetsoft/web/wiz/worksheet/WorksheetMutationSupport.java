@@ -574,8 +574,8 @@ public final class WorksheetMutationSupport {
       }
 
       // Infer type from the resolved column so numeric comparisons work correctly.
-      String dtype = ref.getDataType() != null && !ref.getDataType().isBlank()
-         ? ref.getDataType() : XSchema.STRING;
+      String refType = columnType(t, ref, false);
+      String dtype = refType != null && !refType.isBlank() ? refType : XSchema.STRING;
 
       ConditionItem item;
       // Bug #78394: add_filter/edit_condition had no value-count check at all.
@@ -1520,8 +1520,12 @@ public final class WorksheetMutationSupport {
             DataRef before = resolveJoinKey(t, keyName);
 
             if(before != null) {
+               // Bug #78961: `before` carries a concatenation's merged type; a group key that
+               // is not retyped must be compared at that same type, not the narrowed stored one.
+               String after = Tool.equals(gref.getDataType(), gcol.getDataType())
+                  ? columnType(t, gcol, false) : gref.getDataType();
                JoinKeyTypeGuard.collect(
-                  mutationWs, t, keyName, before.getDataType(), gref.getDataType(), typeBreaks);
+                  mutationWs, t, keyName, before.getDataType(), after, typeBreaks);
             }
          }
 
@@ -1548,9 +1552,10 @@ public final class WorksheetMutationSupport {
                DataRef before = resolveJoinKey(t, keyName);
 
                if(before != null) {
+                  String after = Tool.equals(aref.getDataType(), acol.getDataType())
+                     ? columnType(t, acol, false) : aref.getDataType();
                   JoinKeyTypeGuard.collect(
-                     mutationWs, t, keyName, before.getDataType(), aref.getDataType(),
-                     aggTypeBreaks);
+                     mutationWs, t, keyName, before.getDataType(), after, aggTypeBreaks);
                }
             }
          }
@@ -4384,7 +4389,8 @@ public final class WorksheetMutationSupport {
          return null;
       }
 
-      DataRef ref = resolveFieldOrNull(t, key, t.isAggregate());
+      boolean pub = t.isAggregate();
+      DataRef ref = resolveFieldOrNull(t, key, pub);
 
       // The selection lookup is fuzzy (it also matches a column's source attribute), so on an
       // aggregated table require the key to be the output column's own name or alias; anything
@@ -4393,12 +4399,13 @@ public final class WorksheetMutationSupport {
                               (key.equals(cr.getName()) || key.equals(cr.getAlias()))))
       {
          ref = resolveFieldOrNull(t, key, false);
+         pub = false;
       }
 
       // A concatenation's stored type is narrowed to its first subtable's; join against the type
       // its rows actually carry. The stored selection is left alone (see mergedConcatSelection).
       if(ref instanceof ColumnRef cr) {
-         String type = effectiveType(mergedConcatSelection(t), cr);
+         String type = columnType(t, cr, pub);
 
          if(!Tool.equals(type, cr.getDataType())) {
             cr = (ColumnRef) cr.clone();
@@ -4424,7 +4431,18 @@ public final class WorksheetMutationSupport {
     *         concatenation or its subtables cannot be resolved
     */
    public static ColumnSelection mergedConcatSelection(TableAssembly t) {
-      if(!(t instanceof ConcatenatedTableAssembly concat) || t.isAggregate()) {
+      return t == null || t.isAggregate() ? null : mergedSubtableSelection(t);
+   }
+
+   /**
+    * Bug #78961: like {@link #mergedConcatSelection} but also for an aggregated concatenation,
+    * whose pre-aggregation columns carry the same merged subtable types.
+    *
+    * @return the merged selection, or {@code null} when {@code t} is not a concatenation or its
+    *         subtables cannot be resolved
+    */
+   public static ColumnSelection mergedSubtableSelection(TableAssembly t) {
+      if(!(t instanceof ConcatenatedTableAssembly concat)) {
          return null;
       }
 
@@ -4442,9 +4460,7 @@ public final class WorksheetMutationSupport {
          }
 
          for(TableAssembly sub : subs) {
-            ColumnSelection nested = mergedConcatSelection(sub);
-
-            if(nested == null) {
+            if(!(sub instanceof ConcatenatedTableAssembly)) {
                continue;
             }
 
@@ -4453,7 +4469,7 @@ public final class WorksheetMutationSupport {
             for(int i = 0; i < merged.getAttributeCount() && i < pub.getAttributeCount(); i++) {
                ColumnRef col = (ColumnRef) merged.getAttribute(i);
                col.setDataType(XSchema.mergeNumericType(
-                  col.getDataType(), effectiveType(nested, pub.getAttribute(i))));
+                  col.getDataType(), columnType(sub, pub.getAttribute(i), true)));
             }
          }
 
@@ -4463,6 +4479,66 @@ public final class WorksheetMutationSupport {
          // a dangling or half-built subtable: keep reporting the stored types
          return null;
       }
+   }
+
+   /**
+    * Bug #78961: the type {@code ref} (a column of {@code t}) carries in the rows, for a
+    * concatenation. Conditions, joins and the model must agree with the data (and with a mirror
+    * of the concatenation), not with the first subtable's type the stored selection keeps. For an
+    * aggregated concatenation only a pre-aggregation column ({@code pub} false) or a group output
+    * the grouping does not retype ({@code pub} true) takes the merged type; an aggregate output
+    * keeps its own, even when it is named like a source column.
+    *
+    * @param pub whether {@code ref} comes from the public (output) selection
+    */
+   public static String columnType(TableAssembly t, DataRef ref, boolean pub) {
+      if(!(t instanceof ConcatenatedTableAssembly)) {
+         return ref.getDataType();
+      }
+
+      return columnType(t, ref, pub, mergedSubtableSelection(t));
+   }
+
+   /** {@link #columnType(TableAssembly, DataRef, boolean)} with a precomputed merged selection. */
+   public static String columnType(TableAssembly t, DataRef ref, boolean pub,
+                                   ColumnSelection merged)
+   {
+      String stored = ref.getDataType();
+
+      if(merged == null || !(t instanceof ConcatenatedTableAssembly)) {
+         return stored;
+      }
+
+      // a post-aggregate condition resolves to the AggregateInfo's GroupRef, not the column
+      if(ref instanceof GroupRef grp && grp.getDataRef() instanceof ColumnRef gcol) {
+         return t.isAggregate() && Tool.equals(grp.getDataType(), gcol.getDataType())
+            ? effectiveType(merged, gcol) : stored;
+      }
+
+      if(!(ref instanceof ColumnRef cr)) {
+         return stored;
+      }
+
+      if(!t.isAggregate() || !pub) {
+         return effectiveType(merged, cr);
+      }
+
+      AggregateInfo ainfo = t.getAggregateInfo();
+      GroupRef gref = ainfo == null || ainfo.isCrosstab() ? null : ainfo.getGroup(cr);
+
+      if(gref == null) {
+         return stored;
+      }
+
+      ColumnSelection priv = t.getColumnSelection(false);
+      int idx = priv.indexOfAttribute(cr);
+
+      // a named group / date level retypes the output; only a pass-through key is widened
+      if(idx < 0 || !Tool.equals(gref.getDataType(), priv.getAttribute(idx).getDataType())) {
+         return stored;
+      }
+
+      return effectiveType(merged, cr);
    }
 
    /**
@@ -5038,9 +5114,10 @@ public final class WorksheetMutationSupport {
 
    private static String inferColumnType(TableAssembly t, String field, boolean post) {
       DataRef col = resolveField(t, field, post);
+      String type = columnType(t, col, post);
 
-      if(col.getDataType() != null && !col.getDataType().isBlank()) {
-         return col.getDataType();
+      if(type != null && !type.isBlank()) {
+         return type;
       }
 
       return XSchema.STRING;
