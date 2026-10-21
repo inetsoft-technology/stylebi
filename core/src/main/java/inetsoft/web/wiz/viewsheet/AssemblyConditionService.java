@@ -287,17 +287,7 @@ public class AssemblyConditionService {
    }
 
    private static DataRefModel find(DataRefModel[] fields, String columnName) {
-      if(fields != null) {
-         for(DataRefModel field : fields) {
-            if(field != null && field.getName() != null &&
-               field.getName().equalsIgnoreCase(columnName))
-            {
-               return field;
-            }
-         }
-      }
-
-      return null;
+      return ConditionVocabulary.find(fields, columnName);
    }
 
    /** The built-in date ranges usable with the date_in operator. */
@@ -310,17 +300,7 @@ public class AssemblyConditionService {
    }
 
    private static List<String> fieldNames(DataRefModel[] fields) {
-      List<String> names = new ArrayList<>();
-
-      if(fields != null) {
-         for(DataRefModel field : fields) {
-            if(field != null && field.getName() != null) {
-               names.add(field.getName());
-            }
-         }
-      }
-
-      return names;
+      return ConditionVocabulary.canonicalNames(fields);
    }
 
    private final ViewsheetSessionService sessions;

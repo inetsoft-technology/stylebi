@@ -22,6 +22,7 @@ import inetsoft.uql.JunctionOperator;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
+import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.*;
 
@@ -122,6 +123,16 @@ public final class ConditionVocabulary {
 
    /** Renders an alternating array back into the flat vocabulary. */
    public static List<Map<String, Object>> describe(Object[] conditionList) {
+      return describe(conditionList, false);
+   }
+
+   /**
+    * @param canonicalFields report each field by its {@link #canonicalName}, the name the
+    *                        assembly's {@code fields} list uses, rather than a relabel
+    */
+   public static List<Map<String, Object>> describe(Object[] conditionList,
+                                                    boolean canonicalFields)
+   {
       List<Map<String, Object>> out = new ArrayList<>();
 
       if(conditionList == null) {
@@ -133,8 +144,9 @@ public final class ConditionVocabulary {
 
          if(item instanceof ConditionModel condition) {
             Map<String, Object> clause = new LinkedHashMap<>();
-            clause.put("field", condition.getField() == null
-               ? null : condition.getField().getName());
+            clause.put("field", condition.getField() == null ? null
+               : canonicalFields ? canonicalName(condition.getField())
+               : condition.getField().getName());
             clause.put("operator", operatorToken(condition.getOperation()));
             clause.put("values", values(condition.getValues()));
             clause.put("negated", condition.isNegated());
@@ -193,7 +205,7 @@ public final class ConditionVocabulary {
          throw new IllegalArgumentException("Condition " + index + " needs a 'field'.");
       }
 
-      DataRefModel field = fields.get(name.toLowerCase());
+      DataRefModel field = resolve(fields, name);
 
       if(field == null) {
          throw new IllegalArgumentException(
@@ -450,7 +462,7 @@ public final class ConditionVocabulary {
       switch(type) {
          case "field" -> {
             String name = requireString(map.get("field"), index, "field");
-            DataRefModel resolved = fields.get(name.toLowerCase());
+            DataRefModel resolved = resolve(fields, name);
 
             if(resolved == null) {
                throw new IllegalArgumentException(
@@ -548,7 +560,7 @@ public final class ConditionVocabulary {
       }
 
       String groupFieldName = requireString(map.get("groupField"), index, "groupField");
-      DataRefModel groupField = fields.get(groupFieldName.toLowerCase());
+      DataRefModel groupField = resolve(fields, groupFieldName);
 
       if(groupField == null) {
          throw new IllegalArgumentException(
@@ -803,13 +815,106 @@ public final class ConditionVocabulary {
       return Collections.unmodifiableMap(map);
    }
 
+   /**
+    * The name a condition on this field is stored under. A column relabelled in the viewsheet
+    * reports the label from {@code getName()}, but the stored condition (and so what
+    * get_condition reads back) uses the underlying column name, so the field list, the write
+    * lookup and the read path must all agree on that name.
+    */
+   public static String canonicalName(DataRefModel field) {
+      if(field instanceof ColumnRefModel) {
+         ColumnRefModel column = (ColumnRefModel) field;
+         String alias = column.getAlias();
+         DataRefModel inner = column.getDataRefModel();
+
+         if(alias != null && !alias.isEmpty() && inner != null && inner.getName() != null) {
+            return canonicalName(inner);
+         }
+      }
+
+      return field.getName();
+   }
+
+   /** The canonical names of the fields, in order; the list get_condition reports. */
+   public static List<String> canonicalNames(DataRefModel[] fields) {
+      List<String> names = new ArrayList<>();
+
+      if(fields != null) {
+         for(DataRefModel field : fields) {
+            if(field != null && field.getName() != null) {
+               names.add(canonicalName(field));
+            }
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * Resolves a canonical name, or a relabelled column's label, to its field; null if unknown.
+    *
+    * @throws IllegalArgumentException if the name is a label shared by several columns
+    */
+   public static DataRefModel find(DataRefModel[] fields, String name) {
+      return name == null ? null : resolve(index(fields), name.trim());
+   }
+
+   private static DataRefModel resolve(Map<String, DataRefModel> fields, String name) {
+      String key = name.toLowerCase();
+      DataRefModel field = fields.get(key);
+
+      if(field == null && fields instanceof FieldIndex) {
+         List<String> candidates = ((FieldIndex) fields).ambiguous.get(key);
+
+         if(candidates != null) {
+            throw new IllegalArgumentException(
+               "'" + name + "' is the label of more than one column (" +
+               String.join(", ", candidates) + "); use the column name instead.");
+         }
+      }
+
+      return field;
+   }
+
+   /**
+    * Canonical names are the keys; a relabelled column's label is also accepted, unless it
+    * equals another column's canonical name (canonical wins) or is shared by several columns
+    * (ambiguous, refused on use).
+    */
    private static Map<String, DataRefModel> index(DataRefModel[] available) {
-      Map<String, DataRefModel> fields = new LinkedHashMap<>();
+      FieldIndex fields = new FieldIndex();
 
       if(available != null) {
          for(DataRefModel field : available) {
             if(field != null && field.getName() != null) {
-               fields.put(field.getName().toLowerCase(), field);
+               fields.putIfAbsent(canonicalName(field).toLowerCase(), field);
+            }
+         }
+
+         Map<String, List<String>> labels = new LinkedHashMap<>();
+
+         for(DataRefModel field : available) {
+            if(field != null && field.getName() != null) {
+               String canonical = canonicalName(field);
+
+               if(!field.getName().equalsIgnoreCase(canonical)) {
+                  labels.computeIfAbsent(field.getName().toLowerCase(), k -> new ArrayList<>())
+                     .add(canonical);
+               }
+            }
+         }
+
+         for(Map.Entry<String, List<String>> label : labels.entrySet()) {
+            if(fields.containsKey(label.getKey())) {
+               continue;
+            }
+
+            if(label.getValue().size() == 1) {
+               DataRefModel target = fields.get(label.getValue().get(0).toLowerCase());
+               fields.put(label.getKey(), target);
+            }
+            else {
+               fields.ambiguous.put(label.getKey(), label.getValue());
             }
          }
       }
@@ -817,11 +922,15 @@ public final class ConditionVocabulary {
       return fields;
    }
 
+   private static final class FieldIndex extends LinkedHashMap<String, DataRefModel> {
+      private final Map<String, List<String>> ambiguous = new LinkedHashMap<>();
+   }
+
    private static Collection<String> names(Map<String, DataRefModel> fields) {
       List<String> names = new ArrayList<>();
 
       for(DataRefModel field : fields.values()) {
-         names.add(field.getName());
+         names.add(canonicalName(field));
       }
 
       return names;

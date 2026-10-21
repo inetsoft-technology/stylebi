@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.JunctionOperator;
 import inetsoft.uql.XCondition;
+import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.condition.ConditionValueModel;
@@ -1079,5 +1080,110 @@ class ConditionVocabularyTest {
          List.of(clause("F", "date_in", List.of("Last month"), null)),
          new DataRefModel[] { field("F", "string") }) [0] instanceof ConditionModel c ?
          c.getValues()[0].getValue() : null);
+   }
+
+   // ── Bug #78953: relabelled columns ────────────────────────────────────────
+
+   /** A viewsheet-relabelled column: getName() is the label, the inner ref the column. */
+   private static DataRefModel relabelled(String column, String label) {
+      ColumnRefModel field = mock(ColumnRefModel.class);
+      DataRefModel inner = field(column);
+      when(field.getName()).thenReturn(label);
+      when(field.getAlias()).thenReturn(label);
+      when(field.getDataRefModel()).thenReturn(inner);
+      return field;
+   }
+
+   private static DataRefModel fieldOf(Object condition) {
+      return assertInstanceOf(ConditionModel.class, condition).getField();
+   }
+
+   @Test
+   void fieldsListUsesTheColumnNameNotTheLabel() {
+      DataRefModel[] fields = { field("ORDER_ID"), relabelled("QUANTITY", "Qty") };
+
+      assertEquals(List.of("ORDER_ID", "QUANTITY"), ConditionVocabulary.canonicalNames(fields));
+   }
+
+   @Test
+   void replayingTheColumnNameIsAcceptedAfterARelabel() {
+      DataRefModel qty = relabelled("QUANTITY", "Qty");
+      DataRefModel[] fields = { field("ORDER_ID"), qty };
+
+      Object[] list = ConditionVocabulary.toConditionList(
+         List.of(clause("QUANTITY", "greater_than", List.of(2), null)), fields);
+
+      assertSame(qty, fieldOf(list[0]));
+   }
+
+   @Test
+   void theLabelIsStillAcceptedAsAnAlias() {
+      DataRefModel qty = relabelled("QUANTITY", "Qty");
+      DataRefModel[] fields = { field("ORDER_ID"), qty };
+
+      Object[] list = ConditionVocabulary.toConditionList(
+         List.of(clause("qty", "greater_than", List.of(2), null)), fields);
+
+      assertSame(qty, fieldOf(list[0]));
+      assertSame(qty, ConditionVocabulary.find(fields, "Qty"));
+      assertSame(qty, ConditionVocabulary.find(fields, "QUANTITY"));
+   }
+
+   @Test
+   void entityQualifiedColumnRelabelledResolvesByQualifiedName() {
+      DataRefModel state = relabelled("Customer:State", "State");
+      DataRefModel[] fields = { state };
+
+      assertEquals(List.of("Customer:State"), ConditionVocabulary.canonicalNames(fields));
+      assertSame(state, ConditionVocabulary.find(fields, "Customer:State"));
+      assertSame(state, ConditionVocabulary.find(fields, "State"));
+   }
+
+   @Test
+   void aLabelEqualToAnotherColumnsNameResolvesToThatColumn() {
+      DataRefModel orderId = field("ORDER_ID");
+      DataRefModel[] fields = { orderId, relabelled("QUANTITY", "ORDER_ID") };
+
+      assertSame(orderId, ConditionVocabulary.find(fields, "ORDER_ID"));
+      assertSame(fields[1], ConditionVocabulary.find(fields, "QUANTITY"));
+   }
+
+   @Test
+   void aLabelSharedByTwoColumnsIsRefusedNamingTheCandidates() {
+      DataRefModel[] fields = { relabelled("QUANTITY", "Amt"), relabelled("PRICE", "Amt") };
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ConditionVocabulary.toConditionList(
+            List.of(clause("Amt", "greater_than", List.of(2), null)), fields));
+
+      assertTrue(e.getMessage().contains("QUANTITY") && e.getMessage().contains("PRICE"),
+                 e.getMessage());
+      assertSame(fields[0], ConditionVocabulary.find(fields, "QUANTITY"));
+   }
+
+   @Test
+   void unknownFieldErrorListsColumnNames() {
+      DataRefModel[] fields = { relabelled("QUANTITY", "Qty") };
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ConditionVocabulary.toConditionList(
+            List.of(clause("nope", "equals", List.of(1), null)), fields));
+
+      assertTrue(e.getMessage().contains("Available fields: QUANTITY"), e.getMessage());
+   }
+
+   @Test
+   void canonicalDescribeReportsTheColumnNameAndReplaysUnchanged() {
+      DataRefModel qty = relabelled("QUANTITY", "Qty");
+      DataRefModel[] fields = { field("ORDER_ID"), qty };
+      Object[] list = ConditionVocabulary.toConditionList(
+         List.of(clause("Qty", "greater_than", List.of(2), null)), fields);
+
+      assertEquals("Qty", ConditionVocabulary.describe(list).get(0).get("field"));
+      String field = (String) ConditionVocabulary.describe(list, true).get(0).get("field");
+
+      assertEquals("QUANTITY", field);
+      assertSame(qty, fieldOf(ConditionVocabulary.toConditionList(
+         List.of(clause(field, "greater_than", List.of(2), null)), fields)[0]));
    }
 }

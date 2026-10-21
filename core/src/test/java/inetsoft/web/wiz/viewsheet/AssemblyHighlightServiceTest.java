@@ -1245,6 +1245,144 @@ class AssemblyHighlightServiceTest {
       return captor.getValue();
    }
 
+
+   // ── Bug #78953: highlights on a relabelled column ────────────────────────
+
+   private static DataRefModel relabelled(String column, String label) {
+      inetsoft.web.binding.drm.ColumnRefModel field =
+         mock(inetsoft.web.binding.drm.ColumnRefModel.class);
+      when(field.getName()).thenReturn(label);
+      when(field.getAlias()).thenReturn(label);
+      DataRefModel inner = field(column);
+      when(field.getDataRefModel()).thenReturn(inner);
+      return field;
+   }
+
+   private static Harness relabelledTableHarness(DataRefModel... fields) {
+      HighlightDialogModel model = model();
+      model.setFields(fields);
+      Harness h = harness(model);
+      inetsoft.uql.viewsheet.TableVSAssembly table =
+         mock(inetsoft.uql.viewsheet.TableVSAssembly.class);
+      when(h.rvs.getViewsheet().getAssembly("Table1")).thenReturn(table);
+      when(table.getAbsoluteName()).thenReturn("Table1");
+      inetsoft.report.composition.execution.ViewsheetSandbox box =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      inetsoft.report.composition.VSTableLens lens = mock(inetsoft.report.composition.VSTableLens.class);
+      try {
+         when(box.getVSTableLens("Table1", false)).thenReturn(lens);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+      when(lens.getColCount()).thenReturn(3);
+      when(lens.moreRows(anyInt())).thenReturn(true);
+      when(h.rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(box));
+      return h;
+   }
+
+   private static void listAt(Harness h, String colName) throws Exception {
+      h.service.list("tok", principal(), "Table1",
+                     new AssemblyHighlightService.Region(null, null, colName, false, false));
+   }
+
+   private static void assertColNameReached(Harness h, String expected) throws Exception {
+      verify(h.highlights, atLeastOnce()).getHighlightDialogModel(
+         eq("rt1"), eq("Table1"), isNull(), isNull(), eq(expected), eq(false), eq(false),
+         any(Principal.class));
+   }
+
+   @Test
+   void colNameAcceptsTheColumnNameOfARelabelledColumn() throws Exception {
+      Harness h = relabelledTableHarness(field("ORDER_ID"), relabelled("QUANTITY", "Qty"));
+
+      listAt(h, "QUANTITY");
+
+      assertColNameReached(h, "Qty");
+   }
+
+   @Test
+   void colNameAcceptsTheRenderedLabelOfARelabelledColumn() throws Exception {
+      Harness h = relabelledTableHarness(field("ORDER_ID"), relabelled("QUANTITY", "Qty"));
+
+      listAt(h, "Qty");
+
+      assertColNameReached(h, "Qty");
+   }
+
+   @Test
+   void colNameOfAnUnrelabelledColumnIsPassedThroughUnchanged() throws Exception {
+      Harness h = relabelledTableHarness(field("ORDER_ID"), relabelled("QUANTITY", "Qty"));
+
+      listAt(h, "ORDER_ID");
+
+      assertColNameReached(h, "ORDER_ID");
+   }
+
+   @Test
+   void colNameEqualToAnotherColumnsNameResolvesToThatColumn() throws Exception {
+      Harness h = relabelledTableHarness(field("ORDER_ID"), relabelled("QUANTITY", "ORDER_ID"));
+
+      listAt(h, "ORDER_ID");
+
+      assertColNameReached(h, "ORDER_ID");
+   }
+
+   @Test
+   void colNameWhoseLabelCollidesWithAnotherColumnIsRefused() {
+      Harness h = relabelledTableHarness(field("ORDER_ID"), relabelled("QUANTITY", "ORDER_ID"));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> listAt(h, "QUANTITY"));
+
+      assertTrue(thrown.getMessage().contains("ORDER_ID") &&
+                    thrown.getMessage().contains("row/col"), thrown.getMessage());
+   }
+
+   @Test
+   void colNameThatIsALabelSharedByTwoColumnsIsRefusedNamingThem() {
+      Harness h = relabelledTableHarness(relabelled("QUANTITY", "Amt"), relabelled("PRICE", "Amt"));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> listAt(h, "Amt"));
+
+      assertTrue(thrown.getMessage().contains("QUANTITY") && thrown.getMessage().contains("PRICE"),
+                 thrown.getMessage());
+   }
+
+   @Test
+   void aLabelIsAcceptedAsAConditionField() throws Exception {
+      Harness h = relabelledTableHarness(field("ORDER_ID"), relabelled("QUANTITY", "Qty"));
+      AssemblyHighlightService.Highlight byLabel = new AssemblyHighlightService.Highlight(
+         "Big", null, "#ff0000", null,
+         List.of(new ConditionVocabulary.Clause("Qty", ">", List.of(2), null, false, false, 0)),
+         false);
+
+      h.service.set("tok", principal(), "Table1", null, byLabel, false, "");
+
+      assertEquals(1, capture(h.highlights).getHighlights().length);
+   }
+
+   @Test
+   void listHighlightsReadBackReplaysUnchangedOnARelabelledColumn() throws Exception {
+      DataRefModel qty = relabelled("QUANTITY", "Qty");
+      Harness h = relabelledTableHarness(field("ORDER_ID"), qty);
+      h.service.set("tok", principal(), "Table1", null, new AssemblyHighlightService.Highlight(
+         "Big", null, "#ff0000", null,
+         List.of(new ConditionVocabulary.Clause("QUANTITY", ">", List.of(2), null, false, false, 0)),
+         false), false, "");
+      HighlightDialogModel stored = capture(h.highlights);
+      Harness h2 = relabelledTableHarness(field("ORDER_ID"), qty);
+      when(h2.highlights.getHighlightDialogModel(anyString(), anyString(), any(), any(), any(),
+                                                 anyBoolean(), anyBoolean(), any(Principal.class)))
+         .thenReturn(stored);
+
+      Map<String, Object> read = h2.service.list("tok", principal(), "Table1", null);
+
+      List<?> highlights = (List<?>) read.get("highlights");
+      List<?> conditions = (List<?>) ((Map<?, ?>) highlights.get(0)).get("conditions");
+      String field = (String) ((Map<?, ?>) conditions.get(0)).get("field");
+      assertTrue(((List<?>) read.get("fields")).contains(field),
+                 "read-back field '" + field + "' must be one of " + read.get("fields"));
+   }
    private static Harness harness(HighlightDialogModel model) {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
