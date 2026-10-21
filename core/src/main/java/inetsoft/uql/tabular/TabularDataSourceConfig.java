@@ -19,6 +19,7 @@ package inetsoft.uql.tabular;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A read-only, redacted view of one tabular data source's own connection-level configuration --
@@ -83,7 +84,7 @@ public class TabularDataSourceConfig {
 
       /**
        * The current value, as {@code String.valueOf}. {@code null} whenever {@link #isPassword()}
-       * is {@code true} -- see {@link #isConfigured()} for that case.
+       * is {@code true}, and for a composite property (see {@link #getItems()}) -- see {@link #isConfigured()} for that case.
        */
       public String getValue() {
          return value;
@@ -91,6 +92,21 @@ public class TabularDataSourceConfig {
 
       public void setValue(String value) {
          this.value = value;
+      }
+
+      /**
+       * The contents of a composite property (array, list, map or similar), one entry per
+       * element, or {@code null} for a scalar property. An empty collection is an empty list, so
+       * "nothing configured" is distinguishable from "not a collection". Element values that may
+       * be sensitive are never carried; such an entry has {@code value} null and
+       * {@code configured} instead.
+       */
+      public List<Map<String, Object>> getItems() {
+         return items;
+      }
+
+      public void setItems(List<Map<String, Object>> items) {
+         this.items = items;
       }
 
       public boolean isPassword() {
@@ -117,6 +133,7 @@ public class TabularDataSourceConfig {
       private String name;
       private String label;
       private String value;
+      private List<Map<String, Object>> items;
       private boolean password;
       private boolean configured;
    }
