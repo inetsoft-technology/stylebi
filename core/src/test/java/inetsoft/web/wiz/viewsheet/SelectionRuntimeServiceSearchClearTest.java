@@ -93,8 +93,14 @@ class SelectionRuntimeServiceSearchClearTest {
    }
 
    private static SelectionRuntimeServiceTest.Harness harness(SelectionList domain, String search) {
+      return harness(domain, search, false);
+   }
+
+   private static SelectionRuntimeServiceTest.Harness harness(SelectionList domain, String search,
+                                                              boolean idMode)
+   {
       SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
-      when(assembly.isIDMode()).thenReturn(false);
+      when(assembly.isIDMode()).thenReturn(idMode);
       when(assembly.getSelectionList()).thenReturn(domain);
       when(((SelectionTreeVSAssemblyInfo) assembly.getInfo())
               .getSearchString()).thenReturn(search);
@@ -105,7 +111,12 @@ class SelectionRuntimeServiceSearchClearTest {
             ApplySelectionListEvent event = inv.getArgument(2);
 
             for(ApplySelectionListEvent.Value value : event.getValues()) {
-               unselect(domain.getSelectionValues(), value.getValue(), 0);
+               if(idMode) {
+                  unselectId(domain.getSelectionValues(), value.getValue()[0]);
+               }
+               else {
+                  unselect(domain.getSelectionValues(), value.getValue(), 0);
+               }
             }
 
             return null;
@@ -129,6 +140,19 @@ class SelectionRuntimeServiceSearchClearTest {
             else if(value instanceof CompositeSelectionValue c) {
                unselect(c.getSelectionList().getSelectionValues(), target, depth + 1);
             }
+         }
+      }
+   }
+
+   /** The ID-mode deselect: the node with that id, wherever it sits. */
+   private static void unselectId(SelectionValue[] level, String id) {
+      for(SelectionValue value : level) {
+         if(value.getValue().equals(id)) {
+            value.setSelected(false);
+         }
+
+         if(value instanceof CompositeSelectionValue c) {
+            unselectId(c.getSelectionList().getSelectionValues(), id);
          }
       }
    }
@@ -267,5 +291,50 @@ class SelectionRuntimeServiceSearchClearTest {
                                            any(Principal.class), any(), anyString());
       verify(h.selections(), never()).applySelection(anyString(), anyString(), any(),
                                                      any(Principal.class), any(), anyString());
+   }
+
+   /** ID tree R{Buffalo, New York}, both selected, root not (select_subtree leaves it unselected). */
+   private static SelectionList idTree() {
+      SelectionList domain = new SelectionList();
+      CompositeSelectionValue root = branch("R", 0, leaf("Buffalo", 1), leaf("New York", 1));
+      root.setSelected(false);
+      domain.addSelectionValue(root);
+      return domain;
+   }
+
+   /** bug-78983: an ID-mode subtree clear under a search deselects only the visible node ids. */
+   @Test
+   void idSubtreeClearUnderBuffSendsOnlyBuffaloAndRetainsNewYork() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = harness(idTree(), "Buff", true);
+
+      Map<String, Object> result = clearSubtree(h, "R");
+
+      assertEquals(List.of(List.of("Buffalo")), sent(h));
+      assertEquals(1, result.get("clearedCount"));
+      assertEquals(1, result.get("remainingUnderSubtree"));
+      assertEquals(List.of(List.of("New York")), result.get("scopedBySearchRetained"));
+      verify(h.selections(), never()).selectSubtree(anyString(), anyString(), any(),
+                                                    any(Principal.class), any(), anyString());
+   }
+
+   @Test
+   void idSubtreeClearUnderASearchShowingNothingSendsNothing() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = harness(idTree(), "Los", true);
+
+      Map<String, Object> result = clearSubtree(h, "R");
+
+      verify(h.selections(), never()).applySelection(anyString(), anyString(), any(),
+                                                     any(Principal.class), any(), anyString());
+      assertEquals(0, result.get("clearedCount"));
+   }
+
+   @Test
+   void idSubtreeClearWithoutASearchStillUsesTheNativeSubtreeClear() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = harness(idTree(), null, true);
+
+      clearSubtree(h, "R");
+
+      verify(h.selections()).selectSubtree(anyString(), anyString(), any(),
+                                           any(Principal.class), any(), anyString());
    }
 }
