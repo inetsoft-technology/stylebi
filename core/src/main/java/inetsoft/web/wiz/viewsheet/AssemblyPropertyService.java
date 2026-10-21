@@ -1820,7 +1820,14 @@ public class AssemblyPropertyService {
       Integer face = null;
 
       try {
-         face = Integer.valueOf(text);
+         // Whole-valued doubles ("10120.0" from a JSON float) are the same face; parsed == raw
+         // also refuses a fraction, NaN, Infinity and anything outside the int range.
+         double raw = Double.parseDouble(text);
+         int parsed = (int) raw;
+
+         if(parsed == raw) {
+            face = parsed;
+         }
       }
       catch(NumberFormatException ignore) {
       }

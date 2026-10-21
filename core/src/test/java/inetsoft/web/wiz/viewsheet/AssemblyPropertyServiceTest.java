@@ -416,6 +416,25 @@ class AssemblyPropertyServiceTest {
    }
 
    @Test
+   void refusesAnOutOfRangeOrNonFiniteGaugeFace() {
+      assertGaugeFaceRefused(1.0E12);
+      assertGaugeFaceRefused(Double.NaN);
+      assertGaugeFaceRefused(Double.POSITIVE_INFINITY);
+   }
+
+   @Test
+   void allowsAWholeValuedDoubleGaugeFace() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      service.set("tok", principal(), "Gauge1", Map.of("face", 90820.0), "");
+      assertEquals(90820, gaugeFace(model));
+
+      service.set("tok", principal(), "Gauge1", Map.of("face", "10120.0"), "");
+      assertEquals(10120, gaugeFace(model));
+   }
+
+   @Test
    void allowsAnAdvertisedGaugeFaceAsNumberOrNumericString() throws Exception {
       GaugePropertyDialogModel model = new GaugePropertyDialogModel();
       AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
