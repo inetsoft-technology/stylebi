@@ -374,39 +374,64 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
 
          boolean satisfied = false;
 
-         for(int day = cal1.get(Calendar.DAY_OF_WEEK); day < 8; day++) {
-            cal1.set(Calendar.DAY_OF_WEEK, day);
+         if(getInterval() > 1) {
+            // The weeks of an every-N-weeks schedule start on the site-wide week.start day,
+            // never on the first day of the JVM locale. The organization of the calling
+            // thread is not consulted, so the cycle is the same on every thread.
+            int firstDay = Tool.parseFirstDayOfWeek(
+               SreeEnv.getProperty("week.start", false, false));
+            // days left in the seed's week after the seed day, counted from firstDay
+            int left = 6 - Math.floorMod(cal1.get(Calendar.DAY_OF_WEEK) - firstDay, 7);
 
-            if(containsIn(days_of_week, day) && cal1.getTimeInMillis() >= curr)
-            {
-               satisfied = true;
+            for(int k = 0; k <= left; k++) {
+               if(containsIn(days_of_week, cal1.get(Calendar.DAY_OF_WEEK)) &&
+                  cal1.getTimeInMillis() >= curr)
+               {
+                  satisfied = true;
+                  break;
+               }
+
+               if(k < left) {
+                  cal1.add(Calendar.DATE, 1);
+               }
+            }
+
+            if(satisfied) {
                break;
             }
-         }
 
-         if(satisfied) {
-            break;
-         }
-
-         // increase every week to next
-         if(getInterval() > 1) {
             long skip = (long) (getInterval() - 1) * 7;
 
             // Calendar.add takes an int; the int product used to wrap around for a huge interval
-            if(skip > Integer.MAX_VALUE) {
+            if(skip > Integer.MAX_VALUE - 1) {
                return -1;
             }
 
-            cal1.add(Calendar.DATE, (int) skip);
+            // from the last day of the seed's week to the first day of the week N weeks later
+            cal1.add(Calendar.DATE, (int) skip + 1);
          }
+         else {
+            for(int day = cal1.get(Calendar.DAY_OF_WEEK); day < 8; day++) {
+               cal1.set(Calendar.DAY_OF_WEEK, day);
 
-         // this loop never ends if every day is selected and days_of_week[0] is not a valid day
-         // (every day matches, so there is nothing to skip)
-         if(!containsAllDaysOfWeek() || containsValidDayOfWeek(days_of_week[0])) {
-            while(containsIn(days_of_week, cal1.get(Calendar.DAY_OF_WEEK)) &&
-               cal1.get(Calendar.DAY_OF_WEEK) != days_of_week[0])
-            {
-               cal1.add(Calendar.DATE, 1);
+               if(containsIn(days_of_week, day) && cal1.getTimeInMillis() >= curr) {
+                  satisfied = true;
+                  break;
+               }
+            }
+
+            if(satisfied) {
+               break;
+            }
+
+            // this loop never ends if every day is selected and days_of_week[0] is not a valid
+            // day (every day matches, so there is nothing to skip)
+            if(!containsAllDaysOfWeek() || containsValidDayOfWeek(days_of_week[0])) {
+               while(containsIn(days_of_week, cal1.get(Calendar.DAY_OF_WEEK)) &&
+                  cal1.get(Calendar.DAY_OF_WEEK) != days_of_week[0])
+               {
+                  cal1.add(Calendar.DATE, 1);
+               }
             }
          }
 

@@ -17,7 +17,11 @@
  */
 package inetsoft.sree.schedule;
 
+import inetsoft.test.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.*;
 import java.util.*;
@@ -32,10 +36,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code Scheduler.addTask} call ran it inline. The walks are now bounded and return -1.
  *
  * <p>Every call runs on a daemon thread that is abandoned after a timeout, so a regression
- * fails the test instead of hanging the build. The real {@code TimeCondition} is used; no Spring
- * context is needed because {@code getRetryTime} reaches no bean ({@code toString} does, so it
- * is never called here).
+ * fails the test instead of hanging the build. The real {@code TimeCondition} is used. A weekly
+ * condition with an interval above 1 reads {@code week.start} (Bug #79053), which needs the
+ * Spring context ({@code toString} reaches a bean too, so it is never called here).
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class TimeConditionBoundsTest {
    private static final ZoneId UTC = ZoneId.of("UTC");
