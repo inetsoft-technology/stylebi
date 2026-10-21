@@ -930,6 +930,107 @@ class ChartAestheticMutatorTest {
       assertNull(model.getColorFrame());
    }
 
+   // ── Bug #79007: the frame rule also covers the node channels ──
+
+   @Test
+   void refusesAStaticFrameOnNodeColorBoundToAMeasureAndKeepsTheGradient() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "node-color", measure("Value", "Average"), true);
+      ChartAestheticMutator.setFrame(
+         model, "node-color", spec("type", "gradient", "from", "#eeeeff", "to", "#005599"), true);
+      VisualFrameModel before = model.getNodeColorField().getFrame();
+      assertInstanceOf(GradientColorModel.class, before);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "node-color", spec("type", "static", "color", "#00897B"), true));
+
+      assertTrue(thrown.getMessage().contains("node-color"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Value"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("clear_aesthetic_field"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("gradient"),
+                 "the graduated survivors of the colour family are named: " + thrown.getMessage());
+      assertSame(before, model.getNodeColorField().getFrame(),
+                 "the refused call must not overwrite the user's gradient frame");
+   }
+
+   @Test
+   void refusesAStaticFrameOnNodeSizeBoundToAMeasureAndKeepsTheLinearFrame() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "node-size", measure("Value", "Sum"), true);
+      ChartAestheticMutator.setFrame(model, "node-size", spec("type", "linear"), true);
+      VisualFrameModel before = model.getNodeSizeField().getFrame();
+      assertInstanceOf(LinearSizeModel.class, before);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "node-size", spec("type", "static", "size", 15), true));
+
+      assertTrue(thrown.getMessage().contains("node-size"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Value"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("clear_aesthetic_field"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("linear"), thrown.getMessage());
+      assertSame(before, model.getNodeSizeField().getFrame());
+   }
+
+   @Test
+   void acceptsGraduatedFramesOnMeasureBoundNodeChannels() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "node-color", measure("Value", "Average"), true);
+      ChartAestheticMutator.setField(model, "node-size", measure("Value", "Sum"), true);
+
+      ChartAestheticMutator.setFrame(
+         model, "node-color", spec("type", "gradient", "from", "#eeeeff", "to", "#005599"), true);
+      ChartAestheticMutator.setFrame(model, "node-size", spec("type", "linear"), true);
+
+      assertInstanceOf(GradientColorModel.class, model.getNodeColorField().getFrame());
+      assertInstanceOf(LinearSizeModel.class, model.getNodeSizeField().getFrame());
+   }
+
+   @Test
+   void refusesAGraduatedFrameOnNodeColorBoundToADimension() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "node-color", dimension("Region"), true);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "node-color", spec("type", "gradient", "from", "#eeeeff", "to", "#005599"),
+            true));
+
+      assertTrue(thrown.getMessage().contains("node-color"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("categorical"), thrown.getMessage());
+   }
+
+   @Test
+   void acceptsACategoricalFrameOnNodeColorBoundToADimension() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "node-color", dimension("Region"), true);
+
+      ChartAestheticMutator.setFrame(
+         model, "node-color", spec("type", "categorical", "colors", List.of("#111111")), true);
+
+      assertInstanceOf(CategoricalColorModel.class, model.getNodeColorField().getFrame());
+   }
+
+   @Test
+   void staticFrameOnNodeChannelsWorksOnceTheFieldIsCleared() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "node-color", measure("Value", "Average"), true);
+      ChartAestheticMutator.setField(model, "node-size", measure("Value", "Sum"), true);
+
+      ChartAestheticMutator.clearField(model, "node-color", true);
+      ChartAestheticMutator.clearField(model, "node-size", true);
+      ChartAestheticMutator.setFrame(
+         model, "node-color", spec("type", "static", "color", "#00897B"), true);
+      ChartAestheticMutator.setFrame(model, "node-size", spec("type", "static", "size", 15), true);
+
+      assertInstanceOf(StaticColorModel.class, model.getNodeColorFrame());
+      assertInstanceOf(StaticSizeModel.class, model.getNodeSizeFrame());
+   }
+
    @Test
    void describesNodeChannelsOnlyWhenAskedToOnARelationChart() {
       ChartBindingModel model = new ChartBindingModel();
