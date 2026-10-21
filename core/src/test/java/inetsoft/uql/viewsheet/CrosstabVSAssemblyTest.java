@@ -150,6 +150,40 @@ class CrosstabVSAssemblyTest {
          "the rename must work on a copy, never mutate the ref it was resolved from");
    }
 
+   /**
+    * Bug #78973: renaming a bound calc field rewrote a dimension's Top-N ranking
+    * ({@code rankingColValue}) but left its value sort ({@code sortByColValue}) pointing at the
+    * old aggregate name -- the two fields are structurally parallel (same
+    * {@code "Formula(column)"} shape, same {@code VSUtil.matchRefName}/{@code getMatchRefName}
+    * matching logic) but only one of them was rewritten. Covers both the column-header and
+    * row-header loops in {@code renameBindingCol}.
+    */
+   @Test
+   void renameBindingColAlsoRenamesTheDimensionsSortByField() {
+      VSDimensionRef colRef = regionRef();
+      colRef.setRankingColValue("Sum(Net Revenue)");
+      colRef.setSortByColValue("Sum(Net Revenue)");
+
+      VSDimensionRef rowRef = regionRef();
+      rowRef.setRankingColValue("Sum(Net Revenue)");
+      rowRef.setSortByColValue("Sum(Net Revenue)");
+
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      cinfo.setDesignColHeaders(new inetsoft.uql.erm.DataRef[] { colRef });
+      cinfo.setDesignRowHeaders(new inetsoft.uql.erm.DataRef[] { rowRef });
+      CrosstabVSAssembly assembly = new CrosstabVSAssembly();
+      assembly.setVSCrosstabInfo(cinfo);
+
+      assembly.renameBindingCol("Net Revenue", "Net Sales");
+
+      assertEquals("Sum(Net Sales)", colRef.getRankingColValue());
+      assertEquals("Sum(Net Sales)", colRef.getSortByColValue(),
+         "a column header's value sort must follow a calc-field rename just like its ranking does");
+      assertEquals("Sum(Net Sales)", rowRef.getRankingColValue());
+      assertEquals("Sum(Net Sales)", rowRef.getSortByColValue(),
+         "a row header's value sort must follow a calc-field rename just like its ranking does");
+   }
+
    @Test
    void leavesTheDrillAloneWhenTheExpertNamedGroupIsUnchanged() throws Exception {
       CrosstabVSAssembly assembly = new CrosstabVSAssembly();
