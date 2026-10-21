@@ -177,13 +177,8 @@ public class WizGeoService {
             // Assign visual frames for the (re-homed) aesthetic fields. ChangeChartTypeProcessor
             // already ran this once, but BEFORE we moved the category onto color — without it the
             // color field has a null VisualFrame and graph generation NPEs ("graph.gen.failed").
-            CategoricalColorFrameContext.bind(vs);
-
-            try {
+            try(CategoricalColorFrameContext.Scope scope = CategoricalColorFrameContext.bind(vs)) {
                GraphUtil.fixVisualFrames(mapInfo);
-            }
-            finally {
-               CategoricalColorFrameContext.clear();
             }
 
             chart.setVSChartInfo(mapInfo);

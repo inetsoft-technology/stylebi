@@ -32,28 +32,49 @@ import java.util.List;
  * to the VSFrameVisitor
  */
 public class CategoricalColorFrameContext {
+   /**
+    * The context of the innermost active {@link #bind(Viewsheet)} scope on this thread. Outside
+    * any scope a fresh, empty context is returned, so a read can never see the frames or colors
+    * of whichever viewsheet the pooled thread last worked on.
+    */
    public static CategoricalColorFrameContext getContext() {
-      return context.get();
+      final CategoricalColorFrameContext bound = context.get();
+      return bound != null ? bound : new CategoricalColorFrameContext();
    }
 
    /**
-    * Point the calling thread's context at the given viewsheet, setting both the shared frames
-    * and the dimension colors every time, so state left by another viewsheet on a pooled thread
-    * is never read. Pair with {@link #clear()} in a finally block.
+    * Bind the calling thread to the given viewsheet's shared frames, with no dimension colors
+    * until the caller sets them. Close the returned scope (try-with-resources) to restore
+    * whatever was bound before, so no state outlives the operation that bound it.
     *
     * @param vs the viewsheet that owns the chart being edited or rendered, null for none.
     */
-   public static void bind(Viewsheet vs) {
-      final CategoricalColorFrameContext context = getContext();
-      context.sharedFrames = vs == null ? new WeakHashMap<>() : vs.getSharedFrames();
-      context.dimensionColors = new HashMap<>();
+   public static Scope bind(Viewsheet vs) {
+      final CategoricalColorFrameContext previous = context.get();
+      final CategoricalColorFrameContext bound = new CategoricalColorFrameContext();
+
+      if(vs != null) {
+         bound.sharedFrames = vs.getSharedFrames();
+      }
+
+      context.set(bound);
+
+      return () -> {
+         if(previous == null) {
+            context.remove();
+         }
+         else {
+            context.set(previous);
+         }
+      };
    }
 
    /**
-    * Clear the calling thread's context so it carries no viewsheet state.
+    * Scope of a binding made by {@link #bind(Viewsheet)}.
     */
-   public static void clear() {
-      bind(null);
+   public interface Scope extends AutoCloseable {
+      @Override
+      void close();
    }
 
    public Map<String, Color> getDimensionColors() {
@@ -160,7 +181,7 @@ public class CategoricalColorFrameContext {
    private record ChartName(String name) { }
 
    private static final ThreadLocal<CategoricalColorFrameContext> context =
-      ThreadLocal.withInitial(CategoricalColorFrameContext::new);
+      new ThreadLocal<>();
    private Map<SharedFrameParameters, VisualFrame> sharedFrames = new WeakHashMap<>();
    private Map<String, Color> dimensionColors = new HashMap<>();
 }

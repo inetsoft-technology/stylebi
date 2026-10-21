@@ -89,21 +89,20 @@ public class ChangeChartTypeService {
                                Principal principal, CommandDispatcher dispatcher,
                                String linkUri) throws Exception
    {
-      CategoricalColorFrameContext.bind(viewsheetService.getViewsheet(id, principal).getViewsheet());
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
 
-      try {
-         return doChangeChartType(id, event, principal, dispatcher, linkUri);
-      }
-      finally {
-         CategoricalColorFrameContext.clear();
+      try(CategoricalColorFrameContext.Scope scope =
+             CategoricalColorFrameContext.bind(rvs.getViewsheet()))
+      {
+         return doChangeChartType(id, rvs, event, principal, dispatcher, linkUri);
       }
    }
 
-   private Void doChangeChartType(String id, ChangeChartTypeEvent event, Principal principal,
-                                  CommandDispatcher dispatcher, String linkUri) throws Exception
+   private Void doChangeChartType(String id, RuntimeViewsheet rvs, ChangeChartTypeEvent event,
+                                  Principal principal, CommandDispatcher dispatcher,
+                                  String linkUri) throws Exception
    {
       String name = event.getName();
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       if(box.isEmpty()) {

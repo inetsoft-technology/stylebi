@@ -85,27 +85,21 @@ public class ChangeChartRefService {
 
       Viewsheet vs = rvs.getViewsheet();
       vs.clearSharedFrames();
-      CategoricalColorFrameContext.bind(vs);
 
-      try {
-         changeChartRef(rvs, box.get(), vs, event, name, principal, dispatcher, linkUri);
+      try(CategoricalColorFrameContext.Scope scope = CategoricalColorFrameContext.bind(vs)) {
+         return doChangeChartRef(rvs, box.get(), vs, event, name, principal, dispatcher, linkUri);
       }
-      finally {
-         CategoricalColorFrameContext.clear();
-      }
-
-      return null;
    }
 
-   private void changeChartRef(RuntimeViewsheet rvs, ViewsheetSandbox box, Viewsheet vs,
-                               ChangeChartRefEvent event, String name, Principal principal,
-                               CommandDispatcher dispatcher, String linkUri) throws Exception
+   private Void doChangeChartRef(RuntimeViewsheet rvs, ViewsheetSandbox box, Viewsheet vs,
+                                 ChangeChartRefEvent event, String name, Principal principal,
+                                 CommandDispatcher dispatcher, String linkUri) throws Exception
    {
       ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(name);
 
       if(assembly == null) {
          LOG.warn("Chart assembly does not exist, failed to process change chart reference event: {}", name);
-         return;
+         return null;
       }
 
       BindingModel obinding = bindingFactory.createModel(assembly);
@@ -183,6 +177,7 @@ public class ChangeChartRefService {
       dispatcher.sendCommand(bcommand);
 
       dispatcher.sendCommand(new RefreshWizardTreeTriggerCommand());
+      return null;
    }
 
    /**

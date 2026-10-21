@@ -4363,13 +4363,9 @@ public class WizVsService {
 
       if(config != null && config.getBindingInfo() instanceof ChartBinding binding) {
          applyChartBinding(chartInfo, binding, chartType);
-         CategoricalColorFrameContext.bind(vs);
 
-         try {
+         try(CategoricalColorFrameContext.Scope scope = CategoricalColorFrameContext.bind(vs)) {
             GraphUtil.fixVisualFrames(chartInfo);
-         }
-         finally {
-            CategoricalColorFrameContext.clear();
          }
 
       }

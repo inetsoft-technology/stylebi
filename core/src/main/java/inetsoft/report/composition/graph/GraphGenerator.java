@@ -280,91 +280,102 @@ public abstract class GraphGenerator {
       DataSet fdata = adata == null ? data : adata;
 
       synchronized(info) {
-         // for sharing color frames and viewsheet color mappings across charts
-         // bind unconditionally so a pooled thread never keeps another viewsheet's pins
-         CategoricalColorFrameContext.bind(vs);
+         // frames and colors are read from the context while the visitors are built and the
+         // graph is created, so bind for exactly that long and restore on exit
+         try(CategoricalColorFrameContext.Scope scope = bindColorContext()) {
+            // create color frame
+            boolean global = !info.isMultiAesthetic();
+            String vsrc = GraphUtil.getVisualSource(chart);
 
-         if(vs != null) {
-            final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
+            cstrategy = new VSColorFrameStrategy(info);
+            cvisitor = new VSFrameVisitor(info, fdata, cstrategy, global, vdata, cubeType, vsrc,
+               sourceType, dateComparison, getFrameInitializer());
 
-            if(info.isMultiAesthetic()) {
-               List<Map<String, Color>> colorMaps = new ArrayList<>();
-
-               for(ChartRef ref : info.getBindingRefs(true)) {
-                  if(ref instanceof ChartAggregateRef) {
-                     if(((ChartAggregateRef) ref).getColorField() != null) {
-                        final AestheticRef colorField = ((ChartAggregateRef) ref).getColorField();
-                        colorMaps.add(vs.getDimensionColors(colorField.getFullName()));
-                     }
-                  }
+            if(vars != null) {
+               try {
+                  setQuerySandbox(vars.get("querySandbox"));
+                  vars.remove("querySandbox");
                }
-
-               if(colorMaps.size() > 0) {
-                  Map<String, Color> mergedMap = colorMaps.stream().reduce(new HashMap<>(), (a, b) -> {
-                     a.putAll(b);
-                     return a;
-                  });
-
-                  context.setDimensionColors(mergedMap);
+               catch(Exception ex) {
                }
             }
-            else {
-               AbstractChartInfo.getAestheticRefs(info)
-                  .stream().filter(a -> a.getVisualFrame() instanceof CategoricalColorFrame)
-                  .findFirst()
-                  .ifPresent(colorField -> {
-                     String name = colorField.getFullName();
-                     context.setDimensionColors(vs.getDimensionColors(name));
-                  });
-            }
+
+            applyHighlight();
+            applyBrushing();
+
+            // create shape frame
+            shpstrategy = new VSShapeFrameStrategy(info);
+            // Pass hasFullData=false for filtered renders (data tip / flyover) so that a depleted
+            // CategoricalShapeFrame cmap is not written back to the shared context.
+            shpvisitor = new VSFrameVisitor(info, fdata, shpstrategy, global,
+               vdata, cubeType, vsrc, sourceType, hasFullData,
+               assembly == null ? null : assembly.getAbsoluteName(),
+               hasFullData ? null : getTipParent(assembly), getFrameInitializer());
+            // create texture frame
+            tstrategy = new VSTextureFrameStrategy(info);
+            tvisitor = new VSFrameVisitor(info, fdata, tstrategy, global, vdata,
+               cubeType, vsrc, sourceType, getFrameInitializer());
+            // create line frame
+            lnstrategy = new VSLineFrameStrategy(info);
+            lnvisitor = new VSFrameVisitor(info, fdata, lnstrategy, global, vdata,
+               cubeType, vsrc, sourceType, getFrameInitializer());
+            // create size frame
+            szstrategy = new VSSizeFrameStrategy(info);
+            szvisitor = new VSFrameVisitor(info, fdata, szstrategy, global, null,
+               cubeType, vsrc, sourceType, getFrameInitializer());
+            // create text frame
+            txtstrategy = new VSTextFrameStrategy(info);
+            txtvisitor = new VSFrameVisitor(info, fdata, txtstrategy, global, null,
+               cubeType, vsrc, sourceType, getFrameInitializer());
+            maxMode = vs != null && vs.isMaxMode();
          }
-
-         // create color frame
-         boolean global = !info.isMultiAesthetic();
-         String vsrc = GraphUtil.getVisualSource(chart);
-
-         cstrategy = new VSColorFrameStrategy(info);
-         cvisitor = new VSFrameVisitor(info, fdata, cstrategy, global, vdata, cubeType, vsrc,
-            sourceType, dateComparison, getFrameInitializer());
-
-         if(vars != null) {
-            try {
-               setQuerySandbox(vars.get("querySandbox"));
-               vars.remove("querySandbox");
-            }
-            catch(Exception ex) {
-            }
-         }
-
-         applyHighlight();
-         applyBrushing();
-
-         // create shape frame
-         shpstrategy = new VSShapeFrameStrategy(info);
-         // Pass hasFullData=false for filtered renders (data tip / flyover) so that a depleted
-         // CategoricalShapeFrame cmap is not written back to the shared context.
-         shpvisitor = new VSFrameVisitor(info, fdata, shpstrategy, global,
-            vdata, cubeType, vsrc, sourceType, hasFullData,
-            assembly == null ? null : assembly.getAbsoluteName(),
-            hasFullData ? null : getTipParent(assembly), getFrameInitializer());
-         // create texture frame
-         tstrategy = new VSTextureFrameStrategy(info);
-         tvisitor = new VSFrameVisitor(info, fdata, tstrategy, global, vdata,
-            cubeType, vsrc, sourceType, getFrameInitializer());
-         // create line frame
-         lnstrategy = new VSLineFrameStrategy(info);
-         lnvisitor = new VSFrameVisitor(info, fdata, lnstrategy, global, vdata,
-            cubeType, vsrc, sourceType, getFrameInitializer());
-         // create size frame
-         szstrategy = new VSSizeFrameStrategy(info);
-         szvisitor = new VSFrameVisitor(info, fdata, szstrategy, global, null,
-            cubeType, vsrc, sourceType, getFrameInitializer());
-         // create text frame
-         txtstrategy = new VSTextFrameStrategy(info);
-         txtvisitor = new VSFrameVisitor(info, fdata, txtstrategy, global, null,
-            cubeType, vsrc, sourceType, getFrameInitializer());
-         maxMode = vs != null && vs.isMaxMode();
       }
+   }
+
+   /**
+    * Bind the color context to this chart's viewsheet: its shared frames, and the fixed colors of
+    * the color column(s). A chart with no viewsheet leaves any enclosing binding untouched.
+    */
+   private CategoricalColorFrameContext.Scope bindColorContext() {
+      if(vs == null) {
+         return () -> { };
+      }
+
+      final CategoricalColorFrameContext.Scope scope = CategoricalColorFrameContext.bind(vs);
+      final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
+
+      if(info.isMultiAesthetic()) {
+         List<Map<String, Color>> colorMaps = new ArrayList<>();
+
+         for(ChartRef ref : info.getBindingRefs(true)) {
+            if(ref instanceof ChartAggregateRef) {
+               if(((ChartAggregateRef) ref).getColorField() != null) {
+                  final AestheticRef colorField = ((ChartAggregateRef) ref).getColorField();
+                  colorMaps.add(vs.getDimensionColors(colorField.getFullName()));
+               }
+            }
+         }
+
+         if(colorMaps.size() > 0) {
+            Map<String, Color> mergedMap = colorMaps.stream().reduce(new HashMap<>(), (a, b) -> {
+               a.putAll(b);
+               return a;
+            });
+
+            context.setDimensionColors(mergedMap);
+         }
+      }
+      else {
+         AbstractChartInfo.getAestheticRefs(info)
+            .stream().filter(a -> a.getVisualFrame() instanceof CategoricalColorFrame)
+            .findFirst()
+            .ifPresent(colorField -> {
+               String name = colorField.getFullName();
+               context.setDimensionColors(vs.getDimensionColors(name));
+            });
+      }
+
+      return scope;
    }
 
    /**
@@ -856,17 +867,19 @@ public abstract class GraphGenerator {
     * Create element graph.
     */
    public EGraph createEGraph() {
-      fixComparer();
-      fixDefaultFormats();
-      createEGraph0();
-      fixGraphProperties();
+      try(CategoricalColorFrameContext.Scope scope = bindColorContext()) {
+         fixComparer();
+         fixDefaultFormats();
+         createEGraph0();
+         fixGraphProperties();
 
-      if(dateComparison != null) {
-         GraphDefault.setDefaultOutlines(graph);
-         DateComparisonUtil.applyDateRange(dateComparison, graph, (VSChartInfo) info, data);
+         if(dateComparison != null) {
+            GraphDefault.setDefaultOutlines(graph);
+            DateComparisonUtil.applyDateRange(dateComparison, graph, (VSChartInfo) info, data);
+         }
+
+         return graph;
       }
-
-      return graph;
    }
 
    protected PolarCoord createPolarCoord(int type, Scale xscale) {
