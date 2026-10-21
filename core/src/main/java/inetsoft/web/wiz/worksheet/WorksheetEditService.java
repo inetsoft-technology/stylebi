@@ -2163,7 +2163,8 @@ public class WorksheetEditService {
       }
 
       /**
-       * Refuses a variable tool aimed at a mirror or at the hidden copy that backs one. A mirror
+       * Refuses a variable or named-group tool aimed at a mirror or at the hidden copy that
+       * backs one. A mirror
        * has no definition of its own (it lives in the source worksheet), and the hidden copy is a
        * real variable assembly: editing it would silently change what the mirror reports, and
        * deleting it would orphan the mirror.
@@ -2186,7 +2187,7 @@ public class WorksheetEditService {
 
          if(a instanceof WSAssembly wsa && wsa.isOuter()) {
             throw new PairingException(
-               "'" + name + "' is a hidden copy that backs a mirror, not a variable of its own, " +
+               "'" + name + "' is a hidden copy that backs a mirror, not a " + kindOf(a) + " of its own, " +
                "and cannot be changed directly. Edit the source worksheet, or delete the " +
                "mirror with delete_table (that removes this copy too).");
          }
@@ -4055,6 +4056,7 @@ public class WorksheetEditService {
                                  boolean groupOthers) throws PairingException
       {
          Assembly a = ws.getAssembly(name);
+         refuseMirrorOrHiddenCopy(a, name, MIRROR_EDIT_REMEDY);
 
          if(!(a instanceof DefaultNamedGroupAssembly nga)) {
             throw new PairingException("Named group assembly not found: " + name);
@@ -4176,6 +4178,7 @@ public class WorksheetEditService {
        */
       public void deleteNamedGroup(String name) throws PairingException {
          Assembly a = ws.getAssembly(name);
+         refuseMirrorOrHiddenCopy(a, name, "Delete it with delete_table instead.");
 
          if(!(a instanceof DefaultNamedGroupAssembly)) {
             throw new PairingException("Named group assembly not found: " + name);

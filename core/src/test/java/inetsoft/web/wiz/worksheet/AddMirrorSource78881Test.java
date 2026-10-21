@@ -410,6 +410,34 @@ class AddMirrorSource78881Test {
       assertEquals(List.of(), names(ws));
    }
 
+   @Test
+   void namedGroupToolsRefuseAMirrorAndItsHiddenCopy() throws Exception {
+      saveNamedGroupSource("am78949_group");
+      Worksheet ws = new Worksheet();
+      addWorksheetMirror(ws, "MG", "am78949_group");
+      String outer = hiddenCopyName(ws);
+      List<String> before = names(ws);
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("G2", List.of("c"), null));
+
+      for(String name : List.of("MG", outer)) {
+         PairingException edit = assertThrows(PairingException.class,
+            () -> service(ws).apply("TOK", agent, ed -> ed.editNamedGroup(name, null, mappings, false)));
+         PairingException delete = assertThrows(PairingException.class,
+            () -> service(ws).apply("TOK", agent, ed -> ed.deleteNamedGroup(name)));
+
+         for(PairingException ex : List.of(edit, delete)) {
+            assertFalse(ex.getMessage().contains("not found"), ex.getMessage());
+            assertTrue(ex.getMessage().contains("delete_table"), ex.getMessage());
+            assertTrue(name.equals("MG") ? ex.getMessage().contains("is a mirror of am78949_group")
+                       : ex.getMessage().contains("hidden copy that backs a mirror, not a named group"),
+                       ex.getMessage());
+         }
+      }
+
+      assertEquals(before, names(ws));
+   }
+
    private static void assertMirrorRefusal(PairingException ex) {
       assertTrue(ex.getMessage().contains("'MV' is a mirror of am78949_"), ex.getMessage());
       assertTrue(ex.getMessage().contains("not editable"), ex.getMessage());
@@ -573,6 +601,17 @@ class AddMirrorSource78881Test {
       Worksheet ws = new Worksheet();
       ws.addAssembly(variable(ws, "V"));
       ws.setPrimaryAssembly("V");
+      worksheetService.setWorksheet(ws, entry, null, true, true);
+      repository().clearCache(entry);
+   }
+
+   /** Saves a global worksheet whose primary assembly is a named group. */
+   private void saveNamedGroupSource(String path) throws Exception {
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                        path, null);
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultNamedGroupAssembly(ws, "G"));
+      ws.setPrimaryAssembly("G");
       worksheetService.setWorksheet(ws, entry, null, true, true);
       repository().clearCache(entry);
    }

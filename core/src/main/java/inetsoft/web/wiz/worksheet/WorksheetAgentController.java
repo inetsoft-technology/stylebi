@@ -1721,6 +1721,8 @@ public class WorksheetAgentController {
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
          Assembly a = ws.getAssembly(name);
+         WorksheetEditService.Editor.refuseMirrorOrHiddenCopy(
+            a, name, "Edit the source worksheet, or delete the mirror with delete_table.");
 
          if(!(a instanceof DefaultNamedGroupAssembly nga)) {
             throw new PairingException("Named group assembly not found: " + name);
