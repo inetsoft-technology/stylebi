@@ -304,11 +304,30 @@ public class AssemblyConvertService {
     * nothing says so.
     */
    private static List<String> discardedBy(VSAssembly assembly, String target) {
-      if(!FREEHAND_TABLE.equals(target) || !(assembly instanceof CrosstabVSAssembly crosstab)) {
+      if(!FREEHAND_TABLE.equals(target) || !(assembly instanceof TableDataVSAssembly table)) {
          return List.of();
       }
 
       List<String> cleared = new ArrayList<>();
+      TableDataVSAssemblyInfo tableInfo = table.getTableDataVSAssemblyInfo();
+
+      // ComposerVSTableService.convertToFreehandTable replaces both attrs with empty ones.
+      if(tableInfo != null && tableInfo.getHighlightAttr() != null &&
+         !tableInfo.getHighlightAttr().isNull())
+      {
+         cleared.add("highlights");
+      }
+
+      if(tableInfo != null && tableInfo.getHyperlinkAttr() != null &&
+         !tableInfo.getHyperlinkAttr().isNull())
+      {
+         cleared.add("hyperlinks");
+      }
+
+      if(!(assembly instanceof CrosstabVSAssembly crosstab)) {
+         return cleared;
+      }
+
       CrosstabVSAssemblyInfo info = crosstab.getCrosstabInfo();
 
       if(info != null && info.getDateComparisonInfo() != null) {

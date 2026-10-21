@@ -2358,11 +2358,20 @@ public class LayoutTool {
             cell.getBType() == TableCellBinding.GROUP, sortOthersLast);
       }
       else if(cell.getBType() == TableCellBinding.DETAIL) {
-         // wrap in none(...) the same way the crosstab-supported branch does for the
-         // same bType (createCrosstabCalcExpression), so CellRange.getCollectionValue's
-         // raw Object[] array lookup gets reduced back to a scalar instead of leaking
-         // as "[Ljava.lang.Object;@<hash>".
-         exp = "none(" + createDetailExpression(groups, gnames, createDetailField(cell, table), var) + ")";
+         String detail = createDetailExpression(groups, gnames, createDetailField(cell, table), var);
+
+         // A detail cell that does not expand is wrapped in none(...) the same way the
+         // crosstab-supported branch does for the same bType (createCrosstabCalcExpression),
+         // so CellRange.getCollectionValue's raw Object[] array lookup gets reduced back to a
+         // scalar instead of leaking as "[Ljava.lang.Object;@<hash>". An expanding detail
+         // cell (vertical or horizontal) needs the array itself, one slot per element,
+         // and none(...) would collapse it to a single value.
+         if(cell.getExpansion() == TableCellBinding.EXPAND_NONE) {
+            exp = "none(" + detail + ")";
+         }
+         else {
+            exp = detail;
+         }
 
          // use noEmpty to avoid a row disappearing when there is not avoid
          // this should only be necessary when there is multi-source join and
