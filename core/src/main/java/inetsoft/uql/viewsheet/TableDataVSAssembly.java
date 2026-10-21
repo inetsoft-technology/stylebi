@@ -603,6 +603,24 @@ public abstract class TableDataVSAssembly extends DataVSAssembly
             VSUtil.renameHyperlinkRef(link, oname, nname);
          }
       }
+
+      // sync the formats
+      FormatInfo finfo = getFormatInfo();
+
+      if(finfo != null) {
+         Map<TableDataPath, TableDataPath> changes =
+            syncTableDataPath(Collections.enumeration(Arrays.asList(finfo.getPaths())),
+                              oname, nname);
+         Map<TableDataPath, VSCompositeFormat> fmtmap = finfo.getFormatMap();
+
+         for(Map.Entry<TableDataPath, TableDataPath> change : changes.entrySet()) {
+            TableDataPath npath = change.getKey();
+            TableDataPath opath = change.getValue();
+            VSCompositeFormat fmt = fmtmap.get(opath);
+            finfo.setFormat(opath, null);
+            finfo.setFormat(npath, fmt);
+         }
+      }
    }
 
    /**
