@@ -24,6 +24,8 @@ import org.xml.sax.InputSource;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.*;
+import java.time.Month;
+import java.util.Calendar;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -33,7 +35,8 @@ import java.util.concurrent.*;
  * <p>
  * An input is the XML of one time condition ({@code <Condition type="TimeCondition" ...>}),
  * as task storage, EM task import and deploy import read it. {@link #check(String)} parses it
- * with {@link TimeCondition#parseXML}, which may reject it, and then verifies that:
+ * with {@link TimeCondition#parseXML}, which may reject it, skips the values of Bug #79056,
+ * and then verifies that:
  * <ol>
  *    <li>parsing returns within {@link #STEP_LIMIT_MS} and throws no {@link Error};</li>
  *    <li>for each of a few start times, {@code getRetryTime} returns within
@@ -74,6 +77,10 @@ public final class TimeConditionProperties {
          return false; // rejected
       }
 
+      if(isKnownOutOfRange(condition)) {
+         return false;
+      }
+
       String xml = toXml(condition);
 
       for(long start : STARTS) {
@@ -110,6 +117,63 @@ public final class TimeConditionProperties {
       }
 
       return true;
+   }
+
+   /**
+    * Out-of-range values, which no layer refuses (Bug #79056): some make getRetryTime loop
+    * forever, an hour or minute outside its range can repeat a fire or return a time before
+    * the start. Skipped so that the fuzzer looks for other defects; remove this check with
+    * the fix.
+    */
+   private static boolean isKnownOutOfRange(TimeCondition condition) {
+      int type = condition.getType();
+
+      if(type != TimeCondition.AT &&
+         (outOfRange(condition.getHour(), 23, false) ||
+          outOfRange(condition.getMinute(), 59, false) ||
+          outOfRange(condition.getSecond(), 59, false) ||
+          outOfRange(condition.getHourEnd(), 23, true) ||
+          outOfRange(condition.getMinuteEnd(), 59, true) ||
+          outOfRange(condition.getSecondEnd(), 59, true)))
+      {
+         return true;
+      }
+
+      if(type == TimeCondition.EVERY_WEEK || type == TimeCondition.EVERY_HOUR) {
+         for(int day : condition.getDaysOfWeek()) {
+            if(day < Calendar.SUNDAY || day > Calendar.SATURDAY) {
+               return true;
+            }
+         }
+      }
+
+      if(type == TimeCondition.EVERY_HOUR && condition.getHourlyInterval() > 0 &&
+         (long) (condition.getHourlyInterval() * 3600000) == 0)
+      {
+         return true;
+      }
+
+      if(type == TimeCondition.EVERY_MONTH) {
+         int longest = 0;
+
+         for(int month : condition.getMonthsOfYear()) {
+            if(month < Calendar.JANUARY || month > Calendar.DECEMBER) {
+               return true;
+            }
+
+            longest = Math.max(longest, Month.of(month + 1).maxLength());
+         }
+
+         return condition.getWeekOfMonth() < 0 &&
+            Math.abs(condition.getDayOfMonth()) > longest;
+      }
+
+      return false;
+   }
+
+   // an end time field is -1 when the condition has no end time
+   private static boolean outOfRange(int value, int max, boolean unset) {
+      return (value < 0 || value > max) && !(unset && value == -1);
    }
 
    private static Element parseElement(String xml) {
