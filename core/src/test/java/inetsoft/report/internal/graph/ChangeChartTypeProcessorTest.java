@@ -18,6 +18,8 @@
 package inetsoft.report.internal.graph;
 
 import inetsoft.graph.aesthetic.*;
+import inetsoft.report.Hyperlink;
+import inetsoft.report.filter.HighlightGroup;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -538,6 +540,56 @@ class ChangeChartTypeProcessorTest {
       info.setEndField(dimension(end));
       info.setMilestoneField(dimension(milestone));
       return info;
+   }
+
+   /**
+    * Bug #79118: retyping a non-merged chart to a merged one (radar, funnel, ...) used to clear
+    * the y measure's highlight, text highlight and hyperlink in {@code copyFields}.
+    */
+   @Test
+   void barToRadarKeepsMeasureHighlightTextHighlightAndHyperlink() {
+      ChartInfo info = barWithDecoratedMeasure();
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_RADAR, info);
+
+      assertDecorationsKept(info, "bar to radar");
+   }
+
+   @Test
+   void barToFunnelAndBackKeepsMeasureHighlightTextHighlightAndHyperlink() {
+      ChartInfo info = barWithDecoratedMeasure();
+
+      info = changeType(GraphTypes.CHART_BAR, GraphTypes.CHART_FUNNEL, info);
+      assertDecorationsKept(info, "bar to funnel");
+
+      info = changeType(GraphTypes.CHART_FUNNEL, GraphTypes.CHART_BAR, info);
+      assertDecorationsKept(info, "funnel back to bar");
+   }
+
+   private static ChartInfo barWithDecoratedMeasure() {
+      ChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dimension("Category"));
+      VSChartAggregateRef sales = aggregate("Sales", AggregateFormula.SUM);
+      sales.setHighlightGroup(new HighlightGroup());
+      sales.setTextHighlightGroup(new HighlightGroup());
+      sales.setHyperlink(new Hyperlink("http://example.com"));
+      info.addYField(sales);
+      return info;
+   }
+
+   private static void assertDecorationsKept(ChartInfo info, String stage) {
+      VSChartAggregateRef sales = null;
+
+      for(VSDataRef field : info.getFields()) {
+         if("Sales".equals(field.getName()) && field instanceof VSChartAggregateRef) {
+            sales = (VSChartAggregateRef) field;
+         }
+      }
+
+      assertNotNull(sales, stage + ": the Sales measure must still be bound");
+      assertNotNull(sales.getHighlightGroup(), stage + ": highlight must be kept");
+      assertNotNull(sales.getTextHighlightGroup(), stage + ": text highlight must be kept");
+      assertNotNull(sales.getHyperlink(), stage + ": hyperlink must be kept");
    }
 
    private static String nameOrNull(AestheticRef aref) {
