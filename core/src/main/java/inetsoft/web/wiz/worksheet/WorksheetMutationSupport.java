@@ -1986,13 +1986,24 @@ public final class WorksheetMutationSupport {
       if(sql == null ||
          sql.getParseResult() != UniformSQL.PARSE_SUCCESS &&
             sql.getParseResult() != UniformSQL.PARSE_PARTIALLY ||
-         sql.getSelection().getColumnCount() != n ||
          n == 0 || UniformSQL.hasWildcard(sql.getSelection()))
       {
          return List.of();
       }
 
+      // Name each parsed item the way getColumnSelection does. A repeated output name is dropped
+      // there (ColumnSelection.addAttribute is exclusive by name), so the first occurrence wins.
       XSelection selection = sql.getSelection();
+      Map<String, String> parsedTypes = new HashMap<>();
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         String fullname = selection.getColumn(i);
+         String alias = selection.getAlias(i);
+         String name = alias != null && !alias.isEmpty() ? alias
+            : fullname.substring(fullname.lastIndexOf('.') + 1);
+         parsedTypes.putIfAbsent(name, selection.getType(fullname));
+      }
+
       Set<Integer> untyped = new LinkedHashSet<>();
 
       for(int i = 0; i < n; i++) {
@@ -2000,7 +2011,7 @@ public final class WorksheetMutationSupport {
             continue;
          }
 
-         String parsed = selection.getType(selection.getColumn(i));
+         String parsed = parsedTypes.get(((ColumnRef) columns.getAttribute(i)).getName());
 
          if(parsed == null || parsed.isEmpty()) {
             untyped.add(i);
