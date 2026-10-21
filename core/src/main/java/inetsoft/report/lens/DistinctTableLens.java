@@ -417,7 +417,8 @@ public class DistinctTableLens extends AbstractTableLens
     * next pass finds the rows of the table (bug #77333).
     * @param target the rows of the pass.
     * @param stall the stall the pass failed with, if any.
-    * @param baseFailure the lost swap file, the load failure or the script stop of the base
+    * @param baseFailure the lost swap file, the load failure, the script stop or the message
+    *                    exception (e.g. a failed set table merge) of the base
     *                    the pass failed with, if any.
     * @param background {@code true} if on the worker: its user messages, e.g. the warning of
     *                   a base that failed to load, are kept for the readers before they are
@@ -825,8 +826,9 @@ public class DistinctTableLens extends AbstractTableLens
    }
 
    /**
-    * Find the lost swap file (bug #77651) or the load failure of the base (bug #77966) in the
-    * cause chain of a failure of the worker, or copy the script stop (bug #78134).
+    * Find the lost swap file (bug #77651), the load failure of the base (bug #77966) or its
+    * message exception, e.g. a failed set table merge (bug #78365), in the cause chain of a
+    * failure of the worker, or copy the script stop (bug #78134).
     */
    private static RuntimeException findBaseFailure(Throwable ex) {
       RuntimeException baseFailure = SwapFileReadException.find(ex);
@@ -1540,8 +1542,8 @@ public class DistinctTableLens extends AbstractTableLens
    // the base row the worker has reached, and the stall it failed with (bug #76967)
    private transient volatile int scannedRows;
    private transient volatile LockStallException stallFailure;
-   // the swap file read failure (bug #77651) or the base load failure (bug #77966) the worker
-   // failed with, if any
+   // the swap file read failure (bug #77651), the base load failure (bug #77966), the script stop
+   // (bug #78134) or the message exception (bug #78365) of the base the worker failed with
    private transient volatile RuntimeException baseFailure;
    // the user messages of the worker, for the readers (bug #77966)
    private transient volatile UserMessage userMsg;

@@ -25,6 +25,7 @@ import inetsoft.uql.XTable;
 import inetsoft.util.MessageException;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.ScriptException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -52,24 +54,31 @@ import static org.junit.jupiter.api.Assertions.*;
 public class DistinctTableLensSetFailureTest {
    @Test
    public void hashDistinctMoreRowsThrows() {
-      DistinctTableLens lens = new DistinctTableLens(failingUnion(), new int[] { 0 }, false);
+      FailingUnion union = failingUnion();
+      DistinctTableLens lens = new DistinctTableLens(union, new int[] { 0 }, false);
+      union.arm();
 
       assertSetFailure(assertThrows(MessageException.class, () -> lens.moreRows(XTable.EOT)));
    }
 
    @Test
    public void sortDistinctMoreRowsThrows() {
-      DistinctTableLens lens = new DistinctTableLens(failingUnion(), new int[] { 0, 1 }, false);
+      FailingUnion union = failingUnion();
+      DistinctTableLens lens = new DistinctTableLens(union, new int[] { 0, 1 }, false);
+      union.arm();
 
       assertSetFailure(assertThrows(MessageException.class, () -> lens.moreRows(XTable.EOT)));
    }
 
    @Test
    public void rowCountFirstThrows() {
-      assertSetFailure(assertThrows(MessageException.class, () ->
-         rowCountUntilDone(new DistinctTableLens(failingUnion(), new int[] { 0 }, false))));
-      assertSetFailure(assertThrows(MessageException.class, () ->
-         rowCountUntilDone(new DistinctTableLens(failingUnion(), new int[] { 0, 1 }, false))));
+      for(int[] cols : new int[][] { { 0 }, { 0, 1 } }) {
+         FailingUnion union = failingUnion();
+         DistinctTableLens lens = new DistinctTableLens(union, cols, false);
+         union.arm();
+
+         assertSetFailure(assertThrows(MessageException.class, () -> rowCountUntilDone(lens)));
+      }
    }
 
    /**
@@ -78,7 +87,9 @@ public class DistinctTableLensSetFailureTest {
     */
    @Test
    public void laterReadsThrowCopies() {
-      DistinctTableLens lens = new DistinctTableLens(failingUnion(), new int[] { 0 }, false);
+      FailingUnion union = failingUnion();
+      DistinctTableLens lens = new DistinctTableLens(union, new int[] { 0 }, false);
+      union.arm();
       MessageException first = assertThrows(
          MessageException.class, () -> lens.moreRows(XTable.EOT));
       MessageException second = assertThrows(
@@ -93,15 +104,52 @@ public class DistinctTableLensSetFailureTest {
    }
 
    /**
-    * The kept failure is transient, a failed lens still serializes.
+    * Serializing a lens that failed reads its rows, so it fails with the failure of the base
+    * too (as for a lost swap file), it is never a serialization error of the kept failure nor
+    * a silently empty table.
     */
    @Test
-   public void failedLensSerializes() throws Exception {
-      DistinctTableLens lens = new DistinctTableLens(new DefaultTableLens(data(3)),
+   public void failedLensSerializationFailsWithTheFailure() {
+      DistinctTableLens lens = new DistinctTableLens(new MessageBase(data(10)),
                                                      new int[] { 0 }, false);
-      assertFalse(lens.moreRows(XTable.EOT));
-      assertEquals(DistinctTableLens.class,
-                   TestSerializeUtils.serializeAndDeserialize(lens).getClass());
+      assertThrows(MessageException.class, () -> lens.moreRows(XTable.EOT));
+      assertThrows(MessageException.class,
+                   () -> TestSerializeUtils.serializeAndDeserialize(lens));
+   }
+
+   /**
+    * A message exception wrapped by another exception of the base is found in the cause chain,
+    * as SortFilter does (bug #77875).
+    */
+   @Test
+   public void wrappedMessageExceptionThrows() {
+      DistinctTableLens lens = new DistinctTableLens(new MessageBase(data(10)),
+                                                     new int[] { 0 }, false);
+
+      assertThrows(MessageException.class, () -> lens.moreRows(XTable.EOT));
+      assertThrows(MessageException.class, () -> lens.moreRows(XTable.EOT));
+   }
+
+   /**
+    * A script failure of the base is not one, it keeps ending the distinct table as before
+    * (bug #77875).
+    */
+   @Test
+   public void scriptExceptionOfBaseUnchanged() {
+      DefaultTableLens base = new DefaultTableLens(data(10)) {
+         @Override
+         public boolean moreRows(int row) {
+            if(row >= 6 || row == XTable.EOT) {
+               throw new ScriptException("script failed", new MessageException("wrapped"));
+            }
+
+            return super.moreRows(row);
+         }
+      };
+      DistinctTableLens lens = new DistinctTableLens(base, new int[] { 0 }, false);
+
+      assertDoesNotThrow(() -> lens.moreRows(XTable.EOT));
+      assertDoesNotThrow(lens::getRowCount);
    }
 
    /**
@@ -110,7 +158,9 @@ public class DistinctTableLensSetFailureTest {
     */
    @Test
    public void inlineReadThrows() {
-      DistinctTableLens lens = new DistinctTableLens(failingUnion(), new int[] { 0 }, false);
+      FailingUnion union = failingUnion();
+      DistinctTableLens lens = new DistinctTableLens(union, new int[] { 0 }, false);
+      union.arm();
       LendableReentrantLock lock = new LendableReentrantLock();
       lock.lock();
       JavaScriptEngine.pushHeldScriptLock(lock);
@@ -129,8 +179,11 @@ public class DistinctTableLensSetFailureTest {
 
    @Test
    public void sortFilterFailsTheSame() {
+      FailingUnion union = failingUnion();
+      union.arm();
+
       assertThrows(SetTableLens.SetOperationException.class, () ->
-         new inetsoft.report.filter.SortFilter(failingUnion(), new int[] { 0 },
+         new inetsoft.report.filter.SortFilter(union, new int[] { 0 },
                                                new boolean[] { true }).moreRows(XTable.EOT));
    }
 
@@ -158,10 +211,6 @@ public class DistinctTableLensSetFailureTest {
    }
 
    /**
-    * A real union whose merge worker fails after three rows with a plain exception, which the
-    * union reports to its readers as a set operation failure.
-    */
-   /**
     * The row count of a table still loading is negative, it is the number of rows once done.
     */
    private static int rowCountUntilDone(DistinctTableLens lens) {
@@ -182,28 +231,67 @@ public class DistinctTableLensSetFailureTest {
       assertNotNull(ex.getCause());
    }
 
-   private static TableLens failingUnion() {
-      AtomicInteger visited = new AtomicInteger();
-      UnionTableLens union = new UnionTableLens(new DefaultTableLens(data(10)),
-                                                new DefaultTableLens(data(0)))
-      {
-         @Override
-         protected MergedTable.Visitor getVisitor(Pass pass) {
-            MergedTable.Visitor visitor = super.getVisitor(pass);
+   /**
+    * A real union whose merge worker fails with a plain exception after three rows, once
+    * {@link FailingUnion#arm()} is called, which the union reports to its readers as a set
+    * operation failure. The worker waits at the fourth row until it is armed, so that a lens
+    * built over it never sees the failure before the test reads it.
+    */
+   private static FailingUnion failingUnion() {
+      return new FailingUnion();
+   }
 
-            return row -> {
-               if(visited.incrementAndGet() > 3) {
-                  throw new IllegalStateException("visitor failed");
+   private static final class FailingUnion extends UnionTableLens {
+      FailingUnion() {
+         super(new DefaultTableLens(data(10)), new DefaultTableLens(data(0)));
+      }
+
+      void arm() {
+         armed.countDown();
+      }
+
+      @Override
+      protected MergedTable.Visitor getVisitor(Pass pass) {
+         MergedTable.Visitor visitor = super.getVisitor(pass);
+         AtomicInteger visited = new AtomicInteger();
+
+         return row -> {
+            if(visited.incrementAndGet() > 3) {
+               try {
+                  assertTrue(armed.await(30, TimeUnit.SECONDS), "never armed");
+               }
+               catch(InterruptedException ex) {
+                  Thread.currentThread().interrupt();
                }
 
-               if(visitor != null) {
-                  visitor.visit(row);
-               }
-            };
+               throw new IllegalStateException("visitor failed");
+            }
+
+            if(visitor != null) {
+               visitor.visit(row);
+            }
+         };
+      }
+
+      private final CountDownLatch armed = new CountDownLatch(1);
+   }
+
+   /**
+    * A base whose rows from the sixth throw a plain exception wrapping a message exception.
+    */
+   private static final class MessageBase extends DefaultTableLens {
+      MessageBase(Object[][] data) {
+         super(data);
+      }
+
+      @Override
+      public boolean moreRows(int row) {
+         if(row >= 6 || row == XTable.EOT) {
+            throw new RuntimeException("base failed", new MessageException("wrapped"));
          }
-      };
 
-      return union;
+         return super.moreRows(row);
+      }
    }
 
    private static Object[][] data(int rows) {
