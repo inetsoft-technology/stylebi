@@ -39,6 +39,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.awt.geom.Rectangle2D;
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.security.Principal;
 import java.util.*;
 
@@ -337,11 +340,11 @@ public class ChartElementService {
                                              double effective, boolean resized)
    {
       Map<String, Object> map = new LinkedHashMap<>();
-      map.put("ratio", round(ratio));
+      map.put("ratio", ratio);
       map.put("resized", resized);
-      map.put("percent", round(percent));
-      map.put("initialRatio", round(initial));
-      map.put("effectiveRatio", round(effective));
+      map.put("percent", percent);
+      map.put("initialRatio", initial);
+      map.put("effectiveRatio", effective);
       return map;
    }
 
@@ -350,7 +353,7 @@ public class ChartElementService {
     * chart-areas command sends to the browser - so a caller is not left guessing against this
     * class' blunt {@link #MAX_PLOT_RATIO} cap, which is a typo guard rather than a real limit.
     */
-   private static Map<String, Object> maxRatios(VGraph graph, VSChartInfo info) {
+   static Map<String, Object> maxRatios(VGraph graph, VSChartInfo info) {
       Coordinate coord = graph.getCoordinate();
       double maxWidth;
       double maxHeight;
@@ -371,7 +374,7 @@ public class ChartElementService {
          return Map.of();
       }
 
-      return Map.of("maxWidthRatio", round(maxWidth), "maxHeightRatio", round(maxHeight));
+      return Map.of("maxWidthRatio", maxWidth, "maxHeightRatio", maxHeight);
    }
 
    /**
@@ -396,8 +399,8 @@ public class ChartElementService {
     *
     * <p>The maximum needs the laid-out graph, so a chart that has none - unbound, empty, still
     * computing - is checked against the lower bound alone rather than being refused for a bound
-    * that cannot be computed. The lower bound never needs the graph: {@code initialRatio} is on
-    * the chart info.
+    * that cannot be computed. The graph is only needed for the upper bound: {@code
+    * initialRatio} is on the chart info.
     *
     * <p><b>This guards the agent path only.</b> {@code VSChartPlotResizeService} is still
     * unvalidated. It is reachable today from here and from the slider, and both now bound it, so
@@ -428,26 +431,34 @@ public class ChartElementService {
          boolean width = square || !vertical;
          boolean height = square || vertical;
 
+         VGraph real = laidOutGraph(rvs, chart);
+         Map<String, Object> max = real == null ? Map.of() : maxRatios(real, info);
+         Object maxWidth = max.get("maxWidthRatio");
+         Object maxHeight = max.get("maxHeightRatio");
+
+         // checked before the baseline so no "pass at least" suggestion can point past the maximum
          if(width) {
-            requireAtLeastInitial(ratio, info.getInitialWidthRatio(), "width");
+            requireEnlargeable(info.getInitialWidthRatio(), maxWidth, "width");
          }
 
          if(height) {
-            requireAtLeastInitial(ratio, info.getInitialHeightRatio(), "height");
+            requireEnlargeable(info.getInitialHeightRatio(), maxHeight, "height");
          }
 
-         VGraph real = laidOutGraph(rvs, chart);
+         if(width) {
+            requireAtLeastInitial(ratio, info.getInitialWidthRatio(), maxWidth, "width");
+         }
 
-         if(real != null) {
-            Map<String, Object> max = maxRatios(real, info);
+         if(height) {
+            requireAtLeastInitial(ratio, info.getInitialHeightRatio(), maxHeight, "height");
+         }
 
-            if(width) {
-               requireAtMost(ratio, max.get("maxWidthRatio"), "width");
-            }
+         if(width) {
+            requireAtMost(ratio, maxWidth, info.getInitialWidthRatio(), "width");
+         }
 
-            if(height) {
-               requireAtMost(ratio, max.get("maxHeightRatio"), "height");
-            }
+         if(height) {
+            requireAtMost(ratio, maxHeight, info.getInitialHeightRatio(), "height");
          }
 
          return null;
@@ -490,26 +501,99 @@ public class ChartElementService {
       }
    }
 
-   /** Below the baseline the write is accepted and inert, which is worse than a refusal. */
-   private static void requireAtLeastInitial(double ratio, double initial, String direction) {
-      if(ratio < initial) {
+   /**
+    * A direction whose maximum is not above its baseline has no valid ratio to offer - the same
+    * condition under which the Composer's slider is not drawn ({@code GraphUtil.isHResizable} and
+    * {@code isVResizable}: one axis unit or fewer, e.g. a measure axis).
+    */
+   static void requireEnlargeable(double initial, Object max, String direction) {
+      if(max instanceof Number bound && bound.doubleValue() <= initial) {
          throw new IllegalArgumentException(
-            "resize_plot's 'ratio' of " + round(ratio) + " is below this chart's " + direction +
-            " baseline of " + round(initial) + ", so it would be stored and change nothing - the " +
-            "layout re-applies a resize only while ratio / baseline is at least 1. Pass at least " +
-            round(initial) + " to enlarge the plot, or reset:true to restore the default size.");
+            "resize_plot cannot enlarge this chart's " + direction + ": it has at most one " +
+            "axis unit or a" +
+            " fixed cap in that direction, so its maximum (" +
+            ratioText(bound.doubleValue(), 6, RoundingMode.HALF_UP) + ") is not above its " +
+            "baseline (" + ratioText(initial, 6, RoundingMode.HALF_UP) + ") and every ratio " +
+            "would be stored and change nothing. Use reset:true to restore the default size, " +
+            "or resize the other direction.");
+      }
+   }
+
+   /** Below the baseline the write is accepted and inert, which is worse than a refusal. */
+   static void requireAtLeastInitial(double ratio, double initial, Object max,
+                                             String direction)
+   {
+      if(ratio < initial) {
+         int digits = distinguishingDigits(ratio, initial);
+         double pass = ceilRatio(initial);
+
+         if(max instanceof Number bound && pass > bound.doubleValue()) {
+            pass = bound.doubleValue();
+         }
+
+         throw new IllegalArgumentException(
+            "resize_plot's 'ratio' of " + ratioText(ratio, digits, RoundingMode.HALF_UP) +
+            " is below this chart's " + direction + " baseline of " +
+            ratioText(initial, digits, RoundingMode.HALF_UP) + ", so it would be stored and " +
+            "change nothing - the layout re-applies a resize only while ratio / baseline is at " +
+            "least 1. Pass at least " + plainRatio(pass) +
+            " to enlarge the plot, or reset:true to restore the default size.");
       }
    }
 
    /** Past the maximum a resize only adds empty space, and no Composer user can get there. */
-   private static void requireAtMost(double ratio, Object max, String direction) {
+   static void requireAtMost(double ratio, Object max, double initial, String direction) {
       if(max instanceof Number bound && ratio > bound.doubleValue()) {
+         int digits = distinguishingDigits(ratio, bound.doubleValue());
+         double pass = Math.max(floorRatio(bound.doubleValue()), initial);
+
          throw new IllegalArgumentException(
-            "resize_plot's 'ratio' of " + round(ratio) + " is above this chart's " + direction +
-            " maximum of " + bound + ", which is as far as the Composer's own resize slider goes " +
-            "- every axis unit already has a full unit of space there, so a larger ratio only " +
-            "adds empty space. Pass " + bound + " or less.");
+            "resize_plot's 'ratio' of " + ratioText(ratio, digits, RoundingMode.HALF_UP) +
+            " is above this chart's " + direction + " maximum of " +
+            ratioText(bound.doubleValue(), digits, RoundingMode.HALF_UP) + ", which is as far " +
+            "as the Composer's own resize slider goes - every axis unit already has a full unit " +
+            "of space there, so a larger ratio only adds empty space. Pass " +
+            plainRatio(pass) + " or less.");
       }
+   }
+
+   /** Significant digits of a suggested ratio; four keeps it readable. */
+   private static final int SUGGEST_DIGITS = 4;
+
+   /** Smallest value with {@link #SUGGEST_DIGITS} significant digits that is not below value. */
+   static double ceilRatio(double value) {
+      return new BigDecimal(value).round(new MathContext(SUGGEST_DIGITS, RoundingMode.CEILING))
+         .doubleValue();
+   }
+
+   /** Largest value with {@link #SUGGEST_DIGITS} significant digits that is not above value. */
+   static double floorRatio(double value) {
+      return new BigDecimal(value).round(new MathContext(SUGGEST_DIGITS, RoundingMode.FLOOR))
+         .doubleValue();
+   }
+
+   /** Fewest significant digits (from 4) at which the two values print differently. */
+   static int distinguishingDigits(double a, double b) {
+      for(int digits = SUGGEST_DIGITS; digits < 17; digits++) {
+         if(!ratioText(a, digits, RoundingMode.HALF_UP)
+            .equals(ratioText(b, digits, RoundingMode.HALF_UP)))
+         {
+            return digits;
+         }
+      }
+
+      return 17;
+   }
+
+   /** The shortest plain-notation text that parses back to exactly this double. */
+   static String plainRatio(double value) {
+      return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
+   }
+
+   /** A ratio in plain (never scientific) notation at the given significant digits. */
+   static String ratioText(double value, int digits, RoundingMode mode) {
+      return new BigDecimal(value).round(new MathContext(digits, mode))
+         .stripTrailingZeros().toPlainString();
    }
 
    private static Map<String, Object> size(Rectangle2D bounds) {
@@ -520,7 +604,10 @@ public class ChartElementService {
       return Map.of("width", round(bounds.getWidth()), "height", round(bounds.getHeight()));
    }
 
-   /** Pixel and ratio values carry no meaning past 2 decimals, and full doubles read as noise. */
+   /**
+    * Pixel values carry no meaning past 2 decimals, and full doubles read as noise. Not for
+    * ratios: a baseline can be below 0.05, where 2 decimals loses the value itself.
+    */
    private static double round(double value) {
       return Math.round(value * 100d) / 100d;
    }
