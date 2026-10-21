@@ -206,7 +206,7 @@ class ScheduleFolderChangesetApplyServiceTest {
    @Test void appliesAMoveTaskAndReportsApplied() throws Exception {
       when(folderGateway.taskExists("task1")).thenReturn(true);
       when(folderGateway.folderExists("Target")).thenReturn(true);
-      when(folderGateway.getTaskPath("task1")).thenReturn("Old", "Target");
+      when(folderGateway.getTaskPath("task1")).thenReturn("Old", "Old", "Old", "Target");
       when(backupService.backup(anyString())).thenReturn("snap-ref");
 
       ResolvedPlan preview = planService.resolve(planRequest(moveTaskChange("task1", "Target")), user);
@@ -218,6 +218,40 @@ class ScheduleFolderChangesetApplyServiceTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       verify(folderGateway).moveTask(eq("task1"), eq("Target"), eq(user), any(AtomicBoolean.class));
+   }
+
+   // Bug #78958: the plan hash binds the target, so an apply request that swaps targetPath after
+   // the preview must be refused, and nothing may be moved.
+   @Test void moveTaskApplyWithDifferentTargetPathThanPreviewIsRefused() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      when(folderGateway.folderExists("Target")).thenReturn(true);
+      when(folderGateway.folderExists("Other")).thenReturn(true);
+      when(folderGateway.getTaskPath("task1")).thenReturn("Old");
+
+      ResolvedPlan preview = planService.resolve(planRequest(moveTaskChange("task1", "Target")), user);
+      ScheduleFolderApplyRequest req =
+         applyRequest(preview.planHash(), preview.taskToken(), moveTaskChange("task1", "Other"));
+      req.setReviewOutcome("approved");
+
+      assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
+         () -> service.apply(req, user));
+      verify(folderGateway, never()).moveTask(anyString(), anyString(), any(), any(AtomicBoolean.class));
+   }
+
+   // Bug #78958: a task relocated between preview and apply changes the plan hash.
+   @Test void moveTaskApplyAfterTaskWasRelocatedSincePreviewIsRefused() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      when(folderGateway.folderExists("Target")).thenReturn(true);
+      when(folderGateway.getTaskPath("task1")).thenReturn("Old", "Elsewhere");
+
+      ResolvedPlan preview = planService.resolve(planRequest(moveTaskChange("task1", "Target")), user);
+      ScheduleFolderApplyRequest req =
+         applyRequest(preview.planHash(), preview.taskToken(), moveTaskChange("task1", "Target"));
+      req.setReviewOutcome("approved");
+
+      assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
+         () -> service.apply(req, user));
+      verify(folderGateway, never()).moveTask(anyString(), anyString(), any(), any(AtomicBoolean.class));
    }
 
    // Verification is a live read-back of the task's own folder, not just "did moveTask throw" --
@@ -246,9 +280,9 @@ class ScheduleFolderChangesetApplyServiceTest {
    @Test void rollsBackAnEarlierMoveTaskWhenALaterEntryFails() throws Exception {
       when(folderGateway.taskExists("task1")).thenReturn(true);
       when(folderGateway.folderExists("Target")).thenReturn(true);
-      // Before move: "Old". After the apply-time move: "Target". After the rollback's own
-      // undo-move (back to "Old"): "Old" again.
-      when(folderGateway.getTaskPath("task1")).thenReturn("Old", "Target", "Old");
+      // Plan-time and apply-time re-resolve read "Old", then apply's before-read "Old". After the
+      // apply-time move: "Target". After the rollback's own undo-move (back to "Old"): "Old" again.
+      when(folderGateway.getTaskPath("task1")).thenReturn("Old", "Old", "Old", "Target", "Old");
       when(folderGateway.findFolder("Missing")).thenReturn(new AssetFolder());
       when(backupService.backup(anyString())).thenReturn("snap-ref");
 
