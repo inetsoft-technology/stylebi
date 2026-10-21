@@ -18,6 +18,8 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.filter.HighlightGroup;
+import inetsoft.report.filter.TextHighlight;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CylinderVSAssembly;
@@ -874,6 +876,187 @@ class AssemblyHighlightServiceTest {
       verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
                                                              anyString(), any(Principal.class),
                                                              any());
+   }
+
+   /**
+    * Bug #79117 (part 2): the header-cell advice used to end "Call list_highlights with no region
+    * at all", which the plugin itself refuses on a 2+ measure crosstab. It must point at a data
+    * cell's row/col or a colName, keep the header-cell explanation, and never recommend the
+    * region-less call. Also the shape the live vsh-030 b check reads: every sentence that names
+    * list_highlights carries colName, row or col.
+    */
+   @Test
+   void headerCellAdviceNamesADataCellAndNoLongerRecommendsARegionlessCall() {
+      HighlightDialogModel header = new HighlightDialogModel();
+      header.setFields(new DataRefModel[0]);
+      header.setHighlights(new HighlightModel[0]);
+      Harness h = harness(header);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Crosstab1",
+                             new AssemblyHighlightService.Region(0, 0, null, false, false),
+                             highlight("BigPrice"), false, ""));
+
+      String message = thrown.getMessage();
+      assertTrue(message.contains("header cell"), message);
+      assertTrue(message.contains("row 0, col 0"), message);
+      assertTrue(message.contains("Pick a DATA cell"), message);
+      assertTrue(message.contains("colName"), message);
+      assertFalse(message.contains("no region at all"), message);
+      assertFalse(message.contains("resolves to the first data cell automatically"), message);
+      assertEquals(1, message.split("not always \\(1, 1\\)", -1).length - 1,
+                   "the (1, 1) remark must not be repeated: " + message);
+
+      for(String sentence : message.split("[.;]")) {
+         if(sentence.contains("list_highlights")) {
+            assertTrue(sentence.matches("(?s).*(colName|row|col).*"), sentence);
+         }
+      }
+   }
+
+   // ── chart measure groups (bug #79114) ─────────────────────────────────────
+
+   /** Bar chart whose measure Sum(Revenue) holds the named highlight on its own group. */
+   private static VSChartInfo chartWithMeasureHighlight(String name) {
+      VSChartInfo info = barChart();
+      TextHighlight rule = new TextHighlight();
+      rule.setName(name);
+      HighlightGroup group = new HighlightGroup();
+      group.addHighlight(name, rule);
+      ((HighlightRef) info.getYFields()[0]).setHighlightGroup(group);
+      return info;
+   }
+
+   private static String measureLabel(VSChartInfo info) {
+      return ((ChartRef) info.getYFields()[0]).getFullName();
+   }
+
+   private static AssemblyHighlightService.Region named(String colName) {
+      return new AssemblyHighlightService.Region(0, 0, colName, false, false);
+   }
+
+   /**
+    * The highlight lives on the measure's group; a colName-less delete reads only the whole-chart
+    * group and used to say "It has: (none)". It must name the measure and colName instead.
+    */
+   @Test
+   void deleteWithoutColNameNamesTheMeasureThatHoldsTheHighlight() {
+      VSChartInfo info = chartWithMeasureHighlight("HG-Del");
+      Harness h = chartHarness(info);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.delete("tok", principal(), "Chart1", null, "HG-Del", ""));
+
+      String message = thrown.getMessage();
+      assertTrue(message.contains("has no highlight named 'HG-Del'"), message);
+      assertTrue(message.contains(measureLabel(info)), message);
+      assertTrue(message.contains("HG-Del)"), message);
+      assertTrue(message.contains("colName"), message);
+      assertFalse(message.matches("(?is).*It has:\\s*\\(none\\).*"), message);
+   }
+
+   /** The label in the hint is the exact colName the same service accepts. */
+   @Test
+   void theMeasureLabelInTheHintIsAColNameThatListAndDeleteAccept() throws Exception {
+      VSChartInfo info = chartWithMeasureHighlight("HG-Del");
+      Harness h = chartHarness(info, existing("HG-Del"));
+      String label = measureLabel(info);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", named(label));
+      assertEquals(1, ((List<?>) listed.get("highlights")).size());
+      assertFalse(listed.containsKey("otherGroups"), "a named colName addresses its own group");
+
+      h.service.delete("tok", principal(), "Chart1", named(label), "HG-Del", "");
+      assertEquals(0, capture(h.highlights).getHighlights().length);
+   }
+
+   @Test
+   void replaceWithoutColNameOnAMissingNameNamesTheMeasureThatHoldsTheHighlight()
+      throws Exception
+   {
+      VSChartInfo info = chartWithMeasureHighlight("HG-Del");
+      Harness h = chartHarness(info);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null, highlight("HG-Del"), true, ""));
+
+      String message = thrown.getMessage();
+      assertTrue(message.contains("has no highlight named 'HG-Del' to replace"), message);
+      assertTrue(message.contains(measureLabel(info)), message);
+      assertTrue(message.contains("colName"), message);
+      assertFalse(message.matches("(?is).*It has:\\s*\\(none\\).*"), message);
+      assertTrue(message.contains("Drop replace:true"), message);
+   }
+
+   /** A whole-chart group that merely lacks the name gets the hint only if a measure has it. */
+   @Test
+   void aNonEmptyWholeChartGroupGetsTheHintOnlyWhenAMeasureGroupHoldsTheName() {
+      VSChartInfo info = chartWithMeasureHighlight("HG-Del");
+      Harness h = chartHarness(info, existing("Whole"));
+
+      Exception holds = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.delete("tok", principal(), "Chart1", null, "HG-Del", ""));
+      assertTrue(holds.getMessage().contains("It has: Whole."), holds.getMessage());
+      assertTrue(holds.getMessage().contains(measureLabel(info)), holds.getMessage());
+
+      Exception other = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.delete("tok", principal(), "Chart1", null, "Typo", ""));
+      assertEquals("'Chart1' has no highlight named 'Typo'. It has: Whole.", other.getMessage());
+   }
+
+   /** list adds the additive otherGroups key and leaves highlights/usedNames untouched. */
+   @Test
+   void listWithoutColNameReportsOtherGroupsAdditively() throws Exception {
+      VSChartInfo info = chartWithMeasureHighlight("HG-Del");
+      Harness h = chartHarness(info);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", null);
+
+      assertEquals(List.of(), listed.get("highlights"));
+      assertEquals(List.of(), listed.get("usedNames"));
+      List<?> others = (List<?>) listed.get("otherGroups");
+      assertEquals(1, others.size());
+      Map<?, ?> group = (Map<?, ?>) others.get(0);
+      assertEquals(measureLabel(info), group.get("colName"));
+      assertEquals(List.of("HG-Del"), group.get("names"));
+   }
+
+   /** Control: a chart with no highlight on any measure keeps the old message and list shape. */
+   @Test
+   void aChartWithoutMeasureHighlightsKeepsTheOldMessageAndListShape() throws Exception {
+      Harness h = chartHarness(barChart());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.delete("tok", principal(), "Chart1", null, "HG-Del", ""));
+      assertEquals("'Chart1' has no highlight named 'HG-Del'. It has: (none).",
+                   thrown.getMessage());
+
+      Exception replace = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null, highlight("HG-Del"), true, ""));
+      assertTrue(replace.getMessage().contains("to replace. It has: (none). Drop replace:true"),
+                 replace.getMessage());
+
+      assertFalse(h.service.list("tok", principal(), "Chart1", null).containsKey("otherGroups"));
+   }
+
+   /** Control: a table has no measure groups, so its message is exactly as before. */
+   @Test
+   void aTableKeepsTheOldDeleteMessage() {
+      Harness h = harness(model(existing("HighRevenue")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.delete("tok", principal(), "Table1", null, "Nope", ""));
+
+      assertEquals("'Table1' has no highlight named 'Nope'. It has: HighRevenue.",
+                   thrown.getMessage());
    }
 
    // ── read ──────────────────────────────────────────────────────────────────

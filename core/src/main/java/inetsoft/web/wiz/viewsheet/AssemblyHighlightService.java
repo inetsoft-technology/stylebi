@@ -23,6 +23,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
@@ -134,8 +135,8 @@ public class AssemblyHighlightService {
    public Map<String, Object> list(String sessionToken, Principal user, String assemblyName,
                                    Region region) throws Exception
    {
-      HighlightDialogModel model = read(sessions.resolve(sessionToken, user), assemblyName,
-                                       region, user);
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      HighlightDialogModel model = read(rvs, assemblyName, region, user);
 
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
@@ -157,6 +158,24 @@ public class AssemblyHighlightService {
       out.put("usedNames", usedNames(model));
       out.put("fields", fieldNames(model));
       out.put("appliesToRow", model.isShowRow());
+
+      // Additive (bug #79114): a colName-less read of a chart sees only the whole-chart group,
+      // so say which measures hold highlights of their own rather than looking empty.
+      Map<String, List<String>> otherGroups = measureGroups(rvs, assemblyName, region);
+
+      if(!otherGroups.isEmpty()) {
+         List<Map<String, Object>> others = new ArrayList<>();
+
+         for(Map.Entry<String, List<String>> entry : otherGroups.entrySet()) {
+            Map<String, Object> group = new LinkedHashMap<>();
+            group.put("colName", entry.getKey());
+            group.put("names", entry.getValue());
+            others.add(group);
+         }
+
+         out.put("otherGroups", others);
+      }
+
       return out;
    }
 
@@ -231,9 +250,9 @@ public class AssemblyHighlightService {
 
                throw new IllegalArgumentException(
                   "'" + assemblyName + "' has no highlight named '" + highlight.name() +
-                  "' to replace. It has: " +
-                  (names.isEmpty() ? "(none)" : String.join(", ", names)) +
-                  ". Drop replace:true to add it as a new highlight.");
+                  "' to replace. " +
+                  existingNames(names, rvs, assemblyName, region, highlight.name()) +
+                  " Drop replace:true to add it as a new highlight.");
             }
 
             highlights.add(build(highlight, model));
@@ -337,8 +356,8 @@ public class AssemblyHighlightService {
 
          if(kept.size() == existing.length) {
             throw new IllegalArgumentException(
-               "'" + assemblyName + "' has no highlight named '" + name + "'. It has: " +
-               (names.isEmpty() ? "(none)" : String.join(", ", names)) + ".");
+               "'" + assemblyName + "' has no highlight named '" + name + "'. " +
+               existingNames(names, rvs, assemblyName, region, name));
          }
 
          model.setHighlights(kept.toArray(new HighlightModel[0]));
@@ -348,6 +367,97 @@ public class AssemblyHighlightService {
       });
 
       return warnings == null ? List.of() : warnings;
+   }
+
+   /**
+    * The "It has: ..." half of a name-not-found refusal. On a chart addressed without a colName
+    * the lookup sees only the whole-chart group, while a highlight set with a colName lives on
+    * that measure's own group (bug #79114); when such a group holds highlights, say so and name
+    * the colName to pass, and do not claim "(none)" about a chart that has highlights.
+    */
+   private static String existingNames(List<String> names, RuntimeViewsheet rvs,
+                                       String assemblyName, Region region, String missing)
+   {
+      Map<String, List<String>> groups = measureGroups(rvs, assemblyName, region);
+      boolean holdsName = false;
+
+      for(List<String> group : groups.values()) {
+         for(String existing : group) {
+            holdsName = holdsName || missing.equalsIgnoreCase(existing);
+         }
+      }
+
+      // A non-empty whole-chart group that merely lacks the name only gets the hint when another
+      // group holds that name; an empty one gets it whenever any group has highlights.
+      if(groups.isEmpty() || !names.isEmpty() && !holdsName) {
+         return "It has: " + (names.isEmpty() ? "(none)" : String.join(", ", names)) + ".";
+      }
+
+      StringBuilder out = new StringBuilder();
+      out.append(names.isEmpty() ? "The whole-chart group (no colName) has no highlights."
+                                 : "It has: " + String.join(", ", names) + ".");
+      out.append(" The chart has highlights on measures: ");
+      boolean first = true;
+
+      for(Map.Entry<String, List<String>> entry : groups.entrySet()) {
+         out.append(first ? "" : "; ").append(entry.getKey()).append(" (")
+            .append(String.join(", ", entry.getValue())).append(")");
+         first = false;
+      }
+
+      out.append(". A highlight set with a colName lives on that measure's group, so pass " +
+                 "colName; a call without colName reads only the whole-chart group.");
+      return out.toString();
+   }
+
+   /**
+    * The highlights held by each x/y measure of a chart, keyed by the exact colName that
+    * addresses that measure's group, for a call that names no colName (the whole-chart group).
+    * Empty for anything else: a non-chart, an axis or text region, a named colName, or a chart
+    * whose measures hold no highlights. Read-only.
+    */
+   private static Map<String, List<String>> measureGroups(RuntimeViewsheet rvs,
+                                                          String assemblyName, Region region)
+   {
+      Map<String, List<String>> groups = new LinkedHashMap<>();
+
+      if(region != null && (region.axis() || region.text() ||
+         region.colName() != null && !region.colName().isBlank()))
+      {
+         return groups;
+      }
+
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(assembly == null || !(assembly.getVSAssemblyInfo() instanceof ChartVSAssemblyInfo info)) {
+         return groups;
+      }
+
+      VSChartInfo chartInfo = info.getVSChartInfo();
+
+      if(chartInfo == null) {
+         return groups;
+      }
+
+      List<VSDataRef> refs = new ArrayList<>(Arrays.asList(chartInfo.getXFields()));
+      refs.addAll(Arrays.asList(chartInfo.getYFields()));
+
+      for(VSDataRef ref : refs) {
+         if(!(ref instanceof ChartRef chartRef) || !chartRef.isMeasure() ||
+            !(ref instanceof HighlightRef highlightRef) || highlightRef.getHighlightGroup() == null)
+         {
+            continue;
+         }
+
+         String[] held = highlightRef.getHighlightGroup().getNames();
+
+         if(held != null && held.length > 0) {
+            groups.putIfAbsent(chartRef.getFullName(), Arrays.asList(held));
+         }
+      }
+
+      return groups;
    }
 
    // ── conversions ───────────────────────────────────────────────────────────
@@ -659,8 +769,10 @@ public class AssemblyHighlightService {
             "row " + region.row() + ", col " + region.col()) +
          ". For a crosstab or table this usually means a header cell: highlights attach to DATA " +
          "cells, not header rows/columns -- and for a crosstab with 2+ aggregates the first data " +
-         "cell is not always (1, 1). Call list_highlights with no region at all; it resolves to " +
-         "the first data cell automatically.");
+         "cell is not always (1, 1). Pick a DATA cell: pass row/col of a data cell, or colName " +
+         "naming a column or measure of the assembly (list_highlights with that row/col or " +
+         "colName shows the available fields). On a calc table cell (0, 0) is fixed, so a " +
+         "region-less call does not resolve to a data cell there.");
    }
 
    /**
