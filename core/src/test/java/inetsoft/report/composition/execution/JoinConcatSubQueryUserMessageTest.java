@@ -18,6 +18,7 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
@@ -31,6 +32,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.ExecutionException;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -107,8 +109,12 @@ class JoinConcatSubQueryUserMessageTest {
       }).when(subs[0]).getTableLens(any());
       assertNull(Tool.getUserMessage());
 
-      assertThrows(ExecutionException.class,
+      // @by Bug #78972: index 0 now gets the same catch(ExecutionException) treatment as
+      // index >= 1, so this is normalized into a MessageException instead of a raw
+      // ExecutionException.
+      MessageException ex = assertThrows(MessageException.class,
          () -> query.getPostBaseTableLens(new VariableTable()));
+      assertEquals("sub0 failed", ex.getMessage());
       assertCallerHas("sub0 warning");
    }
 
@@ -123,9 +129,64 @@ class JoinConcatSubQueryUserMessageTest {
       }).when(subs[0]).getTableLens(any());
       assertNull(Tool.getUserMessage());
 
-      assertThrows(ExecutionException.class,
+      // @by Bug #78972: index 0 now gets the same catch(ExecutionException) treatment as
+      // index >= 1, so this is normalized into a MessageException instead of a raw
+      // ExecutionException.
+      MessageException ex = assertThrows(MessageException.class,
          () -> query.getPostBaseTableLens0(new VariableTable()));
+      assertEquals("sub0 failed", ex.getMessage());
       assertCallerHas("sub0 warning");
+   }
+
+   /**
+    * Bug #78972: a sub-query failure that does NOT produce its own MessageException (e.g. a
+    * raw SQL-execution failure, routed through XSessionManager.getXNodeTableLens's generic
+    * catch(Exception) branch) leaves a dirty, class-name-carrying warning
+    * (Tool.addUserWarning) on the sub-query's own pool thread, alongside a clean root-cause
+    * text captured separately into XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE on that same
+    * thread. Without draining the clean text too, the thrown MessageException's own message
+    * still leaks the raw exception's fully-qualified class name.
+    */
+   @Test
+   void concatFailingFirstSubQueryDoesNotLeakClassName() throws Exception {
+      ConcatenatedQuery query = concatQuery(2, -1);
+      AssetQuery[] subs = (AssetQuery[]) getField(ConcatenatedQuery.class, query, "queries");
+      doAnswer(inv -> {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set(
+            "Multiple DISTINCT aggregates are not supported at this time.");
+         Tool.addUserWarning("Failed to get table data for query: Q0: " +
+            "java.sql.SQLSyntaxErrorException: Multiple DISTINCT aggregates are not " +
+            "supported at this time.");
+         return null;
+      }).when(subs[0]).getTableLens(any());
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> query.getPostBaseTableLens(new VariableTable()));
+      assertNoLeakedClassName(ex.getMessage());
+      assertTrue(ex.getMessage().contains(
+         "Multiple DISTINCT aggregates are not supported at this time."),
+         "missing the real cause text: " + ex.getMessage());
+   }
+
+   @Test
+   void joinFailingFirstSubQueryDoesNotLeakClassName() throws Exception {
+      JoinQuery query = joinQuery(2, -1);
+      AssetQuery[] subs = (AssetQuery[]) getField(JoinQuery.class, query, "queries");
+      doAnswer(inv -> {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set(
+            "Multiple DISTINCT aggregates are not supported at this time.");
+         Tool.addUserWarning("Failed to get table data for query: Q0: " +
+            "java.sql.SQLSyntaxErrorException: Multiple DISTINCT aggregates are not " +
+            "supported at this time.");
+         return null;
+      }).when(subs[0]).getTableLens(any());
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> query.getPostBaseTableLens0(new VariableTable()));
+      assertNoLeakedClassName(ex.getMessage());
+      assertTrue(ex.getMessage().contains(
+         "Multiple DISTINCT aggregates are not supported at this time."),
+         "missing the real cause text: " + ex.getMessage());
    }
 
    private static void assertOwnFailureMessage(Exception ex) {
@@ -134,6 +195,16 @@ class JoinConcatSubQueryUserMessageTest {
                   "failure text leaked another task's message: " + ex.getMessage());
       assertEquals(Catalog.getCatalog().getString("common.table.getDataFailed"),
                    ex.getMessage());
+   }
+
+   // Bug #78972's own falsifiable claim 1: the cleaned message must not still carry a leaked
+   // fully-qualified exception class name.
+   private static final Pattern LEAKED_FQCN =
+      Pattern.compile("\\b(?:inetsoft|java|javax)\\.[A-Za-z0-9_.$]+(?:Exception|Error)\\b");
+
+   private static void assertNoLeakedClassName(String message) {
+      assertFalse(LEAKED_FQCN.matcher(message).find(),
+                  "message leaks a Java/inetsoft class name: " + message);
    }
 
    private static void assertCallerHas(String... texts) {

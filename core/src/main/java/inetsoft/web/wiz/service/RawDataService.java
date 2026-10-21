@@ -105,7 +105,7 @@ public class RawDataService {
          WizVsService.checkFailedQuery(lens, false);
          writeCsvContent(lens, outputStream);
       }
-      catch(RuntimeException e) {
+      catch(Exception e) {
          throw new RuntimeException(
             "Failed to export worksheet table '" + tableName + "': " + e.getMessage(), e);
       }
@@ -164,7 +164,7 @@ public class RawDataService {
          WizVsService.checkFailedQuery(lens, false);
          writeCsvContent(lens, outputStream);
       }
-      catch(RuntimeException e) {
+      catch(Exception e) {
          throw new RuntimeException(
             "Failed to export worksheet table '" + tableName + "': " + e.getMessage(), e);
       }
