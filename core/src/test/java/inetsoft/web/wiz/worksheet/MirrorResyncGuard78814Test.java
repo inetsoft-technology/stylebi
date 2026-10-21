@@ -175,6 +175,95 @@ class MirrorResyncGuard78814Test {
       resync(ws, false);
    }
 
+   // ------------------------------------------------------------------- the mirror's own aggregate
+
+   @Test
+   void droppingTheMirrorsOwnAggregateInputIsRefusedUnlessConfirmed() throws Exception {
+      Worksheet ws = ownAggregateWorksheet(
+         "mrg_own_sum", "a", new WorksheetMutationSupport.AggregateSpec("c", "Sum", null));
+      List<String> before = state(ws);
+
+      PairingException ex = assertThrows(PairingException.class, () -> resync(ws, false));
+
+      assertTrue(ex.getMessage().contains("table 'M' itself (aggregate/group-by on c)"),
+                 ex.getMessage());
+      assertTrue(ex.getMessage().contains("confirmed:true"), ex.getMessage());
+      assertEquals(before, state(ws), "the guard changed the worksheet");
+
+      resync(ws, true);
+
+      // what the refusal protects: the real re-sync drops Sum(c) without a word
+      realResync(ws);
+      assertEquals(0, ((TableAssembly) ws.getAssembly("M")).getAggregateInfo().getAggregateCount());
+   }
+
+   @Test
+   void droppingTheMirrorsOwnGroupColumnIsRefused() throws Exception {
+      Worksheet ws = ownAggregateWorksheet(
+         "mrg_own_group", "c", new WorksheetMutationSupport.AggregateSpec("b", "Sum", null));
+
+      PairingException ex = assertThrows(PairingException.class, () -> resync(ws, false));
+
+      assertTrue(ex.getMessage().contains("table 'M' itself (aggregate/group-by on c)"),
+                 ex.getMessage());
+      resync(ws, true);
+   }
+
+   @Test
+   void droppingTheSecondColumnOfTheMirrorsOwnTwoColumnAggregateIsRefused() throws Exception {
+      // Correlation(b, c) is dropped by the refresh; First(b, c) is kept but left reading a
+      // column that is gone, so it is refused the same way
+      for(String formula : new String[] { "Correlation", "First" }) {
+         Worksheet ws = ownAggregateWorksheet(
+            "mrg_own_2nd_" + formula, "a",
+            new WorksheetMutationSupport.AggregateSpec("b", formula, null, null, "c", null));
+
+         PairingException ex = assertThrows(PairingException.class, () -> resync(ws, false),
+                                            formula);
+
+         assertTrue(ex.getMessage().contains("table 'M' itself (aggregate/group-by on c)"),
+                    ex.getMessage());
+      }
+   }
+
+   @Test
+   void theMirrorsOwnAggregateOnSurvivingColumnsIsAccepted() throws Exception {
+      Worksheet ws = ownAggregateWorksheet(
+         "mrg_own_ok", "a", new WorksheetMutationSupport.AggregateSpec("b", "Sum", null));
+
+      resync(ws, false);
+   }
+
+   @Test
+   void theMirrorsOwnAggregateIsAcceptedWhenTheShapeIsUnchanged() throws Exception {
+      AssetEntry source = entry("mrg_own_same");
+      saveSource(source, "a", "b", "c");
+      Worksheet ws = outerWorksheet(source, 1);
+      service(ws).apply("TOK", agent, ed -> ed.setGroupAggregate(
+         "M", List.of(new WorksheetMutationSupport.GroupSpec("c")),
+         List.of(new WorksheetMutationSupport.AggregateSpec("b", "Sum", null)), false, false));
+      saveSource(source, 20, "a", "b", "c");
+
+      resync(ws, false);
+   }
+
+   /** M mirrors T(a, b, c), grouped by {@code group} with {@code aggregate}; T is then T(a, b). */
+   private Worksheet ownAggregateWorksheet(String name, String group,
+                                           WorksheetMutationSupport.AggregateSpec aggregate)
+      throws Exception
+   {
+      AssetEntry source = entry(name);
+      saveSource(source, "a", "b", "c");
+      Worksheet ws = outerWorksheet(source, 1);
+      service(ws).apply("TOK", agent, ed -> ed.setGroupAggregate(
+         "M", List.of(new WorksheetMutationSupport.GroupSpec(group)), List.of(aggregate),
+         false, false));
+      assertEquals(1, ((TableAssembly) ws.getAssembly("M")).getAggregateInfo().getAggregateCount(),
+                   "the fixture's aggregate was not set");
+      saveSource(source, "a", "b");
+      return ws;
+   }
+
    // ------------------------------------------------------------------- keys and types
 
    @Test

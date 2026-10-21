@@ -153,7 +153,7 @@ final class MirrorResyncGuard {
 
       if(!confirmed) {
          refuse(confirmable, () -> ColumnLossReport.requireNoDependentLoss(
-            ws, live, name, oldColumns, keptNames, ColumnLossReport.Scope.RESYNC, lead,
+            ws, live, name, oldColumns, keptNames, ColumnLossReport.Scope.MIRROR_RESYNC, lead,
             "Confirm with the user before retrying with confirmed:true -- this changes what " +
             "those OTHER tables show, not just this one. Nothing was changed."));
       }
