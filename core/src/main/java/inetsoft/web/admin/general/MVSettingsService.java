@@ -48,12 +48,20 @@ public class MVSettingsService {
       this.dataCycleManager = dataCycleManager;
    }
 
+   /**
+    * Whether {@link #getModel} withholds the {@code cycles} list: true only on a multi-tenant
+    * enterprise deployment. Shared with the admin-chat General Settings validation so an empty list
+    * is read as "not enumerated" exactly when this says so, and as "none available" otherwise.
+    */
+   public static boolean isCycleListSuppressed() {
+      return SUtil.isMultiTenant() && LicenseManager.isEnterprise();
+   }
+
    public MVSettingsModel getModel(Principal principal) throws Exception {
       Set<String> cycleNames = new TreeSet<>(Comparator.naturalOrder());
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
-      boolean isEnterprise = LicenseManager.isEnterprise();
 
-      if(!SUtil.isMultiTenant() || !isEnterprise) {
+      if(!isCycleListSuppressed()) {
          for(Enumeration<String> cycles = dataCycleManager.getDataCycles(orgId); cycles.hasMoreElements(); ) {
             String cycleName = cycles.nextElement();
 

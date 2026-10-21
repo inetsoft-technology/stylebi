@@ -753,16 +753,59 @@ class GeneralChangePlanServiceTest {
    }
 
    /**
-    * An empty cycles list means the product suppressed enumeration (multi-tenant enterprise), not
-    * that no cycles exist -- so nothing can be validated against it and any value must pass.
+    * On a multi-tenant enterprise deployment the product suppresses the cycle list, so an empty
+    * list means "not enumerated" -- nothing can be validated against it and any value must pass.
     */
    @Test
    void suppressedCycleListDoesNotBlockADefaultCycle() throws Exception {
+      when(access.isCycleListSuppressed()).thenReturn(true);
       when(access.read(eq(GeneralSubModel.MV), any())).thenReturn(mv("", List.of()));
 
       assertEquals(1, service.resolve(
          request("t", change("mv", spec().put("defaultCycle", "anything"))), PRINCIPAL)
          .changes().size());
+   }
+
+   /** Not suppressed: an empty list is authoritative -- no cycle is available to this caller. */
+   @Test
+   void emptyCycleListOnANonSuppressedDeploymentRefusesANewDefaultCycle() throws Exception {
+      when(access.read(eq(GeneralSubModel.MV), any())).thenReturn(mv("", List.of()));
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.resolve(
+            request("t", change("mv", spec().put("defaultCycle", "Nightly-Refresh"))), PRINCIPAL));
+
+      assertTrue(e.getMessage().contains("Nightly-Refresh"), e.getMessage());
+      assertTrue(e.getMessage().contains("none available to you"), e.getMessage());
+   }
+
+   /** A spec that does not set defaultCycle is not blocked by a stale or invisible stored one. */
+   @Test
+   void specWithoutDefaultCycleIsNotBlockedByAStaleStoredDefault() throws Exception {
+      when(access.read(eq(GeneralSubModel.MV), any())).thenReturn(mv("retired", List.of()));
+
+      assertEquals(1, service.resolve(
+         request("t", change("mv", spec().put("metadata", true))), PRINCIPAL).changes().size());
+   }
+
+   /** Resubmitting the stored default is a no-op, not a new choice to validate. */
+   @Test
+   void resubmittingTheStoredDefaultCycleIsAccepted() throws Exception {
+      when(access.read(eq(GeneralSubModel.MV), any())).thenReturn(mv("retired", List.of()));
+
+      assertEquals(1, service.resolve(
+         request("t", change("mv", spec().put("defaultCycle", "retired").put("metadata", true))),
+         PRINCIPAL).changes().size());
+   }
+
+   /** Clearing the default with "" is allowed with an empty list. */
+   @Test
+   void clearingTheDefaultCycleIsAcceptedWithAnEmptyList() throws Exception {
+      when(access.read(eq(GeneralSubModel.MV), any())).thenReturn(mv("retired", List.of()));
+
+      assertEquals(1, service.resolve(
+         request("t", change("mv", spec().put("defaultCycle", ""))), PRINCIPAL).changes().size());
    }
 
    // ---------------------------------------------------------------- cache readback

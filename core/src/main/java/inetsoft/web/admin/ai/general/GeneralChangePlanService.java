@@ -144,7 +144,7 @@ public class GeneralChangePlanService {
             requireNotDirectlySettable(label, spec, "cycles",
                                        "it is derived from the data cycles that exist on this " +
                                        "deployment; set defaultCycle to choose among them");
-            requireKnownDefaultCycle(label, mergedNode, currentNode);
+            requireKnownDefaultCycle(label, spec, currentNode, access.isCycleListSuppressed());
          }
          case EMAIL -> {
             requireKnownAuthType(label, spec);
@@ -411,34 +411,51 @@ public class GeneralChangePlanService {
     * tenant, where it resolves to nothing for every other tenant. Checking membership is the only
     * cheap guard available; the asymmetry itself is the product's, not this area's.
     *
-    * <p>An empty {@code cycles} list is NOT treated as "no cycles exist":
-    * {@code MVSettingsService.getModel} suppresses the list entirely on a multi-tenant enterprise
-    * deployment. Nothing can be validated against a suppressed list, so any value is allowed and
-    * the caller is told why by the read tool rather than being blocked here on a false premise.
+    * <p><b>Only a {@code defaultCycle} this change sets is validated.</b> The merged model is not
+    * checked: an unrelated {@code mv} edit must not be refused because the stored default is stale
+    * or not visible to the caller. A spec that omits {@code defaultCycle}, clears it with
+    * {@code ""}, or resubmits the stored value is allowed.
+    *
+    * <p><b>An empty {@code cycles} list is authoritative unless the list is suppressed.</b>
+    * {@code MVSettingsService.getModel} enumerates no cycles at all only on a multi-tenant
+    * enterprise deployment ({@link GeneralSettingsAccess#isCycleListSuppressed}); there nothing can
+    * be validated, so any value is allowed and the read tool says why. Everywhere else the list is
+    * the cycles that exist AND are visible to the caller, so an empty list means none are available
+    * to this caller and a new default is refused rather than silently stored as a name that
+    * resolves to no cycle.
     */
-   private static void requireKnownDefaultCycle(String label, JsonNode merged, JsonNode current) {
-      JsonNode defaultCycle = merged.get("defaultCycle");
+   private static void requireKnownDefaultCycle(String label, JsonNode spec, JsonNode current,
+                                                boolean cycleListSuppressed)
+   {
+      JsonNode defaultCycle = spec.get("defaultCycle");
 
-      if(defaultCycle == null || !defaultCycle.isTextual() || defaultCycle.asText().isEmpty()) {
+      if(defaultCycle == null || !defaultCycle.isTextual() || defaultCycle.asText().isEmpty() ||
+         cycleListSuppressed)
+      {
+         return;
+      }
+
+      JsonNode stored = current.get("defaultCycle");
+
+      if(stored != null && stored.isTextual() && stored.asText().equals(defaultCycle.asText())) {
          return;
       }
 
       JsonNode cycles = current.get("cycles");
-
-      if(cycles == null || !cycles.isArray() || cycles.isEmpty()) {
-         return;
-      }
-
       List<String> available = new ArrayList<>();
 
-      for(JsonNode cycle : cycles) {
-         available.add(cycle.asText());
+      if(cycles != null && cycles.isArray()) {
+         for(JsonNode cycle : cycles) {
+            available.add(cycle.asText());
+         }
       }
 
       if(!available.contains(defaultCycle.asText())) {
+         String list = available.isEmpty() ? "none available to you" : String.join(", ", available);
+
          throw new IllegalArgumentException(
             label + ".spec.defaultCycle: \"" + defaultCycle.asText() + "\" is not one of the " +
-            "available data cycles (" + String.join(", ", available) + "). Note that the default " +
+            "available data cycles (" + list + "). Note that the default " +
             "cycle is stored as a single deployment-global property while the available cycles " +
             "are per-organization, so a cycle that exists in one organization will not resolve " +
             "for the others.");
