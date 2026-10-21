@@ -289,6 +289,22 @@ public final class VisualFrameAliases {
          }
 
          out.put("mapping", mapping);
+
+         // With sharing on, pins that sit in the frame's own colour map but not on the viewsheet
+         // are still drawn; reporting only the viewsheet's pins would say mapping: {} for them.
+         if(model.isUseGlobal() && model.getColorMaps() != null) {
+            Map<String, Object> frameOnly = new LinkedHashMap<>();
+
+            for(ColorMapModel map : model.getColorMaps()) {
+               if(map != null && map.getOption() != null && !mapping.containsKey(map.getOption())) {
+                  frameOnly.put(map.getOption(), readableColor(map.getColor()));
+               }
+            }
+
+            if(!frameOnly.isEmpty()) {
+               out.put("frameOnlyPins", frameOnly);
+            }
+         }
          // One key, matching the one checkbox and the one key the write side takes. The frame's
          // isUseGlobal() is reported through it rather than beside it: it is the flag the render
          // path actually consults for the pins above, and a legacy frame where the two disagree

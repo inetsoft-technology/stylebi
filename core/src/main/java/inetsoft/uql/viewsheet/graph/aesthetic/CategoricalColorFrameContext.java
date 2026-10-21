@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet.graph.aesthetic;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 
 import java.awt.*;
@@ -33,6 +34,26 @@ import java.util.List;
 public class CategoricalColorFrameContext {
    public static CategoricalColorFrameContext getContext() {
       return context.get();
+   }
+
+   /**
+    * Point the calling thread's context at the given viewsheet, setting both the shared frames
+    * and the dimension colors every time, so state left by another viewsheet on a pooled thread
+    * is never read. Pair with {@link #clear()} in a finally block.
+    *
+    * @param vs the viewsheet that owns the chart being edited or rendered, null for none.
+    */
+   public static void bind(Viewsheet vs) {
+      final CategoricalColorFrameContext context = getContext();
+      context.sharedFrames = vs == null ? new WeakHashMap<>() : vs.getSharedFrames();
+      context.dimensionColors = new HashMap<>();
+   }
+
+   /**
+    * Clear the calling thread's context so it carries no viewsheet state.
+    */
+   public static void clear() {
+      bind(null);
    }
 
    public Map<String, Color> getDimensionColors() {

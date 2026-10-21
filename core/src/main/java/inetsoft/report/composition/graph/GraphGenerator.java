@@ -281,6 +281,9 @@ public abstract class GraphGenerator {
 
       synchronized(info) {
          // for sharing color frames and viewsheet color mappings across charts
+         // bind unconditionally so a pooled thread never keeps another viewsheet's pins
+         CategoricalColorFrameContext.bind(vs);
+
          if(vs != null) {
             final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
 
@@ -314,8 +317,6 @@ public abstract class GraphGenerator {
                      context.setDimensionColors(vs.getDimensionColors(name));
                   });
             }
-
-            context.setSharedFrames(vs.getSharedFrames());
          }
 
          // create color frame
