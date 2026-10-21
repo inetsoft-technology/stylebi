@@ -351,10 +351,28 @@ public class ChartRegionHandler {
       model.updateAxisPropertyDialogModel(axisDesc, columnName, axisType, maxMode);
    }
 
+   /**
+    * The legends area, or a refusal that names what is missing. A null chart area (no laid-out
+    * graph yet: unbound, empty, or still computing) or a graph without a legend group used to be
+    * dereferenced here and surfaced as a raw HTTP 500 (bug #79112).
+    */
+   private static LegendsArea requireLegendsArea(ChartArea chartArea) {
+      LegendsArea legendsArea = chartArea == null ? null : chartArea.getLegendsArea();
+
+      if(legendsArea == null) {
+         throw new IllegalArgumentException(
+            "This chart has no laid-out graph with legends yet - it is unbound, empty, or still " +
+            "computing - so its legends cannot be resolved. Bind an aesthetic field, or retry " +
+            "once the chart has rendered.");
+      }
+
+      return legendsArea;
+   }
+
    public LegendFormatDialogModel createLegendFormatDialogModel(ChartInfo info,
       ChartArea chartArea, ChartDescriptor descriptor, int legendIdx)
    {
-      LegendsArea legendsArea = chartArea.getLegendsArea();
+      LegendsArea legendsArea = requireLegendsArea(chartArea);
       LegendArea legendArea = legendsArea.getLegendAreas()[legendIdx];
       List<String> targetFields = legendArea.getTargetFields();
       String titleName = legendArea.getVisualFrame() != null ?
@@ -375,7 +393,7 @@ public class ChartRegionHandler {
    public void updateLegendFormatDialogModel(LegendFormatDialogModel model,
       ChartInfo info, ChartArea chartArea, ChartDescriptor descriptor, int legendIdx)
    {
-      LegendsArea legendsArea = chartArea.getLegendsArea();
+      LegendsArea legendsArea = requireLegendsArea(chartArea);
       LegendArea legendArea = legendsArea.getLegendAreas()[legendIdx];
       List<String> targetFields = legendArea.getTargetFields();
       String titleName = legendArea.getVisualFrame() != null ?

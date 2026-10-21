@@ -213,13 +213,17 @@ class ChartRegionResolverTest {
    }
 
    /**
-    * An unmeasured count is zero for want of a graph, not because the chart has no legends.
-    * Refusing on it would block a legitimate write whenever the layout was unavailable.
+    * An unmeasured count is zero for want of a graph, and the legend dialog model cannot be built
+    * without one either, so it is refused by name instead of reaching a raw 500 (bug #79112).
     */
    @Test
-   void doesNotRefuseWhenTheCountCouldNotBeMeasured() {
-      assertDoesNotThrow(
-         () -> ChartRegionResolver.requireLegend(legends(0, false), 5));
+   void refusesALegendWhenTheCountCouldNotBeMeasured() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartRegionResolver.requireLegend(legends(0, false), 0));
+
+      assertTrue(thrown.getMessage().contains("no laid-out graph"), "say why");
+      assertTrue(thrown.getMessage().contains("legend"), "and name the legend");
    }
 
    // ── naming a legend ────────────────────────────────────────────────────────────

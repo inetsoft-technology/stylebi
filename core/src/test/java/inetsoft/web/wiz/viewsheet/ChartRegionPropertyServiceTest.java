@@ -17,8 +17,12 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.graph.VGraph;
 import inetsoft.graph.data.PairsDataSet;
+import inetsoft.graph.guide.legend.LegendGroup;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -36,6 +40,7 @@ import org.mockito.ArgumentCaptor;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -2484,6 +2489,31 @@ class ChartRegionPropertyServiceTest {
       return model;
    }
 
+   /**
+    * Bug #79112: a legend region on a chart with no laid-out graph (empty, unbound or still
+    * computing) reached the unguarded dialog-model builder and came back as a raw HTTP 500. It is
+    * refused by name, before the dialog service is asked.
+    */
+   @Test
+   void refusesALegendRegionWhenTheChartHasNoLaidOutGraph() {
+      Harness h = harness(viewsheet(false), false);
+
+      Exception listed = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.list("tok", principal(), "Chart1", "legend", "0", null));
+      Exception set = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("position", "Top"), ""));
+
+      for(Exception e : new Exception[] { listed, set }) {
+         assertTrue(e.getMessage().contains("no laid-out graph"), e.getMessage());
+         assertTrue(e.getMessage().contains("legends"), e.getMessage());
+      }
+
+      verifyNoInteractions(h.regions);
+   }
+
    private record Harness(ChartRegionPropertyService service, RegionPropertyDialogService regions,
                           ViewsheetSessionService sessions) {}
 
@@ -2503,9 +2533,37 @@ class ChartRegionPropertyServiceTest {
    }
 
    private static Harness harness(Viewsheet vs) {
+      return harness(vs, true);
+   }
+
+   /**
+    * @param laidOut whether the mocked runtime has a laid-out graph. When it does, the real-size
+    *                graph carries one legend (so legend index 0 is measured and valid) and the
+    *                expanded graph is absent, so the axis side still falls back to the binding as
+    *                it always did here. When it does not, the chart is empty, unbound or still
+    *                computing: no sandbox, no pair (bug #79112).
+    */
+   private static Harness harness(Viewsheet vs, boolean laidOut) {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
+
+      if(laidOut) {
+         try {
+            ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+            VGraphPair pair = mock(VGraphPair.class);
+            VGraph realSize = mock(VGraph.class);
+            LegendGroup group = mock(LegendGroup.class);
+            when(group.getLegendCount()).thenReturn(1);
+            when(realSize.getLegendGroup()).thenReturn(group);
+            when(pair.getRealSizeVGraph()).thenReturn(realSize);
+            when(box.getVGraphPair(any())).thenReturn(pair);
+            when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
 
       try {
          when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
