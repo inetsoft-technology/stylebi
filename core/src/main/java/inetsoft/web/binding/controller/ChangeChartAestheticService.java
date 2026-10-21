@@ -28,6 +28,7 @@ import inetsoft.report.internal.graph.ChangeChartDataProcessor;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
@@ -86,6 +87,20 @@ public class ChangeChartAestheticService {
          return null;
       }
 
+      try(CategoricalColorFrameContext.Scope scope =
+             CategoricalColorFrameContext.bind(assembly.getViewsheet()))
+      {
+         return doChangeChartAesthetic(rvs, box.get(), vs, assembly, name, event, principal,
+                                       dispatcher, linkUri);
+      }
+   }
+
+   private Void doChangeChartAesthetic(RuntimeViewsheet rvs, ViewsheetSandbox box, Viewsheet vs,
+                                       ChartVSAssembly assembly, String name,
+                                       ChangeChartRefEvent event, Principal principal,
+                                       CommandDispatcher dispatcher, String linkUri)
+      throws Exception
+   {
       synchronized(assembly) {
          BindingModel obinding = bindingFactory.createModel(assembly);
 
@@ -106,7 +121,7 @@ public class ChangeChartAestheticService {
          ChangeChartAestheticController.fixAggregateRefSizeField(ninfo.getVSChartInfo());
 
          int hint = assembly.setVSAssemblyInfo(ninfo);
-         box.get().updateAssembly(assembly.getAbsoluteName());
+         box.updateAssembly(assembly.getAbsoluteName());
 
          // fix bug1352448598261, chart type is not valid when in flex side,
          // so GraphUtil.as.fixVisualFrame may cause invalid result, here
@@ -134,7 +149,7 @@ public class ChangeChartAestheticService {
          try {
             ChangedAssemblyList clist =
                coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-            box.get().processChange(name, hint, clist);
+            box.processChange(name, hint, clist);
             coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
             assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
          }

@@ -28,6 +28,7 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -1212,7 +1213,9 @@ public class ChartVSAssembly extends DataVSAssembly
          changeAestheticCalcType(refName, cinfo, nref);
       }
 
-      GraphUtil.fixVisualFrames(cinfo);
+      try(CategoricalColorFrameContext.Scope scope = CategoricalColorFrameContext.bind(getViewsheet())) {
+         GraphUtil.fixVisualFrames(cinfo);
+      }
    }
 
    private void changeXCalcType(String refName, VSChartInfo cinfo, ChartRef nref, boolean wizard) {

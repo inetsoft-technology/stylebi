@@ -29,6 +29,7 @@ import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DrillFilterInfo;
 import inetsoft.util.Tool;
@@ -84,6 +85,16 @@ public class ChangeChartRefService {
 
       Viewsheet vs = rvs.getViewsheet();
       vs.clearSharedFrames();
+
+      try(CategoricalColorFrameContext.Scope scope = CategoricalColorFrameContext.bind(vs)) {
+         return doChangeChartRef(rvs, box.get(), vs, event, name, principal, dispatcher, linkUri);
+      }
+   }
+
+   private Void doChangeChartRef(RuntimeViewsheet rvs, ViewsheetSandbox box, Viewsheet vs,
+                                 ChangeChartRefEvent event, String name, Principal principal,
+                                 CommandDispatcher dispatcher, String linkUri) throws Exception
+   {
       ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(name);
 
       if(assembly == null) {
@@ -115,11 +126,11 @@ public class ChangeChartRefService {
 
          if(!Tool.equals(otype, ntype)) {
             info.setVSChartInfo(ncinfo);
-            box.get().updateAssembly(name);
+            box.updateAssembly(name);
             ncinfo = info.getVSChartInfo();
          }
 
-         chartHandler.updateGeoColumns(box.get(), vs, assembly, ncinfo);
+         chartHandler.updateGeoColumns(box, vs, assembly, ncinfo);
 
          boolean dchanged = (hint & VSAssembly.INPUT_DATA_CHANGED) ==
             VSAssembly.INPUT_DATA_CHANGED;
@@ -133,7 +144,7 @@ public class ChangeChartRefService {
          try {
             ChangedAssemblyList clist =
                coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-            box.get().updateAssembly(name);
+            box.updateAssembly(name);
             // update chart type after refreshing runtime refs.
             ncinfo.updateChartType(!ncinfo.isMultiStyles());
             GraphUtil.fixVisualFrames(ncinfo);
@@ -150,7 +161,7 @@ public class ChangeChartRefService {
             // coreLifecycleService.execute will refresh the assembly after
             // refreshing the data.
             // coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
-            box.get().processChange(name, hint, clist);
+            box.processChange(name, hint, clist);
             refreshDrillFilter(assembly, ocinfo, ncinfo);
             coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
             assemblyInfoHandler.checkTrap(oinfo, info, obinding, dispatcher, rvs);

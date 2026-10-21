@@ -27,6 +27,7 @@ import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.internal.graph.ChangeChartTypeProcessor;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.graph.aesthetic.VisualFrameWrapper;
@@ -124,7 +125,9 @@ public class DateComparisonDialogService {
       VSAssembly assembly = viewsheet.getAssembly(assemblyName);
 
       if(assembly instanceof ChartVSAssembly) {
-         GraphUtil.fixVisualFrames(((ChartVSAssembly) assembly).getVSChartInfo());
+         try(CategoricalColorFrameContext.Scope scope = CategoricalColorFrameContext.bind(viewsheet)) {
+            GraphUtil.fixVisualFrames(((ChartVSAssembly) assembly).getVSChartInfo());
+         }
       }
 
       return null;

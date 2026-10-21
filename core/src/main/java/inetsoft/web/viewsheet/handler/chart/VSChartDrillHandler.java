@@ -268,38 +268,36 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
             runtimeViewsheetRef.getRuntimeId(), principal);
          Viewsheet vs = rvs.getViewsheet();
 
-         if(vs != null) {
-            CategoricalColorFrameContext.getContext().setSharedFrames(vs.getSharedFrames());
-         }
-
          // fix Bug #44955, should also update the runtime aesthetic refs,
          // because the new runtime ref will keep the old aestheticRef data ref.
          // see update method of VSChartInfo.
-         Stream.concat(Arrays.stream(aestheticRefs), Arrays.stream(runtimeAestheticRefs))
-            .filter(ref -> ref.getDataRef() instanceof VSDimensionRef
-                  && field.equals(((VSDimensionRef) ref.getDataRef()).getFullName()))
-            .forEach(ref -> {
-               if(handleLevel && newValue instanceof String) {
-                  VSDimensionRef dimensionRef = (VSDimensionRef) ref.getDataRef();
-                  boolean variable = VSUtil.isVariableValue(dimensionRef.getDateLevelValue());
+         try(CategoricalColorFrameContext.Scope scope = CategoricalColorFrameContext.bind(vs)) {
+            Stream.concat(Arrays.stream(aestheticRefs), Arrays.stream(runtimeAestheticRefs))
+               .filter(ref -> ref.getDataRef() instanceof VSDimensionRef
+                     && field.equals(((VSDimensionRef) ref.getDataRef()).getFullName()))
+               .forEach(ref -> {
+                  if(handleLevel && newValue instanceof String) {
+                     VSDimensionRef dimensionRef = (VSDimensionRef) ref.getDataRef();
+                     boolean variable = VSUtil.isVariableValue(dimensionRef.getDateLevelValue());
 
-                  if(variable) {
-                     dimensionRef.setDateLevel(Integer.parseInt((String) newValue) );
+                     if(variable) {
+                        dimensionRef.setDateLevel(Integer.parseInt((String) newValue) );
+                     }
+                     else {
+                        dimensionRef.setDateLevelValue((String) newValue);
+                     }
                   }
-                  else {
-                     dimensionRef.setDateLevelValue((String) newValue);
-                  }
-               }
-               else if(newValue instanceof VSDimensionRef) {
-                  VSDimensionRef newDim = (VSDimensionRef) ((VSDimensionRef) newValue).clone();
+                  else if(newValue instanceof VSDimensionRef) {
+                     VSDimensionRef newDim = (VSDimensionRef) ((VSDimensionRef) newValue).clone();
 
-                  if(!Tool.equals(newDim.getFullName(), ref.getFullName())) {
-                     ref.setDataRef(newDim);
-                     keepDimensionSort((VSDimensionRef) ref.getRTDataRef(), newDim);
-                     ((VSAestheticRef) ref).setRTDataRef(newDim);
+                     if(!Tool.equals(newDim.getFullName(), ref.getFullName())) {
+                        ref.setDataRef(newDim);
+                        keepDimensionSort((VSDimensionRef) ref.getRTDataRef(), newDim);
+                        ((VSAestheticRef) ref).setRTDataRef(newDim);
+                     }
                   }
-               }
-            });
+               });
+         }
       }
       catch(Exception ignore) {
          LOGGER.warn("Drill Aesthetic Failed.");

@@ -34,7 +34,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -97,13 +96,9 @@ class VSFrameVisitorTest {
 
       assertTrue(frame.isScripted("NJ"), "setColor on the script thread should mark NJ scripted");
 
-      CategoricalColorFrameContext.getContext().setDimensionColors(Map.of("NJ", Color.BLUE));
-
-      try {
+      try(CategoricalColorFrameContext.Scope scope = CategoricalColorFrameContext.bind(null)) {
+         CategoricalColorFrameContext.getContext().setDimensionColors(Map.of("NJ", Color.BLUE));
          VSFrameVisitor.syncCategoricalFrame(frame, data);
-      }
-      finally {
-         CategoricalColorFrameContext.getContext().setDimensionColors(Collections.emptyMap());
       }
 
       assertEquals(Color.RED, frame.getColor("NJ"),

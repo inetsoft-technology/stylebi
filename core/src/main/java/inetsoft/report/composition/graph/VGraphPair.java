@@ -50,6 +50,7 @@ import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.BrushingColor;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
@@ -365,8 +366,11 @@ public class VGraphPair {
          vdata = getVisualDataSet(box, ainfo);
 
          if(info.isNeedResetShape()) {
-            GraphUtil.fixVisualFrame(info.getShapeField(),
-               ChartConstants.AESTHETIC_SHAPE, info.getRTChartType(), info);
+            try(CategoricalColorFrameContext.Scope scope =
+                   CategoricalColorFrameContext.bind(box.getViewsheet())) {
+               GraphUtil.fixVisualFrame(info.getShapeField(),
+                  ChartConstants.AESTHETIC_SHAPE, info.getRTChartType(), info);
+            }
             info.setNeedResetShape(false);
          }
 
@@ -470,9 +474,12 @@ public class VGraphPair {
                   VSChartInfo tinfo = ainfo.getVSChartInfo();
 
                   if(tinfo.isNeedResetShape()) {
-                     GraphUtil.fixVisualFrame(tinfo.getShapeField(),
-                                              ChartConstants.AESTHETIC_SHAPE,
-                                              tinfo.getRTChartType(), tinfo);
+                     try(CategoricalColorFrameContext.Scope scope2 =
+                            CategoricalColorFrameContext.bind(vbox.getViewsheet())) {
+                        GraphUtil.fixVisualFrame(tinfo.getShapeField(),
+                                                 ChartConstants.AESTHETIC_SHAPE,
+                                                 tinfo.getRTChartType(), tinfo);
+                     }
                      tinfo.setNeedResetShape(false);
                   }
 
@@ -562,8 +569,12 @@ public class VGraphPair {
                }
             }
 
-            sortFrameValues(egraph, this.data);
-            sortFrameValues(egraph2, this.data);
+            try(CategoricalColorFrameContext.Scope scope3 =
+                   CategoricalColorFrameContext.bind(box.getViewsheet()))
+            {
+               sortFrameValues(egraph, this.data);
+               sortFrameValues(egraph2, this.data);
+            }
 
             // repopulate the properties changed by script
             info = chart.getVSChartInfo();

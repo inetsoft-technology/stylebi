@@ -30,6 +30,7 @@ import inetsoft.uql.erm.AbstractDataRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
@@ -509,7 +510,9 @@ public class ChartPropertyDialogService {
       if(applied && viewsheet.getOriginalID() != null) {
          VSChartInfo cinfo = assemblyInfo.getVSChartInfo();
          cinfo.setChartDescriptor(((ChartDescriptor) chartDescriptor.clone()));
-         GraphUtil.fixVisualFrames(cinfo);
+         try(CategoricalColorFrameContext.Scope scope = CategoricalColorFrameContext.bind(viewsheet.getViewsheet())) {
+            GraphUtil.fixVisualFrames(cinfo);
+         }
          final BindingModel model = vsBindingService.createModel(chartAssembly);
          commandDispatcher.sendCommand(new SetVSBindingModelCommand(model));
       }

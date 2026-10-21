@@ -31,6 +31,7 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.Catalog;
@@ -88,8 +89,20 @@ public class ChangeChartTypeService {
                                Principal principal, CommandDispatcher dispatcher,
                                String linkUri) throws Exception
    {
-      String name = event.getName();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
+
+      try(CategoricalColorFrameContext.Scope scope =
+             CategoricalColorFrameContext.bind(rvs.getViewsheet()))
+      {
+         return doChangeChartType(id, rvs, event, principal, dispatcher, linkUri);
+      }
+   }
+
+   private Void doChangeChartType(String id, RuntimeViewsheet rvs, ChangeChartTypeEvent event,
+                                  Principal principal, CommandDispatcher dispatcher,
+                                  String linkUri) throws Exception
+   {
+      String name = event.getName();
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       if(box.isEmpty()) {

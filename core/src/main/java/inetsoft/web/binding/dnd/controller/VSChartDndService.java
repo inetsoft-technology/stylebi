@@ -170,15 +170,16 @@ public class VSChartDndService {
                                            // only clear the target aggr color frame. (60178)
                                            (target.getAggr() != null ? target.getAggr().createDataRef() : null));
          }
-
-         CategoricalColorFrameContext.getContext().setSharedFrames(vs.getSharedFrames());
       }
 
-      chartHandler.addColumns(rvs, nassembly, event.getEntries(), event.getDropTarget(),
-                              dispatcher, linkUri);
+      try(CategoricalColorFrameContext.Scope scope = CategoricalColorFrameContext.bind(vs)) {
+         chartHandler.addColumns(rvs, nassembly, event.getEntries(), event.getDropTarget(),
+                                 dispatcher, linkUri);
 
-      applyChartInfo(rvs, assembly, oinfo, ninfo,
-                     dispatcher, event, "/events/vschart/dnd/addColumns", linkUri, true);
+         applyChartInfo(rvs, assembly, oinfo, ninfo,
+                        dispatcher, event, "/events/vschart/dnd/addColumns", linkUri, true);
+      }
+
       return null;
    }
 
