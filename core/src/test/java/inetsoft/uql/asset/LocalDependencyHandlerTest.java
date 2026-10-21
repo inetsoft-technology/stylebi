@@ -51,8 +51,10 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -176,6 +178,132 @@ class LocalDependencyHandlerTest {
 
       Worksheet ws = mock(Worksheet.class);
       when(ws.getAssemblies()).thenReturn(new Assembly[] { variable, mirror });
+      return ws;
+   }
+
+   /*
+    * Bug #79060: updateWorksheetDependencies() recorded the worksheet -> worksheet edge only for an
+    * outer MirrorTableAssembly. The variable, named group, condition and date range mirrors also
+    * implement MirrorAssembly and are created with the mirrored worksheet's entry, and
+    * Worksheet.getOuterDependents() already walks all of them, but the reverse index never got
+    * their edge. A rename or move of the source worksheet then never reached the mirroring
+    * worksheet. The cause varies with the mirror type (every MirrorAssembly implementor); only the
+    * index writer was narrower than the worksheet model.
+    */
+   @Test
+   void outerVariableMirrorIsIndexed() throws Exception {
+      assertMirrorIndexed(MirrorKind.VARIABLE);
+   }
+
+   @Test
+   void outerNamedGroupMirrorIsIndexed() throws Exception {
+      assertMirrorIndexed(MirrorKind.NAMED_GROUP);
+   }
+
+   @Test
+   void outerConditionMirrorIsIndexed() throws Exception {
+      assertMirrorIndexed(MirrorKind.CONDITION);
+   }
+
+   @Test
+   void outerDateRangeMirrorIsIndexed() throws Exception {
+      assertMirrorIndexed(MirrorKind.DATE_RANGE);
+   }
+
+   @Test
+   void outerTableMirrorIsStillIndexed() throws Exception {
+      assertMirrorIndexed(MirrorKind.TABLE);
+   }
+
+   @Test
+   void outerMirrorsAreRemovedForEveryType() throws Exception {
+      for(MirrorKind kind : MirrorKind.values()) {
+         reset(dependencyStorageService);
+         DependenciesInfo stored = new DependenciesInfo();
+         stored.setDependencies(new ArrayList<>(List.of(worksheet("W2"))));
+         when(dependencyStorageService.get(worksheet("W1").toIdentifier())).thenReturn(stored);
+
+         handler.updateSheetDependencies(worksheetWithMirror(kind, true), worksheet("W2"), false);
+
+         assertTrue(capturedDependencies(worksheet("W1").toIdentifier()).isEmpty(),
+                    kind + ": W2 should no longer depend on W1");
+      }
+   }
+
+   @Test
+   void innerMirrorIsNotIndexed() throws Exception {
+      handler.updateSheetDependencies(worksheetWithMirror(MirrorKind.VARIABLE, false),
+                                      worksheet("W2"), true);
+
+      verify(dependencyStorageService, never()).put(eq(worksheet("W1").toIdentifier()), any());
+   }
+
+   @Test
+   void outerMirrorWithoutAnEntryIsSkipped() throws Exception {
+      MirrorVariableAssembly mirror = mock(MirrorVariableAssembly.class);
+      when(mirror.isOuterMirror()).thenReturn(true);
+      when(mirror.getEntry()).thenReturn(null);
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new Assembly[] { mirror });
+
+      handler.updateSheetDependencies(ws, worksheet("W2"), true);
+
+      verify(dependencyStorageService, never()).put(any(), any());
+   }
+
+   private void assertMirrorIndexed(MirrorKind kind) throws Exception {
+      Worksheet ws = worksheetWithMirror(kind, true);
+      // the writer must agree with the model walk it was narrower than
+      assertEquals(List.of(worksheet("W1")), List.of(ws.getOuterDependents()));
+
+      handler.updateSheetDependencies(ws, worksheet("W2"), true);
+
+      assertEquals(List.of(worksheet("W2").toIdentifier()),
+                   capturedDependencies(worksheet("W1").toIdentifier()));
+   }
+
+   private enum MirrorKind { VARIABLE, NAMED_GROUP, CONDITION, DATE_RANGE, TABLE }
+
+   /**
+    * Creates a worksheet holding one mirror of worksheet "W1" of the given kind, built from the
+    * real mirror class over a real base assembly (the table mirror is a mock, as above).
+    */
+   private Worksheet worksheetWithMirror(MirrorKind kind, boolean outer) {
+      Worksheet src = new Worksheet();
+      Worksheet ws = new Worksheet();
+      AssetEntry entry = worksheet("W1");
+      WSAssembly mirror;
+
+      switch(kind) {
+      case VARIABLE:
+         DefaultVariableAssembly variable = new DefaultVariableAssembly(src, "var");
+         variable.setVariable(new AssetVariable());
+         mirror = new MirrorVariableAssembly(ws, "mirrorVar", entry, outer, variable);
+         break;
+      case NAMED_GROUP:
+         mirror = new MirrorNamedGroupAssembly(
+            ws, "mirrorGroup", entry, outer, new DefaultNamedGroupAssembly(src, "group"));
+         break;
+      case CONDITION:
+         mirror = new MirrorConditionAssembly(
+            ws, "mirrorCondition", entry, outer, new DefaultConditionAssembly(src, "cond"));
+         break;
+      case DATE_RANGE:
+         mirror = new MirrorDateRangeAssembly(
+            ws, "mirrorRange", entry, outer, new DefaultDateRangeAssembly(src, "range"));
+         break;
+      default:
+         MirrorTableAssembly table = mock(MirrorTableAssembly.class);
+         when(table.isOuterMirror()).thenReturn(outer);
+         when(table.getEntry()).thenReturn(entry);
+         when(table.getColumnSelection(false)).thenReturn(new ColumnSelection());
+         Worksheet mocked = mock(Worksheet.class);
+         when(mocked.getAssemblies()).thenReturn(new Assembly[] { table });
+         when(mocked.getOuterDependents()).thenReturn(new AssetEntry[] { entry });
+         return mocked;
+      }
+
+      ws.addAssembly(mirror);
       return ws;
    }
 
