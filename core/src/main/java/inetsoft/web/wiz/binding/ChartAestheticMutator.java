@@ -1085,15 +1085,17 @@ public final class ChartAestheticMutator {
     * on texture — and {@link VisualFrameAliases#typeNames} already knows each of them. Naming the
     * survivors in the message keeps the caller from having to guess which family they are in.
     *
-    * <p>Node channels are left alone: their editors are the relation chart's own, this rule has
-    * not been checked against them, and refusing on a guess would break a path that may well work.
+    * <p>Node channels (node-color, node-size) are covered too (Bug #79007): the relation chart's
+    * Node section reuses the same color-field-mc / size-field-mc editors as the color and size
+    * channels, so the same rule applies, and exempting them let a static frame overwrite the
+    * frame of a measure-bound node field while the call reported success.
     */
    private static void requireFrameTheFieldCanDrive(String channel, VisualFrameModel frame,
                                                     AestheticInfo field)
    {
       ChartRefModel dataInfo = field.getDataInfo();
 
-      if(AestheticChannels.NODE_CHANNELS.contains(channel) || dataInfo == null) {
+      if(dataInfo == null) {
          return;
       }
 
