@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.*;
 import java.util.stream.Stream;
 
@@ -161,6 +162,8 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
       String configFile = getConfigFile();
       boolean exists = dataSpace.exists(null, configFile);
       long now = exists ? dataSpace.getLastModified(null, configFile) : 1;
+      Map<String, String> reloadedFrom = null;
+      List<T> reloaded = null;
 
       if(timestamp < now) {
          lock.lock();
@@ -254,9 +257,18 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
                                  failureCount, list.size() + failureCount, configFile);
                            }
 
+                           // the first load on this node replaces nothing, so it is not a reload
+                           boolean initial = timestamp == 0L;
                            timestamp = dataSpace.getLastModified(null, configFile);
+                           Map<String, String> before =
+                              initial ? null : describeProviders(getProviderList());
                            clear();
                            setProviderList(list);
+
+                           if(!initial) {
+                              reloadedFrom = before;
+                              reloaded = list;
+                           }
                         }
                      }
                   }
@@ -266,7 +278,97 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
          finally {
             lock.unlock();
          }
+
+         if(reloaded != null) {
+            try {
+               providersReloaded(reloadedFrom, reloaded);
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to handle the reloaded security providers", e);
+            }
+         }
       }
+   }
+
+   /**
+    * Gets the providers, waiting for an edit holding {@link #writeLock()} and for a reload of the
+    * configuration file that is replacing them to finish. During a reload the list is empty from
+    * {@link #clear()} until the new list is set. The read lock is taken before the reload lock,
+    * the same order as an edit that saves the chain under the write lock. The caller must not
+    * hold a provider's locks.
+    * <p>
+    * A reload that takes long is logged, but this keeps waiting for it: the list may be empty
+    * until it ends, so not waiting would lose the caller's work. Waiting can't deadlock, because
+    * no thread that holds the reload lock waits for the read lock.
+    *
+    * @param waiter what is waiting for the reload, for the log.
+    *
+    * @return the security providers.
+    */
+   List<T> getProvidersAfterReload(String waiter) {
+      readWriteLock.readLock().lock();
+
+      try {
+         boolean locked = false;
+
+         try {
+            locked = lock.tryLock(RELOAD_WAIT_SECONDS, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+         }
+
+         if(!locked) {
+            LOG.warn("A reload of {} has not finished within {} s, {} keeps waiting for it",
+                     getConfigFile(), RELOAD_WAIT_SECONDS, waiter);
+            lock.lock();
+         }
+
+         try {
+            return new ArrayList<>(getProviderList());
+         }
+         finally {
+            lock.unlock();
+         }
+      }
+      finally {
+         readWriteLock.readLock().unlock();
+      }
+   }
+
+   /**
+    * Gets a copy of the providers without waiting for an edit that holds {@link #writeLock()}.
+    * The edit may be replacing the returned providers. This is for code that may hold a
+    * provider's own locks, such as the Database cache service: an edit takes those locks under
+    * the write lock when it tears the replaced provider down.
+    *
+    * @return the security providers.
+    */
+   public List<T> peekProviders() {
+      return new ArrayList<>(getProviderList());
+   }
+
+   /**
+    * Describes the providers that a reload of the configuration file is about to replace, for
+    * {@link #providersReloaded(Map, List)}.
+    *
+    * @param list the current providers.
+    *
+    * @return the names of the providers mapped to a description of their configuration.
+    */
+   Map<String, String> describeProviders(List<T> list) {
+      return Collections.emptyMap();
+   }
+
+   /**
+    * Called after this node replaced its providers with the ones in a configuration file that
+    * another node changed, outside the configuration lock. It is not called on the initial load
+    * or for a change saved by this chain.
+    *
+    * @param before the description of the replaced providers.
+    * @param list   the new providers.
+    */
+   void providersReloaded(Map<String, String> before, List<T> list) {
    }
 
    /**
@@ -372,6 +474,7 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
    private volatile long timestamp = 0L;
    private final Lock lock = new ReentrantLock();
    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+   private static final long RELOAD_WAIT_SECONDS = 10L;
 
    private static final Logger LOG = LoggerFactory.getLogger(SecurityChain.class);
 }
