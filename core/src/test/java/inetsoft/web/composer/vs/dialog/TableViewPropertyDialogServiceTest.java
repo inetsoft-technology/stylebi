@@ -20,6 +20,9 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
@@ -166,6 +169,62 @@ class TableViewPropertyDialogServiceTest {
          any(RuntimeViewsheet.class), any(TableVSAssemblyInfo.class), eq("Table1"),
          nullable(String.class), any(String.class), nullable(Principal.class),
          any(CommandDispatcher.class), eq(true), any());
+   }
+
+   // ── hidden columns survive property writes (Bug #79013) ────────────────────
+
+   @Test
+   void nonFormWriteKeepsHiddenColumns() throws Exception {
+      TableVSAssemblyInfo written = writeWith(false, false);
+
+      assertEquals(1, written.getHiddenColumns().getAttributeCount());
+      assertEquals("Company", written.getHiddenColumns().getAttribute(0).getName());
+      assertEquals(1, written.getColumnSelection().getAttributeCount());
+   }
+
+   @Test
+   void formToNonFormWriteStillClearsHiddenColumns() throws Exception {
+      TableVSAssemblyInfo written = writeWith(true, false);
+
+      assertEquals(0, written.getHiddenColumns().getAttributeCount());
+   }
+
+   @Test
+   void formToFormWriteKeepsHiddenColumns() throws Exception {
+      TableVSAssemblyInfo written = writeWith(true, true);
+
+      assertEquals(1, written.getHiddenColumns().getAttributeCount());
+   }
+
+   private TableVSAssemblyInfo writeWith(boolean oldForm, boolean newForm) throws Exception {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setFormValue(oldForm);
+      ColumnSelection shown = new ColumnSelection();
+      shown.addAttribute(new ColumnRef(new AttributeRef(null, "Category")));
+      info.setColumnSelection(shown);
+      ColumnSelection hidden = new ColumnSelection();
+      hidden.addAttribute(new ColumnRef(new AttributeRef(null, "Company")));
+      info.setHiddenColumns(hidden);
+
+      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(tableAssembly);
+      when(tableAssembly.getVSAssemblyInfo()).thenReturn(info);
+
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableAdvancedPaneModel().setForm(newForm);
+      model.setVsAssemblyScriptPaneModel(
+         VSAssemblyScriptPaneModel.builder().scriptEnabled(false).expression("").build());
+
+      service.setTablePropertyModel("Viewsheet1", "Table1", model, "", null, commandDispatcher);
+
+      org.mockito.ArgumentCaptor<TableVSAssemblyInfo> captor =
+         org.mockito.ArgumentCaptor.forClass(TableVSAssemblyInfo.class);
+      verify(vsObjectPropertyService).editObjectProperty(
+         any(RuntimeViewsheet.class), captor.capture(), eq("Table1"),
+         nullable(String.class), any(String.class), nullable(Principal.class),
+         any(CommandDispatcher.class), eq(true), any());
+      return captor.getValue();
    }
 
    @Mock VSObjectPropertyService vsObjectPropertyService;

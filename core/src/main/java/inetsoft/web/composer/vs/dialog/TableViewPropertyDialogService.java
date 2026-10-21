@@ -235,7 +235,7 @@ public class TableViewPropertyDialogService {
          }
       }
 
-      if(!tableAdvancedPaneModel.isForm()) {
+      if(tableAssemblyInfo.isForm() && !tableAdvancedPaneModel.isForm()) {
          tableAssemblyInfo.getHiddenColumns().removeAllAttributes();
       }
 
