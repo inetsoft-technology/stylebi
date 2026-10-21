@@ -123,6 +123,16 @@ public final class ConditionVocabulary {
 
    /** Renders an alternating array back into the flat vocabulary. */
    public static List<Map<String, Object>> describe(Object[] conditionList) {
+      return describe(conditionList, false);
+   }
+
+   /**
+    * @param canonicalFields report each field by its {@link #canonicalName}, the name the
+    *                        assembly's {@code fields} list uses, rather than a relabel
+    */
+   public static List<Map<String, Object>> describe(Object[] conditionList,
+                                                    boolean canonicalFields)
+   {
       List<Map<String, Object>> out = new ArrayList<>();
 
       if(conditionList == null) {
@@ -134,8 +144,9 @@ public final class ConditionVocabulary {
 
          if(item instanceof ConditionModel condition) {
             Map<String, Object> clause = new LinkedHashMap<>();
-            clause.put("field", condition.getField() == null
-               ? null : condition.getField().getName());
+            clause.put("field", condition.getField() == null ? null
+               : canonicalFields ? canonicalName(condition.getField())
+               : condition.getField().getName());
             clause.put("operator", operatorToken(condition.getOperation()));
             clause.put("values", values(condition.getValues()));
             clause.put("negated", condition.isNegated());

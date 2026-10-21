@@ -1171,4 +1171,19 @@ class ConditionVocabularyTest {
 
       assertTrue(e.getMessage().contains("Available fields: QUANTITY"), e.getMessage());
    }
+
+   @Test
+   void canonicalDescribeReportsTheColumnNameAndReplaysUnchanged() {
+      DataRefModel qty = relabelled("QUANTITY", "Qty");
+      DataRefModel[] fields = { field("ORDER_ID"), qty };
+      Object[] list = ConditionVocabulary.toConditionList(
+         List.of(clause("Qty", "greater_than", List.of(2), null)), fields);
+
+      assertEquals("Qty", ConditionVocabulary.describe(list).get(0).get("field"));
+      String field = (String) ConditionVocabulary.describe(list, true).get(0).get("field");
+
+      assertEquals("QUANTITY", field);
+      assertSame(qty, fieldOf(ConditionVocabulary.toConditionList(
+         List.of(clause(field, "greater_than", List.of(2), null)), fields)[0]));
+   }
 }

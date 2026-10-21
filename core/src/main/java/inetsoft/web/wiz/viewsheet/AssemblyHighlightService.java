@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
@@ -33,6 +34,7 @@ import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.wiz.binding.VisualFrameAliases;
+import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.condition.ConditionValueModel;
 import inetsoft.web.composer.model.condition.ExpressionValueModel;
@@ -409,7 +411,7 @@ public class AssemblyHighlightService {
       out.put("conditions", highlight.getVsConditionDialogModel() == null
          ? List.of()
          : ConditionVocabulary.describe(
-            highlight.getVsConditionDialogModel().getConditionList()));
+            highlight.getVsConditionDialogModel().getConditionList(), true));
       return out;
    }
 
@@ -456,6 +458,7 @@ public class AssemblyHighlightService {
       String runtimeId = rvs.getID();
       requireTableRendered(rvs, assemblyName);
       Region target = region == null ? Region.whole() : renderedCell(rvs, assemblyName, region);
+      target = resolveColName(rvs, assemblyName, target, user);
       HighlightDialogModel model = readAt(runtimeId, assemblyName, target, user);
 
       // A crosstab's cell (0,0) is a HEADER, and a header has no highlightable fields — so
@@ -491,6 +494,61 @@ public class AssemblyHighlightService {
       }
 
       return model;
+   }
+
+   /**
+    * Lets a plain table's {@code colName} be either the rendered label or the column name (bug
+    * 78953). The native lookup matches only the rendered header, so a column relabelled in the
+    * viewsheet could not be addressed by the name the {@code fields} list reports. The name is
+    * resolved through {@link ConditionVocabulary#find} (column name wins, a label shared by
+    * several columns is refused) and handed on as the label the lens knows it by.
+    *
+    * <p>Not applied to a crosstab, whose {@code colName} names an aggregate, nor to a chart.
+    * When the label cannot single out the column (another column renders under the same label,
+    * or is named it), the lens would pick the wrong one, so that is refused instead.
+    */
+   private Region resolveColName(RuntimeViewsheet rvs, String assemblyName, Region region,
+                                 Principal user) throws Exception
+   {
+      String colName = region.colName();
+
+      if(colName == null || colName.isBlank() || region.axis() || region.text()) {
+         return region;
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof TableDataVSAssembly) || assembly instanceof CrosstabVSAssembly) {
+         return region;
+      }
+
+      HighlightDialogModel whole =
+         readAt(rvs.getID(), assemblyName, new Region(null, null, null, false, false), user);
+      DataRefModel[] fields = whole == null ? null : whole.getFields();
+      DataRefModel field = ConditionVocabulary.find(fields, colName);
+
+      if(field == null || field.getName() == null || field.getName().equals(colName)) {
+         return region;
+      }
+
+      String label = field.getName();
+
+      for(DataRefModel other : fields) {
+         if(other != null && other != field && other.getName() != null &&
+            (label.equalsIgnoreCase(other.getName()) ||
+               label.equalsIgnoreCase(ConditionVocabulary.canonicalName(other))))
+         {
+            throw new IllegalArgumentException(
+               "colName '" + colName + "' is rendered under the label '" + label + "', which " +
+               "another column of '" + assemblyName + "' also carries (" +
+               ConditionVocabulary.canonicalName(other) + "), so the name cannot single out " +
+               "the column. Use row/col to address the cell.");
+         }
+      }
+
+      return new Region(region.row(), region.col(), label, region.axis(), region.text(),
+                        region.cellSupplied());
    }
 
    /** Whether {@code cell} falls inside the assembly's own reported header extent. */
