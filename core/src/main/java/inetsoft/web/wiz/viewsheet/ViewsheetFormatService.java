@@ -938,7 +938,9 @@ public class ViewsheetFormatService {
             // Bug #79096: with no user layer the painter turns every unsent style side into 0
             // (forced none). On a table-region cell, -1 is FormatTableLens.mergeLineStyle's "use
             // the default" marker, so seeding it leaves those sides on the table's own grid.
-            boolean useDefault = insets == null && isTableCellPath(info, path);
+            // A colour-only write sends no style, so it keeps storing no borders (nothing drawn).
+            boolean useDefault = insets == null && isTableCellPath(info, path) &&
+               BORDER_SIDES.stream().anyMatch(s -> styleSent(keys, s));
 
             for(int i = 0; i < 4; i++) {
                String side = BORDER_SIDES.get(i);

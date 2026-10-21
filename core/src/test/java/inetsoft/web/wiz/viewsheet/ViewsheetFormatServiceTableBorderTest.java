@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
+import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.wiz.binding.CalcTableService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -102,6 +103,25 @@ class ViewsheetFormatServiceTableBorderTest {
    }
 
    @Test
+   void aColourOnlyWriteToAnUnformattedTableCellSeedsNoStyleSidesOnEveryWrite() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      CalcTableVSAssemblyInfo info = calcInfo();
+
+      for(int i = 0; i < 2; i++) {
+         List<String> warnings = writeCell(painter, info, "{\"borderTopColor\":\"#eeeeee\"}",
+                                           false);
+         assertTrue(warnings.isEmpty(), "a colour at or above the grid colour gets no edge warning");
+      }
+
+      for(FormatVSObjectEvent event : paintedEvents(painter, 2)) {
+         assertNull(event.getFormat().getBorderTopStyle());
+         assertNull(event.getFormat().getBorderLeftStyle());
+         assertNull(event.getFormat().getBorderBottomStyle());
+         assertNull(event.getFormat().getBorderRightStyle());
+      }
+   }
+
+   @Test
    void aTableCellWithAUserLayerStillSeedsFromWhatIsStored() throws Exception {
       FormatPainterService painter = mock(FormatPainterService.class);
       CalcTableVSAssemblyInfo info = calcInfo();
@@ -109,7 +129,7 @@ class ViewsheetFormatServiceTableBorderTest {
       stored.getUserDefinedFormat().setBordersValue(new Insets(1, 2, 3, 4));
       info.getFormatInfo().setFormat(CELL, stored);
 
-      writeCell(painter, info, "{\"borderTopColor\":\"#00ff00\"}", false);
+      writeCell(painter, info, "{\"borderTopColor\":\"#eeeeee\"}", false);
 
       VSObjectFormatInfoModel model = paintedEvents(painter, 1).get(0).getFormat();
       assertEquals("1", model.getBorderTopStyle());
