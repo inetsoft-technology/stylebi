@@ -1667,6 +1667,141 @@ class ChartRegionPropertyServiceTest {
                                                             any(Principal.class), any());
    }
 
+   private Harness legendHarness(boolean dimension, boolean time) throws Exception {
+      Harness h = harness();
+      LegendFormatDialogModel model = legendModel();
+      model.setDimension(dimension);
+      model.setTime(time);
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(model);
+      return h;
+   }
+
+   private static void verifyNoLegendWrite(Harness h) throws Exception {
+      verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                            any(), anyString(),
+                                                            any(Principal.class), any());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {"logarithmicScale", "reverse", "includeZero"})
+   void refusesLegendScaleKeyOnDimensionLegend(String key) throws Exception {
+      Harness h = legendHarness(true, false);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of(key, true), ""));
+
+      assertTrue(thrown.getMessage().contains(key));
+      verifyNoLegendWrite(h);
+   }
+
+   @Test
+   void refusesLegendScaleRawPathOnDimensionLegend() throws Exception {
+      Harness h = legendHarness(true, false);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("legendScalePaneModel.reverse", true), ""));
+
+      assertTrue(thrown.getMessage().contains("reverse"));
+      verifyNoLegendWrite(h);
+   }
+
+   @Test
+   void refusesLegendScaleKeyOnTimeLegend() throws Exception {
+      Harness h = legendHarness(false, true);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("reverse", "true"), ""));
+
+      assertTrue(thrown.getMessage().contains("reverse"));
+      verifyNoLegendWrite(h);
+   }
+
+   @Test
+   void acceptsFalseLegendScaleKeysOnDimensionLegend() throws Exception {
+      Harness h = legendHarness(true, false);
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("logarithmicScale", false, "reverse", "false", "includeZero", false),
+                    "");
+
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
+                                                   anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void acceptsLegendScaleKeysOnMeasureLegend() throws Exception {
+      Harness h = legendHarness(false, false);
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("logarithmicScale", true, "reverse", true, "includeZero", true), "");
+
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
+                                                   anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void staleLegendScaleValueNotInPatchIsNotRefused() throws Exception {
+      Harness h = harness();
+      LegendFormatDialogModel model = legendModel();
+      model.setDimension(true);
+      model.getLegendScalePaneModel().setReverse(true);
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(model);
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("symbolSize", 20), "");
+
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
+                                                   anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void listFlagsScaleKeysInapplicableOnDimensionLegend() throws Exception {
+      Harness h = legendHarness(true, false);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "legend", "0", null);
+
+      assertNotNull(listed.get("note"));
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      int flagged = 0;
+
+      for(Map<String, Object> p : props) {
+         String n = (String) p.get("name");
+
+         if(List.of("logarithmicScale", "reverse", "includeZero").contains(n)) {
+            assertEquals(false, p.get("applies"), n);
+            flagged++;
+         }
+         else {
+            assertFalse(p.containsKey("applies"), n);
+         }
+      }
+
+      assertEquals(3, flagged);
+   }
+
+   @Test
+   void listDoesNotFlagScaleKeysOnMeasureLegend() throws Exception {
+      Harness h = legendHarness(false, false);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "legend", "0", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      assertTrue(props.stream().noneMatch(p -> p.containsKey("applies")));
+      assertNull(listed.get("note"));
+   }
+
    /**
     * Bug #77027 item 6, round r1 (reviewer B1): {@code LegendDescriptor.setSymbolSize}
     * unconditionally clamps to {@code [6, 50]} with no indication -- refused loudly here rather

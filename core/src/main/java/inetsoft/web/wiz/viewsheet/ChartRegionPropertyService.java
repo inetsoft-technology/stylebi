@@ -128,6 +128,14 @@ public class ChartRegionPropertyService {
             one.put("date", isoDateTime(Long.parseLong(text)));
          }
 
+         if("legend".equals(name) && LEGEND_SCALE_KEYS.contains(alias.getKey()) &&
+            isCategoricalLegend((LegendFormatDialogModel) model))
+         {
+            one.put("applies", false);
+            one.put("reason", "Only applies to a legend bound to a measure; refused on a " +
+               "dimension/date legend (false is accepted to clear a stale value).");
+         }
+
          properties.add(one);
       }
 
@@ -144,6 +152,12 @@ public class ChartRegionPropertyService {
             (primary == null ? "" : " This Gantt draws the axis from the settings of '" +
                primary + "' (the minimum/maximum listed here are that field's); set the axis " +
                "with field '" + primary + "'."));
+      }
+
+      if("legend".equals(name) && isCategoricalLegend((LegendFormatDialogModel) model)) {
+         out.put("note", "This legend is bound to a dimension/date. logarithmicScale, reverse " +
+            "and includeZero (marked applies:false) only apply to a measure legend and are " +
+            "refused here when set to true.");
       }
 
       out.put("properties", properties);
@@ -236,6 +250,10 @@ public class ChartRegionPropertyService {
          ? parseAliasEntries(properties.get("aliases")) : null;
 
       Object model = readModel(sessionToken, user, assembly, name, key, field);
+
+      if("legend".equals(name)) {
+         requireMeasureLegendForScaleKeys((LegendFormatDialogModel) model, properties);
+      }
 
       // A time axis's range is written exactly after the dialog write (writeTimeAxis), not
       // through the model, whose Float parse cannot hold an epoch-millisecond date.
@@ -1189,6 +1207,56 @@ public class ChartRegionPropertyService {
    /** {@code LegendDescriptor.setSymbolSize}'s own clamp range (bug #77027 item 6). */
    private static final int LEGEND_SYMBOL_SIZE_MIN = 6;
    private static final int LEGEND_SYMBOL_SIZE_MAX = 50;
+
+   private static final List<String> LEGEND_SCALE_KEYS =
+      List.of("logarithmicScale", "reverse", "includeZero");
+
+   /**
+    * Refuses switching on a Scale-tab key (logarithmicScale, reverse, includeZero) for a legend
+    * bound to a dimension or date: the Composer hides the Scale tab there and the engine ignores
+    * the setting, so it would be stored with no effect (and go live if a measure is bound later).
+    * Only a truthy value is refused, so a stale value can still be cleared with false.
+    */
+   private static void requireMeasureLegendForScaleKeys(
+      LegendFormatDialogModel model, Map<String, Object> properties)
+   {
+      if(!isCategoricalLegend(model)) {
+         return;
+      }
+
+      List<String> offending = new ArrayList<>();
+
+      for(String scaleKey : LEGEND_SCALE_KEYS) {
+         if(properties.containsKey(scaleKey) && isTruthy(properties.get(scaleKey))) {
+            offending.add(scaleKey);
+         }
+      }
+
+      if(!offending.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + String.join("', '", offending) + "' only applies to a legend bound to a " +
+            "measure (a continuous scale); this legend is bound to a " +
+            (model.isTime() ? "date/time" : "dimension") + ", so it would be ignored. Omit it, " +
+            "send false to clear a stale value, or bind a measure to this channel.");
+      }
+   }
+
+   private static boolean isCategoricalLegend(LegendFormatDialogModel model) {
+      return model != null && (model.isDimension() || model.isTime());
+   }
+
+   private static boolean isTruthy(Object value) {
+      if(value == null) {
+         return false;
+      }
+
+      if(value instanceof Boolean flag) {
+         return flag;
+      }
+
+      String text = String.valueOf(value).trim();
+      return !text.isEmpty() && !"false".equalsIgnoreCase(text);
+   }
 
    /**
     * Refuses a legend {@code symbolSize} outside {@code [6, 50]} rather than letting it reach
