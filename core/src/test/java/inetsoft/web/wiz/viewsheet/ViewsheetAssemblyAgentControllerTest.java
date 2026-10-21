@@ -25,6 +25,8 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.report.io.viewsheet.excel.CSVUtil;
 import inetsoft.util.Catalog;
+import inetsoft.util.InvalidUserException;
+import inetsoft.util.MessageException;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -3759,6 +3761,110 @@ class ViewsheetAssemblyAgentControllerTest {
       assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug 79119 -- a MessageException (e.g. RadarGraphGenerator.checkValidity's "requires at
+   // least two measures (Y), or one measure (Y) and one dimension (Break By)" validation
+   // message) must not be swallowed behind WizControllerErrorHandler's generic 500 either --
+   // the same gap Bug 76765 closed for ScriptException at these same call sites.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void imageWrapsAMessageExceptionFromGetViewsheetImageAsABadRequestPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getViewsheetImage(eq(rvs), any(), any(), any(Principal.class)))
+         .thenThrow(new MessageException(
+            "Parallel coordinate requires at least two measures (Y), or one measure (Y) and " +
+            "one dimension (Break By)."));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(featureOn(), sessions,
+                                                                    imageService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.image("tok", null, null, null, principal()));
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+      assertTrue(ex.getMessage().contains("Break By"));
+   }
+
+   @Test
+   void imageWrapsAMessageExceptionFromGetAssemblyImageAsABadRequestPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getAssemblyImage(eq(rvs), eq("Chart1"), any(), any(), any(Principal.class)))
+         .thenThrow(new MessageException(
+            "Parallel coordinate requires at least two measures (Y), or one measure (Y) and " +
+            "one dimension (Break By)."));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(featureOn(), sessions,
+                                                                    imageService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.image("tok", "Chart1", null, null, principal()));
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+      assertTrue(ex.getMessage().contains("Break By"));
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug 79119 (round 2) -- InvalidUserException is also a MessageException subtype, but it
+   // has its own dedicated WizControllerErrorHandler mapping (409, re-pair instruction) and
+   // must keep propagating unwrapped rather than being caught by the new MessageException arm
+   // above and turned into a generic 400 PairingException.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void imageDoesNotWrapAnInvalidUserExceptionFromGetViewsheetImage()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getViewsheetImage(eq(rvs), any(), any(), any(Principal.class)))
+         .thenThrow(new InvalidUserException("client1 no longer owns the sheet", principal()));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(featureOn(), sessions,
+                                                                    imageService);
+
+      InvalidUserException ex = assertThrows(InvalidUserException.class,
+         () -> controller.image("tok", null, null, null, principal()));
+      assertTrue(ex.getMessage().contains("client1 no longer owns the sheet"));
+   }
+
+   @Test
+   void imageDoesNotWrapAnInvalidUserExceptionFromGetAssemblyImage()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getAssemblyImage(eq(rvs), eq("Chart1"), any(), any(), any(Principal.class)))
+         .thenThrow(new InvalidUserException("client1 no longer owns the sheet", principal()));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(featureOn(), sessions,
+                                                                    imageService);
+
+      InvalidUserException ex = assertThrows(InvalidUserException.class,
+         () -> controller.image("tok", "Chart1", null, null, principal()));
+      assertTrue(ex.getMessage().contains("client1 no longer owns the sheet"));
+   }
+
    /** Feature enabled, only {@code imageService} (and a fixed {@code sessions.resolve}) wired. */
    private static ViewsheetAssemblyAgentController controllerWith(
       SheetAgentFeature feature, ViewsheetSessionService sessions,
@@ -6198,6 +6304,139 @@ class ViewsheetAssemblyAgentControllerTest {
             principal(), mock(HttpServletResponse.class)));
       assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
       assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug 79119 -- a MessageException must not be swallowed behind WizControllerErrorHandler's
+   // generic 500 on the export() side either.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void exportWrapsAMessageExceptionFromGetAssemblyImageAsABadRequestPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getAssemblyImage(eq(rvs), eq("Chart1"), isNull(), isNull(),
+         any(Principal.class)))
+         .thenThrow(new MessageException(
+            "Parallel coordinate requires at least two measures (Y), or one measure (Y) and " +
+            "one dimension (Break By)."));
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, imageService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.export("tok", "PNG", "Chart1", null, null, null, null, null, null,
+            principal(), mock(HttpServletResponse.class)));
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+      assertTrue(ex.getMessage().contains("Break By"));
+      verifyNoInteractions(exportService);
+   }
+
+   /**
+    * The whole-sheet branch (no {@code target}, any format) drives
+    * {@code exportService.exportViewsheet} directly -- a distinct exposure point from
+    * {@code getAssemblyImage}'s target+PNG branch above. A radar-invalid {@code MessageException}
+    * escapes this path via {@code AbstractVSExporter}'s unguarded chart-write-phase
+    * {@code getVGraphPair} call, which {@code ViewsheetSandbox.getVGraphPair} explicitly
+    * rethrows (it only swallows other, non-{@code MessageException}/{@code ConfirmException}
+    * chart-generation failures).
+    */
+   @Test
+   void exportWrapsAMessageExceptionFromExportViewsheetAsABadRequestPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      doThrow(new MessageException(
+            "Parallel coordinate requires at least two measures (Y), or one measure (Y) and " +
+            "one dimension (Break By)."))
+         .when(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
+            anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
+            anyBoolean(), isNull(), anyBoolean(), any(ExportResponse.class), any(Principal.class));
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.export("tok", "PDF", null, null, null, null, null, null, null,
+            principal(), mock(HttpServletResponse.class)));
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+      assertTrue(ex.getMessage().contains("Break By"));
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug 79119 (round 2) -- InvalidUserException must keep propagating unwrapped on the
+   // export() side too, for the same reason as the image() tests above.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void exportDoesNotWrapAnInvalidUserExceptionFromGetAssemblyImage()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getAssemblyImage(eq(rvs), eq("Chart1"), isNull(), isNull(),
+         any(Principal.class)))
+         .thenThrow(new InvalidUserException("client1 no longer owns the sheet", principal()));
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, imageService);
+
+      InvalidUserException ex = assertThrows(InvalidUserException.class,
+         () -> controller.export("tok", "PNG", "Chart1", null, null, null, null, null, null,
+            principal(), mock(HttpServletResponse.class)));
+      assertTrue(ex.getMessage().contains("client1 no longer owns the sheet"));
+      verifyNoInteractions(exportService);
+   }
+
+   @Test
+   void exportDoesNotWrapAnInvalidUserExceptionFromExportViewsheet()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      doThrow(new InvalidUserException("client1 no longer owns the sheet", principal()))
+         .when(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
+            anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
+            anyBoolean(), isNull(), anyBoolean(), any(ExportResponse.class), any(Principal.class));
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+
+      InvalidUserException ex = assertThrows(InvalidUserException.class,
+         () -> controller.export("tok", "PDF", null, null, null, null, null, null, null,
+            principal(), mock(HttpServletResponse.class)));
+      assertTrue(ex.getMessage().contains("client1 no longer owns the sheet"));
    }
 
    /** Feature enabled, only {@code sessions}/{@code exportService}/{@code securityEngine}/
