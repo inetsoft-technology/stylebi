@@ -17,7 +17,6 @@
  */
 package inetsoft.web.admin.ai.schedule;
 
-import inetsoft.web.api.schedule.ScheduleTaskList;
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
@@ -70,7 +69,7 @@ public class AdminScheduleController {
       resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks",
       actions = ResourceAction.ACCESS))
    @GetMapping("/api/wiz/v1/admin/schedule/tasks")
-   public ScheduleTaskList listTasks(Principal user) throws Exception {
+   public AdminScheduleTaskList listTasks(Principal user) throws Exception {
       requireSiteAdmin(user);
       // No organizationid filter exposed in this cut (spec §11: list_schedule_tasks takes no
       // arguments) -- getScheduleTasks is already permission-scoped by repository.getScheduleTasks
@@ -87,6 +86,7 @@ public class AdminScheduleController {
    {
       requireSiteAdmin(user);
       return new ScheduleTaskView(taskId,
+         scheduleGateway.getScheduleTaskPath(taskId, user),
          scheduleGateway.getScheduleTask(taskId, null, user),
          scheduleGateway.getTaskConditionsLenient(taskId, null, user),
          scheduleGateway.getTaskActionsLenient(taskId, null, user));

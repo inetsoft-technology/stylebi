@@ -112,14 +112,16 @@ public class AdminScheduleGateway {
    /**
     * Gets the list of scheduled tasks. Mirrors {@code ScheduleApiService#getScheduleTasks}.
     */
-   public ScheduleTaskList getScheduleTasks(String organizationid, Principal user) throws Exception {
+   public AdminScheduleTaskList getScheduleTasks(String organizationid, Principal user)
+      throws Exception
+   {
       checkPermission(user);
-      ScheduleTaskList list = new ScheduleTaskList();
+      AdminScheduleTaskList list = new AdminScheduleTaskList();
       Arrays.stream(repository.getScheduleTasks(user))
          .map(scheduleManager::getScheduleTask)
          .filter(Objects::nonNull)
          .filter(s -> organizationid == null || s.getOwner().getOrgID().equals(organizationid))
-         .map(this::convertTask)
+         .map(t -> new ScheduleTaskEntry(convertTask(t), getFolderPath(t)))
          .forEach(list.getTasks()::add);
       return list;
    }
@@ -188,6 +190,19 @@ public class AdminScheduleGateway {
       throws Exception
    {
       return convertTask(getTask(taskId, user));
+   }
+
+   /**
+    * Gets the folder the schedule task sits in, root-normalized ({@code "/"} for the root, no
+    * leading slash otherwise). The public {@link ScheduleTask} DTO has no path, so it is read
+    * from the task itself. Same permission checks as {@link #getScheduleTask}.
+    */
+   public String getScheduleTaskPath(String taskId, Principal user) throws Exception {
+      return getFolderPath(getTask(taskId, user));
+   }
+
+   private static String getFolderPath(inetsoft.sree.schedule.ScheduleTask task) {
+      return AdminScheduleFolderGateway.normalizePath(task.getPath());
    }
 
    /**

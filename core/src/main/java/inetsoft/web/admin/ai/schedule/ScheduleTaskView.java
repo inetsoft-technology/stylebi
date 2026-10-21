@@ -37,10 +37,11 @@ import java.util.List;
  * subtype.
  */
 public class ScheduleTaskView {
-   public ScheduleTaskView(String taskId, ScheduleTask task, List<Object> conditions,
-                           List<Object> actions)
+   public ScheduleTaskView(String taskId, String path, ScheduleTask task,
+                           List<Object> conditions, List<Object> actions)
    {
       this.taskId = taskId;
+      this.path = path;
       this.task = task;
       this.conditions = conditions;
       this.actions = actions;
@@ -48,6 +49,11 @@ public class ScheduleTaskView {
 
    public String getTaskId() {
       return taskId;
+   }
+
+   /** The folder the task sits in: {@code "/"} for the root, no leading slash otherwise. */
+   public String getPath() {
+      return path;
    }
 
    public ScheduleTask getTask() {
@@ -63,6 +69,7 @@ public class ScheduleTaskView {
    }
 
    private final String taskId;
+   private final String path;
    private final ScheduleTask task;
    private final List<Object> conditions;
    private final List<Object> actions;
