@@ -70,51 +70,17 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
       ChartVSAssemblyInfo info = chartState.getChartAssemblyInfo();
       VSChartInfo chartInfo = chartState.getChartInfo();
       String columnName = event.getColumnName();
-      ChartRef chartRef = (ChartRef) info.getDCBIndingRef(columnName);
-
-      if(chartRef == null) {
-         chartRef = getAxixRef(chartInfo, columnName);
-      }
-
-      if(chartRef == null && chartInfo.isPeriodPartRef(columnName) &&
-         chartInfo.getPeriodField() != null)
-      {
-         ChartRef periodField = (ChartRef) chartInfo.getPeriodField().clone();
-
-         if(periodField instanceof VSDimensionRef) {
-            ((VSDimensionRef) periodField).setDates(null);
-         }
-
-         chartRef = chartInfo.getFieldByName(periodField.getFullName(), false);
-      }
-
+      ChartRef chartRef = findAxisRef(info, chartInfo, columnName);
       AxisDescriptor axisDescriptor = null;
       boolean maxMode = info.getMaxSize() != null;
 
-      // if the field is dynamically created, get the runtime field, which has the
-      // AxisDescriptor set from the parent VSChartDimensionRef. (42152)
-      if(chartRef == null) {
-         ChartRef[][] fields2 = {chartInfo.getRTYFields(), chartInfo.getRTXFields()};
-
-         String finalColumnName = columnName;
-         chartRef = Arrays.stream(fields2)
-            .flatMap(fields -> Stream.of(fields))
-            .filter(ref -> ref.getFullName().equals(finalColumnName))
-            .findAny()
-            .orElse(null);
-      }
-
-      if("_Parallel_Label_".equals(columnName) && chartInfo instanceof RadarVSChartInfo) {
+      if(isRadarLabelAxis(chartInfo, columnName)) {
          axisDescriptor = ((RadarVSChartInfo) chartInfo).getLabelAxisDescriptor();
       }
-      else if((PairsDataSet.YMEASURE_NAME.equals(columnName) ||
-         PairsDataSet.XMEASURE_NAME.equals(columnName)) && !GraphTypeUtil.isScatterMatrix(chartInfo))
-      {
+      else if(isMeasureNameAxis(chartInfo, columnName)) {
          axisDescriptor = chartInfo.getAxisDescriptor();
       }
-      else if(chartInfo.isSeparatedGraph() && !(chartInfo instanceof StockVSChartInfo) &&
-         !(chartInfo instanceof CandleVSChartInfo))
-      {
+      else if(!usesMergedAxisBranch(chartInfo)) {
          if(chartRef != null) {
             axisDescriptor = chartRef.getAxisDescriptor();
          }
@@ -148,6 +114,80 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
 
       chartInfo.clearRuntime();
       return VSAssembly.VIEW_CHANGED;
+   }
+
+   /**
+    * Finds the ref that a hide-axis column name addresses. This is the one lookup that
+    * {@link #hideAxis} and the wiz tool layer's pre-check ({@code ChartAxisTargets}) share, so a
+    * name the tool accepts is exactly a name this service resolves, and the two cannot drift.
+    *
+    * <p>The match is exact and case-sensitive on the ref's full name (e.g.
+    * {@code Month(Order:Date)}), in this order: the date-comparison binding ref, the binding refs,
+    * the period-part field, then the runtime x/y fields (dynamically created fields, 42152).
+    *
+    * @return the ref, or null when the name matches none. A null here is what makes
+    *         {@code hideAxis} fall back to a chart-level axis descriptor.
+    */
+   public static ChartRef findAxisRef(ChartVSAssemblyInfo info, VSChartInfo chartInfo,
+                                      String columnName)
+   {
+      ChartRef chartRef = (ChartRef) info.getDCBIndingRef(columnName);
+
+      if(chartRef == null) {
+         chartRef = getAxixRef(chartInfo, columnName);
+      }
+
+      if(chartRef == null && chartInfo.isPeriodPartRef(columnName) &&
+         chartInfo.getPeriodField() != null)
+      {
+         ChartRef periodField = (ChartRef) chartInfo.getPeriodField().clone();
+
+         if(periodField instanceof VSDimensionRef) {
+            ((VSDimensionRef) periodField).setDates(null);
+         }
+
+         chartRef = chartInfo.getFieldByName(periodField.getFullName(), false);
+      }
+
+      // if the field is dynamically created, get the runtime field, which has the
+      // AxisDescriptor set from the parent VSChartDimensionRef. (42152)
+      if(chartRef == null) {
+         ChartRef[][] fields2 = {chartInfo.getRTYFields(), chartInfo.getRTXFields()};
+
+         chartRef = Arrays.stream(fields2)
+            .flatMap(fields -> Stream.of(fields))
+            .filter(ref -> ref.getFullName().equals(columnName))
+            .findAny()
+            .orElse(null);
+      }
+
+      return chartRef;
+   }
+
+   /**
+    * True for the special radar label axis name that {@link #hideAxis} resolves without a ref.
+    */
+   public static boolean isRadarLabelAxis(VSChartInfo chartInfo, String columnName) {
+      return "_Parallel_Label_".equals(columnName) && chartInfo instanceof RadarVSChartInfo;
+   }
+
+   /**
+    * True for the x/y measure-name pseudo columns, which {@link #hideAxis} resolves without a ref
+    * except on a scatter matrix.
+    */
+   public static boolean isMeasureNameAxis(VSChartInfo chartInfo, String columnName) {
+      return (PairsDataSet.YMEASURE_NAME.equals(columnName) ||
+         PairsDataSet.XMEASURE_NAME.equals(columnName)) && !GraphTypeUtil.isScatterMatrix(chartInfo);
+   }
+
+   /**
+    * True when {@link #hideAxis} picks the descriptor from the shared merged-layout branch, the
+    * one where a measure ref's own axis is ignored and {@code secondary} alone chooses between
+    * the primary and secondary descriptor.
+    */
+   public static boolean usesMergedAxisBranch(VSChartInfo chartInfo) {
+      return !chartInfo.isSeparatedGraph() || chartInfo instanceof StockVSChartInfo ||
+         chartInfo instanceof CandleVSChartInfo;
    }
 
    // find ref in axes.
