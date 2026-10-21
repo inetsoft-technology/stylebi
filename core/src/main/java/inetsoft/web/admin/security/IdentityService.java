@@ -2795,7 +2795,8 @@ public class IdentityService {
     * administrator role. Every other default role is kept, whatever assign rights the caller
     * holds, because default roles are not an explicit assignment. Roles are resolved through the
     * authentication provider chain, while the defaults themselves normally come from the editable
-    * provider; a role the chain cannot resolve is not an administrator role and is kept.
+    * provider; a role the chain cannot resolve (not found) is not an administrator role and is
+    * kept, but a role whose check fails with an error is dropped (fail closed).
     * <p>
     * This never throws, so a default role can never make user creation fail (the caller's
     * assignment checks are not applied to defaults). A null principal is treated as an
@@ -2826,6 +2827,7 @@ public class IdentityService {
 
          AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
          boolean orgAdmin = orgManager.isOrgAdmin(principal);
+         String callerName = principal == null ? "anonymous" : principal.getName();
 
          for(IdentityID role : candidates) {
             IdentityID[] single = { role };
@@ -2835,14 +2837,15 @@ public class IdentityService {
                   !orgAdmin && grantsOrgAdmin(provider, single, null))
                {
                   LOG.warn("Not giving the administrator default role {} to a new user " +
-                           "created by {}", role, principal);
+                           "created by {}", role, callerName);
                   continue;
                }
             }
             catch(Exception ex) {
-               // an unresolvable role must not fail the creation; it is kept as not an admin role
-               LOG.debug("Could not check whether the default role {} is an administrator role",
-                         role, ex);
+               // fail closed: a role that cannot be assessed may be an administrator role
+               LOG.warn("Not giving the default role {} to a new user created by {}, it could " +
+                        "not be checked", role, callerName, ex);
+               continue;
             }
 
             result.add(role);

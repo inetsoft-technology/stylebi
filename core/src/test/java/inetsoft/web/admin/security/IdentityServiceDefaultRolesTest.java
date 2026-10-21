@@ -182,8 +182,8 @@ class IdentityServiceDefaultRolesTest {
 
       List<IdentityID> result = assertDoesNotThrow(() -> filter(principal, PLAIN, SYS));
 
-      // the role check failed, so the roles are kept as not admin roles and creation goes on
-      assertEquals(List.of(PLAIN, SYS), result);
+      // fail closed: no role could be assessed, so none is given, and creation goes on
+      assertEquals(List.of(), result);
    }
 
    @Test
@@ -195,10 +195,10 @@ class IdentityServiceDefaultRolesTest {
 
    /**
     * The defaults come from the editable provider but the roles are judged by the chain provider
-    * the service holds: a role the chain does not know is not an admin role.
+    * the service holds: a role the chain does not know (getRole is null) is not an admin role.
     */
    @Test
-   void roles_areCheckedAgainstTheChainProviderNotTheSource() {
+   void roleUnknownToTheChainProvider_isKeptAsNotAnAdminRole() {
       roles.remove(SYS);
 
       assertEquals(List.of(SYS, PLAIN), filter(principal, SYS, PLAIN));
