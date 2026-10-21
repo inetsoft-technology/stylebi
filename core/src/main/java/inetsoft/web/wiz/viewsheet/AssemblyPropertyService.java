@@ -57,6 +57,7 @@ import inetsoft.web.wiz.binding.SelectionMeasureResolver;
 import inetsoft.web.viewsheet.service.VSDialogService;
 import inetsoft.web.viewsheet.service.VSInputService;
 import inetsoft.web.viewsheet.service.VSOutputService;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -287,6 +288,7 @@ public class AssemblyPropertyService {
          String formulaBefore = selectionFormula(type, model);
          String outputAggregateBefore = outputAggregate(type, model);
          SelectionSourceGuard.Snapshot sourceBefore = SelectionSourceGuard.snapshot(type, model);
+         ShapeFillGradientGuard.Snapshot fillBefore = ShapeFillGradientGuard.snapshot(type, model);
 
          // Resolved whole before anything is written: a typo in the fourth key must not
          // leave the first three applied, which would be a partial edit the caller has no
@@ -416,6 +418,9 @@ public class AssemblyPropertyService {
             markTargetsUnchanged(model);
          }
 
+         ShapeFillGradientGuard.Result fillResult =
+            ShapeFillGradientGuard.apply(fillBefore, model, resolved.values());
+         model = fillResult.model();
          final Object written = model;
 
          if("chart".equals(type)) {
@@ -425,6 +430,13 @@ public class AssemblyPropertyService {
          }
          else {
             writeModel(runtimeId, type, assemblyName, written, linkUri, user, dispatcher);
+         }
+
+         if(fillResult.warning() != null && dispatcher != null) {
+            MessageCommand warning = new MessageCommand();
+            warning.setType(MessageCommand.Type.WARNING);
+            warning.setMessage(fillResult.warning());
+            dispatcher.sendCommand(assemblyName, warning);
          }
       });
    }
