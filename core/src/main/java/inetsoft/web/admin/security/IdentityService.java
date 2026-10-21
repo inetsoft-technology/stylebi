@@ -2788,6 +2788,75 @@ public class IdentityService {
    }
 
    /**
+    * Removes from the default roles seeded onto a new user the roles the caller could never
+    * assign. A site administrator keeps every default role. Any other caller loses each default
+    * role that is, or inherits, a system administrator role, and a caller that is not an
+    * organization administrator also loses each one that is, or inherits, an organization
+    * administrator role. Every other default role is kept, whatever assign rights the caller
+    * holds, because default roles are not an explicit assignment. Roles are resolved through the
+    * authentication provider chain, while the defaults themselves normally come from the editable
+    * provider; a role the chain cannot resolve is not an administrator role and is kept.
+    * <p>
+    * This never throws, so a default role can never make user creation fail (the caller's
+    * assignment checks are not applied to defaults). A null principal is treated as an
+    * unprivileged caller. Unlike the SSO and OpenID default role guards, this has a caller.
+    *
+    * @param defaultRoles the default roles the new user would receive.
+    * @param principal    the caller creating the user.
+    *
+    * @return the default roles the new user may receive, never null.
+    */
+   public List<IdentityID> filterAssignableDefaultRoles(Collection<IdentityID> defaultRoles,
+                                                        Principal principal)
+   {
+      if(defaultRoles == null || defaultRoles.isEmpty()) {
+         return new ArrayList<>();
+      }
+
+      List<IdentityID> result = new ArrayList<>();
+
+      try {
+         List<IdentityID> candidates =
+            defaultRoles.stream().filter(Objects::nonNull).collect(Collectors.toList());
+         OrganizationManager orgManager = OrganizationManager.getInstance();
+
+         if(!securityEngine.isSecurityEnabled() || orgManager.isSiteAdmin(principal)) {
+            return candidates;
+         }
+
+         AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
+         boolean orgAdmin = orgManager.isOrgAdmin(principal);
+
+         for(IdentityID role : candidates) {
+            IdentityID[] single = { role };
+
+            try {
+               if(grantsSystemAdmin(provider, single, null) ||
+                  !orgAdmin && grantsOrgAdmin(provider, single, null))
+               {
+                  LOG.warn("Not giving the administrator default role {} to a new user " +
+                           "created by {}", role, principal);
+                  continue;
+               }
+            }
+            catch(Exception ex) {
+               // an unresolvable role must not fail the creation; it is kept as not an admin role
+               LOG.debug("Could not check whether the default role {} is an administrator role",
+                         role, ex);
+            }
+
+            result.add(role);
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to filter the default roles, giving none", ex);
+         return new ArrayList<>();
+      }
+
+      return result;
+   }
+
+   /**
     * Checks the roles and parent groups being added to an identity by a caller that is not a
     * site administrator. This mirrors which roles the EM role tree offers as assignable
     * (UserTreeService.getOrgRoleList): an organization administrator role, whether added
