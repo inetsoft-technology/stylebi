@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.web.api.schedule.*;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.schedule.FTPUtil;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -376,11 +377,16 @@ public class ScheduleChangePlanService {
       appendIfNotNull(sb, "ccAddresses", va.getCCAddresses());
       appendIfNotNull(sb, "bccAddresses", va.getBCCAddresses());
       appendIfNotNull(sb, "attachmentName", va.getAttachmentName());
-      appendIfNotNull(sb, "bookmarkName", va.getBookmarkName());
-      appendIfNotNull(sb, "bookmarkUser", va.getBookmarkUser());
-      appendIfNotNull(sb, "bookmarkType", va.getBookmarkType());
-      appendIfNotNull(sb, "bookmarkUsers", va.getBookmarkUsers());
-      appendIfNotNull(sb, "bookmarkTypes", va.getBookmarkTypes());
+      // the gateway uses the singular bookmark fields only when bookmarkNames is empty, and the
+      // plural users/types only when it is not
+      boolean hasNames = va.getBookmarkNames() != null && !va.getBookmarkNames().isEmpty();
+      String singularIgnored = hasNames ? "(ignored:bookmarkNames)" : "";
+      String pluralIgnored = hasNames ? "" : "(ignored:no bookmarkNames)";
+      appendIfNotNull(sb, "bookmarkName", va.getBookmarkName(), singularIgnored);
+      appendIfNotNull(sb, "bookmarkUser", va.getBookmarkUser(), singularIgnored);
+      appendIfNotNull(sb, "bookmarkType", va.getBookmarkType(), singularIgnored);
+      appendIfNotNull(sb, "bookmarkUsers", va.getBookmarkUsers(), pluralIgnored);
+      appendIfNotNull(sb, "bookmarkTypes", va.getBookmarkTypes(), pluralIgnored);
       sb.append(",htmlMessage=").append(va.isHtmlMessage());
       appendIfNotNull(sb, "emailZip", va.isEmailZip());
       appendIfNotNull(sb, "emailLink", va.isEmailLink());
@@ -454,8 +460,14 @@ public class ScheduleChangePlanService {
    }
 
    private static void appendIfNotNull(StringBuilder sb, String name, Object value) {
+      appendIfNotNull(sb, name, value, "");
+   }
+
+   private static void appendIfNotNull(StringBuilder sb, String name, Object value,
+                                       String annotation)
+   {
       if(value != null) {
-         sb.append(',').append(name).append('=').append(value);
+         sb.append(',').append(name).append('=').append(value).append(annotation);
       }
    }
 
@@ -487,20 +499,32 @@ public class ScheduleChangePlanService {
       StringBuilder sb = new StringBuilder();
       sb.append("{format=").append(p.getFormat()).append(",path=").append(path);
 
+      // the gateway applies the path last: a password in it wins over the username/password
+      // fields and over a stored secret, and the secret is only used with useCredential
+      String ignored = split != null ? "(ignored:path password)"
+         : p.isUseCredential() ? "(ignored:useCredential)" : "";
+
       if(p.getUsername() != null) {
-         sb.append(",username=").append(p.getUsername());
+         sb.append(",username=").append(p.getUsername()).append(ignored);
       }
 
       if(p.isUseCredential()) {
-         sb.append(",useCredential=true");
+         sb.append(",useCredential=true").append(split != null ? ignored : "");
 
          if(p.getSecretId() != null) {
-            sb.append(",secretId=").append(p.getSecretId());
+            sb.append(",secretId=").append(p.getSecretId()).append(split != null ? ignored : "");
          }
       }
 
-      if((p.getPassword() != null && !p.getPassword().isEmpty()) || split != null) {
+      // the placeholder the API returns for a stored password is dropped by the gateway
+      boolean fieldPassword = p.getPassword() != null && !p.getPassword().isEmpty() &&
+         !Util.PLACEHOLDER_PASSWORD.equals(p.getPassword());
+
+      if(split != null) {
          sb.append(",password=set");
+      }
+      else if(fieldPassword) {
+         sb.append(",password=set").append(ignored);
       }
 
       return sb.append('}').toString();

@@ -598,6 +598,99 @@ class ScheduleChangePlanServiceTest {
       assertTrue(shown.contains("password=set"), shown);
    }
 
+   private static inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath filePath(
+      String path)
+   {
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath p =
+         new inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath();
+      p.setFormat(inetsoft.web.api.schedule.ViewsheetAction.Format.PDF);
+      p.setPath(path);
+      return p;
+   }
+
+   @Test void usernameAndPasswordAreMarkedIgnoredWithUseCredential() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath p = filePath("/data/out");
+      p.setUseCredential(true);
+      p.setSecretId("secret-1");
+      p.setUsername("alice");
+      p.setPassword("S3cretPw!");
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setSaveToServerFilePaths(List.of(p));
+
+      String shown = shownActionOf(action);
+
+      assertTrue(shown.contains("username=alice(ignored:useCredential)"), shown);
+      assertTrue(shown.contains("password=set(ignored:useCredential)"), shown);
+      assertTrue(shown.contains("secretId=secret-1"), shown);
+      assertFalse(shown.contains("S3cretPw!"), shown);
+   }
+
+   @Test void usernameIsEffectiveWithoutUseCredential() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath p =
+         filePath("ftp://host.example.com/out");
+      p.setUsername("alice");
+      p.setPassword("S3cretPw!");
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setSaveToServerFilePaths(List.of(p));
+
+      String shown = shownActionOf(action);
+
+      assertTrue(shown.contains("username=alice,") || shown.contains("username=alice}"), shown);
+      assertTrue(shown.contains("password=set}"), shown);
+      assertFalse(shown.contains("ignored"), shown);
+   }
+
+   @Test void pathPasswordOverridesUsernameFieldAndSecret() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath p =
+         filePath("ftp://bob:Emb3ddedPw@host.example.com/out");
+      p.setUsername("alice");
+      p.setUseCredential(true);
+      p.setSecretId("secret-1");
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setSaveToServerFilePaths(List.of(p));
+
+      String shown = shownActionOf(action);
+
+      assertTrue(shown.contains("username=alice(ignored:path password)"), shown);
+      assertTrue(shown.contains("secretId=secret-1(ignored:path password)"), shown);
+      assertTrue(shown.contains("password=set"), shown);
+      assertFalse(shown.contains("Emb3ddedPw"), shown);
+   }
+
+   @Test void placeholderPasswordIsNotReportedAsSet() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath p = filePath("/data/out");
+      p.setPassword(inetsoft.report.internal.Util.PLACEHOLDER_PASSWORD);
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setSaveToServerFilePaths(List.of(p));
+
+      assertFalse(shownActionOf(action).contains("password="));
+   }
+
+   @Test void singularBookmarkFieldsAreMarkedIgnoredWhenBookmarkNamesIsSet() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setBookmarkName("single");
+      action.setBookmarkType(inetsoft.web.api.schedule.ViewsheetAction.BookmarkType.PRIVATE);
+      action.setBookmarkNames(List.of("a"));
+      action.setBookmarkUsers(List.of(new inetsoft.sree.security.IdentityID("admin", "host-org")));
+
+      String shown = shownActionOf(action);
+
+      assertTrue(shown.contains("bookmarkName=single(ignored:bookmarkNames)"), shown);
+      assertTrue(shown.contains("bookmarkType=") && shown.contains("(ignored:bookmarkNames),"), shown);
+      assertFalse(shown.contains("bookmarkUsers=[admin~;~host-org](ignored"), shown);
+   }
+
+   @Test void pluralBookmarkFieldsAreMarkedIgnoredWithoutBookmarkNames() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setBookmarkName("single");
+      action.setBookmarkTypes(List.of(inetsoft.web.api.schedule.ViewsheetAction.BookmarkType.PRIVATE));
+
+      String shown = shownActionOf(action);
+
+      assertFalse(shown.contains("bookmarkName=single(ignored"), shown);
+      assertTrue(shown.contains("bookmarkTypes=[private](ignored:no bookmarkNames)"), shown);
+   }
+
    @Test void secretIdIsShown() throws Exception {
       inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath path =
          new inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath();
