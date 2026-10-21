@@ -592,48 +592,7 @@ public class TableConditionUtil {
             }
          }
 
-         if(namedConds == null && grp != null && isDateOfGroup(grp) &&
-            // could be date part grouping
-            val instanceof java.util.Date)
-         {
-            DateRangeRef drr = new DateRangeRef(
-               "_daterange_", ((ColumnRef) column).getDataRef());
-            drr.setOriginalType(column.getDataType());
-            Condition cond = new Condition(drr.getDataType());
-            cond.setConvertingType(false);
-            int dgroup = grp.getDateGroup();
-            Calendar cal = new GregorianCalendar();
-            cal.setTime(getSQLDate(val));
-
-            if(dgroup == XConstants.MONTH_OF_YEAR_DATE_GROUP) {
-               drr.setDateOption(DateRangeRef.MONTH_INTERVAL);
-               cond.addValue(cal.get(Calendar.MONTH));
-            }
-            else if(dgroup == XConstants.QUARTER_OF_YEAR_DATE_GROUP) {
-               drr.setDateOption(DateRangeRef.QUARTER_INTERVAL);
-               cond.addValue((cal.get(Calendar.MONTH)) / 3 + 1);
-            }
-            else if(dgroup == XConstants.WEEK_OF_YEAR_DATE_GROUP) {
-               drr.setDateOption(DateRangeRef.WEEK_INTERVAL);
-               // Bug #78123, force a locale-independent week numbering convention
-               // (same convention as Bug #78112) instead of inheriting the server
-               // JVM default locale's minimalDaysInFirstWeek/firstDayOfWeek, which
-               // can put the same date in a different week than the one shown in
-               // the UI.
-               cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
-               cal.setMinimalDaysInFirstWeek(1);
-               cond.addValue(cal.get(Calendar.WEEK_OF_YEAR));
-            }
-            else if(dgroup == XConstants.DAY_OF_WEEK_DATE_GROUP) {
-               drr.setDateOption(DateRangeRef.DAY_OF_WEEK_PART);
-               cond.addValue(cal.get(Calendar.DAY_OF_WEEK));
-            }
-
-            ColumnRef cr = new ColumnRef(drr);
-            cond.setOperation(Condition.EQUAL_TO);
-            nconds.append(new ConditionItem(cr, cond, 0));
-         }
-         else if(namedConds == null) {
+         if(namedConds == null) {
             Condition cond = new Condition(column.getDataType());
             cond.setConvertingType(false);
             cond.addValue(val);
@@ -1397,16 +1356,6 @@ public class TableConditionUtil {
       else {
          return Condition.EQUAL_TO;
       }
-   }
-
-   /**
-    * Check is date of group or not.
-    */
-   private static boolean isDateOfGroup(GroupRef gr) {
-      return gr.getDateGroup() == XConstants.QUARTER_OF_YEAR_DATE_GROUP ||
-         gr.getDateGroup() == XConstants.MONTH_OF_YEAR_DATE_GROUP ||
-         gr.getDateGroup() == XConstants.DAY_OF_WEEK_DATE_GROUP ||
-         gr.getDateGroup() == XConstants.WEEK_OF_YEAR_DATE_GROUP;
    }
 
    // convert java.util.Date to java.sql.Date
