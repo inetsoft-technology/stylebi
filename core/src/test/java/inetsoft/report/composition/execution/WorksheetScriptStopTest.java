@@ -17,6 +17,12 @@
  */
 package inetsoft.report.composition.execution;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.web.binding.VSScriptableController;
+import inetsoft.web.composer.model.ws.ExpressionDialogModel;
 import inetsoft.web.composer.ws.dialog.ExpressionDialogService;
 import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
@@ -158,6 +164,36 @@ class WorksheetScriptStopTest {
       assertEquals("out", expected.getName());
       assertEquals(expected, ExpressionDialogService.findColumnWithoutData(
          table, mode, index, table.getColumnSelection()), "the column of the lens index");
+   }
+
+   /**
+    * Bug #78379: the expression dialog of a stopped expression column opens, with the column
+    * (its old name and expression) found at the lens index, which hidden columns shift. The
+    * table read of the dialog still fails with the stop, so the dialog took the 500 before.
+    */
+   @Test
+   void expressionDialogOpensForStoppedColumn() throws Exception {
+      Worksheet ws = ws(20, 12, true, false, false);
+      TableAssembly table = (TableAssembly) ws.getAssembly("S");
+      table.getTableInfo().setLiveData(true);
+      AssetQuerySandbox box = box(ws);
+      assertEquals(AssetQuerySandbox.LIVE_MODE, AssetEventUtil.getMode(table));
+      assertThrows(ExpressionFailedException.class, () -> box.getTableLens("S", AssetQuerySandbox.LIVE_MODE));
+
+      ViewsheetService engine = mock(ViewsheetService.class);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(engine.getWorksheet("rid", null)).thenReturn(rws);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      VSScriptableController script = mock(VSScriptableController.class);
+      when(script.getScriptDefinition(rws, table, null)).thenReturn(JsonNodeFactory.instance.objectNode());
+      ExpressionDialogService service =
+         new ExpressionDialogService(engine, script, mock(DataSourceRegistry.class));
+
+      // lens index 0 is the expression column: id, a and b are hidden
+      ExpressionDialogModel model = service.getExpressionModel("rid", "S", "0", false, null);
+      assertEquals("out", model.oldName());
+      assertTrue(model.expression().contains("1500"), model.expression());
    }
 
    /**
