@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
+import inetsoft.web.binding.model.graph.ChartGeoRefModel;
 import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.AssemblyBinding;
@@ -390,6 +391,57 @@ class BindingReadServiceTest {
 
       assertTrue(result.shelves().containsKey("geo"), "a map must expose a geo shelf");
       assertEquals("STATE", result.shelves().get("geo").get(0).column());
+   }
+
+   /**
+    * A bar chart's top-N on its x dimension survives the switch to map onto the geo dimension,
+    * and the map renders only those N rows, yet sorts came back empty because only x/y/group were
+    * described. Bug #78948, VCS-039.
+    */
+   @Test
+   void describesTheSortAndRankingOfAMapsGeoDimension() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_MAP);
+      model.setGeoFields(List.of(rankedGeo("Customer:City")));
+
+      AssemblyBinding result = read(model);
+
+      Map<?, ?> geoSort = (Map<?, ?>) result.sorts().get("Customer:City");
+      assertNotNull(geoSort, "the geo dimension's sort must be reported under its bare column");
+      assertEquals("top", geoSort.get("ranking"));
+      assertEquals("10", geoSort.get("rankingN"));
+      assertEquals("Sum(Total)", geoSort.get("rankingMeasure"));
+   }
+
+   /** The same column on group and geo must not clobber each other's entry (the #76689 shape). */
+   @Test
+   void disambiguatesTheSameColumnSortedOnGroupAndGeo() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_MAP);
+      model.setGroupFields(List.of(new ChartDimensionRefModel() {{
+         setColumnValue("Customer:City");
+      }}));
+      model.setGeoFields(List.of(rankedGeo("Customer:City")));
+
+      AssemblyBinding result = read(model);
+
+      assertFalse(result.sorts().containsKey("Customer:City"),
+                  "an ambiguous bare key must not survive once two shelves produce it");
+      Map<?, ?> groupSort = (Map<?, ?>) result.sorts().get("Customer:City [group]");
+      Map<?, ?> geoSort = (Map<?, ?>) result.sorts().get("Customer:City [geo]");
+      assertNotNull(groupSort, "the group shelf's sort must be readable under its own key");
+      assertNotNull(geoSort, "the geo shelf's sort must be readable under its own key");
+      assertEquals("top", geoSort.get("ranking"));
+      assertNotEquals("top", groupSort.get("ranking"),
+                      "group's own unranked state must not have been overwritten by geo's");
+   }
+
+   private static ChartGeoRefModel rankedGeo(String column) {
+      ChartGeoRefModel geo = new ChartGeoRefModel();
+      geo.setColumnValue(column);
+      DimensionSortRanking.applyRanking(
+         geo, new DimensionSortRanking.Ranking("top", 10, "Sum(Total)", null));
+      return geo;
    }
 
    /** Only a map exposes the geo shelf — every other chart type keeps reporting x/y/group only. */

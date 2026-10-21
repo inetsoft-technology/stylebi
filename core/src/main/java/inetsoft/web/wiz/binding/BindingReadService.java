@@ -121,6 +121,19 @@ public class BindingReadService {
             }
          }
 
+         // A map's geo dimension carries its own sort/ranking (a bar's top-N survives the switch
+         // to map), so describe it wherever the geo shelf is reported (bug #78948). It joins the
+         // same pass so City on both group and geo comes out as "[group]"/"[geo]" rather than
+         // one clobbering the other.
+         if(shelves.containsKey("geo")) {
+            Map<String, Object> described = ChartBindingMutator.describeSorts(chart.getGeoFields());
+            sortsByShelf.put("geo", described);
+
+            for(String key : described.keySet()) {
+               keyShelfCount.merge(key, 1L, Long::sum);
+            }
+         }
+
          for(Map.Entry<String, Map<String, Object>> shelfEntry : sortsByShelf.entrySet()) {
             String shelf = shelfEntry.getKey();
 

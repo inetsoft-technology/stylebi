@@ -1267,8 +1267,16 @@ public final class ChartBindingMutator {
 
    /** The sort and ranking on every dimension of a chart shelf. */
    public static Map<String, Object> describeSorts(ChartBindingModel model, String shelf) {
+      return describeSorts(readShelf(model, shelf));
+   }
+
+   /**
+    * The sort and ranking on every dimension in a list of chart refs. Takes the list rather than
+    * a shelf name so a reader can describe a list readShelf deliberately does not accept, such
+    * as a map's geo fields (bug #78948), without opening that name to the writers.
+    */
+   public static Map<String, Object> describeSorts(List<? extends ChartRefModel> refs) {
       Map<String, Object> out = new LinkedHashMap<>();
-      List<ChartRefModel> refs = readShelf(model, shelf);
       List<BDimensionRefModel> dimensions = new ArrayList<>();
 
       for(ChartRefModel ref : refs) {
