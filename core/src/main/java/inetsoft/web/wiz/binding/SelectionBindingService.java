@@ -290,6 +290,7 @@ public class SelectionBindingService {
          else if(assembly instanceof TimeSliderVSAssembly) {
             refuseMeasure(assemblyName, "a range slider", measure);
             requireArity(assemblyName, "a range slider", resolvedColumns, 1, null);
+            requireSingleRangeType(assemblyName, resolvedTable, resolvedColumns);
             RangeSliderPropertyDialogModel model =
                rangeSliderService.getRangeSliderPropertyModel(runtimeId, assemblyName, user);
             RangeSliderDataPaneModel pane = model.getRangeSliderDataPaneModel();
@@ -444,6 +445,37 @@ public class SelectionBindingService {
       throw new IllegalArgumentException(
          "'" + assemblyName + "' is " + typeLabel + ", which needs " + expectation +
          " in 'columns', got " + size + ".");
+   }
+
+   /**
+    * Refuses a single-column range slider on a column whose type it cannot render (#79202):
+    * only numeric (byte/short/integer/long/float/double), date, time and timeInstant columns
+    * have a range type; every other type (string, boolean, char, decimal) used to be stored as
+    * a MONTH range that renders empty. Runs before anything is read or applied, so a refused
+    * rebind leaves the slider's existing binding untouched. A composite range (two or more
+    * columns) is not checked, and a column with no known data type is allowed, as elsewhere in
+    * this class. Decimal is refused because the native range slider pane does not set a range
+    * type for it either ({@code XSchema.isNumericType} is false for it).
+    */
+   private static void requireSingleRangeType(String assemblyName, String table,
+                                              List<BindableField> columns)
+   {
+      if(columns.size() != 1) {
+         return;
+      }
+
+      BindableField field = columns.get(0);
+      String type = field.dataType();
+
+      if(type == null || XSchema.isNumericType(type) || XSchema.isDateType(type)) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' is a range slider bound to one column, which must be numeric, " +
+         "date or time; '" + field.column() + "' is " + type + " (table '" + table + "'), so " +
+         "the slider would render empty. Bind '" + field.column() + "' to a selection list " +
+         "instead. The slider's existing binding was not changed.");
    }
 
    /** Matches a requested table against what this viewsheet's worksheet actually offers. */
