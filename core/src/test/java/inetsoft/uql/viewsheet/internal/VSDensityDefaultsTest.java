@@ -28,6 +28,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Dimension;
 import java.awt.Insets;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -420,5 +421,33 @@ class VSDensityDefaultsTest {
       for(int h : new int[] { 20, 24, 30, 35 }) {
          assertFalse(VSDensityDefaults.isFormerOptionRow(h), "former row " + h);
       }
+   }
+
+   @Test
+   void rangeSliderSizeIsContentPlusPaddingAtEachTier() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      assertEquals(new Dimension(232, 82),
+                   VSDensityDefaults.rangeSliderSize(VizContext.of(VizMark.MODERN_LIGHT)));
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      assertEquals(new Dimension(224, 74),
+                   VSDensityDefaults.rangeSliderSize(VizContext.of(VizMark.MODERN_LIGHT)));
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      assertEquals(new Dimension(216, 66),
+                   VSDensityDefaults.rangeSliderSize(VizContext.of(VizMark.MODERN_LIGHT)));
+      assertEquals(new Dimension(200, 40), VSDensityDefaults.rangeSliderSize(VizContext.LEGACY));
+   }
+
+   @Test
+   void rangeSliderRecognisersMatchExactlyTheDefaults() {
+      for(int h : new int[] { 40, 66, 74, 82 }) {
+         assertTrue(VSDensityDefaults.isSeededRangeSliderHeight(h), "height " + h);
+      }
+
+      for(int w : new int[] { 200, 216, 224, 232 }) {
+         assertTrue(VSDensityDefaults.isSeededRangeSliderWidth(w), "width " + w);
+      }
+
+      assertFalse(VSDensityDefaults.isSeededRangeSliderHeight(60));
+      assertFalse(VSDensityDefaults.isSeededRangeSliderWidth(300));
    }
 }

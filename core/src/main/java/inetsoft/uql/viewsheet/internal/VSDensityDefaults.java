@@ -292,6 +292,43 @@ public final class VSDensityDefaults {
       return new Dimension(AssetUtil.defw, AssetUtil.defh * (SELECTION_ROWS + 1));
    }
 
+   /** The height of a range slider's track and labels, without the card inset. */
+   static final int RANGE_SLIDER_CONTENT_HEIGHT = 50;
+
+   /**
+    * The default size of a range slider: the card inset around the legacy-width, 50px-tall
+    * content. Legacy is 200x40.
+    */
+   public static Dimension rangeSliderSize(VizContext ctx) {
+      return ctx.modern ? rangeSliderSizeForMode(ctx.density) : legacyRangeSliderSize();
+   }
+
+   /** Whether a height is one rangeSliderSize() could have written; anything else is the author's. */
+   public static boolean isSeededRangeSliderHeight(int height) {
+      return height == legacyRangeSliderSize().height
+         || height == rangeSliderSizeForMode(COMFORTABLE).height
+         || height == rangeSliderSizeForMode(COMPACT).height
+         || height == rangeSliderSizeForMode(DENSE).height;
+   }
+
+   /** Whether a width is one rangeSliderSize() could have written; anything else is the author's. */
+   public static boolean isSeededRangeSliderWidth(int width) {
+      return width == legacyRangeSliderSize().width
+         || width == rangeSliderSizeForMode(COMFORTABLE).width
+         || width == rangeSliderSizeForMode(COMPACT).width
+         || width == rangeSliderSizeForMode(DENSE).width;
+   }
+
+   private static Dimension legacyRangeSliderSize() {
+      return new Dimension(2 * AssetUtil.defw, 2 * AssetUtil.defh);
+   }
+
+   private static Dimension rangeSliderSizeForMode(String mode) {
+      Insets inset = chartPaddingForMode(mode);
+      return new Dimension(inset.left + 2 * AssetUtil.defw + inset.right,
+                           inset.top + RANGE_SLIDER_CONTENT_HEIGHT + inset.bottom);
+   }
+
    private static Dimension selectionSizeForMode(String mode) {
       Insets inset = chartPaddingForMode(mode);
       return new Dimension(inset.left + AssetUtil.defw + inset.right,
