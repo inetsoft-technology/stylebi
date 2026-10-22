@@ -872,18 +872,59 @@ class ScriptExecuteServiceTest {
       verify(mgrProvider, never()).getManager();
    }
 
-   /** Bug #78662: a script run changes the live runtime, so it must read as changed since the last save. */
+   /** Bug #78662: a script run that changes the live runtime must read as changed since the last save. */
    @Test
-   void runLiveAddsAnUndoCheckpointAndBumpsTheWriteRevision() throws Exception {
+   void runLiveAddsAnUndoCheckpointAndBumpsTheWriteRevisionWhenTheScriptChangesTheViewsheet()
+      throws Exception
+   {
       ViewsheetScope scope = mock(ViewsheetScope.class);
-      when(scope.execute(eq("1 + 1"), nullable(String.class))).thenReturn(2.0);
-      RuntimeViewsheet rvs = viewsheetWithScript("1 + 1", scope);
+      RuntimeViewsheet rvs = viewsheetWithScript("vs.desc = 'changed'", scope);
+      when(scope.execute(eq("vs.desc = 'changed'"), nullable(String.class))).thenAnswer(inv -> {
+         rvs.getViewsheet().getViewsheetInfo().setOnLoad("changed by the script");
+         return null;
+      });
       ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
 
       svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
 
       verify(rvs).addCheckpoint(any());
       verify(rvs).bumpWriteRevision();
+   }
+
+   /** A script that throws after changing the viewsheet still reads as changed. */
+   @Test
+   void runLiveAddsAnUndoCheckpointWhenTheScriptThrowsAfterChangingTheViewsheet() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      RuntimeViewsheet rvs = viewsheetWithScript("vs.desc = 'changed'", scope);
+      when(scope.execute(eq("vs.desc = 'changed'"), nullable(String.class))).thenAnswer(inv -> {
+         rvs.getViewsheet().getViewsheetInfo().setOnLoad("changed by the script");
+         throw new IllegalStateException("fails after the write");
+      });
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      try {
+         svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+      }
+      catch(Exception ignore) {
+      }
+
+      verify(rvs).addCheckpoint(any());
+      verify(rvs).bumpWriteRevision();
+   }
+
+   /** Bug #79051: a read-only script changes nothing, so it adds no undo step and keeps redo. */
+   @Test
+   void runLiveAddsNoCheckpointWhenTheScriptChangesNothing() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq("1 + 1"), nullable(String.class))).thenReturn(2.0);
+      RuntimeViewsheet rvs = viewsheetWithScript("1 + 1", scope);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+      svc.dryRun(rvs, ScriptTarget.parse("vs-init"));
+
+      verify(rvs, never()).addCheckpoint(any());
+      verify(rvs, never()).bumpWriteRevision();
    }
 
    /** A run refused for needing confirmation executes nothing, so it adds no checkpoint. */
