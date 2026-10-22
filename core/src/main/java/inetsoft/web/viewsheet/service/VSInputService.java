@@ -2404,16 +2404,13 @@ public class VSInputService {
       spinnerAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
 
       if(dataInputPaneModel.getDefaultValue() != null) {
-         double dvalue = 0;
-
          try {
-            Double.valueOf(dataInputPaneModel.getDefaultValue());
+            double dvalue = Double.valueOf(dataInputPaneModel.getDefaultValue());
+            spinnerAssemblyInfo.setValue(dvalue);
          }
          catch(Exception e) {
             //ignore it.
          }
-
-         spinnerAssemblyInfo.setValue(dvalue);
       }
 
       LabelInfo labelInfo = spinnerAssemblyInfo.getLabelInfo();
