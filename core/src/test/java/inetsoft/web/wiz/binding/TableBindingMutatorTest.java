@@ -1968,6 +1968,73 @@ class TableBindingMutatorTest {
       assertFalse(thrown.getMessage().contains("zeros"));
    }
 
+   private static FieldRef percentMeasure(String column) {
+      return new FieldRef(column, "measure", "Sum", null, null, null, null, null,
+                          new PercentCalcInfo(), null, null, null, null, null, null);
+   }
+
+   private static void storePercentageBy(CrosstabBindingModel model, String token) {
+      inetsoft.web.binding.model.table.CrosstabOptionInfo info = model.getOption() == null
+         ? new inetsoft.web.binding.model.table.CrosstabOptionInfo() : model.getOption();
+      info.setPercentageByValue(token);
+      model.setOption(info);
+   }
+
+   private static boolean percentageByAccepts(CrosstabBindingModel model, String direction) {
+      try {
+         TableBindingMutator.setOptions(model, Map.of("percentageBy", direction));
+         return true;
+      }
+      catch(IllegalArgumentException e) {
+         return false;
+      }
+   }
+
+   /** Bug #78982: no rows and no cols is one grand-total cell; 100% is true and nothing to advise. */
+   @Test
+   void aPercentOnlyCrosstabWithNoRowsOrColsGetsNoDegenerateWarning() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates", List.of(percentMeasure("Sales")));
+
+      assertNull(TableBindingMutator.degeneratePercentWarning(model));
+   }
+
+   @Test
+   void aPercentOnlyCrosstabWithStoredRowDirectionAndNoShelvesGetsNoDegenerateWarning() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates", List.of(percentMeasure("Sales")));
+      storePercentageBy(model, "2");
+
+      assertNull(TableBindingMutator.degeneratePercentWarning(model));
+   }
+
+   @Test
+   void aRowsOnlyPercentCrosstabStillWarnsAndAdvisesRow() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates", List.of(percentMeasure("Sales")));
+
+      String warning = TableBindingMutator.degeneratePercentWarning(model);
+
+      assertNotNull(warning);
+      assertTrue(warning.contains("Set percentageBy to row"));
+      assertTrue(percentageByAccepts(model, "row"), "the advised direction must be followable");
+   }
+
+   @Test
+   void aColsOnlyPercentCrosstabWithRowDirectionStillWarnsAndAdvisesCol() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "cols", List.of(dim("Year")));
+      TableBindingMutator.setShelf(model, "aggregates", List.of(percentMeasure("Sales")));
+      storePercentageBy(model, "2");
+
+      String warning = TableBindingMutator.degeneratePercentWarning(model);
+
+      assertNotNull(warning);
+      assertTrue(warning.contains("Set percentageBy to col"));
+      assertTrue(percentageByAccepts(model, "col"), "the advised direction must be followable");
+   }
+
    @Test
    void refusesAnUnknownPercentageByToken() {
       assertThrows(IllegalArgumentException.class,
