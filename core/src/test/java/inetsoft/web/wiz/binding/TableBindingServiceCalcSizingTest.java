@@ -82,6 +82,17 @@ class TableBindingServiceCalcSizingTest {
    }
 
    @Test
+   void widthSummaryReportsTheTruncatedPixelValue() throws Exception {
+      Fixture f = new Fixture(1, 1);
+      f.paths("Column [0]");
+
+      List<String> applied = f.service().setColumnWidths(
+         "tok", principal(), "Calc1", Map.of("0", 120.7)).applied();
+
+      assertEquals(List.of("layout column 0 -> 120px (truncated from 120.7)"), applied);
+   }
+
+   @Test
    void calcWidthNullRemovesThePathKeyedWidth() throws Exception {
       Fixture f = new Fixture(2, 1);
       f.paths("Column [0]", "Column [1]");
@@ -188,6 +199,14 @@ class TableBindingServiceCalcSizingTest {
          () -> service.setRowHeights("tok", principal(), "Calc1", null, 0.4, false, false));
       assertThrows(IllegalArgumentException.class,
          () -> service.setRowHeights("tok", principal(), "Calc1", null, 20.0, false, true));
+      for(double huge : new double[]{ 32768.0, 3.0e9, 1.0e20 }) {
+         assertThrows(IllegalArgumentException.class,
+            () -> service.setRowHeights("tok", principal(), "Calc1", null, huge, false, false),
+            "height " + huge + " must be refused");
+         assertThrows(IllegalArgumentException.class,
+            () -> service.setRowHeights("tok", principal(), "Calc1", Map.of("0", huge), null,
+                                        false, false));
+      }
       verify(f.info, never()).setDataRowHeight(anyInt());
    }
 

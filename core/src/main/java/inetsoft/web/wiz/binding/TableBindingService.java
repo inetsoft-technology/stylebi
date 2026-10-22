@@ -1586,7 +1586,7 @@ public class TableBindingService {
             }
             else {
                info.setColumnWidthValue2(cols.get(i), width, lens);
-               applied.add(names.get(i) + " -> " + formatPixels(width) + "px");
+               applied.add(names.get(i) + " -> " + widthText(width));
             }
          }
 
@@ -1700,8 +1700,7 @@ public class TableBindingService {
          }
          else {
             info.setColumnWidthValue2(renderedCols.get(i), width, lens);
-            applied.add("layout column " + layoutIndexes.get(i) + " -> " + formatPixels(width) +
-                        "px");
+            applied.add("layout column " + layoutIndexes.get(i) + " -> " + widthText(width));
          }
       }
 
@@ -1861,10 +1860,22 @@ public class TableBindingService {
       return new TableWrite(applied, warnings);
    }
 
+   /** A row height the engine can store: a whole pixel count from 1 to {@link #MAX_ROW_HEIGHT}. */
+   private static final long MAX_ROW_HEIGHT = 32767;
+
+   /** The width as the engine applies it: it truncates to a whole pixel when it renders. */
+   private static String widthText(double width) {
+      long applied = (long) width;
+      return applied == width ? applied + "px"
+         : applied + "px (truncated from " + formatPixels(width) + ")";
+   }
+
    private static String heightError(String subject, Double height) {
-      if(height == null || !Double.isFinite(height) || Math.round(height) < 1) {
-         return subject + " height must be a finite number of pixels, at least 1; got " +
-            height + ".";
+      if(height == null || !Double.isFinite(height) || Math.round(height) < 1 ||
+         Math.round(height) > MAX_ROW_HEIGHT)
+      {
+         return subject + " height must be a finite number of pixels from 1 to " +
+            MAX_ROW_HEIGHT + "; got " + height + ".";
       }
 
       return null;
