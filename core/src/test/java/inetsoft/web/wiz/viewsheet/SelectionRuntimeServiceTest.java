@@ -654,7 +654,7 @@ class SelectionRuntimeServiceTest {
       SelectionValue[] buckets = { b0, b1, b2 };
 
       List<Map<String, Object>> clamped = new ArrayList<>();
-      int[] range = SelectionRuntimeService.sliderBucketRange("Slider1", buckets,
+      int[] range = SelectionRuntimeService.sliderBucketRange("Slider1", buckets, null,
          List.of(List.of("0"), List.of("2")), clamped);
 
       assertArrayEquals(new int[]{ 0, 2 }, range);
@@ -673,7 +673,7 @@ class SelectionRuntimeServiceTest {
       when(b1.getValue()).thenReturn("1");
 
       int[] range = SelectionRuntimeService.sliderBucketRange("Slider1",
-         new SelectionValue[]{ b0, b1 }, List.of(List.of("1")), new ArrayList<>());
+         new SelectionValue[]{ b0, b1 }, null, List.of(List.of("1")), new ArrayList<>());
 
       assertArrayEquals(new int[]{ 1, 1 }, range);
    }
@@ -693,7 +693,7 @@ class SelectionRuntimeServiceTest {
 
       List<Map<String, Object>> clamped = new ArrayList<>();
       int[] range = SelectionRuntimeService.sliderBucketRange("Slider1",
-         new SelectionValue[]{ b0, b18 }, List.of(List.of("500")), clamped);
+         new SelectionValue[]{ b0, b18 }, null, List.of(List.of("500")), clamped);
 
       assertArrayEquals(new int[]{ 1, 1 }, range, "500 is nearer to bucket 18 (index 1) than 0");
       assertEquals(1, clamped.size());
@@ -708,7 +708,7 @@ class SelectionRuntimeServiceTest {
       when(b0.getValue()).thenReturn("0");
 
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> SelectionRuntimeService.bucketIndex("Slider1", new SelectionValue[]{ b0 }, "nope"));
+         () -> SelectionRuntimeService.bucketIndex("Slider1", new SelectionValue[]{ b0 }, null, "nope"));
 
       assertTrue(e.getMessage().contains("nope"), e.getMessage());
    }
@@ -720,10 +720,271 @@ class SelectionRuntimeServiceTest {
       when(b0.getValue()).thenReturn("0");
 
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> SelectionRuntimeService.sliderBucketRange("Slider1", new SelectionValue[]{ b0 },
+         () -> SelectionRuntimeService.sliderBucketRange("Slider1", new SelectionValue[]{ b0 }, null,
             List.of(List.of("0", "1")), new ArrayList<>()));
 
       assertTrue(e.getMessage().contains("no hierarchy"), e.getMessage());
+   }
+
+   // ── range slider bucket resolution: label and date spellings (bug 79164: a date or composite
+   // slider refused every spelling but the internal bucket value, e.g. "{m '2023-03'}") ──
+
+   private static SingleTimeInfo dateInfo(int rangeType) {
+      // A real SingleTimeInfo reads its range type through VSUtil, which needs a Spring context.
+      SingleTimeInfo info = mock(SingleTimeInfo.class);
+      when(info.getRangeType()).thenReturn(rangeType);
+      when(info.isDateTime()).thenCallRealMethod();
+      return info;
+   }
+
+   /** Buckets whose values are the given local date-times formatted by the slider's own format. */
+   private static SelectionValue[] dateBuckets(int rangeType, String... isoLocalDateTimes) {
+      SelectionValue[] buckets = new SelectionValue[isoLocalDateTimes.length];
+
+      for(int i = 0; i < buckets.length; i++) {
+         java.time.LocalDateTime local = java.time.LocalDateTime.parse(isoLocalDateTimes[i]);
+         Date date = Date.from(local.atZone(TimeZone.getDefault().toZoneId()).toInstant());
+         buckets[i] = new SelectionValue(null, SliderDateBound.valueFormat(rangeType).format(date));
+      }
+
+      return buckets;
+   }
+
+   private static SelectionValue[] months() {
+      return dateBuckets(TimeInfo.MONTH, "2023-01-01T00:00", "2023-02-01T00:00",
+                         "2023-03-01T00:00", "2023-04-01T00:00", "2023-05-01T00:00",
+                         "2023-06-01T00:00");
+   }
+
+   private static SelectionRuntimeService.BucketResolution resolve(SelectionValue[] buckets, TimeInfo tinfo,
+                                           String requested)
+   {
+      return SelectionRuntimeService.bucketIndex("Slider1", buckets, tinfo, requested);
+   }
+
+   private static void assertLands(SelectionValue[] buckets, TimeInfo tinfo, String requested,
+                                   int index)
+   {
+      SelectionRuntimeService.BucketResolution resolved = resolve(buckets, tinfo, requested);
+      assertEquals(index, resolved.index(), requested);
+      assertEquals(buckets[index].getValue(), resolved.appliedValue(), requested);
+   }
+
+   /** The month bucket values really are the "{m 'yyyy-MM'}" form the reporter saw. */
+   @Test
+   void monthSliderAcceptsIsoMonthAndDateSpellings() {
+      SelectionValue[] buckets = months();
+      assertEquals("{m '2023-03'}", buckets[2].getValue());
+      SingleTimeInfo info = dateInfo(TimeInfo.MONTH);
+
+      assertLands(buckets, info, "2023-03", 2);
+      assertLands(buckets, info, "2023-03-01", 2);
+      assertLands(buckets, info, "2023-03-15T10:30:00", 2);
+      assertLands(buckets, info, "2023-03-15 10:30", 2);
+      assertLands(buckets, info, "3/15/2023", 2);
+      assertLands(buckets, info, "15/3/2023", 2);
+      assertLands(buckets, info, "3/3/2023", 2);
+
+      long epoch = java.time.LocalDateTime.of(2023, 3, 10, 12, 0)
+         .atZone(TimeZone.getDefault().toZoneId()).toInstant().toEpochMilli();
+      assertLands(buckets, info, String.valueOf(epoch), 2);
+      assertLands(buckets, info, String.valueOf(epoch / 1000), 2);
+   }
+
+   /** A normalized bound is disclosed (requested vs applied) even though it was not clamped. */
+   @Test
+   void monthSliderDisclosesANormalizedBound() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      int[] range = SelectionRuntimeService.sliderBucketRange("Slider1", months(),
+         dateInfo(TimeInfo.MONTH), List.of(List.of("2023-03"), List.of("{m '2023-05'}")),
+         clamped);
+
+      assertArrayEquals(new int[]{ 2, 4 }, range);
+      assertEquals(1, clamped.size());
+      assertEquals("2023-03", clamped.get(0).get("requested"));
+      assertEquals("{m '2023-03'}", clamped.get(0).get("applied"));
+   }
+
+   /** An exact bucket value stays an exact, undisclosed match. */
+   @Test
+   void monthSliderExactValueIsNotAdjusted() {
+      SelectionRuntimeService.BucketResolution resolved = resolve(months(), dateInfo(TimeInfo.MONTH), "{m '2023-03'}");
+      assertEquals(2, resolved.index());
+      assertFalse(resolved.adjusted());
+   }
+
+   @Test
+   void dateBoundOutsideTheRangeClampsToTheNearestEnd() {
+      SelectionValue[] buckets = months();
+      SingleTimeInfo info = dateInfo(TimeInfo.MONTH);
+
+      assertTrue(resolve(buckets, info, "2030-01").adjusted());
+      assertLands(buckets, info, "2030-01", 5);
+      assertLands(buckets, info, "2020-01", 0);
+   }
+
+   /** A bare year names twelve months; it is refused rather than landing on January. */
+   @Test
+   void monthSliderRefusesABareYear() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> resolve(months(), dateInfo(TimeInfo.MONTH), "2023"));
+
+      assertTrue(e.getMessage().contains("only precise to the year"), e.getMessage());
+      assertTrue(e.getMessage().contains("2023-03"), e.getMessage());
+   }
+
+   /** "3/4/2023" is March 4 or April 3; it is refused with the unambiguous spelling. */
+   @Test
+   void refusesAnOrderAmbiguousSlashDate() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> resolve(months(), dateInfo(TimeInfo.MONTH), "3/4/2023"));
+
+      assertTrue(e.getMessage().contains("ambiguous"), e.getMessage());
+      assertTrue(e.getMessage().contains("2023-03-04"), e.getMessage());
+   }
+
+   /** An unparseable value fails loud, naming a real first and last bucket as the example. */
+   @Test
+   void unparseableDateFailsWithRealBucketExamples() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> resolve(months(), dateInfo(TimeInfo.MONTH), "next spring"));
+
+      assertTrue(e.getMessage().contains("'next spring'"), e.getMessage());
+      assertTrue(e.getMessage().contains("{m '2023-01'}"), e.getMessage());
+      assertTrue(e.getMessage().contains("{m '2023-06'}"), e.getMessage());
+   }
+
+   @Test
+   void notARealDateFailsLoud() {
+      assertThrows(IllegalArgumentException.class,
+         () -> resolve(months(), dateInfo(TimeInfo.MONTH), "2023-13"));
+      assertThrows(IllegalArgumentException.class,
+         () -> resolve(months(), dateInfo(TimeInfo.DAY), "2023-02-30"));
+   }
+
+   /** The day bucket value carries a three-digit day ("{d '2023-03-001'}"); the ISO date maps to it. */
+   @Test
+   void daySliderAcceptsAnIsoDate() {
+      SelectionValue[] buckets = dateBuckets(TimeInfo.DAY, "2023-02-28T00:00",
+                                             "2023-03-01T00:00", "2023-03-02T00:00");
+      assertEquals("{d '2023-03-001'}", buckets[1].getValue());
+      SingleTimeInfo info = dateInfo(TimeInfo.DAY);
+
+      assertLands(buckets, info, "2023-03-01", 1);
+      assertLands(buckets, info, "2023-03-02T23:59:59", 2);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> resolve(buckets, info, "2023-03"));
+      assertTrue(e.getMessage().contains("only precise to the month"), e.getMessage());
+   }
+
+   /** A slider over more than 1500 periods has a bucket every few periods, so a date can fall between. */
+   @Test
+   void stridedDaySliderLandsOnTheEnclosingBucket() {
+      SelectionValue[] buckets = dateBuckets(TimeInfo.DAY, "2023-03-01T00:00",
+                                             "2023-03-04T00:00", "2023-03-07T00:00");
+      SingleTimeInfo info = dateInfo(TimeInfo.DAY);
+
+      SelectionRuntimeService.BucketResolution resolved = resolve(buckets, info, "2023-03-05");
+      assertEquals(1, resolved.index());
+      assertTrue(resolved.adjusted());
+      assertLands(buckets, info, "2023-03-04", 1);
+      assertLands(buckets, info, "2023-03-20", 2);
+   }
+
+   @Test
+   void yearAndHourSlidersResolveAtTheirOwnLevel() {
+      SelectionValue[] years = dateBuckets(TimeInfo.YEAR, "2022-01-01T00:00", "2023-01-01T00:00");
+      assertEquals("{y '2023'}", years[1].getValue());
+      assertLands(years, dateInfo(TimeInfo.YEAR), "2023-05-05", 1);
+      assertLands(years, dateInfo(TimeInfo.YEAR), "2023", 1);
+
+      SelectionValue[] hours = dateBuckets(TimeInfo.HOUR, "2023-03-01T13:00", "2023-03-01T14:00");
+      assertEquals("{ts '2023-03-01 14:00:00'}", hours[1].getValue());
+      assertLands(hours, dateInfo(TimeInfo.HOUR), "2023-03-01 14", 1);
+      assertLands(hours, dateInfo(TimeInfo.HOUR), "2023-03-01T14:45:10", 1);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> resolve(hours, dateInfo(TimeInfo.HOUR), "2023-03-01"));
+      assertTrue(e.getMessage().contains("only precise to the day"), e.getMessage());
+   }
+
+   /** Hour-of-day / minute-of-day buckets are "{t 'HH:mm:ss'}" times with no date. */
+   @Test
+   void timeOfDaySlidersAcceptAClockTime() {
+      SelectionValue[] hours = dateBuckets(TimeInfo.HOUR_OF_DAY, "1970-01-01T01:00",
+                                           "1970-01-01T02:00", "1970-01-01T14:00");
+      assertEquals("{t '14:00:00'}", hours[2].getValue());
+      SingleTimeInfo hourInfo = dateInfo(TimeInfo.HOUR_OF_DAY);
+      assertLands(hours, hourInfo, "14", 2);
+      assertLands(hours, hourInfo, "2", 1);
+      assertLands(hours, hourInfo, "14:30", 2);
+      assertLands(hours, hourInfo, "2023-03-01 14:30", 2);
+
+      long epoch = java.time.LocalDateTime.of(2023, 3, 1, 14, 20)
+         .atZone(TimeZone.getDefault().toZoneId()).toInstant().toEpochMilli();
+      assertLands(hours, hourInfo, String.valueOf(epoch), 2);
+
+      SelectionValue[] minutes = dateBuckets(TimeInfo.MINUTE_OF_DAY, "1970-01-01T14:29",
+                                             "1970-01-01T14:30", "1970-01-01T14:31");
+      SingleTimeInfo minuteInfo = dateInfo(TimeInfo.MINUTE_OF_DAY);
+      assertLands(minutes, minuteInfo, "14:30", 1);
+      assertLands(minutes, minuteInfo, "14:31:59", 2);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> resolve(minutes, minuteInfo, "14"));
+      assertTrue(e.getMessage().contains("only precise to the hour"), e.getMessage());
+   }
+
+   /** A composite slider shows "2024,Q2" but its bucket value joins the parts with "::". */
+   @Test
+   void compositeSliderAcceptsTheLabelForm() {
+      SelectionValue[] buckets = {
+         new SelectionValue("2024,Q1", "2024::Q1"), new SelectionValue("2024,Q2", "2024::Q2") };
+      CompositeTimeInfo info = mock(CompositeTimeInfo.class);
+
+      SelectionRuntimeService.BucketResolution resolved = resolve(buckets, info, "2024,Q2");
+      assertEquals(1, resolved.index());
+      assertEquals("2024::Q2", resolved.appliedValue());
+      assertTrue(resolved.adjusted());
+      assertFalse(resolve(buckets, info, "2024::Q2").adjusted());
+   }
+
+   /** Labels are raw data and can repeat; picking one would be a guess. */
+   @Test
+   void ambiguousLabelIsRefusedNamingTheValueForm() {
+      SelectionValue[] buckets = {
+         new SelectionValue("A,B", "A::B"), new SelectionValue("A,B", "A,B::") };
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> resolve(buckets, mock(CompositeTimeInfo.class), "A,B"));
+
+      assertTrue(e.getMessage().contains("more than one bucket labelled 'A,B'"), e.getMessage());
+      assertTrue(e.getMessage().contains("::"), e.getMessage());
+   }
+
+   @Test
+   void compositeSliderNeverTakesTheDatePath() {
+      SelectionValue[] buckets = { new SelectionValue("2024,Q1", "2024::Q1") };
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> resolve(buckets, mock(CompositeTimeInfo.class), "2024-03"));
+
+      assertTrue(e.getMessage().contains("'2024::Q1' (label '2024,Q1')"), e.getMessage());
+      assertTrue(e.getMessage().contains("join the column values with '::'"), e.getMessage());
+   }
+
+   /** A number slider on a non-date column never reads a date spelling as a date. */
+   @Test
+   void numberSliderKeepsItsLabelAndClampBehaviour() {
+      SelectionValue[] buckets = {
+         new SelectionValue("$100", "100"), new SelectionValue("$350", "350") };
+      SingleTimeInfo info = dateInfo(TimeInfo.NUMBER);
+
+      assertLands(buckets, info, "$350", 1);
+      assertEquals(1, resolve(buckets, info, "333.3").index());
+      assertTrue(resolve(buckets, info, "333.3").adjusted());
+      assertThrows(IllegalArgumentException.class, () -> resolve(buckets, info, "2023-03"));
    }
 
    /**
