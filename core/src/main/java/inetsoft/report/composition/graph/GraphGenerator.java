@@ -1741,7 +1741,8 @@ public abstract class GraphGenerator {
                            (maxMode ? colorDesc.isMaxModeVisible() : colorDesc.isVisible()));
          legend.setGap(VSChartChromeDefaults.resolveLegendGap(
             legends.getGap(), legends.hasGapValue(), vizContext));
-         legend.setPadding(legends.getPadding());
+         legend.setPadding(VSChartChromeDefaults.resolveLegendPadding(
+            legends.getPadding(), legends.hasPaddingValue(), vizContext));
 
          // if is Composite frame, should set the infos to its guide frame
          if(color instanceof CompositeVisualFrame) {
@@ -1821,7 +1822,8 @@ public abstract class GraphGenerator {
                               (maxMode ? shapeDesc.isMaxModeVisible() : shapeDesc.isVisible()));
          legend.setGap(VSChartChromeDefaults.resolveLegendGap(
             legends.getGap(), legends.hasGapValue(), vizContext));
-         legend.setPadding(legends.getPadding());
+         legend.setPadding(VSChartChromeDefaults.resolveLegendPadding(
+            legends.getPadding(), legends.hasPaddingValue(), vizContext));
       }
    }
 
@@ -1857,7 +1859,8 @@ public abstract class GraphGenerator {
                                nodeSize));
          legend.setGap(VSChartChromeDefaults.resolveLegendGap(
             legends.getGap(), legends.hasGapValue(), vizContext));
-         legend.setPadding(legends.getPadding());
+         legend.setPadding(VSChartChromeDefaults.resolveLegendPadding(
+            legends.getPadding(), legends.hasPaddingValue(), vizContext));
       }
    }
 
