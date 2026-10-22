@@ -689,9 +689,6 @@ public class ScheduleConfigChangePlanService {
                             change.recognized(), change.description() + " -- ALLOWED WITH force=true: " + advisory);
    }
 
-   /** Never leaks the literal password/oldPasswordKey into the plan hash/narrative -- only whether
-    * a credential is present, mirroring the masking convention {@code
-    * ScheduleTaskChangePlanService}'s XML projection uses for the same concern. */
    /**
     * Bug #79016: the shared projection shows only {@code (set)}/{@code (none)} for the password and
     * the secretId, so a plan that supplied a different password or credential reference hashed
@@ -722,6 +719,10 @@ public class ScheduleConfigChangePlanService {
       }
    }
 
+   /** Never leaks the literal password/oldPasswordKey into the displayed projection -- only whether
+    * a credential is present, mirroring the masking convention {@code
+    * ScheduleTaskChangePlanService}'s XML projection uses for the same concern. The secrets reach
+    * the plan hash separately, see {@link #addCredentialHashInputs}. */
    static String projectServerLocation(ServerLocation location) {
       // the credential tail is emitted unconditionally, and the path is normalized the same way
       // the read side normalizes it: a re-read ALWAYS yields a non-null pathInfoModel and a

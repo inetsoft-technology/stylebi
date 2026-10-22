@@ -25,6 +25,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.ai.PlanChange;
+import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.content.repository.RepositoryDashboardService;
@@ -356,8 +357,8 @@ public class DashboardChangePlanService {
       List<String> current = owner == null
          ? repositoryDashboardService.getDashboardFolderSettings(user).dashboards()
          : readFolderOrder(owner);
-      String beforeProjection = String.join("|", current);
-      String proposedProjection = String.join("|", requested);
+      String beforeProjection = projectOrder(current);
+      String proposedProjection = projectOrder(requested);
       String orgId = orgIdFor(owner);
       String description = "reorder the dashboard folder" + ownerSuffix(owner);
       return new PlanChange(key, orgId, beforeProjection, proposedProjection, AdminChangeRecord.RISK_LOW,
@@ -411,6 +412,15 @@ public class DashboardChangePlanService {
 
    private static String dashboardKey(String registryName, IdentityID owner) {
       return "dashboard:" + (owner == null ? "" : owner.convertToKey()) + ":" + registryName;
+   }
+
+   /** The folder-order projection (plan hash input and audit value): names joined with '|', each
+    * escaped so a name holding a separator cannot make two different orders project alike
+    * (Bug #79016). Shared with the apply side so preview and verify render identically. */
+   static String projectOrder(List<String> names) {
+      return names.stream()
+         .map(n -> PlanHashInputs.escape(n).replace("|", "\\|"))
+         .collect(Collectors.joining("|"));
    }
 
    private static String orgIdFor(IdentityID owner) {

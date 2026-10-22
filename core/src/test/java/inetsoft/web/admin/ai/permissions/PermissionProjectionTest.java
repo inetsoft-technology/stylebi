@@ -174,4 +174,32 @@ class PermissionProjectionTest {
       assertTrue(projection.contains("USER|host-org|alice=READ"));
       assertFalse(projection.contains("bob"));
    }
+
+   /** Bug #79016: one grant whose user name spells out a second grant must not project like two. */
+   @Test void forgedIdentityNameDoesNotCollideWithTwoGrants() {
+      Permission forged = new Permission();
+      forged.setUserGrantsForOrg(ResourceAction.READ, Set.of("a=READ;USER|o|b"), "o");
+
+      Permission two = new Permission();
+      two.setUserGrantsForOrg(ResourceAction.READ, Set.of("a", "b"), "o");
+
+      assertNotEquals(PermissionProjection.projectTotal(forged, "o"),
+                      PermissionProjection.projectTotal(two, "o"));
+   }
+
+   /** The '|' of the identity key is escaped too, so org|name boundaries cannot be shifted. */
+   @Test void pipeInANameCannotShiftTheKeyBoundaries() {
+      String a = PermissionProjection.projectGrant("USER", new IdentityID("c", "a|b"),
+                                                   List.of("READ"));
+      String b = PermissionProjection.projectGrant("USER", new IdentityID("b|c", "a"),
+                                                   List.of("READ"));
+      assertNotEquals(a, b);
+   }
+
+   /** Control: ordinary names project unchanged. */
+   @Test void ordinaryIdentityNamesProjectUnchanged() {
+      assertEquals("USER|host-org|alice=READ",
+                   PermissionProjection.projectGrant("USER", new IdentityID("alice", "host-org"),
+                                                     List.of("READ")));
+   }
 }
