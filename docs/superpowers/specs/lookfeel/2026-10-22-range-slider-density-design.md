@@ -193,8 +193,10 @@ labels also touch the track: the current-value label ends exactly at the track's
   `tablePadding` and are both the container's width, so the track's left end sits on the list rows' left
   edge.
 - **Right ends line up too** *(my call)*. A contained list's body gives up 2px on the right, and 2 more
-  while selected in the composer (`vs-selection.component.ts:1003`). The contained slider's track applies
-  the same rule.
+  while selected in the composer (`vs-selection.component.ts:1003`). A marked contained slider's track
+  gives up the same constant 2px, in the browser model's `maxRangeBarWidth`. The composer-only 2px while
+  selected is not mirrored: the track width comes from the server, which does not know the selection.
+  Export is unchanged.
 - **Body height.** A new `TimeSliderVSAssemblyInfo.getSliderBodyHeight()`: for a marked slider,
   `50 + padding.top + padding.bottom` from `getPadding()`, so an author's padding counts, as
   `getListBodyHeight()` does; for an unmarked slider, today's `listHeight × defh`.
@@ -245,16 +247,18 @@ For a marked slider, every site that sets an expanded contained slider's height 
   selection container can also be pulled out as the ad hoc filter, carrying its padding. Without an
   exclusion it would draw B1's padding inside a 60px box with a title lane over it, leaving −2 / 10 / 24 px
   for the control.
-- **The mechanism is read-time** *(my call)*. While `isAdhocFilter()` is set, the padding both renderers
-  use is zero, the corner radius is zero, and the label offsets are today's. One accessor on the info
-  answers this for the model and the painter. Read-time rather than skipping the seed, so a container
-  slider pulled out as the ad hoc filter draws as today and gets its padding and corner back when it
-  returns to the container.
+- **The mechanism** *(my call)*. While `isAdhocFilter()` is set, the padding both renderers use is zero
+  and the label offsets are today's: read-time, through accessors on the info, so a container slider
+  pulled out as the ad hoc filter draws as today and gets its padding back when it returns. The corner is
+  a stored format value, so it goes the way the ad hoc white background already goes:
+  `saveFormats` saves the object format and writes a zero corner beside the white background, and
+  `restoreFormats` puts the saved format back on the return.
 - **Why the corner is included.** Every ad hoc slider gets a white background in its object format's
   DEFAULT tier (`ComposerAdhocFilterService.saveFormats`, `:573-574`), so a seeded 6px corner would draw it
   as a rounded white card. Excluding the corner is what "stays as it is today" requires.
-- **What is still stored.** A new ad hoc slider still stores the seeded padding and the 6px corner; both
-  are read as zero while it is an ad hoc filter. Its size path (`changeAssemblyToAdhocFilter`) runs after
+- **What is still stored.** A new ad hoc slider still stores the seeded padding, read as zero while it is
+  an ad hoc filter. Its corner is zero in the format `saveFormats` writes, and 6 again in the format
+  `restoreFormats` puts back. Its size path (`changeAssemblyToAdhocFilter`) runs after
   the seed and overwrites the D3 size, as today.
 - **The return trip is D6's.** Returning to the container goes through the drop
   (`moveAdhocFilter`, `:288` → `groupComponents`), which D6 makes store the correct body.
@@ -423,14 +427,15 @@ These were not ruled by the designer or the user; each is the default the builde
    `getSliderBodyHeight` and the ad hoc accessor (D3, D5, D7).
 3. The width follows density only while it is one of the four default widths (D3).
 4. A note in the redraw decision and the roadmap carries this geometry forward (D4).
-5. The contained track gives up the list's 2px on the right (D5).
-6. The ad hoc exclusion is read-time, not a skipped seed (D7).
+5. The contained track gives up the list's constant 2px on the right, in the browser only (D5).
+6. The ad hoc exclusion is read-time for padding and spacing, and rides `saveFormats` for the corner (D7).
 7. The padding pane shows for unmarked sliders too, as for lists; no script property (§7).
 8. A larger author font is handled by an author resize (§9).
 9. The overflow estimate is left as is (§10).
 10. A contained or converted slider draws as a rounded box, as contained lists do; a marked slider's title
     lane binds the title format's radius (D1).
 11. The ad hoc exclusion zeroes the corner too, because ad hoc sliders get a white background (D7).
+    Superseded in part by item 6: it is done in `saveFormats`.
 12. The drop stores the correct body for a marked slider, which also fixes the ad hoc return trip (D6).
 13. The size rule skips a slider inside a selection container (D3).
 14. Excel draws no padding, as for tables and selections (§6).
