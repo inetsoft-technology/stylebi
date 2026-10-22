@@ -232,6 +232,16 @@ For a marked slider, every site that sets an expanded contained slider's height 
 - **Collapsed or expanded** is already answered by `isHidden()` for a marked slider
   (`TimeSliderVSAssemblyInfo.isCollapsedInContainer`, `:529`), so a stored body never reads as collapsed.
   Collapse still stores the lane.
+- **Modernize, Revert and a density change re-store the body** (ruled during review, §12). D3's size rule
+  skips a contained slider and none of the sites above runs on these re-seeds, so the stored body would
+  keep its old value under the new padding: a legacy expanded slider stored at 40 (or 60 after a legacy
+  expand) would get 16px padding and 8–28 px for its 50px control once Modernized, and a density change
+  would leave 66 stored at dense where comfortable needs 82. After the seed, `VizModernizeUtil` runs one
+  pass, next to its bottom-tabs pass, over every expanded (not hidden) slider in a selection container
+  whose mark moved (Modernize, Revert, the dashboard's mode switch) or that is marked (a density change).
+  A marked slider stores `getSliderBodyHeight()`; a reverted one stores `listHeight × defh + titleHeight`,
+  the legacy expand value. A collapsed slider keeps its lane, and an unmarked slider is not touched by a
+  density change. The restore path (`reseedAfterRestore`) does not run this pass (§9).
 - **This supersedes a deferral.** `2026-10-12-density-deferred-fixes-design.md` §9 lists the contained
   slider's double count as dropped. For a marked slider it is now fixed, because B1's padding would
   otherwise stack on top of the extra lane.
@@ -253,6 +263,13 @@ For a marked slider, every site that sets an expanded contained slider's height 
   a stored format value, so it goes the way the ad hoc white background already goes:
   `saveFormats` saves the object format and writes a zero corner beside the white background, and
   `restoreFormats` puts the saved format back on the return.
+- **An unmarked slider's padding counts only when its author set it** (ruled during review, §12).
+  `VSAssemblyInfo.setCSSDefaults` has always stored a `format.css` padding (a `RangeSlider { padding }`
+  rule, or `* { padding }`) on creation, which neither renderer used to draw. So the same accessor,
+  `getBodyPadding()`, also returns zero insets for an unmarked slider while `isUserPadding()` is false,
+  and legacy output does not move. The padding pane still works on an unmarked slider, because a real
+  edit there sets `userPadding`. A marked slider keeps a `format.css` padding, through the seed's
+  `isCssPaddingDefined()` guard (D1).
 - **Why the corner is included.** Every ad hoc slider gets a white background in its object format's
   DEFAULT tier (`ComposerAdhocFilterService.saveFormats`, `:573-574`), so a seeded 6px corner would draw it
   as a rounded white card. Excluding the corner is what "stays as it is today" requires.
@@ -273,14 +290,17 @@ For a marked slider, every site that sets an expanded contained slider's height 
   `resetSize(VizContext)` (`VSAssemblyInfo:1499`) and the Size & Position follow checkbox use, as
   `SelectionBaseVSAssemblyInfo:1084` does for lists.
 - `getSliderBodyHeight()` (D5).
-- The ad hoc accessor (D7), for example `getBodyPadding()`: zero insets while `isAdhocFilter()`, otherwise
-  `getPadding()`, null-safe.
+- The ad hoc accessor (D7), `getBodyPadding()`: zero insets while `isAdhocFilter()`, and zero for an
+  unmarked slider whose author has not set a padding (`!isUserPadding()`); otherwise `getPadding()`,
+  null-safe.
 
 `VSAssemblyInfo.isCornerSeedTarget()` gains `TimeSliderVSAssemblyInfo`, with the javadoc rewritten (D1).
 
-`VSDensityDefaults`: `rangeSliderSize(VizContext)` and `isSeededRangeSliderSize(Dimension)` (D3).
+`VSDensityDefaults`: `rangeSliderSize(VizContext)`, `isSeededRangeSliderHeight(int)` and
+`isSeededRangeSliderWidth(int)` (D3).
 
-The four container sites and the conversion (D6).
+The four container sites and the conversion (D6), and the pass in `VizModernizeUtil` that re-stores an
+expanded contained slider's body after Modernize, Revert and a density change (D6).
 
 ## 5. Browser
 
@@ -291,9 +311,11 @@ The four container sites and the conversion (D6).
   this padding and the mini toolbar does not move.
 - **Component.** `vs-range-slider.component` wraps the body's contents in one inner box offset by the
   padding. The labels, ticks and current value are absolutely positioned, so padding on
-  `.vs-range-slider-body` alone would not move them. `getBodyHeight()` (`:508`) and `setTopPositions()`
-  (`:1101`) subtract top + bottom; `getLabelPosition()` (`:445`) centres against the inner width instead of
-  `objectFormat.width`.
+  `.vs-range-slider-body` alone would not move them. The inner box is anchored by its four edges (left,
+  top, right and bottom set to the padding, no width or height) inside the full body, so
+  `getBodyHeight()` (`:508`) does not subtract the padding and must not: it sizes the body the box sits
+  in. `setTopPositions()` (`:1101`) subtracts top + bottom; `getLabelPosition()` (`:445`) centres against
+  the inner width instead of `objectFormat.width`.
 - **Label spacing** (D2), when `model.vizModern && !model.adhocFilter`.
 - **Contained right edge** (D5).
 
@@ -380,9 +402,15 @@ each tier and in a legacy dashboard:
 - **Existing marked sliders change on open.** A standalone one at 200×40 grows to its tier size and may
   overlap what sits below it, as lists did (selection family D6).
 - **Existing marked contained sliders are cramped until their next expand.** The padding arrives on open,
-  but the stored body (40, or 40 + lane) changes only at the next expand. Until then the control has
-  8–38 px instead of 50 at comfortable. Accepted for the same reason as D6 of the selection family: the
-  branch has not shipped, so the marked population is internal.
+  but the stored body (40, or 40 + lane) changes only at the next expand, or at the next Modernize, Revert
+  or density change, which re-store an expanded contained body (D6). The restore path does not, so
+  existing marked content that meets none of those is still cramped until its next expand. Until then
+  the control has 8–38 px instead of 50 at comfortable. Accepted for the same reason as D6 of the
+  selection family: the branch has not shipped, so the marked population is internal.
+- **An unmarked slider's padding counts only when its author set it** (D7). A `format.css` padding stored
+  on a legacy slider stays undrawn, as today. The padding pane shows the stored value, so an unmarked
+  slider with such a padding shows numbers it does not draw; an apply that leaves them untouched stores
+  nothing, and any edit sets `userPadding`, after which the whole edited padding draws.
 - **An author height below content + padding** (for example 45px at comfortable, which needs 82) keeps the
   author's height with the padding inside it, so the control is cramped. Ticking the height checkbox (§7)
   or resizing fixes it. Nothing shrinks the padding to fit *(my call)*.
@@ -442,3 +470,10 @@ These were not ruled by the designer or the user; each is the default the builde
 15. An author height too short for the padding stays cramped until the author ticks the height checkbox or
     resizes (§9).
 16. The branch stacks on #6798 until it merges (§9).
+
+Rulings made during the final review, 2026-10-22 (not calls of this spec):
+
+- An unmarked slider's padding counts only when its author set it: `getBodyPadding()` is zero for an
+  unmarked slider without `userPadding`, so a stored `format.css` padding stays undrawn (D7, §9).
+- Modernize, Revert and a density change re-store an expanded contained slider's body, marked or
+  reverted; a collapsed slider keeps its lane, and the restore path does not re-store (D6, §9).
