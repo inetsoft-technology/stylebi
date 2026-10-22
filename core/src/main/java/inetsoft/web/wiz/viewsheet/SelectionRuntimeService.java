@@ -179,12 +179,12 @@ public class SelectionRuntimeService {
       // A path named twice is one path: dedupe up front so every count, the overlap check and the
       // single-select guard see what the apply sees (bug-78268). Exact List.equals, the same
       // comparison the apply uses.
-      final List<List<String>> values = distinctPaths(rawValues);
-      final List<List<String>> deselect = distinctPaths(rawDeselect);
+      final List<List<String>> typedValues = distinctPaths(rawValues);
+      final List<List<String>> typedDeselect = distinctPaths(rawDeselect);
 
-      boolean hasDeselect = deselect != null && !deselect.isEmpty();
+      boolean hasDeselect = typedDeselect != null && !typedDeselect.isEmpty();
 
-      if(values == null && sortOrder == null && singleSelect == null && search == null &&
+      if(typedValues == null && sortOrder == null && singleSelect == null && search == null &&
          !hasDeselect)
       {
          throw new IllegalArgumentException(
@@ -192,16 +192,7 @@ public class SelectionRuntimeService {
             "'singleSelect' or 'search'.");
       }
 
-      if(values != null && hasDeselect) {
-         List<List<String>> overlap = new ArrayList<>(values);
-         overlap.retainAll(deselect);
-
-         if(!overlap.isEmpty()) {
-            throw new IllegalArgumentException(
-               "'values' and 'deselect' both name " + overlap + " — that's a contradiction: " +
-               "select it or remove it, not both in the same call.");
-         }
-      }
+      requireNoOverlap(typedValues, typedDeselect);
 
       final Integer targetSort = sortOrder == null ? null : requireSortOrder(sortOrder);
       final Map<String, Object> result = new LinkedHashMap<>();
@@ -210,7 +201,7 @@ public class SelectionRuntimeService {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
          final Map<String, OtherSelection> othersBefore = snapshotOthers(rvs, assembly);
 
-         if(assembly instanceof CalendarVSAssembly && (values != null || hasDeselect)) {
+         if(assembly instanceof CalendarVSAssembly && (typedValues != null || hasDeselect)) {
             // doApplySelection's Calendar branch only acts on a null event (its own "can only
             // un-select" clear), so a values/deselect apply here is a silent no-op that would
             // still report valuesSelected. A calendar's dates are not value paths -- their shape
@@ -224,7 +215,7 @@ public class SelectionRuntimeService {
          // Only the values/deselect paths ever touch getConditionList()/getSelection() -- a
          // sortOrder-only or singleSelect-only call never reaches them, so it must not be
          // refused for a problem it does not have.
-         if(values != null || hasDeselect) {
+         if(typedValues != null || hasDeselect) {
             requireBoundColumn(assembly, assemblyName);
          }
 
@@ -253,6 +244,28 @@ public class SelectionRuntimeService {
 
          final boolean single = singleSelect != null ? singleSelect : info.isSingleSelection();
          final boolean idMode = assembly instanceof SelectionTreeVSAssembly tree && tree.isIDMode();
+
+         if(idMode) {
+            requireNoBlankId(assemblyName, typedValues);
+         }
+
+         // The one read of the live domain a values and/or deselect request needs: the blank item
+         // is addressed as null, so a "" spelling is canonicalized against it before anything
+         // below counts, compares or applies the paths (bug-79195). Read once, here, and reused.
+         final boolean matchable = isValueMatchable(assembly);
+         final SelectionList liveDomain =
+            (typedValues != null && matchable) || hasDeselect ? selectionListOf(assembly) : null;
+         final SelectionValue[] liveValues = liveDomain == null ? null :
+            liveDomain.getSelectionValues();
+         final List<List<String>> values = idMode || !matchable ? typedValues :
+            distinctPaths(canonicalizeBlank(liveValues, typedValues));
+         final List<List<String>> deselect = idMode ? typedDeselect :
+            distinctPaths(canonicalizeBlank(liveValues, typedDeselect));
+
+         // Two spellings of the blank item are one path: the dedupe above and this contradiction
+         // check run again on the canonical forms, so ["", null] is one entry and values:[""] with
+         // deselect:[null] is the contradiction it is.
+         requireNoOverlap(values, deselect);
          // On a non-ID tree with single-select levels, doApplySelection keeps one value per single
          // level per parent and leaves the other levels multi (bug-78795); only a list, an ID-mode
          // tree, or a tree without effective levels is single as a whole. Read from the stored
@@ -274,9 +287,9 @@ public class SelectionRuntimeService {
                   "it multi-select first.");
             }
 
-            domain = isValueMatchable(assembly) ? selectionListOf(assembly) : null;
+            domain = matchable ? liveDomain : null;
 
-            if(isValueMatchable(assembly)) {
+            if(matchable) {
                // doApplySelection matches each requested value against the live domain and
                // silently drops anything that doesn't resolve -- no exception, no counter,
                // nothing the caller could observe. Refuse a typo'd value by name, atomically,
@@ -311,8 +324,7 @@ public class SelectionRuntimeService {
             // Against the whole live domain, not the selected paths: a real but unselected value
             // stays a legal no-op, while a fabricated or over-long path is refused by name instead
             // of silently touching nothing. Unscoped by search, like the deselect itself.
-            requireResolvable(assemblyName, selectionListOf(assembly), deselect, false,
-                              "deselecting");
+            requireResolvable(assemblyName, liveDomain, deselect, false, "deselecting");
          }
 
          // Search first, same reasoning as selection style below: it changes how a values apply
@@ -1873,7 +1885,11 @@ public class SelectionRuntimeService {
          }
 
          int level = value.getLevel();
-         String ownValue = value.getValue() == null ? "" : value.getValue();
+         // A blank item stays null: the request path addresses it as null, so reporting it as ""
+         // would make the replace diff and deselect miss it (bug-79195). The placeholder nulls in
+         // a composite's path are always overwritten by path.set(level, ...) for every ancestor,
+         // so a null in a returned path is a real blank value.
+         String ownValue = value.getValue();
 
          if(value instanceof CompositeSelectionValue composite) {
             SelectionList childList = composite.getSelectionList();
@@ -2084,6 +2100,93 @@ public class SelectionRuntimeService {
       return targets;
    }
 
+   /** Refuses a request that names the same path in both {@code values} and {@code deselect}. */
+   private static void requireNoOverlap(List<List<String>> values, List<List<String>> deselect) {
+      if(values == null || deselect == null || deselect.isEmpty()) {
+         return;
+      }
+
+      List<List<String>> overlap = new ArrayList<>(values);
+      overlap.retainAll(deselect);
+
+      if(!overlap.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'values' and 'deselect' both name " + overlap + " — that's a contradiction: " +
+            "select it or remove it, not both in the same call.");
+      }
+   }
+
+   /**
+    * An ID-mode tree is addressed by node ids, and a blank id is not one a caller can name (the
+    * ID-mode paths below hold their ids in {@code List.of}, which refuses null), so a null segment
+    * is refused by name instead of failing inside the apply (bug-79195).
+    */
+   static void requireNoBlankId(String assemblyName, List<List<String>> paths) {
+      if(paths == null) {
+         return;
+      }
+
+      for(List<String> path : paths) {
+         if(path != null && path.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is an ID-mode tree -- an ID-mode tree id cannot be blank, " +
+               "so a null entry in " + path + " names no node. Pass the real node ids.");
+         }
+      }
+   }
+
+   /**
+    * Rewrites a {@code ""} segment to {@code null} wherever the live domain's blank item is the
+    * only thing it can mean, so a caller who spells the blank item by its empty label reaches the
+    * item the viewer addresses as null (bug-79195).
+    *
+    * <p>Level by level, the same walk {@link #matchesPath} does: a {@code ""} becomes null only
+    * when no sibling at that level has the value {@code ""} and one has the value null, so an exact
+    * match always wins (a list never holds a {@code ""} item, because the list query folds it into
+    * null; a tree may hold both, and both stay reachable). A segment that matches nothing is left
+    * as typed, so the refusal still names what the caller wrote. Returns {@code paths} itself when
+    * nothing changes; the input lists are never modified.
+    */
+   static List<List<String>> canonicalizeBlank(SelectionValue[] domain, List<List<String>> paths) {
+      if(domain == null || paths == null) {
+         return paths;
+      }
+
+      List<List<String>> result = new ArrayList<>(paths.size());
+      boolean changed = false;
+
+      for(List<String> path : paths) {
+         List<String> out = path == null ? null : new ArrayList<>(path);
+
+         if(out != null) {
+            SelectionValue[] level = domain;
+
+            for(int i = 0; i < out.size() && level != null; i++) {
+               if("".equals(out.get(i)) && findByValue(level, "") == null &&
+                  findByValue(level, null) != null)
+               {
+                  out.set(i, null);
+                  changed = true;
+               }
+
+               SelectionValue found = findByValue(level, out.get(i));
+
+               if(found instanceof CompositeSelectionValue composite && i < out.size() - 1) {
+                  SelectionList childList = composite.getSelectionList();
+                  level = childList == null ? null : childList.getSelectionValues();
+               }
+               else {
+                  break;
+               }
+            }
+         }
+
+         result.add(out);
+      }
+
+      return changed ? result : paths;
+   }
+
    /** Order-preserving de-duplication of requested paths; null stays null. */
    static List<List<String>> distinctPaths(List<List<String>> paths) {
       if(paths == null) {
@@ -2171,6 +2274,40 @@ public class SelectionRuntimeService {
                         idMode, action);
    }
 
+   /**
+    * Whether the level at which an unmatched path fails holds a blank (null-valued) item.
+    * {@code browse_condition_values} does not list that item, so pointing a caller there is a dead
+    * end for it (bug-79195).
+    */
+   private static boolean blankAtFailure(SelectionValue[] domain, List<List<String>> unmatched) {
+      for(List<String> path : unmatched) {
+         String[] segments = path.toArray(new String[0]);
+         SelectionValue[] level = domain;
+
+         for(int index = 0; index < segments.length && level != null; index++) {
+            SelectionValue value = findByValue(level, segments[index]);
+
+            if(value == null) {
+               if(findByValue(level, null) != null) {
+                  return true;
+               }
+
+               break;
+            }
+
+            if(value instanceof CompositeSelectionValue composite) {
+               SelectionList childList = composite.getSelectionList();
+               level = childList == null ? null : childList.getSelectionValues();
+            }
+            else {
+               break;
+            }
+         }
+      }
+
+      return false;
+   }
+
    /** Split out from its {@code SelectionList} container for the same reason as the overload below. */
    static void requireResolvable(String assemblyName, SelectionValue[] domain,
                                  List<List<String>> values, boolean idMode, String action)
@@ -2184,8 +2321,12 @@ public class SelectionRuntimeService {
       if(!unmatched.isEmpty()) {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' has no value matching " + unmatched +
-            unresolvedDetail(domain, unmatched, idMode) + " -- confirm the exact spelling via " +
-            "browse_condition_values before " + action + " it.");
+            unresolvedDetail(domain, unmatched, idMode) + " -- " +
+            (!idMode && blankAtFailure(domain, unmatched) ?
+               "the blank item is addressed as null (see get_selection_state for the exact " +
+               "values) before " :
+               "confirm the exact spelling via browse_condition_values before ") +
+            action + " it.");
       }
    }
 

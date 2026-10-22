@@ -1803,7 +1803,9 @@ class SelectionRuntimeServiceTest {
       List<List<String>> paths = SelectionRuntimeService.selectedPaths(
          new SelectionValue[]{ east, west, null, nullValued });
 
-      assertEquals(List.of(List.of("East"), List.of("")), paths,
+      // A blank item stays null (bug-79195): the request path addresses it as null, so "" here
+      // would make the replace diff and deselect miss it.
+      assertEquals(List.of(List.of("East"), Arrays.asList((String) null)), paths,
                    "unselected values must not be sent, and a null value must not NPE");
       assertEquals(List.of(), SelectionRuntimeService.selectedPaths(null));
    }
