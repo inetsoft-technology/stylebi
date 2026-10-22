@@ -166,6 +166,33 @@ class AbstractLayoutTest {
       assertEquals(20, layoutHeight(applied, "RangeSlider1"));
    }
 
+   @Test
+   void aMarkedExpandedSliderTakesItsBodyInADeviceLayout() {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
+      container.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      container.setPixelOffset(new Point(160, 200));
+      container.setPixelSize(new Dimension(300, 360));
+
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "RangeSlider1");
+      TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) slider.getVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.initDefaultFormat();
+      info.setListHeight(2);
+      info.setHidden(false);
+      slider.setPixelOffset(new Point(160, 230));
+      slider.setPixelSize(new Dimension(300, 112));
+
+      vs.addAssembly(container);
+      vs.addAssembly(slider);
+      container.setAssemblies(new String[]{ "RangeSlider1" });
+
+      Viewsheet applied = containerLayout().apply(vs);
+      assertEquals(82, layoutHeight(applied, "RangeSlider1"));
+   }
+
    private ViewsheetLayout containerLayout() {
       ViewsheetLayout layout = new ViewsheetLayout();
       layout.setVSAssemblyLayouts(List.of(

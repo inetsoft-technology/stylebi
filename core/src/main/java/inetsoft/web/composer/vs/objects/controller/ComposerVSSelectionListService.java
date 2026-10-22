@@ -243,6 +243,12 @@ public class ComposerVSSelectionListService {
 
       // set up info
       info.initDefaultFormat(true);
+
+      // the body reads the padding seeded above
+      if(info.getVizMark() != null) {
+         info.setPixelSize(new Dimension(list.getPixelSize().width, info.getSliderBodyHeight()));
+      }
+
       info.setPrimary(assembly.isPrimary());
       info.setEnabledValue(assembly.getVSAssemblyInfo().isEnabled() + "");
       info.setVisible(assembly.isVisible());

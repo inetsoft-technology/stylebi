@@ -33,6 +33,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Dimension;
 import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -72,5 +73,39 @@ class ComposerVSSelectionListServiceVizMarkTest {
 
       assertEquals(VizMark.MODERN_DARK, slider.getVSAssemblyInfo().getVizMark(),
                    "the converted range slider must keep the list's own mark, not the host's");
+   }
+
+   @Test
+   void convertingAMarkedListStoresTheSlidersBody() throws Exception {
+      VSAssembly slider = convert(VizMark.MODERN_LIGHT, new Dimension(300, 202));
+
+      assertEquals(new Dimension(300, 82), slider.getPixelSize());
+   }
+
+   @Test
+   void convertingAMarked200WideCollapsedListKeepsItsWidth() throws Exception {
+      VSAssembly slider = convert(VizMark.MODERN_LIGHT, new Dimension(200, 20));
+
+      assertEquals(new Dimension(200, 82), slider.getPixelSize());
+   }
+
+   @Test
+   void convertingAnUnmarkedListKeepsTheLegacyHeight() throws Exception {
+      assertEquals(60, convert(null, new Dimension(300, 140)).getPixelSize().height);
+      assertEquals(40, convert(null, new Dimension(300, 20)).getPixelSize().height);
+   }
+
+   private VSAssembly convert(VizMark mark, Dimension size) throws Exception {
+      Viewsheet host = new Viewsheet();
+      host.getViewsheetInfo().setVizDensity("comfortable");
+      SelectionListVSAssembly list = new SelectionListVSAssembly(host, "List1");
+      list.getVSAssemblyInfo().setVizMark(mark);
+      list.setPixelSize(size);
+
+      ComposerVSSelectionListService service = new ComposerVSSelectionListService(null, null);
+      Method create = ComposerVSSelectionListService.class
+         .getDeclaredMethod("createTimeSliderVSAssembly", Viewsheet.class, VSAssembly.class);
+      create.setAccessible(true);
+      return (VSAssembly) create.invoke(service, host, list);
    }
 }

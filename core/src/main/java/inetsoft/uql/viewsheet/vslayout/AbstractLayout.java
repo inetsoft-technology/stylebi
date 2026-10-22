@@ -480,6 +480,12 @@ public abstract class AbstractLayout implements AssetObject {
             else if(aInfo instanceof SelectionBaseVSAssemblyInfo) {
                height = ((SelectionBaseVSAssemblyInfo) aInfo).getListHeight();
             }
+            else if(aInfo instanceof TimeSliderVSAssemblyInfo tinfo && tinfo.getVizMark() != null &&
+               !tinfo.isCollapsedInContainer(childSize.height))
+            {
+               // a marked slider takes its body
+               childSize.height = tinfo.getSliderBodyHeight();
+            }
             else if(aInfo instanceof TimeSliderVSAssemblyInfo &&
                !((TimeSliderVSAssemblyInfo) aInfo).isCollapsedInContainer(childSize.height))
             {

@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -216,6 +217,45 @@ class GroupingServiceTest {
    @Test
    void anUnmarkedListDroppedIntoAContainerKeepsTheLegacyHeight() throws Exception {
       assertEquals(140, droppedHeight(null, false));
+   }
+
+   @Test
+   void aMarkedSliderDroppedIntoAContainerStoresItsBody() throws Exception {
+      assertEquals(82, droppedSliderHeight(VizMark.MODERN_LIGHT, false, 60));
+   }
+
+   @Test
+   void aHiddenMarkedSliderDroppedIntoAContainerKeepsItsLane() throws Exception {
+      assertEquals(30, droppedSliderHeight(VizMark.MODERN_LIGHT, true, 60));
+   }
+
+   @Test
+   void anUnmarkedSliderDroppedIntoAContainerKeepsItsHeight() throws Exception {
+      assertEquals(60, droppedSliderHeight(null, false, 60));
+   }
+
+   private int droppedSliderHeight(VizMark mark, boolean hidden, int height) throws Exception {
+      when(rvs.getViewsheet()).thenReturn(parentVS);
+      parentVS.getViewsheetInfo().setVizDensity("comfortable");
+
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(parentVS, "CurrentSelection1");
+      container.getVSAssemblyInfo().setVizMark(mark);
+      container.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      container.getVSAssemblyInfo().setPixelSize(new Dimension(300, 360));
+      container.setAssemblies(new String[0]);
+      parentVS.addAssembly(container);
+
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(parentVS, "RangeSlider1");
+      parentVS.addAssembly(slider);
+      TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) slider.getVSAssemblyInfo();
+      info.setVizMark(mark);
+      info.initDefaultFormat();
+      info.setHidden(hidden);
+      slider.setPixelSize(new Dimension(400, height));
+
+      service.groupComponents(rvs, container, slider, true, "", dispatcher);
+
+      return slider.getPixelSize().height;
    }
 
    private int droppedHeight(VizMark mark, boolean userSize) throws Exception {

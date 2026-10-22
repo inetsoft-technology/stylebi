@@ -200,7 +200,45 @@ class VSSelectionContainerServiceTest {
       service.applySelection(rvs, "RangeSlider1", false, dispatcher, "");
 
       assertFalse(info.isHidden(), "the click opens it");
-      assertEquals(2 * AssetUtil.defh + 30, info.getPixelSize().height);
+      assertEquals(82, info.getPixelSize().height);
+   }
+
+   @ParameterizedTest
+   @CsvSource({ "comfortable, 82", "compact, 74", "dense, 66" })
+   void expandingAMarkedSliderStoresItsBody(String density, int body) throws Exception {
+      vs.getViewsheetInfo().setVizDensity(density);
+      container(VizMark.MODERN_LIGHT, 800, "RangeSlider1");
+      TimeSliderVSAssemblyInfo info = slider("RangeSlider1", VizMark.MODERN_LIGHT, true, 30);
+
+      service.applySelection(rvs, "RangeSlider1", false, dispatcher, "");
+
+      assertEquals(body, info.getPixelSize().height);
+   }
+
+   @Test
+   void expandingTwiceStoresTheSameBody() throws Exception {
+      container(VizMark.MODERN_LIGHT, 800, "RangeSlider1");
+      TimeSliderVSAssemblyInfo info = slider("RangeSlider1", VizMark.MODERN_LIGHT, true, 30);
+
+      service.applySelection(rvs, "RangeSlider1", false, dispatcher, "");
+      service.applySelection(rvs, "RangeSlider1", true, dispatcher, "");
+      service.applySelection(rvs, "RangeSlider1", false, dispatcher, "");
+
+      assertEquals(82, info.getPixelSize().height);
+   }
+
+   // the box leaves 330 under its 40 and its 30 lane; the open 230, the lane 30 and the 82 body
+   // are 342, where a 40 body would be 300 and collapse nothing
+   @Test
+   void expandingAMarkedSliderCollapsesASiblingItsBodyWouldOverflow() throws Exception {
+      container(VizMark.MODERN_LIGHT, 400, "SelectionList1", "RangeSlider1");
+      SelectionListVSAssembly open = list("SelectionList1", VizMark.MODERN_LIGHT, true, 230);
+      TimeSliderVSAssemblyInfo info = slider("RangeSlider1", VizMark.MODERN_LIGHT, true, 30);
+
+      service.applySelection(rvs, "RangeSlider1", false, dispatcher, "");
+
+      assertEquals(30, open.getPixelSize().height, "the open sibling collapses to its lane");
+      assertEquals(82, info.getPixelSize().height);
    }
 
    // hidden at the comfortable lane of 30, then Reverted so the lane reads 20
@@ -236,7 +274,8 @@ class VSSelectionContainerServiceTest {
       service.applySelection(rvs, "RangeSlider1", false, dispatcher, "");
 
       assertFalse(info.isHidden());
-      assertEquals(2 * AssetUtil.defh + 25, info.getPixelSize().height, "the pinned lane is kept");
+      assertEquals(82, info.getPixelSize().height);
+      assertEquals(25, info.getTitleHeight(), "the pinned lane is kept, and not stored");
    }
 
    // read as open, the overflow estimate would collapse it again and store it at 30
@@ -259,6 +298,7 @@ class VSSelectionContainerServiceTest {
       vs.addAssembly(slider);
       TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) slider.getVSAssemblyInfo();
       info.setVizMark(mark);
+      info.initDefaultFormat();
       info.setListHeight(2);
       info.setHidden(hidden);
       info.setPixelSize(new Dimension(300, height));
