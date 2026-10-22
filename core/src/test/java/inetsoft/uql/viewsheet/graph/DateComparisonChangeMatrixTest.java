@@ -101,9 +101,7 @@ class DateComparisonChangeMatrixTest {
       public String toString() {
          return shape.id() + " " + weekStart + " end=" + endDay +
             (toDate ? " toDate" : "") + (inclusive ? " incl" : "") +
-            (option == DateComparisonInfo.PERCENT ? " percent" :
-               option == DateComparisonInfo.CHANGE_VALUE ? " change+value" :
-               option == DateComparisonInfo.PERCENT_VALUE ? " percent+value" : " change");
+            (percent() ? " percent" : " change") + (valuePlus() ? "+value" : "");
       }
 
       boolean percent() {
@@ -269,6 +267,18 @@ class DateComparisonChangeMatrixTest {
    }
 
    /** What is wrong with the chart of a case; empty when it is as expected. */
+   private static List<String> plottedVars(EGraph graph) {
+      List<String> vars = new ArrayList<>();
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         for(int v = 0; v < graph.getElement(i).getVarCount(); v++) {
+            vars.add(graph.getElement(i).getVar(v));
+         }
+      }
+
+      return vars;
+   }
+
    private List<String> judge(Case c) throws Exception {
       DcShape shape = c.shape();
       VGraphPair pair = pair(c);
@@ -315,15 +325,7 @@ class DateComparisonChangeMatrixTest {
 
       // Change alone plots the Change; with the value, the value is plotted too and the Change
       // on top of it, from the same data set
-      EGraph graph = pair.getEGraph();
-      List<String> plotted = new ArrayList<>();
-
-      for(int i = 0; i < graph.getElementCount(); i++) {
-         for(int v = 0; v < graph.getElement(i).getVarCount(); v++) {
-            plotted.add(graph.getElement(i).getVar(v));
-         }
-      }
-
+      List<String> plotted = plottedVars(pair.getEGraph());
       List<String> expectedPlotted = c.valuePlus() ?
          List.of(data.getHeader(valueCol), data.getHeader(changeCol)) :
          List.of(data.getHeader(changeCol));
