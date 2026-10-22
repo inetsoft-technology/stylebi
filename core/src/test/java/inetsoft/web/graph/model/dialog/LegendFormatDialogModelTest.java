@@ -245,6 +245,37 @@ public class LegendFormatDialogModelTest {
       assertFalse(legends.hasPaddingValue());
    }
 
+   @Test
+   public void okAppliedTwiceStoresWhatOneOkStores() {
+      // a relation chart's shared legend runs the dialog's OK twice on one descriptor
+      VizContext ctx = modernAt("compact");
+
+      LegendsDescriptor legacy = new LegendsDescriptor();
+      PaddingPaneModel legacyPane = LegendFormatDialogModel.paddingPane(legacy, VizContext.LEGACY);
+      legacyPane.setTop(2);
+      ok(legacy, legacyPane, VizContext.LEGACY);
+      ok(legacy, legacyPane, VizContext.LEGACY);
+      assertEquals(new Insets(2, 4, 1, 4), legacy.getPadding(), "unmarked edit");
+
+      LegendsDescriptor unticked = new LegendsDescriptor();
+      PaddingPaneModel untickedPane = LegendFormatDialogModel.paddingPane(unticked, ctx);
+      untickedPane.setTop(3);
+      untickedPane.setFollowsDefault(false);
+      ok(unticked, untickedPane, ctx);
+      ok(unticked, untickedPane, ctx);
+      assertEquals(new Insets(3, 4, 1, 4), unticked.getPadding(), "unticked edit");
+
+      LegendsDescriptor ticked = new LegendsDescriptor();
+      ticked.setPadding(new Insets(5, 5, 5, 5), CompositeValue.Type.CSS);
+      ticked.setPadding(new Insets(3, 3, 3, 3));
+      PaddingPaneModel tickedPane = LegendFormatDialogModel.paddingPane(ticked, ctx);
+      tickedPane.setFollowsDefault(true);
+      ok(ticked, tickedPane, ctx);
+      ok(ticked, tickedPane, ctx);
+      assertFalse(ticked.hasPaddingUserValue(), "ticked");
+      assertEquals(new Insets(5, 5, 5, 5), ticked.getPadding(), "ticked");
+   }
+
    private static void assertPane(PaddingPaneModel pane, int top, int left, int bottom, int right,
                                   Boolean followsDefault)
    {

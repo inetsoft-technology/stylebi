@@ -197,6 +197,34 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
       }
    });
 
+   it("toggles the four spacing steppers from the padding follow-default box", async () => {
+      const fixture = await render(createModel());
+      const box: HTMLInputElement = fixture.nativeElement.querySelector("#legendPaddingFollowsDefault");
+
+      box.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.model.padding.followsDefault).toBe(false);
+      expect(fixture.componentInstance.model.gapFollowsDefault).toBeUndefined();
+
+      for(const stepper of paddingSteppers(fixture)) {
+         expect(stepper.classList.contains("disabled")).toBe(false);
+      }
+
+      box.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.model.padding.followsDefault).toBe(true);
+
+      for(const stepper of paddingSteppers(fixture)) {
+         expect(stepper.classList.contains("disabled")).toBe(true);
+      }
+   });
+
    it("hides the padding follow-default box on an unmarked chart", async () => {
       const model = createModel();
       model.padding.followsDefault = undefined;
