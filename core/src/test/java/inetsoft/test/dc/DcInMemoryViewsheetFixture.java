@@ -276,6 +276,14 @@ public final class DcInMemoryViewsheetFixture {
                              String valueColumn, int dateLevel)
       throws Exception
    {
+      return crosstab(sheet, name, dc, dateColumn, valueColumn, dateLevel, true);
+   }
+
+   /** @param onRows whether the date is on the rows; on the columns otherwise. */
+   public TableLens crosstab(Sheet sheet, String name, DateComparisonInfo dc, String dateColumn,
+                             String valueColumn, int dateLevel, boolean onRows)
+      throws Exception
+   {
       Viewsheet vs = sheet.vs();
       CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, name);
       crosstab.setSourceInfo((SourceInfo) sheet.source().clone());
@@ -289,7 +297,13 @@ public final class DcInMemoryViewsheetFixture {
       VSAggregateRef agg = new VSAggregateRef();
       agg.setColumnValue(valueColumn);
       agg.setFormulaValue("Sum");
-      crosstab.getVSCrosstabInfo().setDesignRowHeaders(new DataRef[] { dim });
+      if(onRows) {
+         crosstab.getVSCrosstabInfo().setDesignRowHeaders(new DataRef[] { dim });
+      }
+      else {
+         crosstab.getVSCrosstabInfo().setDesignColHeaders(new DataRef[] { dim });
+      }
+
       crosstab.getVSCrosstabInfo().setDesignAggregates(new DataRef[] { agg });
       crosstab.getVSCrosstabInfo().setCalculateTotalValue(false);
       ((CrosstabVSAssemblyInfo) crosstab.getVSAssemblyInfo()).setDateComparisonInfo(dc);

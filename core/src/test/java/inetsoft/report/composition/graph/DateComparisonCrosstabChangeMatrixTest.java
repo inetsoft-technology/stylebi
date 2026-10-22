@@ -82,12 +82,13 @@ class DateComparisonCrosstabChangeMatrixTest {
       "M-wtd-gW-cM", "M-all-gD", "W-wtd-gD-cW", "D-all-gD");
 
    private record Case(DcShape shape, String weekStart, boolean toDate, boolean inclusive,
-                       boolean percent)
+                       boolean percent, boolean onRows)
    {
       @Override
       public String toString() {
          return shape.id() + " " + weekStart + (toDate ? " toDate" : "") +
-            (inclusive ? " incl" : "") + (percent ? " percent" : " change");
+            (inclusive ? " incl" : "") + (percent ? " percent" : " change") +
+            (onRows ? "" : " on columns");
       }
 
       DateComparisonInfo info(int option, int preCount) {
@@ -103,15 +104,19 @@ class DateComparisonCrosstabChangeMatrixTest {
             continue;
          }
 
-         cases.add(new Case(shape, "sunday", false, false, false));
+         cases.add(new Case(shape, "sunday", false, false, false, true));
 
          if(shape.usesWeeks()) {
-            cases.add(new Case(shape, "monday", false, false, false));
+            cases.add(new Case(shape, "monday", false, false, false, true));
          }
 
          if(SAMPLE.contains(shape.id())) {
-            cases.add(new Case(shape, "sunday", false, false, true));
-            cases.add(new Case(shape, "sunday", true, true, false));
+            cases.add(new Case(shape, "sunday", false, false, true, true));
+            cases.add(new Case(shape, "sunday", true, true, false, true));
+
+            // the date on the columns hides the first period by columns, not by rows
+            cases.add(new Case(shape, "sunday", false, false, false, false));
+            cases.add(new Case(shape, "sunday", false, false, true, false));
          }
       }
 
@@ -152,9 +157,7 @@ class DateComparisonCrosstabChangeMatrixTest {
    }
 
    /** The rows of a crosstab: period ordinal, part, value. */
-   private record Rows(List<long[]> periods, List<String> parts, List<Object> values,
-                       String periodHeader)
-   {
+   private record Rows(List<long[]> periods, List<String> parts, List<Object> values) {
    }
 
    private List<String> judge(Case c) throws Exception {
@@ -173,10 +176,12 @@ class DateComparisonCrosstabChangeMatrixTest {
          c.percent() ? DateComparisonInfo.PERCENT : DateComparisonInfo.CHANGE, PRE_COUNT);
       DcPeriods periods = new DcPeriods(shape.periodLevel());
       boolean aligned = shape.usesWeeks() && shape.periodLevel() != XConstants.WEEK_DATE_GROUP;
-      Rows value = read(fixture.crosstab(sheet, "Value", valueInfo, "Date", "Paid", level),
-                        periods, aligned);
-      Rows change = read(fixture.crosstab(sheet, "Change", changeInfo, "Date", "Paid", level),
-                         periods, aligned);
+      Rows value = read(fixture.crosstab(sheet, "Value", valueInfo, "Date", "Paid", level,
+                                       c.onRows()),
+                        shape, c.onRows());
+      Rows change = read(fixture.crosstab(sheet, "Change", changeInfo, "Date", "Paid", level,
+                                        c.onRows()),
+                         shape, c.onRows());
       List<String> problems = new ArrayList<>();
 
       if(value.values().isEmpty()) {
@@ -277,19 +282,25 @@ class DateComparisonCrosstabChangeMatrixTest {
       return problems;
    }
 
-   /** The rows of the crosstab data: the first is the header, the last column the value. */
-   private static Rows read(TableLens data, DcPeriods periods, boolean aligned) {
-      int valueCol = data.getColCount() - 1;
-      String header = String.valueOf(data.getObject(0, 0));
+   /**
+    * The records of the crosstab data. With the date on the rows a record is a row after the
+    * header row: the period date, the part columns, the value. On the columns it is a column
+    * after the label column: the period date, the part rows, the value.
+    */
+   private static Rows read(TableLens data, DcShape shape, boolean onRows) {
+      DcPeriods periods = new DcPeriods(shape.periodLevel());
+      boolean aligned = shape.usesWeeks() && shape.periodLevel() != XConstants.WEEK_DATE_GROUP;
       // a day-level date is in the period its week starts in when weeks are aligned; the others
       // (year, quarter, month, week dates) already are the start of their unit
-      boolean dayDate = header.startsWith("Day");
+      boolean dayDate = shape.periodLevel() == XConstants.DAY_DATE_GROUP;
+      int records = onRows ? data.getRowCount() : data.getColCount();
+      int fields = onRows ? data.getColCount() : data.getRowCount();
       List<long[]> ordinals = new ArrayList<>();
       List<String> parts = new ArrayList<>();
       List<Object> values = new ArrayList<>();
 
-      for(int r = 1; r < data.getRowCount(); r++) {
-         Object date = data.getObject(r, 0);
+      for(int record = 1; record < records; record++) {
+         Object date = field(data, onRows, record, 0);
 
          if(!(date instanceof Date)) {
             continue;
@@ -298,17 +309,21 @@ class DateComparisonCrosstabChangeMatrixTest {
          LocalDate day = DcPeriods.toLocal((Date) date);
          StringBuilder part = new StringBuilder();
 
-         for(int col = 1; col < valueCol; col++) {
-            part.append(data.getObject(r, col)).append('|');
+         for(int f = 1; f < fields - 1; f++) {
+            part.append(field(data, onRows, record, f)).append('|');
          }
 
          ordinals.add(new long[] { periods.ordinal(aligned && dayDate ? periods.weekStart(day)
                                                                        : day) });
          parts.add(part.toString());
-         values.add(data.getObject(r, valueCol));
+         values.add(field(data, onRows, record, fields - 1));
       }
 
-      return new Rows(ordinals, parts, values, header);
+      return new Rows(ordinals, parts, values);
+   }
+
+   private static Object field(TableLens data, boolean onRows, int record, int field) {
+      return onRows ? data.getObject(record, field) : data.getObject(field, record);
    }
 
    private static int dateLevel(DcShape shape) {
