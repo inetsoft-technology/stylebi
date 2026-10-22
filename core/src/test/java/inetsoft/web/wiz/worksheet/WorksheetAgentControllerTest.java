@@ -5645,6 +5645,109 @@ class WorksheetAgentControllerTest {
       verify(box, times(2)).refreshVariableTable(any());
    }
 
+   /** Names of declared variables still reported as needing a value, as the warning path sees them. */
+      /**
+    * A worksheet whose tables reference the given variables: stands in for a SQL table with a
+    * {@code $(name)} condition, which is what makes {@code getAllVariables} list a variable.
+    */
+   private static Worksheet worksheetReferencing(String... names) {
+      return new Worksheet() {
+         @Override
+         public synchronized UserVariable[] getAllVariables() {
+            return java.util.Arrays.stream(names).map(UserVariable::new)
+               .toArray(UserVariable[]::new);
+         }
+      };
+   }
+
+private static List<String> unsetVariableNames(AssetQuerySandbox box) {
+      return java.util.Arrays.stream(box.getAllVariables(box.getVariableTable()))
+         .map(v -> v.getName()).toList();
+   }
+
+   // Bug #79083: a top-level null must clear the variable back to "no session value yet", i.e.
+   // remove the key from the sandbox table, not leave key -> null (which hides the variable from
+   // getAllVariables and so suppresses the "no session value yet ... dropped" warning).
+   @Test
+   void setVariableValuesNullClearsKeyAndMatchesNeverSet() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC1");
+
+      List<String> neverSet = unsetVariableNames(box);
+      assertTrue(neverSet.contains("pState"), "a never-set variable is reported as needing a value");
+
+      ctrl.edit("TOK-SVC1", setVariableValuesRequest(Map.of("pState", "x")), agent);
+      assertEquals("x", box.getVariableTable().get("pState"));
+      assertFalse(unsetVariableNames(box).contains("pState"));
+
+      java.util.Map<String, Object> clear = new java.util.HashMap<>();
+      clear.put("pState", null);
+      ctrl.edit("TOK-SVC1", setVariableValuesRequest(clear), agent);
+
+      assertFalse(box.getVariableTable().contains("pState"),
+         "null must remove the key, not leave key -> null");
+      assertEquals(neverSet, unsetVariableNames(box),
+         "a cleared variable must be reported exactly like a never-set one");
+   }
+
+   @Test
+   void setVariableValuesCanSetAgainAfterClear() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC2");
+
+      ctrl.edit("TOK-SVC2", setVariableValuesRequest(Map.of("pState", "x")), agent);
+      java.util.Map<String, Object> clear = new java.util.HashMap<>();
+      clear.put("pState", null);
+      ctrl.edit("TOK-SVC2", setVariableValuesRequest(clear), agent);
+      ctrl.edit("TOK-SVC2", setVariableValuesRequest(Map.of("pState", "y")), agent);
+
+      assertEquals("y", box.getVariableTable().get("pState"));
+      assertFalse(unsetVariableNames(box).contains("pState"));
+   }
+
+   @Test
+   void setVariableValuesNullClearLeavesOtherVariablesAndEmptyStringIsLiteral() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      variableAssemblyForValues(ws, "pCity", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC3");
+
+      java.util.Map<String, Object> req = new java.util.HashMap<>();
+      req.put("pState", "x");
+      req.put("pCity", "");
+      ctrl.edit("TOK-SVC3", setVariableValuesRequest(req), agent);
+      java.util.Map<String, Object> clear = new java.util.HashMap<>();
+      clear.put("pState", null);
+      ctrl.edit("TOK-SVC3", setVariableValuesRequest(clear), agent);
+
+      assertFalse(box.getVariableTable().contains("pState"));
+      assertTrue(box.getVariableTable().contains("pCity"),
+         "an empty string is a literal value, not a clear");
+      assertEquals("", box.getVariableTable().get("pCity"));
+   }
+
+   @Test
+   void setVariableValuesNullInsideListIsStillRejected() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC4");
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-SVC4", setVariableValuesRequest(
+            Map.of("pState", java.util.Collections.singletonList((Object) null))), agent));
+      assertTrue(ex.getMessage().contains("pState"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("null"), ex.getMessage());
+   }
    @ParameterizedTest
    @CsvSource({
       "date, 2026-02-30",
@@ -5658,7 +5761,7 @@ class WorksheetAgentControllerTest {
       throws Exception
    {
       Principal agent = TestPrincipals.user("alice", "host-org");
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = strictVariableController(
          ws, mock(AssetQuerySandbox.class), "TOK-SVS4");
 
@@ -5671,7 +5774,7 @@ class WorksheetAgentControllerTest {
    @Test
    void addVariableRefusesBlankDefaultOnNumericVariable() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = strictVariableController(
          ws, mock(AssetQuerySandbox.class), "TOK-SVS4B");
 
@@ -5683,7 +5786,7 @@ class WorksheetAgentControllerTest {
    @Test
    void addVariableAcceptsValidDefaultValue() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = strictVariableController(
          ws, mock(AssetQuerySandbox.class), "TOK-SVS5");
 
@@ -5721,7 +5824,7 @@ class WorksheetAgentControllerTest {
       throws Exception
    {
       Principal agent = TestPrincipals.user("alice", "host-org");
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
@@ -5752,7 +5855,7 @@ class WorksheetAgentControllerTest {
    @Test
    void setPropertiesAcceptsValidAlias() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
@@ -5787,7 +5890,7 @@ class WorksheetAgentControllerTest {
    })
    void setPropertiesAcceptsNonAsciiAliasWithinAllowedRanges(String goodAlias) throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
@@ -5830,7 +5933,7 @@ class WorksheetAgentControllerTest {
    @Test
    void importCsvCreatesEmbeddedTable() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
       when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
@@ -5859,7 +5962,7 @@ class WorksheetAgentControllerTest {
    @Test
    void importCsvRefusesANameThatWouldBreakTheStoredXml() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
       when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
@@ -5883,7 +5986,7 @@ class WorksheetAgentControllerTest {
     */
    @Test
    void importCsvRejectsNameCollisionWithUnrelatedExistingAssembly() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-CSV-COLLIDE");
       Principal agent = TestPrincipals.user("alice", "host-org");
 
@@ -5938,7 +6041,7 @@ class WorksheetAgentControllerTest {
     */
    @Test
    void importCsvStaysAPlainEmbeddedTableRatherThanASnapshot() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-PLAIN");
 
       ctrl.importCsv("TOK-PLAIN",
@@ -5958,7 +6061,7 @@ class WorksheetAgentControllerTest {
     */
    @Test
    void importCsvReplaceTableOverwritesAnExistingEmbeddedTableInPlace() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-REPLACE");
       Principal agent = TestPrincipals.user("alice", "host-org");
 
@@ -6005,7 +6108,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvOverTheColumnLimitReportsTheDroppedColumns() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-A");
 
       WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-78526-A",
@@ -6019,7 +6122,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvAtTheColumnLimitReportsNothing() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-B");
 
       WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-78526-B",
@@ -6039,7 +6142,7 @@ class WorksheetAgentControllerTest {
     */
    @Test
    void importCsvWithOneWideRowUnderANarrowHeaderReportsNothing() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-C");
 
       WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-78526-C",
@@ -6054,7 +6157,7 @@ class WorksheetAgentControllerTest {
    /** The loader skips leading blank lines before the header; the uncapped count must too. */
    @Test
    void importCsvWithLeadingBlankLinesStillReportsTheDroppedColumns() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-D");
 
       WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-78526-D",
@@ -6067,7 +6170,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvFileAndReplaceReportTheDroppedColumnsToo() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-E");
       ctrl.importCsv("TOK-78526-E",
          new WorksheetAgentController.ImportCsvRequest("Query1", "a,b\n1,x"),
@@ -6087,7 +6190,7 @@ class WorksheetAgentControllerTest {
    /** Unpivot reshapes the columns; the limit is about the file's own columns, before that. */
    @Test
    void importCsvUnpivotReportsTheSourceColumnsDropped() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-F");
 
       WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-78526-F",
@@ -6146,7 +6249,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importExcelOverTheColumnLimitReportsTheDroppedColumns() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-G");
       inetsoft.uql.util.filereader.ExcelFileReader reader =
          mock(inetsoft.uql.util.filereader.ExcelFileReader.class);
@@ -6161,7 +6264,7 @@ class WorksheetAgentControllerTest {
    /** The XLS reader never applies the limit, so a 210-column sheet keeps all 210. */
    @Test
    void importExcelThatKeptEveryColumnReportsNothing() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-H");
       inetsoft.uql.util.filereader.ExcelFileReader reader =
          mock(inetsoft.uql.util.filereader.ExcelFileReader.class);
@@ -6176,7 +6279,7 @@ class WorksheetAgentControllerTest {
    /** Under the limit nothing can have been dropped, so the sheet is not read a second time. */
    @Test
    void importExcelUnderTheColumnLimitDoesNotRecountTheSheet() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78526-I");
       inetsoft.uql.util.filereader.ExcelFileReader reader =
          mock(inetsoft.uql.util.filereader.ExcelFileReader.class);
@@ -6240,7 +6343,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceRefusesRetypingAJoinedKeyAndLeavesTheTableUntouched() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78346-A");
 
       PairingException ex = assertThrows(PairingException.class,
@@ -6257,7 +6360,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceAllowsUnchangedMergeableAndNonKeyRetypes() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78346-B");
 
       replaceCsv(ctrl, "TOK-78346-B", "Q1", "id,v\n7,z");
@@ -6269,7 +6372,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceShapeChangeKeepingTheKeyTypeIsAccepted() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78346-C");
 
       replaceCsv(ctrl, "TOK-78346-C", "Q1", "id,w,x\n1,a,b");
@@ -6279,7 +6382,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceShapeChangeRetypingTheKeyByHeaderIsRefused() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78346-D");
 
       PairingException ex = assertThrows(PairingException.class,
@@ -6292,7 +6395,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceOfAnExplicitlyRetypedStringKeyPointsAtStringColumns() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78346-E");
       // change_column_type made both sides string (a mergeable pair); the importer would
       // re-detect integer for the numeric-looking values.
@@ -6312,7 +6415,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceListsEveryBrokenKeyColumn() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78346-F");
       Principal agent = TestPrincipals.user("alice", "host-org");
       ctrl.importCsv("TOK-78346-F", new WorksheetAgentController.ImportCsvRequest(
@@ -6335,7 +6438,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceWithoutAJoinAllowsAnyRetype() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78346-G");
       ctrl.importCsv("TOK-78346-G", new WorksheetAgentController.ImportCsvRequest(
          "Q1", "id,v\n1,a"), TestPrincipals.user("alice", "host-org"));
@@ -6436,7 +6539,7 @@ class WorksheetAgentControllerTest {
    void importReplaceRefusesDroppingAJoinedKeyColumnAndLeavesTheWorksheetUntouched()
       throws Exception
    {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-A");
 
       PairingException ex = assertThrows(PairingException.class,
@@ -6451,7 +6554,7 @@ class WorksheetAgentControllerTest {
    void importReplaceRefusesDroppingAColumnUsedByDownstreamConditionExpressionAndAggregate()
       throws Exception
    {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78357-B");
       ctrl.importCsv("TOK-78357-B", new WorksheetAgentController.ImportCsvRequest(
          "Q1", "id,v,w\n1,a,2\n2,b,3"), TestPrincipals.user("alice", "host-org"));
@@ -6482,7 +6585,7 @@ class WorksheetAgentControllerTest {
    void importReplaceAllowsDroppingAnUnreferencedColumnWhileAJoinExistsOnAKeptKey()
       throws Exception
    {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-C");
 
       replaceCsv(ctrl, "TOK-78357-C", "Q1", "id\n1");
@@ -6493,7 +6596,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceAllowsRenamingAnUnusedHeaderButRefusesRenamingAJoinedOne() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-D");
 
       replaceCsv(ctrl, "TOK-78357-D", "Q1", "id,vv\n1,a");
@@ -6506,7 +6609,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceRefusesACaseOnlyRenameOfAJoinedKey() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-E");
 
       PairingException ex = assertThrows(PairingException.class,
@@ -6518,7 +6621,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceWithDuplicateHeadersKeepingTheKeyIsAccepted() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-F");
 
       replaceCsv(ctrl, "TOK-78357-F", "Q1", "id,id\n1,2");
@@ -6528,7 +6631,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceWithoutAHeaderRowDropsTheKeyAndIsRefused() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-G");
 
       PairingException ex = assertThrows(PairingException.class,
@@ -6542,7 +6645,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvFileReplaceRefusesDroppingAJoinedKeyAndAllowsAnUnusedColumn() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-H");
 
       PairingException ex = assertThrows(PairingException.class,
@@ -6557,7 +6660,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importExcelReplaceRefusesDroppingAJoinedKeyAndAllowsAnUnusedColumn() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-I");
       PairingException ex = assertThrows(PairingException.class,
          () -> replaceExcel(ctrl, "TOK-78357-I", "Q1", new String[]{"other", "v"},
@@ -6572,7 +6675,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceKeepsTheRetypeGuardIndependentOfTheDroppedColumnGuard() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78357-J");
       Principal agent = TestPrincipals.user("alice", "host-org");
       ctrl.importCsv("TOK-78357-J", new WorksheetAgentController.ImportCsvRequest(
@@ -6625,7 +6728,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceWithTheSameColumnsKeepsTheTablesOwnExpressionColumn() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importWithExpression(ws, "TOK-78527-A");
 
       replaceCsv(ctrl, "TOK-78527-A", "T", "id,name\n4,c\n5,d");
@@ -6639,7 +6742,7 @@ class WorksheetAgentControllerTest {
    void importReplaceAddingOrDroppingAnUnreadColumnKeepsTheTablesOwnExpressionColumn()
       throws Exception
    {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importWithExpression(ws, "TOK-78527-B");
 
       replaceCsv(ctrl, "TOK-78527-B", "T", "id,name,extra\n4,c,x");
@@ -6652,7 +6755,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceDroppingAnInputOfTheTablesOwnExpressionIsRefusedNamingIt() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importWithExpression(ws, "TOK-78527-C");
 
       PairingException ex = assertThrows(PairingException.class,
@@ -6668,7 +6771,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importReplaceDroppingTheBaseOfTheTablesOwnRangeColumnIsRefusedNamingIt() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-78527-D");
       ctrl.importCsv("TOK-78527-D", new WorksheetAgentController.ImportCsvRequest(
          "T", "amount,name\n1,a\n20,b"), TestPrincipals.user("alice", "host-org"));
@@ -6688,7 +6791,7 @@ class WorksheetAgentControllerTest {
    void importReplaceWithTheSameColumnsAndAnInterleavedExpressionKeepsTheOrderAndRetypes()
       throws Exception
    {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importWithExpression(ws, "TOK-78527-E");
       applyEd(ws, ed -> ed.reorderColumns("T", List.of("idx", "id", "name")));
 
@@ -6702,7 +6805,7 @@ class WorksheetAgentControllerTest {
    /** The positional type check of a same-shape replace must skip the derived column (B1). */
    @Test
    void importReplaceWithAnInterleavedExpressionStillGuardsTheJoinKeyType() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = joinedImport(ws, "TOK-78527-F");
       applyEd(ws, ed -> ed.addExpressionColumn("Q1", "e", "field['v'] + 'x'", "string", false));
       applyEd(ws, ed -> ed.reorderColumns("Q1", List.of("e", "id", "v")));
@@ -6721,7 +6824,7 @@ class WorksheetAgentControllerTest {
    void importReplaceWhoseFileHasAColumnNamedLikeTheExpressionIsRefusedBeforeTheTypeCheck()
       throws Exception
    {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importWithExpression(ws, "TOK-78527-G");
 
       PairingException ex = assertThrows(PairingException.class,
@@ -6735,7 +6838,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvFileAndExcelReplacesKeepTheTablesOwnExpressionColumn() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importWithExpression(ws, "TOK-78527-H");
 
       replaceCsvFile(ctrl, "TOK-78527-H", "T", "id,name\n4,c");
@@ -6748,7 +6851,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvReplaceTableWithDifferentColumnsUpdatesTheColumnSelection() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-REPLACE-SHAPE");
       Principal agent = TestPrincipals.user("alice", "host-org");
 
@@ -6767,7 +6870,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvReplaceTableFailsLoudWhenTheNamedTableDoesNotExist() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-REPLACE-MISS");
 
       PairingException ex = assertThrows(PairingException.class,
@@ -6781,7 +6884,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvRejectsBothNameAndReplaceTable() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-REPLACE-BOTH");
 
       ctrl.importCsv("TOK-REPLACE-BOTH",
@@ -6799,7 +6902,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvDetectTypeFalseMakesEveryColumnString() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-DT");
 
       // The same file twice, differing only in detectType. "299.99" and "$499.99" mix numeric
@@ -6825,7 +6928,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvDetectTypeTrueDetectsANumericColumn() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-DT2");
 
       // Unlike the mixed plain/currency case above, both values here share the same currency
@@ -6851,7 +6954,7 @@ class WorksheetAgentControllerTest {
     */
    @Test
    void importCsvDefaultsToStrippingQuotesOnAFullyQuotedFile() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-RQ1");
 
       ctrl.importCsv("TOK-RQ1",
@@ -6878,7 +6981,7 @@ class WorksheetAgentControllerTest {
     */
    @Test
    void importCsvRemoveQuotesFalseKeepsLiteralQuotesWhenExplicitlyRequested() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-RQ2");
 
       ctrl.importCsv("TOK-RQ2",
@@ -6904,7 +7007,7 @@ class WorksheetAgentControllerTest {
    void importCsvStringColumnsPreservesLeadingZerosWithoutBreakingOtherNumericColumn()
       throws Exception
    {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-SC1");
 
       // The audit's exact reproduction: a zero-padded ZIP code alongside a genuinely-numeric
@@ -6929,7 +7032,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvStringColumnIndexesResolvesSameColumnAsStringColumns() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-SC2");
       String csv = "ZIP,AMOUNT\n00501,10.50";
 
@@ -6951,7 +7054,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvStringColumnsRejectsUnknownColumnName() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-SC3");
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -6968,7 +7071,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvStringColumnIndexesRejectsOutOfRangeIndex() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-SC4");
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -6983,7 +7086,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvStringColumnsRejectedWithUnpivot() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-SC5");
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -6998,7 +7101,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvFileHonoursStringColumns() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-SC6");
 
       ctrl.importCsvFile("TOK-SC6",
@@ -7015,7 +7118,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvFirstRowAsHeaderFalseGeneratesColumnNamesAndKeepsLineOne() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-FR");
 
       WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv(
@@ -7031,7 +7134,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvHonoursAnAlternateDelimiter() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-DELIM");
 
       WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv(
@@ -7045,7 +7148,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvHonoursTabAsTheDelimiter() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-TAB");
 
       WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv(
@@ -7058,7 +7161,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvUnpivotReshapesCrosstabInput() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-UP");
 
       // A crosstab: one identifier column plus two measure columns. Unpivoting with one header
@@ -7076,7 +7179,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvRejectsAnUnsupportedEncoding() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-ENC");
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -7098,7 +7201,7 @@ class WorksheetAgentControllerTest {
     */
    @Test
    void importCsvRejectsAMalformedEncodingNameRatherThanThrowing() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-BADENC");
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -7119,7 +7222,7 @@ class WorksheetAgentControllerTest {
     */
    @Test
    void importCsvRejectsANonUtf8EncodingOnTheJsonRoute() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-JSONENC");
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -7138,7 +7241,7 @@ class WorksheetAgentControllerTest {
     */
    @Test
    void importCsvAcceptsUtf8SpelledAsAnAliasOnTheJsonRoute() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-UTF8");
 
       ctrl.importCsv("TOK-UTF8",
@@ -7150,7 +7253,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void importCsvRejectsAMultiCharacterDelimiter() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-BADDELIM");
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -7170,7 +7273,7 @@ class WorksheetAgentControllerTest {
     */
    @Test
    void importCsvFileDecodesTheBytesWithTheGivenEncoding() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       WorksheetAgentController ctrl = importCtrl(ws, "TOK-GBK");
       // Built from code points so this source file stays ASCII: two CJK ideographs, which no
       // single-byte charset can represent, so a wrong decode cannot round-trip by accident.
@@ -7276,7 +7379,7 @@ class WorksheetAgentControllerTest {
    @Test
    void importCsvIgnoresExcelImportMax() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
       when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
@@ -7298,7 +7401,7 @@ class WorksheetAgentControllerTest {
    @Test
    void importCsvStillHonorsCsvImportMax() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
       when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
@@ -7318,7 +7421,7 @@ class WorksheetAgentControllerTest {
    @Test
    void importCsvTreatsMalformedCsvImportMaxAsUnbounded() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
       when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
@@ -7627,7 +7730,7 @@ class WorksheetAgentControllerTest {
                                               eq(agent)))
          .thenReturn(tableMeta);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
       when(editSvc.applyOnRuntime(eq("TOK-BT4"), eq(agent), any())).thenAnswer(inv -> {
@@ -7689,7 +7792,7 @@ class WorksheetAgentControllerTest {
                                               eq(agent)))
          .thenReturn(tableMeta);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       ws.addAssembly(new PhysicalBoundTableAssembly(ws, "ORDERS"));
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
@@ -7753,7 +7856,7 @@ class WorksheetAgentControllerTest {
                                               eq(agent)))
          .thenReturn(tableMeta);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       ws.addAssembly(new PhysicalBoundTableAssembly(ws, "ORDERS"));
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
@@ -8653,7 +8756,7 @@ class WorksheetAgentControllerTest {
          "t1", "MyDatasource", "Comments", null,
          Map.of("jsonPath", "$.items[*]"), null);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
       when(editSvc.applyOnRuntime(eq("TOK-EP8"), eq(agent), any())).thenAnswer(inv -> {
@@ -8721,7 +8824,7 @@ class WorksheetAgentControllerTest {
          "t1", "MyDatasource", "Comments", null,
          Map.of("jsonPath", "$.items[*]"), null);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
       when(editSvc.applyOnRuntime(eq("TOK-EP9"), eq(agent), any())).thenAnswer(inv -> {
@@ -8936,7 +9039,7 @@ class WorksheetAgentControllerTest {
       EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
          null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
       when(editSvc.applyOnRuntime(eq("TOK-QP10"), eq(agent), any())).thenAnswer(inv -> {
@@ -9002,7 +9105,7 @@ class WorksheetAgentControllerTest {
       EditRequest req = addQueryParamsTableRequest("Products", "MyDatasource", null, null, null,
          null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       ws.addAssembly(new TabularTableAssembly(ws, "Products"));
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
@@ -9176,7 +9279,7 @@ class WorksheetAgentControllerTest {
       when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
          .thenReturn(true);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
 
@@ -9225,7 +9328,7 @@ class WorksheetAgentControllerTest {
       when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
          .thenReturn(true);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       ws.addAssembly(new BoundTableAssembly(ws, "Customer"));
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
@@ -9531,7 +9634,7 @@ class WorksheetAgentControllerTest {
       when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
          .thenReturn(true);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
 
@@ -9602,7 +9705,7 @@ class WorksheetAgentControllerTest {
       when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
          .thenReturn(true);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       EmbeddedTableAssembly preExisting = TestWorksheets.tableWithColumns(ws, "State N Group", "id");
       ws.addAssembly(preExisting);
 
@@ -9800,7 +9903,7 @@ class WorksheetAgentControllerTest {
       when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
          .thenReturn(true);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       buildTableWithResolvedNamedGroupReference(ws);
       NamedGroupAssembly ngaBefore = (NamedGroupAssembly) ws.getAssembly("NortheastGroup");
       DataRef attachedBefore = ngaBefore.getAttachedAttribute();
@@ -9861,7 +9964,7 @@ class WorksheetAgentControllerTest {
       when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
          .thenReturn(true);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       NamedGroupInfo ngi = new NamedGroupInfo();
       ngi.setOthers(XConstants.LEAVE_OTHERS);
       DefaultNamedGroupAssembly nga = new DefaultNamedGroupAssembly(ws, "NortheastGroup");
@@ -9960,7 +10063,7 @@ class WorksheetAgentControllerTest {
       // The datasource/query are mocked: constructing a real JDBCDataSource pulls a
       // CredentialService bean the lightweight test context does not provide, and the READ-denial
       // path throws before the query's SQL definition is ever touched.
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
       JDBCDataSource ds = mock(JDBCDataSource.class);
       when(ds.getFullName()).thenReturn("myds");
@@ -10021,7 +10124,7 @@ class WorksheetAgentControllerTest {
    void editSqlQueryThrowsRenderNotReadyWhenColumnSelectionIsSlow() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
       ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
       ws.addAssembly(sqlt);
@@ -10078,7 +10181,7 @@ class WorksheetAgentControllerTest {
    void editSqlQueryEndpointReturnsUndeclaredVariables() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
       ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
       ws.addAssembly(sqlt);
@@ -10155,7 +10258,7 @@ class WorksheetAgentControllerTest {
    void editSqlQueryEndpointDoesNotReportDeclaredVariableAsUndeclared() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
       ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
       ws.addAssembly(sqlt);
@@ -10232,7 +10335,7 @@ class WorksheetAgentControllerTest {
    void editSqlQueryThrowsParseFailedMessageForMalformedSql() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
       ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
       ws.addAssembly(sqlt);
@@ -10287,7 +10390,7 @@ class WorksheetAgentControllerTest {
    void editSqlQueryThrowsDriverErrorMessageWhenLastQueryErrorIsSet() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
       ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
       ws.addAssembly(sqlt);
@@ -10342,7 +10445,7 @@ class WorksheetAgentControllerTest {
    void editSqlQueryFallsBackToGenericMessageWhenNeitherSignalExplainsIt() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
       ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
       ws.addAssembly(sqlt);
@@ -10510,7 +10613,7 @@ class WorksheetAgentControllerTest {
       JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
       when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
 
@@ -10561,7 +10664,7 @@ class WorksheetAgentControllerTest {
       JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
       when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       EmbeddedTableAssembly preExisting = TestWorksheets.tableWithColumns(ws, "MyTable", "id");
       ws.addAssembly(preExisting);
 
@@ -10616,7 +10719,7 @@ class WorksheetAgentControllerTest {
       JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
       when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
 
@@ -10674,7 +10777,7 @@ class WorksheetAgentControllerTest {
       JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
       when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
 
@@ -10733,7 +10836,7 @@ class WorksheetAgentControllerTest {
       JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
       when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
 
@@ -10789,7 +10892,7 @@ class WorksheetAgentControllerTest {
       JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
       when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
 
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
 
@@ -12471,7 +12574,7 @@ class WorksheetAgentControllerTest {
          { 99, false, "0..1" }, { 2, false, "0..1" }, { -1, false, "0..1" } };
 
       for(Object[] c : cases) {
-         Worksheet ws = new Worksheet();
+         Worksheet ws = worksheetReferencing("pState", "pCity");
          EmbeddedTableAssembly t = insertColumnTable(ws, false);
 
          PairingException ex = assertThrows(PairingException.class,
@@ -12488,7 +12591,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void insertColumnAcceptsTheBoundaryIndexes() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       EmbeddedTableAssembly t = insertColumnTable(ws, false);
       runInsertColumn(ws, insertColumnAt(2, true));
       assertEquals("a,b,col1", dataHeader(t));
@@ -12509,7 +12612,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void insertColumnAfterAnOmittedIndexAppendsAfterTheLastColumn() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       EmbeddedTableAssembly t = insertColumnTable(ws, false);
       runInsertColumn(ws, insertColumnAt(null, false));
       assertEquals("a,b,col1", dataHeader(t));
@@ -12518,7 +12621,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void insertColumnAfterPlainColumnZeroKeepsDataAndColumnSelectionConsistent() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       EmbeddedTableAssembly t = insertColumnTable(ws, false);
       runInsertColumn(ws, insertColumnAt(0, false));
       assertEquals("a,col1,b", dataHeader(t));
@@ -12527,7 +12630,7 @@ class WorksheetAgentControllerTest {
 
    @Test
    void insertColumnAfterAnExpressionColumnZeroStillWorks() throws Exception {
-      Worksheet ws = new Worksheet();
+      Worksheet ws = worksheetReferencing("pState", "pCity");
       EmbeddedTableAssembly t = insertColumnTable(ws, true);
       runInsertColumn(ws, insertColumnAt(0, false));
       assertEquals("col1,a,b", dataHeader(t));
