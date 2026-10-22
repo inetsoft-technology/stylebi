@@ -737,6 +737,174 @@ class SelectionRuntimeServiceTest {
       assertEquals(6, SelectionRuntimeService.adjustedEnd(false, 5));
    }
 
+   // ── range slider cut by maxRangeSize (bug-79165): the slider's own refresh shortens a span
+   // wider than maxRangeSize after the apply, which the response has to disclose ──
+
+   /** Twelve month-like buckets "0".."11" with the given inclusive index span selected. */
+   private static SelectionValue[] bucketsSelected(int count, int from, int to) {
+      SelectionValue[] buckets = new SelectionValue[count];
+
+      for(int i = 0; i < count; i++) {
+         buckets[i] = mock(SelectionValue.class);
+         when(buckets[i].getValue()).thenReturn("b" + i);
+         when(buckets[i].isSelected()).thenReturn(i >= from && i <= to);
+      }
+
+      return buckets;
+   }
+
+   /** Exclusive slider, span cut to the cap: the end bound is disclosed with the reason. */
+   @Test
+   void disclosesAnExclusiveEndCutByMaxRangeSize() {
+      // requested b2..b8 (exclusive end -> refresh would select through b9); cap leaves b2..b6
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 2, 6),
+         new int[]{ 2, 8 }, false, 4, clamped);
+
+      assertEquals(1, clamped.size());
+      assertEquals("b8", clamped.get(0).get("requested"));
+      assertEquals("b5", clamped.get(0).get("applied"));
+      assertEquals("the range is limited to maxRangeSize 4", clamped.get(0).get("reason"));
+   }
+
+   /** An exclusive request that is honoured (boundary bucket selected) discloses nothing. */
+   @Test
+   void doesNotDiscloseAnHonouredExclusiveRange() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 2, 6),
+         new int[]{ 2, 5 }, false, 4, clamped);
+
+      assertEquals(List.of(), clamped);
+   }
+
+   /** The end at the last bucket is capped at the last bucket, not reported as pulled back. */
+   @Test
+   void doesNotDiscloseAnExclusiveEndAtTheLastBucket() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 8, 11),
+         new int[]{ 8, 11 }, false, 12, clamped);
+
+      assertEquals(List.of(), clamped);
+   }
+
+   /** Inclusive slider: the last selected bucket is compared to the requested end directly. */
+   @Test
+   void disclosesAnInclusiveEndCutByMaxRangeSize() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 2, 6),
+         new int[]{ 2, 9 }, true, 4, clamped);
+
+      assertEquals(1, clamped.size());
+      assertEquals("b9", clamped.get(0).get("requested"));
+      assertEquals("b6", clamped.get(0).get("applied"));
+
+      clamped.clear();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 2, 9),
+         new int[]{ 2, 9 }, true, 4, clamped);
+      assertEquals(List.of(), clamped);
+   }
+
+   /** The lower bound is reported too when the slider moved it. */
+   @Test
+   void disclosesAMovedLowerBound() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 4, 9),
+         new int[]{ 2, 9 }, true, 6, clamped);
+
+      assertEquals(1, clamped.size());
+      assertEquals("b2", clamped.get(0).get("requested"));
+      assertEquals("b4", clamped.get(0).get("applied"));
+   }
+
+   /** No maxRangeSize known: a moved bound is still disclosed, with a generic reason. */
+   @Test
+   void usesAGenericReasonWithoutAMaxRangeSize() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 2, 6),
+         new int[]{ 2, 9 }, true, 0, clamped);
+
+      assertEquals("the slider shortened the range", clamped.get(0).get("reason"));
+   }
+
+   /** A bound already reported as nearest-bucket clamped is updated, not reported twice. */
+   @Test
+   void mergesAnAlreadyClampedBoundIntoOneEntry() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      Map<String, Object> existing = new LinkedHashMap<>();
+      existing.put("requested", "999");
+      existing.put("applied", "b9");
+      clamped.add(existing);
+
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 2, 6),
+         new int[]{ 2, 9 }, true, 4, clamped);
+
+      assertEquals(1, clamped.size());
+      assertEquals("999", clamped.get(0).get("requested"));
+      assertEquals("b6", clamped.get(0).get("applied"));
+      assertEquals("the range is limited to maxRangeSize 4", clamped.get(0).get("reason"));
+   }
+
+   /** A single-point inclusive request is widened by the slider's length floor, not cut. */
+   @Test
+   void givesAWideningReasonForAnInclusiveSinglePoint() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 5, 6),
+         new int[]{ 5, 5 }, true, 12, clamped);
+
+      assertEquals(1, clamped.size());
+      assertEquals("b5", clamped.get(0).get("requested"));
+      assertEquals("b6", clamped.get(0).get("applied"));
+      assertEquals("the slider selects at least two buckets", clamped.get(0).get("reason"));
+   }
+
+   /** A single point widened by more than the one floor bucket gets a neutral, unattributed reason. */
+   @Test
+   void givesANeutralReasonWhenASinglePointIsWidenedByMoreThanOneBucket() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(20, 5, 17),
+         new int[]{ 5, 5 }, true, 12, clamped);
+
+      assertEquals(1, clamped.size());
+      assertEquals("b17", clamped.get(0).get("applied"));
+      assertEquals("the slider applied a different range than requested",
+                   clamped.get(0).get("reason"));
+   }
+
+   /** A lower bound that moved down is not explained by the length floor either. */
+   @Test
+   void givesANeutralReasonWhenTheLowerBoundMovedDown() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 3, 9),
+         new int[]{ 5, 9 }, true, 12, clamped);
+
+      assertEquals(1, clamped.size());
+      assertEquals("b3", clamped.get(0).get("applied"));
+      assertEquals("the slider applied a different range than requested",
+                   clamped.get(0).get("reason"));
+   }
+
+   /** Single point on the last bucket, or in exclusive mode, is honoured: nothing to disclose. */
+   @Test
+   void doesNotDiscloseAnHonouredSinglePoint() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 11, 11),
+         new int[]{ 11, 11 }, true, 12, clamped);
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 5, 6),
+         new int[]{ 5, 5 }, false, 12, clamped);
+
+      assertEquals(List.of(), clamped);
+   }
+
+   /** Nothing selected after the apply: nothing to compare, nothing to disclose. */
+   @Test
+   void disclosesNothingWhenNoBucketIsSelected() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(4, 9, 9),
+         new int[]{ 0, 2 }, true, 4, clamped);
+
+      assertEquals(List.of(), clamped);
+   }
+
    /** "Nothing filtered" on a range slider is every bucket selected, not an empty/null state. */
    @Test
    void treatsEveryBucketSelectedAsTheFullRange() {
