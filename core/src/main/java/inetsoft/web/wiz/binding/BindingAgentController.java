@@ -934,7 +934,7 @@ public class BindingAgentController {
     * The source string to store for a listed table: a viewsheet component is stored under its
     * prefixed name with the VS_ASSEMBLY type, a worksheet table or model under its own name.
     */
-   private static String storedSource(List<BindableTable> tables, String source) {
+   static String storedSource(List<BindableTable> tables, String source) {
       if(source == null) {
          return null;
       }

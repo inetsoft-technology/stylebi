@@ -104,7 +104,7 @@ final class BindingSources {
    static String findComponent(RuntimeViewsheet rvs, String assemblyName, String table) {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
 
-      if(vs == null || table == null || rvs.isRuntime() && !isComponent(table)) {
+      if(vs == null || table == null || rvs.isRuntime()) {
          return null;
       }
 

@@ -291,10 +291,14 @@ public final class BindableColumns {
       }
 
       List<String> candidates = new ArrayList<>();
+      List<String> labels = new ArrayList<>();
 
       for(BindableTable table : listed) {
          if(hasAll(columnsOf(listed, table.name()), named)) {
             candidates.add(table.name());
+            // A viewsheet component may share a worksheet table's name; say which is which.
+            labels.add(table.isComponent() ? table.name() + " (viewsheet component)"
+                                           : table.name());
          }
       }
 
@@ -315,7 +319,7 @@ public final class BindableColumns {
       }
 
       throw new IllegalArgumentException(
-         describe(named) + " exists in more than one table (" + String.join(", ", candidates) +
+         describe(named) + " exists in more than one table (" + String.join(", ", labels) +
          "), so which one to bind '" + assembly + "' to cannot be told from the column name alone. " +
          "Pass 'table' to say which, the way dropping a column in the Composer does. Guessing " +
          "would bind the wrong table and render something that looks right.");

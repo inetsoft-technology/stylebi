@@ -317,7 +317,11 @@ public class TableBindingService {
       if(tables != null && !BindingSources.isComponent(table)) {
          for(BindingModel.SourceTable candidate : tables) {
             if(candidate.getName() != null) {
-               names.add(candidate.getName());
+               // The base worksheet also holds the engine's own tables for components already
+               // rendered; those are internal, and a component is offered by its bare name.
+               if(!BindingSources.isComponent(candidate.getName())) {
+                  names.add(candidate.getName());
+               }
 
                if(candidate.getName().equalsIgnoreCase(table)) {
                   return candidate.getName();
@@ -1734,7 +1738,8 @@ public class TableBindingService {
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
       out.put("objectType", model instanceof CrosstabBindingModel ? "crosstab" : "table");
-      out.put("source", model.getSource() == null ? null : model.getSource().getSource());
+      out.put("source", model.getSource() == null ? null
+         : BindingSources.displayName(model.getSource().getSource()));
 
       // A sourceless assembly accepts shelf writes and renders nothing, with no error anywhere
       // to say why. Saying so on the read every caller is told to make first is the cheapest

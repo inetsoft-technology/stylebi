@@ -2800,6 +2800,163 @@ class TableBindingServiceTest {
       return selection;
    }
 
+   // Bug #79022: another component of the viewsheet as a source.
+
+   private static ViewsheetSessionService sessionsForNamed(Map<String, VSAssembly> byName) {
+      Viewsheet vs = mock(Viewsheet.class);
+      byName.forEach((name, assembly) -> when(vs.getAssembly(name)).thenReturn(assembly));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(rvs, "rt1",
+                         mock(inetsoft.web.wiz.dispatch.CapturingCommandDispatcher.class));
+            return null;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+         when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return sessions;
+   }
+
+   private static TableVSAssembly componentNamed(String name) {
+      TableVSAssembly component = mock(TableVSAssembly.class);
+      when(component.getName()).thenReturn(name);
+      when(component.getAbsoluteName()).thenReturn(name);
+      when(component.isVisible()).thenReturn(true);
+      return component;
+   }
+
+   @Test
+   void setSourceBindsAViewsheetComponentAsAVsAssemblySourceUnderItsPrefixedName()
+      throws Exception
+   {
+      CrosstabBindingModel existing = withTables("ORDERS");
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      ViewsheetSessionService sessions = sessionsForNamed(Map.of(
+         "Crosstab1", mock(CrosstabVSAssembly.class), "T1", componentNamed("T1")));
+
+      serviceWith(sessions, existing, bindings)
+         .setSource("tok", principal(), "Crosstab1", "T1", false);
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals("__vs_assembly__T1", posted.getSource().getSource());
+      assertEquals(inetsoft.uql.asset.SourceInfo.VS_ASSEMBLY, posted.getSource().getType());
+   }
+
+   @Test
+   void setSourcePrefersAWorksheetTableOverAComponentOfTheSameName() throws Exception {
+      CrosstabBindingModel existing = withTables("T1");
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      ViewsheetSessionService sessions = sessionsForNamed(Map.of(
+         "Crosstab1", mock(CrosstabVSAssembly.class), "T1", componentNamed("T1")));
+
+      serviceWith(sessions, existing, bindings)
+         .setSource("tok", principal(), "Crosstab1", "T1", false);
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals("T1", posted.getSource().getSource());
+      assertEquals(inetsoft.uql.asset.SourceInfo.ASSET, posted.getSource().getType());
+   }
+
+   @Test
+   void setSourceRefusesAChartAsAComponentSourceAndHidesInternalNames() {
+      CrosstabBindingModel existing = withTables("ORDERS", "__vs_assembly__T9");
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getAbsoluteName()).thenReturn("C1");
+      when(chart.isVisible()).thenReturn(true);
+      ViewsheetSessionService sessions = sessionsForNamed(Map.of(
+         "Crosstab1", mock(CrosstabVSAssembly.class), "C1", chart));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> serviceWith(sessions, existing, mock(VSBindingModelService.class))
+            .setSource("tok", principal(), "Crosstab1", "C1", false));
+
+      assertTrue(thrown.getMessage().contains("ORDERS"));
+      assertFalse(thrown.getMessage().contains("__vs_assembly__"),
+                  "an internal engine table must not be offered as a source");
+   }
+
+   @Test
+   void setSourceRefusesAComponentInARuntimeSessionEvenWhenTypedWithThePrefix() {
+      CrosstabBindingModel existing = withTables("ORDERS");
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
+      TableVSAssembly runtimeComponent = componentNamed("T1");
+      when(vs.getAssembly("T1")).thenReturn(runtimeComponent);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.isRuntime()).thenReturn(true);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(rvs, "rt1",
+                         mock(inetsoft.web.wiz.dispatch.CapturingCommandDispatcher.class));
+            return null;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      for(String typed : new String[] {"T1", "__vs_assembly__T1"}) {
+         assertThrows(IllegalArgumentException.class,
+            () -> serviceWith(sessions, existing, mock(VSBindingModelService.class))
+               .setSource("tok", principal(), "Crosstab1", typed, false), typed);
+      }
+   }
+
+   @Test
+   void forcedRepointToAComponentKeepsOnlyFieldsThatResolveInItsRenderedColumns()
+      throws Exception
+   {
+      CrosstabBindingModel existing = withTablesAndColumns(
+         Map.of("ORDERS", List.of("Region", "Other")));
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region"), dim("Other")));
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      ViewsheetSessionService sessions = sessionsForNamed(Map.of(
+         "Crosstab1", mock(CrosstabVSAssembly.class), "T1", componentNamed("T1")));
+      inetsoft.uql.ColumnSelection columns = new inetsoft.uql.ColumnSelection();
+      columns.addAttribute(new inetsoft.uql.erm.AttributeRef(null, "Region"));
+
+      try(var vsUtil = mockStatic(inetsoft.uql.viewsheet.internal.VSUtil.class,
+                                  CALLS_REAL_METHODS))
+      {
+         vsUtil.when(() -> inetsoft.uql.viewsheet.internal.VSUtil
+            .getColumnsForVSAssemblyBinding(any(), eq("__vs_assembly__T1"))).thenReturn(columns);
+
+         serviceWith(sessions, existing, bindings)
+            .setSource("tok", principal(), "Crosstab1", "T1", true);
+      }
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals("__vs_assembly__T1", posted.getSource().getSource());
+      assertEquals(1, posted.getRows().size());
+      assertEquals("Region", posted.getRows().get(0).getColumnValue());
+   }
+
+   @Test
+   void readShowsAComponentSourceWithoutItsStoragePrefix() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("__vs_assembly__T1");
+      existing.getSource().setType(inetsoft.uql.asset.SourceInfo.VS_ASSEMBLY);
+
+      Map<String, Object> read = serviceWith(sessionsFor(mock(CrosstabVSAssembly.class)), existing,
+                                             mock(VSBindingModelService.class))
+         .read("tok", principal(), "Crosstab1");
+
+      assertEquals("T1", read.get("source"));
+   }
+
    private static CrosstabBindingModel withTables(String... names) {
       CrosstabBindingModel model = new CrosstabBindingModel();
       List<BindingModel.SourceTable> tables = new ArrayList<>();
