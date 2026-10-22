@@ -4137,28 +4137,29 @@ public class WorksheetAgentController {
 
          Worksheet ws = rws.getWorksheet();
          inetsoft.uql.VariableTable vtable = new inetsoft.uql.VariableTable();
+         Map<String, String> resolvedKeys = new HashMap<>();
 
          if(req.variableValues() != null) {
             for(Map.Entry<String, Object> entry : req.variableValues().entrySet()) {
-               String vname = entry.getKey();
-               Assembly assembly = ws.getAssembly(vname);
-               WorksheetEditService.Editor.refuseMirrorOrHiddenCopy(
-                  assembly, vname, "Set values on the source worksheet's variable instead.");
+               String reqKey = entry.getKey();
 
-               // L2-Group8: mirror VariableInputDialogService.initVariableInfos, which can
-               // only ever be invoked for a variable the worksheet actually declares (its
-               // VariableInfo list is generated from the worksheet's own variables). This
-               // agent endpoint takes a free-form map, so an unknown/misspelled key must be
-               // rejected loudly instead of silently doing nothing (CLAUDE.md tool-misuse
-               // guidance: a typo'd variable name must not report {ok:true}).
-               if(!(assembly instanceof DefaultVariableAssembly va) || va.getVariable() == null) {
+               // L2-Group8: this agent endpoint takes a free-form map, so an unknown/misspelled
+               // key must be rejected loudly instead of silently doing nothing (CLAUDE.md
+               // tool-misuse guidance: a typo'd variable name must not report {ok:true}).
+               AssetVariable declared = resolveSettableVariable(ws, reqKey);
+
+               // A runtime value is read by the variable's own name (parameter.RATE), which
+               // differs from the declaring assembly's name for a mirrored variable
+               // (mirror M_RATE / hidden copy OUTER1_0 declare variable RATE).
+               String vname = declared.getName();
+               String previous = resolvedKeys.put(vname, reqKey);
+
+               if(previous != null) {
                   throw new PairingException(
-                     "Unknown variable: '" + vname + "'. set_variable_values can only set " +
-                     "values for variables that already exist in this worksheet " +
-                     "(use add_variable to create one first).");
+                     "variableValues['" + previous + "'] and variableValues['" + reqKey +
+                     "'] both set variable '" + vname + "'. Supply only one of them.");
                }
 
-               AssetVariable declared = va.getVariable();
                Object rawValue = entry.getValue();
 
                // WBS-029: rawValue is either a plain String (single value, unchanged path) or
@@ -4213,6 +4214,71 @@ public class WorksheetAgentController {
          box.reset();
          return null;
       });
+   }
+
+   /**
+    * Resolves a {@code variableValues} key to the variable it sets. An assembly named
+    * {@code key} wins; otherwise the key is matched against the variable names declared by
+    * the worksheet's variable assemblies, including mirrored ones, whose assembly names
+    * differ from the variable's own name.
+    */
+   private static AssetVariable resolveSettableVariable(Worksheet ws, String key)
+      throws PairingException
+   {
+      if(ws.getAssembly(key) instanceof VariableAssembly va && isNamedVariable(va)) {
+         return va.getVariable();
+      }
+
+      List<VariableAssembly> matches = new ArrayList<>();
+      TreeSet<String> settable = new TreeSet<>();
+
+      for(Assembly a : ws.getAssemblies()) {
+         if(a instanceof VariableAssembly va && isNamedVariable(va)) {
+            settable.add(va.getVariable().getName());
+
+            if(key.equals(va.getVariable().getName())) {
+               matches.add(va);
+            }
+         }
+      }
+
+      if(matches.isEmpty()) {
+         throw new PairingException(
+            "Unknown variable: '" + key + "'. set_variable_values can only set values for " +
+            "variables declared in this worksheet, including mirrored ones" +
+            (settable.isEmpty() ? " (this worksheet declares none)." :
+             "; settable variables: " + String.join(", ", settable) + "."));
+      }
+
+      AssetVariable first = matches.get(0).getVariable();
+
+      for(VariableAssembly other : matches) {
+         AssetVariable v = other.getVariable();
+
+         if(v.getDisplayStyle() != first.getDisplayStyle() ||
+            !Objects.equals(variableType(v), variableType(first)))
+         {
+            StringBuilder names = new StringBuilder();
+
+            for(VariableAssembly m : matches) {
+               names.append(names.length() > 0 ? ", " : "").append(m.getName());
+            }
+
+            throw new PairingException(
+               "Variable '" + key + "' is declared with different types or display styles by " +
+               names + "; set_variable_values cannot tell which one to apply.");
+         }
+      }
+
+      return first;
+   }
+
+   private static boolean isNamedVariable(VariableAssembly va) {
+      return va.getVariable() != null && va.getVariable().getName() != null;
+   }
+
+   private static String variableType(AssetVariable v) {
+      return v.getTypeNode() == null ? null : v.getTypeNode().getType();
    }
 
    /**
