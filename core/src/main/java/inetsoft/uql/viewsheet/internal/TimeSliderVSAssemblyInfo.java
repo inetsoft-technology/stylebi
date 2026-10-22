@@ -853,12 +853,14 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
    }
 
    /**
-    * Get the padding the slider body reads, none for an ad hoc filter.
+    * Get the padding the slider body reads, none for an ad hoc filter, and none for an unmarked
+    * slider unless its author set one.
     */
    public Insets getBodyPadding() {
       Insets padding = getPadding();
 
-      if(isAdhocFilter() || padding == null) {
+      // an unmarked slider's stored format.css padding was never drawn
+      if(isAdhocFilter() || padding == null || getVizMark() == null && !isUserPadding()) {
          return new Insets(0, 0, 0, 0);
       }
 

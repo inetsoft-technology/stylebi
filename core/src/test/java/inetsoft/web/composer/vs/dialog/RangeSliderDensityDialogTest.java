@@ -171,6 +171,31 @@ class RangeSliderDensityDialogTest {
       assertEquals(new Insets(16, 16, 16, 16), written.getPadding());
    }
 
+   // a format.css padding on a legacy slider stays unclaimed
+   @Test
+   void anUnmarkedSlidersUntouchedApplyStoresNothing() throws Exception {
+      TimeSliderVSAssemblyInfo info = slider(null);
+      info.setPadding(new Insets(5, 5, 5, 5));
+      TimeSliderVSAssemblyInfo written = write(read());
+
+      assertFalse(written.isUserPadding());
+      assertFalse(written.isUserSize());
+      assertEquals(new Insets(5, 5, 5, 5), written.getPadding());
+      assertEquals(new Dimension(200, 40), written.getPixelSize());
+   }
+
+   // a seeded height off the tier's would move if the checkbox path ran
+   @Test
+   void aContainedSlidersApplyLeavesItsHeightToTheContainer() throws Exception {
+      TimeSliderVSAssemblyInfo info = slider(VizMark.MODERN_LIGHT);
+      info.setPixelSize(new Dimension(300, 66));
+      when(assembly.getContainer()).thenReturn(mock(CurrentSelectionVSAssembly.class));
+      TimeSliderVSAssemblyInfo written = write(read());
+
+      assertEquals(new Dimension(300, 66), written.getPixelSize());
+      assertFalse(written.isUserSize());
+   }
+
    @Test
    void anAuthorPaddingIsStored() throws Exception {
       slider(VizMark.MODERN_LIGHT);

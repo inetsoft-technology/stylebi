@@ -23,6 +23,8 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.util.DataSpace;
+import inetsoft.util.css.CSSDictionary;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -33,6 +35,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Dimension;
 import java.awt.Insets;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -67,6 +70,52 @@ class RangeSliderDensityTest {
       info.setVizMark(null);
       info.initDefaultFormat();
       assertEquals(new Insets(0, 0, 0, 0), info.getPadding());
+   }
+
+   // a format.css padding is stored on creation; legacy renderers never drew it
+   @Test
+   void anUnmarkedSliderDrawsNoStoredPadding() {
+      TimeSliderVSAssemblyInfo info = new TimeSliderVSAssemblyInfo();
+      info.setVizMark(null);
+      info.initDefaultFormat();
+      info.setPadding(new Insets(5, 5, 5, 5));
+      assertEquals(new Insets(0, 0, 0, 0), info.getBodyPadding());
+   }
+
+   @Test
+   void anUnmarkedSliderDrawsItsAuthorPadding() {
+      TimeSliderVSAssemblyInfo info = new TimeSliderVSAssemblyInfo();
+      info.setVizMark(null);
+      info.initDefaultFormat();
+      info.setPadding(new Insets(5, 5, 5, 5));
+      info.setUserPadding(true);
+      assertEquals(new Insets(5, 5, 5, 5), info.getBodyPadding());
+   }
+
+   @Test
+   void aMarkedSliderKeepsAFormatCssPadding() throws Exception {
+      CSSDictionary.resetDictionaryCache();
+      DataSpace.getDataSpace().withOutputStream(
+         "portal", "format.css",
+         out -> out.write("RangeSlider { padding: 5px; }".getBytes(StandardCharsets.UTF_8)));
+      CSSDictionary.resetDictionaryCache();
+
+      try {
+         TimeSliderVSAssemblyInfo info = marked("comfortable");
+         assertEquals(new Insets(5, 5, 5, 5), info.getPadding());
+         assertEquals(new Insets(5, 5, 5, 5), info.getBodyPadding());
+      }
+      finally {
+         // reset before deleting, so the dictionary's file listener cannot recreate it
+         CSSDictionary.resetDictionaryCache();
+         DataSpace space = DataSpace.getDataSpace();
+
+         if(space.exists("portal", "format.css")) {
+            space.delete("portal", "format.css");
+         }
+
+         CSSDictionary.resetDictionaryCache();
+      }
    }
 
    @Test
