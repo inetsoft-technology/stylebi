@@ -193,7 +193,8 @@ public class ScriptExecuteService {
     * form does not hold every script effect (sandbox variables, selection state), so such a run
     * is treated as a read. It is also not free of fetch side effects: a chart's first data fetch
     * fills in inferred column metadata, so that first read can still add one checkpoint; later
-    * reads add none.</p>
+    * reads add none. When the viewsheet cannot be serialized the run counts as a change, which is
+    * the checkpoint-after-every-run behavior of Bug #78662.</p>
     */
    private ScriptExecResult execute(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {
       String before = viewsheetXml(rvs.getViewsheet());
@@ -204,7 +205,9 @@ public class ScriptExecuteService {
       finally {
          Viewsheet vs = rvs.getViewsheet();
 
-         if(vs != null && !viewsheetXml(vs).equals(before)) {
+         String after = viewsheetXml(vs);
+
+         if(vs != null && (before == null || after == null || !before.equals(after))) {
             rvs.addCheckpoint(vs.prepareCheckpoint());
             rvs.bumpWriteRevision();
          }
@@ -215,25 +218,34 @@ public class ScriptExecuteService {
     * The viewsheet's serialized form without the runtime-only chart fields, which a chart's first
     * data fetch fills in and an undo restore regenerates. Works on a copy: serializing the live
     * viewsheet would shrink it as a side effect.
+    *
+    * @return the serialized form, or {@code null} when the viewsheet is null or cannot be
+    *         serialized.
     */
    private static String viewsheetXml(Viewsheet vs) {
       if(vs == null) {
          return null;
       }
 
-      Viewsheet copy = vs.prepareCheckpoint();
+      try {
+         Viewsheet copy = vs.prepareCheckpoint();
 
-      for(Assembly assembly : copy.getAssemblies()) {
-         if(assembly instanceof ChartVSAssembly chart) {
-            chart.getVSChartInfo().clearRuntime();
+         for(Assembly assembly : copy.getAssemblies()) {
+            if(assembly instanceof ChartVSAssembly chart) {
+               chart.getVSChartInfo().clearRuntime();
+            }
          }
-      }
 
-      StringWriter out = new StringWriter();
-      PrintWriter writer = new PrintWriter(out);
-      copy.writeXML(writer);
-      writer.flush();
-      return out.toString();
+         StringWriter out = new StringWriter();
+         PrintWriter writer = new PrintWriter(out);
+         copy.writeXML(writer);
+         writer.flush();
+         return out.toString();
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Could not serialize the viewsheet to detect script changes", ex);
+         return null;
+      }
    }
 
    private ScriptExecResult executeScript(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {

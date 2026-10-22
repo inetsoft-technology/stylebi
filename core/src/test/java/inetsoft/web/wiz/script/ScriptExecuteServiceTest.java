@@ -927,6 +927,45 @@ class ScriptExecuteServiceTest {
       verify(rvs, never()).bumpWriteRevision();
    }
 
+   /** If the viewsheet cannot be serialized before the run, the script still runs and the run counts as a change. */
+   @Test
+   void runLiveStillRunsAndCheckpointsWhenSerializingBeforeTheRunFails() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq("1 + 1"), nullable(String.class))).thenReturn(2.0);
+      RuntimeViewsheet rvs = viewsheetWithScript("1 + 1", scope);
+      Viewsheet vs = spy(rvs.getViewsheet());
+      when(rvs.getViewsheet()).thenReturn(vs);
+      doThrow(new IllegalStateException("cannot serialize")).doCallRealMethod()
+         .when(vs).prepareCheckpoint();
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+
+      assertEquals(2.0, result.value());
+      verify(rvs).addCheckpoint(any());
+      verify(rvs).bumpWriteRevision();
+   }
+
+   /** If serializing fails after a script that threw, the script's own failure is still reported and the run still checkpoints. */
+   @Test
+   void runLiveReportsTheScriptFailureAndCheckpointsWhenSerializingAfterTheRunFails() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      IllegalStateException failure = new IllegalStateException("script failed");
+      when(scope.execute(eq("1 + 1"), nullable(String.class))).thenThrow(failure);
+      RuntimeViewsheet rvs = viewsheetWithScript("1 + 1", scope);
+      Viewsheet vs = spy(rvs.getViewsheet());
+      when(rvs.getViewsheet()).thenReturn(vs);
+      doCallRealMethod().doThrow(new IllegalStateException("cannot serialize")).doCallRealMethod()
+         .when(vs).prepareCheckpoint();
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+
+      assertFalse(result.ok());
+      verify(rvs).addCheckpoint(any());
+      verify(rvs).bumpWriteRevision();
+   }
+
    /** A run refused for needing confirmation executes nothing, so it adds no checkpoint. */
    @Test
    void aRunRefusedForNeedingConfirmationAddsNoCheckpoint() throws Exception {

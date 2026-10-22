@@ -70,7 +70,7 @@ import static org.mockito.Mockito.when;
 /**
  * Bug #79051: a script run adds an undo checkpoint only when it changed the viewsheet. Runs the
  * real {@link ScriptExecuteService} against a real {@link RuntimeViewsheet} holding a chart over
- * a JDBC table (same fixture as ScriptExecuteServiceChangeDetectionTest), so the data-read case exercises
+ * a JDBC table (same fixture as ChartScriptWriteDataCacheTest), so the data-read case exercises
  * the real chart query.
  */
 @ExtendWith(SpringExtension.class)
@@ -199,6 +199,7 @@ class ScriptExecuteServiceChangeDetectionTest {
       assertEquals(size, rvs.size());
       assertEquals(size - 1, rvs.getCurrent());
       assertEquals(revision, rvs.getWriteRevision());
+      assertTrue(chartInfo().getRTXFields().length > 0, "the live chart keeps its runtime refs");
    }
 
    @Test
@@ -266,6 +267,10 @@ class ScriptExecuteServiceChangeDetectionTest {
    /** The first data fetch fills in chart metadata, so it is the one read that can add a checkpoint. */
    private void warmChart() throws Exception {
       assertTrue(run(DATA_READ).ok());
+   }
+
+   private VSChartInfo chartInfo() {
+      return ((ChartVSAssembly) rvs.getViewsheet().getAssembly(CHART)).getVSChartInfo();
    }
 
    private void install(String script) {
