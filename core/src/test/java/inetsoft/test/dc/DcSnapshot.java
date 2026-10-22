@@ -23,29 +23,25 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Compares generated text with a reviewed snapshot kept under {@code src/test/resources}.
+ * Compares generated lines with a reviewed snapshot kept under {@code src/test/resources}.
  *
  * <p>A mismatch fails with the differing lines. Run with {@code -Ddc.snapshot.update=true} to
- * rewrite the snapshot instead, then review the change with {@code git diff}. A missing
- * snapshot fails too, so CI never creates one by itself.</p>
+ * rewrite the snapshot instead (in the surefire time zone, America/New_York), then review the
+ * change with {@code git diff}. A missing snapshot fails, so CI never creates one by itself.</p>
  */
 public final class DcSnapshot {
    public static final String UPDATE_PROPERTY = "dc.snapshot.update";
-   private static final int MAX_DIFF_LINES = 30;
 
    private DcSnapshot() {
    }
 
-   /**
-    * @param resource the snapshot path relative to {@code src/test/resources}.
-    * @param actual   the generated lines.
-    */
+   /** @param resource the snapshot path relative to {@code src/test/resources}. */
    public static void verify(String resource, List<String> actual) {
       String text = String.join("\n", actual) + "\n";
 
@@ -54,36 +50,26 @@ public final class DcSnapshot {
          return;
       }
 
-      List<String> expected = read(resource);
-
-      if(expected == null) {
-         fail("Missing snapshot " + resource + "; run with -D" + UPDATE_PROPERTY +
-              "=true and review the new file");
-      }
-
-      List<String> diff = diff(expected, actual);
-
-      if(!diff.isEmpty()) {
-         fail("Snapshot " + resource + " differs, run with -D" + UPDATE_PROPERTY +
-              "=true to accept (in the surefire time zone, America/New_York):\n" +
-              String.join("\n", diff));
-      }
-   }
-
-   private static List<String> read(String resource) {
       try(InputStream in = DcSnapshot.class.getClassLoader().getResourceAsStream(resource)) {
          if(in == null) {
-            return null;
+            fail("Missing snapshot " + resource + "; run with -D" + UPDATE_PROPERTY +
+                 "=true and review the new file");
          }
 
-         String text = new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
-         List<String> lines = new ArrayList<>(List.of(text.split("\n", -1)));
+         // a line-by-line comparison names the first line that differs
+         String expected = new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
+         assertEquals(expected.split("\n", -1).length, text.split("\n", -1).length,
+                      "number of lines in " + resource + " (run with -D" + UPDATE_PROPERTY +
+                      "=true to accept)");
 
-         if(!lines.isEmpty() && lines.get(lines.size() - 1).isEmpty()) {
-            lines.remove(lines.size() - 1);
+         String[] expectedLines = expected.split("\n", -1);
+         String[] actualLines = text.split("\n", -1);
+
+         for(int i = 0; i < expectedLines.length; i++) {
+            assertEquals(expectedLines[i], actualLines[i],
+                         resource + " line " + (i + 1) + " (run with -D" + UPDATE_PROPERTY +
+                         "=true to accept)");
          }
-
-         return lines;
       }
       catch(IOException ex) {
          throw new UncheckedIOException(ex);
@@ -93,39 +79,13 @@ public final class DcSnapshot {
    private static void write(String resource, String text) {
       try {
          // surefire runs in a work directory, so go by the module directory it reports
-         Path module = Path.of(System.getProperty("basedir", "."));
-         Path path = module.resolve(Path.of("src", "test", "resources", resource));
+         Path path = Path.of(System.getProperty("basedir", "."))
+            .resolve(Path.of("src", "test", "resources", resource));
          Files.createDirectories(path.getParent());
          Files.writeString(path, text, StandardCharsets.UTF_8);
       }
       catch(IOException ex) {
          throw new UncheckedIOException(ex);
       }
-   }
-
-   /** The first differing line and the number of differing lines. */
-   private static List<String> diff(List<String> expected, List<String> actual) {
-      List<String> diff = new ArrayList<>();
-      int n = Math.max(expected.size(), actual.size());
-      int count = 0;
-
-      for(int i = 0; i < n; i++) {
-         String e = i < expected.size() ? expected.get(i) : null;
-         String a = i < actual.size() ? actual.get(i) : null;
-
-         if(e == null ? a != null : !e.equals(a)) {
-            if(count++ < MAX_DIFF_LINES) {
-               diff.add("line " + (i + 1) + "\n  expected: " + e + "\n  actual:   " + a);
-            }
-         }
-      }
-
-      if(count > MAX_DIFF_LINES) {
-         diff.add("... " + (count - MAX_DIFF_LINES) + " more differing lines (" + expected.size() +
-                  " expected, " + actual.size() + " actual lines; a line inserted or removed " +
-                  "shifts everything after it)");
-      }
-
-      return diff;
    }
 }

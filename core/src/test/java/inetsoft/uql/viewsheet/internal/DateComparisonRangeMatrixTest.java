@@ -63,7 +63,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *   year, a spill into the next year), no requested period without days (for Compare All), no
  *   day past the End Date for All / To Date intervals. A violation fails
  *   {@link #noInvariantViolations}; a requested period without days under another interval is
- *   only marked {@code ?I2} in the combination's description and is not asserted.</li>
+ *   not asserted.</li>
  *   <li>The <b>model</b> of the dialog wording ({@link #keptDaysMatchTheDialogWording}) and
  *   <b>hand-computed anchors</b> ({@link #handComputedAnchors}).</li>
  *   <li>A <b>snapshot of the derived grouping shape</b> of every shape (week alignment, series,
@@ -292,14 +292,7 @@ class DateComparisonRangeMatrixTest {
    @Test
    void noInvariantViolations() {
       List<String> violations = new ArrayList<>();
-
-      for(DcShape shape : DcShape.all()) {
-         for(String line : variantLines(shape)) {
-            if(line.contains(" !") || line.startsWith("!") || line.contains("ERROR")) {
-               violations.add(shape + ": " + line);
-            }
-         }
-      }
+      DcShape.all().forEach(shape -> violations.addAll(violations(shape)));
 
       assertTrue(violations.isEmpty(),
                  violations.size() + " violations, first:\n" +
@@ -399,92 +392,22 @@ class DateComparisonRangeMatrixTest {
                       shape, variant("2021-01-02", false, true))));
    }
 
-   // -- one description per combination ---------------------------------------------------------------------------
-
-   private static final Map<String, List<String>> LINES = new java.util.concurrent.ConcurrentHashMap<>();
-
-   /** The descriptions of the combinations of a shape, computed once, for the invariant test. */
-   private static List<String> variantLines(DcShape shape) {
-      return LINES.computeIfAbsent(shape.id(), id -> computeVariantLines(shape));
-   }
-
-   private static List<String> computeVariantLines(DcShape shape) {
-      List<String> lines = new ArrayList<>();
-      lines.add("# " + shape.id());
-
-      for(String weekStart : WEEK_STARTS) {
-         lines.add("[ws=" + weekStart + "]");
-         WeekStartUtil.withWeekStart(weekStart, () -> {
-            if(shape.isCustom()) {
-               addCustomLines(shape, lines);
-            }
-            else {
-               addStandardLines(shape, lines, weekStart);
-            }
-         });
-      }
-
-      return lines;
-   }
-
-   private static void addStandardLines(DcShape shape, List<String> lines, String weekStart) {
-      // toDate and inclusive both off / both on at every End Date, the mixed pairs at two
-      for(String end : END_DAYS) {
-         for(boolean both : new boolean[] { false, true }) {
-            addPair(shape, lines, end, both, both, 2, true);
-         }
-      }
-
-      for(String end : new String[] { "2021-01-02", DATATEST_END }) {
-         addPair(shape, lines, end, false, true, 2, true);
-         addPair(shape, lines, end, true, false, 2, true);
-      }
-
-      // the number of periods back
-      for(int preCount : new int[] { 1, 3 }) {
-         addPair(shape, lines, DATATEST_END, false, false, preCount, true);
-      }
-
-      // an interval whose own End Date is not included
-      if(shape.isToDate()) {
-         for(String end : new String[] { "2021-01-02", DATATEST_END }) {
-            addPair(shape, lines, end, false, false, 2, false);
-         }
-      }
-   }
-
-   /**
-    * The Value line and the Change line of one setting. Change fetches one more earlier period,
-    * so when its periods are the Value periods plus earlier ones only the extra ones are
-    * written, after a {@code +}.
-    */
-   private static void addPair(DcShape shape, List<String> lines, String end, boolean toDate,
-                               boolean inclusive, int preCount, boolean intervalInclusive)
-   {
-      Line value = variantParts(shape, variant(end, toDate, inclusive, DateComparisonInfo.VALUE,
-                                               preCount, intervalInclusive));
-      Line change = variantParts(shape, variant(end, toDate, inclusive, DateComparisonInfo.CHANGE,
-                                                preCount, intervalInclusive));
-      lines.add(value.render(null));
-      lines.add(change.render(value.periods()));
-   }
-
-   private static void addCustomLines(DcShape shape, List<String> lines) {
-      for(String[][] periods : CUSTOM_PERIODS) {
-         lines.add(customLine(shape, periods));
-      }
-   }
+   // -- invariants of every combination ---------------------------------------------------
 
    private static final String[][][] CUSTOM_PERIODS = {
       { { "2019-01-01", "2019-03-31" }, { "2020-01-01", "2020-03-31" } },
       { { "2020-12-28", "2021-01-10" }, { "2021-02-01", "2021-02-28" } },
       { { "2020-02-27", "2020-03-02" }, { "2021-02-27", "2021-03-02" } } };
 
-   // -- one variant -----------------------------------------------------------------------
-
    private record Variant(String endDay, boolean toDate, boolean inclusive, int option,
                           int preCount, boolean intervalInclusive)
    {
+      @Override
+      public String toString() {
+         return "end=" + endDay + " td=" + toDate + " inc=" + inclusive +
+            " opt=" + (option == DateComparisonInfo.VALUE ? "val" : "chg") + " pre=" + preCount +
+            (intervalInclusive ? "" : " intInc=false");
+      }
    }
 
    private static Variant variant(String endDay, boolean toDate, boolean inclusive) {
@@ -511,110 +434,85 @@ class DateComparisonRangeMatrixTest {
                           v.intervalInclusive());
    }
 
-   /** The parts of a variant's line. */
-   private record Line(String head, List<String> periods, String tail) {
-      /** With {@code valuePeriods}, a period list that only adds earlier periods is shortened. */
-      String render(List<String> valuePeriods) {
-         List<String> shown = periods;
-         String mark = "";
+   /** The settings a Standard Periods shape is checked with, each as Value and as Change. */
+   private static List<Variant> variants(DcShape shape) {
+      List<Variant> list = new ArrayList<>();
+      int[] options = { DateComparisonInfo.VALUE, DateComparisonInfo.CHANGE };
 
-         if(valuePeriods != null && !valuePeriods.isEmpty() && periods.size() > valuePeriods.size() &&
-            periods.subList(periods.size() - valuePeriods.size(), periods.size())
-               .equals(valuePeriods))
-         {
-            shown = periods.subList(0, periods.size() - valuePeriods.size());
-            mark = " +";
+      for(int option : options) {
+         // toDate and inclusive both off / both on at every End Date, the mixed pairs at two
+         for(String end : END_DAYS) {
+            for(boolean both : new boolean[] { false, true }) {
+               list.add(variant(end, both, both, option, 2, true));
+            }
          }
 
-         StringBuilder line = new StringBuilder(head).append(mark);
+         for(String end : new String[] { "2021-01-02", DATATEST_END }) {
+            list.add(variant(end, false, true, option, 2, true));
+            list.add(variant(end, true, false, option, 2, true));
 
-         for(String period : shown) {
-            line.append(" | ").append(period);
+            // an interval whose own End Date is not included
+            if(shape.isToDate()) {
+               list.add(variant(end, false, false, option, 2, false));
+            }
          }
 
-         return line.append(tail).toString();
+         // the number of periods back
+         for(int preCount : new int[] { 1, 3 }) {
+            list.add(variant(DATATEST_END, false, false, option, preCount, true));
+         }
       }
+
+      return list;
    }
 
-   /** The periods the variant selects, then any violated invariant. */
-   private static Line variantParts(DcShape shape, Variant v) {
-      StringBuilder head = new StringBuilder();
-      head.append("end=").append(v.endDay())
-         .append(" td=").append(v.toDate() ? "on" : "off")
-         .append(" inc=").append(v.inclusive() ? "on" : "off")
-         .append(" opt=").append(v.option() == DateComparisonInfo.VALUE ? "val" : "chg");
+   /** What breaks an invariant in the combinations of a shape, with both first days of week. */
+   private static List<String> violations(DcShape shape) {
+      List<String> found = new ArrayList<>();
 
-      if(v.preCount() != 2) {
-         head.append(" pre=").append(v.preCount());
+      for(String weekStart : WEEK_STARTS) {
+         WeekStartUtil.withWeekStart(weekStart, () -> {
+            if(shape.isCustom()) {
+               for(String[][] ranges : CUSTOM_PERIODS) {
+                  customViolation(shape, ranges).ifPresent(v -> found.add(shape + " " + weekStart + ": " + v));
+               }
+            }
+            else {
+               for(Variant v : variants(shape)) {
+                  for(String violation : violations(shape, v)) {
+                     found.add(shape + " " + weekStart + " " + v + ": " + violation);
+                  }
+               }
+            }
+         });
       }
 
-      if(!v.intervalInclusive()) {
-         head.append(" intInc=off");
-      }
+      return found;
+   }
 
-      DateComparisonInfo dc = info(shape, v);
-      head.append(" start=").append(DcPeriods.toLocal(dc.getStartDate()));
-
+   private static List<String> violations(DcShape shape, Variant v) {
       List<LocalDate> days;
 
       try {
-         days = DcDays.kept(dc);
+         days = DcDays.kept(info(shape, v));
       }
       catch(RuntimeException ex) {
-         return new Line(head.toString(), List.of(),
-                         " ERROR " + ex);
+         return List.of("ERROR " + ex);
       }
 
       DcPeriods periods = new DcPeriods(shape.periodLevel());
       boolean aligned = aligned(shape);
-      TreeMap<Long, List<LocalDate>> byPeriod = new TreeMap<>();
+      Map<Long, List<LocalDate>> byPeriod = new TreeMap<>();
 
       for(LocalDate day : days) {
          byPeriod.computeIfAbsent(periods.ordinal(aligned ? periods.weekStart(day) : day),
                                   k -> new ArrayList<>()).add(day);
       }
 
-      List<String> texts = new ArrayList<>();
-
-      for(Map.Entry<Long, List<LocalDate>> e : byPeriod.entrySet()) {
-         texts.add(periods.label(e.getKey()) + " " + summary(e.getValue(), periods));
-      }
-
-      StringBuilder tail = new StringBuilder();
-      invariants(shape, v, aligned, periods, byPeriod, days).forEach(
-         violation -> tail.append(violation.startsWith("?") ? " " : " !").append(violation));
-
-      return new Line(head.toString(), texts, tail.toString());
-   }
-
-   /** first..last (the year of the last day only when it differs), weeks, days, gaps if any. */
-   private static String summary(List<LocalDate> days, DcPeriods periods) {
-      LocalDate first = days.get(0);
-      LocalDate last = days.get(days.size() - 1);
-      long weeks = days.stream().map(periods::weekStart).distinct().count();
-      long gaps = last.toEpochDay() - first.toEpochDay() + 1 - days.size();
-
-      String range = first.getYear() == last.getYear() ?
-         first + ".." + last.toString().substring(5) : first + ".." + last;
-
-      return range + " " + weeks + "w" + days.size() + "d" + (gaps > 0 ? " g" + gaps : "");
-   }
-
-   /**
-    * Hard violations start with {@code !} and fail {@link #noInvariantViolations}; a {@code ?}
-    * marks a requested period without days under an interval where that can be legitimate
-    * (the Nth week of a month that has no Nth week) and is not asserted.
-    */
-   private static List<String> invariants(DcShape shape, Variant v, boolean aligned,
-                                          DcPeriods periods, Map<Long, List<LocalDate>> byPeriod,
-                                          List<LocalDate> days)
-   {
       List<String> violations = new ArrayList<>();
       LocalDate end = LocalDate.parse(v.endDay());
-      LocalDate anchor = aligned ? periods.weekStart(end) : end;
-      long current = periods.ordinal(anchor);
-      int back = v.preCount() + (v.option() == DateComparisonInfo.VALUE ? 0 : 1);
-      long first = current - back;
+      long current = periods.ordinal(aligned ? periods.weekStart(end) : end);
+      long first = current - v.preCount() - (v.option() == DateComparisonInfo.VALUE ? 0 : 1);
       long last = v.inclusive() ? current : current - 1;
 
       // I1: nothing outside the requested periods (no extra period, no spill into the next one).
@@ -629,11 +527,13 @@ class DateComparisonRangeMatrixTest {
          }
       }
 
-      // I2: every requested period has days
-      for(long ordinal = first; ordinal <= last; ordinal++) {
+      // I2: Compare All has days in every requested period. Other intervals can legitimately
+      // have none (the Nth week of a month that has no Nth week), or may be Bug #79061.
+      for(long ordinal = first; ordinal <= last && shape.intervalLevel() == DateComparisonInfo.ALL;
+          ordinal++)
+      {
          if(!byPeriod.containsKey(ordinal)) {
-            violations.add((shape.intervalLevel() == DateComparisonInfo.ALL ? "I2" : "?I2") +
-                           " empty " + periods.label(ordinal));
+            violations.add("I2 empty " + periods.label(ordinal));
          }
       }
 
@@ -647,34 +547,28 @@ class DateComparisonRangeMatrixTest {
 
    // -- Custom Periods --------------------------------------------------------------------
 
-   private static String customLine(DcShape shape, String[][] ranges) {
-      StringBuilder line = new StringBuilder("custom");
-
-      for(String[] range : ranges) {
-         line.append(' ').append(range[0]).append("..").append(range[1]);
-      }
-
+   private static Optional<String> customViolation(DcShape shape, String[][] ranges) {
       Set<LocalDate> expected = expectedCustomDays(ranges);
-      List<LocalDate> days;
+      Set<LocalDate> days;
 
       try {
-         days = customDays(shape.granularity(), ranges);
+         days = new TreeSet<>(customDays(shape.granularity(), ranges));
       }
       catch(RuntimeException ex) {
-         return line + " ERROR " + ex;
+         return Optional.of("ERROR " + ex);
       }
 
-      line.append(" -> ").append(days.size()).append("d");
-
-      if(!new TreeSet<>(days).equals(expected)) {
-         Set<LocalDate> missing = new TreeSet<>(expected);
-         missing.removeAll(days);
-         Set<LocalDate> extra = new TreeSet<>(days);
-         extra.removeAll(expected);
-         line.append(" !C1 missing=").append(missing.size()).append(" extra=").append(extra.size());
+      if(days.equals(expected)) {
+         return Optional.empty();
       }
 
-      return line.toString();
+      Set<LocalDate> missing = new TreeSet<>(expected);
+      missing.removeAll(days);
+      Set<LocalDate> extra = new TreeSet<>(days);
+      extra.removeAll(expected);
+
+      return Optional.of("C1 " + Arrays.deepToString(ranges) + " missing " + missing.size() +
+                         ", extra " + extra.size());
    }
 
    /** Custom periods select exactly the days from each start to its end, both included. */
