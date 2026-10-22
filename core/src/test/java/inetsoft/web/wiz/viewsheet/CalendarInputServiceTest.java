@@ -427,6 +427,91 @@ class CalendarInputServiceTest {
       assertArrayEquals(two, CalendarDisplayService.reshapeForRangeToggle(two, true));
    }
 
+   private static List<String> reshapeEffects(String[] dates, boolean toPeriod) {
+      List<String> effects = new ArrayList<>();
+      CalendarDisplayService.describeReshape(dates,
+         CalendarDisplayService.reshapeForRangeToggle(dates, toPeriod), toPeriod, effects);
+      return effects;
+   }
+
+   /** Bug #79183: the same two tokens are a range in one mode and two periods in the other. */
+   @Test
+   void reportsARangeBecomingTwoPeriods() {
+      List<String> effects = reshapeEffects(new String[]{ "d2023-4-15", "d2023-5-30" }, true);
+
+      assertEquals(1, effects.size());
+      assertTrue(effects.get(0).contains("2023-05-15"), effects.get(0));
+      assertTrue(effects.get(0).contains("2023-06-30"), effects.get(0));
+      assertTrue(effects.get(0).contains("two separate periods"), effects.get(0));
+   }
+
+   @Test
+   void reportsTwoPeriodsBecomingARange() {
+      List<String> effects = reshapeEffects(new String[]{ "d2023-4-15", "d2023-5-30" }, false);
+
+      assertEquals(1, effects.size());
+      assertTrue(effects.get(0).contains("2023-05-15"), effects.get(0));
+      assertTrue(effects.get(0).contains("2023-06-30"), effects.get(0));
+      assertTrue(effects.get(0).contains("every day between"), effects.get(0));
+   }
+
+   /** Month tokens are whole months, so the wording must not say "one-day". */
+   @Test
+   void namesMonthTokensWithoutCallingThemDays() {
+      List<String> on = reshapeEffects(new String[]{ "m2023-4", "m2023-5" }, true);
+      List<String> off = reshapeEffects(new String[]{ "m2023-4", "m2023-5" }, false);
+
+      assertEquals(1, on.size());
+      assertEquals(1, off.size());
+      assertTrue(on.get(0).contains("2023-05") && on.get(0).contains("2023-06"), on.get(0));
+      assertFalse(on.get(0).contains("one-day"), on.get(0));
+      assertFalse(off.get(0).contains("one-day"), off.get(0));
+   }
+
+   @Test
+   void doesNotReportOtherUnchangedCounts() {
+      assertTrue(reshapeEffects(null, true).isEmpty());
+      assertTrue(reshapeEffects(new String[0], false).isEmpty());
+      // one date: ON clears it (the clear message), OFF keeps it as a one-day range, unreported
+      assertTrue(reshapeEffects(new String[]{ "d2023-4-15" }, false).isEmpty());
+   }
+
+   /** The cleared and reduced cases keep their own messages, with no second report. */
+   @Test
+   void keepsCountChangeMessagesWithoutADoubleReport() {
+      for(String[] dates : new String[][]{
+         { "d2023-4-15" },
+         { "d2023-4-15", "d2023-5-1", "d2023-5-10" },
+         { "d2023-4-15", "d2023-5-1", "d2023-5-10", "d2023-6-1" } })
+      {
+         List<String> effects = reshapeEffects(dates, true);
+         assertEquals(List.of("the selected dates were cleared"), effects);
+      }
+
+      List<String> four = reshapeEffects(
+         new String[]{ "d2023-4-15", "d2023-5-1", "d2023-5-10", "d2023-6-1" }, false);
+      assertEquals(1, four.size());
+      assertTrue(four.get(0).startsWith("the 4 period-comparison dates were reduced to a range"),
+                 four.get(0));
+
+      List<String> three = reshapeEffects(
+         new String[]{ "d2023-4-15", "d2023-5-1", "d2023-5-10" }, false);
+      assertEquals(1, three.size());
+      assertTrue(three.get(0).startsWith("the 3 period-comparison dates were reduced"),
+                 three.get(0));
+   }
+
+   /** Equal tokens select the same thing in both modes; reversed ones are named as given. */
+   @Test
+   void suppressesEqualDatesAndReportsReversedOnes() {
+      assertTrue(reshapeEffects(new String[]{ "d2023-4-15", "d2023-4-15" }, true).isEmpty());
+      assertTrue(reshapeEffects(new String[]{ "d2023-4-15", "d2023-4-15" }, false).isEmpty());
+
+      List<String> reversed = reshapeEffects(new String[]{ "d2023-5-30", "d2023-4-15" }, true);
+      assertEquals(1, reversed.size());
+      assertTrue(reversed.get(0).contains("2023-06-30") && reversed.get(0).contains("2023-05-15"));
+   }
+
    /** A lone range date cannot be split into two periods, which getConditionList would reject. */
    @Test
    void clearsALoneDateWhenTurningOnRangeComparison() {

@@ -133,7 +133,7 @@ public class CalendarDisplayService {
             CalendarVSAssemblyInfo current = (CalendarVSAssemblyInfo)
                requireCalendar(rvs, assemblyName).getVSAssemblyInfo();
             String[] dates = reshapeForRangeToggle(current.getDates(), plan.rangeValue());
-            describeReshape(current.getDates(), dates, plan.sideEffects());
+            describeReshape(current.getDates(), dates, plan.rangeValue(), plan.sideEffects());
 
             calendars.toggleRangeComparison(
                runtimeId, assemblyName,
@@ -459,10 +459,40 @@ public class CalendarDisplayService {
       return dates.length <= 2 ? dates : new String[] { dates[0], dates[dates.length - 1] };
    }
 
-   private static void describeReshape(String[] before, String[] after, List<String> sideEffects) {
+   /**
+    * Reports what the range-comparison toggle does to the selection beyond what
+    * {@link #reshapeForRangeToggle} changes in the array: a cleared selection, a period set reduced
+    * to a range, or, when the count is unchanged at two dates, the same two tokens read the other
+    * way. The toggle stores the tokens as they are and only flips the mode, and
+    * {@code CalendarVSAssembly.getConditionList} reads two tokens as one range (every day between
+    * them) in range mode but as two separate periods (a day, or a whole month or week for
+    * {@code m}/{@code w} tokens) in period mode, so the filter changes with the array.
+    *
+    * @param toPeriod true when range comparison is being turned on.
+    */
+   static void describeReshape(String[] before, String[] after, boolean toPeriod,
+                               List<String> sideEffects)
+   {
       int count = before == null ? 0 : before.length;
 
       if(count == after.length) {
+         // Equal tokens select the same thing in both modes, so there is nothing to report.
+         if(count == 2 && !Objects.equals(after[0], after[1])) {
+            String first = describeDate(after[0]);
+            String second = describeDate(after[1]);
+
+            if(toPeriod) {
+               sideEffects.add("the range from " + first + " to " + second + " now reads as two " +
+                               "separate periods, " + first + " and " + second + ", so the days " +
+                               "between them are no longer selected");
+            }
+            else {
+               sideEffects.add("the two periods " + first + " and " + second + " now read as one " +
+                               "continuous range from " + first + " to " + second + ", including " +
+                               "every day between them");
+            }
+         }
+
          return;
       }
 
