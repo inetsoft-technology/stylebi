@@ -549,6 +549,27 @@ class FormTableRowServiceTest {
       assertEquals(List.of("Some warning."), result.get("warnings"));
    }
 
+   /** Bug #79158: apply was the last bare mutate; its warnings (a failing table script) were dropped. */
+   @Test
+   void applySurfacesWarningsMutateReturned() throws Exception {
+      Harness h = harnessWithWarnings(tableWith(true, true, true, true),
+                                      List.of("Table 'Table1' script failed."));
+
+      Map<String, Object> result = h.service.apply("tok", principal(), "Table1", "");
+
+      assertEquals(true, result.get("applied"));
+      assertEquals(List.of("Table 'Table1' script failed."), result.get("warnings"));
+   }
+
+   @Test
+   void applyOmitsTheWarningsKeyWhenNothingWarned() throws Exception {
+      Harness h = harnessWith(tableWith(true, true, true, true));
+
+      Map<String, Object> result = h.service.apply("tok", principal(), "Table1", "");
+
+      assertFalse(result.containsKey("warnings"), result.toString());
+   }
+
    /** No `warnings` key at all when nothing warned -- not an empty list sitting in the response. */
    @Test
    void insertRowOmitsTheWarningsKeyWhenNothingWarned() throws Exception {

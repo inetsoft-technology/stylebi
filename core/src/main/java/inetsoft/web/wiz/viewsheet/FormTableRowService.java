@@ -232,7 +232,7 @@ public class FormTableRowService {
    {
       Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireWriteBack(rvs, assemblyName);
          // before applyChanges: writeBackFormData checks the source table first, so a design-mode
          // apply would otherwise be refused with the wrong reason (or NPE on the null lens)
@@ -260,6 +260,7 @@ public class FormTableRowService {
 
       result.put("assembly", assemblyName);
       result.put("applied", true);
+      putWarnings(result, warnings);
       return result;
    }
 
