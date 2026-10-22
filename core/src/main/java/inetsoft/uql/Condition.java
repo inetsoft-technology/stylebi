@@ -322,7 +322,7 @@ public class Condition extends AbstractCondition {
       Object val = values.get(index);
 
       return (val instanceof String) && ctype && op != DATE_IN ?
-         getObject(getType(), (String) val) : val;
+         getConditionObject(getType(), (String) val) : val;
    }
 
    /**
@@ -1845,7 +1845,7 @@ public class Condition extends AbstractCondition {
          val = Tool.toGregorianPersistentDate(val);
       }
 
-      return getObject(getType(), (val == null ? "" : val));
+      return getConditionObject(getType(), (val == null ? "" : val));
    }
 
    /**

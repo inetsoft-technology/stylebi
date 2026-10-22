@@ -326,9 +326,7 @@ public abstract class AbstractCondition implements XCondition {
     * finite non-integral number.
     */
    public static boolean isFractionalIntegralValue(String type, Object value) {
-      if(!XSchema.BYTE.equals(type) && !XSchema.SHORT.equals(type) &&
-         !XSchema.INTEGER.equals(type) && !XSchema.LONG.equals(type))
-      {
+      if(!isIntegralType(type)) {
          return false;
       }
 
@@ -339,6 +337,36 @@ public abstract class AbstractCondition implements XCondition {
 
       return value instanceof BigDecimal && ((BigDecimal) value).signum() != 0 &&
          ((BigDecimal) value).stripTrailingZeros().scale() > 0;
+   }
+
+   private static boolean isIntegralType(String type) {
+      return XSchema.BYTE.equals(type) || XSchema.SHORT.equals(type) ||
+         XSchema.INTEGER.equals(type) || XSchema.LONG.equals(type);
+   }
+
+   /**
+    * Get the typed value of a stored condition value. Same as {@link #getObject(String, String)}
+    * except that a fractional number is kept for an integral type instead of being truncated, so
+    * a saved condition such as {@code >= 4.5} on an integer column reads back as 4.5.
+    * @param type the data type of the condition.
+    * @param value a String containing the value.
+    * @return the typed value.
+    */
+   public static Object getConditionObject(String type, String value) {
+      if(value != null && isIntegralType(type)) {
+         try {
+            Double dval = Double.valueOf(value);
+
+            if(isFractionalIntegralValue(type, dval)) {
+               return dval;
+            }
+         }
+         catch(NumberFormatException ex) {
+            // not a number, parse as the type
+         }
+      }
+
+      return getObject(type, value);
    }
 
    /**

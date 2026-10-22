@@ -35,6 +35,7 @@ import inetsoft.uql.jdbc.XBinaryCondition;
 import inetsoft.uql.jdbc.XExpression;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +44,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.ByteArrayInputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -54,6 +58,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.sql.Types;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -307,6 +312,42 @@ class FractionalIntegralConditionTest {
 
       assertEquals(4.5, values[0]);
       assertEquals(6, values[1]);
+   }
+
+   private static Condition saveAndReload(Condition cond) throws Exception {
+      StringWriter buf = new StringWriter();
+      PrintWriter writer = new PrintWriter(buf);
+      cond.writeXML(writer);
+      writer.flush();
+
+      Condition loaded = new AssetCondition();
+      loaded.parseXML(Tool.parseXML(
+         new ByteArrayInputStream(buf.toString().getBytes(StandardCharsets.UTF_8)))
+                         .getDocumentElement());
+      return loaded;
+   }
+
+   @Test
+   void savedConditionKeepsFractionalValue() throws Exception {
+      for(String type : new String[] { XSchema.SHORT, XSchema.INTEGER, XSchema.LONG }) {
+         assertEquals(4.5, saveAndReload(condition(type, XCondition.GREATER_THAN, 4.5)).getValue(0),
+                      type);
+         assertEquals(-4.5, saveAndReload(condition(type, XCondition.LESS_THAN, -4.5)).getValue(0),
+                      type);
+      }
+   }
+
+   @Test
+   void savedConditionStillReadsWholeValueAsIntegerType() throws Exception {
+      assertEquals(5, saveAndReload(condition(XSchema.INTEGER, XCondition.GREATER_THAN, 5)).getValue(0));
+      assertEquals(5, saveAndReload(condition(XSchema.INTEGER, XCondition.GREATER_THAN, 5.0)).getValue(0));
+      assertEquals(4.5, saveAndReload(condition(XSchema.DOUBLE, XCondition.GREATER_THAN, 4.5)).getValue(0));
+   }
+
+   @Test
+   void storedStringValueKeepsFractionForIntegralType() {
+      assertEquals(4.5, condition(XSchema.INTEGER, XCondition.GREATER_THAN, "4.5").getValue(0));
+      assertEquals(4, condition(XSchema.INTEGER, XCondition.GREATER_THAN, "4").getValue(0));
    }
 
    /**
