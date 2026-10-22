@@ -413,6 +413,19 @@ describe("VSRangeSlider – density", () => {
       expect(comp.bodyInset).toEqual({ top: 0, left: 0, bottom: 0, right: 0 });
    });
 
+   // the inset box binds these four edges and no width or height
+   it("anchors the inset box at zero unmarked and at the padding when marked", () => {
+      const unmarked = createVSRangeSlider({
+         vizModern: false, padding: { top: 0, left: 0, bottom: 0, right: 0 },
+      }).comp.bodyInset;
+      expect(unmarked).toStrictEqual({ top: 0, left: 0, bottom: 0, right: 0 });
+
+      const marked = createVSRangeSlider({ vizModern: true, padding: pad }).comp.bodyInset;
+      expect(marked).toStrictEqual({ top: 16, left: 16, bottom: 16, right: 16 });
+      expect(marked).not.toHaveProperty("width");
+      expect(marked).not.toHaveProperty("height");
+   });
+
    it("uses the model padding as the inset", () => {
       const { comp } = createVSRangeSlider({ vizModern: true, padding: pad });
       expect(comp.bodyInset).toEqual(pad);
