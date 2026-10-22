@@ -159,6 +159,7 @@ public class CalcTableService {
       out.put("assembly", assemblyName);
       out.put("rowCount", layout.getRowCount());
       out.put("colCount", layout.getColCount());
+      out.put("headerRowCount", ((CalcTableVSAssemblyInfo) assembly.getInfo()).getHeaderRowCount());
       out.put("cells", cells);
       return out;
    }

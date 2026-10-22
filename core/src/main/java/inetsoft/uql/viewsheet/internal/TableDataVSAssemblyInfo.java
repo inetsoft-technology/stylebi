@@ -665,6 +665,25 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       colWidths2.put(path, width);
    }
 
+   /**
+    * Removes the width set for the columns sharing the data path of the column at {@code col}:
+    * the counterpart of {@link #setColumnWidthValue2}. {@link #setColumnWidthValue} with NaN
+    * clears only the per-index map, so it leaves a width that {@code setColumnWidthValue2}
+    * stored by path in place.
+    */
+   public void removeColumnWidthValue2(int col, XTable lens) {
+      TableDataPath path = lens == null ? null : lens.getDescriptor().getColDataPath(col);
+
+      if(path == null) {
+         setColumnWidthValue(col, Double.NaN);
+         return;
+      }
+
+      clearColWidths(lens, path);
+      rcolWidths2.remove(path);
+      colWidths2.remove(path);
+   }
+
    public void updateColumnWidthNames(String oldName, String newName) {
       updateColumnWidth(colWidths2, oldName, newName);
       updateColumnWidth(rcolWidths2, oldName, newName);

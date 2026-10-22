@@ -138,6 +138,8 @@ class TableBindingServiceAssemblyTypeTest {
                     (s, a) -> s.setColumnLabels(TOKEN, USER, a, Map.of("Region", "R"), null));
       endpoints.put("setColumnWidths",
                     (s, a) -> s.setColumnWidths(TOKEN, USER, a, Map.of("Region", 100.0)));
+      endpoints.put("setRowHeights", (s, a) -> s.setRowHeights(
+         TOKEN, USER, a, Map.of("0", 40.0), null, false, false));
       endpoints.put("setCrosstabColumnVisibility", (s, a) -> s.setCrosstabColumnVisibility(
          TOKEN, USER, a, List.of("Region"), null, false));
       endpoints.put("requireTableAssembly", (s, a) -> {
@@ -200,7 +202,9 @@ class TableBindingServiceAssemblyTypeTest {
       fixture.add(new CalcTableVSAssembly(fixture.vs, "Calc1"));
 
       for(Map.Entry<String, Endpoint> endpoint : endpoints().entrySet()) {
-         if("setSource".equals(endpoint.getKey())) {
+         if("setSource".equals(endpoint.getKey()) ||
+            "setColumnWidths".equals(endpoint.getKey()) ||
+            "setRowHeights".equals(endpoint.getKey())) {
             continue;
          }
 

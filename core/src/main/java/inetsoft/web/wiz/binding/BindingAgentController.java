@@ -776,6 +776,28 @@ public class BindingAgentController {
       return out;
    }
 
+   public record TableRowHeightRequest(String assembly, Map<String, Double> headerRows,
+                                       Double dataRowHeight, Boolean resetHeaderRows,
+                                       Boolean resetDataRowHeight) {}
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/row-height")
+   public Map<String, Object> setTableRowHeight(@PathVariable String sessionToken,
+                                                @RequestBody TableRowHeightRequest request,
+                                                Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      TableBindingService.TableWrite write = tableService.setRowHeights(
+         sessionToken, user, request.assembly(), request.headerRows(), request.dataRowHeight(),
+         Boolean.TRUE.equals(request.resetHeaderRows()),
+         Boolean.TRUE.equals(request.resetDataRowHeight()));
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("applied", write.applied());
+      ViewsheetSessionService.relayWarnings(out, write.warnings());
+
+      return out;
+   }
+
    public record TableColumnSortRequest(String assembly, String column, String direction) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/column-sort")
