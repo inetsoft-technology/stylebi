@@ -80,7 +80,7 @@ class DateComparisonCustomChangeTest {
    private static final int OVERLAPPING_SET = 4;
 
    /**
-    * Bug #79061 finding 8: with Change, the units of a range that the next range has no unit for
+    * Bug #79140 finding 1: with Change, the units of a range that the next range has no unit for
     * (the 6th week of March 2019 against 5 in March 2020; January 30 and 31 against February's
     * 29 days) are missing from the data set; with Value they are there.
     */
@@ -150,7 +150,7 @@ class DateComparisonCustomChangeTest {
    }
 
    @Test
-   @Disabled("Bug #79061 (finding 8): Change drops the units of an earlier range that the next range has no unit for")
+   @Disabled("Bug #79140 (finding 1): Change drops the units of an earlier range that the next range has no unit for")
    void changeKeepsTheUnitsOfAnEarlierLongerRange() {
       // January 1-31 and February 1-29 by day: January 30 and 31 have no counterpart
       List<String> problems = problems(new Case(3, DateComparisonInfo.DAY, "sunday",
@@ -160,7 +160,7 @@ class DateComparisonCustomChangeTest {
    }
 
    @Test
-   @Disabled("Bug #79061 (finding 9): the days two overlapping Custom Periods share belong to the first one only")
+   @Disabled("Bug #79140 (finding 2): the days two overlapping Custom Periods share belong to the first one only")
    void overlappingRangesEachKeepTheirDays() {
       // Jan 1 - Mar 31 and Feb 15 - May 15: the second range loses Feb 15 - Mar 31, with Value too
       List<String> problems = problems(new Case(OVERLAPPING_SET, DateComparisonInfo.ALL, "sunday",
