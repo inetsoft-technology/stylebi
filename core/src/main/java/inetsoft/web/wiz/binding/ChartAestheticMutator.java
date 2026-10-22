@@ -976,7 +976,8 @@ public final class ChartAestheticMutator {
     * — so shipping an empty array does not leave the pins alone, it deletes them. Every frame
     * write on a shared channel therefore has to restate them, whether or not it is about pins at
     * all, which is what carrying them forward here is for. A {@code mapping} in the spec is merged
-    * on top rather than replacing them; see {@link #mergePins}.
+    * on top rather than replacing them, whether sharing ends up on or off and whichever it was
+    * before; see {@link #mergePins}.
     *
     * <p>The read side supplies them: {@code VSChartBindingFactory.applyColorsToFrame} populates
     * {@code globalColorMaps} from {@code viewsheet.getDimensionColors(...)} when {@code createModel}
@@ -1009,41 +1010,65 @@ public final class ChartAestheticMutator {
          built.setUseGlobal(current.isUseGlobal());
       }
 
-      if(!built.isUseGlobal()) {
-         return;
-      }
-
-      // Sharing is on, so the pins the factory reads are the viewsheet-level ones. Anything the
-      // caller supplied is in whichever array VisualFrameAliases could reach: it routes on the
-      // spec's own shareColors, which is absent in exactly the carried-forward case above.
+      // The pins the caller supplied sit in whichever array VisualFrameAliases could reach: it
+      // routes on the spec's own shareColors, which is absent in the carried-forward case above.
       ColorMapModel[] supplied = notEmpty(built.getGlobalColorMaps())
          ? built.getGlobalColorMaps() : built.getColorMaps();
-      ColorMapModel[] carried = current == null ? null
-         : (notEmpty(current.getGlobalColorMaps())
-            ? current.getGlobalColorMaps() : current.getColorMaps());
+      ColorMapModel[] carried = carriedPins(current);
+      ColorMapModel[] merged = mergePins(carried, supplied);
 
-      built.setGlobalColorMaps(mergePins(carried, supplied));
-      // The array the factory is not reading must not keep a stale copy: describe() reports from
-      // whichever one the flag selects, and two disagreeing copies is how a read starts lying.
-      built.setColorMaps(new ColorMapModel[0]);
+      // Written to the array the NEW frame's flag makes the factory read, and only that one: the
+      // other must not keep a stale copy, because describe() reports from whichever one the flag
+      // selects and two disagreeing copies is how a read starts lying.
+      if(built.isUseGlobal()) {
+         built.setGlobalColorMaps(merged);
+         built.setColorMaps(new ColorMapModel[0]);
+      }
+      else {
+         built.setColorMaps(merged);
+         built.setGlobalColorMaps(new ColorMapModel[0]);
+      }
+   }
+
+   /**
+    * The pins the channel's existing frame is drawing, read from the array ITS flag selects (the
+    * viewsheet-level one when it shares, its own colour map when it does not), falling back to the
+    * other array when that one is empty. That fallback is how frame-only pins on a shared frame,
+    * and pins a frame holds in the array its flag does not select, are still carried.
+    */
+   private static ColorMapModel[] carriedPins(CategoricalColorModel current) {
+      if(current == null) {
+         return null;
+      }
+
+      ColorMapModel[] primary = current.isUseGlobal()
+         ? current.getGlobalColorMaps() : current.getColorMaps();
+      ColorMapModel[] secondary = current.isUseGlobal()
+         ? current.getColorMaps() : current.getGlobalColorMaps();
+
+      return notEmpty(primary) ? primary : secondary;
    }
 
    /**
     * The channel's existing pins underneath, the caller's on top, keyed by the value they pin.
     *
-    * <p>Merged rather than replaced because the two destinations otherwise behave differently for
-    * the same request. Unshared pins reach the chart through
-    * {@code ColorFrameModelFactory.assignMappedColors}, which calls {@code setColor(value, colour)}
-    * on the frame the channel already has — so naming one value leaves every other pin alone, which
-    * is what the tool documents. Shared pins instead reach it through
-    * {@code Viewsheet.setDimensionColors}, which drops the column's existing keys before putting
-    * the new ones — so the same request would unpin everything it did not name. This makes both
-    * mean "change the values I name".
+    * <p>Applies to both destinations, shared and unshared, and to every transition between them
+    * (bug #79178). The frame this request builds is a fresh {@code CategoricalColorModel}, so
+    * whatever it does not restate is not part of the request that reaches the chart: neither
+    * {@code ColorFrameModelFactory.assignMappedColors} (unshared; it only calls {@code setColor}
+    * for the values it is given) nor {@code Viewsheet.setDimensionColors} (shared; it drops the
+    * column's existing keys before putting the new ones) can be relied on to keep a pin the model
+    * does not carry. Merging here makes every combination mean "change the values I name and leave
+    * the rest", which is what the tool documents.
+    *
+    * <p>A {@code CoreTool.NULL} pin is the per-value delete sentinel. It is not inspected here: it
+    * is kept as the value for its key, and both destinations turn it into a removal downstream
+    * ({@code setColor(value, null)} on the frame; the null-filter in
+    * {@code Viewsheet.setDimensionColors}).
     *
     * <p>The Composer has no equivalent problem to solve: its dialog opens pre-filled with the
     * column's current pins, so the array it posts is already the merge.
-    */
-   private static ColorMapModel[] mergePins(ColorMapModel[] existing, ColorMapModel[] supplied) {
+    */   private static ColorMapModel[] mergePins(ColorMapModel[] existing, ColorMapModel[] supplied) {
       Map<String, ColorMapModel> merged = new LinkedHashMap<>();
 
       for(ColorMapModel[] pins : Arrays.asList(existing, supplied)) {

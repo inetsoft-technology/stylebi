@@ -1855,6 +1855,160 @@ class ChartAestheticMutatorTest {
                    "Viewsheet.setDimensionColors, not in this merge");
    }
 
+   // ── bug #79178: a mapping merges with the existing pins whatever the sharing state ───
+
+   /** An existing categorical colour frame with the given pins in the array its flag selects. */
+   private static ChartBindingModel colourChannelWithPins(boolean shared, ColorMapModel... pins) {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      CategoricalColorModel existing = (CategoricalColorModel) model.getColorField().getFrame();
+      existing.setUseGlobal(shared);
+      existing.setShareColors(shared);
+
+      if(shared) {
+         existing.setGlobalColorMaps(pins);
+      }
+      else {
+         existing.setColorMaps(pins);
+      }
+
+      return model;
+   }
+
+   private static Map<String, String> pinsIn(ColorMapModel[] maps) {
+      Map<String, String> pins = new LinkedHashMap<>();
+
+      for(ColorMapModel pin : maps) {
+         pins.put(pin.getOption(), pin.getColor());
+      }
+
+      return pins;
+   }
+
+   private static CategoricalColorModel colourFrame(ChartBindingModel model) {
+      return assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+   }
+
+   /** unshared -> unshared (spec silent on shareColors): the first reported shape. */
+   @Test
+   void anUnsharedMappingMergesWithTheUnsharedPinsItDoesNotName() {
+      ChartBindingModel model =
+         colourChannelWithPins(false, new ColorMapModel("East", "#D64541"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "mapping", Map.of("West", "#F28E2C")));
+
+      CategoricalColorModel frame = colourFrame(model);
+      assertFalse(frame.isUseGlobal());
+      assertEquals(Map.of("East", "#D64541", "West", "#F28E2C"), pinsIn(frame.getColorMaps()),
+                   "naming West must not unpin East");
+      assertEquals(0, frame.getGlobalColorMaps().length);
+   }
+
+   /** unshared -> unshared with an explicit shareColors: false. */
+   @Test
+   void anExplicitUnsharedMappingMergesWithTheUnsharedPinsItDoesNotName() {
+      ChartBindingModel model =
+         colourChannelWithPins(false, new ColorMapModel("East", "#D64541"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "shareColors", false, "mapping", Map.of("West", "#F28E2C")));
+
+      assertEquals(Map.of("East", "#D64541", "West", "#F28E2C"),
+                   pinsIn(colourFrame(model).getColorMaps()));
+   }
+
+   /** shared -> unshared: the pins sit in globalColorMaps but the new write targets colorMaps. */
+   @Test
+   void switchingSharingOffCarriesTheSharedPinsAcrossAndMergesTheMapping() {
+      ChartBindingModel model =
+         colourChannelWithPins(true, new ColorMapModel("East", "#D64541"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "shareColors", false, "mapping", Map.of("West", "#F28E2C")));
+
+      CategoricalColorModel frame = colourFrame(model);
+      assertFalse(frame.isUseGlobal());
+      assertEquals(Map.of("East", "#D64541", "West", "#F28E2C"), pinsIn(frame.getColorMaps()),
+                   "East was pinned while shared and must survive turning sharing off");
+      assertEquals(0, frame.getGlobalColorMaps().length,
+                   "the array the factory no longer reads must not keep a stale copy");
+   }
+
+   /** shared -> shared: the control that already passed; kept so the axis stays covered. */
+   @Test
+   void aSharedMappingMergesWithTheSharedPinsItDoesNotName() {
+      ChartBindingModel model =
+         colourChannelWithPins(true, new ColorMapModel("East", "#D64541"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "shareColors", true, "mapping", Map.of("West", "#F28E2C")));
+
+      CategoricalColorModel frame = colourFrame(model);
+      assertTrue(frame.isUseGlobal());
+      assertEquals(Map.of("East", "#D64541", "West", "#F28E2C"),
+                   pinsIn(frame.getGlobalColorMaps()));
+      assertEquals(0, frame.getColorMaps().length);
+   }
+
+   /** unshared -> shared: the frame's own pins are promoted and the mapping merges with them. */
+   @Test
+   void switchingSharingOnPromotesTheUnsharedPinsAndMergesTheMapping() {
+      ChartBindingModel model =
+         colourChannelWithPins(false, new ColorMapModel("East", "#D64541"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "shareColors", true, "mapping", Map.of("West", "#F28E2C")));
+
+      CategoricalColorModel frame = colourFrame(model);
+      assertTrue(frame.isUseGlobal());
+      assertEquals(Map.of("East", "#D64541", "West", "#F28E2C"),
+                   pinsIn(frame.getGlobalColorMaps()));
+      assertEquals(0, frame.getColorMaps().length);
+   }
+
+   /**
+    * The per-value delete sentinel on an unshared destination: the factory turns it into
+    * {@code setColor(value, null)}, so it must reach the array as written and leave the pin it
+    * does not name alone.
+    */
+   @Test
+   void anUnsharedNullSentinelSurvivesTheMergeAlongsideACoexistingPin() {
+      ChartBindingModel model = colourChannelWithPins(
+         false, new ColorMapModel("East", "#D64541"), new ColorMapModel("West", "#F28E2C"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "shareColors", false, "mapping",
+              Map.of("East", CoreTool.NULL)));
+
+      assertEquals(Map.of("East", CoreTool.NULL, "West", "#F28E2C"),
+                   pinsIn(colourFrame(model).getColorMaps()));
+   }
+
+   /** The sentinel when the write also moves the pins from the shared to the unshared array. */
+   @Test
+   void aNullSentinelSurvivesSwitchingSharingOff() {
+      ChartBindingModel model = colourChannelWithPins(
+         true, new ColorMapModel("East", "#D64541"), new ColorMapModel("West", "#F28E2C"));
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "shareColors", false, "mapping",
+              Map.of("East", CoreTool.NULL)));
+
+      CategoricalColorModel frame = colourFrame(model);
+      assertEquals(Map.of("East", CoreTool.NULL, "West", "#F28E2C"), pinsIn(frame.getColorMaps()));
+      assertEquals(0, frame.getGlobalColorMaps().length);
+   }
    /**
     * A spec that does not mention shareColors is not asking about the checkbox. Forcing it off
     * meant every colour change silently switched sharing off for a chart that had it on, with
