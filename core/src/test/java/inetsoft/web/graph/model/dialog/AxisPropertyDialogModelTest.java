@@ -107,6 +107,16 @@ class AxisPropertyDialogModelTest {
    }
 
    @Test
+   void aStoredAuthorZeroShowsTheTwoPixelsItDraws() {
+      // an author's 0 is an opinion, and the engine draws it as 2
+      AxisDescriptor axis = new AxisDescriptor();
+      axis.setLabelGap(0);
+
+      assertEquals(2, AxisPropertyDialogModel.shownLabelGap(axis, VizContext.LEGACY));
+      assertEquals(2, AxisPropertyDialogModel.shownLabelGap(axis, modernAt("compact")));
+   }
+
+   @Test
    void aModernAxisShowsTheDashboardDensityDefault() {
       VizContext ctx = modernAt("comfortable");
 

@@ -38,11 +38,11 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * The card's axis-title gap on a marked chart: 4px when the axis draws its labels, and the
- * plot-adjacent 8px when it does not, so a hidden label band hands its gap to the title rather than
- * leaving an empty stub. A separated chart keeps its axis visibility on the bound field's own
- * descriptor - which is also where the UI writes it - so resolving the gap from the chart-level
- * descriptor would answer with the untouched default whatever the author did.
+ * The card's axis-title gap on a marked chart: at compact density, 4px when the axis draws its
+ * labels, and the plot-adjacent 8px when it does not, so a hidden label band hands its gap to the
+ * title rather than leaving an empty stub. A separated chart keeps its axis visibility on the bound
+ * field's own descriptor - which is also where the UI writes it - so resolving the gap from the
+ * chart-level descriptor would answer with the untouched default whatever the author did.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(
@@ -72,7 +72,8 @@ class AxisTitleGapTest {
    @Test
    void markedChartWithACustomTitleResolvesTheCardGap() {
       // a custom title had never taken the descriptor's gap; a marked chart must still get it
-      assertEquals(4, xTitleGap(true, VizMark.MODERN_LIGHT, "Custom X Title", null, null, null));
+      assertEquals(4, xTitleGap(true, VizMark.MODERN_LIGHT, "Custom X Title", null, null,
+                                "compact"));
    }
 
    @Test
@@ -103,11 +104,12 @@ class AxisTitleGapTest {
    }
 
    /**
-    * Build a separated bar chart of one x dimension by one y measure, hide or show the x axis labels
-    * on the dimension's own descriptor, and report the gap the x axis title ends up with.
+    * Build a separated bar chart of one x dimension by one y measure on a compact dashboard, hide or
+    * show the x axis labels on the dimension's own descriptor, and report the gap the x axis title
+    * ends up with.
     */
    private static int xTitleGap(boolean labelVisible, VizMark mark) {
-      return xTitleGap(labelVisible, mark, null, null, null, null);
+      return xTitleGap(labelVisible, mark, null, null, null, "compact");
    }
 
    /**

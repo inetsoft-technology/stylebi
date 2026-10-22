@@ -149,6 +149,7 @@ public final class VSChartChromeDefaults {
 
    // gap scale per density, px; compact is the shipped value. Each legend value is 2 under its
    // total because VGraph adds a fixed 2.
+
    /** Axis label distance for a density mode; unrecognized modes fall back to dense. */
    static int axisLabelGapForMode(String mode) {
       switch(mode) {

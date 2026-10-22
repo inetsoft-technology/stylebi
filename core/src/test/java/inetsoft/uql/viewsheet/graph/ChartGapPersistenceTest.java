@@ -161,7 +161,7 @@ class ChartGapPersistenceTest {
    }
 
    private static String withoutMarker(String xml, String marker) {
-      String stripped = xml.replaceAll("\s+" + marker + "=\"true\"", "");
+      String stripped = xml.replaceAll("\\s+" + marker + "=\"true\"", "");
       assertNotEquals(xml, stripped, "the author zero was saved with its marker");
       return stripped;
    }
