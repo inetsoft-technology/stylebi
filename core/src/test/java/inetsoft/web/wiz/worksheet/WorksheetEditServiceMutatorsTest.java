@@ -11315,4 +11315,60 @@ class WorksheetEditServiceMutatorsTest {
          assertEquals("Product", conds.getConditionItem(0).getAttribute().getAttribute());
       }
    }
+
+   /**
+    * Bug #78943 (WBS-154): {@code TableModeService#setFullMode}/{@code #setDefaultTableMode}
+    * also clear {@code ComposedTableAssembly#setHierarchical}, because
+    * {@code WorksheetEventUtil#getMode} forces {@code liveData=true} on any hierarchical composed
+    * table that is not runtime -- so without it "full"/"default" on a join, mirror, rotate or
+    * unpivot silently reads back as "detail" on the next render. The test calls {@code getMode}
+    * itself since that is the invariant that breaks, with or without a paired browser.
+    */
+   @Test
+   void setTableModeFullAndDefaultHoldOnComposedTables() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "L", "id", "name"));
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "R", "id", "value"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> {
+         ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null);
+         ed.addMirror("M", "L");
+         ed.addRotate("RO", "L");
+         ed.addUnpivot("U", "L", 1);
+      });
+
+      for(String name : List.of("J", "M", "RO", "U")) {
+         for(String mode : List.of("full", "default")) {
+            TableAssembly t = (TableAssembly) ws.getAssembly(name);
+            // a fresh hierarchical table per (table, mode) pair, so "default" is not satisfied
+            // by the flag an earlier "full" already cleared
+            ((ComposedTableAssembly) t).setHierarchical(true);
+            assertTrue(((ComposedTableAssembly) t).isHierarchical(), name + " precondition");
+            svc.apply("TOK", agent, ed -> ed.setTableMode(name, "detail"));
+            svc.apply("TOK", agent, ed -> ed.setTableMode(name, mode));
+
+            assertEquals(AssetQuerySandbox.DESIGN_MODE,
+                         inetsoft.web.composer.ws.assembly.WorksheetEventUtil.getMode(t),
+                         name + " must stay in design mode after " + mode);
+            assertFalse(t.isLiveData(), name + " " + mode);
+            assertFalse(((ComposedTableAssembly) t).isHierarchical(), name + " " + mode);
+         }
+      }
+   }
+
+   @Test
+   void setTableModeFullOnABoundTableIsUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "L", "id"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setTableMode("L", "full"));
+
+      TableAssembly t = (TableAssembly) ws.getAssembly("L");
+      assertFalse(t.isLiveData());
+      assertEquals(AssetQuerySandbox.DESIGN_MODE,
+                   inetsoft.web.composer.ws.assembly.WorksheetEventUtil.getMode(t));
+   }
 }
