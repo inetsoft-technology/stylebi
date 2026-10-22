@@ -146,7 +146,8 @@ public class LayoutReadService {
       Boolean mobileOnly = print ? null : ((ViewsheetLayout) layout).isMobileOnly();
       List<String> selectedDevices = print ? null
          : Arrays.asList(((ViewsheetLayout) layout).getDeviceIds());
-      PrintLayoutSettingsModel printSettings = print ? readPrintSettings(sessionToken, agent)
+      PrintLayoutSettingsModel printSettings = print ? readPrintSettings(sessionToken, agent,
+                                                           (PrintLayout) layout)
          : null;
 
       return new LayoutModel(layoutName, print ? "print" : "device", mobileOnly, selectedDevices,
@@ -168,7 +169,8 @@ public class LayoutReadService {
     * {@code runtimeId} callback parameter; {@code runtimeId} grants the matching ownership bypass
     * as a side effect (see its own doc).
     */
-   private PrintLayoutSettingsModel readPrintSettings(String sessionToken, Principal agent)
+   private PrintLayoutSettingsModel readPrintSettings(String sessionToken, Principal agent,
+                                                     PrintLayout layout)
       throws Exception
    {
       String runtimeId = viewsheetSessions.runtimeId(sessionToken, agent);
@@ -179,12 +181,21 @@ public class LayoutReadService {
          return null;
       }
 
+      // floor, not the ceil Dimension pageIndex uses: the PDF export body truncates, so a floored
+      // value matches it for standard papers; some custom mm sizes can still be 1pt over, since
+      // the PDF path keeps page inches in a float Size. null PrintInfo -> 0 (the dialog
+      // model above is non-null, so the layout was configured in practice).
+      double[] body = VSLayoutService.getPrintBodySize(layout);
+      int printableWidth = body == null ? 0 : (int) Math.floor(body[0]);
+      int printableHeight = body == null ? 0 : (int) Math.floor(body[1]);
+
       return new PrintLayoutSettingsModel(
          printLayout.getPaperSize(), printLayout.getMarginTop(), printLayout.getMarginLeft(),
          printLayout.getMarginBottom(), printLayout.getMarginRight(),
          printLayout.getFooterFromEdge(), printLayout.getHeaderFromEdge(),
          printLayout.isLandscape(), printLayout.getScaleFont(), printLayout.getNumberingStart(),
-         printLayout.getCustomWidth(), printLayout.getCustomHeight(), printLayout.getUnits());
+         printLayout.getCustomWidth(), printLayout.getCustomHeight(), printLayout.getUnits(),
+         printableWidth, printableHeight, "pt");
    }
 
    private LayoutObjectModel toObjectModel(Viewsheet masterVs, VSAssemblyLayout assemblyLayout,
