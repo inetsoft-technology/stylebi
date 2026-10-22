@@ -18,6 +18,7 @@
 package inetsoft.test.dc;
 
 import inetsoft.mv.MVManager;
+import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.*;
@@ -30,6 +31,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
@@ -37,6 +39,7 @@ import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.script.graal.pool.PoolConfig;
@@ -260,6 +263,41 @@ public final class DcInMemoryViewsheetFixture {
       vs.addAssembly(chart);
 
       return sheet.box().getVGraphPair(CHART);
+   }
+
+   /**
+    * The data of a crosstab with the date on the rows at {@code dateLevel} and the Sum of the
+    * value column, under a Date Comparison, with no totals. The first row is the header, then a
+    * row per period and part: the period date, the part columns, the value.
+    *
+    * @param name the name of the assembly to add to the sheet.
+    */
+   public TableLens crosstab(Sheet sheet, String name, DateComparisonInfo dc, String dateColumn,
+                             String valueColumn, int dateLevel)
+      throws Exception
+   {
+      Viewsheet vs = sheet.vs();
+      CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, name);
+      crosstab.setSourceInfo((SourceInfo) sheet.source().clone());
+      ColumnRef date = new ColumnRef(new AttributeRef(null, dateColumn));
+      date.setDataType(XSchema.DATE);
+      VSDimensionRef dim = new VSDimensionRef();
+      dim.setDataRef(date);
+      dim.setGroupColumnValue(dateColumn);
+      dim.setDataType(XSchema.DATE);
+      dim.setDateLevelValue(dateLevel + "");
+      VSAggregateRef agg = new VSAggregateRef();
+      agg.setColumnValue(valueColumn);
+      agg.setFormulaValue("Sum");
+      crosstab.getVSCrosstabInfo().setDesignRowHeaders(new DataRef[] { dim });
+      crosstab.getVSCrosstabInfo().setDesignAggregates(new DataRef[] { agg });
+      crosstab.getVSCrosstabInfo().setCalculateTotalValue(false);
+      ((CrosstabVSAssemblyInfo) crosstab.getVSAssemblyInfo()).setDateComparisonInfo(dc);
+      vs.addAssembly(crosstab);
+      TableLens data = (TableLens) sheet.box().getData(name);
+      data.moreRows(Integer.MAX_VALUE);
+
+      return data;
    }
 
    /** The chart over one row per day with a Paid of 1, the date on X at year level. */
