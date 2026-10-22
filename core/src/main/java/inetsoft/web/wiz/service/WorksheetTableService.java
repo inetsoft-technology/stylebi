@@ -1581,6 +1581,10 @@ public class WorksheetTableService {
       // wrong aggregates in every chart bound to it — worse than a paginated metered API walked to
       // exhaustion on a render, which is at least visible as cost rather than a confidently wrong
       // number. See the design doc's section 4.1.
+      // A negative value is refused rather than skipped by the > 0 gates below, as on every other
+      // maxRows entry point: skipping it would build an uncapped table and report success.
+      WorksheetEditService.requireNonNegativeMaxRows(src.getMaxRows());
+
       if(src.getMaxRows() != null && src.getMaxRows() > 0) {
          query.setMaxRows(src.getMaxRows());
       }
@@ -1594,6 +1598,10 @@ public class WorksheetTableService {
       TabularTableAssembly table = new TabularTableAssembly(worksheet, request.getTableName());
       TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) table.getTableInfo();
       info.setQuery(query);
+
+      if(src.getMaxRows() != null && src.getMaxRows() > 0) {
+         WorksheetEditService.applyAssemblyMaxRows(table, src.getMaxRows());
+      }
 
       // Prefix and source are both the data source path, which is what the composer dialog writes
       // too. The endpoint is NOT in the SourceInfo — it lives inside the query bean — so nothing

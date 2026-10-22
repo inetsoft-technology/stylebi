@@ -485,6 +485,35 @@ public class WorksheetEditService {
    private final ExpressionDialogService expressionDialogService;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetEditService.class);
 
+   /**
+    * Refuses a negative table row limit. A negative limit is a mistake, not a way to say
+    * "unlimited": the Composer's own control refuses it outright
+    * (FormValidators.positiveIntegerInRange, form-validators.ts:394-400, which admits
+    * 0..Integer.MAX_VALUE), while folding it into -1 would report success and apply no limit at
+    * all. Null (not supplied) is accepted.
+    */
+   public static void requireNonNegativeMaxRows(Integer maxRows) throws PairingException {
+      if(maxRows != null && maxRows < 0) {
+         throw new PairingException(
+            "maxRows cannot be negative (got " + maxRows + "). Pass a positive row limit, " +
+            "or 0 for no limit.");
+      }
+   }
+
+   /**
+    * Writes a table's own row limit -- the field the model read and every render of the table
+    * honour (a tabular query's own limit is overwritten from it on each execution). 0 means no
+    * limit and is stored as -1.
+    *
+    * @throws PairingException if {@code maxRows} is negative.
+    */
+   public static void applyAssemblyMaxRows(TableAssembly table, int maxRows)
+      throws PairingException
+   {
+      requireNonNegativeMaxRows(maxRows);
+      table.setMaxRows(maxRows <= 0 ? -1 : maxRows);
+   }
+
    // =========================================================================
    // Inner class: Editor
    // =========================================================================
@@ -3237,18 +3266,7 @@ public class WorksheetEditService {
          }
 
          if(maxRows != null) {
-            // A negative limit is a mistake, not a way to say "unlimited": the Composer's own
-            // control refuses it outright (FormValidators.positiveIntegerInRange,
-            // form-validators.ts:394-400, which admits 0..Integer.MAX_VALUE), while this path
-            // silently folded it into -1 and reported success -- so a caller that sent -100
-            // meaning "a hundred rows, roughly" got no limit at all and no indication of it.
-            if(maxRows < 0) {
-               throw new PairingException(
-                  "maxRows cannot be negative (got " + maxRows + "). Pass a positive row limit, " +
-                  "or 0 for no limit.");
-            }
-
-            t.setMaxRows(maxRows <= 0 ? -1 : maxRows);
+            applyAssemblyMaxRows(t, maxRows);
          }
 
          if(distinct != null) {
