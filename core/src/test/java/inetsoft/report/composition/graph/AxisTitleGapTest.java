@@ -87,11 +87,19 @@ class AxisTitleGapTest {
    }
 
    @Test
-   void unmarkedChartWithACustomTitleAndADescriptorGapStaysAtZero() {
-      // the regression guard: an unmarked chart's custom title must not start applying a descriptor
-      // gap it never applied before. The gap is written here on the user tier, but the guard is
-      // tier-agnostic - what reaches this in the field is a CSS label_gap
-      assertEquals(0, xTitleGap(true, null, "Custom X Title", 99));
+   void unmarkedChartWithACustomTitleTakesAnAuthorGap() {
+      assertEquals(6, xTitleGap(true, null, "Custom X Title", 6, null, null));
+   }
+
+   @Test
+   void unmarkedChartWithACustomTitleIgnoresAStylesheetGap() {
+      // a legacy custom title has never moved for a format.css label_gap
+      assertEquals(0, xTitleGap(true, null, "Custom X Title", null, 99, null));
+   }
+
+   @Test
+   void unmarkedChartWithADerivedTitleStillTakesAStylesheetGap() {
+      assertEquals(20, xTitleGap(true, null, null, null, 20, null));
    }
 
    /**
@@ -100,12 +108,6 @@ class AxisTitleGapTest {
     */
    private static int xTitleGap(boolean labelVisible, VizMark mark) {
       return xTitleGap(labelVisible, mark, null, null, null, null);
-   }
-
-   private static int xTitleGap(boolean labelVisible, VizMark mark, String customTitle,
-                               int titleGap)
-   {
-      return xTitleGap(labelVisible, mark, customTitle, titleGap, null, null);
    }
 
    /**

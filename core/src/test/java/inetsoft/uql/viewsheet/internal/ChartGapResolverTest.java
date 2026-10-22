@@ -102,6 +102,14 @@ class ChartGapResolverTest {
    }
 
    @Test
+   void aLegacyCustomTitleTakesOnlyAnAuthorGap() {
+      assertEquals(0, VSChartChromeDefaults.axisTitleGapSource(20, false, true, LEGACY));
+      assertEquals(6, VSChartChromeDefaults.axisTitleGapSource(6, true, true, LEGACY));
+      assertEquals(20, VSChartChromeDefaults.axisTitleGapSource(20, false, false, LEGACY));
+      assertEquals(20, VSChartChromeDefaults.axisTitleGapSource(20, false, true, modern));
+   }
+
+   @Test
    void titleGapKeepsAnAuthorValueInBothStates() {
       assertEquals(5, VSChartChromeDefaults.resolveAxisTitleGap(5, true, true, modern));
       assertEquals(5, VSChartChromeDefaults.resolveAxisTitleGap(5, true, false, modern),

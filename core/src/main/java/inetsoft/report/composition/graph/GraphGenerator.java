@@ -6313,9 +6313,9 @@ public abstract class GraphGenerator {
          CompositeTextFormat tfmt = titleDesc.getTextFormat();
          tSpec.setTextSpec(GraphUtil.getTextSpec(tfmt, null, null));
 
-         // a custom title has never taken the descriptor's gap; feeding the resolver 0 on a legacy
-         // chart keeps that exactly, while a marked one still gets the card gap
-         int customTitleGap = vizContext.modern ? titleDesc.getLabelGap() : 0;
+         // a legacy custom title takes only an author's gap, never a stylesheet's
+         int customTitleGap = VSChartChromeDefaults.axisTitleGapSource(
+            titleDesc.getLabelGap(), titleDesc.hasLabelGapUserValue(), true, vizContext);
          tSpec.setLabelGap(VSChartChromeDefaults.resolveAxisTitleGap(
             customTitleGap, titleDesc.hasLabelGapValue(), abuttingLabelsDrawn, vizContext));
          return tSpec;

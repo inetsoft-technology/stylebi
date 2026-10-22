@@ -106,6 +106,16 @@ public final class VSChartChromeDefaults {
    }
 
    /**
+    * The title gap before resolution. A legacy custom title takes only an author's own gap, so a
+    * stylesheet gap never moves it.
+    */
+   public static int axisTitleGapSource(int labelGap, boolean authorSet, boolean customTitle,
+                                        VizContext ctx)
+   {
+      return ctx.modern || !customTitle || authorSet ? labelGap : 0;
+   }
+
+   /**
     * Resolve the gap between an axis title and what it abuts: the plot-adjacent gap when its own
     * labels are not drawn, its own gap when they are. This is the card's "hidden means zero" rule -
     * each gap belongs to the element on its inner side, so a hidden label band hands its gap to
