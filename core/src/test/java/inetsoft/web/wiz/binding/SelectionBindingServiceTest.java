@@ -1106,6 +1106,140 @@ class SelectionBindingServiceTest {
       verifyNoInteractions(dataOutput);
    }
 
+   // ── Bug #79202: a single-range slider needs a numeric, date or time column ─────────────────
+
+   private static RangeSliderPropertyDialogService sliderServiceFor(
+      RangeSliderPropertyDialogModel model) throws Exception
+   {
+      RangeSliderPropertyDialogService sliderService = mock(RangeSliderPropertyDialogService.class);
+      when(sliderService.getRangeSliderPropertyModel(eq("rt1"), eq("Slider1"), any()))
+         .thenReturn(model);
+      return sliderService;
+   }
+
+   private static Map<String, Object> bindSlider(RangeSliderPropertyDialogService sliderService,
+                                                 String table, String... columns)
+      throws Exception
+   {
+      return harness(mock(TimeSliderVSAssembly.class), null, null, sliderService, null)
+         .setSource("tok", principal(), "Slider1", table, List.of(columns), null, null, null,
+                    null, null, false, "");
+   }
+
+   private static int appliedRangeType(RangeSliderPropertyDialogService sliderService)
+      throws Exception
+   {
+      ArgumentCaptor<RangeSliderPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(RangeSliderPropertyDialogModel.class);
+      verify(sliderService).setRangeSliderPropertyModel(
+         eq("rt1"), eq("Slider1"), captor.capture(), eq(""), any(), any());
+      return captor.getValue().getRangeSliderAdvancedPaneModel().getRangeSliderSizePaneModel()
+         .getRangeType();
+   }
+
+   @Test
+   void refusesAStringColumnOnASingleRangeSlider() throws Exception {
+      RangeSliderPropertyDialogService sliderService =
+         sliderServiceFor(new RangeSliderPropertyDialogModel());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> bindSlider(sliderService, "ORDERS", "STATE"));
+
+      assertTrue(thrown.getMessage().contains("STATE"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("string"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("ORDERS"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("selection list"), thrown.getMessage());
+      verify(sliderService, never()).setRangeSliderPropertyModel(
+         any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void refusesBooleanCharAndDecimalColumnsOnASingleRangeSlider() throws Exception {
+      for(String column : List.of("BOOL_COL", "CHAR_COL", "DEC_COL")) {
+         RangeSliderPropertyDialogService sliderService =
+            sliderServiceFor(new RangeSliderPropertyDialogModel());
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> bindSlider(sliderService, "MIXED", column), column);
+
+         assertTrue(thrown.getMessage().contains(column), thrown.getMessage());
+         verify(sliderService, never()).setRangeSliderPropertyModel(
+            any(), any(), any(), any(), any(), any());
+      }
+   }
+
+   @Test
+   void acceptsNumericDateAndTimeColumnsOnASingleRangeSlider() throws Exception {
+      RangeSliderPropertyDialogService amount = sliderServiceFor(new RangeSliderPropertyDialogModel());
+      bindSlider(amount, "ORDERS", "AMOUNT");
+      assertEquals(TimeInfo.NUMBER, appliedRangeType(amount));
+
+      RangeSliderPropertyDialogService integer = sliderServiceFor(new RangeSliderPropertyDialogModel());
+      bindSlider(integer, "MIXED", "INT_COL");
+      assertEquals(TimeInfo.NUMBER, appliedRangeType(integer));
+
+      RangeSliderPropertyDialogService date = sliderServiceFor(new RangeSliderPropertyDialogModel());
+      bindSlider(date, "EVENTS", "EVENT_DATE");
+      assertEquals(TimeInfo.MONTH, appliedRangeType(date));
+
+      RangeSliderPropertyDialogService instant = sliderServiceFor(new RangeSliderPropertyDialogModel());
+      bindSlider(instant, "LOGS", "EVENT_DATE");
+      assertEquals(TimeInfo.MONTH, appliedRangeType(instant));
+
+      RangeSliderPropertyDialogService time = sliderServiceFor(new RangeSliderPropertyDialogModel());
+      bindSlider(time, "MIXED", "TIME_COL");
+      assertEquals(TimeInfo.MINUTE_OF_DAY, appliedRangeType(time));
+   }
+
+   /** A column with no known data type fails open, as the other pre-flights in this class do. */
+   @Test
+   void acceptsAColumnWithNoDataTypeOnASingleRangeSlider() throws Exception {
+      RangeSliderPropertyDialogService sliderService =
+         sliderServiceFor(new RangeSliderPropertyDialogModel());
+
+      bindSlider(sliderService, "MIXED", "UNTYPED_COL");
+
+      verify(sliderService).setRangeSliderPropertyModel(
+         eq("rt1"), eq("Slider1"), any(), eq(""), any(), any());
+   }
+
+   /** The type rule is for a single range: a composite over text columns is not refused. */
+   @Test
+   void doesNotApplyTheTypeRuleToACompositeRangeSlider() throws Exception {
+      RangeSliderPropertyDialogService sliderService =
+         sliderServiceFor(new RangeSliderPropertyDialogModel());
+
+      Map<String, Object> result = bindSlider(sliderService, "ORDERS", "STATE", "CITY");
+
+      assertEquals(Boolean.TRUE, result.get("composite"));
+      verify(sliderService).setRangeSliderPropertyModel(
+         eq("rt1"), eq("Slider1"), any(), eq(""), any(), any());
+   }
+
+   /** Rebinding a numeric slider to a text column is refused and leaves the old binding as is. */
+   @Test
+   void aRefusedRebindLeavesTheExistingNumericBindingUnchanged() throws Exception {
+      RangeSliderPropertyDialogModel existing = new RangeSliderPropertyDialogModel();
+      RangeSliderDataPaneModel pane = existing.getRangeSliderDataPaneModel();
+      pane.setSelectedTable("ORDERS");
+      pane.setComposite(false);
+      existing.getRangeSliderAdvancedPaneModel().getRangeSliderSizePaneModel()
+         .setRangeType(TimeInfo.NUMBER);
+      Object columnsBefore = pane.getSelectedColumns();
+      RangeSliderPropertyDialogService sliderService = sliderServiceFor(existing);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> bindSlider(sliderService, "ORDERS", "STATE"));
+
+      verify(sliderService, never()).setRangeSliderPropertyModel(
+         any(), any(), any(), any(), any(), any());
+      assertEquals("ORDERS", pane.getSelectedTable());
+      assertFalse(pane.isComposite());
+      assertSame(columnsBefore, pane.getSelectedColumns());
+      assertEquals(TimeInfo.NUMBER, existing.getRangeSliderAdvancedPaneModel()
+         .getRangeSliderSizePaneModel().getRangeType());
+   }
+
    @Test
    void refusesAMeasureOnARangeSlider() throws Exception {
       TimeSliderVSAssembly assembly = mock(TimeSliderVSAssembly.class);
@@ -1809,11 +1943,19 @@ class SelectionBindingServiceTest {
          new BindableField("CODE", "string", "dimension")));
       BindableTable warehouses = new BindableTable("WAREHOUSES", null, List.of(
          new BindableField("CODE", null, "dimension")));
+      // One column of each type a single-range slider does or does not accept (#79202).
+      BindableTable mixed = new BindableTable("MIXED", null, List.of(
+         new BindableField("BOOL_COL", "boolean", "dimension"),
+         new BindableField("DEC_COL", "decimal", "measure"),
+         new BindableField("CHAR_COL", "char", "dimension"),
+         new BindableField("TIME_COL", "time", "dimension"),
+         new BindableField("INT_COL", "integer", "measure"),
+         new BindableField("UNTYPED_COL", null, "dimension")));
 
       BindableFieldsService fieldsService = mock(BindableFieldsService.class);
       when(fieldsService.list(eq("rt1"), isNull(), any()))
          .thenReturn(List.of(orders, customers, products, zips, regions, events, logs, shipments,
-                             warehouses));
+                             warehouses, mixed));
 
       return new SelectionBindingService(
          sessionsFor(assembly), fieldsService,
