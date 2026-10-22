@@ -240,7 +240,7 @@ class DateComparisonRangeMatrixTest {
     * </ul>
     */
    static boolean knownGap(DcShape shape, String weekStart, String end, boolean inclusive,
-                                   boolean change)
+                           boolean change)
    {
       boolean sameDayByWeek = shape.intervalUnit() == XConstants.DAY_DATE_GROUP &&
          shape.contextLevel() == XConstants.WEEK_DATE_GROUP;
