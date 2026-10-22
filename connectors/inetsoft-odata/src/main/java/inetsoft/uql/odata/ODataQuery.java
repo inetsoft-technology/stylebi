@@ -17,8 +17,10 @@
  */
 package inetsoft.uql.odata;
 
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.tabular.*;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 import org.w3c.dom.*;
 
@@ -39,7 +41,7 @@ import java.util.stream.Collectors;
       @View1("top"),
       @View1("skip")
    })
-public class ODataQuery extends TabularQuery {
+public class ODataQuery extends TabularQuery implements PropertyVariableReplacer {
    public ODataQuery() {
       super(ODataDataSource.TYPE);
    }
@@ -145,6 +147,52 @@ public class ODataQuery extends TabularQuery {
       if(this.function != null && applyChanges) {
          this.function.setParameters(functionParameters);
       }
+   }
+
+   /**
+    * Substitutes variables in the filter OData-aware (Bug #79001). A reference inside a
+    * single-quoted OData string literal has its quotes doubled, so a value such as O'Brien
+    * stays inside the literal. A reference outside quotes is embedded as is, as before
+    * (booleans, guids, dates, numbers, property names). Neither is URL-encoded here: the URI
+    * builder encodes the filter once when the request is built. A variable with no value is left
+    * as written, in or out of quotes. Select, expand and order by keep the default substitution.
+    */
+   @Override
+   public String replaceVariables(String property, String value, VariableTable vars) {
+      if(!"filter".equals(property) || value == null) {
+         return null;
+      }
+
+      StringBuilder result = new StringBuilder();
+      boolean inLiteral = false;
+      int i = 0;
+
+      while(i < value.length()) {
+         char c = value.charAt(i);
+
+         if(c == '\'') {
+            inLiteral = !inLiteral;
+         }
+         else if(c == '$' && value.startsWith("$(", i)) {
+            int end = value.indexOf(')', i);
+
+            if(end > i + 2) {
+               String ref = value.substring(i, end + 1);
+               String replaced = XUtil.replaceVariable(ref, vars, false);
+
+               if(!ref.equals(replaced)) {
+                  result.append(inLiteral ? replaced.replace("'", "''") : replaced);
+                  i = end + 1;
+                  continue;
+               }
+            }
+         }
+
+         result.append(c);
+         i++;
+      }
+
+      return result.toString();
    }
 
    @Property(label="Select")
