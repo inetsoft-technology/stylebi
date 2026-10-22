@@ -279,6 +279,86 @@ class TimeConditionDstTest {
    }
 
    @Test
+   void dailyEveryTwoDaysUsesTheDateOfLastRunInTheZoneOfTheConditionWithoutAGap() {
+      // no change near: 23:30 on 07-10 in New York is 07-11 in UTC, the default zone of the JVM
+      TimeCondition condition = in(daily(2, 30, 0), "America/New_York");
+      condition.setInterval(2);
+      long lastRun = ms("America/New_York", "2028-07-10T23:30:00");
+      long next = retry(condition, lastRun + 7, lastRun + 30000, lastRun);
+      assertEquals("2028-07-12T02:30-04:00", text("America/New_York", next));
+   }
+
+   @Test
+   void weeklyWithDaysInClickOrderRunsOnEverySelectedDay() {
+      // the portal editor stores the days in the order they were clicked: Fri, Sun, Wed, Sat, Mon.
+      // The walk used to skip the selected days that follow a Saturday run (Sun and Mon).
+      TimeCondition condition = in(
+         TimeCondition.atDaysOfWeek(new int[] { 6, 1, 4, 7, 2 }, 9, 0, 0), "UTC");
+      assertChain(List.of(
+         "2027-07-18T09:00Z", "2027-07-19T09:00Z", "2027-07-21T09:00Z", "2027-07-23T09:00Z",
+         "2027-07-24T09:00Z", "2027-07-25T09:00Z", "2027-07-26T09:00Z"),
+         chain(condition, "UTC", "2027-07-17T12:00:00", 7));
+   }
+
+   @Test
+   void hourlyFromMidnightDoesNotFireAgainWhenTheTriggerIsEarly() {
+      // all days, 00:00-23:00 every hour. The trigger fires up to 2 ms early, while the clock is
+      // still on the previous date; the next fire must not be the instant that just fired.
+      TimeCondition condition = hourly("UTC", 0, 23, 1f);
+      long fire = ms("UTC", "2027-07-21T00:00:00");
+
+      for(long lag : new long[] { -2, -1, 0, 7 }) {
+         assertEquals("2027-07-21T01:00Z",
+                      text("UTC", retry(condition, fire + lag, fire + 30000, fire)), "lag " + lag);
+      }
+
+      // the same in a zone, on a day the clock changes
+      condition = hourly("America/New_York", 0, 23, 1f);
+      fire = ms("America/New_York", "2028-03-12T00:00:00");
+      assertEquals("2028-03-12T01:00-05:00",
+                   text("America/New_York", retry(condition, fire - 2, fire + 30000, fire)));
+   }
+
+   @Test
+   void hourlyFromMidnightOnNonConsecutiveDaysEarlyTrigger() {
+      // Tuesday only: the clock of the early trigger is on Monday, which is not selected
+      TimeCondition condition = in(TimeCondition.atHours(new int[] { 3 }, 0, 0, 0), "UTC");
+      condition.setHourEnd(23);
+      condition.setHourlyInterval(1f);
+      long fire = ms("UTC", "2027-07-20T00:00:00"); // Tuesday
+      assertEquals("2027-07-20T01:00Z", text("UTC", retry(condition, fire - 2, fire + 30000, fire)));
+      // after the last tick of Tuesday the next one is the next Tuesday
+      fire = ms("UTC", "2027-07-20T22:00:00");
+      assertEquals("2027-07-27T00:00Z", text("UTC", retry(condition, fire + 7, fire + 30000, fire)));
+   }
+
+   @Test
+   void hourlyFromMidnightOnConsecutiveDaysAfterTheLastTick() {
+      // Mon-Wed 00:00-23:00 every hour: after Tuesday 22:00 the next tick is Wednesday 00:00
+      TimeCondition condition = in(TimeCondition.atHours(new int[] { 2, 3, 4 }, 0, 0, 0), "UTC");
+      condition.setHourEnd(23);
+      condition.setHourlyInterval(1f);
+      long fire = ms("UTC", "2027-07-20T22:00:00");
+      assertEquals("2027-07-21T00:00Z", text("UTC", retry(condition, fire + 7, fire + 30000, fire)));
+      // an early trigger of that Wednesday 00:00 fire gets 01:00
+      fire = ms("UTC", "2027-07-21T00:00:00");
+      assertEquals("2027-07-21T01:00Z", text("UTC", retry(condition, fire - 2, fire + 30000, fire)));
+   }
+
+   @Test
+   void hourlyTriggerThatFiresAfterMidnightGetsTheNextWindowOfTheNewDate() {
+      // Fri and Sat 10:45-21:45 every hour. The Friday 20:45 fire is delayed past midnight (a
+      // blocked job): the window of Saturday is next, the whole Saturday must not be skipped.
+      TimeCondition condition = in(TimeCondition.atHours(new int[] { 6, 7 }, 10, 45, 0), "UTC");
+      condition.setHourEnd(21);
+      condition.setMinuteEnd(45);
+      condition.setHourlyInterval(1f);
+      long fire = ms("UTC", "2027-07-23T20:45:00"); // Friday
+      long clock = ms("UTC", "2027-07-24T00:00:05");
+      assertEquals("2027-07-24T10:45Z", text("UTC", retry(condition, clock, fire + 30000, fire)));
+   }
+
+   @Test
    void dailyWeekdaysOnlyAfterAGapRunsAtTheWallTime() {
       // Fri 03-10, Mon 03-13 (the day after the Sunday gap), Tue 03-14
       assertChain(List.of(

@@ -384,11 +384,12 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       // a valid day can be, so a limit never turns a stale seed into "never".
       long seedTime = cal1.getTimeInMillis();
       long staleDays = curr > seedTime ? (curr - seedTime) / 86400000L : 0L;
-      ZoneId zone = cal1.getTimeZone().toZoneId();
-      LocalDate seedDate = toLocalDate(seedTime, zone);
       long fireTime;
 
       try {
+         ZoneId zone = cal1.getTimeZone().toZoneId();
+         LocalDate seedDate = toLocalDate(seedTime, zone);
+
          switch(type) {
          case EVERY_DAY:
             fireTime = getNextDaily(seedDate, zone, curr);
@@ -586,32 +587,39 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       // keep the arithmetic below from overflowing for a huge interval; any step this long
       // is past the end of the window anyway
       interval = Math.min(interval, Long.MAX_VALUE / 4);
-      ZonedDateTime first = slot(seedDate, zone);
+      // The first selected date, from the seed's date on, whose window has a tick that is not
+      // before curr. Today's window is over for a trigger that fires after its last tick; a
+      // trigger that fires a few ms early is still on the previous date, so the window of the
+      // next date must be searched for a tick >= curr too, never taken as is (it would be the
+      // instant that just fired). The ticks are every interval of elapsed time from the start
+      // of the window, also on a day the clock changes.
+      for(int i = 0; i <= 8; i++) {
+         ZonedDateTime first = slot(seedDate.plusDays(i), zone);
 
-      if(containsIn(days_of_week, dayOfWeek(first))) {
-         // the window starts and ends on the same local date. The ticks are every interval of
-         // elapsed time from the start of the window, also on a day the clock changes.
+         if(!containsIn(days_of_week, dayOfWeek(first))) {
+            continue;
+         }
+
          long start = first.toInstant().toEpochMilli();
-         long end = resolve(seedDate, zone, hour_end, minute_end, second_end)
+         long end = resolve(seedDate.plusDays(i), zone, hour_end, minute_end, second_end)
             .toInstant().toEpochMilli();
 
-         if(start < end && end > curr) {
+         if(start >= end) {
+            // an empty window runs at its start on a later date, as it always did
+            if(i > 0) {
+               return start;
+            }
+
+            continue;
+         }
+
+         if(end > curr) {
             long tick = start >= curr ? start :
                start + (curr - start + interval - 1) / interval * interval;
 
             if(tick < end) {
                return tick;
             }
-         }
-      }
-
-      // the window of today is over: the start of the window on the next selected day, a valid
-      // day exists so it is at most 7 days away
-      for(int i = 1; i <= 8; i++) {
-         ZonedDateTime time = slot(seedDate.plusDays(i), zone);
-
-         if(containsIn(days_of_week, dayOfWeek(time))) {
-            return time.toInstant().toEpochMilli();
          }
       }
 
