@@ -61,11 +61,13 @@ import java.awt.Point;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -639,10 +641,38 @@ public class ViewsheetEditService {
             "Edit op 'group' requires 'assemblies' with at least two assembly names.");
       }
 
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
-         groups.groupComponents(runtimeId,
-                                GroupVSObjectsEvent.builder().objects(names).build(),
-                                linkUri, user, dispatcher));
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         // Bug #79199: ComposerGroupService.groupComponents has no type check and the Composer
+         // UI shared with it gates Group in the client (viewsheet-pane.component.ts,
+         // isGroupActionEnabled: disabled when any focused object is a Selection Container, and
+         // when fewer than two distinct objects are focused). Enforce those two rules here, before
+         // anything is mutated. Resolving each name also turns an unknown name into a clear error
+         // instead of the NullPointerException groupComponents raised.
+         Viewsheet vs = rvs.getViewsheet();
+         Set<String> distinct = new HashSet<>();
+
+         for(String name : names) {
+            VSAssembly assembly = requireVSAssembly(rvs, vs, name);
+
+            if(assembly instanceof CurrentSelectionVSAssembly) {
+               throw new IllegalArgumentException(
+                  "'" + name + "' is a Selection Container, which cannot be grouped (the " +
+                  "Composer disables Group for it). edit(op:'group') only combines other " +
+                  "assemblies into a Group; to combine selection filters use " +
+                  "edit(op:'group_as_selection_container').");
+            }
+
+            distinct.add(name);
+         }
+
+         if(distinct.size() < 2) {
+            throw new IllegalArgumentException(
+               "Edit op 'group' requires at least two different assembly names; got " + names + ".");
+         }
+
+         groups.groupComponents(runtimeId, GroupVSObjectsEvent.builder().objects(names).build(),
+                                linkUri, user, dispatcher);
+      });
    }
 
    /**
