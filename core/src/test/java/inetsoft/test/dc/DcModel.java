@@ -115,6 +115,17 @@ public final class DcModel {
       return days;
    }
 
+   /** What differs between the days the model expects and the days the product keeps. */
+   public static String difference(Set<LocalDate> model, Set<LocalDate> kept) {
+      TreeSet<LocalDate> missing = new TreeSet<>(model);
+      missing.removeAll(kept);
+      TreeSet<LocalDate> extra = new TreeSet<>(kept);
+      extra.removeAll(model);
+
+      return "missing " + missing.size() + (missing.isEmpty() ? "" : " from " + missing.first()) +
+         ", extra " + extra.size() + (extra.isEmpty() ? "" : " from " + extra.first());
+   }
+
    private static List<LocalDate> intervalDays(DcShape shape, LocalDate periodStart,
                                                LocalDate periodEnd, LocalDate end,
                                                DcPeriods periods)

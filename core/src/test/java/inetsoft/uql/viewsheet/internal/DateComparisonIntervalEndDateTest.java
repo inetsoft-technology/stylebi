@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.test.*;
 import inetsoft.test.dc.DcDays;
+import inetsoft.test.dc.DcKnownGaps;
 import inetsoft.test.dc.DcModel;
 import inetsoft.test.dc.DcShape;
 import org.junit.jupiter.api.Tag;
@@ -39,8 +40,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * periods still count back from the periods' End Date.
  *
  * <p>The days are checked against {@link DcModel} (the dialog wording) for every Standard Periods
- * shape, and against a few hand-computed days. The combinations the range matrix leaves out as
- * known gaps (Bug #79061) are left out here too.</p>
+ * shape, and against a few hand-computed days. The known gaps ({@link inetsoft.test.dc.DcKnownGaps}) are left out.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -73,8 +73,7 @@ class DateComparisonIntervalEndDateTest {
                for(boolean inclusive : new boolean[] { false, true }) {
                   for(boolean change : new boolean[] { false, true }) {
                      if(change && inclusive ||
-                        DateComparisonRangeMatrixTest.knownGap(shape, weekStart, END, inclusive,
-                                                               change))
+                        DcKnownGaps.knownGap(shape, weekStart, END, inclusive, change))
                      {
                         continue;
                      }
@@ -97,14 +96,9 @@ class DateComparisonIntervalEndDateTest {
                            return null;
                         }
 
-                        Set<LocalDate> missing = new TreeSet<>(model);
-                        missing.removeAll(kept);
-                        Set<LocalDate> extra = new TreeSet<>(kept);
-                        extra.removeAll(model);
-
                         return shape + " " + weekStart + " intervalEnd=" + intervalEnd +
-                           (inclusive ? " incl" : "") + (change ? " change" : "") +
-                           ": missing " + missing + ", extra " + extra;
+                           (inclusive ? " incl" : "") + (change ? " change" : "") + ": " +
+                           DcModel.difference(model, kept);
                      });
 
                      if(message == null) {
