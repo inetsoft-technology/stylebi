@@ -2626,19 +2626,22 @@ public class SelectionRuntimeService {
       String shortened = maxRangeSize > 0 ?
          "the range is limited to maxRangeSize " + (long) maxRangeSize :
          "the slider shortened the range";
-      // The slider never selects fewer than two buckets (its length floor is 1), so a single-point
-      // request is widened, not cut -- the reason follows the direction of the move.
-      String widened = "the slider selects at least two buckets";
+      // The slider never selects fewer than two buckets (its length floor is 1), which explains
+      // exactly one extra bucket past a single point. Any other widening (the slider keeps the
+      // previous length for a single point) has no cause this code can prove, so it is not named.
+      String floor = "the slider selects at least two buckets";
+      String other = "the slider applied a different range than requested";
 
       if(first != requestedRange[0]) {
          discloseMovedBound(after, requestedRange[0], first,
-                            first > requestedRange[0] ? shortened : widened, clampedOut);
+                            first > requestedRange[0] ? shortened : other, clampedOut);
       }
 
       if(last != expectedLast) {
          int appliedEnd = upperInclusive ? last : Math.max(first, last - 1);
-         discloseMovedBound(after, requestedRange[1], appliedEnd,
-                            appliedEnd < requestedRange[1] ? shortened : widened, clampedOut);
+         String endReason = appliedEnd < requestedRange[1] ? shortened :
+            appliedEnd == requestedRange[1] + 1 ? floor : other;
+         discloseMovedBound(after, requestedRange[1], appliedEnd, endReason, clampedOut);
       }
    }
 

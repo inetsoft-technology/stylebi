@@ -857,6 +857,32 @@ class SelectionRuntimeServiceTest {
       assertEquals("the slider selects at least two buckets", clamped.get(0).get("reason"));
    }
 
+   /** A single point widened by more than the one floor bucket gets a neutral, unattributed reason. */
+   @Test
+   void givesANeutralReasonWhenASinglePointIsWidenedByMoreThanOneBucket() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(20, 5, 17),
+         new int[]{ 5, 5 }, true, 12, clamped);
+
+      assertEquals(1, clamped.size());
+      assertEquals("b17", clamped.get(0).get("applied"));
+      assertEquals("the slider applied a different range than requested",
+                   clamped.get(0).get("reason"));
+   }
+
+   /** A lower bound that moved down is not explained by the length floor either. */
+   @Test
+   void givesANeutralReasonWhenTheLowerBoundMovedDown() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 3, 9),
+         new int[]{ 5, 9 }, true, 12, clamped);
+
+      assertEquals(1, clamped.size());
+      assertEquals("b3", clamped.get(0).get("applied"));
+      assertEquals("the slider applied a different range than requested",
+                   clamped.get(0).get("reason"));
+   }
+
    /** Single point on the last bucket, or in exclusive mode, is honoured: nothing to disclose. */
    @Test
    void doesNotDiscloseAnHonouredSinglePoint() {
