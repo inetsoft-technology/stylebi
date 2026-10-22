@@ -4225,24 +4225,18 @@ public class WorksheetAgentController {
    private static AssetVariable resolveSettableVariable(Worksheet ws, String key)
       throws PairingException
    {
-      if(ws.getAssembly(key) instanceof VariableAssembly va && isNamedVariable(va)) {
-         return va.getVariable();
-      }
-
-      List<VariableAssembly> matches = new ArrayList<>();
-      TreeSet<String> settable = new TreeSet<>();
-
-      for(Assembly a : ws.getAssemblies()) {
-         if(a instanceof VariableAssembly va && isNamedVariable(va)) {
-            settable.add(va.getVariable().getName());
-
-            if(key.equals(va.getVariable().getName())) {
-               matches.add(va);
-            }
-         }
-      }
+      List<VariableAssembly> matches = declaringVariables(ws, key).stream()
+         .filter(WorksheetAgentController::isNamedVariable).toList();
 
       if(matches.isEmpty()) {
+         TreeSet<String> settable = new TreeSet<>();
+
+         for(Assembly a : ws.getAssemblies()) {
+            if(a instanceof VariableAssembly va && isNamedVariable(va)) {
+               settable.add(va.getVariable().getName());
+            }
+         }
+
          throw new PairingException(
             "Unknown variable: '" + key + "'. set_variable_values can only set values for " +
             "variables declared in this worksheet, including mirrored ones" +
@@ -4274,23 +4268,30 @@ public class WorksheetAgentController {
    }
 
    /**
-    * Whether {@code name} is declared as an assembly name or as the own name of a variable,
-    * mirrored ones included.
+    * The variable assemblies that declare {@code name}: the assembly named {@code name} if it
+    * is one, otherwise every one whose variable's own name is {@code name}, mirrored ones
+    * included (their assembly names differ from the variable's).
     */
-   private static boolean isDeclaredVariable(Worksheet ws, String name) {
-      if(ws.getAssembly(name) instanceof VariableAssembly) {
-         return true;
+   private static List<VariableAssembly> declaringVariables(Worksheet ws, String name) {
+      if(ws.getAssembly(name) instanceof VariableAssembly va) {
+         return List.of(va);
       }
+
+      List<VariableAssembly> matches = new ArrayList<>();
 
       for(Assembly a : ws.getAssemblies()) {
          if(a instanceof VariableAssembly va && isNamedVariable(va) &&
             name.equals(va.getVariable().getName()))
          {
-            return true;
+            matches.add(va);
          }
       }
 
-      return false;
+      return matches;
+   }
+
+   private static boolean isDeclaredVariable(Worksheet ws, String name) {
+      return !declaringVariables(ws, name).isEmpty();
    }
 
    private static boolean isNamedVariable(VariableAssembly va) {
