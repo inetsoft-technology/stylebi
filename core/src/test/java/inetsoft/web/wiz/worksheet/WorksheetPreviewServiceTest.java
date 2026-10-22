@@ -27,6 +27,7 @@ import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.util.CoreTool;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
+import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -692,13 +693,13 @@ class WorksheetPreviewServiceTest {
    // so a legitimately slow-but-finite query (e.g. a multi-round-trip REST pagination fetch)
    // never gets its runtime disposed out from under it mid-query.
    //
-   // WorksheetPreviewService.HEARTBEAT_INTERVAL_MS is shrunk for the duration of these tests so the periodic refresh can
+   // RuntimeHeartbeatKeepAlive.INTERVAL_MS is shrunk for the duration of these tests so the periodic refresh can
    // be observed without waiting out the real (minutes-long) production interval.
 
    @Test
    void refreshesHeartbeatPeriodicallyWhileQueryIsInFlight() throws Exception {
-      long saved = WorksheetPreviewService.HEARTBEAT_INTERVAL_MS;
-      WorksheetPreviewService.HEARTBEAT_INTERVAL_MS = 20L;
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
 
       try {
          AssetQuerySandbox box = mock(AssetQuerySandbox.class);
@@ -726,14 +727,14 @@ class WorksheetPreviewServiceTest {
          verify(rws, never()).access(true);
       }
       finally {
-         WorksheetPreviewService.HEARTBEAT_INTERVAL_MS = saved;
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
       }
    }
 
    @Test
    void stopsRefreshingHeartbeatOnceTheQueryCompletes() throws Exception {
-      long saved = WorksheetPreviewService.HEARTBEAT_INTERVAL_MS;
-      WorksheetPreviewService.HEARTBEAT_INTERVAL_MS = 15L;
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 15L;
 
       try {
          AssetQuerySandbox box = mock(AssetQuerySandbox.class);
@@ -750,14 +751,14 @@ class WorksheetPreviewServiceTest {
          verify(rws, never()).access(anyBoolean());
       }
       finally {
-         WorksheetPreviewService.HEARTBEAT_INTERVAL_MS = saved;
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
       }
    }
 
    @Test
    void stopsRefreshingHeartbeatWhenTheQueryThrows() throws Exception {
-      long saved = WorksheetPreviewService.HEARTBEAT_INTERVAL_MS;
-      WorksheetPreviewService.HEARTBEAT_INTERVAL_MS = 15L;
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 15L;
 
       try {
          AssetQuerySandbox box = mock(AssetQuerySandbox.class);
@@ -773,7 +774,7 @@ class WorksheetPreviewServiceTest {
          verify(rws, never()).access(anyBoolean());
       }
       finally {
-         WorksheetPreviewService.HEARTBEAT_INTERVAL_MS = saved;
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
       }
    }
 }
