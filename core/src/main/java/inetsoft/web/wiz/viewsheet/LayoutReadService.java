@@ -182,7 +182,8 @@ public class LayoutReadService {
       }
 
       // floor, not the ceil Dimension pageIndex uses: the PDF export body truncates, so a floored
-      // value never promises a point the real page does not have. null PrintInfo -> 0 (the dialog
+      // value matches it for standard papers; some custom mm sizes can still be 1pt over, since
+      // the PDF path keeps page inches in a float Size. null PrintInfo -> 0 (the dialog
       // model above is non-null, so the layout was configured in practice).
       double[] body = VSLayoutService.getPrintBodySize(layout);
       int printableWidth = body == null ? 0 : (int) Math.floor(body[0]);

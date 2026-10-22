@@ -574,8 +574,11 @@ class LayoutReadServiceTest {
                                   float headerFromEdge, float footerFromEdge) throws Exception
       {
          PrintLayout layout = new PrintLayout();
-         layout.setPrintInfo(new PrintInfo("Custom", new DimensionD(paperW, paperH),
-                                            top, left, bottom, right, unit));
+         PrintInfo printInfo = new PrintInfo("Custom", new DimensionD(paperW, paperH),
+                                             top, left, bottom, right, unit);
+         printInfo.setHeaderFromEdge(headerFromEdge);
+         printInfo.setFooterFromEdge(footerFromEdge);
+         layout.setPrintInfo(printInfo);
          layout.setHorizontalScreen(landscape);
          layout.setVSAssemblyLayouts(new ArrayList<>());
          masterVs.getLayoutInfo().setPrintLayout(layout);
