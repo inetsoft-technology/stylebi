@@ -18,10 +18,12 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 
+import java.awt.Dimension;
 import java.awt.Point;
 import java.util.ArrayList;
 import java.util.List;
@@ -108,6 +110,7 @@ public final class VizModernizeUtil {
       int seeded = seedAll(vs, mark, targets, true, true);
 
       if(seeded > 0) {
+         restoreContainedSliders(targets);
          keepOnBottomTabs(vs);
       }
 
@@ -129,8 +132,28 @@ public final class VizModernizeUtil {
          info.seedDensitySize(VizContext.of(info));
       }
 
+      // an unmarked slider keeps the body it has
+      restoreContainedSliders(marked(vs));
       keepOnBottomTabs(vs);
       return seeded;
+   }
+
+   /**
+    * An expanded slider in a selection container stores its body, which a re-seed's padding or
+    * lane moves; store it again as its next expand would. A collapsed one keeps its lane.
+    */
+   private static void restoreContainedSliders(List<VSAssemblyInfo> targets) {
+      for(VSAssemblyInfo info : targets) {
+         if(!(info instanceof TimeSliderVSAssemblyInfo slider) || slider.isHidden() ||
+            !slider.isInSelectionContainer())
+         {
+            continue;
+         }
+
+         int height = slider.getVizMark() != null ? slider.getSliderBodyHeight() :
+            slider.getListHeight() * AssetUtil.defh + slider.getTitleHeight();
+         slider.setPixelSize(new Dimension(slider.getPixelSize().width, height));
+      }
    }
 
    /**

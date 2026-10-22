@@ -48,6 +48,7 @@ class RangeSliderDensityTest {
    @AfterEach
    void reset() {
       SreeEnv.setProperty("viewsheet.density", null);
+      SreeEnv.setProperty("viewsheet.modernVisualization", null);
    }
 
    private static TimeSliderVSAssemblyInfo marked(String density) {
@@ -269,5 +270,94 @@ class RangeSliderDensityTest {
       info.seedChromeDefaults(VizContext.of(info));
       assertEquals(new Dimension(232, 40), info.getPixelSize());
       assertEquals(new Insets(16, 16, 16, 16), info.getPadding(), "the padding still seeds");
+   }
+
+   // RangeSlider1 in a selection container, on a dashboard pinned to a density
+   private static TimeSliderVSAssemblyInfo containedSlider(Viewsheet vs, VizMark mark, int height) {
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
+      vs.addAssembly(container);
+      container.setAssemblies(new String[] { "RangeSlider1" });
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "RangeSlider1");
+      vs.addAssembly(slider);
+      TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) slider.getVSAssemblyInfo();
+      info.setVizMark(mark);
+      info.initDefaultFormat();
+      info.setPixelSize(new Dimension(200, height));
+      return info;
+   }
+
+   private static Viewsheet sheet(String density) {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity(density);
+      return vs;
+   }
+
+   @Test
+   void modernizeRestoresAnExpandedContainedSlidersBody() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+      Viewsheet vs = sheet("comfortable");
+      TimeSliderVSAssemblyInfo info = containedSlider(vs, null, 40);
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+
+      VizModernizeUtil.modernize(vs);
+
+      assertNotNull(info.getVizMark(), "premise: the slider was modernized");
+      assertEquals(new Dimension(200, 82), info.getPixelSize());
+   }
+
+   @Test
+   void aDensityChangeRestoresAnExpandedContainedSlidersBody() {
+      Viewsheet vs = sheet("dense");
+      TimeSliderVSAssemblyInfo info = containedSlider(vs, VizMark.MODERN_LIGHT, 66);
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+
+      VizModernizeUtil.reseed(vs);
+
+      assertEquals(new Dimension(200, 82), info.getPixelSize());
+   }
+
+   @Test
+   void revertRestoresAnExpandedContainedSlidersLegacyBody() {
+      Viewsheet vs = sheet("comfortable");
+      TimeSliderVSAssemblyInfo info = containedSlider(vs, VizMark.MODERN_LIGHT, 82);
+
+      VizModernizeUtil.revert(vs);
+
+      assertNull(info.getVizMark(), "premise: the slider was reverted");
+      assertEquals(new Dimension(200, 60), info.getPixelSize(), "list height 40 plus the lane");
+   }
+
+   @Test
+   void aCollapsedContainedSliderKeepsItsLane() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+      Viewsheet vs = sheet("comfortable");
+      TimeSliderVSAssemblyInfo info = containedSlider(vs, null, AssetUtil.defh);
+      info.setHidden(true);
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+
+      VizModernizeUtil.modernize(vs);
+      assertEquals(new Dimension(200, AssetUtil.defh), info.getPixelSize(), "modernize");
+
+      vs.getViewsheetInfo().setVizDensity("dense");
+      VizModernizeUtil.reseed(vs);
+      assertEquals(new Dimension(200, AssetUtil.defh), info.getPixelSize(), "density change");
+
+      VizModernizeUtil.revert(vs);
+      assertEquals(new Dimension(200, AssetUtil.defh), info.getPixelSize(), "revert");
+   }
+
+   // only a slider whose mark moved, or a marked one on a density change, is re-stored
+   @Test
+   void anUnmarkedContainedSliderKeepsItsBodyThroughADensityChangeAndARevert() {
+      Viewsheet vs = sheet("comfortable");
+      TimeSliderVSAssemblyInfo info = containedSlider(vs, null, 40);
+      ((CurrentSelectionVSAssembly) vs.getAssembly("CurrentSelection1")).getVSAssemblyInfo()
+         .setVizMark(VizMark.MODERN_LIGHT);
+
+      VizModernizeUtil.reseed(vs);
+      assertEquals(new Dimension(200, 40), info.getPixelSize(), "density change");
+
+      assertTrue(VizModernizeUtil.revert(vs) > 0, "premise: the container was reverted");
+      assertEquals(new Dimension(200, 40), info.getPixelSize(), "revert");
    }
 }

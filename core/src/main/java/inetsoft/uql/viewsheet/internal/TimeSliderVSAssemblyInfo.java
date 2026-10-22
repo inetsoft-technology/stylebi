@@ -827,7 +827,7 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       return new Dimension(width, tier.height);
    }
 
-   private boolean isInSelectionContainer() {
+   boolean isInSelectionContainer() {
       Viewsheet vs = getViewsheet();
 
       if(vs == null) {
