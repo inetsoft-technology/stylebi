@@ -24,7 +24,9 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.util.CoreTool;
+import inetsoft.util.TimedQueue;
 import inetsoft.util.UserMessage;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.service.WizVsService;
@@ -50,6 +52,30 @@ import java.util.*;
 @Service
 public class WorksheetPreviewService {
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetPreviewService.class);
+
+   /**
+    * Bug #79074: {@link #preview0} blocks the calling thread for as long as the underlying
+    * query takes (a slow or multi-round-trip query -- e.g. a paginated REST connector doing
+    * many sequential fetches -- can legitimately run for minutes), but nothing on this path
+    * otherwise touches the runtime's heartbeat while the call is in flight. Only one
+    * {@code rs.access(true)} call happens, before this method is ever reached (at pairing-access
+    * grant time in {@code SheetRuntimeAccess.getWorksheetForPairing}). If the query runs past
+    * {@link RuntimeSheet#DEFAULT_HEARTBEAT_TIMEOUT} (3 minutes, also the recycle sweep's own
+    * interval, and a hard floor no deployment can lower -- see that constant's own comment),
+    * {@code WorksheetEngine}'s recycle sweep disposes the runtime out from under the still-
+    * running query, and the next call against the same runtime id fails with "Worksheet runtime
+    * not found or expired" -- silently losing whatever else was unsaved on that worksheet.
+    * {@code WorksheetEngine} (unlike {@code ViewsheetEngine}) has no "currently executing, don't
+    * evict" guard of its own to lean on instead.
+    *
+    * <p>A third of the heartbeat floor gives a 3x safety margin against scheduling slop in the
+    * background timer this interval drives.</p>
+    *
+    * <p>Package-private and non-final solely so a same-package unit test can shrink it, to
+    * observe the periodic refresh firing without waiting out a production-sized (minutes-long)
+    * interval; production code never reassigns this.</p>
+    */
+   static long HEARTBEAT_INTERVAL_MS = RuntimeSheet.DEFAULT_HEARTBEAT_TIMEOUT / 3;
 
    /**
     * Query up to {@code limit} rows from the named table in the live worksheet, starting
@@ -112,6 +138,22 @@ public class WorksheetPreviewService {
       // runtime sheet). Snapshot the variable-bearing structures and restore them after.
       Map<String, ConditionSnapshot> snapshots = snapshotConditions(rws.getWorksheet());
       TableLens lens;
+      // See HEARTBEAT_INTERVAL_MS's own comment: keeps the runtime's heartbeat fresh for the
+      // duration of the blocking query below, so WorksheetEngine's recycle sweep never disposes
+      // it mid-query. access(false) only refreshes the heartbeat clock, not the idle/accessed
+      // clock -- this must not affect ordinary idle-timeout accounting.
+      TimedQueue.TimedRunnable heartbeat = TimedQueue.add(
+         new TimedQueue.TimedRunnable(HEARTBEAT_INTERVAL_MS) {
+            @Override
+            public boolean isRecurring() {
+               return true;
+            }
+
+            @Override
+            public void run() {
+               rws.access(false);
+            }
+         });
 
       try {
          lens = box.getTableLens(tableName, AssetQuerySandbox.RUNTIME_MODE);
@@ -136,6 +178,7 @@ public class WorksheetPreviewService {
                                     + tableName + "': " + e.getMessage());
       }
       finally {
+         TimedQueue.remove(heartbeat);
          restoreConditions(rws.getWorksheet(), snapshots);
       }
 
