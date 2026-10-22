@@ -23,4 +23,6 @@ export interface AxisLabelPaneModel {
    rotationRadioGroupModel: RotationRadioGroupModel;
    labelOnSecondaryAxis: boolean;
    secondary?: boolean;
+   labelGap: number;
+   labelGapFollowsDefault?: boolean;
 }

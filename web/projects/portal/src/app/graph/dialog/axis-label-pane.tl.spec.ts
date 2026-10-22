@@ -53,6 +53,7 @@ function createModel(overrides: Partial<AxisLabelPaneModel> = {}): AxisLabelPane
       rotationRadioGroupModel: { rotation: "auto" },
       labelOnSecondaryAxis: false,
       secondary: false,
+      labelGap: 8,
       ...overrides,
    };
 }
@@ -234,5 +235,46 @@ describe("AxisLabelPane — Show Axis Labels baseline", () => {
       await renderPane({ showAxisLabel: false });
 
       expect(screen.getByLabelText(SHOW_AXIS_LABEL_TEXT)).not.toBeChecked();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 6: Label distance row
+// ---------------------------------------------------------------------------
+
+const DISTANCE = "_#(Label Distance from Axis)";
+const FOLLOW = "_#(composer.vs.followDefaultDensity)";
+
+describe("AxisLabelPane — label distance", () => {
+   it("disables the stepper while the default is followed", async () => {
+      await renderPane({ labelGap: 8, labelGapFollowsDefault: true });
+
+      expect(screen.getByRole("spinbutton", { name: DISTANCE })).toBeDisabled();
+      expect(screen.getByLabelText(FOLLOW)).toBeChecked();
+   });
+
+   it("hides the follow-default box on a legacy chart", async () => {
+      await renderPane({ labelGap: 2 });
+
+      expect(screen.queryByLabelText(FOLLOW)).not.toBeInTheDocument();
+      expect(screen.getByRole("spinbutton", { name: DISTANCE })).toBeEnabled();
+   });
+
+   it("never goes below 1", async () => {
+      await renderPane({ labelGap: 2 });
+
+      expect(screen.getByRole("spinbutton", { name: DISTANCE })).toHaveAttribute("aria-valuemin", "1");
+   });
+
+   it("keeps the shown value when the box is unticked", async () => {
+      const user = userEvent.setup();
+      const { fixture } = await renderPane({ labelGap: 8, labelGapFollowsDefault: true });
+
+      await user.click(screen.getByLabelText(FOLLOW));
+
+      expect(fixture.componentInstance.model.labelGapFollowsDefault).toBe(false);
+      expect(fixture.componentInstance.model.labelGap).toBe(8);
+      fixture.detectChanges();
+      expect(screen.getByRole("spinbutton", { name: DISTANCE })).toBeEnabled();
    });
 });
