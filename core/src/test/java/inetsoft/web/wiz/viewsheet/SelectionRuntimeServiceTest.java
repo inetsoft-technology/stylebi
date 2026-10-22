@@ -844,6 +844,31 @@ class SelectionRuntimeServiceTest {
       assertEquals("the range is limited to maxRangeSize 4", clamped.get(0).get("reason"));
    }
 
+   /** A single-point inclusive request is widened by the slider's length floor, not cut. */
+   @Test
+   void givesAWideningReasonForAnInclusiveSinglePoint() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 5, 6),
+         new int[]{ 5, 5 }, true, 12, clamped);
+
+      assertEquals(1, clamped.size());
+      assertEquals("b5", clamped.get(0).get("requested"));
+      assertEquals("b6", clamped.get(0).get("applied"));
+      assertEquals("the slider selects at least two buckets", clamped.get(0).get("reason"));
+   }
+
+   /** Single point on the last bucket, or in exclusive mode, is honoured: nothing to disclose. */
+   @Test
+   void doesNotDiscloseAnHonouredSinglePoint() {
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 11, 11),
+         new int[]{ 11, 11 }, true, 12, clamped);
+      SelectionRuntimeService.discloseNarrowedRange(bucketsSelected(12, 5, 6),
+         new int[]{ 5, 5 }, false, 12, clamped);
+
+      assertEquals(List.of(), clamped);
+   }
+
    /** Nothing selected after the apply: nothing to compare, nothing to disclose. */
    @Test
    void disclosesNothingWhenNoBucketIsSelected() {

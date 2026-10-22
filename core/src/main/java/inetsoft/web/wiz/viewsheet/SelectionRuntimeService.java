@@ -2623,17 +2623,22 @@ public class SelectionRuntimeService {
 
       int expectedLast = upperInclusive ? requestedRange[1] :
          Math.min(requestedRange[1] + 1, after.length - 1);
-      String reason = maxRangeSize > 0 ?
+      String shortened = maxRangeSize > 0 ?
          "the range is limited to maxRangeSize " + (long) maxRangeSize :
          "the slider shortened the range";
+      // The slider never selects fewer than two buckets (its length floor is 1), so a single-point
+      // request is widened, not cut -- the reason follows the direction of the move.
+      String widened = "the slider selects at least two buckets";
 
       if(first != requestedRange[0]) {
-         discloseMovedBound(after, requestedRange[0], first, reason, clampedOut);
+         discloseMovedBound(after, requestedRange[0], first,
+                            first > requestedRange[0] ? shortened : widened, clampedOut);
       }
 
       if(last != expectedLast) {
          int appliedEnd = upperInclusive ? last : Math.max(first, last - 1);
-         discloseMovedBound(after, requestedRange[1], appliedEnd, reason, clampedOut);
+         discloseMovedBound(after, requestedRange[1], appliedEnd,
+                            appliedEnd < requestedRange[1] ? shortened : widened, clampedOut);
       }
    }
 
