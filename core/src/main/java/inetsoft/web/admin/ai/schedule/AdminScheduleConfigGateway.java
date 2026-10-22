@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.schedule;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleCondition;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
@@ -55,6 +56,19 @@ public class AdminScheduleConfigGateway {
     * must always carry through unchanged (never reconstruct a partial model). */
    public ScheduleConfigurationModel getFullConfig(Principal user) throws Exception {
       return configService.getConfiguration(user);
+   }
+
+   /**
+    * Reads the full model fresh with the REAL stored password of every server location, for the
+    * apply side's rollback only (Bug #79032): a whole-model write of the masked read cannot restore
+    * a password a write dropped, whereas a real password is written through verbatim. The result
+    * must stay server-side -- never return, log or audit it.
+    */
+   public ScheduleConfigurationModel getFullConfigWithPasswords(Principal user) throws Exception {
+      ScheduleConfigurationModel masked = configService.getConfiguration(user);
+      return ScheduleConfigurationModel.builder().from(masked)
+         .serverLocations(SUtil.getServerLocationsWithPasswords())
+         .build();
    }
 
    /** Writes the full model back. {@code model} must be {@code current} with only the caller's own

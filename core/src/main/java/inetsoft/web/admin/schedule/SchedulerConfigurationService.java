@@ -401,8 +401,8 @@ public class SchedulerConfigurationService {
     * Determines if the stored password of a server location may be kept for an edited location.
     * The location must be unchanged, or log in to the same server as the same user.
     */
-   private static boolean isSameLocationLogin(String path, String username,
-                                              ServerPathInfoModel oldModel)
+   public static boolean isSameLocationLogin(String path, String username,
+                                             ServerPathInfoModel oldModel)
    {
       if(path == null) {
          return false;

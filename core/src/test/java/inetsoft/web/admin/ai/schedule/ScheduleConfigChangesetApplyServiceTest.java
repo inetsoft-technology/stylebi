@@ -120,6 +120,10 @@ class ScheduleConfigChangesetApplyServiceTest {
 
       lenient().when(gateway.findTimeRangeDependents(anyString(), anyList())).thenReturn(List.of());
       lenient().when(gateway.getFullConfig(user)).thenAnswer(inv -> readBack());
+      lenient().when(gateway.getFullConfigWithPasswords(user)).thenAnswer(inv -> {
+         ScheduleConfigurationModel masked = readBack();
+         return model(SUtil.getServerLocationsWithPasswords(), masked.timeRanges());
+      });
       lenient().doAnswer(inv -> {
          persist(inv.getArgument(0));
          return null;
@@ -274,6 +278,79 @@ class ScheduleConfigChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertEquals("/qa/sl-bs09", readBack().serverLocations().get(0).path());
       assertEquals("s3cret", properties.get("server.save.locations").split("\\|")[3]);
+   }
+
+   // Bug #79032: a username change with the masked placeholder makes the server clear the stored
+   // password (Bug #77953). The preview now says so (password=(none)), so the apply verifies
+   // instead of reporting a bogus mismatch.
+   @Test void appliesAUsernameChangeThatClearsThePasswordAndVerifiesTheClearedState() throws Exception {
+      createLocationWithPassword();
+      ServerPathInfoModel info = readBack().serverLocations().get(0).pathInfoModel();
+
+      Map<String, Object> updated = locationSpec("/qa/sl-bs09", "BS09");
+      updated.put("username", "otheruser");
+      updated.put("password", Util.PLACEHOLDER_PASSWORD);
+      updated.put("oldPasswordKey", info.oldPasswordKey());
+
+      ApplyResult result = apply(updateLocation("/qa/sl-bs09", updated));
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      ServerPathInfoModel after = readBack().serverLocations().get(0).pathInfoModel();
+      assertEquals("otheruser", after.username());
+      assertNull(after.password());
+   }
+
+   // The same silent drop happens when the placeholder is paired with a stale oldPasswordKey.
+   @Test void appliesAStaleOldPasswordKeyUpdateAndVerifiesTheClearedState() throws Exception {
+      createLocationWithPassword();
+
+      Map<String, Object> updated = locationSpec("/qa/sl-bs09", "BS09");
+      updated.put("username", "ftpuser");
+      updated.put("password", Util.PLACEHOLDER_PASSWORD);
+      updated.put("oldPasswordKey", "/gone|BS09|ftpuser");
+
+      ApplyResult result = apply(updateLocation("/qa/sl-bs09", updated));
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(readBack().serverLocations().get(0).pathInfoModel().password());
+   }
+
+   // The credential must survive a failed apply: the rollback writes the REAL password captured
+   // before the write, not the masked placeholder (which the server can no longer resolve once the
+   // write has changed the entry's username).
+   @Test void rollbackRestoresTheRealPasswordAfterAPasswordDroppingWrite() throws Exception {
+      createLocationWithPassword();
+      ServerPathInfoModel info = readBack().serverLocations().get(0).pathInfoModel();
+
+      Map<String, Object> updated = locationSpec("/qa/sl-bs09", "BS09");
+      updated.put("username", "otheruser");
+      updated.put("password", Util.PLACEHOLDER_PASSWORD);
+      updated.put("oldPasswordKey", info.oldPasswordKey());
+      ScheduleConfigChangeRequest change = updateLocation("/qa/sl-bs09", updated);
+      ResolvedPlan preview = planService.resolve(planRequest(change), user);
+      ScheduleConfigApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), change);
+      req.setReviewOutcome("approved");
+
+      // reads: 1 = the apply's own resolve, 2 = the post-write verification (forced to fail by
+      // reporting no server locations), then real reads for the rollback verification
+      java.util.concurrent.atomic.AtomicInteger reads = new java.util.concurrent.atomic.AtomicInteger();
+      lenient().when(gateway.getFullConfig(user)).thenAnswer(inv ->
+         reads.incrementAndGet() == 2 ? model(List.of(), List.of()) : readBack());
+
+      ApplyResult result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      ServerPathInfoModel restored = readBack().serverLocations().get(0).pathInfoModel();
+      assertEquals("ftpuser", restored.username());
+      assertEquals(Util.PLACEHOLDER_PASSWORD, restored.password());
+      assertEquals("s3cret", properties.get("server.save.locations").split("\\|")[3]);
+   }
+
+   private void createLocationWithPassword() throws Exception {
+      Map<String, Object> created = locationSpec("/qa/sl-bs09", "BS09");
+      created.put("username", "ftpuser");
+      created.put("password", "s3cret");
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, apply(createLocation(created)).status());
    }
 
    // -------------------------------------------------------------------------
