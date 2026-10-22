@@ -1520,8 +1520,14 @@ class ViewsheetFormatServiceTest {
       }).when(painter).getFormat(eq("rt1"), any(GetVSObjectFormatEvent.class),
                                  any(Principal.class), any());
 
-      Map<String, Object> read =
-         serviceWith(painter, calcService).getCellFormat("tok", principal(), "FreehandTable1", 0, 0);
+      VSAssemblyInfo info = gaugeInfo();
+      VSCompositeFormat own = new VSCompositeFormat();
+      own.getUserDefinedFormat().setForegroundValue("0x333333", true);
+      info.getFormatInfo().setFormat(cellPath, own);
+
+      Map<String, Object> read = serviceWith(painter, calcService,
+                                             rvsOf(Map.of("FreehandTable1", info)))
+         .getCellFormat("tok", principal(), "FreehandTable1", 0, 0);
 
       assertEquals("FreehandTable1", read.get("assembly"));
       assertEquals(0, read.get("row"));
@@ -1532,18 +1538,88 @@ class ViewsheetFormatServiceTest {
       assertEquals("#333333", format.get("color"));
    }
 
-   /** A6/A3's "no override" baseline: no format captured means the cell has none of its own. */
-   @Test
-   void getCellFormatReturnsNullFormatWhenTheCellHasNoOverride() throws Exception {
+   private static final TableDataPath NO_OVERRIDE_PATH =
+      new TableDataPath(-1, TableDataPath.DETAIL, inetsoft.uql.schema.XSchema.STRING,
+                        new String[]{ "Cell [1,0]" });
+
+   /**
+    * Reads the cell at {@code NO_OVERRIDE_PATH} with the painter answering the always-non-null
+    * pane model it really answers with (Bug #79045), and returns the wire "format" value.
+    */
+   private Object readCellFormat(VSCompositeFormat stored) throws Exception {
       FormatPainterService painter = mock(FormatPainterService.class);
       CalcTableService calcService = mock(CalcTableService.class);
       when(calcService.cellFormatPath(any(), anyString(), anyInt(), anyInt()))
-         .thenReturn(new TableDataPath(-1, TableDataPath.DETAIL));
+         .thenReturn(NO_OVERRIDE_PATH);
 
-      Map<String, Object> read =
-         serviceWith(painter, calcService).getCellFormat("tok", principal(), "FreehandTable1", 1, 0);
+      doAnswer(invocation -> {
+         CapturingCommandDispatcher dispatcher = invocation.getArgument(3);
+         dispatcher.sendCommand("FreehandTable1",
+                                new SetCurrentFormatCommand(new VSObjectFormatInfoModel()));
+         return null;
+      }).when(painter).getFormat(eq("rt1"), any(GetVSObjectFormatEvent.class),
+                                 any(Principal.class), any());
 
-      assertNull(read.get("format"));
+      VSAssemblyInfo info = gaugeInfo();
+
+      if(stored != null) {
+         info.getFormatInfo().setFormat(NO_OVERRIDE_PATH, stored);
+      }
+
+      return serviceWith(painter, calcService, rvsOf(Map.of("FreehandTable1", info)))
+         .getCellFormat("tok", principal(), "FreehandTable1", 1, 0).get("format");
+   }
+
+   /** Bug #79045: a never-formatted cell has no stored entry, so the format is null. */
+   @Test
+   void getCellFormatReturnsNullFormatWhenTheCellHasNoOverride() throws Exception {
+      assertNull(readCellFormat(null));
+   }
+
+   /**
+    * Bug #79045: reset leaves the entry in the map with every defined flag cleared, so the entry
+    * existing must not count as an own format.
+    */
+   @Test
+   void getCellFormatReturnsNullAfterResetClearedEveryDefinedFlag() throws Exception {
+      VSCompositeFormat reset = new VSCompositeFormat();
+      reset.getUserDefinedFormat().setForegroundValue("0x333333", true);
+      reset.getUserDefinedFormat().setAlignmentValue(2, true);
+      reset.getUserDefinedFormat().setBordersValue(new Insets(1, 1, 1, 1), true);
+      reset.getUserDefinedFormat().setForegroundValue(null, false);
+      reset.getUserDefinedFormat().setAlignmentValue(0, false);
+      reset.getUserDefinedFormat().setBordersValue(null, false);
+
+      assertNull(readCellFormat(reset));
+   }
+
+   /** Bug #79045: a user-defined value (any family) makes the cell's format non-null. */
+   @Test
+   void getCellFormatReturnsTheModelForAnyUserDefinedFlag() throws Exception {
+      VSCompositeFormat align = new VSCompositeFormat();
+      align.getUserDefinedFormat().setAlignmentValue(2, true);
+      assertNotNull(readCellFormat(align));
+   }
+
+   /** Bug #79045: a runtime CSS class/id counts (VSCSSFormat's defined flags are never set). */
+   @Test
+   void getCellFormatCountsACssClassOrIdAsOwnFormat() throws Exception {
+      VSCompositeFormat css = new VSCompositeFormat();
+      css.getCSSFormat().setCSSClass("highlight");
+      assertNotNull(readCellFormat(css));
+
+      VSCompositeFormat id = new VSCompositeFormat();
+      id.getCSSFormat().setCSSID("cell1");
+      assertNotNull(readCellFormat(id));
+   }
+
+   /**
+    * Bug #79045: documented behaviour -- a stored entry whose values were never flagged defined
+    * (what the painter leaves when a set matches the pane default) reads null.
+    */
+   @Test
+   void getCellFormatReturnsNullWhenNothingWasFlaggedDefined() throws Exception {
+      assertNull(readCellFormat(new VSCompositeFormat()));
    }
 
    @Test
@@ -2460,7 +2536,7 @@ class ViewsheetFormatServiceTest {
          doAnswer(invocation -> {
             ViewsheetSessionService.Read<?> read = invocation.getArgument(2);
             return CapturingCommandDispatcher.withCapturingDispatcher(
-               principal(), dispatcher -> read.run(null, "rt1", dispatcher));
+               principal(), dispatcher -> read.run(rvs, "rt1", dispatcher));
          }).when(sessions).read(anyString(), any(Principal.class), any());
       }
       catch(Exception e) {
