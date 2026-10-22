@@ -54,6 +54,7 @@ import { MaxObjectEvent } from "../../event/table/max-object-event";
 import { VSObjectEvent } from "../../event/vs-object-event";
 import { RangeSliderPropertyDialogModel } from "../../model/range-slider-property-dialog-model";
 import { VSRangeSliderModel } from "../../model/vs-range-slider-model";
+import { TablePadding } from "../../model/vs-object-model";
 import { CheckFormDataService } from "../../util/check-form-data.service";
 import { VSUtil } from "../../util/vs-util";
 import { NavigationComponent } from "../abstract-nav-component";
@@ -109,7 +110,6 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    sliderTop: number;
    headerBorderBottomColor: string;
    headerSeparatorBorderColor: string;
-   readonly rangeValueOffset: number = 10;
    readonly tickOffset: number = 5;
    readonly isMobile: boolean = GuiTool.isMobileDevice();
 
@@ -442,8 +442,25 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       return this.model.selectEnd * this.widthBetweenTicks;
    }
 
+   get bodyInset(): TablePadding {
+      return this.model.padding || { top: 0, left: 0, bottom: 0, right: 0 };
+   }
+
+   private get spaced(): boolean {
+      return !!this.model.vizModern && !this.model.adhocFilter;
+   }
+
+   get rangeValueOffset(): number {
+      return this.spaced ? 15 : 10;
+   }
+
+   get currentValueGap(): number {
+      return this.spaced ? 6 : 0;
+   }
+
    getLabelPosition(): number {
-      const objectWidth = this.model.objectFormat.width;
+      const inset = this.bodyInset;
+      const objectWidth = this.model.objectFormat.width - inset.left - inset.right;
       const centerPosition = (this._rightHandlePosition - this._leftHandlePosition) / 2
          + this._leftHandlePosition - objectWidth / 2 + 4;
       const leftOverflow = this._rightHandlePosition - this.textSize;
@@ -1102,7 +1119,8 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       const sliderHeight: number = this.isInSelectionContainer()
          ? this.model.objectFormat.height - this.model.titleFormat.height
          : this.model.objectFormat.height;
-      this.sliderTop = Math.ceil(sliderHeight / 2) - 4;
+      const inset = this.bodyInset;
+      this.sliderTop = Math.ceil((sliderHeight - inset.top - inset.bottom) / 2) - 4;
    }
 
    dragStart(event: DragEvent) {

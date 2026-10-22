@@ -51,7 +51,7 @@
       [style.border-right]="model.titleFormat.border.right"
       [style.border-bottom]="model.titleFormat.border.bottom ? model.titleFormat.border.bottom : '1px solid ' + headerBorderBottomColor"
       [style.border-top]="model.titleFormat.border.top"
-      [style.border-radius.px]="model.objectFormat.roundCorner">
+      [style.border-radius.px]="model.vizModern ? model.titleFormat.roundCorner : model.objectFormat.roundCorner">
       @if (!model.adhocFilter) {
         <div class="vs-range-slider-header__buttons"
           [class.force-toolbar]="keyNav || mobileDevice"
@@ -174,98 +174,104 @@
     [class.prevent-drag]="isInSelectionContainer()"
     [style.height.px]="bodyHeight"
     [style.text-decoration]="model.objectFormat.decoration">
-    <div class="range-slider" [style.top.px]="sliderTop" [style.width.px]="model.maxRangeBarWidth"
-    (click)="snapToSide($event)"></div>
-    <div class="range-line prevent-drag" [style.top.px]="sliderTop">
-      <ng-template #minLabelContent>{{minLabel}}</ng-template>
-      <div [style.left.px]="leftHandlePosition"
-        class="range-slider-handle range-slider-left-handle"
-        [class.mobile-padding]="hasMobilePadding"
-        tabindex="-1" [attr.aria-label]="model.labels[model.selectStart]"
-        [wTooltip]="model.labels[model.selectStart] ? updateLeftHandle : null"
-        [followCursor]="true"
-        (touchstart)="mouseDown($event, handleType.Left)"
-        (touchmove)="mouseMove($event)"
-        (touchend)="mouseUp($event)"
-        (touchcancel)="cancelDrag()"
-        (dblclick)="setMaxRange()"
-        (mousedown)="mouseDown($event, handleType.Left)" #leftHandle>
-        @if (!isMouseDown && mouseHandle === handleType.Left) {
-          <div
-          class="overlay bd-selected-cell"></div>
-        }
+    <div class="vs-range-slider-inset"
+      [style.left.px]="bodyInset.left"
+      [style.top.px]="bodyInset.top"
+      [style.width.px]="model.objectFormat.width - bodyInset.left - bodyInset.right"
+      [style.height.px]="bodyHeight - bodyInset.top - bodyInset.bottom">
+      <div class="range-slider" [style.top.px]="sliderTop" [style.width.px]="model.maxRangeBarWidth"
+      (click)="snapToSide($event)"></div>
+      <div class="range-line prevent-drag" [style.top.px]="sliderTop">
+        <ng-template #minLabelContent>{{minLabel}}</ng-template>
+        <div [style.left.px]="leftHandlePosition"
+          class="range-slider-handle range-slider-left-handle"
+          [class.mobile-padding]="hasMobilePadding"
+          tabindex="-1" [attr.aria-label]="model.labels[model.selectStart]"
+          [wTooltip]="model.labels[model.selectStart] ? updateLeftHandle : null"
+          [followCursor]="true"
+          (touchstart)="mouseDown($event, handleType.Left)"
+          (touchmove)="mouseMove($event)"
+          (touchend)="mouseUp($event)"
+          (touchcancel)="cancelDrag()"
+          (dblclick)="setMaxRange()"
+          (mousedown)="mouseDown($event, handleType.Left)" #leftHandle>
+          @if (!isMouseDown && mouseHandle === handleType.Left) {
+            <div
+            class="overlay bd-selected-cell"></div>
+          }
+        </div>
+        <ng-template #maxLabelContent>{{maxLabel}}</ng-template>
+        <ng-template #updateRightHandle>
+          <div class="range-slider-tip">{{model.labels[model.selectEnd]}}</div>
+        </ng-template>
+        <ng-template #updateLeftHandle>
+          <div class="range-slider-tip">{{model.labels[model.selectStart]}}</div>
+        </ng-template>
+        <div [style.left.px]="rightHandlePosition"
+          class="range-slider-handle range-slider-right-handle"
+          [class.mobile-padding]="hasMobilePadding"
+          tabindex="-1" [attr.aria-label]="model.labels[model.selectEnd]"
+          [wTooltip]="model.labels[model.selectEnd] ? updateRightHandle : null"
+          [followCursor]="true"
+          (touchstart)="mouseDown($event, handleType.Right)"
+          (touchmove)="mouseMove($event)"
+          (touchend)="mouseUp($event)"
+          (touchcancel)="cancelDrag()"
+          (dblclick)="setMaxRange()"
+          (mousedown)="mouseDown($event, handleType.Right)" #rightHandle>
+          @if (!isMouseDown && mouseHandle === handleType.Right) {
+            <div
+            class="overlay bd-selected-cell"></div>
+          }
+        </div>
+        <div class="thumb-middle" tabindex="-1"
+          [attr.aria-label]="model.labels[model.selectStart] + ' _#(to) ' + model.labels[model.selectEnd]"
+          [style.left.px]="leftHandlePosition + pointerOffset + mobilePadding"
+          [style.width.px]="rightHandlePosition - leftHandlePosition"
+          (dblclick)="setMaxRange()"
+          (touchstart)="mouseDown($event, handleType.Middle)"
+          (touchmove)="mouseMove($event)"
+          (touchend)="mouseUp($event)"
+          (touchcancel)="cancelDrag()"
+          (mousedown)="mouseDown($event, handleType.Middle)" #middleHandle>
+          @if (!isMouseDown && mouseHandle === handleType.Middle) {
+            <div
+            class="overlay bd-selected-cell"></div>
+          }
+        </div>
       </div>
-      <ng-template #maxLabelContent>{{maxLabel}}</ng-template>
-      <ng-template #updateRightHandle>
-        <div class="range-slider-tip">{{model.labels[model.selectEnd]}}</div>
-      </ng-template>
-      <ng-template #updateLeftHandle>
-        <div class="range-slider-tip">{{model.labels[model.selectStart]}}</div>
-      </ng-template>
-      <div [style.left.px]="rightHandlePosition"
-        class="range-slider-handle range-slider-right-handle"
-        [class.mobile-padding]="hasMobilePadding"
-        tabindex="-1" [attr.aria-label]="model.labels[model.selectEnd]"
-        [wTooltip]="model.labels[model.selectEnd] ? updateRightHandle : null"
-        [followCursor]="true"
-        (touchstart)="mouseDown($event, handleType.Right)"
-        (touchmove)="mouseMove($event)"
-        (touchend)="mouseUp($event)"
-        (touchcancel)="cancelDrag()"
-        (dblclick)="setMaxRange()"
-        (mousedown)="mouseDown($event, handleType.Right)" #rightHandle>
-        @if (!isMouseDown && mouseHandle === handleType.Right) {
-          <div
-          class="overlay bd-selected-cell"></div>
-        }
-      </div>
-      <div class="thumb-middle" tabindex="-1"
-        [attr.aria-label]="model.labels[model.selectStart] + ' _#(to) ' + model.labels[model.selectEnd]"
-        [style.left.px]="leftHandlePosition + pointerOffset + mobilePadding"
-        [style.width.px]="rightHandlePosition - leftHandlePosition"
-        (dblclick)="setMaxRange()"
-        (touchstart)="mouseDown($event, handleType.Middle)"
-        (touchmove)="mouseMove($event)"
-        (touchend)="mouseUp($event)"
-        (touchcancel)="cancelDrag()"
-        (mousedown)="mouseDown($event, handleType.Middle)" #middleHandle>
-        @if (!isMouseDown && mouseHandle === handleType.Middle) {
-          <div
-          class="overlay bd-selected-cell"></div>
-        }
-      </div>
-    </div>
-    @if (model.minVisible) {
-      <div class="range-value range-left ps-1"
-        [style.top.px]="sliderTop + rangeValueOffset">
-        {{minLabel}}
-      </div>
-    }
-    @if (model.maxVisible) {
-      <div class="range-value range-right pe-1"
-        [style.top.px]="sliderTop + rangeValueOffset">
-        {{maxLabel}}
-      </div>
-    }
-    <div class="current-value-wrapper">
-      @if (model.currentVisible || isMouseDown) {
-        @let labelPosition = getLabelPosition();
-        <div class="current-value"
-          [style.left.px]="labelPosition"
-          [style.top]="'calc(' + sliderTop + 'px - 1em)'">
-          {{currentLabel}}
+      @if (model.minVisible) {
+        <div class="range-value range-left ps-1"
+          [style.top.px]="sliderTop + rangeValueOffset">
+          {{minLabel}}
         </div>
       }
-    </div>
-    @if (model.tickVisible) {
-      <div>
-        @for (tick of ticks; track trackByIdx($index, tick)) {
-          <div class="tick"
-            [style.left.px]="tick" [style.top.px]="sliderTop + tickOffset">|
+      @if (model.maxVisible) {
+        <div class="range-value range-right pe-1"
+          [style.top.px]="sliderTop + rangeValueOffset">
+          {{maxLabel}}
+        </div>
+      }
+      <div class="current-value-wrapper">
+        @if (model.currentVisible || isMouseDown) {
+          @let labelPosition = getLabelPosition();
+          <div class="current-value"
+            [style.left.px]="labelPosition"
+            [style.top]="'calc(' + sliderTop + 'px - 1em' + (currentValueGap ? ' - ' + currentValueGap + 'px' : '') + ')'">
+            {{currentLabel}}
           </div>
         }
       </div>
-    }
+      @if (model.tickVisible) {
+        <div>
+          @for (tick of ticks; track trackByIdx($index, tick)) {
+            <div class="tick"
+              [style.left.px]="tick" [style.top.px]="sliderTop + tickOffset">|
+            </div>
+          }
+        </div>
+      }
+    </div>
   </div>
 }
 </div>

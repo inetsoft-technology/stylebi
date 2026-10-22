@@ -27,6 +27,7 @@
 
 import { SimpleChange } from "@angular/core";
 import { GuiTool } from "../../../common/util/gui-tool";
+import { TestUtils } from "../../../common/test/test-utils";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { VSRangeSliderModel } from "../../model/vs-range-slider-model";
 import { NavigationKeys } from "../navigation-keys";
@@ -371,5 +372,64 @@ describe("VSRangeSlider – refresh while the range is being changed (Bug #77917
          expect(ctx.comp.leftHandlePosition).toBeCloseTo(2 * TICK);
          expect(ctx.comp.rightHandlePosition).toBeCloseTo(3 * TICK);
       });
+   });
+});
+
+describe("VSRangeSlider – density", () => {
+   const pad = { top: 16, left: 16, bottom: 16, right: 16 };
+
+   function format(width: number, height: number): any {
+      return { ...TestUtils.createMockVSFormatModel(), width, height, font: "12px Arial" };
+   }
+
+   beforeEach(() => {
+      vi.spyOn(GuiTool, "measureText").mockReturnValue(10);
+   });
+
+   afterEach(() => {
+      vi.restoreAllMocks();
+   });
+
+   it("keeps today's offsets when unmarked", () => {
+      const { comp } = createVSRangeSlider({ vizModern: false });
+      expect(comp.rangeValueOffset).toBe(10);
+      expect(comp.currentValueGap).toBe(0);
+   });
+
+   it("spaces the labels 6px from the track when marked", () => {
+      const { comp } = createVSRangeSlider({ vizModern: true });
+      expect(comp.rangeValueOffset).toBe(15);
+      expect(comp.currentValueGap).toBe(6);
+   });
+
+   it("keeps today's offsets on an ad hoc filter", () => {
+      const { comp } = createVSRangeSlider({ vizModern: true, adhocFilter: true });
+      expect(comp.rangeValueOffset).toBe(10);
+      expect(comp.currentValueGap).toBe(0);
+   });
+
+   it("has a zero inset without padding", () => {
+      const { comp } = createVSRangeSlider({ padding: undefined });
+      expect(comp.bodyInset).toEqual({ top: 0, left: 0, bottom: 0, right: 0 });
+   });
+
+   it("uses the model padding as the inset", () => {
+      const { comp } = createVSRangeSlider({ vizModern: true, padding: pad });
+      expect(comp.bodyInset).toEqual(pad);
+   });
+
+   it("centres the track inside the padding", () => {
+      const { comp } = createVSRangeSlider({
+         vizModern: true, padding: pad, objectFormat: format(232, 82),
+      });
+      expect(comp.sliderTop).toBe(Math.ceil(50 / 2) - 4);
+   });
+
+   it("centres the current label against the inner width", () => {
+      const padded = createVSRangeSlider({
+         vizModern: true, padding: pad, objectFormat: format(232, 82),
+      }).comp;
+      const plain = createVSRangeSlider({ objectFormat: format(200, 82) }).comp;
+      expect(padded.getLabelPosition()).toBe(plain.getLabelPosition());
    });
 });
