@@ -1930,7 +1930,18 @@ public abstract class AssetQuery extends PreAssetQuery {
          final ColumnRef col = new ColumnRef(ref);
          XMetaInfo meta = getXMetaInfo(col, col);
 
-         if(meta != null && needKeepMetaInfo(column)) {
+         // Redmine #78971: a referenced attribute's date-format default (e.g. a calc field
+         // reading field['Order:Date']) must not leak onto this calc field's own header info
+         // when the calc field's own declared data type says it isn't a date/time value -
+         // confirmed live (JDWP) that meta here carries Order:Date's DateFormat even though
+         // column ("Fiscal Month") is independently declared dataType:"integer", and that
+         // FormulaHeaderInfo.merge() later applies it unconditionally to the rendered cell.
+         XFormatInfo finfo = meta == null ? null : meta.getXFormatInfo();
+         boolean refIsDateFormat = finfo != null && TableFormat.DATE_FORMAT.equals(finfo.getFormat());
+
+         if(meta != null && needKeepMetaInfo(column) &&
+            (!refIsDateFormat || XSchema.isDateType(column.getDataType())))
+         {
             hinfos.add(new FormulaHeaderInfo(column.getName(), ref.getName(),
                                                        true, meta));
          }
