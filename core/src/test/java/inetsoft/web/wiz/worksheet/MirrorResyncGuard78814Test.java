@@ -175,6 +175,143 @@ class MirrorResyncGuard78814Test {
       resync(ws, false);
    }
 
+   // ------------------------------------------------------------------- the mirror's own aggregate
+
+   @Test
+   void droppingTheMirrorsOwnAggregateInputIsRefusedUnlessConfirmed() throws Exception {
+      Worksheet ws = ownAggregateWorksheet(
+         "mrg_own_sum", "a", new WorksheetMutationSupport.AggregateSpec("c", "Sum", null));
+      List<String> before = state(ws);
+
+      PairingException ex = assertThrows(PairingException.class, () -> resync(ws, false));
+
+      assertTrue(ex.getMessage().contains("table 'M' itself (aggregate/group-by on c)"),
+                 ex.getMessage());
+      assertTrue(ex.getMessage().contains("confirmed:true"), ex.getMessage());
+      assertEquals(before, state(ws), "the guard changed the worksheet");
+
+      resync(ws, true);
+
+      // what the refusal protects: the real re-sync drops Sum(c) without a word
+      realResync(ws);
+      assertEquals(0, ((TableAssembly) ws.getAssembly("M")).getAggregateInfo().getAggregateCount());
+   }
+
+   @Test
+   void droppingTheMirrorsOwnGroupColumnIsRefused() throws Exception {
+      Worksheet ws = ownAggregateWorksheet(
+         "mrg_own_group", "c", new WorksheetMutationSupport.AggregateSpec("b", "Sum", null));
+
+      PairingException ex = assertThrows(PairingException.class, () -> resync(ws, false));
+
+      assertTrue(ex.getMessage().contains("table 'M' itself (aggregate/group-by on c)"),
+                 ex.getMessage());
+      resync(ws, true);
+   }
+
+   @Test
+   void droppingTheSecondColumnOfTheMirrorsOwnTwoColumnAggregateIsRefused() throws Exception {
+      // Correlation(b, c) is dropped by the refresh; First(b, c) is kept but left reading a
+      // column that is gone, so it is refused the same way
+      for(String formula : new String[] { "Correlation", "First" }) {
+         Worksheet ws = ownAggregateWorksheet(
+            "mrg_own_2nd_" + formula, "a",
+            new WorksheetMutationSupport.AggregateSpec("b", formula, null, null, "c", null));
+
+         PairingException ex = assertThrows(PairingException.class, () -> resync(ws, false),
+                                            formula);
+
+         assertTrue(ex.getMessage().contains("table 'M' itself (aggregate/group-by on c)"),
+                    ex.getMessage());
+      }
+   }
+
+   @Test
+   void theMirrorsOwnAggregateOnSurvivingColumnsIsAccepted() throws Exception {
+      Worksheet ws = ownAggregateWorksheet(
+         "mrg_own_ok", "a", new WorksheetMutationSupport.AggregateSpec("b", "Sum", null));
+
+      resync(ws, false);
+   }
+
+   @Test
+   void theMirrorsOwnAggregateIsAcceptedWhenTheShapeIsUnchanged() throws Exception {
+      AssetEntry source = entry("mrg_own_same");
+      saveSource(source, "a", "b", "c");
+      Worksheet ws = outerWorksheet(source, 1);
+      service(ws).apply("TOK", agent, ed -> ed.setGroupAggregate(
+         "M", List.of(new WorksheetMutationSupport.GroupSpec("c")),
+         List.of(new WorksheetMutationSupport.AggregateSpec("b", "Sum", null)), false, false));
+      saveSource(source, 20, "a", "b", "c");
+
+      resync(ws, false);
+   }
+
+   @Test
+   void droppingTheBaseColumnOfTheMirrorsOwnDateLevelGroupIsRefused() throws Exception {
+      AssetEntry source = entry("mrg_own_date");
+      saveSource(source, "a", "b", "d:d");
+      Worksheet ws = outerWorksheet(source, 1);
+      service(ws).apply("TOK", agent, ed -> ed.setGroupAggregate(
+         "M", List.of(new WorksheetMutationSupport.GroupSpec("d", "YEAR")),
+         List.of(new WorksheetMutationSupport.AggregateSpec("b", "Sum", null)), false, false));
+      AggregateInfo info = ((TableAssembly) ws.getAssembly("M")).getAggregateInfo();
+      assertEquals(1, info.getGroupCount(), "the fixture's date-level group was not set");
+      assertTrue(info.getGroup(0).getDataRef() instanceof ColumnRef column &&
+                 column.getDataRef() instanceof DateRangeRef,
+                 "the fixture's group is not date-level: " + info.getGroup(0));
+      saveSource(source, "a", "b");
+
+      PairingException ex = assertThrows(PairingException.class, () -> resync(ws, false));
+
+      // named both as the range column the group reads and as the group itself
+      assertTrue(ex.getMessage().contains("table 'M' itself (range column 'Year("), ex.getMessage());
+      assertTrue(ex.getMessage().contains("aggregate/group-by on d"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("confirmed:true"), ex.getMessage());
+      resync(ws, true);
+
+      // what the refusal protects: the real re-sync keeps the group, but reading a base column
+      // that is gone, so every row falls into one null year without a word
+      realResync(ws);
+      TableAssembly mirror = (TableAssembly) ws.getAssembly("M");
+      assertFalse(attributes(mirror).contains("d"), attributes(mirror).toString());
+      assertEquals(1, mirror.getAggregateInfo().getGroupCount());
+      assertTrue(((ColumnRef) mirror.getAggregateInfo().getGroup(0).getDataRef()).getDataRef()
+                    instanceof DateRangeRef range &&
+                 "d".equals(range.getDataRef().getAttribute()),
+                 String.valueOf(mirror.getAggregateInfo().getGroup(0)));
+   }
+
+   @Test
+   void theMirrorsOwnDateLevelGroupOnASurvivingColumnIsAccepted() throws Exception {
+      AssetEntry source = entry("mrg_own_date_ok");
+      saveSource(source, "a", "b", "d:d");
+      Worksheet ws = outerWorksheet(source, 1);
+      service(ws).apply("TOK", agent, ed -> ed.setGroupAggregate(
+         "M", List.of(new WorksheetMutationSupport.GroupSpec("d", "YEAR")),
+         List.of(new WorksheetMutationSupport.AggregateSpec("b", "Sum", null)), false, false));
+      saveSource(source, "b", "d:d");
+
+      resync(ws, false);
+   }
+
+   /** M mirrors T(a, b, c), grouped by {@code group} with {@code aggregate}; T is then T(a, b). */
+   private Worksheet ownAggregateWorksheet(String name, String group,
+                                           WorksheetMutationSupport.AggregateSpec aggregate)
+      throws Exception
+   {
+      AssetEntry source = entry(name);
+      saveSource(source, "a", "b", "c");
+      Worksheet ws = outerWorksheet(source, 1);
+      service(ws).apply("TOK", agent, ed -> ed.setGroupAggregate(
+         "M", List.of(new WorksheetMutationSupport.GroupSpec(group)), List.of(aggregate),
+         false, false));
+      assertEquals(1, ((TableAssembly) ws.getAssembly("M")).getAggregateInfo().getAggregateCount(),
+                   "the fixture's aggregate was not set");
+      saveSource(source, "a", "b");
+      return ws;
+   }
+
    // ------------------------------------------------------------------- keys and types
 
    @Test
@@ -376,7 +513,10 @@ class MirrorResyncGuard78814Test {
       return ws;
    }
 
-   /** Saves the source worksheet with a table T of integer columns, a name:s one is text. */
+   /**
+    * Saves the source worksheet with a table T of integer columns, a name:s one is text, a
+    * name:d one is a date.
+    */
    private void saveSource(AssetEntry entry, String... columns) throws Exception {
       saveSource(entry, 10, columns);
    }
@@ -390,7 +530,7 @@ class MirrorResyncGuard78814Test {
       Object[] header = new Object[columns.length];
 
       for(int j = 0; j < columns.length; j++) {
-         header[j] = columns[j].replace(":s", "");
+         header[j] = columns[j].replace(":s", "").replace(":d", "");
       }
 
       data.addRow(header);
@@ -399,7 +539,9 @@ class MirrorResyncGuard78814Test {
          Object[] row = new Object[columns.length];
 
          for(int j = 0; j < columns.length; j++) {
-            row[j] = columns[j].endsWith(":s") ? "s" + i : (Object) (i * 10 + j);
+            row[j] = columns[j].endsWith(":s") ? "s" + i :
+               columns[j].endsWith(":d") ? java.sql.Date.valueOf((2020 + i) + "-03-04") :
+               (Object) (i * 10 + j);
          }
 
          data.addRow(row);

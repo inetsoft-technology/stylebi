@@ -20,7 +20,6 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.erm.DataRef;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.wiz.pairing.PairingException;
@@ -273,7 +272,9 @@ final class ConcatReorderGuard {
          }
       }
 
-      if(aggregateLosesColumn(table.getAggregateInfo(), freshNames)) {
+      if(ColumnLossReport.aggregateLosesColumn(
+         table.getAggregateInfo(), attr -> !freshNames.contains(attr)))
+      {
          lost.add("aggregate/group-by");
       }
 
@@ -282,58 +283,5 @@ final class ConcatReorderGuard {
             lead + " changes the source its columns come from, so table '" + table.getName() +
             "' itself would lose " + String.join(", ", lost) + ". " + CONFIRM);
       }
-   }
-
-   /**
-    * Whether a group column, an aggregate input or the secondary column of a two-column formula
-    * is on a column the new first subtable does not have. {@code AggregateInfo.validate}
-    * re-points the others by name and drops only these.
-    */
-   private static boolean aggregateLosesColumn(AggregateInfo aggregate, Set<String> freshNames) {
-      if(aggregate == null) {
-         return false;
-      }
-
-      for(GroupRef group : aggregate.getGroups()) {
-         if(isLeaving(group.getDataRef(), freshNames)) {
-            return true;
-         }
-      }
-
-      for(AggregateRef ref : aggregate.getAggregates()) {
-         // validate() skips a composite aggregate
-         if(ref instanceof CompositeAggregateRef) {
-            continue;
-         }
-
-         if(isLeaving(ref.getDataRef(), freshNames) ||
-            ref.getFormula() != null && ref.getFormula().isTwoColumns() &&
-            isLeaving(ref.getSecondaryColumn(), freshNames))
-         {
-            return true;
-         }
-      }
-
-      return false;
-   }
-
-   /**
-    * Whether the column {@code ref} reads is not among {@code freshNames}, compared by bare
-    * attribute name. A date-level group reads its base column, whose name is what must survive.
-    */
-   private static boolean isLeaving(DataRef ref, Set<String> freshNames) {
-      if(ref == null) {
-         return false;
-      }
-
-      DataRef base = ref;
-
-      if(ref instanceof ColumnRef column && column.getDataRef() instanceof DateRangeRef range &&
-         range.getDataRef() != null)
-      {
-         base = range.getDataRef();
-      }
-
-      return !freshNames.contains(base.getAttribute());
    }
 }

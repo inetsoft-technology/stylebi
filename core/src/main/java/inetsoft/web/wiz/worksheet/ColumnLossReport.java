@@ -17,10 +17,15 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import inetsoft.uql.asset.AggregateInfo;
+import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.asset.AssemblyRef;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.CompositeAggregateRef;
 import inetsoft.uql.asset.CompositeTableAssembly;
+import inetsoft.uql.asset.DateRangeRef;
+import inetsoft.uql.asset.GroupRef;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
@@ -33,7 +38,9 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Bug #78357: what a column that is about to disappear from a table is still used for. Shared by
@@ -84,10 +91,14 @@ final class ColumnLossReport {
     * @param aggregates a downstream aggregate or group-by on the column
     * @param ownState   the table's own conditions and sort
     * @param ownDerived the table's own expression and range columns, which the write keeps
+    * @param ownAggregates the table's own group columns and aggregate inputs, which
+    *                   {@code AggregateInfo.validate} drops with the column
     */
-   record Scope(boolean keys, boolean aggregates, boolean ownState, boolean ownDerived) {
+   record Scope(boolean keys, boolean aggregates, boolean ownState, boolean ownDerived,
+                boolean ownAggregates)
+   {
       /** replace-import: every dependent, including the derived columns the replace keeps. */
-      static final Scope IMPORT = new Scope(true, true, true, true);
+      static final Scope IMPORT = new Scope(true, true, true, true, false);
 
       /**
        * edit_sql_query / edit_table: downstream references and the table's own expression and
@@ -95,7 +106,7 @@ final class ColumnLossReport {
        * other dependent (Bug #78811); key types are refused by the caller's own check; an
        * aggregate stays accept-and-warn (WSQ-009).
        */
-      static final Scope QUERY_EDIT = new Scope(true, false, false, true);
+      static final Scope QUERY_EDIT = new Scope(true, false, false, true, false);
 
       /**
        * edit_unpivot shrinking the header columns: the melted column's name leaves the table, so
@@ -103,15 +114,23 @@ final class ColumnLossReport {
        * expression and range columns all break. Join keys are refused first by the caller, never
        * confirmable.
        */
-      static final Scope UNPIVOT_EDIT = new Scope(false, true, true, true);
+      static final Scope UNPIVOT_EDIT = new Scope(false, true, true, true, false);
+
+      /**
+       * A concatenation's subtable reorder (ConcatReorderGuard): the names that leave the table
+       * break downstream references and aggregates and the table's own conditions, sort,
+       * expression and range columns. Join keys are refused first by the caller, never
+       * confirmable; the table's own aggregate is checked by the caller itself.
+       */
+      static final Scope RESYNC = new Scope(false, true, true, true, false);
 
       /**
        * update_mirror re-syncing an outer mirror with its source (Bug #78814): the columns the
        * source no longer has leave the mirror, so downstream references and aggregates and the
-       * mirror's own conditions, sort, expression and range columns break. Join keys are refused
-       * first by the caller, never confirmable.
+       * mirror's own conditions, sort, expression and range columns, groups and aggregates
+       * break. Join keys are refused first by the caller, never confirmable.
        */
-      static final Scope RESYNC = new Scope(false, true, true, true);
+      static final Scope MIRROR_RESYNC = new Scope(false, true, true, true, true);
    }
 
    /**
@@ -174,6 +193,12 @@ final class ColumnLossReport {
             ownSet.addAll(WorksheetControllerService.findOwnDerivedColumnReferences(assembly, old));
          }
 
+         if(scope.ownAggregates() && aggregateLosesColumn(
+            assembly.getAggregateInfo(), attr -> Objects.equals(attr, old.getAttribute())))
+         {
+            ownSet.add("aggregate/group-by on " + old.getAttribute());
+         }
+
          List<String> own = new ArrayList<>(ownSet);
 
          if(!keyBlocked && aggregates.isEmpty() && references.isEmpty() &&
@@ -210,6 +235,58 @@ final class ColumnLossReport {
       throw new PairingException(
          lead + " would drop column(s) " + String.join(", ", dropped) +
          " that other tables still use: " + String.join("; ", parts) + ". " + remedy);
+   }
+
+   /**
+    * Whether a group column, an aggregate input or the secondary column of a two-column formula
+    * reads a column for which {@code leaving} holds; {@code AggregateInfo.validate} drops (or,
+    * for a FIRST/LAST secondary column, leaves dangling) exactly these when the column is gone.
+    * A composite aggregate is skipped, as validate() does.
+    *
+    * @param leaving tested on the bare attribute name of the column read; a date-level group
+    *                reads its base column
+    */
+   static boolean aggregateLosesColumn(AggregateInfo aggregate, Predicate<String> leaving) {
+      if(aggregate == null) {
+         return false;
+      }
+
+      for(GroupRef group : aggregate.getGroups()) {
+         if(isLeaving(group.getDataRef(), leaving)) {
+            return true;
+         }
+      }
+
+      for(AggregateRef ref : aggregate.getAggregates()) {
+         if(ref instanceof CompositeAggregateRef) {
+            continue;
+         }
+
+         if(isLeaving(ref.getDataRef(), leaving) ||
+            ref.getFormula() != null && ref.getFormula().isTwoColumns() &&
+            isLeaving(ref.getSecondaryColumn(), leaving))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean isLeaving(DataRef ref, Predicate<String> leaving) {
+      if(ref == null) {
+         return false;
+      }
+
+      DataRef base = ref;
+
+      if(ref instanceof ColumnRef column && column.getDataRef() instanceof DateRangeRef range &&
+         range.getDataRef() != null)
+      {
+         base = range.getDataRef();
+      }
+
+      return leaving.test(base.getAttribute());
    }
 
    /**
