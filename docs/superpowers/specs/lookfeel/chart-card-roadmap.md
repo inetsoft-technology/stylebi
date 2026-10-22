@@ -228,6 +228,7 @@ rather than repairing it — the whole of its content is one reading of the two 
       │  ✗ getTooltipStyle NOT done — accepted, R20     P4's interim state is closed
       ├──┬──→ §07 derived selection, retire the teal family
       │  │         └──→ Range slider — painter half
+      │  │              keeps the density geometry of 2026-10-22-range-slider-density-design.md (padding 16 / 12 / 8, 6px label gaps, 50px content)
       │  └──→ Outlined text conversion (also behind G)
       │
      P6  Revert — the per-dashboard mirror of         SHIPPED · 4 automated gates
