@@ -502,8 +502,9 @@ public class TableBindingService {
    public List<String> addField(String sessionToken, Principal user, String assemblyName, String shelf,
                         FieldRef field, Integer position, String sourceTable) throws Exception
    {
-      return applyWithContext(sessionToken, user, assemblyName, shelf,
-         field == null ? List.of() : List.of(field),
+      List<FieldRef> added = field == null ? List.of() : List.of(field);
+      return applyWithContext(sessionToken, user, assemblyName, shelf, added,
+         ungroupDimensions(shelf, added),
          (model, rvs, source) -> {
             applySource(model, sourceTable);
             requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
@@ -2217,6 +2218,16 @@ public class TableBindingService {
                                  String shelf, List<FieldRef> unhiddenCandidates,
                                  ContextualShelfMutation mutation) throws Exception
    {
+      return applyWithContext(sessionToken, user, assemblyName, shelf, unhiddenCandidates,
+                              List.of(), mutation);
+   }
+
+   /** @param ungroup see {@link #ungroupDimensions} */
+   private List<String> applyWithContext(String sessionToken, Principal user, String assemblyName,
+                                 String shelf, List<FieldRef> unhiddenCandidates,
+                                 List<String> ungroup, ContextualShelfMutation mutation)
+      throws Exception
+   {
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
@@ -2231,7 +2242,7 @@ public class TableBindingService {
          relayShapeWarning(assemblyName, model, dispatcher);
 
          Map<String, ColumnOption> formOptions = captureFormOptions(assembly);
-         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
+         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher, ungroup);
          // See restoreFormRefInvariant's own doc -- addField is the other wiz entry point
          // (besides setShelf) that can introduce a brand-new column onto a Table's details
          // shelf, so it needs the same safety net. removeField/moveField never introduce a new

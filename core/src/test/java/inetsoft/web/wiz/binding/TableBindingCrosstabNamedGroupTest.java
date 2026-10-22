@@ -424,6 +424,33 @@ class TableBindingCrosstabNamedGroupTest {
       assertStoredWest(f.rows()[1], "STATE");
    }
 
+   /**
+    * add_table_field adds a new occurrence and leaves the existing one alone, but the factory
+    * restore would hand the old group to whichever fresh REGION comes first -- the new one when
+    * it is inserted ahead of the grouped one -- unless the clear is honoured here too.
+    */
+   @Test
+   void addFieldWithAnExplicitNamedGroupValuesNullAddsAnUngroupedOccurrence() throws Exception {
+      Fixture f = new Fixture(List.of(expertRegion(), plain("YEAR")), List.of(), null);
+
+      f.service.addField("tok", principal(), "Crosstab1", "rows", clearing("REGION"), 0, null);
+
+      VSDimensionRef[] rows = f.rows();
+      assertEquals(3, rows.length);
+      assertEquals("REGION", rows[0].getGroupColumnValue());
+      assertNull(rows[0].getNamedGroupInfo(), "the new occurrence must not inherit the group");
+      assertStoredWest(rows[1], "REGION");
+   }
+
+   @Test
+   void addFieldWithoutTheNullKeepsAnExistingGroup() throws Exception {
+      Fixture f = new Fixture(List.of(expertRegion()), List.of(), null);
+
+      f.service.addField("tok", principal(), "Crosstab1", "rows", dim("YEAR"), null, null);
+
+      assertStoredWest(f.rows()[0], "REGION");
+   }
+
    private static FieldRef clearing(String column) {
       try {
          return new com.fasterxml.jackson.databind.ObjectMapper().readValue(
