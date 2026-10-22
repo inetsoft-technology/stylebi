@@ -448,6 +448,11 @@ public class SelectionRuntimeService {
                result.put("selectedBuckets", countSelected(after));
                result.put("totalBuckets", after.length);
 
+               // The slider's own refresh may shorten the range the apply just selected (a span
+               // wider than maxRangeSize), so compare what is selected now with the request.
+               discloseNarrowedRange(after, range, slider.isUpperInclusive(),
+                                     maxRangeSizeOf(slider), clamped);
+
                if(!clamped.isEmpty()) {
                   // A requested bound outside the slider's actual bucket range was silently
                   // substituted with the nearest one -- disclose which, the same way
@@ -2582,6 +2587,76 @@ public class SelectionRuntimeService {
       catch(NumberFormatException e) {
          return null;
       }
+   }
+
+   /** The slider's maxRangeSize, or 0 when it has none (only a single time info carries one). */
+   private static double maxRangeSizeOf(TimeSliderVSAssembly slider) {
+      return slider.getTimeInfo() instanceof SingleTimeInfo single ? single.getMaxRangeSize() : 0;
+   }
+
+   /**
+    * Adds a disclosure entry for each bound of {@code requestedRange} that the slider moved after
+    * the apply, so the response never claims a wider range than the one now selected. The slider
+    * refresh always selects one bucket past the requested end when it is not upper-inclusive (the
+    * exclusive boundary bucket), capped at the last bucket, so that is the end it is compared to
+    * and the reported {@code applied} end is the bucket before that boundary. A bound already
+    * disclosed as nearest-bucket clamped keeps its original {@code requested} and gets the new
+    * {@code applied} instead of a second entry.
+    */
+   static void discloseNarrowedRange(SelectionValue[] after, int[] requestedRange,
+                                     boolean upperInclusive, double maxRangeSize,
+                                     List<Map<String, Object>> clampedOut)
+   {
+      int first = -1;
+      int last = -1;
+
+      for(int i = 0; i < after.length; i++) {
+         if(after[i] != null && after[i].isSelected()) {
+            first = first < 0 ? i : first;
+            last = i;
+         }
+      }
+
+      if(first < 0) {
+         return;
+      }
+
+      int expectedLast = upperInclusive ? requestedRange[1] :
+         Math.min(requestedRange[1] + 1, after.length - 1);
+      String reason = maxRangeSize > 0 ?
+         "the range is limited to maxRangeSize " + (long) maxRangeSize :
+         "the slider shortened the range";
+
+      if(first != requestedRange[0]) {
+         discloseMovedBound(after, requestedRange[0], first, reason, clampedOut);
+      }
+
+      if(last != expectedLast) {
+         int appliedEnd = upperInclusive ? last : Math.max(first, last - 1);
+         discloseMovedBound(after, requestedRange[1], appliedEnd, reason, clampedOut);
+      }
+   }
+
+   private static void discloseMovedBound(SelectionValue[] buckets, int requestedIndex,
+                                          int appliedIndex, String reason,
+                                          List<Map<String, Object>> clampedOut)
+   {
+      String requested = buckets[requestedIndex].getValue();
+      String applied = buckets[appliedIndex].getValue();
+
+      for(Map<String, Object> entry : clampedOut) {
+         if(Tool.equals(requested, entry.get("applied"))) {
+            entry.put("applied", applied);
+            entry.put("reason", reason);
+            return;
+         }
+      }
+
+      Map<String, Object> entry = new LinkedHashMap<>();
+      entry.put("requested", requested);
+      entry.put("applied", applied);
+      entry.put("reason", reason);
+      clampedOut.add(entry);
    }
 
    /**
