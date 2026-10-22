@@ -33,6 +33,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.FormatInfo;
 import inetsoft.uql.viewsheet.TableVSAssembly;
@@ -2973,5 +2974,85 @@ class ViewsheetFormatServiceTest {
 
    static Principal principal() {
       return () -> "admin";
+   }
+
+   // ── bug-79156: unknown assembly names reached FormatPainterService and NPE'd into a 500 ──
+
+   private static RuntimeViewsheet rvsWithKnown(String... known) {
+      Viewsheet vs = mock(Viewsheet.class);
+
+      for(String name : known) {
+         when(vs.getAssembly(name)).thenReturn(mock(GaugeVSAssembly.class));
+      }
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   @Test
+   void refusesAnUnknownAssemblyForObjectAndTitleTargetsBeforeThePainter() throws Exception {
+      for(String target : new String[]{ "object", "title" }) {
+         FormatPainterService painter = mock(FormatPainterService.class);
+         VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+         format.setColor("#FF0000");
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> serviceWith(painter, rvsWithKnown("Gauge1")).setFormat(
+               "tok", principal(),
+               new ViewsheetFormatService.FormatRequest(
+                  List.of("NoSuchAssembly"), format, false, target, null), ""), target);
+
+         assertTrue(e.getMessage().contains("'NoSuchAssembly'"), e.getMessage());
+         verify(painter, never()).setFormat(anyString(), any(), any(), any(), anyString());
+      }
+   }
+
+   @Test
+   void aMixedKnownAndUnknownRequestRefusesTheWholeRequestNamingEveryMissingName()
+      throws Exception
+   {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#FF0000");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> serviceWith(painter, rvsWithKnown("Gauge1")).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Gauge1", "Ghost1", "Ghost2"), format, false), ""));
+
+      assertTrue(e.getMessage().contains("'Ghost1'") && e.getMessage().contains("'Ghost2'") &&
+                 !e.getMessage().contains("'Gauge1'"), e.getMessage());
+      verify(painter, never()).setFormat(anyString(), any(), any(), any(), anyString());
+   }
+
+   @Test
+   void knownAssembliesStillReachThePainter() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#FF0000");
+
+      serviceWith(painter, rvsWithKnown("Gauge1", "Gauge2")).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Gauge1", "Gauge2"), format, false),
+         "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   @Test
+   void refusesAnUnknownAssemblyOnACellFormat() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#FF0000");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> serviceWith(painter, rvsWithKnown("Calc1")).setCellFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.CellFormatRequest("NoSuchCalc", 0, 0, format, false), ""));
+
+      assertTrue(e.getMessage().contains("'NoSuchCalc'"), e.getMessage());
+      verify(painter, never()).setFormat(anyString(), any(), any(), any(), anyString());
    }
 }
