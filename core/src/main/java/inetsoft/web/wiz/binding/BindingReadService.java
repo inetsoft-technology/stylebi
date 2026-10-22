@@ -183,7 +183,7 @@ public class BindingReadService {
       return new AssemblyBinding(assemblyName,
                                  assembly.getClass().getSimpleName(),
                                  model == null || model.getSource() == null
-                                    ? null : model.getSource().getSource(),
+                                    ? null : BindingSources.displayName(model.getSource().getSource()),
                                  shelves, sorts, dateComparisonSeries);
    }
 

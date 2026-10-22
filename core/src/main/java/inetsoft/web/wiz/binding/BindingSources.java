@@ -17,6 +17,12 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.viewsheet.DataVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.binding.handler.VSTreeHandler;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.SourceInfo;
 
@@ -65,7 +71,60 @@ final class BindingSources {
    }
 
    /**
-    * The source to store for a worksheet table.
+    * Whether a stored source string names another component of the viewsheet rather than a
+    * worksheet table. The native Composer stores a component source under its
+    * {@code Assembly.TABLE_VS_BOUND}-prefixed name (that prefix is what every engine-side test
+    * keys on, e.g. {@code VSUtil.isVSAssemblyBinding}), so the prefix is the kind.
+    */
+   static boolean isComponent(String source) {
+      return source != null && source.startsWith(Assembly.TABLE_VS_BOUND);
+   }
+
+   /** The name the user sees: a component source without its storage prefix. */
+   static String displayName(String source) {
+      return isComponent(source) ? source.substring(Assembly.TABLE_VS_BOUND.length()) : source;
+   }
+
+   /** The stored form of a component's name. */
+   static String componentSource(String name) {
+      return Assembly.TABLE_VS_BOUND + name;
+   }
+
+   /**
+    * The component of this viewsheet that {@code table} names, when the assembly may bind to it.
+    * The test is the one {@code list_bindable_fields} applies to build its Components folder
+    * ({@link VSTreeHandler#isAssemblyBindable}): a visible Table/Crosstab/Calc Table-like data
+    * assembly that is not the assembly itself, not a chart, and not already bound back to it.
+    * Reusing it keeps what is accepted identical to what is offered, so a source the listing
+    * would not show cannot be stored. A runtime-mode session's listing omits the folder, so such
+    * a session finds no component here either.
+    *
+    * @return the component's name as the viewsheet spells it, or null
+    */
+   static String findComponent(RuntimeViewsheet rvs, String assemblyName, String table) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+
+      if(vs == null || table == null || rvs.isRuntime() && !isComponent(table)) {
+         return null;
+      }
+
+      String name = displayName(table);
+      VSAssembly target = vs.getAssembly(assemblyName);
+      VSAssembly candidate = vs.getAssembly(name);
+
+      // The cheap type test first: the shared bindable test below pulls in VSUtil.
+      if(target == null || !(candidate instanceof DataVSAssembly) ||
+         !VSTreeHandler.isAssemblyBindable(target, candidate, vs))
+      {
+         return null;
+      }
+
+      return candidate.getAbsoluteName();
+   }
+
+   /**
+    * The source to store for a worksheet table, or for a component when {@code table} carries the
+    * component prefix.
     *
     * <p>Only type, prefix and source survive the trip back — {@code VSBindingService.updateSourceInfo}
     * calls {@code SourceInfo.toSourceAttr}, which rebuilds the asset source from exactly those three.
@@ -75,16 +134,19 @@ final class BindingSources {
     */
    static SourceInfo assetSource(String table) {
       SourceInfo source = new SourceInfo();
-      source.setType(inetsoft.uql.asset.SourceInfo.ASSET);
+      boolean component = isComponent(table);
+      source.setType(component ? inetsoft.uql.asset.SourceInfo.VS_ASSEMBLY
+                               : inetsoft.uql.asset.SourceInfo.ASSET);
       source.setSource(table);
-      source.setView(table);
+      source.setView(displayName(table));
 
       return source;
    }
 
    /** Whether the assembly is already pointed at this table, in which case nothing is discarded. */
    static boolean alreadyPointedAt(SourceInfo current, String table) {
-      return current != null && table.equalsIgnoreCase(current.getSource());
+      return current != null && isComponent(table) == isComponent(current.getSource()) &&
+         displayName(table).equalsIgnoreCase(displayName(current.getSource()));
    }
 
    /**
@@ -108,6 +170,8 @@ final class BindingSources {
       }
 
       return new inetsoft.uql.asset.SourceInfo(
-         inetsoft.uql.asset.SourceInfo.ASSET, null, model.getSource());
+         isComponent(model.getSource()) ? inetsoft.uql.asset.SourceInfo.VS_ASSEMBLY
+                                        : inetsoft.uql.asset.SourceInfo.ASSET,
+         null, model.getSource());
    }
 }

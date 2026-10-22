@@ -212,6 +212,14 @@ public class ChartBindingService {
     * can never happen as a side effect of binding a field.
     */
    static void applySource(ChartBindingModel model, String sourceTable) {
+      if(BindingSources.isComponent(sourceTable)) {
+         throw new IllegalArgumentException(
+            "A chart cannot be bound to '" + BindingSources.displayName(sourceTable) +
+            "', which is another component of this viewsheet; this tool binds a chart to a " +
+            "worksheet table or model only. Bind a crosstab or table to the component, or bind " +
+            "the chart to the worksheet table the component is built from.");
+      }
+
       if(sourceTable != null && model != null && model.getSource() == null) {
          model.setSource(BindingSources.assetSource(sourceTable));
       }

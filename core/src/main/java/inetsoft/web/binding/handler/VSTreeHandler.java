@@ -546,7 +546,9 @@ public class VSTreeHandler {
          || entry.getType() == AssetEntry.Type.COLUMN;
    }
 
-   private boolean isAssemblyBindable(Assembly srcAssembly, Assembly bindAssembly, Viewsheet vs) {
+   public static boolean isAssemblyBindable(Assembly srcAssembly, Assembly bindAssembly,
+                                            Viewsheet vs)
+   {
       return !bindAssembly.equals(srcAssembly) && bindAssembly.isVisible() &&
          !VSUtil.isBoundTo(bindAssembly, srcAssembly, vs) &&
          bindAssembly instanceof DataVSAssembly && !(bindAssembly instanceof ChartVSAssembly);
