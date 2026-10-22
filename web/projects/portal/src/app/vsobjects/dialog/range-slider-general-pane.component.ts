@@ -20,6 +20,7 @@ import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { RangeSliderGeneralPaneModel } from "../model/range-slider-general-pane-model";
 import { SizePositionPane } from "./size-position-pane.component";
+import { PaddingPane } from "./padding-pane.component";
 import { TitlePropPane } from "./title-prop-pane.component";
 
 import { GeneralPropPane } from "./general-prop-pane.component";
@@ -30,6 +31,7 @@ import { GeneralPropPane } from "./general-prop-pane.component";
     imports: [
     GeneralPropPane,
     TitlePropPane,
+    PaddingPane,
     SizePositionPane
 ]
 })

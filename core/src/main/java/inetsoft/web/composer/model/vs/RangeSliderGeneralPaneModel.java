@@ -64,8 +64,17 @@ public class RangeSliderGeneralPaneModel implements Serializable {
       this.inSelectionContainer = inSelectionContainer;
    }
 
+   public PaddingPaneModel getPaddingPaneModel() {
+      return paddingPaneModel;
+   }
+
+   public void setPaddingPaneModel(PaddingPaneModel paddingPaneModel) {
+      this.paddingPaneModel = paddingPaneModel;
+   }
+
    private GeneralPropPaneModel generalPropPaneModel;
    private TitlePropPaneModel titlePropPaneModel;
    private SizePositionPaneModel sizePositionPaneModel;
    private boolean inSelectionContainer;
+   private PaddingPaneModel paddingPaneModel = new PaddingPaneModel();
 }

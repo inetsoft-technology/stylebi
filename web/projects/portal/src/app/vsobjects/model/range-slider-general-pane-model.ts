@@ -18,10 +18,12 @@
 import { GeneralPropPaneModel } from "./general-prop-pane-model";
 import { TitlePropPaneModel } from "./title-prop-pane-model";
 import { SizePositionPaneModel } from "./size-position-pane-model";
+import { PaddingPaneModel } from "./padding-pane-model";
 
 export interface RangeSliderGeneralPaneModel {
    generalPropPaneModel: GeneralPropPaneModel;
    titlePropPaneModel: TitlePropPaneModel;
    sizePositionPaneModel: SizePositionPaneModel;
    inSelectionContainer: boolean;
+   paddingPaneModel: PaddingPaneModel;
 }
