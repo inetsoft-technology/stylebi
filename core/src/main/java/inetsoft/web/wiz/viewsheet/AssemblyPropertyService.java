@@ -301,6 +301,11 @@ public class AssemblyPropertyService {
          // a refusal added for an assembly type applies here without anyone remembering to route it.
          Map<String, String> resolved = PropertyAliases.resolvePatchForWrite(type, patch.keySet());
 
+         // Gated by type / the live enabled path, so no other write reads anything; taken before
+         // the patch loop so the pre-write state is what is compared.
+         FilterEffectGuard.Snapshot filterBefore =
+            FilterEffectGuard.snapshot(rvs, type, assemblyName, resolved.values());
+
          // Taken before anything is written, so a same-patch write to a domain list (or the
          // rebuild of an Image's immutable pane) cannot widen what the check accepts.
          Map<String, AssemblyReference> references = assemblyReferences(model, resolved.values());
@@ -448,6 +453,17 @@ public class AssemblyPropertyService {
             warning.setType(MessageCommand.Type.WARNING);
             warning.setMessage(fillResult.warning());
             dispatcher.sendCommand(assemblyName, warning);
+         }
+
+         if(dispatcher != null) {
+            for(String note : FilterEffectGuard.apply(filterBefore, rvs, assemblyName, written,
+                                                      resolved.values()))
+            {
+               MessageCommand filterNote = new MessageCommand();
+               filterNote.setType(MessageCommand.Type.WARNING);
+               filterNote.setMessage(note);
+               dispatcher.sendCommand(assemblyName, filterNote);
+            }
          }
       });
    }
