@@ -71,6 +71,11 @@ import java.util.List;
  *                         option — {@link inetsoft.uql.asset.SNamedGroupInfo}, what this builds,
  *                         carries no such concept; a value not named in any group renders as its
  *                         own, ungrouped row, the same as it would with no grouping at all.
+ *                         An <em>omitted</em> key leaves the group as it is; an <em>explicit JSON
+ *                         {@code null}</em> removes it (bug #79017), the same sentinel pattern as
+ *                         {@code calculateInfo}: {@link NamedGroupValuesDeserializer} binds the
+ *                         explicit null to a private sentinel, {@link #namedGroupValues()} hides
+ *                         it and {@link #clearsNamedGroupValues()} reports it.
  * @param chartType        the measure's own GraphTypes code under Multi Style; null everywhere else
  * @param runtimeChartType what that measure resolved to, when it differs from {@code chartType}
  * @param calculateInfo    a per-measure Trend/Calculator (running total, change, moving, value-of,
@@ -129,6 +134,7 @@ import java.util.List;
  */
 public record FieldRef(String column, String type, String aggregate, String dateLevel,
                        String namedGroup, Integer chartType, Integer runtimeChartType,
+                       @JsonDeserialize(using = NamedGroupValuesDeserializer.class)
                        NamedGroupValues namedGroupValues,
                        @JsonDeserialize(using = CalculateInfoDeserializer.class)
                        CalculateInfo calculateInfo,
@@ -160,6 +166,31 @@ public record FieldRef(String column, String type, String aggregate, String date
    @Override
    public CalculateInfo calculateInfo() {
       return calculateInfo == CLEAR ? null : calculateInfo;
+   }
+
+   /** The inline group the caller supplied; {@code null} when none or when it asked to clear. */
+   @Override
+   public NamedGroupValues namedGroupValues() {
+      return namedGroupValues == CLEAR_GROUP ? null : namedGroupValues;
+   }
+
+   /** Whether the caller sent an explicit {@code namedGroupValues: null}, asking to remove it. */
+   public boolean clearsNamedGroupValues() {
+      return namedGroupValues == CLEAR_GROUP;
+   }
+
+   /** A copy with the label replaced and every other component, any clear request included. */
+   public FieldRef withLabel(String label) {
+      return new FieldRef(column, type, aggregate, dateLevel, namedGroup, chartType,
+                          runtimeChartType, namedGroupValues, calculateInfo, label, secondaryY,
+                          visible, timeSeries, secondaryColumn, operand);
+   }
+
+   /** A copy with the visible flag replaced and every other component, any clear included. */
+   public FieldRef withVisible(Boolean visible) {
+      return new FieldRef(column, type, aggregate, dateLevel, namedGroup, chartType,
+                          runtimeChartType, namedGroupValues, calculateInfo, label, secondaryY,
+                          visible, timeSeries, secondaryColumn, operand);
    }
 
    /**
@@ -228,6 +259,39 @@ public record FieldRef(String column, String type, String aggregate, String date
          throws IOException
       {
          return (CalculateInfo) ctxt.handleUnexpectedToken(CalculateInfo.class, p);
+      }
+   }
+
+   /** Stands for an explicit JSON null on {@code namedGroupValues}. */
+   private static final NamedGroupValues CLEAR_GROUP = new NamedGroupValues(null, null);
+
+   /**
+    * Binds an explicit JSON {@code null} to the clear sentinel and a missing key to a Java
+    * {@code null} (see {@link CalculateInfoDeserializer}); a non-null object is read as the plain
+    * record.
+    */
+   public static final class NamedGroupValuesDeserializer
+      extends StdDeserializer<NamedGroupValues>
+   {
+      public NamedGroupValuesDeserializer() {
+         super(NamedGroupValues.class);
+      }
+
+      @Override
+      public NamedGroupValues getNullValue(DeserializationContext ctxt) {
+         return CLEAR_GROUP;
+      }
+
+      @Override
+      public Object getAbsentValue(DeserializationContext ctxt) {
+         return null;
+      }
+
+      @Override
+      public NamedGroupValues deserialize(JsonParser p, DeserializationContext ctxt)
+         throws IOException
+      {
+         return ctxt.readTreeAsValue(p.readValueAsTree(), NamedGroupValues.class);
       }
    }
 

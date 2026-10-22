@@ -19,6 +19,9 @@ package inetsoft.web.binding.event;
 
 import inetsoft.web.binding.model.BindingModel;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Class that encapsulates the parameters for applying a selection.
  *
@@ -92,7 +95,27 @@ public class ApplyVSAssemblyInfoEvent {
       this.clearVacatedAliases = clearVacatedAliases;
    }
 
+   /**
+    * Crosstab dimensions whose named group the apply removes instead of restoring from the live
+    * assembly, as {@code "rows:<column>"} / {@code "cols:<column>"} entries. Empty by default, so
+    * the native setbinding event is unchanged; the wiz table tools fill it for an explicit
+    * ungroup (bug #79017).
+    * @return the shelf-qualified columns to ungroup.
+    */
+   public List<String> getUngroupDimensions() {
+      return ungroupDimensions;
+   }
+
+   /**
+    * Set the dimensions whose named group is removed.
+    * @param ungroupDimensions {@code "rows:<column>"} / {@code "cols:<column>"} entries.
+    */
+   public void setUngroupDimensions(List<String> ungroupDimensions) {
+      this.ungroupDimensions = ungroupDimensions == null ? new ArrayList<>() : ungroupDimensions;
+   }
+
    private String name;
+   private List<String> ungroupDimensions = new ArrayList<>();
    private BindingModel binding;
    private boolean trap = true;
    private boolean clearVacatedAliases;

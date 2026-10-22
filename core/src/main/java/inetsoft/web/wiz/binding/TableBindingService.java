@@ -130,7 +130,8 @@ public class TableBindingService {
          relayShapeWarning(assemblyName, model, dispatcher);
 
          Map<String, ColumnOption> formOptions = captureFormOptions(assembly);
-         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
+         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher,
+                      ungroupDimensions(shelf, fields));
          restoreFormRefInvariant(assembly, shelf, formOptions);
       });
    }
@@ -1956,11 +1957,7 @@ public class TableBindingService {
    }
 
    private static FieldRef withLabel(FieldRef field, String label) {
-      return new FieldRef(field.column(), field.type(), field.aggregate(), field.dateLevel(),
-                          field.namedGroup(), field.chartType(), field.runtimeChartType(),
-                          field.namedGroupValues(), field.calculateInfo(), label,
-                          field.secondaryY(), field.visible(), field.timeSeries(),
-                          field.secondaryColumn(), field.operand());
+      return field.withLabel(label);
    }
 
    /**
@@ -2107,11 +2104,7 @@ public class TableBindingService {
    }
 
    private static FieldRef withVisibility(FieldRef field, boolean visible) {
-      return new FieldRef(field.column(), field.type(), field.aggregate(), field.dateLevel(),
-                          field.namedGroup(), field.chartType(), field.runtimeChartType(),
-                          field.namedGroupValues(), field.calculateInfo(), field.label(),
-                          field.secondaryY(), visible, field.timeSeries(),
-                          field.secondaryColumn(), field.operand());
+      return field.withVisible(visible);
    }
 
    private static Map<String, Object> describeOptions(BaseTableBindingModel model) {
@@ -2309,6 +2302,39 @@ public class TableBindingService {
                              BindingModel model, Principal user, CommandDispatcher dispatcher)
       throws Exception
    {
+      applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher, List.of());
+   }
+
+   /**
+    * The crosstab dimensions (as {@code "rows:<column>"}/{@code "cols:<column>"}) a write asked to
+    * ungroup with an explicit {@code namedGroupValues: null} (bug #79017). Only rows/cols qualify:
+    * a details shelf has no group, and a field that also names a group is not a clear.
+    */
+   static List<String> ungroupDimensions(String shelf, List<FieldRef> fields) {
+      String normalized = shelf == null ? "" : shelf.trim().toLowerCase();
+
+      if(fields == null || !"rows".equals(normalized) && !"cols".equals(normalized)) {
+         return List.of();
+      }
+
+      List<String> keys = new ArrayList<>();
+
+      for(FieldRef field : fields) {
+         if(field != null && field.clearsNamedGroupValues() && field.namedGroup() == null &&
+            field.column() != null)
+         {
+            keys.add(normalized + ":" + field.column());
+         }
+      }
+
+      return keys;
+   }
+
+   private void applyBinding(RuntimeViewsheet rvs, String runtimeId, String assemblyName,
+                             BindingModel model, Principal user, CommandDispatcher dispatcher,
+                             List<String> ungroup)
+      throws Exception
+   {
       VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
 
       if(assembly instanceof CrosstabVSAssembly crosstab &&
@@ -2321,6 +2347,7 @@ public class TableBindingService {
       event.setName(assemblyName);
       event.setBinding(model);
       event.setClearVacatedAliases(true);
+      event.setUngroupDimensions(ungroup);
       bindingModelService.setBinding(runtimeId, event, user, dispatcher);
    }
 

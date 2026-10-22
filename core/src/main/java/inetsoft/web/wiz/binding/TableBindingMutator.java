@@ -887,6 +887,13 @@ public final class TableBindingMutator {
             ref.setOrder(ref.getOrder() & ~XConstants.SORT_SPECIFIC);
          }
 
+         // An explicit ungroup (namedGroupValues: null, bug #79017) of a grouped field leaves the
+         // SPECIFIC bit stripped and nothing else: rendered as no sort. Ascending is what an
+         // ungrouped dimension starts with.
+         if(field.clearsNamedGroupValues() && hadGroup && ref.getOrder() == XConstants.SORT_NONE) {
+            ref.setOrder(XConstants.SORT_ASC);
+         }
+
          out.add(ref);
       }
 

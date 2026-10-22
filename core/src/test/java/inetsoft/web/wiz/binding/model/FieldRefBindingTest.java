@@ -195,6 +195,45 @@ class FieldRefBindingTest {
       assertEquals("90", renamed.operand());
    }
 
+   /** Bug #79017: explicit null on namedGroupValues clears the group, an omitted key does not. */
+   @Test
+   void tellsAnExplicitNullNamedGroupValuesFromAnOmittedOne() throws Exception {
+      FieldRef explicit = mapper.readValue(
+         """
+         { "column": "Category", "type": "dimension", "namedGroupValues": null }
+         """, FieldRef.class);
+      FieldRef omitted = mapper.readValue(
+         """
+         { "column": "Category", "type": "dimension" }
+         """, FieldRef.class);
+      FieldRef grouped = mapper.readValue(
+         """
+         { "column": "Category", "type": "dimension",
+           "namedGroupValues": { "groups": [ { "name": "A", "values": ["x", "y"] } ] } }
+         """, FieldRef.class);
+
+      assertTrue(explicit.clearsNamedGroupValues());
+      assertNull(explicit.namedGroupValues(), "the sentinel must never leave the record");
+      assertFalse(omitted.clearsNamedGroupValues(), "an omitted key must not clear");
+      assertNull(omitted.namedGroupValues());
+      assertFalse(grouped.clearsNamedGroupValues());
+      assertEquals("A", grouped.namedGroupValues().groups().get(0).name());
+      assertEquals(List.of("x", "y"), grouped.namedGroupValues().groups().get(0).values());
+   }
+
+   @Test
+   void theNamedGroupClearSurvivesEveryCopy() throws Exception {
+      FieldRef ref = mapper.readValue(
+         """
+         { "column": "Category", "type": "dimension", "namedGroupValues": null }
+         """, FieldRef.class);
+
+      assertTrue(ref.withColumns("Category", null).clearsNamedGroupValues());
+      assertTrue(ref.withLabel("L").clearsNamedGroupValues());
+      assertTrue(ref.withVisible(true).clearsNamedGroupValues());
+      assertTrue(mapper.readTree(mapper.writeValueAsString(ref)).get("namedGroupValues").isNull());
+   }
+
    /** Bug #78856: the N/P operand, a string so a dynamic one round-trips. */
    @Test
    void bindsAndRoundTripsTheOperandAsAString() throws Exception {

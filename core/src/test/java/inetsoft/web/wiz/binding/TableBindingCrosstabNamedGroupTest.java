@@ -394,6 +394,47 @@ class TableBindingCrosstabNamedGroupTest {
          .getGroupCondition("West").getCondition(0).getOperation();
    }
 
+   // ── explicit ungroup (bug #79017) ─────────────────────────────────────────
+
+   @Test
+   void anExplicitNamedGroupValuesNullRemovesTheGroupAndKeepsAnAscendingSort() throws Exception {
+      Fixture f = new Fixture(List.of(expertRegion(), plain("YEAR")), List.of(), null);
+
+      f.service.setShelf("tok", principal(), "Crosstab1", "rows",
+                         List.of(clearing("REGION"), dim("YEAR")), null);
+
+      VSDimensionRef[] rows = f.rows();
+      assertNull(rows[0].getNamedGroupInfo(), "the group must be removed, not restored");
+      assertEquals(XConstants.SORT_ASC, rows[0].getOrder());
+      assertNotNull(rows[0].getDataRef(), "the column itself must stay bound");
+      assertNull(rows[1].getNamedGroupInfo());
+   }
+
+   @Test
+   void clearingOneColumnLeavesAnotherGroupedColumnAlone() throws Exception {
+      VSDimensionRef state = plain("STATE");
+      state.setNamedGroupInfo(westGroup("STATE"));
+      state.setOrder(GROUPED_ORDER);
+      Fixture f = new Fixture(List.of(expertRegion(), state), List.of(), null);
+
+      f.service.setShelf("tok", principal(), "Crosstab1", "rows",
+                         List.of(clearing("REGION"), named("STATE", "Custom")), null);
+
+      assertNull(f.rows()[0].getNamedGroupInfo());
+      assertStoredWest(f.rows()[1], "STATE");
+   }
+
+   private static FieldRef clearing(String column) {
+      try {
+         return new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+            "{\"column\":\"" + column + "\",\"type\":\"dimension\",\"namedGroupValues\":null}",
+            FieldRef.class);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
    private static FieldRef dim(String column) {
       return new FieldRef(column, "dimension", null, null, null);
    }
@@ -499,6 +540,7 @@ class TableBindingCrosstabNamedGroupTest {
          try {
             doAnswer(invocation -> {
                ApplyVSAssemblyInfoEvent event = invocation.getArgument(1);
+               VSBindingModelService.ungroupDimensions(assembly, event.getUngroupDimensions());
                factory.updateAssembly((CrosstabBindingModel) event.getBinding(), assembly);
                return null;
             }).when(bindings).setBinding(anyString(), any(), any(Principal.class), any());
