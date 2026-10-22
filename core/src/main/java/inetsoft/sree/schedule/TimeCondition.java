@@ -26,6 +26,11 @@ import org.w3c.dom.Element;
 import java.io.*;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.time.DateTimeException;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -364,6 +369,9 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          }
       }
 
+      // The clock (or lastRun when interval > 1) only supplies the local date to start from. Every
+      // day after it is a local date of the condition's zone, and a wall time becomes an instant in
+      // resolve() alone, so a daylight saving change cannot leave an hour stuck on the calendar.
       Calendar cal1 = getGregorianInstance(getTimeZone());
 
       if(getInterval() > 1 && lastRun > 0) {
@@ -376,254 +384,318 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       // a valid day can be, so a limit never turns a stale seed into "never".
       long seedTime = cal1.getTimeInMillis();
       long staleDays = curr > seedTime ? (curr - seedTime) / 86400000L : 0L;
+      long fireTime;
 
-      cal1.set(Calendar.HOUR_OF_DAY, hour);
-      cal1.set(Calendar.MINUTE, minute);
-      cal1.set(Calendar.SECOND, second);
+      try {
+         ZoneId zone = cal1.getTimeZone().toZoneId();
+         LocalDate seedDate = toLocalDate(seedTime, zone);
 
-      // cal1 contains current date and scheduled time
-      switch(type) {
-      case EVERY_DAY:
-         if(isWeekdayOnly()) {
-            // if weekdays, do not run on weekend
-            while(cal1.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY ||
-                  cal1.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY ||
-                  cal1.getTimeInMillis() < curr)
-            {
-               cal1.add(Calendar.DATE, 1);
-            }
+         switch(type) {
+         case EVERY_DAY:
+            fireTime = getNextDaily(seedDate, zone, curr);
+            break;
+         case EVERY_WEEK:
+            fireTime = getNextWeekly(seedDate, zone, curr, staleDays, orgId);
+            break;
+         case EVERY_HOUR:
+            fireTime = getNextHourly(seedDate, zone, curr);
+            break;
+         case WEEK_OF_YEAR:
+            fireTime = getNextWeekOfYear(seedDate, zone, curr, cal1);
+            break;
+         case EVERY_MONTH:
+            fireTime = getNextMonthly(seedDate, zone, curr, staleDays, cal1);
+            break;
+         default:
+            fireTime = slot(seedDate, zone).toInstant().toEpochMilli();
+            break;
          }
-         else{
-            if(getInterval() <= 0) {
-               return -1;
-            }
-
-            if(cal1.getTimeInMillis() < curr) {
-               cal1.add(Calendar.DATE, getInterval());
-            }
-         }
-
-         break;
-      case EVERY_WEEK:
-         if(!containsValidDayOfWeek()) {
-            return -1;
-         }
-
-         boolean satisfied = false;
-
-         if(getInterval() > 1) {
-            // The weeks of an every-N-weeks schedule start on the week.start day of the task's
-            // organization (the site-wide value when it has no override), never on the first
-            // day of the JVM locale. The organization of the calling thread is not consulted,
-            // so the cycle is the same on every thread.
-            int firstDay = Tool.parseFirstDayOfWeek(getWeekStart(orgId));
-            // days left in the seed's week after the seed day, counted from firstDay
-            int left = 6 - Math.floorMod(cal1.get(Calendar.DAY_OF_WEEK) - firstDay, 7);
-
-            for(int k = 0; k <= left; k++) {
-               if(containsIn(days_of_week, cal1.get(Calendar.DAY_OF_WEEK)) &&
-                  cal1.getTimeInMillis() >= curr)
-               {
-                  satisfied = true;
-                  break;
-               }
-
-               if(k < left) {
-                  cal1.add(Calendar.DATE, 1);
-               }
-            }
-
-            if(satisfied) {
-               break;
-            }
-
-            long skip = (long) (getInterval() - 1) * 7;
-
-            // Calendar.add takes an int; the int product used to wrap around for a huge interval
-            if(skip > Integer.MAX_VALUE - 1) {
-               return -1;
-            }
-
-            // from the last day of the seed's week to the first day of the week N weeks later
-            cal1.add(Calendar.DATE, (int) skip + 1);
-         }
-         else {
-            for(int day = cal1.get(Calendar.DAY_OF_WEEK); day < 8; day++) {
-               cal1.set(Calendar.DAY_OF_WEEK, day);
-
-               if(containsIn(days_of_week, day) && cal1.getTimeInMillis() >= curr) {
-                  satisfied = true;
-                  break;
-               }
-            }
-
-            if(satisfied) {
-               break;
-            }
-
-            // this loop never ends if every day is selected and days_of_week[0] is not a valid
-            // day (every day matches, so there is nothing to skip)
-            if(!containsAllDaysOfWeek() || containsValidDayOfWeek(days_of_week[0])) {
-               while(containsIn(days_of_week, cal1.get(Calendar.DAY_OF_WEEK)) &&
-                  cal1.get(Calendar.DAY_OF_WEEK) != days_of_week[0])
-               {
-                  cal1.add(Calendar.DATE, 1);
-               }
-            }
-         }
-
-         // A valid day exists, so once the walk reaches curr the next one is at most 7 days
-         // away; the measured worst case is staleDays + 8, the rest is slack
-         long weeklyMaxDays = staleDays + 16;
-
-         while(!containsIn(days_of_week, cal1.get(Calendar.DAY_OF_WEEK)) ||
-            cal1.getTimeInMillis() < curr)
-         {
-            if(weeklyMaxDays-- <= 0) {
-               return -1;
-            }
-
-            cal1.add(Calendar.DATE, 1);
-         }
-
-         break;
-      case EVERY_HOUR:
-         float hourlyInterval = getHourlyInterval();
-
-         // !(x > 0) also rejects NaN
-         if(!containsValidDayOfWeek() || !(hourlyInterval > 0) ||
-            Float.isInfinite(hourlyInterval))
-         {
-            return -1;
-         }
-
-         boolean found = false;
-         long start = cal1.getTimeInMillis();
-
-         if(containsIn(days_of_week,  cal1.get(Calendar.DAY_OF_WEEK))) {
-            Calendar calEnd = getGregorianInstance(getTimeZone());
-            calEnd.setTime(new Date(curr));
-            calEnd.set(Calendar.HOUR_OF_DAY, hour_end);
-            calEnd.set(Calendar.MINUTE, minute_end);
-            calEnd.set(Calendar.SECOND, second_end);
-            long end = calEnd.getTimeInMillis();
-            long interval = (long) (hourlyInterval * 3600000);
-
-            // a step under 1 ms never advances start
-            if(interval < 1) {
-               return -1;
-            }
-
-            // keep start += interval from overflowing for a huge interval; any step this long
-            // is past the end of the window anyway
-            interval = Math.min(interval, Long.MAX_VALUE / 4);
-
-            while(start < end && end > curr) {
-               if(start >= curr) {
-                  found = true;
-                  break;
-               }
-               else {
-                  start += interval;
-               }
-            }
-         }
-
-         if(found) {
-            cal1.setTimeInMillis(start);
-         }
-         else {
-            // a valid day exists, so it is at most 7 days away
-            int hourMaxDays = 8;
-
-            while(true) {
-               if(hourMaxDays-- <= 0) {
-                  return -1;
-               }
-
-               cal1.add(Calendar.DATE, 1);
-
-               if(containsIn(days_of_week, cal1.get(Calendar.DAY_OF_WEEK))) {
-                  break;
-               }
-            }
-         }
-
-         break;
-      case WEEK_OF_YEAR:
-         if(week_of_year <= 0 || day_of_week <= 0) {
-            return -1;
-         }
-
-         int weekMaxDays = 400;
-
-         while((cal1.get(Calendar.WEEK_OF_YEAR) != week_of_year ||
-                cal1.get(Calendar.DAY_OF_WEEK) != day_of_week ||
-                cal1.getTimeInMillis() < curr) && weekMaxDays-- > 0)
-         {
-            cal1.add(Calendar.DATE, 1);
-         }
-
-         if(weekMaxDays < 0) {
-            return -1;
-         }
-
-         break;
-      case EVERY_MONTH:
-         int monthMaxLength = getMaxDaysInSelectedMonths();
-
-         if(monthMaxLength <= 0) {
-            return -1;
-         }
-
-         if(getWeekOfMonth() >= 0) {
-            // no month has a 6th week (isNthSpecifiedDayOfMonth)
-            if(getWeekOfMonth() > 5) {
-               return -1;
-            }
-
-            long maxDays = staleDays + MAX_WALK_DAYS;
-
-            while(!isNthSpecifiedDayOfMonth(cal1) ||
-               cal1.getTimeInMillis() < curr ||
-               !containsIn(months_of_year, cal1.get(Calendar.MONTH)))
-            {
-               // a condition may not be possible (e.g. a weekday that is never the 5th one of
-               // the selected months), avoid infinite loop
-               if(maxDays-- <= 0) {
-                  return -1;
-               }
-
-               cal1.add(Calendar.DATE, 1);
-            }
-         }
-         else {
-            // no selected month is long enough (e.g. day 31 for April, day 32)
-            if(day_of_month > monthMaxLength) {
-               return -1;
-            }
-
-            long maxDays = staleDays + MAX_WALK_DAYS;
-
-            while(!containsIn(months_of_year, cal1.get(Calendar.MONTH)) ||
-               cal1.getTimeInMillis() < curr ||
-               day_of_month < 0 && !isNthLastDayOfMonth(-day_of_month, cal1) ||
-               day_of_month > 0 && !isNthFirstDayOfMonth(day_of_month, cal1))
-            {
-               // a negative day that no month has is not pre-checked
-               if(maxDays-- <= 0) {
-                  return -1;
-               }
-
-               cal1.add(Calendar.DATE, 1);
-            }
-         }
-
-         break;
+      }
+      catch(DateTimeException | ArithmeticException ex) {
+         // a date beyond the range java.time can represent (an absurd interval or hour)
+         return -1;
       }
 
-      scheduleTime = cal1.getTimeInMillis();
-      return cal1.getTimeInMillis();
+      if(fireTime < 0) {
+         return -1;
+      }
+
+      scheduleTime = fireTime;
+      return fireTime;
+   }
+
+   private static LocalDate toLocalDate(long millis, ZoneId zone) {
+      return Instant.ofEpochMilli(millis).atZone(zone).toLocalDate();
+   }
+
+   /**
+    * The one place a wall time on a local date becomes an instant. A wall time the zone skips
+    * (spring forward) runs later by the length of the gap, and a wall time it repeats (fall back)
+    * runs at the later of the two occurrences, as <code>Calendar.set</code> resolves them, so a
+    * local date has exactly one slot. The time is added to midnight as seconds, so an hour or
+    * minute outside its range rolls into the next or previous date as it always did, and a
+    * midnight that does not exist (a gap at 00:00) is no problem. The milliseconds are zero.
+    */
+   private static ZonedDateTime resolve(LocalDate date, ZoneId zone, int h, int m, int s) {
+      return ZonedDateTime.ofLocal(
+         date.atStartOfDay().plusSeconds(h * 3600L + m * 60L + s), zone, null)
+         .withLaterOffsetAtOverlap();
+   }
+
+   private ZonedDateTime slot(LocalDate date, ZoneId zone) {
+      return resolve(date, zone, hour, minute, second);
+   }
+
+   /**
+    * Get the Calendar.DAY_OF_WEEK (SUNDAY = 1) of the date of an instant.
+    */
+   private static int dayOfWeek(ZonedDateTime time) {
+      return time.getDayOfWeek().getValue() % 7 + 1;
+   }
+
+   /**
+    * The first date a walk that must reach curr needs to look at. The slot of a date is
+    * <code>offset</code> days from that date when the hour is out of range, so dates before
+    * curr's date minus the offset can only be earlier than curr.
+    */
+   private LocalDate getFirstCandidate(LocalDate seedDate, ZoneId zone, long curr) {
+      long offsetDays = Math.floorDiv(hour * 3600L + minute * 60L + second, 86400L);
+      LocalDate first = toLocalDate(curr, zone).minusDays(offsetDays + 2);
+      return first.isAfter(seedDate) ? first : seedDate;
+   }
+
+   private long getNextDaily(LocalDate seedDate, ZoneId zone, long curr) {
+      if(isWeekdayOnly()) {
+         // if weekdays, do not run on weekend
+         LocalDate date = getFirstCandidate(seedDate, zone, curr);
+
+         for(int i = 0; i < 16; i++, date = date.plusDays(1)) {
+            ZonedDateTime time = slot(date, zone);
+            int day = dayOfWeek(time);
+
+            if(day != Calendar.SATURDAY && day != Calendar.SUNDAY &&
+               time.toInstant().toEpochMilli() >= curr)
+            {
+               return time.toInstant().toEpochMilli();
+            }
+         }
+
+         return -1;
+      }
+
+      if(getInterval() <= 0) {
+         return -1;
+      }
+
+      if(getInterval() == 1) {
+         // the next slot that is not before curr, never the one of a date that has passed
+         LocalDate date = getFirstCandidate(seedDate, zone, curr);
+
+         for(int i = 0; i < 8; i++, date = date.plusDays(1)) {
+            long time = slot(date, zone).toInstant().toEpochMilli();
+
+            if(time >= curr) {
+               return time;
+            }
+         }
+
+         return -1;
+      }
+
+      // every N days is a single step from the seed's date, without a loop up to curr, so a
+      // stale lastRun still gives a time in the past and the task catches up once (unchanged)
+      long time = slot(seedDate, zone).toInstant().toEpochMilli();
+
+      if(time < curr) {
+         time = slot(seedDate.plusDays(getInterval()), zone).toInstant().toEpochMilli();
+      }
+
+      return time;
+   }
+
+   private long getNextWeekly(LocalDate seedDate, ZoneId zone, long curr, long staleDays,
+                              String orgId)
+   {
+      if(!containsValidDayOfWeek()) {
+         return -1;
+      }
+
+      LocalDate start = seedDate;
+
+      if(getInterval() > 1) {
+         // The weeks of an every-N-weeks schedule start on the week.start day of the task's
+         // organization (the site-wide value when it has no override), never on the first
+         // day of the JVM locale. The organization of the calling thread is not consulted,
+         // so the cycle is the same on every thread.
+         int firstDay = Tool.parseFirstDayOfWeek(getWeekStart(orgId));
+         // days left in the seed's week after the seed day, counted from firstDay
+         int left = 6 - Math.floorMod(dayOfWeek(slot(seedDate, zone)) - firstDay, 7);
+
+         for(int k = 0; k <= left; k++) {
+            ZonedDateTime time = slot(seedDate.plusDays(k), zone);
+
+            if(containsIn(days_of_week, dayOfWeek(time)) &&
+               time.toInstant().toEpochMilli() >= curr)
+            {
+               return time.toInstant().toEpochMilli();
+            }
+         }
+
+         long skip = (long) (getInterval() - 1) * 7;
+
+         // the interval used to wrap around for a huge value
+         if(skip > Integer.MAX_VALUE - 1) {
+            return -1;
+         }
+
+         // from the last day of the seed's week to the first day of the week N weeks later
+         start = seedDate.plusDays(left + skip + 1);
+      }
+
+      // A valid day exists, so once the walk reaches curr the next one is at most 7 days
+      // away; the measured worst case is staleDays + 8, the rest is slack
+      long weeklyMaxDays = staleDays + 16;
+
+      for(long i = 0; i <= weeklyMaxDays; i++) {
+         ZonedDateTime time = slot(start.plusDays(i), zone);
+
+         if(containsIn(days_of_week, dayOfWeek(time)) &&
+            time.toInstant().toEpochMilli() >= curr)
+         {
+            return time.toInstant().toEpochMilli();
+         }
+      }
+
+      return -1;
+   }
+
+   private long getNextHourly(LocalDate seedDate, ZoneId zone, long curr) {
+      float hourlyInterval = getHourlyInterval();
+
+      // !(x > 0) also rejects NaN
+      if(!containsValidDayOfWeek() || !(hourlyInterval > 0) || Float.isInfinite(hourlyInterval)) {
+         return -1;
+      }
+
+      long interval = (long) (hourlyInterval * 3600000);
+
+      // a step under 1 ms never advances
+      if(interval < 1) {
+         return -1;
+      }
+
+      // keep the arithmetic below from overflowing for a huge interval; any step this long
+      // is past the end of the window anyway
+      interval = Math.min(interval, Long.MAX_VALUE / 4);
+      // The first selected date, from the seed's date on, whose window has a tick that is not
+      // before curr. Today's window is over for a trigger that fires after its last tick; a
+      // trigger that fires a few ms early is still on the previous date, so the window of the
+      // next date must be searched for a tick >= curr too, never taken as is (it would be the
+      // instant that just fired). The ticks are every interval of elapsed time from the start
+      // of the window, also on a day the clock changes.
+      for(int i = 0; i <= 8; i++) {
+         ZonedDateTime first = slot(seedDate.plusDays(i), zone);
+
+         if(!containsIn(days_of_week, dayOfWeek(first))) {
+            continue;
+         }
+
+         long start = first.toInstant().toEpochMilli();
+         long end = resolve(seedDate.plusDays(i), zone, hour_end, minute_end, second_end)
+            .toInstant().toEpochMilli();
+
+         if(start >= end) {
+            // an empty window runs at its start on a later date, as it always did
+            if(i > 0) {
+               return start;
+            }
+
+            continue;
+         }
+
+         if(end > curr) {
+            long tick = start >= curr ? start :
+               start + (curr - start + interval - 1) / interval * interval;
+
+            if(tick < end) {
+               return tick;
+            }
+         }
+      }
+
+      return -1;
+   }
+
+   private long getNextWeekOfYear(LocalDate seedDate, ZoneId zone, long curr, Calendar cal) {
+      if(week_of_year <= 0 || day_of_week <= 0) {
+         return -1;
+      }
+
+      for(int i = 0; i <= 400; i++) {
+         long time = slot(seedDate.plusDays(i), zone).toInstant().toEpochMilli();
+         // the week numbering of the locale is read from the calendar
+         cal.setTimeInMillis(time);
+
+         if(cal.get(Calendar.WEEK_OF_YEAR) == week_of_year &&
+            cal.get(Calendar.DAY_OF_WEEK) == day_of_week && time >= curr)
+         {
+            return time;
+         }
+      }
+
+      return -1;
+   }
+
+   private long getNextMonthly(LocalDate seedDate, ZoneId zone, long curr, long staleDays,
+                               Calendar cal)
+   {
+      int monthMaxLength = getMaxDaysInSelectedMonths();
+
+      if(monthMaxLength <= 0) {
+         return -1;
+      }
+
+      boolean nthWeekday = getWeekOfMonth() >= 0;
+
+      if(nthWeekday) {
+         // no month has a 6th week (isNthSpecifiedDayOfMonth)
+         if(getWeekOfMonth() > 5) {
+            return -1;
+         }
+      }
+      // no selected month is long enough (e.g. day 31 for April, day 32)
+      else if(day_of_month > monthMaxLength) {
+         return -1;
+      }
+
+      // a condition may not be possible (e.g. a weekday that is never the 5th one of the
+      // selected months, or a negative day that no month has), avoid infinite loop
+      long maxDays = staleDays + MAX_WALK_DAYS;
+
+      for(long i = 0; i <= maxDays; i++) {
+         long time = slot(seedDate.plusDays(i), zone).toInstant().toEpochMilli();
+         cal.setTimeInMillis(time);
+
+         if(time < curr || !containsIn(months_of_year, cal.get(Calendar.MONTH))) {
+            continue;
+         }
+
+         boolean dayMatches;
+
+         if(nthWeekday) {
+            dayMatches = isNthSpecifiedDayOfMonth(cal);
+         }
+         else {
+            dayMatches = !(day_of_month < 0 && !isNthLastDayOfMonth(-day_of_month, cal) ||
+               day_of_month > 0 && !isNthFirstDayOfMonth(day_of_month, cal));
+         }
+
+         if(dayMatches) {
+            return time;
+         }
+      }
+
+      return -1;
    }
 
    public String toString() {
