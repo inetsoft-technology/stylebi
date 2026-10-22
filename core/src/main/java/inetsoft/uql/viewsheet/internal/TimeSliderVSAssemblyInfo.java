@@ -791,6 +791,11 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
          def.setForegroundValue(
             ctx.dark ? VSObjectChromeDefaults.darkForegroundValue() : "0", ctx.dark);
          def.setForeground(null, false);
+
+         // an ad hoc filter stays square under its white background
+         if(isAdhocFilter()) {
+            def.setRoundCornerValue(0);
+         }
       }
 
       // the card inset, kept when the author or a format.css padding set one

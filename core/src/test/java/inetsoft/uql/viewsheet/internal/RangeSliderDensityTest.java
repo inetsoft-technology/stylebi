@@ -175,6 +175,20 @@ class RangeSliderDensityTest {
       assertTrue(info.takesLabelSpacing());
    }
 
+   // an ad hoc filter saved or bookmarked as one reopens through the reseed
+   @Test
+   void aReseededAdhocSliderStaysSquare() {
+      TimeSliderVSAssemblyInfo info = marked("comfortable");
+      info.setAdhocFilter(true);
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(0, info.getFormat().getDefaultFormat().getRoundCornerValue());
+
+      info.setAdhocFilter(false);
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
+                   info.getFormat().getDefaultFormat().getRoundCornerValue());
+   }
+
    @ParameterizedTest
    @CsvSource({ "comfortable, 232, 82", "compact, 224, 74", "dense, 216, 66" })
    void aNewMarkedSliderTakesTheTierBox(String density, int w, int h) {
