@@ -1581,6 +1581,10 @@ public class WorksheetTableService {
       // wrong aggregates in every chart bound to it — worse than a paginated metered API walked to
       // exhaustion on a render, which is at least visible as cost rather than a confidently wrong
       // number. See the design doc's section 4.1.
+      // A negative value is refused rather than skipped by the > 0 gates below, as on every other
+      // maxRows entry point: skipping it would build an uncapped table and report success.
+      WorksheetEditService.requireNonNegativeMaxRows(src.getMaxRows());
+
       if(src.getMaxRows() != null && src.getMaxRows() > 0) {
          query.setMaxRows(src.getMaxRows());
       }

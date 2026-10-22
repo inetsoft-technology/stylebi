@@ -37,6 +37,7 @@ import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.model.WorksheetTable;
 import inetsoft.web.wiz.model.WorksheetTableRequest;
+import inetsoft.web.wiz.pairing.PairingException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,11 +49,15 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -131,5 +136,18 @@ class WorksheetTableServiceMaxRows79078Test {
       assertEquals(-1, assemblyMaxRows("""
          { "datasourcePath": "myds", "queryParams": { "endpoint": "Repos" }, "maxRows": 0 }
          """));
+   }
+
+   @Test
+   void negativeMaxRowsIsRefusedInsteadOfSilentlyDropped() {
+      // Every other maxRows entry point refuses a negative value; /ws/table must not quietly
+      // build an uncapped table instead.
+      InvocationTargetException thrown = assertThrows(InvocationTargetException.class,
+         () -> assemblyMaxRows("""
+            { "datasourcePath": "myds", "queryParams": { "endpoint": "Repos" }, "maxRows": -5 }
+            """));
+      PairingException cause = assertInstanceOf(PairingException.class, thrown.getCause());
+      assertTrue(cause.getMessage().contains("maxRows cannot be negative (got -5)"),
+         cause.getMessage());
    }
 }
