@@ -121,7 +121,7 @@ class TableBindingServiceCalcSizingTest {
          () -> f.service().setColumnWidths("tok", principal(), "Calc1", Map.of("Region", 100.0)));
       assertTrue(text.getMessage().contains("layout column index"), text.getMessage());
 
-      for(double bad : new double[]{ 0.0, 0.5, -3.0, Double.NaN }) {
+      for(double bad : new double[]{ 0.0, 0.5, -3.0, Double.NaN, 32768.0, 3.0e9, 1.0e20 }) {
          assertThrows(IllegalArgumentException.class,
             () -> f.service().setColumnWidths("tok", principal(), "Calc1", Map.of("1", bad)),
             "width " + bad + " must be refused");

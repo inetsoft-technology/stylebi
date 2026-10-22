@@ -1604,9 +1604,10 @@ public class TableBindingService {
     * under 1 would hide the column rather than size it.
     */
    private static String widthError(String subject, Double width) {
-      if(width != null && (!Double.isFinite(width) || width < 1)) {
-         return subject + " width must be a finite number of pixels, at least 1 (0 hides a " +
-            "column and a fraction below 1 truncates to 0); got " + width + ".";
+      if(width != null && (!Double.isFinite(width) || width < 1 || width > MAX_ROW_HEIGHT)) {
+         return subject + " width must be a finite number of pixels from 1 to " +
+            MAX_ROW_HEIGHT + " (0 hides a column and a fraction below 1 truncates to 0); got " +
+            width + ".";
       }
 
       return null;
@@ -1860,7 +1861,7 @@ public class TableBindingService {
       return new TableWrite(applied, warnings);
    }
 
-   /** A row height the engine can store: a whole pixel count from 1 to {@link #MAX_ROW_HEIGHT}. */
+   /** The largest column width or row height written, in pixels; keeps the engine's int math safe. */
    private static final long MAX_ROW_HEIGHT = 32767;
 
    /** The width as the engine applies it: it truncates to a whole pixel when it renders. */
