@@ -17,11 +17,13 @@
  */
 package inetsoft.web.admin.ai.schedule;
 
+import inetsoft.report.internal.Util;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.schedule.model.ScheduleConfigurationModel;
 import inetsoft.web.admin.schedule.model.ServerLocation;
+import inetsoft.web.admin.schedule.model.ServerPathInfoModel;
 import inetsoft.web.viewsheet.model.dialog.schedule.TimeRangeModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -251,6 +253,133 @@ class ScheduleConfigChangePlanServiceTest {
       IllegalArgumentException ex =
          assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
       assertTrue(ex.getMessage().contains("no time range"));
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #79032: the preview must mirror the server's placeholder-password rule
+   // -------------------------------------------------------------------------
+
+   private static final String OLD_KEY = "/qa/sl-pw|PW|ftpuser";
+
+   private static ServerLocation storedLocationWithPassword() {
+      return storedLocation("/qa/sl-pw", "ftpuser", "PW");
+   }
+
+   private static ServerLocation storedLocation(String path, String username, String label) {
+      return ServerLocation.builder().path(path).label(label).pathInfoModel(
+         ServerPathInfoModel.builder().path(path).username(username)
+            .password(Util.PLACEHOLDER_PASSWORD).ftp(true).useCredential(false)
+            .oldPasswordKey(path + "|" + label + "|" + username).build()).build();
+   }
+
+   private static ScheduleConfigChangeRequest updateWithPlaceholder(
+      String path, String username, String oldPasswordKey)
+   {
+      return updateWithPlaceholder(path, path, username, oldPasswordKey);
+   }
+
+   private static ScheduleConfigChangeRequest updateWithPlaceholder(
+      String key, String path, String username, String oldPasswordKey)
+   {
+      Map<String, Object> info = new HashMap<>();
+      info.put("path", path);
+      info.put("username", username);
+      info.put("password", Util.PLACEHOLDER_PASSWORD);
+      info.put("oldPasswordKey", oldPasswordKey);
+      Map<String, Object> spec = locationSpec(path, "PW");
+      spec.put("pathInfoModel", info);
+      ScheduleConfigChangeRequest change = new ScheduleConfigChangeRequest();
+      change.setUnitType(ScheduleConfigChangeRequest.UNIT_SERVER_LOCATION);
+      change.setVerb(ScheduleConfigChangeRequest.VERB_UPDATE);
+      change.setKey(key);
+      change.setSpec(spec);
+      return change;
+   }
+
+   @Test void placeholderPasswordWithChangedUsernameIsNotProjectedAsSet() throws Exception {
+      stubConfig(List.of(storedLocationWithPassword()), List.of());
+
+      PlanChange change = service.resolve(
+         request("rename user", List.of(updateWithPlaceholder("/qa/sl-pw", "otheruser", OLD_KEY))),
+         user).changes().get(0);
+
+      assertTrue(change.currentValue().contains("password=(set)"), change.currentValue());
+      assertTrue(change.proposedValue().contains("password=(none)"), change.proposedValue());
+      assertTrue(change.description().contains("CLEARED"), change.description());
+   }
+
+   @Test void placeholderPasswordWithPathOnADifferentHostIsNotProjectedAsSet() throws Exception {
+      String oldPath = "ftp://hosta.example.com/dir";
+      stubConfig(List.of(storedLocation(oldPath, "ftpuser", "PW")), List.of());
+
+      PlanChange change = service.resolve(
+         request("move host", List.of(updateWithPlaceholder(
+            oldPath, "ftp://hostb.example.com/dir", "ftpuser", oldPath + "|PW|ftpuser"))),
+         user).changes().get(0);
+
+      assertTrue(change.proposedValue().contains("password=(none)"), change.proposedValue());
+      assertTrue(change.description().contains("CLEARED"), change.description());
+   }
+
+   @Test void placeholderPasswordWithStaleOldPasswordKeyIsRefused() throws Exception {
+      stubConfig(List.of(storedLocationWithPassword()), List.of());
+      ScheduleConfigChangePlanRequest req = request(
+         "stale key", List.of(updateWithPlaceholder("/qa/sl-pw", "ftpuser", "/old|PW|gone")));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("oldPasswordKey"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("changes[0]"), ex.getMessage());
+   }
+
+   @Test void placeholderPasswordWithMissingOldPasswordKeyIsRefused() throws Exception {
+      stubConfig(List.of(storedLocationWithPassword()), List.of());
+      ScheduleConfigChangePlanRequest req = request(
+         "no key", List.of(updateWithPlaceholder("/qa/sl-pw", "ftpuser", null)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("oldPasswordKey"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("missing"), ex.getMessage());
+   }
+
+   @Test void createWithPlaceholderPasswordAndNoMatchingKeyIsRefused() throws Exception {
+      stubConfig(List.of(), List.of());
+      ScheduleConfigChangeRequest change = updateWithPlaceholder("/qa/sl-new", "ftpuser", null);
+      change.setVerb(ScheduleConfigChangeRequest.VERB_CREATE);
+      change.setKey(null);
+      ScheduleConfigChangePlanRequest req = request("create", List.of(change));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("oldPasswordKey"), ex.getMessage());
+   }
+
+   @Test void placeholderPasswordForAStoredLocationWithoutPasswordProjectsNoneWithoutWarning()
+      throws Exception
+   {
+      ServerLocation stored = ServerLocation.builder().path("/qa/sl-pw").label("PW").pathInfoModel(
+         ServerPathInfoModel.builder().path("/qa/sl-pw").username("ftpuser").ftp(true)
+            .useCredential(false).oldPasswordKey(OLD_KEY).build()).build();
+      stubConfig(List.of(stored), List.of());
+
+      PlanChange change = service.resolve(
+         request("same login", List.of(updateWithPlaceholder("/qa/sl-pw", "ftpuser", OLD_KEY))),
+         user).changes().get(0);
+
+      assertTrue(change.proposedValue().contains("password=(none)"), change.proposedValue());
+      assertFalse(change.description().contains("WARNING"), change.description());
+   }
+
+   @Test void placeholderPasswordWithSameLoginIsStillProjectedAsSet() throws Exception {
+      stubConfig(List.of(storedLocationWithPassword()), List.of());
+
+      PlanChange change = service.resolve(
+         request("same login", List.of(updateWithPlaceholder("/qa/sl-pw", "ftpuser", OLD_KEY))),
+         user).changes().get(0);
+
+      assertTrue(change.proposedValue().contains("password=(set)"), change.proposedValue());
+      assertFalse(change.description().contains("WARNING"), change.description());
    }
 
    // -------------------------------------------------------------------------

@@ -102,6 +102,10 @@ public class ScheduleConfigChangesetApplyService {
          }
 
          String txId = "schedcfg-" + newIdSuffix();
+         // captured BEFORE the write, under APPLY_LOCK: carries the real stored passwords so a
+         // rollback can restore a credential the write dropped. Server-side only, never returned,
+         // logged or audited.
+         ScheduleConfigurationModel rollbackModel = gateway.getFullConfigWithPasswords(user);
          Exception writeFailure = null;
 
          try {
@@ -159,7 +163,7 @@ public class ScheduleConfigChangesetApplyService {
                                    Collections.unmodifiableList(results), null);
          }
 
-         return rollback(txId, resolution, results, req.getReviewOutcome(), user);
+         return rollback(txId, resolution, rollbackModel, results, req.getReviewOutcome(), user);
       }
       finally {
          APPLY_LOCK.unlock();
@@ -167,16 +171,19 @@ public class ScheduleConfigChangesetApplyService {
    }
 
    /**
-    * Writes {@code resolution.before()} back in full (see this class's own javadoc for why a
-    * whole-model rollback, rather than a per-entry undo, is the correct granularity here) and
-    * re-verifies the touched entries are back to their original state.
+    * Writes the pre-write model (the {@code rollbackModel}: {@code resolution.before()} but
+    * carrying the real server-location passwords, since the masked read cannot restore a dropped
+    * password) back in full (see this class's own javadoc for why a whole-model rollback, rather
+    * than a per-entry undo, is the correct granularity here) and re-verifies the touched entries
+    * are back to their original state.
     */
    private ScheduleConfigApplyResult rollback(
       String txId, ScheduleConfigChangePlanService.Resolution resolution,
+      ScheduleConfigurationModel rollbackModel,
       List<ScheduleConfigApplyOutcome> results, String reviewOutcome, Principal user)
    {
       try {
-         gateway.writeFullConfig(resolution.before(), user);
+         gateway.writeFullConfig(rollbackModel, user);
          ScheduleConfigurationModel afterRollback = gateway.getFullConfig(user);
          boolean rolledBack = verifyRolledBack(resolution, afterRollback);
 
