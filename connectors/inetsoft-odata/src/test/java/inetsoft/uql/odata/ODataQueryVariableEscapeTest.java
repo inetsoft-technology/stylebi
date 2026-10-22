@@ -27,6 +27,8 @@ import java.net.URI;
 import java.sql.Date;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Bug #79001: the OData filter is substituted OData-aware. A variable inside a single-quoted
@@ -75,24 +77,49 @@ class ODataQueryVariableEscapeTest {
    }
 
    @Test
-   void unquotedValuesAreEmbeddedAsIs() {
+   void unquotedPrimitiveValuesAreEmbeddedAsIs() {
       assertEquals("Active eq true", filter("Active eq $(p)", "p", "true"));
       assertEquals("Active eq true", filter("Active eq $(p)", "p", Boolean.TRUE));
       assertEquals("Id eq a1b2c3d4-0000-1111-2222-333344445555",
                    filter("Id eq $(p)", "p", "a1b2c3d4-0000-1111-2222-333344445555"));
       assertEquals("At gt 2020-01-01T00:00:00Z",
                    filter("At gt $(p)", "p", "2020-01-01T00:00:00Z"));
+      assertEquals("At gt 2020-01-01T10:20:30.5+08:00",
+                   filter("At gt $(p)", "p", "2020-01-01T10:20:30.5+08:00"));
+      assertEquals("Day eq 2020-01-01", filter("Day eq $(p)", "p", "2020-01-01"));
+      assertEquals("T eq 10:20:30", filter("T eq $(p)", "p", "10:20:30"));
+      assertEquals("D eq P1DT2H", filter("D eq $(p)", "p", "P1DT2H"));
       assertEquals("Price gt 12", filter("Price gt $(p)", "p", 12));
-      assertEquals("Price gt 12.5", filter("Price gt $(p)", "p", "12.5"));
-      assertEquals("Name eq 'x'", filter("$(p) eq 'x'", "p", "Name"));
-      assertEquals("Day eq 2020-01-01",
-                   filter("Day eq $(p)", "p", Date.valueOf("2020-01-01")));
+      assertEquals("Price gt -12.5e3", filter("Price gt $(p)", "p", "-12.5e3"));
+      assertEquals("Price eq null", filter("Price eq $(p)", "p", "null"));
    }
 
    @Test
-   void unquotedValueKeepsItsOwnQuotes() {
-      assertEquals("Name eq 'O''Brien' and x",
-                   filter("Name eq $(p) and x", "p", "'O''Brien'"));
+   void unquotedDateObjectsAreEmbeddedInIsoForm() {
+      assertEquals("Day eq 2020-01-01",
+                   filter("Day eq $(p)", "p", Date.valueOf("2020-01-01")));
+      assertEquals("At gt 2020-01-01T00:00:00Z",
+                   filter("At gt $(p)", "p", new java.util.Date(1577836800123L)));
+      assertEquals("At gt 2020-01-01T00:00:00Z",
+                   filter("At gt $(p)", "p", new java.sql.Timestamp(1577836800123L)));
+   }
+
+   @Test
+   void unquotedNonPrimitiveValuesAreRefused() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> filter("Id eq $(p)", "p", "1 or 1 eq 1"));
+      assertTrue(ex.getMessage().contains("$(p)") && ex.getMessage().contains("quotes"));
+      assertThrows(IllegalArgumentException.class, () -> filter("Id eq $(p)", "p", "x) or (Name ne "));
+      assertThrows(IllegalArgumentException.class, () -> filter("Id eq $(p)", "p", "'O''Brien'"));
+      assertThrows(IllegalArgumentException.class, () -> filter("$(p) eq 'x'", "p", "Name"));
+      assertThrows(IllegalArgumentException.class, () -> filter("Id in ($(p))", "p", "1,2 or 3"));
+      assertThrows(IllegalArgumentException.class, () -> filter("D eq $(p)", "p", "P"));
+   }
+
+   @Test
+   void rawReferenceIsEmbeddedAsIsEvenInsideLiteral() {
+      assertEquals("Name eq 'O'Brien'", filter("Name eq '$(@p)'", "p", "O'Brien"));
+      assertEquals("Id eq 1 or 1 eq 1", filter("Id eq $(@p)", "p", "1 or 1 eq 1"));
    }
 
    @Test

@@ -152,10 +152,16 @@ public class ODataQuery extends TabularQuery implements PropertyVariableReplacer
    /**
     * Substitutes variables in the filter OData-aware (Bug #79001). A reference inside a
     * single-quoted OData string literal has its quotes doubled, so a value such as O'Brien
-    * stays inside the literal. A reference outside quotes is embedded as is, as before
-    * (booleans, guids, dates, numbers, property names). Neither is URL-encoded here: the URI
-    * builder encodes the filter once when the request is built. A variable with no value is left
-    * as written, in or out of quotes. Select, expand and order by keep the default substitution.
+    * stays inside the literal. A reference outside quotes is embedded only when its value is a
+    * plain OData primitive token (number, true/false, null, guid, date, date-time offset, time of
+    * day or duration, or a comma-separated list of them); any other value, such as text with
+    * spaces or operators, is refused with an error naming the variable, because embedded raw it
+    * would become filter syntax. Dates are embedded in ISO form (java.sql.Date as yyyy-MM-dd,
+    * other dates as UTC yyyy-MM-ddTHH:mm:ssZ). A {@code $(@name)} reference is the explicit
+    * opt-in: it is embedded as is, without checking or quote doubling, like VarSQL's raw embed.
+    * Nothing is URL-encoded here: the URI builder encodes the filter once when the request is
+    * built. A variable with no value is left as written, in or out of quotes. Select, expand and
+    * order by keep the default substitution.
     */
    @Override
    public String replaceVariables(String property, String value, VariableTable vars) {
@@ -177,11 +183,28 @@ public class ODataQuery extends TabularQuery implements PropertyVariableReplacer
             int end = value.indexOf(')', i);
 
             if(end > i + 2) {
-               String ref = value.substring(i, end + 1);
-               String replaced = XUtil.replaceVariable(ref, vars, false);
+               boolean raw = value.startsWith("$(@", i);
+               String name = value.substring(i + (raw ? 3 : 2), end);
+               String replaced = replaceVariable(name, vars);
 
-               if(!ref.equals(replaced)) {
-                  result.append(inLiteral ? replaced.replace("'", "''") : replaced);
+               if(replaced != null) {
+                  if(raw) {
+                     result.append(replaced);
+                  }
+                  else if(inLiteral) {
+                     result.append(replaced.replace("'", "''"));
+                  }
+                  else if(isPrimitiveList(replaced)) {
+                     result.append(replaced);
+                  }
+                  else {
+                     throw new IllegalArgumentException(
+                        "Variable $(" + name + ") is used outside quotes in the OData filter, " +
+                        "but its value is not a plain number, boolean, null, guid, date, " +
+                        "date-time, time or duration. Put the variable inside single quotes, " +
+                        "e.g. '$(" + name + ")', or use $(@" + name + ") to embed it as is.");
+                  }
+
                   i = end + 1;
                   continue;
                }
@@ -194,6 +217,45 @@ public class ODataQuery extends TabularQuery implements PropertyVariableReplacer
 
       return result.toString();
    }
+
+   private static String replaceVariable(String name, VariableTable vars) {
+      try {
+         Object obj = vars.get(name);
+
+         if(obj instanceof java.sql.Date) {
+            return obj.toString();
+         }
+
+         if(obj instanceof java.util.Date && !(obj instanceof java.sql.Time)) {
+            return java.time.format.DateTimeFormatter.ISO_INSTANT.format(
+               ((java.util.Date) obj).toInstant().truncatedTo(
+                  java.time.temporal.ChronoUnit.SECONDS));
+         }
+      }
+      catch(Exception ignore) {
+      }
+
+      String ref = "$(" + name + ")";
+      String replaced = XUtil.replaceVariable(ref, vars, false);
+      return ref.equals(replaced) ? null : replaced;
+   }
+
+   private static boolean isPrimitiveList(String text) {
+      for(String token : text.split(",", -1)) {
+         if(!PRIMITIVE.matcher(token).matches()) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   private static final java.util.regex.Pattern PRIMITIVE = java.util.regex.Pattern.compile(
+      "-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?|true|false|null|" +
+      "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|" +
+      "\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})?)?|" +
+      "\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?|" +
+      "-?P(?=\\d|T\\d)(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?");
 
    @Property(label="Select")
    public String getSelect() {
