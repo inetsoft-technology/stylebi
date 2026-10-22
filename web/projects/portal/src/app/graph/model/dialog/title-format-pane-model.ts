@@ -21,4 +21,6 @@ export interface TitleFormatPaneModel {
    title: string;
    currentTitle: string;
    rotationRadioGroupModel: RotationRadioGroupModel;
+   labelGap: number;
+   labelGapFollowsDefault?: boolean;
 }
