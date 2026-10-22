@@ -1720,6 +1720,14 @@ public final class TableBindingMutator {
          return null;
       }
 
+      // With both shelves empty the crosstab is a single grand-total cell, so 100% is the true
+      // value and the opposite direction advice could not be followed (percentageBy refuses it).
+      List<BDimensionRefModel> other = byCol ? crosstab.getRows() : crosstab.getCols();
+
+      if(other == null || other.isEmpty()) {
+         return null;
+      }
+
       for(BAggregateRefModel agg : crosstab.getAggregates()) {
          if(isPercent(agg)) {
             String name = agg.getFullName() != null ? agg.getFullName() : agg.getColumnValue();
