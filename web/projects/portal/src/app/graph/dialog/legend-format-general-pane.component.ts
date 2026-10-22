@@ -49,6 +49,7 @@ export class LegendFormatGeneralPane implements OnInit, OnDestroy {
    @Input() form: UntypedFormGroup;
    @Input() vsId: string = null;
    showGapFollowDefault: boolean;
+   showPaddingFollowDefault: boolean;
    private symbolSizeSubscription: Subscription;
 
    constructor(private modalService: NgbModal,
@@ -153,6 +154,7 @@ export class LegendFormatGeneralPane implements OnInit, OnDestroy {
    ngOnInit(): void {
       this.initForm();
       this.showGapFollowDefault = this.model.gapFollowsDefault != null;
+      this.showPaddingFollowDefault = this.model.padding?.followsDefault != null;
    }
 
    ngOnDestroy(): void {
@@ -167,5 +169,9 @@ export class LegendFormatGeneralPane implements OnInit, OnDestroy {
 
    gapFollowDefaultChanged(follows: boolean): void {
       this.model.gapFollowsDefault = follows;
+   }
+
+   paddingFollowDefaultChanged(follows: boolean): void {
+      this.model.padding.followsDefault = follows;
    }
 }
