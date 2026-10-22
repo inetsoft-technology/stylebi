@@ -437,6 +437,345 @@ class ScheduleChangePlanServiceTest {
    // helpers
    // -------------------------------------------------------------------------
 
+   private ResolvedPlan resolveCreateOf(CreateScheduleTaskRequest spec) throws Exception {
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      lenient().when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      lenient().when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      lenient().when(scheduleGateway.viewsheetExists(anyString())).thenReturn(true);
+      return service.resolve(request("t", List.of(createChange(spec))), user);
+   }
+
+   private static TimeCondition everyHour(int hourEnd, float hourlyInterval) {
+      TimeCondition condition = timeCondition(8, 0);
+      condition.setType(TimeCondition.Type.EVERY_HOUR);
+      condition.setHourEnd(hourEnd);
+      condition.setHourlyInterval(hourlyInterval);
+      condition.setDaysOfWeek(new int[]{2});
+      return condition;
+   }
+
+   private static TimeCondition monthly(int dayOfWeek) {
+      TimeCondition condition = timeCondition(9, 0);
+      condition.setType(TimeCondition.Type.EVERY_MONTH);
+      condition.setWeekOfMonth(2);
+      condition.setDayOfWeek(dayOfWeek);
+      condition.setMonthsOfYear(new int[]{0});
+      return condition;
+   }
+
+   private static CreateScheduleTaskRequest specWith(TimeCondition condition) {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setConditions(List.of(condition));
+      return spec;
+   }
+
+   // bug #79043
+   @Test void everyHourWindowIsHashedAndShown() throws Exception {
+      ResolvedPlan a = resolveCreateOf(specWith(everyHour(18, 2f)));
+      ResolvedPlan b = resolveCreateOf(specWith(everyHour(23, 6f)));
+      ResolvedPlan c = resolveCreateOf(specWith(everyHour(18, 6f)));
+
+      assertNotEquals(a.planHash(), b.planHash());
+      assertNotEquals(a.planHash(), c.planHash());
+      String shown = a.changes().get(0).proposedValue();
+      assertTrue(shown.contains("hourEnd=18"), shown);
+      assertTrue(shown.contains("hourlyInterval=2.0"), shown);
+      assertTrue(shown.contains("minuteEnd=0"), shown);
+      assertTrue(shown.contains("secondEnd=0"), shown);
+   }
+
+   @Test void monthlyDayOfWeekIsHashed() throws Exception {
+      ResolvedPlan tuesday = resolveCreateOf(specWith(monthly(3)));
+      ResolvedPlan friday = resolveCreateOf(specWith(monthly(6)));
+
+      assertNotEquals(tuesday.planHash(), friday.planHash());
+      assertTrue(tuesday.changes().get(0).proposedValue().contains("dayOfWeek=3"));
+   }
+
+   private static inetsoft.web.api.schedule.ViewsheetAction vsAction() {
+      inetsoft.web.api.schedule.ViewsheetAction action =
+         new inetsoft.web.api.schedule.ViewsheetAction();
+      action.setViewsheet("1^128^__NULL__^Examples/Sales Summary^host-org");
+      action.setEmails(List.of("qa@example.com"));
+      return action;
+   }
+
+   private String shownActionOf(inetsoft.web.api.schedule.ViewsheetAction action)
+      throws Exception
+   {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setActions(List.of(action));
+      return resolveCreateOf(spec).changes().get(0).proposedValue();
+   }
+
+   // bug #79033
+   @Test void viewsheetActionBooleansAreShown() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setNotifies(List.of("ops@example.com"));
+      action.setNotifyIfFailed(true);
+      action.setNotifyLink(true);
+      action.setEmailZip(true);
+      action.setEmailLink(true);
+      action.setHtmlMessage(true);
+
+      String shown = shownActionOf(action);
+
+      assertTrue(shown.contains("notifyIfFailed=true,"), shown);
+      assertTrue(shown.contains("notifyLink=true,"), shown);
+      assertTrue(shown.contains("emailZip=true"), shown);
+      assertTrue(shown.contains("emailLink=true"), shown);
+      assertTrue(shown.contains("htmlMessage=true"), shown);
+      assertFalse(shown.contains("ignored"), shown);
+   }
+
+   @Test void notifyFlagsWithoutNotifiesAreShownAsIgnored() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setNotifyIfFailed(true);
+      action.setNotifyLink(false);
+
+      String shown = shownActionOf(action);
+
+      assertTrue(shown.contains("notifyIfFailed=true(ignored:no notifies)"), shown);
+      assertTrue(shown.contains("notifyLink=false(ignored:no notifies)"), shown);
+   }
+
+   @Test void nullBooleansAreOmittedAndPrimitivesAlwaysShown() throws Exception {
+      String shown = shownActionOf(vsAction());
+
+      assertFalse(shown.contains("emailZip"), shown);
+      assertFalse(shown.contains("emailLink"), shown);
+      assertFalse(shown.contains("notifyIfFailed"), shown);
+      assertTrue(shown.contains("htmlMessage=false"), shown);
+      assertTrue(shown.contains("saveToServerMatch=true"), shown);
+      assertTrue(shown.contains("saveExportAllTabbedTables=false"), shown);
+   }
+
+   @Test void everyActionBooleanChangesTheHash() throws Exception {
+      java.util.Set<String> hashes = new java.util.HashSet<>();
+      List<java.util.function.Consumer<inetsoft.web.api.schedule.ViewsheetAction>> mutators =
+         List.of(
+            a -> {},
+            a -> a.setEmailZip(true),
+            a -> a.setEmailLink(true),
+            a -> a.setHtmlMessage(true),
+            a -> a.setEmailMatch(false),
+            a -> a.setSaveToServerMatch(false),
+            a -> a.setSaveExportAllTabbedTables(true),
+            a -> a.setSender("a@example.com"));
+
+      for(var mutator : mutators) {
+         inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+         mutator.accept(action);
+         CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+         spec.setActions(List.of(action));
+         hashes.add(resolveCreateOf(spec).planHash());
+      }
+
+      assertEquals(mutators.size(), hashes.size());
+   }
+
+   @Test void ftpPasswordIsNeverShown() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath separate =
+         new inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath();
+      separate.setFormat(inetsoft.web.api.schedule.ViewsheetAction.Format.PDF);
+      separate.setPath("ftp://host.example.com/out");
+      separate.setUsername("alice");
+      separate.setPassword("S3cretPw!");
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath embedded =
+         new inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath();
+      embedded.setFormat(inetsoft.web.api.schedule.ViewsheetAction.Format.EXCEL);
+      embedded.setPath("sftp://bob:Emb3ddedPw@host.example.com/out");
+      action.setSaveToServerFilePaths(List.of(separate, embedded));
+
+      String shown = shownActionOf(action);
+
+      assertFalse(shown.contains("S3cretPw!"), shown);
+      assertFalse(shown.contains("Emb3ddedPw"), shown);
+      assertTrue(shown.contains("path=ftp://host.example.com/out"), shown);
+      assertTrue(shown.contains("username=alice"), shown);
+      assertTrue(shown.contains("path=sftp://bob@host.example.com/out"), shown);
+      assertTrue(shown.contains("password=set"), shown);
+   }
+
+   private static inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath filePath(
+      String path)
+   {
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath p =
+         new inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath();
+      p.setFormat(inetsoft.web.api.schedule.ViewsheetAction.Format.PDF);
+      p.setPath(path);
+      return p;
+   }
+
+   @Test void usernameAndPasswordAreMarkedIgnoredWithUseCredential() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath p = filePath("/data/out");
+      p.setUseCredential(true);
+      p.setSecretId("secret-1");
+      p.setUsername("alice");
+      p.setPassword("S3cretPw!");
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setSaveToServerFilePaths(List.of(p));
+
+      String shown = shownActionOf(action);
+
+      assertTrue(shown.contains("username=alice(ignored:useCredential)"), shown);
+      assertTrue(shown.contains("password=set(ignored:useCredential)"), shown);
+      assertTrue(shown.contains("secretId=secret-1"), shown);
+      assertFalse(shown.contains("S3cretPw!"), shown);
+   }
+
+   @Test void usernameIsEffectiveWithoutUseCredential() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath p =
+         filePath("ftp://host.example.com/out");
+      p.setUsername("alice");
+      p.setPassword("S3cretPw!");
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setSaveToServerFilePaths(List.of(p));
+
+      String shown = shownActionOf(action);
+
+      assertTrue(shown.contains("username=alice,") || shown.contains("username=alice}"), shown);
+      assertTrue(shown.contains("password=set}"), shown);
+      assertFalse(shown.contains("ignored"), shown);
+   }
+
+   @Test void pathPasswordOverridesUsernameFieldAndSecret() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath p =
+         filePath("ftp://bob:Emb3ddedPw@host.example.com/out");
+      p.setUsername("alice");
+      p.setUseCredential(true);
+      p.setSecretId("secret-1");
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setSaveToServerFilePaths(List.of(p));
+
+      String shown = shownActionOf(action);
+
+      assertTrue(shown.contains("username=alice(ignored:path password)"), shown);
+      assertTrue(shown.contains("secretId=secret-1(ignored:path password)"), shown);
+      assertTrue(shown.contains("password=set"), shown);
+      assertFalse(shown.contains("Emb3ddedPw"), shown);
+   }
+
+   @Test void placeholderPasswordIsNotReportedAsSet() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath p = filePath("/data/out");
+      p.setPassword(inetsoft.report.internal.Util.PLACEHOLDER_PASSWORD);
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setSaveToServerFilePaths(List.of(p));
+
+      assertFalse(shownActionOf(action).contains("password="));
+   }
+
+   @Test void singularBookmarkFieldsAreMarkedIgnoredWhenBookmarkNamesIsSet() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setBookmarkName("single");
+      action.setBookmarkType(inetsoft.web.api.schedule.ViewsheetAction.BookmarkType.PRIVATE);
+      action.setBookmarkNames(List.of("a"));
+      action.setBookmarkUsers(List.of(new inetsoft.sree.security.IdentityID("admin", "host-org")));
+
+      String shown = shownActionOf(action);
+
+      assertTrue(shown.contains("bookmarkName=single(ignored:bookmarkNames)"), shown);
+      assertTrue(shown.contains("bookmarkType=") && shown.contains("(ignored:bookmarkNames),"), shown);
+      assertFalse(shown.contains("bookmarkUsers=[admin~;~host-org](ignored"), shown);
+   }
+
+   @Test void pluralBookmarkFieldsAreMarkedIgnoredWithoutBookmarkNames() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setBookmarkName("single");
+      action.setBookmarkTypes(List.of(inetsoft.web.api.schedule.ViewsheetAction.BookmarkType.PRIVATE));
+
+      String shown = shownActionOf(action);
+
+      assertFalse(shown.contains("bookmarkName=single(ignored"), shown);
+      assertTrue(shown.contains("bookmarkTypes=[private](ignored:no bookmarkNames)"), shown);
+   }
+
+   @Test void secretIdIsShown() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath path =
+         new inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath();
+      path.setFormat(inetsoft.web.api.schedule.ViewsheetAction.Format.PDF);
+      path.setPath("/data/out");
+      path.setUseCredential(true);
+      path.setSecretId("secret-1");
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setSaveToServerFilePaths(List.of(path));
+
+      assertTrue(shownActionOf(action).contains("useCredential=true,secretId=secret-1"));
+   }
+
+   @Test void parameterValuesAreShownOnlyAsDigest() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction a = vsAction();
+      a.setParameters(new java.util.HashMap<>(java.util.Map.of("token", "TopSecretValue")));
+      inetsoft.web.api.schedule.ViewsheetAction b = vsAction();
+      b.setParameters(new java.util.HashMap<>(java.util.Map.of("token", "OtherSecretValue")));
+
+      String shownA = shownActionOf(a);
+
+      assertFalse(shownA.contains("TopSecretValue"), shownA);
+      assertTrue(shownA.contains("parameters={token=sha256:"), shownA);
+      assertNotEquals(shownA, shownActionOf(b));
+   }
+
+   @Test void alertsAndEmailSettingsAreShown() throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setAlerts(List.of(new ScheduleAlert("Chart1", "High"), new ScheduleAlert("x", null)));
+      CSVConfig csv = new CSVConfig();
+      csv.setDelimiter(";");
+      action.setEmailCSVConfig(csv);
+      action.setCCAddresses("cc@example.com");
+
+      String shown = shownActionOf(action);
+
+      assertTrue(shown.contains("alerts=[Chart1:High]"), shown);
+      assertTrue(shown.contains("delimiter=';'"), shown);
+      assertTrue(shown.contains("ccAddresses=cc@example.com"), shown);
+   }
+
+   // bug #79020
+   @Test void missingViewsheetIsRefusedNamingTheActionAndValue() throws Exception {
+      String missing = "1^128^__NULL__^Nope/Missing^host-org";
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setViewsheet(missing);
+      spec.setActions(List.of(vsAction(), action));
+      lenient().when(scheduleGateway.viewsheetExists(anyString())).thenReturn(true);
+      lenient().when(scheduleGateway.viewsheetExists(missing)).thenReturn(false);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("t", List.of(createChange(spec))), user));
+
+      assertTrue(ex.getMessage().startsWith(
+         "changes[0].spec.actions[1].viewsheet: \"" + missing + "\""), ex.getMessage());
+   }
+
+   @Test void existingViewsheetIsAccepted() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setActions(List.of(vsAction()));
+
+      assertEquals(1, resolveCreateOf(spec).changes().size());
+   }
+
+   @Test void unknownTimeZoneIsRefused() {
+      TimeCondition condition = timeCondition(9, 0);
+      condition.setTimeZone("Mars/Olympus");
+      CreateScheduleTaskRequest spec = specWith(condition);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> resolveCreateOf(spec));
+
+      assertTrue(ex.getMessage().startsWith(
+         "changes[0].spec.conditions[0].timeZone: \"Mars/Olympus\""), ex.getMessage());
+   }
+
+   @Test void knownAndOmittedTimeZonesAreAccepted() throws Exception {
+      for(String zone : new String[]{null, "America/New_York", "UTC", "utc"}) {
+         TimeCondition condition = timeCondition(9, 0);
+         condition.setTimeZone(zone);
+         assertEquals(1, resolveCreateOf(specWith(condition)).changes().size(), zone);
+      }
+   }
+
    private static ScheduleChangePlanRequest request(String task, List<ScheduleChangeRequest> changes) {
       ScheduleChangePlanRequest req = new ScheduleChangePlanRequest();
       req.setTask(task);

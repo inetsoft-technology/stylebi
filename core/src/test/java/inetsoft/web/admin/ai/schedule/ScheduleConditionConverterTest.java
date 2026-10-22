@@ -193,6 +193,44 @@ class ScheduleConditionConverterTest {
       }
    }
 
+   @Test
+   void requireKnownTimeZoneAcceptsResolvableIds() {
+      for(String id : new String[]{"America/New_York", "Etc/UTC", "UTC", "GMT", "GMT+8", "GMT0",
+                                   "Etc/GMT", "Greenwich", "Zulu", "IST", "PST", "US/Pacific",
+                                   "utc", "gmt", "Utc", " UTC "})
+      {
+         assertDoesNotThrow(() -> ScheduleConditionConverter.requireKnownTimeZone("c", id), id);
+      }
+   }
+
+   @Test
+   void requireKnownTimeZoneAcceptsEveryJvmId() {
+      for(String id : java.util.TimeZone.getAvailableIDs()) {
+         assertDoesNotThrow(() -> ScheduleConditionConverter.requireKnownTimeZone("c", id), id);
+      }
+   }
+
+   @Test
+   void requireKnownTimeZoneAcceptsAbsentAndBlank() {
+      assertDoesNotThrow(() -> {
+         ScheduleConditionConverter.requireKnownTimeZone("c", null);
+         ScheduleConditionConverter.requireKnownTimeZone("c", "");
+         ScheduleConditionConverter.requireKnownTimeZone("c", "  ");
+      });
+   }
+
+   @Test
+   void requireKnownTimeZoneRefusesUnresolvableIds() {
+      for(String id : new String[]{"Mars/Olympus", "UTC+8", "+08:00", "Z"}) {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> ScheduleConditionConverter.requireKnownTimeZone(
+               "changes[0].spec.conditions[1]", id), id);
+         assertTrue(ex.getMessage().startsWith(
+            "changes[0].spec.conditions[1].timeZone: \"" + id + "\" is not a recognized"),
+                    ex.getMessage());
+      }
+   }
+
    private static MockedStatic<TimeRange> definedRanges(String... names) {
       MockedStatic<TimeRange> ranges = mockStatic(TimeRange.class);
       ranges.when(TimeRange::getTimeRanges).thenReturn(
