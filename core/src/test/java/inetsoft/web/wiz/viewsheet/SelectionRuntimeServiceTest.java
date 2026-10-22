@@ -2605,6 +2605,61 @@ class SelectionRuntimeServiceTest {
       assertEquals(false, result.get("associationEnabled"));
    }
 
+   // ── Bug #79201: get_selection_state on an unbound list/tree must refuse, not loop on computed:false
+
+   private static void assertRefusedAsUnbound(Exception e, String name) {
+      assertTrue(e.getMessage().contains(name), e.getMessage());
+      assertTrue(e.getMessage().contains("no column bound"), e.getMessage());
+      assertTrue(e.getMessage().contains("set_selection_source"), e.getMessage());
+   }
+
+   @Test
+   void refusesSelectionStateOnAnUnboundSelectionList() {
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, false, null);
+      when(assembly.getDataRef()).thenReturn(null);
+      Harness h = harness(assembly);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.selectionState("tok", principal(), "Filter1"));
+
+      assertRefusedAsUnbound(e, "Filter1");
+   }
+
+   @Test
+   void refusesSelectionStateOnATreeWithNoDataRefs() {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, false);
+      when(assembly.getDataRefs()).thenReturn(new DataRef[0]);
+      Harness h = harness(assembly);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.selectionState("tok", principal(), "Tree1"));
+
+      assertRefusedAsUnbound(e, "Tree1");
+   }
+
+   @Test
+   void refusesSelectionStateOnATreeWhoseDataRefsAreAllNull() {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, false);
+      when(assembly.getDataRefs()).thenReturn(new DataRef[]{ null });
+      Harness h = harness(assembly);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> h.service.selectionState("tok", principal(), "Tree1"));
+   }
+
+   /** A bound tree whose runtime list is not built yet keeps the computed:false answer. */
+   @Test
+   void selectionStateOfABoundUncomputedTreeReportsComputedFalse() throws Exception {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, false);
+      when(assembly.getDataRefs()).thenReturn(new DataRef[]{ mock(DataRef.class) });
+      Harness h = harness(assembly);
+
+      Map<String, Object> result = h.service.selectionState("tok", principal(), "Tree1");
+
+      assertEquals(false, result.get("computed"));
+      assertEquals(0, result.get("totalValues"));
+   }
+
    // ── fixtures ──────────────────────────────────────────────────────────────
 
    /**
