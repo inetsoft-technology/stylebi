@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.identities;
 
 import inetsoft.web.admin.security.*;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.web.admin.ai.PlanHashInputs;
 
 import java.util.*;
 
@@ -243,31 +244,11 @@ final class IdentityProjection {
       return escape(String.valueOf(name)) + IdentityID.KEY_DELIMITER + escape(org);
    }
 
-   /** Backslash-escapes the projection's separator characters. Identity for ordinary values. */
+   /** Backslash-escapes the projection's separator characters. Identity for ordinary values. The
+    * implementation moved to {@link PlanHashInputs#escape} (Bug #79016) so every admin-ai
+    * projection shares one escaper. */
    private static String escape(String value) {
-      if(value == null) {
-         return "";
-      }
-
-      StringBuilder out = null;
-
-      for(int i = 0; i < value.length(); i++) {
-         char c = value.charAt(i);
-
-         if(c == '\\' || c == ',' || c == ';' || c == '=') {
-            if(out == null) {
-               out = new StringBuilder(value.length() + 8).append(value, 0, i);
-            }
-
-            out.append('\\');
-         }
-
-         if(out != null) {
-            out.append(c);
-         }
-      }
-
-      return out == null ? value : out.toString();
+      return PlanHashInputs.escape(value);
    }
 
    private static boolean isBlank(String s) {
