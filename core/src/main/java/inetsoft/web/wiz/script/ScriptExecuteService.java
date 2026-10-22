@@ -31,6 +31,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.XUtil;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.script.model.ScriptError;
@@ -41,6 +42,8 @@ import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.security.Principal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -181,19 +184,67 @@ public class ScriptExecuteService {
     * A script runs against the live runtime and can write to any assembly, but, unlike every
     * other agent write, never added an undo checkpoint -- so the runtime still read as unchanged
     * since its last save and a later reload from storage (Bug #78662) would silently discard
-    * the script's effect. Mark the runtime changed whenever a script was attempted.
+    * the script's effect. Mark the runtime changed when the run changed the viewsheet, whether
+    * it finished or threw part-way.
+    *
+    * <p>A run that changed nothing (a read-only script) adds no checkpoint: it would duplicate
+    * the current state as an extra undo step and truncate the redo tail (Bug #79051). The change
+    * is detected by comparing the viewsheet's serialized form before and after the run. That
+    * form does not hold every script effect (sandbox variables, selection state), so such a run
+    * is treated as a read. It is also not free of fetch side effects: a chart's first data fetch
+    * fills in inferred column metadata, so that first read can still add one checkpoint; later
+    * reads add none. When the viewsheet cannot be serialized the run counts as a change, which is
+    * the checkpoint-after-every-run behavior of Bug #78662.</p>
     */
    private ScriptExecResult execute(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {
+      String before = viewsheetXml(rvs.getViewsheet());
+
       try {
          return executeScript(rvs, target);
       }
       finally {
          Viewsheet vs = rvs.getViewsheet();
 
-         if(vs != null) {
+         String after = viewsheetXml(vs);
+
+         if(vs != null && (before == null || after == null || !before.equals(after))) {
             rvs.addCheckpoint(vs.prepareCheckpoint());
             rvs.bumpWriteRevision();
          }
+      }
+   }
+
+   /**
+    * The viewsheet's serialized form without the runtime-only chart fields, which a chart's first
+    * data fetch fills in and an undo restore regenerates. Works on a copy: serializing the live
+    * viewsheet would shrink it as a side effect.
+    *
+    * @return the serialized form, or {@code null} when the viewsheet is null or cannot be
+    *         serialized.
+    */
+   private static String viewsheetXml(Viewsheet vs) {
+      if(vs == null) {
+         return null;
+      }
+
+      try {
+         Viewsheet copy = vs.prepareCheckpoint();
+
+         for(Assembly assembly : copy.getAssemblies()) {
+            if(assembly instanceof ChartVSAssembly chart) {
+               chart.getVSChartInfo().clearRuntime();
+            }
+         }
+
+         StringWriter out = new StringWriter();
+         PrintWriter writer = new PrintWriter(out);
+         copy.writeXML(writer);
+         writer.flush();
+         return out.toString();
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Could not serialize the viewsheet to detect script changes", ex);
+         return null;
       }
    }
 
