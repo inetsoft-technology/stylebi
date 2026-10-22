@@ -177,8 +177,8 @@
     <div class="vs-range-slider-inset"
       [style.left.px]="bodyInset.left"
       [style.top.px]="bodyInset.top"
-      [style.width.px]="model.objectFormat.width - bodyInset.left - bodyInset.right"
-      [style.height.px]="bodyHeight - bodyInset.top - bodyInset.bottom">
+      [style.right.px]="bodyInset.right"
+      [style.bottom.px]="bodyInset.bottom">
       <div class="range-slider" [style.top.px]="sliderTop" [style.width.px]="model.maxRangeBarWidth"
       (click)="snapToSide($event)"></div>
       <div class="range-line prevent-drag" [style.top.px]="sliderTop">

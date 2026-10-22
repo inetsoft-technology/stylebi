@@ -514,6 +514,36 @@ describe("VSRangeSlider – display / rendering (P3)", () => {
          expect(body.style["text-decoration"]).toBe("underline");
       });
 
+      it("should anchor the inset box to the body edges with no padding", () => {
+         const model = makeVSRangeSliderModel();
+         fixture.componentInstance.model = model;
+         fixture.detectChanges();
+
+         const inset = fixture.nativeElement.querySelector("div.vs-range-slider-inset");
+         expect(inset.style["left"]).toBe("0px");
+         expect(inset.style["top"]).toBe("0px");
+         expect(inset.style["right"]).toBe("0px");
+         expect(inset.style["bottom"]).toBe("0px");
+         expect(inset.style["width"]).toBe("");
+         expect(inset.style["height"]).toBe("");
+      });
+
+      it("should inset the box by the model padding when marked", () => {
+         const model = makeVSRangeSliderModel();
+         model.vizModern = true;
+         model.padding = { top: 16, left: 16, bottom: 16, right: 16 };
+         fixture.componentInstance.model = model;
+         fixture.detectChanges();
+
+         const inset = fixture.nativeElement.querySelector("div.vs-range-slider-inset");
+         expect(inset.style["left"]).toBe("16px");
+         expect(inset.style["top"]).toBe("16px");
+         expect(inset.style["right"]).toBe("16px");
+         expect(inset.style["bottom"]).toBe("16px");
+         expect(inset.style["width"]).toBe("");
+         expect(inset.style["height"]).toBe("");
+      });
+
       // Bug #20993
       it("should position the slider elements using sliderTop", () => {
          const model = makeVSRangeSliderModel();
