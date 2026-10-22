@@ -2534,9 +2534,15 @@ public class ViewsheetFormatService {
     * {@code get_calc_cell_format}. The read side of {@link #setCellFormat}'s own
     * {@code TableDataPath} -- resolves the identical cell path and reads it back through
     * {@link FormatPainterService#getFormat}, the same mechanism the Composer's own format pane
-    * uses to show a selection's current format. {@code null} means the cell has no format of its
-    * own (it inherits from the table's whole-object format), the same "no override" convention
-    * {@code get_calc_cell_script} uses for a cell with no script.
+    * uses to show a selection's current format. {@code null} means the cell has no user-defined
+    * format of its own -- never formatted, or cleared by {@code reset} -- so it inherits from the
+    * table's whole-object format and table style, the same "no override" convention
+    * {@code get_calc_cell_script} uses for a cell with no script. The decision is made from the
+    * cell's own stored format entry (its user-defined flags, or a CSS class/id), not from the
+    * painter's pane model, which always carries defaults. A reset leaves the entry in place with
+    * every flag cleared, so entry presence alone is not "has a format". A non-null result is that
+    * pane model for the cell, not the rendered style. Setting a value equal to the pane default
+    * leaves its flag unset, so a cell whose only set values were default-equal also reads null.
     */
    public Map<String, Object> getCellFormat(String sessionToken, Principal user, String assembly,
                                             int row, int col) throws Exception
@@ -2547,6 +2553,16 @@ public class ViewsheetFormatService {
 
       return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          TableDataPath cellPath = calcService.cellFormatPath(rvs, assembly, row, col);
+
+         Map<String, Object> out = new LinkedHashMap<>();
+         out.put("assembly", assembly);
+         out.put("row", row);
+         out.put("col", col);
+
+         if(!hasOwnCellFormat(rvs, assembly, cellPath)) {
+            out.put("format", null);
+            return out;
+         }
 
          GetVSObjectFormatEvent event = new GetVSObjectFormatEvent();
          event.setName(assembly);
@@ -2562,13 +2578,32 @@ public class ViewsheetFormatService {
             }
          }
 
-         Map<String, Object> out = new LinkedHashMap<>();
-         out.put("assembly", assembly);
-         out.put("row", row);
-         out.put("col", col);
          out.put("format", model == null ? null : toWireFormat(model));
          return out;
       });
+   }
+
+   /**
+    * Whether the cell has a user-defined format of its own. The plain (non-mutating) lookup is
+    * used on purpose: unlike the painter's, it does not touch the stored entry. VSCSSFormat's
+    * defined flags are only ever set when parsing XML, so a runtime cssClass/cssID is checked
+    * directly.
+    */
+   private static boolean hasOwnCellFormat(RuntimeViewsheet rvs, String assembly,
+                                           TableDataPath cellPath)
+   {
+      VSAssembly vsAssembly = rvs == null || rvs.getViewsheet() == null ? null :
+         rvs.getViewsheet().getAssembly(assembly);
+      VSAssemblyInfo info = vsAssembly == null ? null : vsAssembly.getVSAssemblyInfo();
+      FormatInfo formatInfo = info == null ? null : info.getFormatInfo();
+      VSCompositeFormat own = formatInfo == null ? null : formatInfo.getFormat(cellPath);
+
+      if(own == null) {
+         return false;
+      }
+
+      return own.isDefined() || own.getCSSFormat().getCSSClass() != null ||
+         own.getCSSFormat().getCSSID() != null;
    }
 
    /**
