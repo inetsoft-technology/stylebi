@@ -1327,7 +1327,8 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     * Whether this assembly type takes the modern card-corner seed. Data and selection surfaces read as
     * cards, as does Slider (form-input modernization, tracked as its own follow-on project); other
     * outputs, containers, shapes and annotations do not. An explicit positive list, not a base-class
-    * check — TimeSliderVSAssemblyInfo extends SelectionVSAssemblyInfo and must stay out.
+    * check — TimeSliderVSAssemblyInfo is listed by name because a check on its base class would
+    * sweep in the other SelectionVSAssemblyInfo types.
     * Calendar is absent by design: it overrides initDefaultFormat and carries its own radius.
     * The other form-input types (CheckBox, ComboBox, RadioButton, Spinner, Submit, TextInput) are not
     * listed here — they bypass this hook entirely (see bypassesBaseChrome()) and seed their own
@@ -1339,7 +1340,8 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
          || this instanceof SelectionListVSAssemblyInfo
          || this instanceof SelectionTreeVSAssemblyInfo
          || this instanceof CurrentSelectionVSAssemblyInfo
-         || this instanceof SliderVSAssemblyInfo;
+         || this instanceof SliderVSAssemblyInfo
+         || this instanceof TimeSliderVSAssemblyInfo;
    }
 
    /**

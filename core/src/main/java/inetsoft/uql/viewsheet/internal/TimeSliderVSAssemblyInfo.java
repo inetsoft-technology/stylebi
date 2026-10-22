@@ -791,6 +791,49 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
             ctx.dark ? VSObjectChromeDefaults.darkForegroundValue() : "0", ctx.dark);
          def.setForeground(null, false);
       }
+
+      // the card inset, kept when the author or a format.css padding set one
+      if(!isUserPadding() && !isCssPaddingDefined()) {
+         setPadding(VSDensityDefaults.tablePadding(ctx));
+      }
+   }
+
+   @Override
+   protected Insets defaultPadding(VizContext ctx) {
+      return VSDensityDefaults.tablePadding(ctx);
+   }
+
+   /**
+    * Get the padding the slider body reads, none for an ad hoc filter.
+    */
+   public Insets getBodyPadding() {
+      Insets padding = getPadding();
+
+      if(isAdhocFilter() || padding == null) {
+         return new Insets(0, 0, 0, 0);
+      }
+
+      return (Insets) padding.clone();
+   }
+
+   /**
+    * Get the height of the slider body, track and labels plus the padding when marked.
+    */
+   public int getSliderBodyHeight() {
+      if(getVizMark() == null) {
+         return getListHeight() * AssetUtil.defh;
+      }
+
+      Insets padding = getPadding();
+      int pad = padding == null ? 0 : padding.top + padding.bottom;
+      return VSDensityDefaults.RANGE_SLIDER_CONTENT_HEIGHT + pad;
+   }
+
+   /**
+    * Whether the labels sit a fixed gap from the track.
+    */
+   public boolean takesLabelSpacing() {
+      return getVizMark() != null && !isAdhocFilter();
    }
 
    /**
