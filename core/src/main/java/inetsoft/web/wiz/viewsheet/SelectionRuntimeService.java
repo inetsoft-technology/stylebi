@@ -1205,6 +1205,13 @@ public class SelectionRuntimeService {
          list == null ? null : list.getSelectionValues());
       result.put("values", values);
       result.put("totalValues", countAll(values));
+      // Whole-domain counts for a caller that only reads a bounded page of "values" (the plugin
+      // slices the rows). Additive, list/tree shape only. selectedTotal is the very number
+      // set_selection reports; selectableTotal follows the same tree-kind rule so the two compare.
+      boolean nonIdTree = assembly instanceof SelectionTreeVSAssembly tree && !tree.isIDMode();
+      result.put("selectedTotal",
+                 selectedTotal(list == null ? null : list.getSelectionValues(), nonIdTree));
+      result.put("selectableTotal", countSelectable(values, nonIdTree));
       return result;
    }
 
@@ -1976,6 +1983,33 @@ public class SelectionRuntimeService {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> typed = (List<Map<String, Object>>) childList;
             count += countAll(typed);
+         }
+      }
+
+      return count;
+   }
+
+   /**
+    * The rows Select All would select, as the caller would count them -- the counterpart of
+    * {@link #selectedTotal(SelectionValue[], boolean)} over the {@link #selectionState} rows. A
+    * fixed-hierarchy (non-ID) tree is counted by selectable leaf rows, since its ancestors are
+    * only containers of the chosen leaf paths; a list or an ID-mode tree counts every selectable row.
+    */
+   static int countSelectable(List<Map<String, Object>> values, boolean nonIdTree) {
+      int count = 0;
+
+      for(Map<String, Object> value : values) {
+         Object children = value.get("children");
+         boolean leaf = !(children instanceof List<?> childList) || childList.isEmpty();
+
+         if(Boolean.TRUE.equals(value.get("selectableInSelectAll")) && (leaf || !nonIdTree)) {
+            count++;
+         }
+
+         if(!leaf) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> typed = (List<Map<String, Object>>) children;
+            count += countSelectable(typed, nonIdTree);
          }
       }
 
