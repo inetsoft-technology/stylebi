@@ -194,7 +194,7 @@ class TimeConditionWeekStartTest {
    }
 
    @Test
-   void organizationWeekStartDoesNotChangeTheCycle() {
+   void threadOrganizationWeekStartDoesNotChangeTheCycle() {
       Locale.setDefault(Locale.US);
       // the site-wide value stays unset (Sunday); the org of the calling thread says Monday
       SreeEnv.setProperty("inetsoft.org.org79053.week.start", "monday");
@@ -210,7 +210,9 @@ class TimeConditionWeekStartTest {
          assertEquals("monday", SreeEnv.getProperty("week.start"));
          assertEquals(Calendar.MONDAY, Tool.parseFirstDayOfWeek(SreeEnv.getProperty("week.start")));
 
-         // Sunday weeks, as if the org had no override (Monday weeks would give 07-25)
+         // Bug #79133: the two-argument call has no task, so it is the site value whatever org the
+         // thread is in; a task's own org is passed to the three-argument call
+         // Sunday weeks (Monday weeks would give 07-25)
          assertEquals(ms("2027-08-01T09:00:00"),
                       run(2, days(1, 4), "2027-07-21T09:00:00", 30_000));
       }
