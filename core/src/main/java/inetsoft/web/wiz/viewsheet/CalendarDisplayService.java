@@ -228,19 +228,85 @@ public class CalendarDisplayService {
          result.put("datesSelected", dates.size());
          result.put("previousDatesCleared", previous != null && previous.length > 0);
 
+         if(switchesToDaySelection(dual, period, info.isYearView(), requested,
+                                   info.isDaySelection(), assemblyName))
+         {
+            calendar.setDaySelectionValue(true);
+            result.put("sideEffects", List.of(DAY_SELECTION_SIDE_EFFECT));
+         }
+
          calendars.applyCalendar(
             runtimeId, assemblyName,
-            ImmutableCalendarSelectionEvent.builder()
-               .dates(dates.toArray(new String[0]))
-               .currentDate1(nullToEmpty(info.getCurrentDate1()))
-               .currentDate2(info.getCurrentDate2())
-               .build(),
+            selectionEvent(requested, info.getCurrentDate1(), info.getCurrentDate2()),
             user, dispatcher, linkUri);
       });
 
       result.put("persistsOnSave", true);
       ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
+   }
+
+   static final String DAY_SELECTION_SIDE_EFFECT =
+      "the calendar was switched from week selection to day selection so the day-granular dates " +
+      "display correctly; this is saved with the sheet, and " +
+      "set_assembly_properties{daySelection:false} switches it back";
+
+   /**
+    * The event {@code applyCalendar} takes. The navigation dates are echoed as the calendar holds
+    * them: a null second date stays null, so {@code applyCalendar} leaves it alone, and the painter
+    * does not read the two dates as equal (which it does for two empty strings and paints a
+    * different range shape).
+    */
+   static CalendarSelectionEvent selectionEvent(String[] dates, String currentDate1,
+                                                String currentDate2)
+   {
+      return ImmutableCalendarSelectionEvent.builder()
+         .dates(dates)
+         .currentDate1(nullToEmpty(currentDate1))
+         .currentDate2(currentDate2)
+         .build();
+   }
+
+   /**
+    * Checks the granularity of {@code dates} against a double calendar in range month view (any
+    * other calendar is left alone), where the server and browser painters read a day token as a week number unless
+    * {@code daySelection} is on. Day tokens on a week-selection calendar are fixed by switching it
+    * to day selection (the filter is token-driven and does not change); the opposite combinations
+    * have no unambiguous reading, so they are refused.
+    *
+    * @return true if the calendar must be switched to day selection before the dates are applied.
+    */
+   static boolean switchesToDaySelection(boolean dual, boolean period, boolean yearView,
+                                         String[] dates, boolean daySelection,
+                                         String assemblyName)
+   {
+      if(!dual || period || yearView) {
+         return false;
+      }
+
+      boolean hasDay = false;
+      boolean hasWeek = false;
+
+      for(String date : dates) {
+         hasDay |= date != null && date.startsWith("d");
+         hasWeek |= date != null && date.startsWith("w");
+      }
+
+      if(hasDay && hasWeek) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' cannot mix day tokens (d...) and week tokens (w...) in " +
+            "'dates': a range calendar selects either days or weeks, per its daySelection " +
+            "setting. Pass ISO dates or d... tokens for days, or w... tokens only for weeks.");
+      }
+
+      if(hasWeek && daySelection) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' selects days (daySelection=true), so week tokens (w...) in " +
+            "'dates' would display as the wrong days. Pass ISO dates or d... tokens, or turn " +
+            "daySelection off first with set_assembly_properties{daySelection:false}.");
+      }
+
+      return hasDay && !daySelection;
    }
 
    /**
