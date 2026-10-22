@@ -37,17 +37,13 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -60,26 +56,29 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Only the public entry points {@link DateComparisonInfo#getDateComparisonConditions} and
  * {@link DateComparisonInfo#getStartDate()} are called. The whole condition list is evaluated
  * with the real {@link ConditionGroup} on every day of a window around the End Date, and the
- * surviving days are bucketed by period. Two checks run on every combination:</p>
+ * surviving days are bucketed by period. What is checked:</p>
  *
  * <ul>
- *   <li><b>Invariants</b> that do not depend on a snapshot: no day outside the requested
- *   periods (an extra year, a spill into the next year), no requested period without days, no
- *   day past the End Date for All / To Date intervals. A violation is written into the
- *   snapshot as a {@code !} line and fails {@link #noInvariantViolations}.</li>
- *   <li>A <b>snapshot</b> of each period's first and last day, weeks, days and gaps, plus the
- *   derived grouping shape (week alignment, series, previous-period type, temp groups). It is
- *   reviewed once and afterwards only its diff is reviewed.</li>
+ *   <li><b>Invariants</b> on every combination: no day outside the requested periods (an extra
+ *   year, a spill into the next year), no requested period without days (for Compare All), no
+ *   day past the End Date for All / To Date intervals. A violation fails
+ *   {@link #noInvariantViolations}; a requested period without days under another interval is
+ *   only marked {@code ?I2} in the combination's description and is not asserted.</li>
+ *   <li>The <b>model</b> of the dialog wording ({@link #keptDaysMatchTheDialogWording}) and
+ *   <b>hand-computed anchors</b> ({@link #handComputedAnchors}).</li>
+ *   <li>A <b>snapshot of the derived grouping shape</b> of every shape (week alignment, series,
+ *   previous-period type, temp groups): {@code dc-matrix/dc-shapes.txt}, reviewed once and
+ *   afterwards only its diff is reviewed.</li>
  * </ul>
  *
- * <p>Update the snapshots with {@code -Ddc.snapshot.update=true}.</p>
+ * <p>Update the snapshot with {@code -Ddc.snapshot.update=true}.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("core")
 class DateComparisonRangeMatrixTest {
-   private static final String SNAPSHOT_DIR = "inetsoft/uql/viewsheet/internal/dc-matrix/range/";
+   private static final String SHAPES_SNAPSHOT = "inetsoft/uql/viewsheet/internal/dc-matrix/dc-shapes.txt";
    private static final String[] WEEK_STARTS = { "sunday", "monday" };
    /**
     * 2020-12-31 / 2021-01-05 around a year start, 2021-01-02 a Saturday whose week starts in
@@ -90,10 +89,6 @@ class DateComparisonRangeMatrixTest {
       "2020-12-31", "2021-01-02", "2021-01-05", "2021-03-02", "2021-03-31", "2021-04-02",
       "2020-02-29", "2021-11-10" };
    private static final String DATATEST_END = "2021-11-10";
-
-   static List<DcShape> shapes() {
-      return DcShape.all();
-   }
 
    /** The generator reproduces the dialog's 105 Standard Periods shapes and 6 Custom ones. */
    @Test
@@ -273,27 +268,24 @@ class DateComparisonRangeMatrixTest {
       assertTrue(kept.contains(LocalDate.of(2020, 1, 1)), "kept days " + kept);
    }
 
-   /** A snapshot of a shape that no longer exists is removed, not left to rot. */
+   /**
+    * What the chart derives from each combination of the dialog (week alignment, whether a period
+    * series is created, the previous-period type of Change, the date level and the temp groups),
+    * one line per shape. This is the test that the derivation of the temp groups lost (Bug #76388).
+    */
    @Test
-   void noSnapshotWithoutAShape() throws Exception {
-      Set<String> files = new TreeSet<>();
-      Path dir = Path.of(System.getProperty("basedir", "."), "src", "test", "resources",
-                         SNAPSHOT_DIR);
+   void derivedShapeOfEveryCombination() {
+      List<String> lines = new ArrayList<>();
 
-      try(Stream<Path> list = Files.list(dir)) {
-         list.forEach(file -> files.add(file.getFileName().toString()));
+      for(DcShape shape : DcShape.all()) {
+         if(!shape.isCustom()) {
+            lines.add(shape.id() + " | value: " + shapeLine(shape, DateComparisonInfo.VALUE) +
+                      " | change: " + shapeLine(shape, DateComparisonInfo.CHANGE));
+         }
       }
 
-      Set<String> expected = new TreeSet<>();
-      DcShape.all().forEach(shape -> expected.add(shape.id() + ".txt"));
-
-      assertEquals(expected, files);
-   }
-
-   @ParameterizedTest(name = "{0}")
-   @MethodSource("shapes")
-   void rangeSnapshot(DcShape shape) {
-      DcSnapshot.verify(SNAPSHOT_DIR + shape.id() + ".txt", snapshotLines(shape));
+      assertTrue(lines.stream().noneMatch(line -> line.contains("ERROR")), String.join("\n", lines));
+      DcSnapshot.verify(SHAPES_SNAPSHOT, lines);
    }
 
    /** The invariants hold for every combination. */
@@ -302,7 +294,7 @@ class DateComparisonRangeMatrixTest {
       List<String> violations = new ArrayList<>();
 
       for(DcShape shape : DcShape.all()) {
-         for(String line : snapshotLines(shape)) {
+         for(String line : variantLines(shape)) {
             if(line.contains(" !") || line.startsWith("!") || line.contains("ERROR")) {
                violations.add(shape + ": " + line);
             }
@@ -407,16 +399,16 @@ class DateComparisonRangeMatrixTest {
                       shape, variant("2021-01-02", false, true))));
    }
 
-   // -- snapshot ---------------------------------------------------------------------------
+   // -- one description per combination ---------------------------------------------------------------------------
 
    private static final Map<String, List<String>> LINES = new java.util.concurrent.ConcurrentHashMap<>();
 
-   /** The snapshot of a shape, computed once for the snapshot and the invariant tests. */
-   private static List<String> snapshotLines(DcShape shape) {
-      return LINES.computeIfAbsent(shape.id(), id -> computeSnapshotLines(shape));
+   /** The descriptions of the combinations of a shape, computed once, for the invariant test. */
+   private static List<String> variantLines(DcShape shape) {
+      return LINES.computeIfAbsent(shape.id(), id -> computeVariantLines(shape));
    }
 
-   private static List<String> computeSnapshotLines(DcShape shape) {
+   private static List<String> computeVariantLines(DcShape shape) {
       List<String> lines = new ArrayList<>();
       lines.add("# " + shape.id());
 
@@ -436,9 +428,6 @@ class DateComparisonRangeMatrixTest {
    }
 
    private static void addStandardLines(DcShape shape, List<String> lines, String weekStart) {
-      lines.add("shape value:  " + shapeLine(shape, DateComparisonInfo.VALUE));
-      lines.add("shape change: " + shapeLine(shape, DateComparisonInfo.CHANGE));
-
       // toDate and inclusive both off / both on at every End Date, the mixed pairs at two
       for(String end : END_DAYS) {
          for(boolean both : new boolean[] { false, true }) {
@@ -614,7 +603,7 @@ class DateComparisonRangeMatrixTest {
    /**
     * Hard violations start with {@code !} and fail {@link #noInvariantViolations}; a {@code ?}
     * marks a requested period without days under an interval where that can be legitimate
-    * (the Nth week of a month that has no Nth week) and is left for review in the snapshot.
+    * (the Nth week of a month that has no Nth week) and is not asserted.
     */
    private static List<String> invariants(DcShape shape, Variant v, boolean aligned,
                                           DcPeriods periods, Map<Long, List<LocalDate>> byPeriod,
