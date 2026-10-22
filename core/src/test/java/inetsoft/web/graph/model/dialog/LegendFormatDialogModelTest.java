@@ -19,9 +19,13 @@ package inetsoft.web.graph.model.dialog;
 
 import inetsoft.test.*;
 import inetsoft.uql.CompositeValue;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.internal.VizMark;
+import inetsoft.web.composer.model.vs.PaddingPaneModel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -122,5 +126,159 @@ public class LegendFormatDialogModelTest {
       assertEquals(Boolean.FALSE,
                    LegendFormatDialogModel.gapFollowsDefault(legends, VizContext.of(VizMark.MODERN_LIGHT)));
       assertNull(LegendFormatDialogModel.gapFollowsDefault(legends, VizContext.LEGACY));
+   }
+
+   @Test
+   public void aCompactChartShowsTheBuiltInValuesTicked() {
+      LegendsDescriptor legends = new LegendsDescriptor();
+
+      assertPane(LegendFormatDialogModel.paddingPane(legends, modernAt("compact")),
+                 0, 4, 1, 4, Boolean.TRUE);
+   }
+
+   @Test
+   public void aComfortableChartShowsItsDensityValues() {
+      LegendsDescriptor legends = new LegendsDescriptor();
+
+      assertPane(LegendFormatDialogModel.paddingPane(legends, modernAt("comfortable")),
+                 1, 6, 2, 6, Boolean.TRUE);
+   }
+
+   @Test
+   public void aStylesheetPaddingShowsTickedWithItsValue() {
+      LegendsDescriptor legends = new LegendsDescriptor();
+      legends.setPadding(new Insets(5, 5, 5, 5), CompositeValue.Type.CSS);
+
+      assertPane(LegendFormatDialogModel.paddingPane(legends, modernAt("compact")),
+                 5, 5, 5, 5, Boolean.TRUE);
+   }
+
+   @Test
+   public void anAuthorPaddingUnticksTheBox() {
+      LegendsDescriptor legends = new LegendsDescriptor();
+      legends.setPadding(new Insets(3, 3, 3, 3));
+
+      assertPane(LegendFormatDialogModel.paddingPane(legends, modernAt("compact")),
+                 3, 3, 3, 3, Boolean.FALSE);
+      assertNull(LegendFormatDialogModel.paddingPane(legends, VizContext.LEGACY).getFollowsDefault());
+   }
+
+   @Test
+   public void okWhileTickedClearsTheAuthorTier() {
+      VizContext ctx = modernAt("compact");
+      LegendsDescriptor legends = new LegendsDescriptor();
+      legends.setPadding(new Insets(5, 5, 5, 5), CompositeValue.Type.CSS);
+      legends.setPadding(new Insets(3, 3, 3, 3));
+      PaddingPaneModel pane = LegendFormatDialogModel.paddingPane(legends, ctx);
+      pane.setFollowsDefault(true);
+
+      ok(legends, pane, ctx);
+
+      assertFalse(legends.hasPaddingUserValue());
+      assertEquals(new Insets(5, 5, 5, 5), legends.getPadding());
+   }
+
+   @Test
+   public void okWhileTickedLeavesAStylesheetPaddingStanding() {
+      VizContext ctx = modernAt("compact");
+      LegendsDescriptor legends = new LegendsDescriptor();
+      legends.setPadding(new Insets(5, 5, 5, 5), CompositeValue.Type.CSS);
+
+      ok(legends, LegendFormatDialogModel.paddingPane(legends, ctx), ctx);
+
+      assertFalse(legends.hasPaddingUserValue());
+      assertEquals(new Insets(5, 5, 5, 5), legends.getPadding());
+   }
+
+   @Test
+   public void untickingOnCompactStoresTheShownValues() {
+      VizContext ctx = modernAt("compact");
+      LegendsDescriptor legends = new LegendsDescriptor();
+      PaddingPaneModel pane = LegendFormatDialogModel.paddingPane(legends, ctx);
+      pane.setFollowsDefault(false);
+
+      ok(legends, pane, ctx);
+
+      assertTrue(legends.hasPaddingUserValue());
+      assertEquals(new Insets(0, 4, 1, 4), legends.getPadding());
+   }
+
+   @Test
+   public void anUntickedEditIsStored() {
+      VizContext ctx = modernAt("comfortable");
+      LegendsDescriptor legends = new LegendsDescriptor();
+      PaddingPaneModel pane = LegendFormatDialogModel.paddingPane(legends, ctx);
+      pane.setTop(3);
+      pane.setBottom(3);
+      pane.setFollowsDefault(false);
+
+      ok(legends, pane, ctx);
+
+      assertEquals(new Insets(3, 6, 3, 6), legends.getPadding());
+   }
+
+   @Test
+   public void aLegacyOkWithoutEditsStoresNothing() {
+      LegendsDescriptor legends = new LegendsDescriptor();
+
+      ok(legends, LegendFormatDialogModel.paddingPane(legends, VizContext.LEGACY), VizContext.LEGACY);
+
+      assertFalse(legends.hasPaddingValue());
+   }
+
+   @Test
+   public void aLegacyEditIsStored() {
+      LegendsDescriptor legends = new LegendsDescriptor();
+      PaddingPaneModel pane = LegendFormatDialogModel.paddingPane(legends, VizContext.LEGACY);
+      pane.setTop(2);
+
+      ok(legends, pane, VizContext.LEGACY);
+
+      assertEquals(new Insets(2, 4, 1, 4), legends.getPadding());
+   }
+
+   @Test
+   public void aRequestWithoutPaddingWritesNothing() {
+      LegendsDescriptor legends = new LegendsDescriptor();
+
+      assertDoesNotThrow(() -> ok(legends, null, modernAt("compact")));
+      assertFalse(legends.hasPaddingValue());
+   }
+
+   private static void assertPane(PaddingPaneModel pane, int top, int left, int bottom, int right,
+                                  Boolean followsDefault)
+   {
+      assertEquals(top, pane.getTop(), "top");
+      assertEquals(left, pane.getLeft(), "left");
+      assertEquals(bottom, pane.getBottom(), "bottom");
+      assertEquals(right, pane.getRight(), "right");
+      assertEquals(followsDefault, pane.getFollowsDefault(), "followsDefault");
+   }
+
+   /** Runs the dialog's OK with the given padding pane; every other field is left as shown. */
+   private static void ok(LegendsDescriptor legends, PaddingPaneModel padding, VizContext ctx) {
+      LegendFormatGeneralPaneModel pane = new LegendFormatGeneralPaneModel();
+      pane.setPosition("");
+      pane.setFillColor("#ffffff");
+      pane.setGap(VSChartChromeDefaults.resolveLegendGap(legends.getGap(), legends.hasGapValue(), ctx));
+      pane.setPadding(padding);
+      LegendFormatDialogModel dialog = new LegendFormatDialogModel();
+      dialog.setLegendFormatGeneralPaneModel(pane);
+      dialog.setLegendScalePaneModel(new LegendScalePaneModel());
+      AliasPaneModel alias = new AliasPaneModel();
+      alias.setAliasList(new ModelAlias[0]);
+      dialog.setAliasPaneModel(alias);
+      dialog.updateLegendFormatDialogModel(new VSChartInfo(), legends, new LegendDescriptor(), null,
+                                           ctx);
+   }
+
+   /** A marked chart's context on a dashboard of the given density. */
+   private static VizContext modernAt(String density) {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity(density);
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      vs.addAssembly(chart);
+      chart.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      return VizContext.of(chart.getVSAssemblyInfo());
    }
 }

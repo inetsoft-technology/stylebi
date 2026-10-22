@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
+import inetsoft.web.composer.model.vs.PaddingPaneModel;
 
 import java.awt.*;
 import java.io.Serializable;
@@ -38,6 +39,31 @@ public class LegendFormatDialogModel implements Serializable {
 
    static Boolean gapFollowsDefault(LegendsDescriptor legendsDesc, VizContext ctx) {
       return ctx.modern ? !legendsDesc.hasGapUserValue() : null;
+   }
+
+   /**
+    * The legend padding the chart draws, with no padding shown as the engine's built-in values.
+    */
+   static Insets shownPadding(LegendsDescriptor legendsDesc, VizContext ctx) {
+      Insets padding = VSChartChromeDefaults.resolveLegendPadding(
+         legendsDesc.getPadding(), legendsDesc.hasPaddingValue(), ctx);
+      return padding != null ? padding : builtInPadding();
+   }
+
+   static PaddingPaneModel paddingPane(LegendsDescriptor legendsDesc, VizContext ctx) {
+      Insets shown = shownPadding(legendsDesc, ctx);
+      PaddingPaneModel pane = new PaddingPaneModel();
+      pane.setTop(shown.top);
+      pane.setLeft(shown.left);
+      pane.setBottom(shown.bottom);
+      pane.setRight(shown.right);
+      pane.setFollowsDefault(ctx.modern ? !legendsDesc.hasPaddingUserValue() : null);
+      return pane;
+   }
+
+   // the item insets Legend and LegendItem use when a legend has no padding
+   private static Insets builtInPadding() {
+      return new Insets(0, 4, 1, 4);
    }
 
    public LegendFormatDialogModel(ChartInfo info, LegendsDescriptor legendsDesc,
@@ -60,6 +86,7 @@ public class LegendFormatDialogModel implements Serializable {
       generalPaneModel.setGap(VSChartChromeDefaults.resolveLegendGap(
          legendsDesc.getGap(), legendsDesc.hasGapValue(), ctx));
       generalPaneModel.setGapFollowsDefault(gapFollowsDefault(legendsDesc, ctx));
+      generalPaneModel.setPadding(paddingPane(legendsDesc, ctx));
       generalPaneModel.setRoundCorners(legendsDesc.isRoundCorners());
       generalPaneModel.setSymbolRoundCorners(legendDesc.isSymbolRoundCorners());
       // only rect-based legends (Color/Size/Texture) actually render the rounded swatch;
@@ -163,6 +190,7 @@ public class LegendFormatDialogModel implements Serializable {
          legendsDesc.setGap(generalPaneModel.getGap());
       }
 
+      updatePadding(legendsDesc, ctx);
       legendsDesc.setRoundCorners(generalPaneModel.isRoundCorners());
       legendDesc.setSymbolRoundCorners(generalPaneModel.isSymbolRoundCorners());
 
@@ -180,6 +208,32 @@ public class LegendFormatDialogModel implements Serializable {
          else if(legendDesc == legendsDesc.getShapeLegendDescriptor()) {
             updateAlias(legendsDesc.getColorLegendDescriptor());
          }
+      }
+   }
+
+   private void updatePadding(LegendsDescriptor legendsDesc, VizContext ctx) {
+      PaddingPaneModel pane = generalPaneModel.getPadding();
+
+      // a client without the field has nothing to say about the padding
+      if(pane == null) {
+         return;
+      }
+
+      Insets typed = new Insets(pane.getTop(), pane.getLeft(), pane.getBottom(), pane.getRight());
+      Boolean followsDefault = pane.getFollowsDefault();
+
+      if(followsDefault == null) {
+         // unmarked: store only a real edit, so OK alone keeps the built-in insets
+         if(!typed.equals(shownPadding(legendsDesc, ctx))) {
+            legendsDesc.setPadding(typed);
+         }
+      }
+      else if(followsDefault) {
+         // clear the author's tier so a stylesheet's padding, or the density's, applies again
+         legendsDesc.resetPadding(CompositeValue.Type.USER);
+      }
+      else {
+         legendsDesc.setPadding(typed);
       }
    }
 
