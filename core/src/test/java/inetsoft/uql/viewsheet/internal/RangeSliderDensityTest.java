@@ -22,6 +22,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.viewsheet.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -30,6 +31,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Dimension;
 import java.awt.Insets;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -121,5 +123,100 @@ class RangeSliderDensityTest {
       info.setAdhocFilter(false);
       assertEquals(new Insets(16, 16, 16, 16), info.getBodyPadding());
       assertTrue(info.takesLabelSpacing());
+   }
+
+   @ParameterizedTest
+   @CsvSource({ "comfortable, 232, 82", "compact, 224, 74", "dense, 216, 66" })
+   void aNewMarkedSliderTakesTheTierBox(String density, int w, int h) {
+      assertEquals(new Dimension(w, h), marked(density).getPixelSize());
+   }
+
+   @Test
+   void modernizingAWidenedLegacySliderTakesTheTierHeightAtItsWidth() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      TimeSliderVSAssemblyInfo info = new TimeSliderVSAssemblyInfo();
+      info.setVizMark(null);
+      info.setPixelSize(new Dimension(400, 40));
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.seedChromeDefaults(VizContext.ofTransition(null, VizMark.MODERN_LIGHT));
+      assertEquals(new Dimension(400, 82), info.getPixelSize());
+   }
+
+   @Test
+   void aDensityChangeMovesAWidenedSlidersHeightOnly() {
+      TimeSliderVSAssemblyInfo info = marked("comfortable");
+      info.setPixelSize(new Dimension(400, 82));
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(new Dimension(400, 74), info.getPixelSize());
+   }
+
+   @Test
+   void anAuthorHeightIsKept() {
+      TimeSliderVSAssemblyInfo info = marked("comfortable");
+      info.setPixelSize(new Dimension(232, 45));
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(45, info.getPixelSize().height);
+   }
+
+   @Test
+   void aFlaggedSizeIsKept() {
+      TimeSliderVSAssemblyInfo info = marked("comfortable");
+      info.setUserSize(true);
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(new Dimension(232, 82), info.getPixelSize());
+   }
+
+   @Test
+   void revertReturnsTheLegacyHeightAndKeepsAnAuthorWidth() {
+      TimeSliderVSAssemblyInfo info = marked("comfortable");
+      info.setPixelSize(new Dimension(400, 82));
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
+      assertEquals(new Dimension(400, 40), info.getPixelSize());
+   }
+
+   @Test
+   void aRestoreLeavesAnUnmarkedSliderAlone() {
+      TimeSliderVSAssemblyInfo info = new TimeSliderVSAssemblyInfo();
+      info.setVizMark(null);
+      info.setPixelSize(new Dimension(400, 55));
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      assertEquals(new Dimension(400, 55), info.getPixelSize());
+   }
+
+   @Test
+   void resetSizeWritesTheTierHeightAndKeepsAnAuthorWidth() {
+      TimeSliderVSAssemblyInfo info = marked("comfortable");
+      info.setPixelSize(new Dimension(400, 45));
+      info.setUserSize(true);
+      info.resetSize(VizContext.of(info));
+      assertEquals(new Dimension(400, 82), info.getPixelSize());
+      assertFalse(info.isUserSize());
+   }
+
+   @Test
+   void onlyAHeightChangeIsTheAuthors() {
+      TimeSliderVSAssemblyInfo info = marked("comfortable");
+      assertFalse(info.isAuthorSizeChange(new Dimension(232, 82), new Dimension(400, 82)));
+      assertTrue(info.isAuthorSizeChange(new Dimension(232, 82), new Dimension(232, 90)));
+   }
+
+   @Test
+   void aContainedSliderIsNotResized() {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
+      vs.addAssembly(container);
+      container.setAssemblies(new String[] { "RangeSlider1" });
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "RangeSlider1");
+      vs.addAssembly(slider);
+      TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) slider.getVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setPixelSize(new Dimension(232, 40));
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(new Dimension(232, 40), info.getPixelSize());
+      assertEquals(new Insets(16, 16, 16, 16), info.getPadding(), "the padding still seeds");
    }
 }

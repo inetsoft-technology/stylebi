@@ -35,6 +35,7 @@ import org.w3c.dom.Element;
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.io.PrintWriter;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -796,6 +797,54 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       if(!isUserPadding() && !isCssPaddingDefined()) {
          setPadding(VSDensityDefaults.tablePadding(ctx));
       }
+
+      // the container owns a child's width and height
+      if(!isInSelectionContainer() && (ctx.modern || ctx.transition) && followsDensitySize()) {
+         setPixelSize(defaultSize(ctx));
+      }
+   }
+
+   @Override
+   public boolean takesDensitySize() {
+      return true;
+   }
+
+   @Override
+   public boolean densitySizeIsHeightOnly() {
+      return true;
+   }
+
+   @Override
+   public boolean followsDensitySize() {
+      return !isUserSize() && VSDensityDefaults.isSeededRangeSliderHeight(getPixelSize().height);
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      Dimension size = getPixelSize();
+      Dimension tier = VSDensityDefaults.rangeSliderSize(ctx);
+      int width = VSDensityDefaults.isSeededRangeSliderWidth(size.width) ? tier.width : size.width;
+      return new Dimension(width, tier.height);
+   }
+
+   private boolean isInSelectionContainer() {
+      Viewsheet vs = getViewsheet();
+
+      if(vs == null) {
+         return false;
+      }
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(assembly instanceof CurrentSelectionVSAssembly container) {
+            String[] children = container.getAssemblies();
+
+            if(children != null && Arrays.asList(children).contains(getName())) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    @Override
