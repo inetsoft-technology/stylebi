@@ -156,8 +156,8 @@ public class ScheduleConfigChangePlanService {
          String verb = change.getVerb();
 
          if(ScheduleConfigChangeRequest.UNIT_SERVER_LOCATION.equals(unitType)) {
-            changes.add(resolveServerLocationChange(label, change, locations, before.serverLocations(),
-                                                   seenLocationKeys));
+            changes.add(resolveServerLocationChange(
+               label, change, locations, before.serverLocations(), seenLocationKeys));
          }
          else if(ScheduleConfigChangeRequest.UNIT_TIME_RANGE.equals(unitType)) {
             TimeRangeResolution r = resolveTimeRangeChange(label, change, ranges, seenRangeKeys);
@@ -249,7 +249,7 @@ public class ScheduleConfigChangePlanService {
 
          requireNoServerLocationConflict(label, spec, locations, -1);
          locations.add(spec);
-         WrittenForm written = projectWrittenForm(spec, original);
+         WrittenForm written = projectWrittenForm(label, spec, original);
          return new PlanChange(spec.path(), null, null, projectServerLocation(written.location),
                                AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_VALUE, true,
                                "create server location" + written.noteSuffix());
@@ -277,7 +277,7 @@ public class ScheduleConfigChangePlanService {
          ServerLocation spec = convertServerLocation(label, change.getSpec());
          requireNoServerLocationConflict(label, spec, locations, existingIndex);
          locations.set(existingIndex, spec);
-         WrittenForm written = projectWrittenForm(spec, original);
+         WrittenForm written = projectWrittenForm(label, spec, original);
          return new PlanChange(key, null, projectServerLocation(existing),
                                projectServerLocation(written.location),
                                AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_VALUE, true,
@@ -304,14 +304,19 @@ public class ScheduleConfigChangePlanService {
    }
 
    /**
-    * Mirrors the placeholder-password rule of {@code SchedulerConfigurationService#setServerLocations}
-    * (Bug #77953) so the preview never claims {@code password=(set)} for a state the server will
-    * clear (Bug #79032). A placeholder password keeps the stored one only if {@code oldPasswordKey}
-    * names a CURRENTLY stored location AND that location logs in to the same server as the same
-    * user ({@code SchedulerConfigurationService#isSameLocationLogin}); a changed username, a path
-    * on a different server, or a missing/stale key all persist NO password.
+    * Mirrors the placeholder-password rule of
+    * {@code SchedulerConfigurationService#setServerLocations} (Bug #77953) so the preview never
+    * claims {@code password=(set)} for a state the server will clear (Bug #79032). A placeholder
+    * password keeps the stored one only if {@code oldPasswordKey} names a CURRENTLY stored
+    * location AND that location logs in to the same server as the same user
+    * ({@code SchedulerConfigurationService#isSameLocationLogin}). A changed username or a path on
+    * a different server is the intended server rule: the preview projects no password and warns.
+    * A missing or stale {@code oldPasswordKey} is caller error and is refused, so a stale key can
+    * never silently destroy a stored credential.
     */
-   private static WrittenForm projectWrittenForm(ServerLocation spec, List<ServerLocation> original) {
+   private static WrittenForm projectWrittenForm(
+      String label, ServerLocation spec, List<ServerLocation> original)
+   {
       ServerPathInfoModel info = spec.pathInfoModel();
 
       if(info == null || !info.ftp() || info.useCredential() ||
@@ -333,32 +338,35 @@ public class ScheduleConfigChangePlanService {
          }
       }
 
-      String note;
-
       if(old == null) {
-         note = "the supplied masked password cannot be resolved (oldPasswordKey matches no stored " +
-            "server location, or none was given), so NO password will be stored -- re-read the " +
-            "locations for a fresh oldPasswordKey, or supply the real password";
+         throw new IllegalArgumentException(
+            label + ".spec.pathInfoModel.oldPasswordKey: the masked password cannot be resolved " +
+            "because oldPasswordKey " +
+            (info.oldPasswordKey() == null ? "is missing" : "matches no stored server location") +
+            "; re-read the server locations for a fresh oldPasswordKey, or supply the real " +
+            "password");
       }
-      else if(!SchedulerConfigurationService.isSameLocationLogin(spec.path(), info.username(), old)) {
-         note = "the login changed (different username or server), so the stored password will be " +
-            "CLEARED, not carried over to the new login -- supply the real password to set one";
+
+      if(!SchedulerConfigurationService.isSameLocationLogin(spec.path(), info.username(), old)) {
+         return new WrittenForm(withoutPassword(spec),
+            "the login changed (different username or server), so the stored password will be " +
+            "CLEARED, not carried over to the new login -- supply the real password to set one");
       }
-      else if(old.password() == null) {
+
+      if(old.password() == null) {
          return new WrittenForm(withoutPassword(spec), null);
       }
-      else {
-         return new WrittenForm(spec, null);
-      }
 
-      return new WrittenForm(withoutPassword(spec), note);
+      return new WrittenForm(spec, null);
    }
 
    private static ServerLocation withoutPassword(ServerLocation spec) {
+      ServerPathInfoModel info =
+         ServerPathInfoModel.builder().from(spec.pathInfoModel()).password(null).build();
       return ServerLocation.builder()
          .path(spec.path())
          .label(spec.label())
-         .pathInfoModel(ServerPathInfoModel.builder().from(spec.pathInfoModel()).password(null).build())
+         .pathInfoModel(info)
          .build();
    }
 

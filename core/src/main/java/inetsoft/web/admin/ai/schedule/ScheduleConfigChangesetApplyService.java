@@ -167,13 +167,15 @@ public class ScheduleConfigChangesetApplyService {
    }
 
    /**
-    * Writes the pre-write model (the {@code rollbackModel}: {@code resolution.before()} but carrying
-    * the real server-location passwords, since the masked read cannot restore a dropped password) back in full (see this class's own javadoc for why a
-    * whole-model rollback, rather than a per-entry undo, is the correct granularity here) and
-    * re-verifies the touched entries are back to their original state.
+    * Writes the pre-write model (the {@code rollbackModel}: {@code resolution.before()} but
+    * carrying the real server-location passwords, since the masked read cannot restore a dropped
+    * password) back in full (see this class's own javadoc for why a whole-model rollback, rather
+    * than a per-entry undo, is the correct granularity here) and re-verifies the touched entries
+    * are back to their original state.
     */
    private ApplyResult rollback(String txId, ScheduleConfigChangePlanService.Resolution resolution,
-                                ScheduleConfigurationModel rollbackModel, List<ApplyOutcome> results, String reviewOutcome, Principal user)
+                                ScheduleConfigurationModel rollbackModel,
+                                List<ApplyOutcome> results, String reviewOutcome, Principal user)
    {
       try {
          gateway.writeFullConfig(rollbackModel, user);

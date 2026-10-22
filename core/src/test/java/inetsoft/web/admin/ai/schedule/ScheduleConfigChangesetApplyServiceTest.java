@@ -283,7 +283,9 @@ class ScheduleConfigChangesetApplyServiceTest {
    // Bug #79032: a username change with the masked placeholder makes the server clear the stored
    // password (Bug #77953). The preview now says so (password=(none)), so the apply verifies
    // instead of reporting a bogus mismatch.
-   @Test void appliesAUsernameChangeThatClearsThePasswordAndVerifiesTheClearedState() throws Exception {
+   @Test void appliesAUsernameChangeThatClearsThePasswordAndVerifiesTheClearedState()
+      throws Exception
+   {
       createLocationWithPassword();
       ServerPathInfoModel info = readBack().serverLocations().get(0).pathInfoModel();
 
@@ -300,8 +302,9 @@ class ScheduleConfigChangesetApplyServiceTest {
       assertNull(after.password());
    }
 
-   // The same silent drop happens when the placeholder is paired with a stale oldPasswordKey.
-   @Test void appliesAStaleOldPasswordKeyUpdateAndVerifiesTheClearedState() throws Exception {
+   // A placeholder paired with a stale oldPasswordKey is caller error: the plan is refused and the
+   // stored password is left untouched instead of being silently cleared.
+   @Test void refusesAStaleOldPasswordKeyUpdateAndKeepsTheStoredPassword() throws Exception {
       createLocationWithPassword();
 
       Map<String, Object> updated = locationSpec("/qa/sl-bs09", "BS09");
@@ -309,10 +312,11 @@ class ScheduleConfigChangesetApplyServiceTest {
       updated.put("password", Util.PLACEHOLDER_PASSWORD);
       updated.put("oldPasswordKey", "/gone|BS09|ftpuser");
 
-      ApplyResult result = apply(updateLocation("/qa/sl-bs09", updated));
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> apply(updateLocation("/qa/sl-bs09", updated)));
 
-      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
-      assertNull(readBack().serverLocations().get(0).pathInfoModel().password());
+      assertTrue(ex.getMessage().contains("oldPasswordKey"), ex.getMessage());
+      assertEquals("s3cret", properties.get("server.save.locations").split("\\|")[3]);
    }
 
    // The credential must survive a failed apply: the rollback writes the REAL password captured
