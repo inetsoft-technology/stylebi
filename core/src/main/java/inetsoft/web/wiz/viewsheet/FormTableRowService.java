@@ -32,6 +32,7 @@ import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.controller.table.VSFormTableService;
 import inetsoft.web.viewsheet.event.table.*;
 import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
+import inetsoft.util.Tool;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.springframework.stereotype.Service;
 
@@ -203,12 +204,13 @@ public class FormTableRowService {
 
          int nativeRow = row + headerRowOffset(rvs, assemblyName);
          requireEditableCell(rvs, assemblyName, nativeRow, row, col);
+         String data = requireStrictNumber(rvs, assemblyName, col, value);
 
          ChangeFormTableCellInputEvent event = ChangeFormTableCellInputEvent.builder()
             .assemblyName(assemblyName)
             .row(nativeRow)
             .col(col)
-            .data(value)
+            .data(data)
             .start(0)
             .build();
          formTableService.changeFormInput(runtimeId, event, linkUri, dispatcher, user);
@@ -538,6 +540,104 @@ public class FormTableRowService {
             "of silently doing what the Preview toolbar's own grid would refuse to let a human " +
             "click into.");
       }
+   }
+
+   /**
+    * Bug #79189: {@code VSFormTableService.changeFormInput} validates a numeric cell through
+    * {@code ColumnOption.validate}, which converts the text with a lossy int cast, so {@code "2.5"}
+    * passes an Integer option and is later truncated to 2 by {@code XEmbeddedTable.setObject} at
+    * apply (and {@code NaN}, {@code 50%}, {@code 2.5d} slip through the same way; for a Long
+    * column even {@code "2.0"} is silently dropped). The native client rounds before it sends, so
+    * only a bridge caller reaches that. This refuses such text up front with
+    * {@link WizStrictValueParser}, and forwards the canonical text ({@code "2.0"} becomes
+    * {@code "2"}) so the pending cell equals what apply writes.
+    *
+    * <p>The strict type comes from both the lens column class and the option type: an Integer option
+    * is always {@code integer} (the option range-checks through int even on a Long column), else an
+    * integral/floating lens column class decides (this covers a Text or Float option on an integer
+    * column), else a Float option means {@code double}. Anything else (string, date, boolean,
+    * ComboBox labels, an unresolvable lens) is passed through unchanged.
+    *
+    * <p>{@code null} and the empty string are passed through unchanged. Note an empty string does
+    * not clear a numeric cell at apply ({@code XEmbeddedTable.setObject} keeps the old value); only
+    * {@code null} clears it.
+    */
+   private static String requireStrictNumber(RuntimeViewsheet rvs, String assemblyName, int col,
+                                             String value) throws Exception
+   {
+      if(value == null || value.isEmpty()) {
+         return value;
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      FormTableLens lens = box.isEmpty() ? null : box.get().getFormTableLens(assemblyName);
+
+      if(lens == null) {
+         return value;
+      }
+
+      ColumnOption option = lens.getVisibleColumnOption(col);
+      String optionType = option == null ? null : option.getType();
+
+      if(ColumnOption.COMBOBOX.equals(optionType)) {
+         return value;
+      }
+
+      String type = strictType(optionType, lens.getColType(col));
+
+      if(type == null) {
+         return value;
+      }
+
+      Object parsed;
+
+      try {
+         parsed = WizStrictValueParser.parse(value, type);
+      }
+      catch(IllegalArgumentException ex) {
+         String message = option == null ? null : option.getErrorMessage(value);
+         throw new IllegalArgumentException(
+            message == null || message.isEmpty() ? ex.getMessage() : message, ex);
+      }
+
+      if(parsed instanceof Double || parsed instanceof Float) {
+         return value.trim();
+      }
+
+      return parsed == null ? value : String.valueOf(parsed);
+   }
+
+   private static String strictType(String optionType, Class<?> colClass) {
+      String colType = null;
+
+      if(colClass == Integer.class || colClass == int.class) {
+         colType = Tool.INTEGER;
+      }
+      else if(colClass == Long.class || colClass == long.class) {
+         colType = Tool.LONG;
+      }
+      else if(colClass == Short.class || colClass == short.class) {
+         colType = Tool.SHORT;
+      }
+      else if(colClass == Byte.class || colClass == byte.class) {
+         colType = Tool.BYTE;
+      }
+      else if(colClass == Double.class || colClass == double.class) {
+         colType = Tool.DOUBLE;
+      }
+      else if(colClass == Float.class || colClass == float.class) {
+         colType = Tool.FLOAT;
+      }
+
+      if(ColumnOption.INTEGER.equals(optionType)) {
+         return Tool.INTEGER;
+      }
+
+      if(colType != null) {
+         return colType;
+      }
+
+      return ColumnOption.FLOAT.equals(optionType) ? Tool.DOUBLE : null;
    }
 
    private static void putWarnings(Map<String, Object> result, List<String> warnings) {
