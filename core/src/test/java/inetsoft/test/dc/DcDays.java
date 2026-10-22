@@ -30,6 +30,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -108,6 +109,18 @@ public final class DcDays {
       }
 
       return days;
+   }
+
+   /**
+    * Whether the comparison keeps a value of the date column, evaluated on the real condition
+    * list. Unlike {@link #kept} the value can be any instant, as a date-time column holds.
+    */
+   public static Predicate<Date> keeps(DateComparisonInfo dc) {
+      ColumnRef ref = new ColumnRef(new AttributeRef(null, "Order Date"));
+      ref.setDataType(XSchema.DATE);
+      ConditionGroup group = new ConditionGroup(dc.getDateComparisonConditions(ref));
+
+      return value -> group.evaluate(new Object[] { value });
    }
 
    /** The same days found by evaluating the condition list on every day, to check {@link #kept}. */
