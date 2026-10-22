@@ -4273,6 +4273,26 @@ public class WorksheetAgentController {
       return first;
    }
 
+   /**
+    * Whether {@code name} is declared as an assembly name or as the own name of a variable,
+    * mirrored ones included.
+    */
+   private static boolean isDeclaredVariable(Worksheet ws, String name) {
+      if(ws.getAssembly(name) instanceof VariableAssembly) {
+         return true;
+      }
+
+      for(Assembly a : ws.getAssemblies()) {
+         if(a instanceof VariableAssembly va && isNamedVariable(va) &&
+            name.equals(va.getVariable().getName()))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    private static boolean isNamedVariable(VariableAssembly va) {
       return va.getVariable() != null && va.getVariable().getName() != null;
    }
@@ -5976,7 +5996,7 @@ public class WorksheetAgentController {
          // "needs set_variable_values before a non-default value is desired" signal, not
          // "undeclared". Only a name with no matching assembly at all is genuinely undeclared
          // (e.g. a typo'd $(name) with no add_variable call behind it).
-         if(!(ws.getAssembly(name) instanceof DefaultVariableAssembly)) {
+         if(!isDeclaredVariable(ws, name)) {
             names.add(name);
          }
       }
@@ -6008,7 +6028,7 @@ public class WorksheetAgentController {
       for(VariableAssemblyModelInfo info : command.varInfos()) {
          String name = info.getName();
 
-         if(ws.getAssembly(name) instanceof DefaultVariableAssembly) {
+         if(isDeclaredVariable(ws, name)) {
             names.add(name);
          }
       }
