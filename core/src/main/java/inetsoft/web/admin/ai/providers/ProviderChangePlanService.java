@@ -25,6 +25,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
+import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.security.*;
@@ -89,6 +90,8 @@ public class ProviderChangePlanService {
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seenKeys = new HashSet<>();
       Map<ProviderChain, String> chainProjections = new EnumMap<>(ProviderChain.class);
+      // Bug #79016: hidden per-change hash input for a supplied password (see hash()).
+      Map<String, String> hiddenInputs = new LinkedHashMap<>();
       // Bug 76655 (F7): per-chain set of duplicate target names already claimed earlier in THIS
       // request -- resolveDuplicateName's own collision check only sees the live, unmutated chain,
       // which can't catch two duplicate entries proposing the same newName within one preview.
@@ -111,7 +114,8 @@ public class ProviderChangePlanService {
          if(ProviderChangeRequest.VERB_CREATE.equals(verb)) {
             String providerType = requireNonBlank(label + ".providerType", change.getProviderType());
             changes.add(resolveCreate(label, chain, name, providerType, change.getSpec(),
-                                      change.getDatabaseSpec(), currentList, seenKeys));
+                                      change.getDatabaseSpec(), currentList, seenKeys,
+                                      hiddenInputs));
             continue;
          }
 
@@ -153,7 +157,7 @@ public class ProviderChangePlanService {
             }
 
             changes.add(resolveUpdate(label, chain, name, change.getSpec(), change.getDatabaseSpec(),
-                                      currentList, seenKeys, user));
+                                      currentList, seenKeys, user, hiddenInputs));
             continue;
          }
 
@@ -176,7 +180,7 @@ public class ProviderChangePlanService {
       }
 
       String task = req.getTask().trim();
-      String planHash = hash(changes, chainProjections);
+      String planHash = hash(changes, chainProjections, hiddenInputs);
       return new ResolvedPlan(task, Collections.unmodifiableList(changes), true, true,
                               planHash, TaskAuditToken.issue(planHash, task));
    }
@@ -186,7 +190,8 @@ public class ProviderChangePlanService {
    private PlanChange resolveCreate(String label, ProviderChain chain, String name,
                                     String providerType, ProviderLdapSpec spec,
                                     ProviderDatabaseSpec databaseSpec,
-                                    List<SecurityProviderStatus> currentList, Set<String> seenKeys)
+                                    List<SecurityProviderStatus> currentList, Set<String> seenKeys,
+                                    Map<String, String> hiddenInputs)
    {
       String key = key(chain, name);
       requireUnseen(label, key, seenKeys);
@@ -221,6 +226,7 @@ public class ProviderChangePlanService {
          requireLdapSpec(label, spec);
          requireLdapMultiTenantAllowed(label);
          String proposed = ProviderProjection.projectLdapSpec(name, spec);
+         addPasswordHashInput(hiddenInputs, key, spec.getPassword());
          return new PlanChange(key, NOT_ORG_SCOPED, null, proposed, AdminChangeRecord.RISK_HIGH,
                                AdminChangeRecord.SCOPE_STORAGE, true,
                                "create authentication provider " + name + " (LDAP)");
@@ -245,6 +251,7 @@ public class ProviderChangePlanService {
          authenticationProviderService.requireProviderTypeLicensed(SecurityProviderType.DATABASE);
          requireDatabaseSpec(label, databaseSpec);
          String proposed = ProviderProjection.projectDatabaseSpec(name, databaseSpec);
+         addPasswordHashInput(hiddenInputs, key, databaseSpec.getPassword());
          return new PlanChange(key, NOT_ORG_SCOPED, null, proposed, AdminChangeRecord.RISK_HIGH,
                                AdminChangeRecord.SCOPE_STORAGE, true,
                                "create authentication provider " + name + " (DATABASE)");
@@ -418,7 +425,7 @@ public class ProviderChangePlanService {
    private PlanChange resolveUpdate(String label, ProviderChain chain, String name, ProviderLdapSpec spec,
                                     ProviderDatabaseSpec databaseSpec,
                                     List<SecurityProviderStatus> currentList, Set<String> seenKeys,
-                                    Principal user)
+                                    Principal user, Map<String, String> hiddenInputs)
       throws Exception
    {
       String key = key(chain, name);
@@ -486,6 +493,20 @@ public class ProviderChangePlanService {
 
       String before = ProviderProjection.projectAuthenticationProvider(current);
       String proposedProjection = ProviderProjection.projectAuthenticationProvider(proposed);
+
+      // Bug #79016: the projection shows only pw:set/pw:unset, so a rotation (or a different new
+      // password) was invisible to the hash. Digest the EFFECTIVE password of the merged model, and
+      // only when the spec supplies one: an omitted password keeps the stored one and contributes
+      // nothing, so such plans hash as before.
+      if(current.providerType() == SecurityProviderType.DATABASE) {
+         if(databaseSpec.getPassword() != null) {
+            addPasswordHashInput(hiddenInputs, key, proposed.dbProviderModel().password());
+         }
+      }
+      else if(spec.getPassword() != null) {
+         addPasswordHashInput(hiddenInputs, key, proposed.ldapProviderModel().password());
+      }
+
       return new PlanChange(key, NOT_ORG_SCOPED, before, proposedProjection, AdminChangeRecord.RISK_HIGH,
                             AdminChangeRecord.SCOPE_STORAGE, true,
                             "update authentication provider " + name);
@@ -1298,7 +1319,8 @@ public class ProviderChangePlanService {
     * apply-time plan-hash check whenever a caller paraphrases the task description between preview
     * and apply while the actual {@code changes}/chain state stay identical.
     */
-   private static String hash(List<PlanChange> changes, Map<ProviderChain, String> chainProjections)
+   private static String hash(List<PlanChange> changes, Map<ProviderChain, String> chainProjections,
+                              Map<String, String> hiddenInputs)
    {
       StringBuilder canonical = new StringBuilder();
 
@@ -1316,6 +1338,8 @@ public class ProviderChangePlanService {
             .append(canonical(change.proposedValue())).append(SEP)
             .append(change.risk()).append(SEP)
             .append(change.snapshotScope()).append(SEP);
+         // Bug #79016: appended only for a change that supplied a password.
+         PlanHashInputs.appendHidden(canonical, SEP, hiddenInputs, change.property());
       }
 
       try {
@@ -1338,7 +1362,21 @@ public class ProviderChangePlanService {
       return value == null ? NULL_MARKER : value;
    }
 
+   /** Bug #79016: folds a digest of a supplied, non-blank password into the plan hash only -- the
+    * shared projection keeps its pw:set/pw:unset token, which apply verify compares against the
+    * masked read-back. */
+   private static void addPasswordHashInput(Map<String, String> hiddenInputs, String key,
+                                            String password)
+   {
+      if(password != null && !password.trim().isEmpty()) {
+         PlanHashInputs.addHidden(hiddenInputs, key, "pw",
+                                  PlanHashInputs.digest(PASSWORD_DIGEST_DOMAIN, password));
+      }
+   }
+
    private static final char SEP = (char) 0x1f;
+   private static final String PASSWORD_DIGEST_DOMAIN =
+      "inetsoft.admin.ai.provider.password\u0000";
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
    /** Provider configuration is deployment-wide, not org-scoped (01-spec.md section 1/5) -- every
     * {@link PlanChange} this service builds passes this in place of a bare {@code null} literal so
