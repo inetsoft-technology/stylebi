@@ -118,6 +118,11 @@ public class SelectionBindingService {
     *                     {@code parentIdColumn}.
     * @param force    discards an existing binding to a different table, the way
     *                 {@code set_table_source}'s {@code force} does.
+    * @return the bound shape. A column-mode selection tree whose stored single-select levels name
+    *         a column the rebind no longer binds also reports {@code droppedSingleSelectionLevels}
+    *         (those names) and {@code singleSelectionLevels} (the levels still single-select;
+    *         empty means the tree is now single-select as a whole, one value in the entire tree)
+    *         (#79168).
     */
    public Map<String, Object> setSource(String sessionToken, Principal user, String assemblyName,
                                         String table, List<String> columns,
@@ -202,7 +207,7 @@ public class SelectionBindingService {
                runtimeId, assemblyName, model, linkUri, user, dispatcher);
             result.put("bound", "single");
          }
-         else if(assembly instanceof SelectionTreeVSAssembly) {
+         else if(assembly instanceof SelectionTreeVSAssembly treeAssembly) {
             SelectionTreePropertyDialogModel model =
                selectionTreeService.getSelectionTreePropertyModel(runtimeId, assemblyName, user);
             SelectionTreePaneModel pane = model.getSelectionTreePaneModel();
@@ -267,9 +272,19 @@ public class SelectionBindingService {
                // choice below rather than the ID-hierarchy alternative.
                pane.setMode(SelectionTreeVSAssemblyInfo.COLUMN);
                pane.setSelectedColumns(columnRefs(resolvedTable, resolvedColumns));
+               List<String> levelsBefore = singleSelectionLevelNames(treeAssembly);
                selectionTreeService.setSelectionTreePropertyModel(
                   runtimeId, assemblyName, model, linkUri, user, dispatcher);
                result.put("levels", resolvedColumns.size());
+               // The apply replaces the assembly's info, so the survivors come from a fresh
+               // lookup. The stored level names are resolved against the new columns, and one that
+               // is no longer bound is lost without a trace.
+               discloseDroppedSingleSelectionLevels(
+                  levelsBefore,
+                  singleSelectionLevelNames(
+                     (SelectionTreeVSAssembly) SelectionRuntimeService.requireSelection(
+                        rvs, assemblyName)),
+                  result);
             }
          }
          else if(assembly instanceof TimeSliderVSAssembly) {
@@ -856,6 +871,36 @@ public class SelectionBindingService {
       }
 
       return TimeInfo.MONTH;
+   }
+
+   private static List<String> singleSelectionLevelNames(SelectionTreeVSAssembly tree) {
+      SelectionTreeVSAssemblyInfo info = tree.getSelectionTreeInfo();
+
+      // Levels are meaningless in ID mode, yet the getter falls back to the ID columns' names there.
+      return info == null || info.getMode() != SelectionTreeVSAssemblyInfo.COLUMN
+         ? null : info.getSingleSelectionLevelNames();
+   }
+
+   /**
+    * Discloses the single-select levels a column-mode rebind removed (#79168). With
+    * {@code singleSelection} on and no level left the tree is single-select as a whole, so the
+    * remaining levels are reported alongside the dropped ones.
+    */
+   private static void discloseDroppedSingleSelectionLevels(List<String> before,
+                                                            List<String> after,
+                                                            Map<String, Object> result)
+   {
+      if(before == null) {
+         return;
+      }
+
+      List<String> remaining = after == null ? List.of() : after;
+      List<String> dropped = before.stream().filter(name -> !remaining.contains(name)).toList();
+
+      if(!dropped.isEmpty()) {
+         result.put("droppedSingleSelectionLevels", dropped);
+         result.put("singleSelectionLevels", remaining);
+      }
    }
 
    /**

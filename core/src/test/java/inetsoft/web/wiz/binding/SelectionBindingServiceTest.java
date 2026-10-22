@@ -647,7 +647,7 @@ class SelectionBindingServiceTest {
       return listService;
    }
 
-   private static SelectionTreePropertyDialogModel treeBoundTo(String table,
+   static SelectionTreePropertyDialogModel treeBoundTo(String table,
                                                                 List<String> additional)
    {
       SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
@@ -656,7 +656,7 @@ class SelectionBindingServiceTest {
       return model;
    }
 
-   private static SelectionTreePropertyDialogService treeService(
+   static SelectionTreePropertyDialogService treeService(
       SelectionTreePropertyDialogModel model)
       throws Exception
    {
@@ -1664,9 +1664,101 @@ class SelectionBindingServiceTest {
       assertEquals("Customer:City", levels[1].getAttribute());
    }
 
+   // ── single-select levels dropped by a rebind (#79168) ────────────────────────
+
+   private static SelectionTreeVSAssembly treeWithLevels(List<String> before, List<String> after) {
+      SelectionTreeVSAssemblyInfo beforeInfo = mock(SelectionTreeVSAssemblyInfo.class);
+      SelectionTreeVSAssemblyInfo afterInfo = mock(SelectionTreeVSAssemblyInfo.class);
+      when(beforeInfo.getMode()).thenReturn(SelectionTreeVSAssemblyInfo.COLUMN);
+      when(afterInfo.getMode()).thenReturn(SelectionTreeVSAssemblyInfo.COLUMN);
+      when(beforeInfo.getSingleSelectionLevelNames()).thenReturn(before);
+      when(afterInfo.getSingleSelectionLevelNames()).thenReturn(after);
+      return treeWithInfos(beforeInfo, afterInfo);
+   }
+
+   static SelectionTreeVSAssembly treeWithInfos(SelectionTreeVSAssemblyInfo before,
+                                                        SelectionTreeVSAssemblyInfo after)
+   {
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      when(assembly.getSelectionTreeInfo()).thenReturn(before, after);
+      return assembly;
+   }
+
+   static Map<String, Object> rebindTreeLevels(SelectionTreeVSAssembly assembly,
+                                                       List<String> columns)
+      throws Exception
+   {
+      return harness(assembly, null, treeService(treeBoundTo("ORDERS", null)), null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", columns, null, null, null, null, null,
+                    false, "");
+   }
+
+   @Test
+   void disclosesASingleSelectLevelTheRebindNoLongerBinds() throws Exception {
+      Map<String, Object> result = rebindTreeLevels(
+         treeWithLevels(List.of("CITY"), null), List.of("STATE", "ORDER_DATE"));
+
+      assertEquals(List.of("CITY"), result.get("droppedSingleSelectionLevels"));
+      assertEquals(List.of(), result.get("singleSelectionLevels"));
+   }
+
+   @Test
+   void staysSilentWhenTheSingleSelectLevelIsStillBound() throws Exception {
+      Map<String, Object> result = rebindTreeLevels(
+         treeWithLevels(List.of("CITY"), List.of("CITY")), List.of("STATE", "CITY", "AMOUNT"));
+
+      assertFalse(result.containsKey("droppedSingleSelectionLevels"));
+      assertFalse(result.containsKey("singleSelectionLevels"));
+   }
+
+   @Test
+   void staysSilentWhenTheSingleSelectLevelOnlyMovedPosition() throws Exception {
+      // Levels are keyed by column name: CITY moves from level 1 to level 0 and stays single-select.
+      Map<String, Object> result = rebindTreeLevels(
+         treeWithLevels(List.of("CITY"), List.of("CITY")), List.of("CITY", "STATE"));
+
+      assertFalse(result.containsKey("droppedSingleSelectionLevels"));
+      assertFalse(result.containsKey("singleSelectionLevels"));
+   }
+
+   @Test
+   void reportsTheRemainingLevelsOfAPartiallyDroppedWholeTreeSingleSelect() throws Exception {
+      // A whole-tree single-select reads back every level; after the rebind the surviving
+      // levels are the ones still bound.
+      Map<String, Object> result = rebindTreeLevels(
+         treeWithLevels(List.of("STATE", "ORDER_DATE", "AMOUNT"), List.of("STATE", "ORDER_DATE")),
+         List.of("STATE", "ORDER_DATE"));
+
+      assertEquals(List.of("AMOUNT"), result.get("droppedSingleSelectionLevels"));
+      assertEquals(List.of("STATE", "ORDER_DATE"), result.get("singleSelectionLevels"));
+   }
+
+   @Test
+   void staysSilentForATreeWithNoSingleSelectLevels() throws Exception {
+      Map<String, Object> result =
+         rebindTreeLevels(treeWithLevels(null, null), List.of("STATE", "CITY"));
+
+      assertFalse(result.containsKey("droppedSingleSelectionLevels"));
+      assertFalse(result.containsKey("singleSelectionLevels"));
+   }
+
+   @Test
+   void anIdModeTreeReportsNoSingleSelectLevels() throws Exception {
+      SelectionTreeVSAssembly assembly = treeWithLevels(List.of("CITY"), null);
+
+      Map<String, Object> result = harness(
+         assembly, null, treeService(treeBoundTo("ORDERS", null)), null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY", "STATE",
+                    "ORDER_DATE", false, "");
+
+      assertFalse(result.containsKey("droppedSingleSelectionLevels"));
+      assertFalse(result.containsKey("singleSelectionLevels"));
+      verify(assembly, never()).getSelectionTreeInfo();
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
-   private static SelectionBindingService harness(VSAssembly assembly,
+   static SelectionBindingService harness(VSAssembly assembly,
                                                    SelectionListPropertyDialogService listService,
                                                    SelectionTreePropertyDialogService treeService,
                                                    RangeSliderPropertyDialogService sliderService,
@@ -1754,7 +1846,7 @@ class SelectionBindingServiceTest {
       return sessions;
    }
 
-   private static Principal principal() {
+   static Principal principal() {
       return () -> "admin";
    }
 }
