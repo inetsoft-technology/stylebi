@@ -252,9 +252,10 @@ public class CalendarDisplayService {
       "set_assembly_properties{daySelection:false} switches it back";
 
    /**
-    * The event {@code applyCalendar} takes. Both navigation dates are sent as non-null strings,
-    * as the browser always does: the painter tells a one-month range from a two-month one by
-    * comparing them, and a null second date never equals an empty first one.
+    * The event {@code applyCalendar} takes. The navigation dates are echoed as the calendar holds
+    * them: a null second date stays null, so {@code applyCalendar} leaves it alone, and the painter
+    * does not read the two dates as equal (which it does for two empty strings and paints a
+    * different range shape).
     */
    static CalendarSelectionEvent selectionEvent(String[] dates, String currentDate1,
                                                 String currentDate2)
@@ -262,7 +263,7 @@ public class CalendarDisplayService {
       return ImmutableCalendarSelectionEvent.builder()
          .dates(dates)
          .currentDate1(nullToEmpty(currentDate1))
-         .currentDate2(nullToEmpty(currentDate2))
+         .currentDate2(currentDate2)
          .build();
    }
 

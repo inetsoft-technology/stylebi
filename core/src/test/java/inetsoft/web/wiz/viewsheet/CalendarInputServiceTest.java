@@ -376,17 +376,37 @@ class CalendarInputServiceTest {
    }
 
    /**
-    * A null second navigation date never equals an empty first one, which the painter reads as a
-    * two-month range.
+    * A null second navigation date stays null: two empty strings would make the painter take its
+    * equal-dates branch, which shades a different range in a double calendar and breaks the year
+    * view.
     */
    @Test
-   void selectionEventSendsBothNavigationDatesNonNull() {
+   void selectionEventKeepsANullSecondNavigationDateNull() {
       CalendarSelectionEvent event =
          CalendarDisplayService.selectionEvent(DAY_RANGE, null, null);
 
       assertEquals("", event.getCurrentDate1());
-      assertEquals("", event.getCurrentDate2());
+      assertNull(event.getCurrentDate2());
       assertArrayEquals(DAY_RANGE, event.getDates());
+   }
+
+   /** A range across two months keeps the two different navigation dates it already holds. */
+   @Test
+   void selectionEventEchoesDifferentNavigationDates() {
+      CalendarSelectionEvent event =
+         CalendarDisplayService.selectionEvent(DAY_RANGE, "d2024-1-1", "d2025-5-1");
+
+      assertEquals("d2024-1-1", event.getCurrentDate1());
+      assertEquals("d2025-5-1", event.getCurrentDate2());
+   }
+
+   @Test
+   void selectionEventEchoesEqualNavigationDates() {
+      CalendarSelectionEvent event =
+         CalendarDisplayService.selectionEvent(DAY_RANGE, "d2025-2-1", "d2025-2-1");
+
+      assertEquals("d2025-2-1", event.getCurrentDate1());
+      assertEquals("d2025-2-1", event.getCurrentDate2());
    }
 
    // ── range-comparison reshaping and range checks (Bug #77033) ──────────────
