@@ -887,6 +887,13 @@ public final class TableBindingMutator {
             ref.setOrder(ref.getOrder() & ~XConstants.SORT_SPECIFIC);
          }
 
+         // An explicit ungroup (namedGroupValues: null, bug #79017) of a grouped field leaves the
+         // SPECIFIC bit stripped and nothing else: rendered as no sort. Ascending is what an
+         // ungrouped dimension starts with.
+         if(field.clearsNamedGroupValues() && hadGroup && ref.getOrder() == XConstants.SORT_NONE) {
+            ref.setOrder(XConstants.SORT_ASC);
+         }
+
          out.add(ref);
       }
 
@@ -1710,6 +1717,14 @@ public final class TableBindingMutator {
       List<BDimensionRefModel> shelf = byCol ? crosstab.getCols() : crosstab.getRows();
 
       if(shelf != null && !shelf.isEmpty() || crosstab.getAggregates() == null) {
+         return null;
+      }
+
+      // With both shelves empty the crosstab is a single grand-total cell, so 100% is the true
+      // value and the opposite direction advice could not be followed (percentageBy refuses it).
+      List<BDimensionRefModel> other = byCol ? crosstab.getRows() : crosstab.getCols();
+
+      if(other == null || other.isEmpty()) {
          return null;
       }
 

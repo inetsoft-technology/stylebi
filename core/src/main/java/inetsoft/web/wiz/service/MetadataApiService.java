@@ -49,6 +49,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import inetsoft.web.wiz.request.SchemaSearchRequest;
+import inetsoft.web.wiz.worksheet.WorksheetReadService;
 
 import java.security.Principal;
 import java.sql.Connection;
@@ -1181,7 +1182,9 @@ public class MetadataApiService {
       collectStructureConditions(
          tableAssembly.getPreRuntimeConditionList(), "preRuntime", conditions);
       collectStructureConditions(tableAssembly.getPostConditionList(), "post", conditions);
-      collectStructureConditions(tableAssembly.getRankingConditionList(), "ranking", conditions);
+      collectStructureConditions(
+         tableAssembly.getRankingConditionList(), "ranking", conditions,
+         tableAssembly.getAggregateInfo());
       return conditions;
    }
 
@@ -1194,6 +1197,13 @@ public class MetadataApiService {
     */
    static void collectStructureConditions(ConditionListWrapper wrapper, String phase,
                                           List<WorksheetStructure.ConditionLeaf> out)
+   {
+      collectStructureConditions(wrapper, phase, out, null);
+   }
+
+   static void collectStructureConditions(ConditionListWrapper wrapper, String phase,
+                                          List<WorksheetStructure.ConditionLeaf> out,
+                                          AggregateInfo aggregateInfo)
    {
       if(wrapper == null || wrapper.getConditionList() == null) {
          return;
@@ -1218,6 +1228,10 @@ public class MetadataApiService {
          leaf.setOperation(structureOperationName(xCondition.getOperation()));
          leaf.setNegated(xCondition.isNegated());
          leaf.setPhase(phase);
+
+         if(xCondition instanceof RankingCondition rc) {
+            leaf.setOf(WorksheetReadService.rankingOf(rc.getDataRef(), aggregateInfo));
+         }
 
          // The junction PRECEDING this item (joining it to the previous leaf) sits at i - 1;
          // the first leaf in a phase has none.

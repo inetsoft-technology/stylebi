@@ -32,9 +32,11 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.DependencyStorageService;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.table.SnapshotEmbeddedTableDataCache;
 import inetsoft.uql.table.XSwappableTable;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.uql.VariableTable;
 import inetsoft.web.WebConfig;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.wiz.pairing.*;
@@ -42,6 +44,7 @@ import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,6 +62,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -374,7 +378,6 @@ class AddMirrorSource78881Test {
          () -> service(ws).apply("TOK", agent, ed -> ed.deleteVariable("MV")));
       assertMirrorRefusal(delete);
       assertTrue(delete.getMessage().contains("delete_table"), delete.getMessage());
-      assertMirrorRefusal(setVariableValues(ws, "MV"));
       assertEquals(before, names(ws));
    }
 
@@ -395,7 +398,6 @@ class AddMirrorSource78881Test {
       assertHiddenCopyRefusal(
          assertThrows(PairingException.class, () -> service(ws).apply("TOK", agent,
             ed -> ed.deleteVariable(outer))));
-      assertHiddenCopyRefusal(setVariableValues(ws, outer));
       assertEquals(before, names(ws));
    }
 
@@ -438,6 +440,78 @@ class AddMirrorSource78881Test {
       assertEquals(before, names(ws));
    }
 
+   // ------------------------------------------------------------------- variable values (#79062)
+
+   @Test
+   void aMirroredVariableTakesItsValueUnderTheVariablesOwnName() throws Exception {
+      saveVariableSource("am79062_values");
+      Worksheet ws = new Worksheet();
+      addWorksheetMirror(ws, "MV", "am79062_values");
+
+      // the variable is V; the mirror is MV and the hidden copy backing it has another name
+      for(String key : List.of("V", "MV", hiddenCopyName(ws))) {
+         VariableTable table = setVariableValues(ws, "{\"" + key + "\":\"x\"}");
+
+         assertEquals("x", table.get("V"), key);
+         assertEquals(List.of("V"), Collections.list(table.keys()), key);
+      }
+   }
+
+   @Test
+   void aMirroredVariableRejectsAnUnknownKeyAndListsTheSettableNames() throws Exception {
+      saveVariableSource("am79062_unknown");
+      Worksheet ws = new Worksheet();
+      addWorksheetMirror(ws, "MV", "am79062_unknown");
+
+      PairingException ex = setVariableValuesRejected(ws, "{\"typo\":\"x\"}");
+
+      assertTrue(ex.getMessage().contains("Unknown variable: 'typo'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("settable variables: V"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("add_variable"), ex.getMessage());
+   }
+
+   @Test
+   void twoKeysForOneMirroredVariableAreRejected() throws Exception {
+      saveVariableSource("am79062_twice");
+      Worksheet ws = new Worksheet();
+      addWorksheetMirror(ws, "MV", "am79062_twice");
+
+      PairingException ex = setVariableValuesRejected(ws, "{\"V\":\"x\",\"MV\":\"y\"}");
+
+      assertTrue(ex.getMessage().contains("both set variable 'V'"), ex.getMessage());
+   }
+
+   @Test
+   void aLocalVariableOfTheSameNameTakesPrecedenceOverAMirroredOne() throws Exception {
+      saveVariableSource("am79062_local");
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly local = variable(ws, "V");
+      local.getVariable().setTypeNode(XSchema.createPrimitiveType(XSchema.INTEGER));
+      ws.addAssembly(local);
+      addWorksheetMirror(ws, "MV", "am79062_local");
+
+      // the local variable is an integer and the mirrored one a string
+      assertEquals(5, setVariableValues(ws, "{\"V\":\"5\"}").get("V"));
+      assertTrue(setVariableValuesRejected(ws, "{\"V\":\"x\"}").getMessage()
+                    .contains("variableValues['V']"));
+   }
+
+   @Test
+   void aKeyDeclaredWithConflictingTypesByTwoAssembliesIsRejected() throws Exception {
+      saveVariableSource("am79062_conflict");
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly other = variable(ws, "OTHER");
+      other.setVariable(new AssetVariable("V"));
+      other.getVariable().setTypeNode(XSchema.createPrimitiveType(XSchema.INTEGER));
+      ws.addAssembly(other);
+      addWorksheetMirror(ws, "MV", "am79062_conflict");
+
+      PairingException ex = setVariableValuesRejected(ws, "{\"V\":\"5\"}");
+
+      assertTrue(ex.getMessage().contains("different types or display styles"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("OTHER"), ex.getMessage());
+   }
+
    private static void assertMirrorRefusal(PairingException ex) {
       assertTrue(ex.getMessage().contains("'MV' is a mirror of am78949_"), ex.getMessage());
       assertTrue(ex.getMessage().contains("not editable"), ex.getMessage());
@@ -449,13 +523,27 @@ class AddMirrorSource78881Test {
       assertTrue(ex.getMessage().contains("delete_table"), ex.getMessage());
    }
 
-   private PairingException setVariableValues(Worksheet ws, String name) throws Exception {
+   private PairingException setVariableValuesRejected(Worksheet ws, String values)
+      throws Exception
+   {
       WorksheetAgentController controller = controller(ws, mock(AssetQuerySandbox.class));
-      EditRequest request = new WebConfig().objectMapper().readValue(
-         "{\"op\":\"set_variable_values\",\"variableValues\":{\"" + name + "\":\"x\"}}",
-         EditRequest.class);
 
-      return assertThrows(PairingException.class, () -> controller.edit("TOK", request, agent));
+      return assertThrows(PairingException.class, () -> controller.edit("TOK", request(values), agent));
+   }
+
+   /** Runs set_variable_values and returns the table handed to the sandbox. */
+   private VariableTable setVariableValues(Worksheet ws, String values) throws Exception {
+      AssetQuerySandbox sandbox = mock(AssetQuerySandbox.class);
+      controller(ws, sandbox).edit("TOK", request(values), agent);
+      ArgumentCaptor<VariableTable> captor = ArgumentCaptor.forClass(VariableTable.class);
+      verify(sandbox).refreshVariableTable(captor.capture());
+      return captor.getValue();
+   }
+
+   private static EditRequest request(String values) throws Exception {
+      return new WebConfig().objectMapper().readValue(
+         "{\"op\":\"set_variable_values\",\"variableValues\":" + values + "}",
+         EditRequest.class);
    }
 
    private static String hiddenCopyName(Worksheet ws) {

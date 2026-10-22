@@ -173,7 +173,10 @@ public class TabularSchemaExtractor {
          }
 
          if(password) {
-            field.setConfigured(value != null && !String.valueOf(value).isBlank());
+            field.setConfigured(value != null && !isEmptyValue(value));
+         }
+         else if(isCompositeValue(value)) {
+            applyComposite(field, value, prop.getName());
          }
          else {
             field.setValue(value == null ? null : String.valueOf(value));
@@ -185,6 +188,110 @@ public class TabularSchemaExtractor {
       config.setFields(fields);
 
       return config;
+   }
+
+   private static boolean isCompositeValue(Object value) {
+      return value != null && (value.getClass().isArray() || value instanceof Collection<?> ||
+         value instanceof Map<?, ?> || value instanceof RestParameters);
+   }
+
+   private static List<Object> elementsOf(Object value) {
+      if(value instanceof Collection<?> c && !(value instanceof List)) {
+         return new ArrayList<>(c);
+      }
+
+      return TabularUtil.compositeElementsOf(value);
+   }
+
+   private static boolean isEmptyValue(Object value) {
+      if(value instanceof char[] chars) {
+         return chars.length == 0;
+      }
+
+      if(value instanceof Map<?, ?> map) {
+         return map.isEmpty();
+      }
+
+      if(isCompositeValue(value)) {
+         List<Object> elements = elementsOf(value);
+         return elements == null || elements.isEmpty();
+      }
+
+      return String.valueOf(value).isBlank();
+   }
+
+   /**
+    * Serialize an array/collection/map valued property as {@code items}, field by field. No
+    * element's {@code toString} is ever called: {@link HttpParameter#toString} prints the value
+    * even when the parameter is secret, and an unknown element type's is unknowable.
+    */
+   private static void applyComposite(TabularDataSourceConfig.Field field, Object value,
+                                      String propertyName)
+   {
+      if(value instanceof char[] chars) {
+         field.setConfigured(chars.length > 0);
+         return;
+      }
+
+      List<Map<String, Object>> items = new ArrayList<>();
+
+      if(value instanceof Map<?, ?> map) {
+         // Keys only: a map's values have no secret flag to consult.
+         for(Object key : map.keySet()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("name", key instanceof CharSequence ? key.toString() : null);
+            items.add(item);
+         }
+      }
+      else {
+         List<Object> elements = elementsOf(value);
+         boolean authProperty = propertyName != null &&
+            propertyName.toLowerCase(Locale.ROOT).startsWith("authentication");
+
+         if(elements != null) {
+            for(Object element : elements) {
+               items.add(toItem(element, authProperty));
+            }
+         }
+      }
+
+      field.setItems(items);
+   }
+
+   private static Map<String, Object> toItem(Object element, boolean authProperty) {
+      Map<String, Object> item = new LinkedHashMap<>();
+
+      if(element instanceof HttpParameter param) {
+         // Every element of an authentication property is masked regardless of its own flag:
+         // a credential typed into such a property without ticking "secret" is still a credential.
+         boolean masked = param.isSecret() || authProperty;
+         item.put("name", param.getName());
+         item.put("type", param.getType() == null ? null : param.getType().name());
+         item.put("secret", param.isSecret());
+
+         if(masked) {
+            item.put("value", null);
+            item.put("configured", param.getValue() != null && !param.getValue().isBlank());
+         }
+         else {
+            item.put("value", param.getValue());
+         }
+      }
+      else if(element == null) {
+         item.put("name", null);
+      }
+      else if(element instanceof String || element instanceof Number ||
+         element instanceof Boolean || element instanceof Enum<?>)
+      {
+         item.put("value", element.toString());
+      }
+      else {
+         // Unknown element type (including nested arrays): name only, never its value or toString.
+         item.put("name", element.getClass().isArray() ? null :
+            TabularUtil.compositeElementName(element));
+      }
+
+      return item;
    }
 
    /**

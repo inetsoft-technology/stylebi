@@ -162,7 +162,9 @@ public class BindingAgentController {
    {
       requireEnabled();
       Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
-                                             request.table(), request.fields());
+                                             request.table(),
+                                             BindableColumns.CHART_REPOINT_TOOL,
+                                             request.fields());
       return ViewsheetSessionService.warningsBody(
          chartService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
                             resolved.fields(), resolved.source(), linkUri));
@@ -197,7 +199,7 @@ public class BindingAgentController {
 
       // A null field is a clear: nothing to validate, and no source to derive from it.
       Resolved resolved = request.field() == null ? null
-         : resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
+         : resolveSourceTable(sessionToken, user, request.assembly(), request.table(), BindableColumns.CHART_REPOINT_TOOL,
                               List.of(request.field()));
 
       return ViewsheetSessionService.warningsBody(
@@ -359,7 +361,9 @@ public class BindingAgentController {
    {
       requireEnabled();
       Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
-                                             request.table(), List.of(request.field()));
+                                             request.table(),
+                                             BindableColumns.CHART_REPOINT_TOOL,
+                                             List.of(request.field()));
       return ViewsheetSessionService.warningsBody(
          aestheticService.setField(sessionToken, user, request.assembly(), request.channel(),
                                 resolved.fields().get(0), resolved.source(), linkUri));
@@ -441,7 +445,9 @@ public class BindingAgentController {
       // Refuse a non-table by its type before the source lookup can fail first (bug #78533).
       tableService.requireTableAssembly(sessionToken, user, request.assembly());
       Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
-                                             request.table(), request.fields());
+                                             request.table(),
+                                             BindableColumns.TABLE_REPOINT_TOOL,
+                                             request.fields());
       return ViewsheetSessionService.warningsBody(
          tableService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
                             resolved.fields(), resolved.source()));
@@ -513,7 +519,9 @@ public class BindingAgentController {
       // Refuse a non-table by its type before the source lookup can fail first (bug #78533).
       tableService.requireTableAssembly(sessionToken, user, request.assembly());
       Resolved resolved = resolveSourceTable(sessionToken, user, request.assembly(),
-                                             request.table(), List.of(request.field()));
+                                             request.table(),
+                                             BindableColumns.TABLE_REPOINT_TOOL,
+                                             List.of(request.field()));
       return ViewsheetSessionService.warningsBody(
          tableService.addField(sessionToken, user, request.assembly(), request.shelf(),
                             resolved.fields().get(0), request.position(), resolved.source()));
@@ -901,7 +909,8 @@ public class BindingAgentController {
     * @return the source table to establish, or {@code null} for none
     */
    private Resolved resolveSourceTable(String sessionToken, Principal user, String assembly,
-                                       String table, List<FieldRef> fields)
+                                       String table, String repointTool,
+                                       List<FieldRef> fields)
    {
       try {
          List<BindableTable> tables =
@@ -913,11 +922,12 @@ public class BindingAgentController {
          // check would otherwise win the race and report a bare "column not found" that drops
          // the table name entirely. When requireSource does not throw (source already known, or
          // resolved), require() still runs right after to do its own, narrower column check.
-         String source = BindableColumns.requireSource(tables, assembly, table, fields);
+         String source = BindableColumns.requireSource(tables, assembly, table, repointTool,
+                                                         fields);
          // Store the source's real column spelling, not the caller's (#78436).
          List<FieldRef> canonical =
             BindableColumns.canonicalize(tables, assembly, source, fields);
-         BindableColumns.require(tables, assembly, canonical);
+         BindableColumns.require(tables, assembly, repointTool, canonical);
 
          return new Resolved(source, canonical);
       }

@@ -1108,6 +1108,11 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
       {
          String uri = link.getLink();
 
+         // a script link that has not been evaluated (or evaluated to null) has no value
+         if(uri == null) {
+            uri = "";
+         }
+
          // remember header -> column index
          Map<Object,Integer> colmap = new HashMap<>(3);
 

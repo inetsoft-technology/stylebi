@@ -329,6 +329,36 @@ class MetadataApiServiceStructureTest {
       assertNull(leaf.getJunction(), "first leaf in a phase has no preceding junction");
    }
 
+   // Bug #79067: a ranking leaf must carry the aggregate it is ranked by.
+   @Test
+   void rankingLeafCarriesOfAggregate() {
+      ColumnRef total = new ColumnRef(new AttributeRef(null, "qty"));
+      total.setAlias("Total");
+      AggregateRef ar = new AggregateRef(total, AggregateFormula.SUM);
+      AggregateInfo info = new AggregateInfo();
+      info.addGroup(new GroupRef(new ColumnRef(new AttributeRef(null, "state"))));
+      info.addAggregate(ar);
+
+      RankingCondition ranked = new RankingCondition();
+      ranked.setOperation(XCondition.TOP_N);
+      ranked.setN(2);
+      ranked.setDataRef(ar);
+      RankingCondition plain = new RankingCondition();
+      plain.setOperation(XCondition.TOP_N);
+      plain.setN(2);
+
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(new AttributeRef(null, "state"), ranked, 0));
+      list.append(new JunctionOperator(JunctionOperator.AND, 0));
+      list.append(new ConditionItem(new AttributeRef(null, "state"), plain, 0));
+
+      var out = new java.util.ArrayList<WorksheetStructure.ConditionLeaf>();
+      MetadataApiService.collectStructureConditions(list, "ranking", out, info);
+
+      assertEquals("Total", out.get(0).getOf());
+      assertNull(out.get(1).getOf());
+   }
+
    @Test
    void collectsSecondLeafJunctionAndNegation() {
       ConditionList list = new ConditionList();

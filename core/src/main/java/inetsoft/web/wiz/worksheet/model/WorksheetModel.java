@@ -310,6 +310,11 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                    [junction=AND,junctionLevel=1,level=1,B=2]} -- and resubmitting each as
     *                    {@code set_conditions}' flat {@code conditions} array (one entry per
     *                    node, {@code level} field on each) reproduces the original filter.
+    * @param of          only set on a ranking condition ranked by an aggregate (set_ranking's
+    *                    {@code of}): that aggregate's alias, else its source column, i.e. the
+    *                    spelling set_ranking/set_rankings accept back; when several aggregates
+    *                    share that name, the view form (e.g. {@code Average(Qty)}) instead.
+    *                    Absent for every other condition and for a ranking by the field itself.
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record FilterModel(
@@ -321,7 +326,8 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       List<ValueSpecModel> valueSpecs,
       boolean negated,
       int level,
-      Integer junctionLevel
+      Integer junctionLevel,
+      String of
    ) {}
 
    /**

@@ -296,7 +296,10 @@ public class TabularUtil {
                         val = XUtil.replaceEnvVariable((String) val);
                      }
 
-                     val = XUtil.replaceVariable((String) val, vars, true);
+                     String custom = bean instanceof PropertyVariableReplacer replacer ?
+                        replacer.replaceVariables(prop.getName(), (String) val, vars) : null;
+                     val = custom != null ? custom :
+                        XUtil.replaceVariable((String) val, vars, true);
                   }
 
                   prop.setValue(bean, val);

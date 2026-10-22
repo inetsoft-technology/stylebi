@@ -24,6 +24,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.execution.BoundTableNotFoundException;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -50,6 +51,7 @@ import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -191,6 +193,12 @@ public class VSBindingModelService {
       BindingModel obinding = bfactory.createModel(assembly);
       VSAssemblyInfo oinfo = (VSAssemblyInfo) assembly.getInfo().clone();
       VSAssembly clone = (VSAssembly) assembly.clone();
+      if(clone instanceof CrosstabVSAssembly crosstabClone &&
+         !event.getUngroupDimensions().isEmpty())
+      {
+         ungroupDimensions(crosstabClone, event.getUngroupDimensions());
+      }
+
       clone = bfactory.updateAssembly(binding, clone, principal);
       VSAssemblyInfo ninfo = (VSAssemblyInfo) clone.getInfo();
 
@@ -227,6 +235,39 @@ public class VSBindingModelService {
       }
 
       return null;
+   }
+
+   /**
+    * Bug #79017: the crosstab factory re-attaches an old dimension's named group whenever the
+    * incoming model names none (so the binding pane and add/remove/move keep groups), which makes
+    * an explicit ungroup indistinguishable from "no change". Dropping the group from the clone's
+    * old refs first leaves the factory nothing to restore.
+    */
+   public static void ungroupDimensions(CrosstabVSAssembly assembly, List<String> keys) {
+      VSCrosstabInfo info = assembly.getVSCrosstabInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      ungroupDimensions(info.getRowHeaders(), "rows:", keys);
+      ungroupDimensions(info.getColHeaders(), "cols:", keys);
+   }
+
+   private static void ungroupDimensions(DataRef[] refs, String prefix,
+                                         List<String> keys)
+   {
+      if(refs == null) {
+         return;
+      }
+
+      for(DataRef ref : refs) {
+         if(ref instanceof VSDimensionRef dim && dim.getGroupColumnValue() != null &&
+            keys.stream().anyMatch(k -> k.equalsIgnoreCase(prefix + dim.getGroupColumnValue())))
+         {
+            dim.setNamedGroupInfo(null);
+         }
+      }
    }
 
    private static void downgrade3DChartTypeInAssembly(VSAssembly assembly) {

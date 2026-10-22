@@ -18,7 +18,10 @@
 
 package inetsoft.report;
 
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.viewsheet.DynamicValue;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -28,6 +31,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @ExtendWith(SpringExtension.class)
@@ -101,5 +105,55 @@ public class HyperlinkRefTest {
 
       Hyperlink.Ref ref = new Hyperlink.Ref(link, map);
       Assertions.assertEquals("http://host/page?x=1&y=2", ref.getLink());
+   }
+
+   /**
+    * Bug #79101, a row link whose value is a script was never evaluated, so its link was
+    * null and building a Ref threw a NullPointerException. A null link must not throw.
+    */
+   @Test
+   public void testRefWithUnevaluatedScriptLinkDoesNotThrow() {
+      Hyperlink link = new Hyperlink();
+      link.setLinkType(Hyperlink.WEB_LINK);
+      link.setLink("=\"http://host/orders/\" + field['ORDER_ID']");
+      Assertions.assertNull(link.getLink());
+
+      DefaultTableLens lens = new DefaultTableLens(new Object[][] {
+         { "ORDER_ID" }, { "A1" }
+      });
+
+      Assertions.assertDoesNotThrow(() -> new Hyperlink.Ref(link, lens, 1, -1));
+   }
+
+   /**
+    * Bug #79101, the row hyperlink's script must be reported as a dynamic value so that it
+    * is evaluated, in addition to the cell hyperlinks.
+    */
+   @Test
+   public void testRowHyperlinkScriptIsDynamicValue() {
+      Hyperlink link = new Hyperlink();
+      link.setLinkType(Hyperlink.WEB_LINK);
+      link.setLink("=\"http://host/orders/\" + field['ORDER_ID']");
+
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setRowHyperlink(link);
+
+      List<DynamicValue> values = info.getHyperlinkDynamicValues();
+      Assertions.assertTrue(values.contains(link.getDLink()));
+   }
+
+   /**
+    * A plain (non-script) row link needs no evaluation and must not be listed.
+    */
+   @Test
+   public void testPlainRowHyperlinkIsNotDynamicValue() {
+      Hyperlink link = new Hyperlink();
+      link.setLinkType(Hyperlink.WEB_LINK);
+      link.setLink("http://host/page");
+
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setRowHyperlink(link);
+
+      Assertions.assertTrue(info.getHyperlinkDynamicValues().isEmpty());
    }
 }

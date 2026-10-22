@@ -331,6 +331,56 @@ class AssemblyConvertServiceTest {
       }
    }
 
+   // ── dropped selection disclosure (bug #79054) ─────────────────────────────
+
+   @SuppressWarnings("unchecked")
+   private static List<String> clearedOf(VSAssembly assembly, String name, String to)
+      throws Exception
+   {
+      Harness h = harness(assembly, name);
+      return (List<String>) h.service.convert("tok", principal(), name, to, "").get("cleared");
+   }
+
+   @Test
+   void namesASelectionListSelectionDroppedByTheRangeSlider() throws Exception {
+      SelectionListVSAssembly list = selectionList(mock(CurrentSelectionVSAssembly.class), false);
+      when(list.getSelectedObjects()).thenReturn(List.of("AZ", "CA"));
+
+      assertEquals(List.of("selection (2 values)"), clearedOf(list, "Filter1", "range_slider"));
+   }
+
+   @Test
+   void usesTheSingularForOneSelectedValue() throws Exception {
+      SelectionListVSAssembly list = selectionList(mock(CurrentSelectionVSAssembly.class), false);
+      when(list.getSelectedObjects()).thenReturn(List.of("AZ"));
+
+      assertEquals(List.of("selection (1 value)"), clearedOf(list, "Filter1", "range_slider"));
+   }
+
+   @Test
+   void namesNothingWhenTheListHasNoSelection() throws Exception {
+      SelectionListVSAssembly list = selectionList(mock(CurrentSelectionVSAssembly.class), false);
+      when(list.getSelectedObjects()).thenReturn(List.of());
+
+      assertEquals(List.of(), clearedOf(list, "Filter1", "range_slider"));
+   }
+
+   @Test
+   void aSelectionThatCannotBeReadDoesNotBlockTheConversion() throws Exception {
+      SelectionListVSAssembly list = selectionList(mock(CurrentSelectionVSAssembly.class), false);
+      when(list.getSelectedObjects()).thenThrow(new IllegalStateException("boom"));
+      Harness h = harness(list, "Filter1");
+
+      Map<String, Object> result =
+         h.service.convert("tok", principal(), "Filter1", "range_slider", "");
+
+      assertEquals(List.of(), result.get("cleared"));
+      assertEquals("range_slider", result.get("to"));
+      verify(h.selectionList).convertToRangeSlider(
+         anyString(), any(ConvertToRangeSliderEvent.class), any(Principal.class), any(),
+         anyString());
+   }
+
    // ── the unrendered-table refusal (bug #78406 round 3) ─────────────────────
 
    /**

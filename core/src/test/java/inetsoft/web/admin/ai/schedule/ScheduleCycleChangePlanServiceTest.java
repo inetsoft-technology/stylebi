@@ -392,6 +392,33 @@ class ScheduleCycleChangePlanServiceTest {
       }
    }
 
+   // bug #79020, an unknown time zone would be stored as GMT
+   @Test void resolveCreateThrowsOnUnknownTimeZone() {
+      TimeCondition second = everyDay();
+      second.setTimeZone("Mars/Olympus");
+      ScheduleCycleChangePlanRequest req =
+         request("task", List.of(createChange("NewCycle", List.of(everyDay(), second))));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage()
+         .startsWith("changes[0].spec.conditions[1].timeZone: \"Mars/Olympus\""));
+   }
+
+   @Test void resolveUpdateThrowsOnUnknownTimeZone() throws Exception {
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.currentAsset("Cycle1", "host-org")).thenReturn(asset("Cycle1"));
+      TimeCondition condition = everyDay();
+      condition.setTimeZone("Mars/Olympus");
+      ScheduleCycleChangePlanRequest req =
+         request("task", List.of(updateChange("Cycle1", null, List.of(condition))));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage()
+         .startsWith("changes[0].spec.conditions[0].timeZone: \"Mars/Olympus\""));
+   }
+
    private static MockedStatic<TimeRange> definedRanges(String... names) {
       MockedStatic<TimeRange> ranges = mockStatic(TimeRange.class);
       ranges.when(TimeRange::getTimeRanges).thenReturn(

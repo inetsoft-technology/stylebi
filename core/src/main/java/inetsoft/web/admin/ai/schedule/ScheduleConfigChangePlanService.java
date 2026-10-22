@@ -99,8 +99,10 @@ public class ScheduleConfigChangePlanService {
     * @param afterKey the entry's key (path/name) AFTER this change -- {@code null} for a delete;
     *                 differs from the {@code PlanChange}'s own {@code property()} (the BEFORE key)
     *                 only for an identity-changing Time Range update.
+    * @param advisory the affected-task advisory for a force-allowed Time Range change, else {@code
+    *                 null}; the same text appended to the {@code PlanChange}'s description.
     */
-   public record EntryInfo(String unitType, String verb, String afterKey) {
+   public record EntryInfo(String unitType, String verb, String afterKey, String advisory) {
    }
 
    /** Convenience for callers (preview) that only need the plan itself. */
@@ -173,7 +175,7 @@ public class ScheduleConfigChangePlanService {
                String.valueOf(unitType));
          }
 
-         entries.add(new EntryInfo(unitType, verb, deriveAfterKey(unitType, verb, change)));
+         entries.add(new EntryInfo(unitType, verb, deriveAfterKey(unitType, verb, change), null));
          index++;
       }
 
@@ -200,6 +202,9 @@ public class ScheduleConfigChangePlanService {
             }
 
             changes.set(changeIndex, withAdvisory(changes.get(changeIndex), advisory));
+            EntryInfo entry = entries.get(changeIndex);
+            entries.set(changeIndex, new EntryInfo(entry.unitType(), entry.verb(), entry.afterKey(),
+                                                   advisory));
          }
       }
 
