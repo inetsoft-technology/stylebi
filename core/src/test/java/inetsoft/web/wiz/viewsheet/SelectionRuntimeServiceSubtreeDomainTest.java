@@ -847,6 +847,57 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       verifyNoInteractions(h.selections());
    }
 
+   // ── get_selection_state on a calendar ──────────────────────────────────────
+
+   /**
+    * A calendar has no SelectionList, so selection state used to answer ok with an empty,
+    * not-computed value list while dates were selected. It now reports the dates themselves.
+    */
+   @Test
+   void selectionStateReportsACalendarsSelectedDates() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(
+         calendar("d2025-2-12", "m2025-4", "y2026"));
+
+      Map<String, Object> result = h.service().selectionState(
+         "tok", SelectionRuntimeServiceTest.principal(), "Calendar1");
+
+      assertEquals("a calendar", result.get("type"));
+      assertEquals(List.of("2025-03-12", "m2025-4", "y2026"), result.get("dates"));
+      assertEquals(List.of("d2025-2-12", "m2025-4", "y2026"), result.get("tokens"));
+      assertEquals("single", result.get("mode"));
+      assertEquals(false, result.get("yearView"));
+      assertFalse(result.containsKey("values"));
+      assertFalse(result.containsKey("computed"));
+      assertFalse(result.containsKey("totalValues"));
+   }
+
+   @Test
+   void selectionStateReportsAnUnselectedCalendarAsNoDates() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(calendar());
+
+      Map<String, Object> result = h.service().selectionState(
+         "tok", SelectionRuntimeServiceTest.principal(), "Calendar1");
+
+      assertEquals(List.of(), result.get("dates"));
+      assertEquals(List.of(), result.get("tokens"));
+   }
+
+   @Test
+   void selectionStateReportsADoubleCalendarsMode() throws Exception {
+      CalendarVSAssembly range = calendar("d2025-2-1", "d2025-2-9");
+      ((CalendarVSAssemblyInfo) range.getVSAssemblyInfo())
+         .setViewMode(CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
+      CalendarVSAssembly period = calendar();
+      CalendarVSAssemblyInfo periodInfo = (CalendarVSAssemblyInfo) period.getVSAssemblyInfo();
+      periodInfo.setViewMode(CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
+      periodInfo.setPeriod(true);
+
+      assertEquals("range", SelectionRuntimeServiceTest.harness(range).service()
+         .selectionState("tok", SelectionRuntimeServiceTest.principal(), "Calendar1").get("mode"));
+      assertEquals("period", SelectionRuntimeServiceTest.harness(period).service()
+         .selectionState("tok", SelectionRuntimeServiceTest.principal(), "Calendar1").get("mode"));
+   }
+
    // ── over-long paths and fabricated ids (bug-78264 P1/P2, bug-78268 P1) ────────
 
    /** {@code West -> CA -> {SF, LA}}: the three-level Region/State/City shape of VFO-020. */

@@ -1174,7 +1174,11 @@ public class SelectionRuntimeService {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' is a range slider, which has no per-value included/excluded/" +
             "compatible state -- it selects a numeric bucket range, not discrete candidate values. " +
-            "get_selection_state only applies to a selection list or selection tree.");
+            "get_selection_state only applies to a selection list, selection tree or calendar.");
+      }
+
+      if(assembly instanceof CalendarVSAssembly) {
+         return calendarState(assemblyName, assembly);
       }
 
       SelectionList list = selectionListOf(assembly);
@@ -1189,6 +1193,53 @@ public class SelectionRuntimeService {
       result.put("values", values);
       result.put("totalValues", countAll(values));
       return result;
+   }
+
+   /**
+    * A calendar has no candidate set: its selection is the dates on its info, so this answers
+    * with those instead of the list-shaped {@code values}/{@code computed}/{@code totalValues}
+    * (which would read as "not computed yet"). {@code dates} holds ISO strings for day tokens --
+    * the form set_calendar_dates takes -- and year/month/week tokens verbatim, since no ISO date
+    * can express them; {@code tokens} holds the raw stored tokens.
+    */
+   private static Map<String, Object> calendarState(String assemblyName,
+                                                    SelectionVSAssembly assembly)
+   {
+      CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      String[] tokens = info.getDates() == null ? new String[0] : info.getDates();
+      boolean dual = info.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE;
+      boolean period = dual && info.isPeriod();
+
+      List<String> dates = new ArrayList<>();
+
+      for(String token : tokens) {
+         dates.add(dayTokenToIso(token));
+      }
+
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("assembly", assemblyName);
+      result.put("type", describe(assembly));
+      result.put("mode", period ? "period" : dual ? "range" : "single");
+      result.put("yearView", info.isYearView());
+      result.put("dates", dates);
+      result.put("tokens", Arrays.asList(tokens));
+      return result;
+   }
+
+   /** {@code d2025-2-12} (0-based month) to {@code 2025-03-12}; any other token is returned as is. */
+   private static String dayTokenToIso(String token) {
+      if(token == null || !token.startsWith("d")) {
+         return token;
+      }
+
+      String[] parts = token.substring(1).split("-");
+
+      if(parts.length != 3) {
+         return token;
+      }
+
+      return String.format("%04d-%02d-%02d", Integer.parseInt(parts[0]),
+                           Integer.parseInt(parts[1]) + 1, Integer.parseInt(parts[2]));
    }
 
    // ── guards ────────────────────────────────────────────────────────────────
@@ -2593,6 +2644,9 @@ public class SelectionRuntimeService {
       }
       else if(assembly instanceof TimeSliderVSAssembly) {
          return "a range slider";
+      }
+      else if(assembly instanceof CalendarVSAssembly) {
+         return "a calendar";
       }
 
       return "a " + assembly.getClass().getSimpleName();
