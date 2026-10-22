@@ -177,13 +177,15 @@ class RangeSliderDensityTest {
       assertEquals(new Dimension(400, 40), info.getPixelSize());
    }
 
-   @Test
-   void aRestoreLeavesAnUnmarkedSliderAlone() {
+   @ParameterizedTest
+   @CsvSource({ "400, 55", "200, 40", "400, 82", "232, 82" })
+   void aRestoreLeavesAnUnmarkedSliderAlone(int w, int h) {
+      SreeEnv.setProperty("viewsheet.density", "compact");
       TimeSliderVSAssemblyInfo info = new TimeSliderVSAssemblyInfo();
       info.setVizMark(null);
-      info.setPixelSize(new Dimension(400, 55));
+      info.setPixelSize(new Dimension(w, h));
       info.seedChromeDefaults(VizContext.of((VizMark) null));
-      assertEquals(new Dimension(400, 55), info.getPixelSize());
+      assertEquals(new Dimension(w, h), info.getPixelSize());
    }
 
    @Test
