@@ -42,7 +42,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The Change and Percent of a Date Comparison crosstab (the date on the rows) against the Value
+ * The Change and Percent of a Date Comparison crosstab (the date on the rows or on the columns) against the Value
  * crosstab of the same comparison, through the real crosstab pipeline (the DC query conditions,
  * CrosstabDcProcessor, the CrossTabFilter calculation and hiding the extra first period).
  *
@@ -58,7 +58,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * is Bug #79061, finding 4, and the share of such rows is bounded.</p>
  *
  * <p>Combinations: every shape at the datatest End Date with Change, the shapes that use weeks
- * also with Monday weeks, and one shape of each kind with Percent and with toDate + inclusive.
+ * also with Monday weeks, and one shape of each kind with Percent, with toDate + inclusive and
+ * with the date on the columns (which hides the first period by columns). A year, a quarter and
+ * a month period are also run with the period subtotals computed with the Trend and Comparison:
+ * the Total row of a period is judged like a part, against the totals of the periods.
  * The same days as the chart are judged by {@code DateComparisonChangeMatrixTest}; this class
  * covers what the crosstab adds.</p>
  */
