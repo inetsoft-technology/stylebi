@@ -24,7 +24,6 @@ import inetsoft.sree.schedule.TimeRange;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
-import inetsoft.web.admin.ai.ApplyResult;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.schedule.SchedulerConfigurationService;
 import inetsoft.web.admin.schedule.model.ScheduleConfigurationModel;
@@ -137,7 +136,7 @@ class ScheduleConfigChangesetApplyServiceTest {
    // -------------------------------------------------------------------------
 
    @Test void appliesATimeRangeCreateWithMinutePrecision() throws Exception {
-      ApplyResult result = apply(createRange("Morning", "09:00", "12:00", false));
+      ScheduleConfigApplyResult result = apply(createRange("Morning", "09:00", "12:00", false));
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertEquals("09:00:00", readBack().timeRanges().get(0).startTime());
@@ -148,10 +147,46 @@ class ScheduleConfigChangesetApplyServiceTest {
    // prints the zero seconds field) -- without that, the "09:00" call above wrote successfully and
    // was then rolled back.
    @Test void appliesATimeRangeCreateWithSecondsPrecision() throws Exception {
-      ApplyResult result = apply(createRange("Morning", "09:00:00", "12:00:00", false));
+      ScheduleConfigApplyResult result = apply(createRange("Morning", "09:00:00", "12:00:00", false));
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertEquals("09:00:00", readBack().timeRanges().get(0).startTime());
+   }
+
+   @Test void forcedTimeRangeUpdateCarriesAffectedTaskAdvisoryInResult() throws Exception {
+      seedRange("Night", "01:00", "05:00");
+      stubDependents("Night", "admin:t1");
+      ScheduleConfigChangeRequest change = updateRange("Night", "Night", "01:00", "06:00");
+      change.setForce(true);
+
+      ScheduleConfigApplyResult result = apply(change);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      String advisory = result.results().get(0).advisory();
+      assertNotNull(advisory);
+      assertTrue(advisory.contains("SILENTLY reassigned"), advisory);
+      assertTrue(advisory.contains("admin:t1"), advisory);
+   }
+
+   @Test void forcedTimeRangeDeleteCarriesAffectedTaskAdvisoryInResult() throws Exception {
+      seedRange("Night", "01:00", "05:00");
+      stubDependents("Night", "admin:t1");
+      ScheduleConfigChangeRequest change = deleteRange("Night");
+      change.setForce(true);
+
+      ScheduleConfigApplyResult result = apply(change);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      String advisory = result.results().get(0).advisory();
+      assertNotNull(advisory);
+      assertTrue(advisory.contains("SILENTLY reassigned"), advisory);
+      assertTrue(advisory.contains("admin:t1"), advisory);
+   }
+
+   @Test void timeRangeChangeWithoutDependentsHasNoAdvisoryInResult() throws Exception {
+      ScheduleConfigApplyResult result = apply(createRange("Morning", "09:00", "12:00", false));
+
+      assertNull(result.results().get(0).advisory());
    }
 
    @Test void refusesATimeRangeWithSubMinutePrecision() {
@@ -172,7 +207,7 @@ class ScheduleConfigChangesetApplyServiceTest {
    // own schema documents as allowed. This used to write an EMPTY entry into the ";"-joined
    // property, so the location genuinely never existed afterwards.
    @Test void appliesAServerLocationCreateWithNoCredentials() throws Exception {
-      ApplyResult result = apply(createLocation(locationSpec("/qa/sl-bs04", "BS04")));
+      ScheduleConfigApplyResult result = apply(createLocation(locationSpec("/qa/sl-bs04", "BS04")));
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       List<ServerLocation> locations = readBack().serverLocations();
@@ -190,7 +225,7 @@ class ScheduleConfigChangesetApplyServiceTest {
       spec.put("password", "s3cret");
       spec.put("ftp", true);
 
-      ApplyResult result = apply(createLocation(spec));
+      ScheduleConfigApplyResult result = apply(createLocation(spec));
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       ServerPathInfoModel info = readBack().serverLocations().get(0).pathInfoModel();
@@ -204,7 +239,7 @@ class ScheduleConfigChangesetApplyServiceTest {
       Map<String, Object> spec = locationSpec("/qa/sl-bs06", "BS06");
       spec.put("username", "ftpuser");
 
-      ApplyResult result = apply(createLocation(spec));
+      ScheduleConfigApplyResult result = apply(createLocation(spec));
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       ServerPathInfoModel info = readBack().serverLocations().get(0).pathInfoModel();
@@ -235,7 +270,7 @@ class ScheduleConfigChangesetApplyServiceTest {
 
    // The read side strips trailing slashes, so a raw-path comparison could never match.
    @Test void appliesAServerLocationCreateWithATrailingSlash() throws Exception {
-      ApplyResult result = apply(createLocation(locationSpec("/qa/sl-bs07/", "BS07")));
+      ScheduleConfigApplyResult result = apply(createLocation(locationSpec("/qa/sl-bs07/", "BS07")));
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertEquals("/qa/sl-bs07", readBack().serverLocations().get(0).path());
@@ -247,7 +282,7 @@ class ScheduleConfigChangesetApplyServiceTest {
       Map<String, Object> spec = locationSpec("/qa/sl-bs08", "BS08");
       spec.put("ftp", true);
 
-      ApplyResult result = apply(createLocation(spec));
+      ScheduleConfigApplyResult result = apply(createLocation(spec));
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertFalse(readBack().serverLocations().get(0).pathInfoModel().ftp());
@@ -269,7 +304,7 @@ class ScheduleConfigChangesetApplyServiceTest {
       updated.put("password", Util.PLACEHOLDER_PASSWORD);
       updated.put("oldPasswordKey", info.oldPasswordKey());
 
-      ApplyResult result = apply(updateLocation("/qa/sl-bs09", updated));
+      ScheduleConfigApplyResult result = apply(updateLocation("/qa/sl-bs09", updated));
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertEquals("/qa/sl-bs09", readBack().serverLocations().get(0).path());
@@ -338,7 +373,7 @@ class ScheduleConfigChangesetApplyServiceTest {
    // helpers
    // -------------------------------------------------------------------------
 
-   private ApplyResult apply(ScheduleConfigChangeRequest change) throws Exception {
+   private ScheduleConfigApplyResult apply(ScheduleConfigChangeRequest change) throws Exception {
       ResolvedPlan preview = planService.resolve(planRequest(change), user);
       ScheduleConfigApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), change);
       req.setReviewOutcome("approved");
@@ -432,6 +467,34 @@ class ScheduleConfigChangesetApplyServiceTest {
       spec.put("endTime", end);
       spec.put("defaultRange", isDefault);
       change.setSpec(spec);
+      return change;
+   }
+
+   private void seedRange(String name, String start, String end) throws Exception {
+      persist(model(List.of(), List.of(
+         TimeRangeModel.builder().name(name).startTime(start + ":00").endTime(end + ":00")
+            .defaultRange(false).build())));
+   }
+
+   private void stubDependents(String rangeName, String taskId) throws Exception {
+      when(gateway.findTimeRangeDependents(eq(rangeName), anyList()))
+         .thenReturn(List.of(new TimeRangeDependency(taskId, "Morning")));
+   }
+
+   private static ScheduleConfigChangeRequest updateRange(
+      String key, String name, String start, String end)
+   {
+      ScheduleConfigChangeRequest change = createRange(name, start, end, false);
+      change.setVerb(ScheduleConfigChangeRequest.VERB_UPDATE);
+      change.setKey(key);
+      return change;
+   }
+
+   private static ScheduleConfigChangeRequest deleteRange(String name) {
+      ScheduleConfigChangeRequest change = new ScheduleConfigChangeRequest();
+      change.setUnitType(ScheduleConfigChangeRequest.UNIT_TIME_RANGE);
+      change.setVerb(ScheduleConfigChangeRequest.VERB_DELETE);
+      change.setKey(name);
       return change;
    }
 
