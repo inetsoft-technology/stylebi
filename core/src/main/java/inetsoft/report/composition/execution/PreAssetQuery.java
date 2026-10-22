@@ -4419,7 +4419,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       if(val instanceof java.util.Date) {
          val = Condition.getDateObject(type, val);
       }
-      else if(val != null) {
+      else if(val != null && !AbstractCondition.isFractionalIntegralValue(type, val)) {
          val = Condition.getObject(type, val.toString());
       }
 
@@ -4516,7 +4516,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          }
 
          if(!isPlan()) {
-            return super.getExpression(val, vars, forCondition);
+            return super.getExpression(cond, val, vars, forCondition);
          }
 
          if(val instanceof DataRef) {
