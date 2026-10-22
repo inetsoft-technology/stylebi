@@ -89,11 +89,6 @@ class DateComparisonChangeMatrixTest {
    private static final LocalDate FROM = LocalDate.of(2017, 1, 1);
    private static final LocalDate TO = LocalDate.of(2022, 1, 1);
 
-   /** One shape of each kind of period / interval / context, for the toDate + inclusive and Percent runs. */
-   private static final Set<String> SAMPLE = Set.of(
-      "Y-all-gM", "Y-ytd-gW-cY", "Y-sameW-gD-cQ", "Y-sameD-gD-cM", "Q-qtd-gM-cQ", "Q-mtd-gW-cM",
-      "M-wtd-gW-cM", "M-all-gD", "W-wtd-gD-cW", "D-all-gD");
-
    private record Case(DcShape shape, String weekStart, String endDay, boolean toDate,
                        boolean inclusive, int option)
    {
@@ -159,7 +154,7 @@ class DateComparisonChangeMatrixTest {
             }
          }
 
-         if(SAMPLE.contains(shape.id())) {
+         if(DcShape.SAMPLE.contains(shape.id())) {
             cases.add(new Case(shape, "sunday", "2021-11-10", true, true,
                                DateComparisonInfo.CHANGE));
             cases.add(new Case(shape, "sunday", "2021-11-10", false, false,

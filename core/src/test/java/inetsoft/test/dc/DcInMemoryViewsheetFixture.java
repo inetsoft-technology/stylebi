@@ -266,28 +266,13 @@ public final class DcInMemoryViewsheetFixture {
    }
 
    /**
-    * The data of a crosstab with the date on the rows at {@code dateLevel} and the Sum of the
-    * value column, under a Date Comparison, with no totals. The first row is the header, then a
-    * row per period and part: the period date, the part columns, the value.
+    * The data of a crosstab with the date at {@code dateLevel} and the Sum of the value column,
+    * under a Date Comparison. With the date on the rows the first row is the header and each
+    * other row is a period and part: the period date, the part columns, the value; on the
+    * columns the same records run down the columns.
     *
-    * @param name the name of the assembly to add to the sheet.
-    */
-   public TableLens crosstab(Sheet sheet, String name, DateComparisonInfo dc, String dateColumn,
-                             String valueColumn, int dateLevel)
-      throws Exception
-   {
-      return crosstab(sheet, name, dc, dateColumn, valueColumn, dateLevel, true);
-   }
-
-   /** @param onRows whether the date is on the rows; on the columns otherwise. */
-   public TableLens crosstab(Sheet sheet, String name, DateComparisonInfo dc, String dateColumn,
-                             String valueColumn, int dateLevel, boolean onRows)
-      throws Exception
-   {
-      return crosstab(sheet, name, dc, dateColumn, valueColumn, dateLevel, onRows, false);
-   }
-
-   /**
+    * @param name   the name of the assembly to add to the sheet.
+    * @param onRows whether the date is on the rows; on the columns otherwise.
     * @param totals whether the date shows a subtotal of its parts and the totals are computed
     *               with the Trend and Comparison (Compute Trend and Comparison for Totals).
     */
@@ -308,6 +293,7 @@ public final class DcInMemoryViewsheetFixture {
       VSAggregateRef agg = new VSAggregateRef();
       agg.setColumnValue(valueColumn);
       agg.setFormulaValue("Sum");
+
       if(onRows) {
          crosstab.getVSCrosstabInfo().setDesignRowHeaders(new DataRef[] { dim });
       }

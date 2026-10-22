@@ -78,13 +78,16 @@ class DateComparisonCrosstabChangeMatrixTest {
    private static final LocalDate FROM = LocalDate.of(2017, 1, 1);
    private static final LocalDate TO = LocalDate.of(2022, 1, 1);
    private static final int PRE_COUNT = 2;
+   private static final List<Object[]> DATA = new ArrayList<>();
+
+   static {
+      for(LocalDate day = FROM; day.isBefore(TO); day = day.plusDays(1)) {
+         DATA.add(new Object[] { java.sql.Date.valueOf(day),
+                                 DcInMemoryViewsheetFixture.dayValue(day) });
+      }
+   }
    /** The part of the subtotal row of a period. */
    private static final String TOTAL = "Total|";
-
-   /** One shape of each kind of period / interval / context, for the Percent and toDate runs. */
-   private static final Set<String> SAMPLE = Set.of(
-      "Y-all-gM", "Y-ytd-gW-cY", "Y-sameW-gD-cQ", "Y-sameD-gD-cM", "Q-qtd-gM-cQ", "Q-mtd-gW-cM",
-      "M-wtd-gW-cM", "M-all-gD", "W-wtd-gD-cW", "D-all-gD");
 
    /** A year, a quarter and a month period with parts, for the totals. */
    private static final Set<String> WITH_TOTALS = Set.of("Y-all-gM", "Q-qtd-gM-cQ", "M-all-gD");
@@ -118,7 +121,7 @@ class DateComparisonCrosstabChangeMatrixTest {
             cases.add(new Case(shape, "monday", false, false, false, true, false));
          }
 
-         if(SAMPLE.contains(shape.id())) {
+         if(DcShape.SAMPLE.contains(shape.id())) {
             cases.add(new Case(shape, "sunday", false, false, true, true, false));
             cases.add(new Case(shape, "sunday", true, true, false, true, false));
 
@@ -172,19 +175,12 @@ class DateComparisonCrosstabChangeMatrixTest {
    }
 
    /** The rows of a crosstab: period ordinal, part, value. */
-   private record Rows(List<long[]> periods, List<String> parts, List<Object> values) {
+   private record Rows(List<Long> periods, List<String> parts, List<Object> values) {
    }
 
    private List<String> judge(Case c) throws Exception {
       DcShape shape = c.shape();
-      List<Object[]> data = new ArrayList<>();
-
-      for(LocalDate day = FROM; day.isBefore(TO); day = day.plusDays(1)) {
-         data.add(new Object[] { java.sql.Date.valueOf(day),
-                                 DcInMemoryViewsheetFixture.dayValue(day) });
-      }
-
-      DcInMemoryViewsheetFixture.Sheet sheet = fixture.open("Date", "Paid", data);
+      DcInMemoryViewsheetFixture.Sheet sheet = fixture.open("Date", "Paid", DATA);
       int level = dateLevel(shape);
       DateComparisonInfo valueInfo = c.info(DateComparisonInfo.VALUE, PRE_COUNT + 1);
       DateComparisonInfo changeInfo = c.info(
@@ -218,7 +214,7 @@ class DateComparisonCrosstabChangeMatrixTest {
             continue;
          }
 
-         long period = value.periods().get(i)[0];
+         long period = value.periods().get(i);
          boolean total = TOTAL.equals(value.parts().get(i));
 
          if(valueOf.put(period + "|" + value.parts().get(i), v) != null) {
@@ -250,7 +246,7 @@ class DateComparisonCrosstabChangeMatrixTest {
 
       // the visible periods are the Value crosstab's without its first
       TreeSet<Long> changePeriods = new TreeSet<>();
-      change.periods().forEach(p -> changePeriods.add(p[0]));
+      changePeriods.addAll(change.periods());
       TreeSet<Long> expectedPeriods = new TreeSet<>(totals.keySet());
       expectedPeriods.remove(expectedPeriods.first());
 
@@ -263,7 +259,7 @@ class DateComparisonCrosstabChangeMatrixTest {
       int unjudged = 0;
 
       for(int i = 0; i < change.values().size(); i++) {
-         long period = change.periods().get(i)[0];
+         long period = change.periods().get(i);
          String part = change.parts().get(i);
          Double current = valueOf.get(period + "|" + part);
          Double before = valueOf.get((period - 1) + "|" + part);
@@ -313,7 +309,7 @@ class DateComparisonCrosstabChangeMatrixTest {
       boolean dayDate = shape.periodLevel() == XConstants.DAY_DATE_GROUP;
       int records = onRows ? data.getRowCount() : data.getColCount();
       int fields = onRows ? data.getColCount() : data.getRowCount();
-      List<long[]> ordinals = new ArrayList<>();
+      List<Long> ordinals = new ArrayList<>();
       List<String> parts = new ArrayList<>();
       List<Object> values = new ArrayList<>();
 
@@ -331,8 +327,7 @@ class DateComparisonCrosstabChangeMatrixTest {
             part.append(field(data, onRows, record, f)).append('|');
          }
 
-         ordinals.add(new long[] { periods.ordinal(aligned && dayDate ? periods.weekStart(day)
-                                                                       : day) });
+         ordinals.add(periods.ordinal(aligned && dayDate ? periods.weekStart(day) : day));
          parts.add(part.toString());
          values.add(field(data, onRows, record, fields - 1));
       }

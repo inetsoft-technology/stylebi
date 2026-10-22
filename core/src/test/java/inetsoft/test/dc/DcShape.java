@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.internal.StandardPeriods;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * One legal combination of the Date Comparison dialog for Standard Periods (period level,
@@ -77,6 +78,11 @@ public record DcShape(int periodLevel, int intervalLevel, int granularity, int c
       return all().stream().filter(s -> s.id().equals(id)).findFirst()
          .orElseThrow(() -> new AssertionError("not a legal shape: " + id));
    }
+
+   /** One shape of each kind of period / interval / context, for the runs too long for every shape. */
+   public static final Set<String> SAMPLE = Set.of(
+      "Y-all-gM", "Y-ytd-gW-cY", "Y-sameW-gD-cQ", "Y-sameD-gD-cM", "Q-qtd-gM-cQ", "Q-mtd-gW-cM",
+      "M-wtd-gW-cM", "M-all-gD", "W-wtd-gD-cW", "D-all-gD");
 
    /**
     * The comparison of a Standard Periods shape.
