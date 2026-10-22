@@ -345,6 +345,116 @@ class TabularSchemaExtractorTest {
             .getDataSourceType());
    }
 
+   @Test
+   void extractDataSourceConfigSerializesAnEmptyArrayAsEmptyItems() {
+      TabularDataSourceConfig.Field f = fieldNamed(
+         new TabularSchemaExtractor().extractDataSourceConfig(new ArrayDataSource()),
+         "queryHttpParameters");
+
+      assertNull(f.getValue());
+      assertNotNull(f.getItems());
+      assertTrue(f.getItems().isEmpty());
+   }
+
+   @Test
+   void extractDataSourceConfigNeverEmitsAnIdentityStringOrASecretValue() {
+      ArrayDataSource ds = new ArrayDataSource();
+      ds.queryParams = new HttpParameter[] {
+         HttpParameter.builder().name("k").value("v").build(),
+         HttpParameter.builder().name("tok").value("QUERY-SECRET").secret(true).build() };
+      ds.authParams = new HttpParameter[] {
+         HttpParameter.builder().name("Authorization").value("AUTH-PLAIN").build() };
+      ds.names = new String[] { "a", "b" };
+      ds.ints = new int[] { 1, 2 };
+      ds.chars = "CHAR-SECRET".toCharArray();
+      ds.map = Map.of("mapKey", "MAP-SECRET");
+      ds.set = new LinkedHashSet<>(List.of("s1", "s2"));
+      ds.objects = new Object[] { new StringBuilder("OBJ-SECRET") };
+
+      TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
+      String all = new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(config).toString();
+
+      assertFalse(all.contains("@"), all);
+
+      for(String secret : new String[] { "QUERY-SECRET", "AUTH-PLAIN", "CHAR-SECRET",
+                                         "MAP-SECRET", "OBJ-SECRET" })
+      {
+         assertFalse(all.contains(secret), secret + " leaked: " + all);
+      }
+
+      List<Map<String, Object>> query = fieldNamed(config, "queryHttpParameters").getItems();
+      assertEquals("k", query.get(0).get("name"));
+      assertEquals("v", query.get(0).get("value"));
+      assertNull(query.get(1).get("value"));
+      assertEquals(Boolean.TRUE, query.get(1).get("secret"));
+      assertEquals(Boolean.TRUE, query.get(1).get("configured"));
+
+      Map<String, Object> auth = fieldNamed(config, "authenticationHttpParameters").getItems().get(0);
+      assertEquals("Authorization", auth.get("name"));
+      assertNull(auth.get("value"));
+      assertEquals(Boolean.TRUE, auth.get("configured"));
+
+      assertEquals("a", fieldNamed(config, "names").getItems().get(0).get("value"));
+      assertEquals("1", fieldNamed(config, "ints").getItems().get(0).get("value"));
+      assertNull(fieldNamed(config, "chars").getItems());
+      assertNull(fieldNamed(config, "chars").getValue());
+      assertEquals(2, fieldNamed(config, "set").getItems().size());
+      assertEquals("s1", fieldNamed(config, "set").getItems().get(0).get("value"));
+      assertEquals("mapKey", fieldNamed(config, "map").getItems().get(0).get("name"));
+      assertNull(fieldNamed(config, "objects").getItems().get(0).get("value"));
+   }
+
+   public static class ArrayDataSource extends FixtureTabularDataSource {
+      @Property(label = "Query")
+      public HttpParameter[] getQueryHttpParameters() {
+         return queryParams;
+      }
+
+      @Property(label = "Auth")
+      public HttpParameter[] getAuthenticationHttpParameters() {
+         return authParams;
+      }
+
+      @Property(label = "Names")
+      public String[] getNames() {
+         return names;
+      }
+
+      @Property(label = "Ints")
+      public int[] getInts() {
+         return ints;
+      }
+
+      @Property(label = "Chars")
+      public char[] getChars() {
+         return chars;
+      }
+
+      @Property(label = "Map")
+      public Map<String, String> getMap() {
+         return map;
+      }
+
+      @Property(label = "Set")
+      public Set<String> getSet() {
+         return set;
+      }
+
+      @Property(label = "Objects")
+      public Object[] getObjects() {
+         return objects;
+      }
+
+      HttpParameter[] queryParams = new HttpParameter[0];
+      HttpParameter[] authParams = new HttpParameter[0];
+      String[] names = new String[0];
+      int[] ints = new int[0];
+      char[] chars = new char[0];
+      Map<String, String> map = new HashMap<>();
+      Set<String> set = new LinkedHashSet<>();
+      Object[] objects = new Object[0];
+   }
+
    private static TabularDataSourceConfig.Field fieldNamed(TabularDataSourceConfig config,
                                                             String name)
    {
