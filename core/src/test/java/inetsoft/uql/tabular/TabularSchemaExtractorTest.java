@@ -368,6 +368,7 @@ class TabularSchemaExtractorTest {
       ds.ints = new int[] { 1, 2 };
       ds.chars = "CHAR-SECRET".toCharArray();
       ds.map = Map.of("mapKey", "MAP-SECRET");
+      ds.set = new LinkedHashSet<>(List.of("s1", "s2"));
       ds.objects = new Object[] { new StringBuilder("OBJ-SECRET") };
 
       TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
@@ -397,6 +398,8 @@ class TabularSchemaExtractorTest {
       assertEquals("1", fieldNamed(config, "ints").getItems().get(0).get("value"));
       assertNull(fieldNamed(config, "chars").getItems());
       assertNull(fieldNamed(config, "chars").getValue());
+      assertEquals(2, fieldNamed(config, "set").getItems().size());
+      assertEquals("s1", fieldNamed(config, "set").getItems().get(0).get("value"));
       assertEquals("mapKey", fieldNamed(config, "map").getItems().get(0).get("name"));
       assertNull(fieldNamed(config, "objects").getItems().get(0).get("value"));
    }
@@ -432,6 +435,11 @@ class TabularSchemaExtractorTest {
          return map;
       }
 
+      @Property(label = "Set")
+      public Set<String> getSet() {
+         return set;
+      }
+
       @Property(label = "Objects")
       public Object[] getObjects() {
          return objects;
@@ -443,6 +451,7 @@ class TabularSchemaExtractorTest {
       int[] ints = new int[0];
       char[] chars = new char[0];
       Map<String, String> map = new HashMap<>();
+      Set<String> set = new LinkedHashSet<>();
       Object[] objects = new Object[0];
    }
 

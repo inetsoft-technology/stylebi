@@ -84,7 +84,8 @@ public class TabularDataSourceConfig {
 
       /**
        * The current value, as {@code String.valueOf}. {@code null} whenever {@link #isPassword()}
-       * is {@code true}, and for a composite property (see {@link #getItems()}) -- see {@link #isConfigured()} for that case.
+       * is {@code true} (see {@link #isConfigured()}), and for a composite property
+       * (see {@link #getItems()}).
        */
       public String getValue() {
          return value;

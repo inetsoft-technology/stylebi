@@ -195,6 +195,14 @@ public class TabularSchemaExtractor {
          value instanceof Map<?, ?> || value instanceof RestParameters);
    }
 
+   private static List<Object> elementsOf(Object value) {
+      if(value instanceof Collection<?> c && !(value instanceof List)) {
+         return new ArrayList<>(c);
+      }
+
+      return TabularUtil.compositeElementsOf(value);
+   }
+
    private static boolean isEmptyValue(Object value) {
       if(value instanceof char[] chars) {
          return chars.length == 0;
@@ -205,7 +213,7 @@ public class TabularSchemaExtractor {
       }
 
       if(isCompositeValue(value)) {
-         List<Object> elements = TabularUtil.compositeElementsOf(value);
+         List<Object> elements = elementsOf(value);
          return elements == null || elements.isEmpty();
       }
 
@@ -236,7 +244,7 @@ public class TabularSchemaExtractor {
          }
       }
       else {
-         List<Object> elements = TabularUtil.compositeElementsOf(value);
+         List<Object> elements = elementsOf(value);
          boolean authProperty = propertyName != null &&
             propertyName.toLowerCase(Locale.ROOT).startsWith("authentication");
 
