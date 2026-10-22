@@ -17,6 +17,7 @@
  */
 package inetsoft.report.gui.viewsheet;
 
+import inetsoft.report.internal.Common;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.test.BaseTestConfiguration;
@@ -92,6 +93,31 @@ class VSTimeSliderDensityTest {
    void paintingAMarkedSliderDoesNotThrow() throws Exception {
       assertDoesNotThrow(() -> paint(marked("comfortable"), 232, 82));
       assertDoesNotThrow(() -> paint(marked("comfortable"), 400, 45));
+   }
+
+   @Test
+   void aLegacySliderImageGrowsByNoMoreThanItsLabelsNeed() throws Exception {
+      TimeSliderVSAssemblyInfo info = new TimeSliderVSAssemblyInfo();
+      info.setVizMark(null);
+      info.initDefaultFormat();
+      info.setPixelSize(new Dimension(200, 30));
+      assertEquals(legacyImageSize(info, 200, 30), painter(info).getImageSize());
+   }
+
+   @Test
+   void anAdhocSliderImageGrowsByNoMoreThanItsLabelsNeed() throws Exception {
+      TimeSliderVSAssemblyInfo info = marked("comfortable");
+      info.setAdhocFilter(true);
+      info.setPixelSize(new Dimension(200, 30));
+      assertEquals(legacyImageSize(info, 200, 30), painter(info).getImageSize());
+   }
+
+   // the image height before padding and label gaps existed
+   private static Dimension legacyImageSize(TimeSliderVSAssemblyInfo info, int w, int h) {
+      int lineY = h / 2 - 9 / 2;
+      int fontH = info.getFormat().getFont() == null ? 10 :
+         Common.getFontMetrics(info.getFormat().getFont()).getHeight();
+      return new Dimension(w, Math.max(h, lineY + 9 + fontH));
    }
 
    private static void paint(TimeSliderVSAssemblyInfo info, int w, int h) throws Exception {

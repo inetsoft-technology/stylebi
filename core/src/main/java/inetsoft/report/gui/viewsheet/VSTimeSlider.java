@@ -59,8 +59,9 @@ public class VSTimeSlider extends VSFloatable {
 
             // on html, the labels can be drawn out of bounds (not clipped), so we enlarge
             // the image to accommodate the labels to mimic the same effect.
+            int gap = info.takesLabelSpacing() ? getLabelGap() : 0;
             return new Dimension(size.width, Math.max(size.height, inset.top + lineY +
-                                                      SLIDER_H + getLabelGap() + fontH));
+                                                      SLIDER_H + gap + fontH));
          }
       }
 
