@@ -129,7 +129,8 @@ import java.util.Map;
  *   <li>{@code set_variable_values} — {@code variableValues} (map of variable name → value,
  *       where value is a {@code String} for a single value or a {@code List<String>} of 2+
  *       entries to assign multiple values at once to a {@code list}/{@code checkboxes}
- *       display-style variable)</li>
+ *       display-style variable; a top-level {@code null} clears the variable back to "no
+ *       session value yet", it is not stored as a value)</li>
  *   <li>{@code set_mirror_auto_update} — {@code table}, {@code visible} (true=auto-update on, false=off)</li>
  *   <li>{@code convert_to_embedded} — {@code table}</li>
  *   <li>{@code set_assembly_position} — {@code table}, {@code x}, {@code y}</li>
@@ -281,7 +282,9 @@ public record EditRequest(
    /**
     * Variable name → value mappings for set_variable_values. Each value is either a
     * {@code String} (single value) or a {@code List<String>} (2+ entries assign multiple
-    * values at once; a 1-element list is treated identically to a plain String).
+    * values at once; a 1-element list is treated identically to a plain String). A top-level
+    * {@code null} clears the variable back to "no session value yet" (the key is removed from
+    * the sandbox table, same as never set); an empty string is a literal value, not a clear.
     */
    Map<String, Object> variableValues,
    /** X pixel coordinate for set_assembly_position. */

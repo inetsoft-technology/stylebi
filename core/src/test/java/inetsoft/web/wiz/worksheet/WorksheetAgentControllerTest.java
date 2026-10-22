@@ -6082,6 +6082,110 @@ class WorksheetAgentControllerTest {
       verify(box, times(2)).refreshVariableTable(any());
    }
 
+   /**
+    * A worksheet whose tables reference the given variables: stands in for a SQL table with a
+    * {@code $(name)} condition, which is what makes {@code getAllVariables} list a variable.
+    */
+   private static Worksheet worksheetReferencing(String... names) {
+      return new Worksheet() {
+         @Override
+         public synchronized UserVariable[] getAllVariables() {
+            return java.util.Arrays.stream(names).map(UserVariable::new)
+               .toArray(UserVariable[]::new);
+         }
+      };
+   }
+
+   /** Names of declared variables still reported as needing a value, as the warning path sees them. */
+   private static List<String> unsetVariableNames(AssetQuerySandbox box) {
+      return java.util.Arrays.stream(box.getAllVariables(box.getVariableTable()))
+         .map(v -> v.getName()).toList();
+   }
+
+   // Bug #79083: a top-level null must clear the variable back to "no session value yet", i.e.
+   // remove the key from the sandbox table, not leave key -> null (which hides the variable from
+   // getAllVariables and so suppresses the "no session value yet ... dropped" warning).
+   @Test
+   void setVariableValuesNullClearsKeyAndMatchesNeverSet() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC1");
+
+      List<String> neverSet = unsetVariableNames(box);
+      assertTrue(neverSet.contains("pState"), "a never-set variable is reported as needing a value");
+
+      ctrl.edit("TOK-SVC1", setVariableValuesRequest(Map.of("pState", "x")), agent);
+      assertEquals("x", box.getVariableTable().get("pState"));
+      assertFalse(unsetVariableNames(box).contains("pState"));
+
+      java.util.Map<String, Object> clear = new java.util.HashMap<>();
+      clear.put("pState", null);
+      ctrl.edit("TOK-SVC1", setVariableValuesRequest(clear), agent);
+
+      assertFalse(box.getVariableTable().contains("pState"),
+         "null must remove the key, not leave key -> null");
+      assertEquals(neverSet, unsetVariableNames(box),
+         "a cleared variable must be reported exactly like a never-set one");
+   }
+
+   @Test
+   void setVariableValuesCanSetAgainAfterClear() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC2");
+
+      ctrl.edit("TOK-SVC2", setVariableValuesRequest(Map.of("pState", "x")), agent);
+      java.util.Map<String, Object> clear = new java.util.HashMap<>();
+      clear.put("pState", null);
+      ctrl.edit("TOK-SVC2", setVariableValuesRequest(clear), agent);
+      ctrl.edit("TOK-SVC2", setVariableValuesRequest(Map.of("pState", "y")), agent);
+
+      assertEquals("y", box.getVariableTable().get("pState"));
+      assertFalse(unsetVariableNames(box).contains("pState"));
+   }
+
+   @Test
+   void setVariableValuesNullClearLeavesOtherVariablesAndEmptyStringIsLiteral() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      variableAssemblyForValues(ws, "pCity", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC3");
+
+      java.util.Map<String, Object> req = new java.util.HashMap<>();
+      req.put("pState", "x");
+      req.put("pCity", "");
+      ctrl.edit("TOK-SVC3", setVariableValuesRequest(req), agent);
+      java.util.Map<String, Object> clear = new java.util.HashMap<>();
+      clear.put("pState", null);
+      ctrl.edit("TOK-SVC3", setVariableValuesRequest(clear), agent);
+
+      assertFalse(box.getVariableTable().contains("pState"));
+      assertTrue(box.getVariableTable().contains("pCity"),
+         "an empty string is a literal value, not a clear");
+      assertEquals("", box.getVariableTable().get("pCity"));
+   }
+
+   @Test
+   void setVariableValuesNullInsideListIsStillRejected() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC4");
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-SVC4", setVariableValuesRequest(
+            Map.of("pState", java.util.Collections.singletonList((Object) null))), agent));
+      assertTrue(ex.getMessage().contains("pState"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("null"), ex.getMessage());
+   }
+
    @ParameterizedTest
    @CsvSource({
       "date, 2026-02-30",

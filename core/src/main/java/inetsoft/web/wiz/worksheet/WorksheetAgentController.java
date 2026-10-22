@@ -4220,6 +4220,11 @@ public class WorksheetAgentController {
 
          Worksheet ws = rws.getWorksheet();
          inetsoft.uql.VariableTable vtable = new inetsoft.uql.VariableTable();
+         // Bug #79083: variables submitted as a top-level null. refreshVariableTable only ever
+         // adds/overwrites keys, so a null must be removed from the live table afterwards;
+         // a lingering key->null makes contains() true and hides the variable from the
+         // "no session value yet" detection, unlike a variable that was never set.
+         java.util.Set<String> toClear = new java.util.LinkedHashSet<>();
          Map<String, String> resolvedKeys = new HashMap<>();
 
          if(req.variableValues() != null) {
@@ -4289,11 +4294,26 @@ public class WorksheetAgentController {
                }
 
                String stringValue = requireStringElement(vname, -1, rawValue);
+
+               if(stringValue == null) {
+                  toClear.add(vname);
+                  continue;
+               }
+
                vtable.put(vname, convertAndValidateSingleValue(vname, -1, declared, stringValue));
             }
          }
 
          box.refreshVariableTable(vtable);
+
+         inetsoft.uql.VariableTable live = box.getVariableTable();
+
+         if(live != null) {
+            for(String name : toClear) {
+               live.remove(name);
+            }
+         }
+
          box.reset();
          return null;
       });
@@ -4389,9 +4409,10 @@ public class WorksheetAgentController {
     * Requires that a {@code variableValues} entry (or one element of one, when {@code index}
     * is 0 or greater) is a plain {@code String}, rejecting any other JSON type (e.g. a number
     * or boolean) with a message naming the field path and the element's actual runtime type.
-    * The top-level scalar entry ({@code index == -1}) permits {@code null} (clears the variable,
-    * matching this endpoint's pre-existing behavior); a {@code null} list element does not,
-    * since a list conveys 2+ (or exactly 1) explicit values with no "leave unset" case.
+    * The top-level scalar entry ({@code index == -1}) permits {@code null} (clears the variable
+    * back to "no session value yet"; {@link #setVariableValues} removes the key); a
+    * {@code null} list element does not, since a list conveys 2+ (or exactly 1) explicit
+    * values with no "leave unset" case.
     */
    private static String requireStringElement(String vname, int index, Object raw)
       throws PairingException
