@@ -548,6 +548,114 @@ class ScriptExecuteServiceTest {
       assertTrue(runLiveWithLibrary("safe()", lib, false, scope).requiresConfirmation());
    }
 
+   /** Bug #78998: entry name "lib" never equals the exposed namespace, so only root indexing helps. */
+   private void assertGatedViaNamespace(String libSource, String script) throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      ScriptExecResult result = runLiveWithLibrary(script, Map.of("lib", libSource), false, scope);
+
+      assertTrue(result.requiresConfirmation(), libSource);
+      assertTrue(result.confirmationReason().contains("\"runQuery\""));
+      assertTrue(result.confirmationReason().contains("(entry \"lib\")"));
+      verify(scope, never()).execute(anyString(), nullable(String.class));
+   }
+
+   @Test
+   void objectLiteralMemberIsGated() throws Exception {
+      assertGatedViaNamespace("var Ns = { count: function() { return runQuery('q').length; } };",
+                              "'n=' + Ns.count()");
+   }
+
+   @Test
+   void assignedMemberIsGated() throws Exception {
+      assertGatedViaNamespace("var Ns = {};\nNs.count = function() { return runQuery('q'); };",
+                              "Ns.count()");
+      assertGatedViaNamespace("Ns = {};\nNs.count = function() { return runQuery('q'); };",
+                              "Ns.count()");
+   }
+
+   @Test
+   void nestedNamespaceIsGated() throws Exception {
+      assertGatedViaNamespace("var A = A || {};\nA.B = {};\nA.B.count = function() { return runQuery('q'); };",
+                              "A.B.count()");
+   }
+
+   @Test
+   void factoryAndIifeNamespacesAreGated() throws Exception {
+      assertGatedViaNamespace(
+         "var Ns = (function() { return { count: function() { return runQuery('q'); } }; })();",
+         "Ns.count()");
+      assertGatedViaNamespace(
+         "var Ns = make();\nfunction make() { return { count: function() { return runQuery('q'); } }; }",
+         "Ns.count()");
+   }
+
+   @Test
+   void objectAssignAndGlobalQualifiedNamespacesAreGated() throws Exception {
+      assertGatedViaNamespace(
+         "var Ns = {};\nObject.assign(Ns, { count: function() { return runQuery('q'); } });",
+         "Ns.count()");
+      assertGatedViaNamespace("window.Ns = { count: function() { return runQuery('q'); } };",
+                              "Ns.count()");
+      assertGatedViaNamespace("this.Ns = { count: function() { return runQuery('q'); } };",
+                              "Ns.count()");
+      assertGatedViaNamespace("Ns = { count: function() { return runQuery('q'); } };",
+                              "Ns['count']()");
+   }
+
+   @Test
+   void unrelatedMemberCallIsNotGated() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+      Map<String, String> lib = Map.of("lib",
+         "var Ns = { count: function() { return runQuery('q'); } };");
+
+      ScriptExecResult result = runLiveWithLibrary("other.count()", lib, false, scope);
+
+      assertTrue(result.ok());
+      assertFalse(result.requiresConfirmation());
+   }
+
+   @Test
+   void functionLocalNamesAreNotIndexedAsRoots() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+      Map<String, String> lib = Map.of("lib",
+         "var Ns = { count: function() { var result = runQuery('q'); var i = 0; return result; } };");
+
+      // 'result' and 'i' are locals of the library function, not exposed globals
+      ScriptExecResult result =
+         runLiveWithLibrary("var result = 2; for(var i = 0; i < 3; i++) { result += i; } result",
+                            lib, false, scope);
+
+      assertTrue(result.ok());
+      assertFalse(result.requiresConfirmation());
+   }
+
+   @Test
+   void globalObjectNamesAreNotIndexedAsRoots() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+      Map<String, String> lib = Map.of("lib",
+         "window.Ns = { count: function() { return runQuery('q'); } };\nthis.x = 1;");
+
+      ScriptExecResult result = runLiveWithLibrary("window.foo = 1; this.bar = 2; 3", lib, false, scope);
+
+      assertTrue(result.ok());
+      assertFalse(result.requiresConfirmation());
+   }
+
+   @Test
+   void nonDestructiveNamespaceIsNotGated() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+      Map<String, String> lib = Map.of("lib", "var Ns = { count: function() { return 1; } };");
+
+      ScriptExecResult result = runLiveWithLibrary("Ns.count()", lib, false, scope);
+
+      assertTrue(result.ok());
+      assertFalse(result.requiresConfirmation());
+   }
+
    @Test
    void unreferencedLibraryFunctionDoesNotRequireConfirmation() throws Exception {
       ViewsheetScope scope = mock(ViewsheetScope.class);
@@ -764,16 +872,96 @@ class ScriptExecuteServiceTest {
       verify(mgrProvider, never()).getManager();
    }
 
-   /** Bug #78662: a script run changes the live runtime, so it must read as changed since the last save. */
+   /** Bug #78662: a script run that changes the live runtime must read as changed since the last save. */
    @Test
-   void runLiveAddsAnUndoCheckpointAndBumpsTheWriteRevision() throws Exception {
+   void runLiveAddsAnUndoCheckpointAndBumpsTheWriteRevisionWhenTheScriptChangesTheViewsheet()
+      throws Exception
+   {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      RuntimeViewsheet rvs = viewsheetWithScript("vs.desc = 'changed'", scope);
+      when(scope.execute(eq("vs.desc = 'changed'"), nullable(String.class))).thenAnswer(inv -> {
+         rvs.getViewsheet().getViewsheetInfo().setOnLoad("changed by the script");
+         return null;
+      });
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+
+      verify(rvs).addCheckpoint(any());
+      verify(rvs).bumpWriteRevision();
+   }
+
+   /** A script that throws after changing the viewsheet still reads as changed. */
+   @Test
+   void runLiveAddsAnUndoCheckpointWhenTheScriptThrowsAfterChangingTheViewsheet() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      RuntimeViewsheet rvs = viewsheetWithScript("vs.desc = 'changed'", scope);
+      when(scope.execute(eq("vs.desc = 'changed'"), nullable(String.class))).thenAnswer(inv -> {
+         rvs.getViewsheet().getViewsheetInfo().setOnLoad("changed by the script");
+         throw new IllegalStateException("fails after the write");
+      });
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      try {
+         svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+      }
+      catch(Exception ignore) {
+      }
+
+      verify(rvs).addCheckpoint(any());
+      verify(rvs).bumpWriteRevision();
+   }
+
+   /** Bug #79051: a read-only script changes nothing, so it adds no undo step and keeps redo. */
+   @Test
+   void runLiveAddsNoCheckpointWhenTheScriptChangesNothing() throws Exception {
       ViewsheetScope scope = mock(ViewsheetScope.class);
       when(scope.execute(eq("1 + 1"), nullable(String.class))).thenReturn(2.0);
       RuntimeViewsheet rvs = viewsheetWithScript("1 + 1", scope);
       ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
 
       svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+      svc.dryRun(rvs, ScriptTarget.parse("vs-init"));
 
+      verify(rvs, never()).addCheckpoint(any());
+      verify(rvs, never()).bumpWriteRevision();
+   }
+
+   /** If the viewsheet cannot be serialized before the run, the script still runs and the run counts as a change. */
+   @Test
+   void runLiveStillRunsAndCheckpointsWhenSerializingBeforeTheRunFails() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq("1 + 1"), nullable(String.class))).thenReturn(2.0);
+      RuntimeViewsheet rvs = viewsheetWithScript("1 + 1", scope);
+      Viewsheet vs = spy(rvs.getViewsheet());
+      when(rvs.getViewsheet()).thenReturn(vs);
+      doThrow(new IllegalStateException("cannot serialize")).doCallRealMethod()
+         .when(vs).prepareCheckpoint();
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+
+      assertEquals(2.0, result.value());
+      verify(rvs).addCheckpoint(any());
+      verify(rvs).bumpWriteRevision();
+   }
+
+   /** If serializing fails after a script that threw, the script's own failure is still reported and the run still checkpoints. */
+   @Test
+   void runLiveReportsTheScriptFailureAndCheckpointsWhenSerializingAfterTheRunFails() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      IllegalStateException failure = new IllegalStateException("script failed");
+      when(scope.execute(eq("1 + 1"), nullable(String.class))).thenThrow(failure);
+      RuntimeViewsheet rvs = viewsheetWithScript("1 + 1", scope);
+      Viewsheet vs = spy(rvs.getViewsheet());
+      when(rvs.getViewsheet()).thenReturn(vs);
+      doCallRealMethod().doThrow(new IllegalStateException("cannot serialize")).doCallRealMethod()
+         .when(vs).prepareCheckpoint();
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+
+      assertFalse(result.ok());
       verify(rvs).addCheckpoint(any());
       verify(rvs).bumpWriteRevision();
    }

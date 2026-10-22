@@ -344,7 +344,7 @@ public class ChartBindingService {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' already has fields bound (" + String.join(", ", populated) +
             ") and they belong to its current source, so repointing it to '" + table +
-            "' discards them. Pass force: true to do that deliberately, or bind the fields you " +
+            "' discards the ones the new table does not have. Pass force: true to do that deliberately, or bind the fields you " +
             "want after the source is set.");
       }
    }

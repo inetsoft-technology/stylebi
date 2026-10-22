@@ -537,8 +537,10 @@ class IdentityProjectionSeparatorTest {
       "id=Analysts~;~host-org;theme=;parentGroups=Employees;memberUsers=alice,bob;memberGroups=SubGroup;roles=Viewer~;~host-org;";
    private static final String PIN_UPDATE_GROUP_PROPOSED =
       "id=Analysts~;~host-org;theme=;parentGroups=Contractors,Employees;memberUsers=alice,bob;memberGroups=SubGroup;roles=Designer~;~host-org,Viewer~;~host-org;";
+   // Bug #79016: a user create that supplies a password now folds a digest of it into the hash, so
+   // this one pin moved (from 69f70438...); every plan without a supplied password is unchanged.
    private static final String PIN_HASH_CREATE_USER =
-      "69f70438a6dcdbac02532b9ca5202ddd1d5b78c16c8d40de9fbc7b646d95dc4a";
+      "1f2d0e727929a437b5a8635b194307389188be31046ca98c2b496348d9821d70";
    private static final String PIN_HASH_UPDATE_GROUP =
       "b4054e4d653adc055c1cb5838687a27f8b8d630dc7609abdc79982d9e25a6076";
    private static final String PIN_HASH_CREATE_ROLE =

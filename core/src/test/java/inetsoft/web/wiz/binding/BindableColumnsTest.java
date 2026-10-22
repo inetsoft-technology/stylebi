@@ -266,6 +266,49 @@ class BindableColumnsTest {
    }
 
    /**
+    * The repoint remedy must name the tool that works for the assembly kind: set_chart_source
+    * refuses a crosstab/table, so naming it there is a dead end (#79024). The refusal must also
+    * not claim every bound field is discarded; only fields the new table lacks are.
+    */
+   @Test
+   void repointRefusalNamesTheToolForTheAssemblyKind() {
+      Exception chart = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.requireSource(BOUND_TO_QUERY1, "Chart1", "Products",
+                                             BindableColumns.CHART_REPOINT_TOOL,
+                                             List.of(field("PRODUCT_NAME"))));
+      assertTrue(chart.getMessage().contains("set_chart_source"));
+      assertFalse(chart.getMessage().contains("set_table_source"));
+      assertFalse(chart.getMessage().contains("discards every field"));
+
+      Exception table = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.requireSource(BOUND_TO_QUERY1, "Crosstab1", "Products",
+                                             BindableColumns.TABLE_REPOINT_TOOL,
+                                             List.of(field("PRODUCT_NAME"))));
+      assertTrue(table.getMessage().contains("set_table_source"));
+      assertFalse(table.getMessage().contains("set_chart_source"));
+      assertFalse(table.getMessage().contains("discards every field"));
+   }
+
+   @Test
+   void unknownColumnRefusalNamesTheToolForTheAssemblyKind() {
+      Exception table = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.require(BOUND_TO_QUERY1, "CalcTable1",
+                                       BindableColumns.TABLE_REPOINT_TOOL,
+                                       List.of(field("NO_SUCH_COLUMN_XYZ"))));
+      assertTrue(table.getMessage().contains("set_table_source"));
+      assertFalse(table.getMessage().contains("discards every field"));
+
+      Exception chart = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.require(BOUND_TO_QUERY1, "Chart1",
+                                       List.of(field("NO_SUCH_COLUMN_XYZ"))));
+      assertTrue(chart.getMessage().contains("set_chart_source"));
+   }
+
+   /**
     * An empty {@code tables} reaching {@code requireSource} does NOT mean "the tree could not be
     * read" (bug #76350, PCB-002). A genuine read failure is already caught one layer up, in
     * {@code BindingAgentController.resolveSourceTable}'s own try/catch, before this method ever

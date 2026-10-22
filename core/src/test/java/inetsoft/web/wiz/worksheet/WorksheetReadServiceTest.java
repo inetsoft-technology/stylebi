@@ -323,6 +323,73 @@ class WorksheetReadServiceTest {
       assertEquals(List.of("$(topN)"), ranking.values());
    }
 
+   // Bug #79067: the ranking's `of` (RankingCondition.getDataRef()) was dropped at the read
+   // boundary, so "top N by Total" and "top N by the group value" read back identically.
+   private static EmbeddedTableAssembly groupedState(Worksheet ws, List<WorksheetMutationSupport.AggregateSpec> aggs) throws Exception {
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "qty");
+      ws.addAssembly(t);
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("state")), aggs);
+      return t;
+   }
+
+   @Test
+   void rankingByAliasedAggregateReportsOfAlias() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = groupedState(ws,
+         List.of(new WorksheetMutationSupport.AggregateSpec("qty", "SUM", "Total")));
+      WorksheetMutationSupport.setRanking(t,
+         new WorksheetMutationSupport.RankingSpec("state", 2, "TOP_N", false, "Total"));
+
+      assertEquals("Total", tableNamed(read(ws), "T").rankingConditions().get(0).of());
+   }
+
+   @Test
+   void rankingByUnaliasedAggregateReportsOfColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = groupedState(ws,
+         List.of(new WorksheetMutationSupport.AggregateSpec("qty", "SUM", null)));
+      WorksheetMutationSupport.setRanking(t,
+         new WorksheetMutationSupport.RankingSpec("state", 2, "TOP_N", false, "qty"));
+
+      assertEquals("qty", tableNamed(read(ws), "T").rankingConditions().get(0).of());
+   }
+
+   @Test
+   void rankingWithoutOfAndNonRankingConditionsHaveNoOf() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = groupedState(ws,
+         List.of(new WorksheetMutationSupport.AggregateSpec("qty", "SUM", "Total")));
+      WorksheetMutationSupport.setRanking(t,
+         new WorksheetMutationSupport.RankingSpec("state", 2, "TOP_N", false));
+
+      assertNull(tableNamed(read(ws), "T").rankingConditions().get(0).of());
+   }
+
+   @Test
+   void rankingOfIsViewFormWhenAggregatesShareTheOutputName() {
+      AggregateRef sum = new AggregateRef(new ColumnRef(new AttributeRef(null, "qty")), AggregateFormula.SUM);
+      AggregateRef avg = new AggregateRef(new ColumnRef(new AttributeRef(null, "qty")), AggregateFormula.AVG);
+      AggregateInfo info = new AggregateInfo();
+      info.addAggregate(sum, false);
+      info.addAggregate(avg, false);
+
+      assertEquals(avg.toView(), WorksheetReadService.rankingOf(avg, info));
+      assertTrue(avg.toView().contains("("));
+      info.removeAggregate(sum);
+      assertEquals("qty", WorksheetReadService.rankingOf(avg, info));
+   }
+
+   @Test
+   void rankingOfCoversColumnRefAndGroupRef() {
+      ColumnRef col = new ColumnRef(new AttributeRef(null, "qty"));
+      assertEquals("qty", WorksheetReadService.rankingOf(col, null));
+      col.setAlias("Q");
+      assertEquals("Q", WorksheetReadService.rankingOf(col, null));
+      assertEquals("qty", WorksheetReadService.rankingOf(new GroupRef(new ColumnRef(new AttributeRef(null, "qty"))), null));
+      assertNull(WorksheetReadService.rankingOf(null, null));
+   }
+
    @Test
    void rankingConditionSurfacesNumericNInValues() {
       Worksheet ws = new Worksheet();

@@ -25,6 +25,7 @@ import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.util.MessageException;
@@ -395,6 +396,55 @@ public class AdminScheduleGateway {
     */
    public boolean hasDeletePermission(String taskId, Principal user) throws Exception {
       return repository.checkPermission(user, ResourceType.SCHEDULE_TASK, taskId, ResourceAction.DELETE);
+   }
+
+   /**
+    * Reports whether the viewsheet a new task's action names exists in storage. The entry is
+    * built the way {@code ViewsheetAction#buildAssetEntry} does at run time and looked up
+    * without a caller permission filter, so a user-scoped sheet, a global sheet and a sheet of
+    * another organization are all found. Fails open: an identifier this cannot parse (or one with
+    * no organization part) and any error while looking the sheet up count as "exists", so only a
+    * sheet that is provably absent is refused. The asset engine itself reports a storage error as
+    * a missing entry, which this cannot tell apart.
+    *
+    * @param assetId the viewsheet's asset identifier.
+    */
+   public boolean viewsheetExists(String assetId) {
+      try {
+         AssetEntry parsed = AssetEntry.createAssetEntry(assetId);
+
+         if(parsed == null || parsed.getOrgID() == null) {
+            return true;
+         }
+
+         if(findAssetEntry(asViewsheetEntry(parsed)) != null) {
+            return true;
+         }
+
+         // the org of a sheet id may differ from the current org only in case
+         String currentOrg = OrganizationManager.getInstance().getCurrentOrgID();
+
+         if(currentOrg != null && !currentOrg.equals(parsed.getOrgID()) &&
+            currentOrg.equalsIgnoreCase(parsed.getOrgID()))
+         {
+            AssetEntry current = AssetEntry.createAssetEntryForCurrentOrg(assetId);
+            return current == null || findAssetEntry(asViewsheetEntry(current)) != null;
+         }
+
+         return false;
+      }
+      catch(Exception e) {
+         return true;
+      }
+   }
+
+   private static AssetEntry asViewsheetEntry(AssetEntry entry) {
+      return new AssetEntry(entry.getScope(), AssetEntry.Type.VIEWSHEET, entry.getPath(),
+                            entry.getUser(), entry.getOrgID());
+   }
+
+   AssetEntry findAssetEntry(AssetEntry entry) throws Exception {
+      return AssetUtil.getAssetRepository(false).getAssetEntry(entry);
    }
 
    /**

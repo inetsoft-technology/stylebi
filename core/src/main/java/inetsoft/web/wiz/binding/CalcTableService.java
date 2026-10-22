@@ -159,6 +159,7 @@ public class CalcTableService {
       out.put("assembly", assemblyName);
       out.put("rowCount", layout.getRowCount());
       out.put("colCount", layout.getColCount());
+      out.put("headerRowCount", ((CalcTableVSAssemblyInfo) assembly.getInfo()).getHeaderRowCount());
       out.put("cells", cells);
       return out;
    }
@@ -482,7 +483,8 @@ public class CalcTableService {
          FieldRef ref = new FieldRef(column, null, null, null, null);
          FieldRef canonical =
             BindableColumns.canonicalize(tables, assemblyName, null, List.of(ref)).get(0);
-         BindableColumns.require(tables, assemblyName, canonical);
+         BindableColumns.require(tables, assemblyName, BindableColumns.TABLE_REPOINT_TOOL,
+                                List.of(canonical));
          return canonical.column();
       }
       catch(IllegalArgumentException e) {

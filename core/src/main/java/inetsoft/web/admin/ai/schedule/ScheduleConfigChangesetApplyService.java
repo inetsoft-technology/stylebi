@@ -72,7 +72,9 @@ public class ScheduleConfigChangesetApplyService {
     *         malformed, or was issued for a different planHash (also maps to HTTP 409, also reused
     *         verbatim).
     */
-   public ApplyResult apply(ScheduleConfigApplyRequest req, Principal user) throws Exception {
+   public ScheduleConfigApplyResult apply(ScheduleConfigApplyRequest req, Principal user)
+      throws Exception
+   {
       APPLY_LOCK.lock();
 
       try {
@@ -100,6 +102,10 @@ public class ScheduleConfigChangesetApplyService {
          }
 
          String txId = "schedcfg-" + newIdSuffix();
+         // captured BEFORE the write, under APPLY_LOCK: carries the real stored passwords so a
+         // rollback can restore a credential the write dropped. Server-side only, never returned,
+         // logged or audited.
+         ScheduleConfigurationModel rollbackModel = gateway.getFullConfigWithPasswords(user);
          Exception writeFailure = null;
 
          try {
@@ -121,15 +127,16 @@ public class ScheduleConfigChangesetApplyService {
             }
          }
 
-         List<ApplyOutcome> results = new ArrayList<>();
+         List<ScheduleConfigApplyOutcome> results = new ArrayList<>();
          boolean allVerified;
 
          if(writeFailure != null) {
             String message = "the write failed: " + messageOf(writeFailure);
 
             for(PlanChange change : plan.changes()) {
-               results.add(new ApplyOutcome(change.property(), change.currentValue(), null,
-                                            AdminChangeRecord.STATUS_FAILED, message));
+               results.add(new ScheduleConfigApplyOutcome(change.property(), change.currentValue(),
+                                                          null, AdminChangeRecord.STATUS_FAILED,
+                                                          message, null));
             }
 
             allVerified = false;
@@ -138,8 +145,9 @@ public class ScheduleConfigChangesetApplyService {
             String message = "applied but could not verify: " + messageOf(verifyFailure);
 
             for(PlanChange change : plan.changes()) {
-               results.add(new ApplyOutcome(change.property(), change.currentValue(), null,
-                                            AdminChangeRecord.STATUS_FAILED, message));
+               results.add(new ScheduleConfigApplyOutcome(change.property(), change.currentValue(),
+                                                          null, AdminChangeRecord.STATUS_FAILED,
+                                                          message, null));
             }
 
             allVerified = false;
@@ -151,11 +159,11 @@ public class ScheduleConfigChangesetApplyService {
          writeAudit(txId, reviewedTask, results, req.getReviewOutcome(), user);
 
          if(allVerified) {
-            return new ApplyResult(txId, AdminChangesetApplyService.STATUS_APPLIED, null,
+            return new ScheduleConfigApplyResult(txId, AdminChangesetApplyService.STATUS_APPLIED, null,
                                    Collections.unmodifiableList(results), null);
          }
 
-         return rollback(txId, resolution, results, req.getReviewOutcome(), user);
+         return rollback(txId, resolution, rollbackModel, results, req.getReviewOutcome(), user);
       }
       finally {
          APPLY_LOCK.unlock();
@@ -163,20 +171,24 @@ public class ScheduleConfigChangesetApplyService {
    }
 
    /**
-    * Writes {@code resolution.before()} back in full (see this class's own javadoc for why a
-    * whole-model rollback, rather than a per-entry undo, is the correct granularity here) and
-    * re-verifies the touched entries are back to their original state.
+    * Writes the pre-write model (the {@code rollbackModel}: {@code resolution.before()} but
+    * carrying the real server-location passwords, since the masked read cannot restore a dropped
+    * password) back in full (see this class's own javadoc for why a whole-model rollback, rather
+    * than a per-entry undo, is the correct granularity here) and re-verifies the touched entries
+    * are back to their original state.
     */
-   private ApplyResult rollback(String txId, ScheduleConfigChangePlanService.Resolution resolution,
-                                List<ApplyOutcome> results, String reviewOutcome, Principal user)
+   private ScheduleConfigApplyResult rollback(
+      String txId, ScheduleConfigChangePlanService.Resolution resolution,
+      ScheduleConfigurationModel rollbackModel,
+      List<ScheduleConfigApplyOutcome> results, String reviewOutcome, Principal user)
    {
       try {
-         gateway.writeFullConfig(resolution.before(), user);
+         gateway.writeFullConfig(rollbackModel, user);
          ScheduleConfigurationModel afterRollback = gateway.getFullConfig(user);
          boolean rolledBack = verifyRolledBack(resolution, afterRollback);
 
          if(rolledBack) {
-            return new ApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLED_BACK, null,
+            return new ScheduleConfigApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLED_BACK, null,
                                    Collections.unmodifiableList(results), null);
          }
 
@@ -188,7 +200,7 @@ public class ScheduleConfigChangesetApplyService {
          }
 
          LOG.error("Schedule-config changeset {} rollback did not verify", txId);
-         return new ApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, null,
+         return new ScheduleConfigApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, null,
                                 Collections.unmodifiableList(results),
                                 Collections.unmodifiableList(failures));
       }
@@ -200,7 +212,7 @@ public class ScheduleConfigChangesetApplyService {
          }
 
          LOG.error("Schedule-config changeset {} rollback threw", txId, e);
-         return new ApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, null,
+         return new ScheduleConfigApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, null,
                                 Collections.unmodifiableList(results),
                                 Collections.unmodifiableList(failures));
       }
@@ -243,13 +255,13 @@ public class ScheduleConfigChangesetApplyService {
    }
 
    /**
-    * Verifies each entry against the freshly re-read model, appending one {@link ApplyOutcome} per
-    * entry (index-aligned with {@code changes}/{@code entries}) and returning whether every entry
+    * Verifies each entry against the freshly re-read model, appending one {@link
+    * ScheduleConfigApplyOutcome} per entry (index-aligned with {@code changes}/{@code entries}) and returning whether every entry
     * verified.
     */
    private static boolean verifyEntries(
       List<PlanChange> changes, List<ScheduleConfigChangePlanService.EntryInfo> entries,
-      ScheduleConfigurationModel verified, List<ApplyOutcome> results)
+      ScheduleConfigurationModel verified, List<ScheduleConfigApplyOutcome> results)
    {
       boolean allOk = true;
 
@@ -265,10 +277,10 @@ public class ScheduleConfigChangesetApplyService {
             ok = verifyTimeRange(change, entry, verified.timeRanges());
          }
 
-         results.add(new ApplyOutcome(change.property(), change.currentValue(),
-                                      change.proposedValue(),
-                                      ok ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
-                                      ok ? null : "the applied value did not verify after write"));
+         results.add(new ScheduleConfigApplyOutcome(
+            change.property(), change.currentValue(), change.proposedValue(),
+            ok ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
+            ok ? null : "the applied value did not verify after write", entry.advisory()));
          allOk = allOk && ok;
       }
 
@@ -302,10 +314,10 @@ public class ScheduleConfigChangesetApplyService {
          .anyMatch(r -> ScheduleConfigChangePlanService.projectTimeRange(r).equals(change.proposedValue()));
    }
 
-   private void writeAudit(String txId, String task, List<ApplyOutcome> results,
+   private void writeAudit(String txId, String task, List<ScheduleConfigApplyOutcome> results,
                            String reviewOutcome, Principal user)
    {
-      for(ApplyOutcome outcome : results) {
+      for(ScheduleConfigApplyOutcome outcome : results) {
          try {
             AdminChangeRecord record = new AdminChangeRecord();
             record.setTransactionId(txId);

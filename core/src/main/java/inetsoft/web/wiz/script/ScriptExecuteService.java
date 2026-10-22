@@ -31,6 +31,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.XUtil;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.script.model.ScriptError;
@@ -41,6 +42,8 @@ import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.security.Principal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -117,6 +120,15 @@ public class ScriptExecuteService {
                       "(?:\\([^)]*\\)|" + ID + ")\\s*=>")
    );
 
+   // Bug #78998: a library entry can also expose functions only as members of a top-level object
+   // (var Ns = {f: function(){}}, Ns.f = ..., A.B.f = ..., IIFE/factory results, Object.assign).
+   // The call site Ns.f() drops the member token, so the entry's top-level ROOT identifiers
+   // (Ns, A) are indexed as well. Only brace-depth-0 targets count, never function-local vars.
+   private static final Pattern ROOT_ASSIGNMENT = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$.])(" + ID + ")((?:\\s*\\.\\s*" + ID + ")*)\\s*=(?![=>])");
+   private static final Pattern OBJECT_ASSIGN = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$.])Object\\s*\\.\\s*assign\\s*\\(\\s*(" + ID + ")");
+
    private static final Logger LOG = LoggerFactory.getLogger(ScriptExecuteService.class);
 
    @Autowired
@@ -172,19 +184,67 @@ public class ScriptExecuteService {
     * A script runs against the live runtime and can write to any assembly, but, unlike every
     * other agent write, never added an undo checkpoint -- so the runtime still read as unchanged
     * since its last save and a later reload from storage (Bug #78662) would silently discard
-    * the script's effect. Mark the runtime changed whenever a script was attempted.
+    * the script's effect. Mark the runtime changed when the run changed the viewsheet, whether
+    * it finished or threw part-way.
+    *
+    * <p>A run that changed nothing (a read-only script) adds no checkpoint: it would duplicate
+    * the current state as an extra undo step and truncate the redo tail (Bug #79051). The change
+    * is detected by comparing the viewsheet's serialized form before and after the run. That
+    * form does not hold every script effect (sandbox variables, selection state), so such a run
+    * is treated as a read. It is also not free of fetch side effects: a chart's first data fetch
+    * fills in inferred column metadata, so that first read can still add one checkpoint; later
+    * reads add none. When the viewsheet cannot be serialized the run counts as a change, which is
+    * the checkpoint-after-every-run behavior of Bug #78662.</p>
     */
    private ScriptExecResult execute(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {
+      String before = viewsheetXml(rvs.getViewsheet());
+
       try {
          return executeScript(rvs, target);
       }
       finally {
          Viewsheet vs = rvs.getViewsheet();
 
-         if(vs != null) {
+         String after = viewsheetXml(vs);
+
+         if(vs != null && (before == null || after == null || !before.equals(after))) {
             rvs.addCheckpoint(vs.prepareCheckpoint());
             rvs.bumpWriteRevision();
          }
+      }
+   }
+
+   /**
+    * The viewsheet's serialized form without the runtime-only chart fields, which a chart's first
+    * data fetch fills in and an undo restore regenerates. Works on a copy: serializing the live
+    * viewsheet would shrink it as a side effect.
+    *
+    * @return the serialized form, or {@code null} when the viewsheet is null or cannot be
+    *         serialized.
+    */
+   private static String viewsheetXml(Viewsheet vs) {
+      if(vs == null) {
+         return null;
+      }
+
+      try {
+         Viewsheet copy = vs.prepareCheckpoint();
+
+         for(Assembly assembly : copy.getAssemblies()) {
+            if(assembly instanceof ChartVSAssembly chart) {
+               chart.getVSChartInfo().clearRuntime();
+            }
+         }
+
+         StringWriter out = new StringWriter();
+         PrintWriter writer = new PrintWriter(out);
+         copy.writeXML(writer);
+         writer.flush();
+         return out.toString();
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Could not serialize the viewsheet to detect script changes", ex);
+         return null;
       }
    }
 
@@ -762,6 +822,10 @@ public class ScriptExecuteService {
          for(String declared : declaredFunctions(e.getValue())) {
             index.computeIfAbsent(declared, k -> new LinkedHashSet<>()).add(e.getKey());
          }
+
+         for(String root : topLevelRoots(e.getValue())) {
+            index.computeIfAbsent(root, k -> new LinkedHashSet<>()).add(e.getKey());
+         }
       }
 
       Deque<String> work = new ArrayDeque<>(identifiers(stripCommentsAndStrings(scriptText, true), true));
@@ -842,6 +906,62 @@ public class ScriptExecuteService {
       }
 
       return names;
+   }
+
+   /**
+    * Bug #78998: root identifiers a library entry assigns at brace/paren/bracket depth 0, i.e. the
+    * globals it exposes as objects/namespaces. {@code var Ns = ...}, {@code Ns = ...},
+    * {@code A.B.f = ...} (root A) and {@code Object.assign(Ns, ...)} yield the root; for
+    * {@code window.Ns = ...}/{@code this.Ns = ...} the global qualifier is skipped and
+    * {@code Ns} is the root. Function-local declarations are never indexed (a common local name
+    * such as {@code result} must not gate every script that uses it).
+    */
+   private static Set<String> topLevelRoots(String source) {
+      Set<String> roots = new LinkedHashSet<>();
+      String text = stripCommentsAndStrings(source, false);
+      int[] depth = new int[text.length()];
+      StringBuilder top = new StringBuilder(text.length());
+      int d = 0;
+
+      for(int i = 0; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(c == '}' || c == ')' || c == ']') {
+            d = Math.max(0, d - 1);
+         }
+
+         depth[i] = d;
+         top.append(d == 0 ? c : ' ');
+
+         if(c == '{' || c == '(' || c == '[') {
+            d++;
+         }
+      }
+
+      Matcher m = ROOT_ASSIGNMENT.matcher(top);
+
+      while(m.find()) {
+         String root = m.group(1);
+
+         if(GLOBAL_OBJECTS.contains(root)) {
+            Matcher member = IDENTIFIER.matcher(m.group(2));
+            root = member.find() ? member.group() : null;
+         }
+
+         if(root != null && !GLOBAL_OBJECTS.contains(root)) {
+            roots.add(root);
+         }
+      }
+
+      m = OBJECT_ASSIGN.matcher(text);
+
+      while(m.find()) {
+         if(depth[m.start()] == 0 && !GLOBAL_OBJECTS.contains(m.group(1))) {
+            roots.add(m.group(1));
+         }
+      }
+
+      return roots;
    }
 
    private static List<String> identifiers(String text, boolean skipMembers) {

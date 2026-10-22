@@ -919,6 +919,22 @@ public class VSLayoutService {
    }
 
    public static Dimension getPrintPageSize(PrintLayout layout) {
+      double[] body = getPrintBodySize(layout);
+
+      if(body == null) {
+         return null;
+      }
+
+      Dimension pageSize = new Dimension();
+      pageSize.setSize(body[0], body[1]);
+      return pageSize;
+   }
+
+   /**
+    * The print page body (paper minus margins, landscape-swapped) in points as the raw, unrounded
+    * {width, height}, or {@code null} when the print info has never been configured.
+    */
+   public static double[] getPrintBodySize(PrintLayout layout) {
       if(layout == null || layout.getPrintInfo() == null) {
          return null;
       }
@@ -929,7 +945,6 @@ public class VSLayoutService {
          margin = new Margin();
       }
 
-      Dimension pageSize = new Dimension();
       boolean horizontal = layout.isHorizontalScreen();
       String unit = layout.getPrintInfo().getUnit();
       double width = getPLayoutSize(layout.getPrintInfo().getSize().getWidth(), unit);
@@ -942,15 +957,7 @@ public class VSLayoutService {
       width -= !horizontal ? left + right : top + bottom;
       height -= !horizontal ? top + bottom : left + right;
 
-      if(horizontal) {
-         //noinspection ReassignedVariable
-         pageSize.setSize(height, width);
-      }
-      else {
-         pageSize.setSize(width, height);
-      }
-
-      return pageSize;
+      return horizontal ? new double[] { height, width } : new double[] { width, height };
    }
 
    public static double getPLayoutSize(double asize, String unit) {

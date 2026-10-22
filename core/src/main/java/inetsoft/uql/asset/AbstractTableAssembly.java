@@ -1712,8 +1712,23 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
     */
    @Override
    public void renameDepended(String oname, String nname) {
-      renameExpressionDependeds(oname, nname);
-      renameAggregateInfo(oname, nname);
+      // Worksheet.renameAssembly fans renameDepended out to every assembly. A leaf table (bound,
+      // embedded, data...) has no source assemblies, so an entity-qualified ref in it
+      // (field['Product.Total'], a group/aggregate AttributeRef entity) names a logical-model /
+      // physical entity that merely may coincide with the renamed assembly's name; rewriting it
+      // corrupts the table. Only composed tables qualify refs by their source assembly name.
+      if(this instanceof ComposedTableAssembly) {
+         renameExpressionDependeds(oname, nname);
+         renameAggregateInfo(oname, nname);
+      }
+      else {
+         // a named-group reference is keyed by the group assembly's name, not by an entity, so it
+         // must follow the rename on leaf tables too
+         for(GroupRef group : ginfo.getGroups()) {
+            group.renameDepended(oname, nname);
+         }
+      }
+
       renameConditionListWrapper(preconds, oname, nname, ws);
       renameConditionListWrapper(postconds, oname, nname, ws);
       renameConditionListWrapper(topns, oname, nname, ws);

@@ -837,6 +837,74 @@ class AdminScheduleGatewayTest {
       sessionStatic.when(XSessionService::getService).thenReturn(mockSessionService);
    }
 
+   // -------------------------------------------------------------------------
+   // viewsheetExists (bug #79020): refuses only a provably absent sheet, fails open
+   // -------------------------------------------------------------------------
+
+   private static final String SHEET = "1^128^__NULL__^Examples/Sales Summary^host-org";
+
+   private AdminScheduleGateway spyGateway() {
+      return spy(gateway);
+   }
+
+   @Test
+   void viewsheetExists_trueWhenStorageFindsIt() throws Exception {
+      AdminScheduleGateway spy = spyGateway();
+      doAnswer(inv -> inv.getArgument(0)).when(spy).findAssetEntry(any());
+
+      assertTrue(spy.viewsheetExists(SHEET));
+   }
+
+   @Test
+   void viewsheetExists_falseWhenPathAndOrgAreAbsent() throws Exception {
+      AdminScheduleGateway spy = spyGateway();
+      doReturn(null).when(spy).findAssetEntry(any());
+
+      try(MockedStatic<OrganizationManager> orgStatic = mockStatic(OrganizationManager.class)) {
+         OrganizationManager orgManager = mock(OrganizationManager.class);
+         when(orgManager.getCurrentOrgID()).thenReturn("host-org");
+         orgStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+
+         assertFalse(spy.viewsheetExists(SHEET));
+         assertFalse(spy.viewsheetExists("1^128^__NULL__^Examples/Missing^host-org"));
+         assertFalse(spy.viewsheetExists("1^128^__NULL__^Examples/Sales Summary^no-such-org"));
+      }
+   }
+
+   @Test
+   void viewsheetExists_failsOpenOnAnyException() throws Exception {
+      AdminScheduleGateway spy = spyGateway();
+      doThrow(new IllegalStateException("storage down")).when(spy).findAssetEntry(any());
+
+      assertTrue(spy.viewsheetExists(SHEET));
+   }
+
+   @Test
+   void viewsheetExists_skipsAnUnparseableId() throws Exception {
+      AdminScheduleGateway spy = spyGateway();
+      doReturn(null).when(spy).findAssetEntry(any());
+
+      assertTrue(spy.viewsheetExists("not-an-asset-id"));
+      verify(spy, never()).findAssetEntry(any());
+   }
+
+   @Test
+   void viewsheetExists_retriesWithTheCurrentOrgWhenOnlyTheCaseDiffers() throws Exception {
+      AdminScheduleGateway spy = spyGateway();
+      doAnswer(inv -> {
+         inetsoft.uql.asset.AssetEntry entry = inv.getArgument(0);
+         return "Host-Org".equals(entry.getOrgID()) ? entry : null;
+      }).when(spy).findAssetEntry(any());
+
+      try(MockedStatic<OrganizationManager> orgStatic = mockStatic(OrganizationManager.class)) {
+         OrganizationManager orgManager = mock(OrganizationManager.class);
+         when(orgManager.getCurrentOrgID()).thenReturn("Host-Org");
+         orgStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+
+         assertTrue(spy.viewsheetExists(SHEET));
+      }
+   }
+
    private static SRPrincipal createPrincipal(String name, String orgId) {
       return new SRPrincipal(
          new IdentityID(name, orgId), new IdentityID[0], new String[0], orgId, 1L);

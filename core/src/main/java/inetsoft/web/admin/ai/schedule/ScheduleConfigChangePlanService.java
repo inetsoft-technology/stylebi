@@ -18,12 +18,15 @@
 package inetsoft.web.admin.ai.schedule;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.schedule.TimeRange;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
+import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
+import inetsoft.web.admin.schedule.SchedulerConfigurationService;
 import inetsoft.web.admin.schedule.model.ScheduleConfigurationModel;
 import inetsoft.web.admin.schedule.model.ServerLocation;
 import inetsoft.web.admin.schedule.model.ServerPathInfoModel;
@@ -99,8 +102,10 @@ public class ScheduleConfigChangePlanService {
     * @param afterKey the entry's key (path/name) AFTER this change -- {@code null} for a delete;
     *                 differs from the {@code PlanChange}'s own {@code property()} (the BEFORE key)
     *                 only for an identity-changing Time Range update.
+    * @param advisory the affected-task advisory for a force-allowed Time Range change, else {@code
+    *                 null}; the same text appended to the {@code PlanChange}'s description.
     */
-   public record EntryInfo(String unitType, String verb, String afterKey) {
+   public record EntryInfo(String unitType, String verb, String afterKey, String advisory) {
    }
 
    /** Convenience for callers (preview) that only need the plan itself. */
@@ -140,6 +145,9 @@ public class ScheduleConfigChangePlanService {
       List<Integer> pendingChangeIndex = new ArrayList<>();
 
       Set<String> seenLocationKeys = new HashSet<>();
+      // Bug #79016: hidden hash inputs for a server location's password/secretId, keyed by the
+      // change's index in changes (see hash()).
+      Map<String, String> hiddenInputs = new LinkedHashMap<>();
       Set<String> seenRangeKeys = new HashSet<>();
       int index = 0;
 
@@ -154,7 +162,9 @@ public class ScheduleConfigChangePlanService {
          String verb = change.getVerb();
 
          if(ScheduleConfigChangeRequest.UNIT_SERVER_LOCATION.equals(unitType)) {
-            changes.add(resolveServerLocationChange(label, change, locations, seenLocationKeys));
+            changes.add(resolveServerLocationChange(
+               label, change, locations, before.serverLocations(), seenLocationKeys,
+               hiddenInputs, changes.size()));
          }
          else if(ScheduleConfigChangeRequest.UNIT_TIME_RANGE.equals(unitType)) {
             TimeRangeResolution r = resolveTimeRangeChange(label, change, ranges, seenRangeKeys);
@@ -173,7 +183,7 @@ public class ScheduleConfigChangePlanService {
                String.valueOf(unitType));
          }
 
-         entries.add(new EntryInfo(unitType, verb, deriveAfterKey(unitType, verb, change)));
+         entries.add(new EntryInfo(unitType, verb, deriveAfterKey(unitType, verb, change), null));
          index++;
       }
 
@@ -200,10 +210,13 @@ public class ScheduleConfigChangePlanService {
             }
 
             changes.set(changeIndex, withAdvisory(changes.get(changeIndex), advisory));
+            EntryInfo entry = entries.get(changeIndex);
+            entries.set(changeIndex, new EntryInfo(entry.unitType(), entry.verb(), entry.afterKey(),
+                                                   advisory));
          }
       }
 
-      String planHash = hash(changes);
+      String planHash = hash(changes, hiddenInputs);
       String task = req.getTask().trim();
       ResolvedPlan plan = new ResolvedPlan(task, Collections.unmodifiableList(changes), false, true,
                                           planHash, TaskAuditToken.issue(planHash, task));
@@ -229,7 +242,9 @@ public class ScheduleConfigChangePlanService {
    }
 
    private PlanChange resolveServerLocationChange(
-      String label, ScheduleConfigChangeRequest change, List<ServerLocation> locations, Set<String> seen)
+      String label, ScheduleConfigChangeRequest change, List<ServerLocation> locations,
+      List<ServerLocation> original, Set<String> seen,
+      Map<String, String> hiddenInputs, int changeIndex)
    {
       String verb = requireVerb(label, change.getVerb());
 
@@ -245,9 +260,11 @@ public class ScheduleConfigChangePlanService {
 
          requireNoServerLocationConflict(label, spec, locations, -1);
          locations.add(spec);
-         return new PlanChange(spec.path(), null, null, projectServerLocation(spec),
+         WrittenForm written = projectWrittenForm(label, spec, original);
+         addCredentialHashInputs(hiddenInputs, changeIndex, spec);
+         return new PlanChange(spec.path(), null, null, projectServerLocation(written.location),
                                AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_VALUE, true,
-                               "create server location");
+                               "create server location" + written.noteSuffix());
       }
 
       String key = requireKey(label, change.getKey());
@@ -272,12 +289,98 @@ public class ScheduleConfigChangePlanService {
          ServerLocation spec = convertServerLocation(label, change.getSpec());
          requireNoServerLocationConflict(label, spec, locations, existingIndex);
          locations.set(existingIndex, spec);
-         return new PlanChange(key, null, projectServerLocation(existing), projectServerLocation(spec),
+         WrittenForm written = projectWrittenForm(label, spec, original);
+         addCredentialHashInputs(hiddenInputs, changeIndex, spec);
+         return new PlanChange(key, null, projectServerLocation(existing),
+                               projectServerLocation(written.location),
                                AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_VALUE, true,
-                               "update server location");
+                               "update server location" + written.noteSuffix());
       }
 
       throw unknownVerb(label, verb);
+   }
+
+   /** What the write will actually persist for a location, plus an explicit warning when that
+    * differs from what the caller sent (the stored password gets cleared). */
+   private static final class WrittenForm {
+      WrittenForm(ServerLocation location, String note) {
+         this.location = location;
+         this.note = note;
+      }
+
+      String noteSuffix() {
+         return note == null ? "" : " -- WARNING: " + note;
+      }
+
+      final ServerLocation location;
+      final String note;
+   }
+
+   /**
+    * Mirrors the placeholder-password rule of
+    * {@code SchedulerConfigurationService#setServerLocations} (Bug #77953) so the preview never
+    * claims {@code password=(set)} for a state the server will clear (Bug #79032). A placeholder
+    * password keeps the stored one only if {@code oldPasswordKey} names a CURRENTLY stored
+    * location AND that location logs in to the same server as the same user
+    * ({@code SchedulerConfigurationService#isSameLocationLogin}). A changed username or a path on
+    * a different server is the intended server rule: the preview projects no password and warns.
+    * A missing or stale {@code oldPasswordKey} is caller error and is refused, so a stale key can
+    * never silently destroy a stored credential.
+    */
+   private static WrittenForm projectWrittenForm(
+      String label, ServerLocation spec, List<ServerLocation> original)
+   {
+      ServerPathInfoModel info = spec.pathInfoModel();
+
+      if(info == null || !info.ftp() || info.useCredential() ||
+         !Util.PLACEHOLDER_PASSWORD.equals(info.password()))
+      {
+         return new WrittenForm(spec, null);
+      }
+
+      ServerPathInfoModel old = null;
+
+      if(info.oldPasswordKey() != null) {
+         for(ServerLocation l : original) {
+            ServerPathInfoModel oi = l.pathInfoModel();
+
+            if(oi != null && info.oldPasswordKey().equals(oi.oldPasswordKey())) {
+               old = oi;
+               break;
+            }
+         }
+      }
+
+      if(old == null) {
+         throw new IllegalArgumentException(
+            label + ".spec.pathInfoModel.oldPasswordKey: the masked password cannot be resolved " +
+            "because oldPasswordKey " +
+            (info.oldPasswordKey() == null ? "is missing" : "matches no stored server location") +
+            "; re-read the server locations for a fresh oldPasswordKey, or supply the real " +
+            "password");
+      }
+
+      if(!SchedulerConfigurationService.isSameLocationLogin(spec.path(), info.username(), old)) {
+         return new WrittenForm(withoutPassword(spec),
+            "the login changed (different username or server), so the stored password will be " +
+            "CLEARED, not carried over to the new login -- supply the real password to set one");
+      }
+
+      if(old.password() == null) {
+         return new WrittenForm(withoutPassword(spec), null);
+      }
+
+      return new WrittenForm(spec, null);
+   }
+
+   private static ServerLocation withoutPassword(ServerLocation spec) {
+      ServerPathInfoModel info =
+         ServerPathInfoModel.builder().from(spec.pathInfoModel()).password(null).build();
+      return ServerLocation.builder()
+         .path(spec.path())
+         .label(spec.label())
+         .pathInfoModel(info)
+         .build();
    }
 
    private static final class TimeRangeResolution {
@@ -676,26 +779,60 @@ public class ScheduleConfigChangePlanService {
                             change.recognized(), change.description() + " -- ALLOWED WITH force=true: " + advisory);
    }
 
-   /** Never leaks the literal password/oldPasswordKey into the plan hash/narrative -- only whether
+   /**
+    * Bug #79016: the shared projection shows only {@code (set)}/{@code (none)} for the password and
+    * the secretId, so a plan that supplied a different password or credential reference hashed
+    * like any other. The digests of the EFFECTIVE (post-{@link #canonicalizeServerLocation})
+    * values go into the plan hash only: apply's write-then-readback check compares the projection
+    * against a masked read-back, so the projection itself must stay free of them. A location
+    * with no password and no secretId contributes nothing.
+    */
+   private static void addCredentialHashInputs(Map<String, String> hiddenInputs, int changeIndex,
+                                               ServerLocation location)
+   {
+      ServerPathInfoModel info = location.pathInfoModel();
+
+      if(info == null) {
+         return;
+      }
+
+      String key = String.valueOf(changeIndex);
+
+      if(info.password() != null) {
+         PlanHashInputs.addHidden(hiddenInputs, key, "pw",
+                                  PlanHashInputs.digest(PASSWORD_DIGEST_DOMAIN, info.password()));
+      }
+
+      if(info.secretId() != null) {
+         PlanHashInputs.addHidden(hiddenInputs, key, "secretId",
+                                  PlanHashInputs.digest(SECRET_ID_DIGEST_DOMAIN, info.secretId()));
+      }
+   }
+
+   /** Never leaks the literal password/oldPasswordKey into the displayed projection -- only whether
     * a credential is present, mirroring the masking convention {@code
-    * ScheduleTaskChangePlanService}'s XML projection uses for the same concern. */
+    * ScheduleTaskChangePlanService}'s XML projection uses for the same concern. The secrets reach
+    * the plan hash separately, see {@link #addCredentialHashInputs}. */
    static String projectServerLocation(ServerLocation location) {
       // the credential tail is emitted unconditionally, and the path is normalized the same way
       // the read side normalizes it: a re-read ALWAYS yields a non-null pathInfoModel and a
       // slash-stripped path, so making either conditional here compares two different shapes and
       // fails verification on a write that succeeded.
       ServerPathInfoModel info = location.pathInfoModel();
-      return "path=" + normalizePath(location.path()) +
-         ";label=" + location.label() +
+      // Bug #79016: path, label and username are caller text, so they are separator-escaped; a
+      // value holding ";username=x" can no longer pass for the next field.
+      return "path=" + PlanHashInputs.escape(normalizePath(location.path())) +
+         ";label=" + PlanHashInputs.escape(location.label()) +
          ";ftp=" + (info != null && info.ftp()) +
          ";useCredential=" + (info != null && info.useCredential()) +
-         ";username=" + (info == null ? null : info.username()) +
+         ";username=" + (info == null || info.username() == null ? null :
+                              PlanHashInputs.escape(info.username())) +
          ";secretId=" + (info == null || info.secretId() == null ? "(none)" : "(set)") +
          ";password=" + (info == null || info.password() == null ? "(none)" : "(set)");
    }
 
    static String projectTimeRange(TimeRangeModel range) {
-      return "name=" + range.name() + ";startTime=" + range.startTime() + ";endTime=" +
+      return "name=" + PlanHashInputs.escape(range.name()) + ";startTime=" + range.startTime() + ";endTime=" +
          range.endTime() + ";defaultRange=" + range.defaultRange();
    }
 
@@ -708,8 +845,9 @@ public class ScheduleConfigChangePlanService {
     * AdminChangePlanService#hash}/{@code ScheduleChangePlanService#hash}. Deliberately excludes
     * {@code task}, same rationale as both of those.
     */
-   private static String hash(List<PlanChange> changes) {
+   private static String hash(List<PlanChange> changes, Map<String, String> hiddenInputs) {
       StringBuilder canonical = new StringBuilder();
+      int index = 0;
 
       for(PlanChange change : changes) {
          canonical.append(change.property()).append(SEP)
@@ -717,6 +855,8 @@ public class ScheduleConfigChangePlanService {
             .append(canonical(change.proposedValue())).append(SEP)
             .append(change.risk()).append(SEP)
             .append(change.snapshotScope()).append(SEP);
+         // Bug #79016: appended only for a server location that carries a password/secretId.
+         PlanHashInputs.appendHidden(canonical, SEP, hiddenInputs, String.valueOf(index++));
       }
 
       try {
@@ -740,6 +880,10 @@ public class ScheduleConfigChangePlanService {
    }
 
    private static final char SEP = (char) 0x1f;
+   private static final String PASSWORD_DIGEST_DOMAIN =
+      "inetsoft.admin.ai.schedule.serverLocation.password\u0000";
+   private static final String SECRET_ID_DIGEST_DOMAIN =
+      "inetsoft.admin.ai.schedule.serverLocation.secretId\u0000";
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
    private static final ObjectMapper MAPPER = new ObjectMapper();
    private final AdminScheduleConfigGateway gateway;

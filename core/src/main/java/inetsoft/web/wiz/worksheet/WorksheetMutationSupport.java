@@ -380,6 +380,60 @@ public final class WorksheetMutationSupport {
    }
 
    /**
+    * Whether a named group applies to a column of the given table the way the Group and
+    * Aggregate dialog decides it ({@code AggregateDialogService#getNameGroups}):
+    * {@code DATA_TYPE_ATTACHED} groups apply by data type (already checked by
+    * {@link GroupRef#update}); a {@code COLUMN_ATTACHED} group applies only when the column
+    * resolves to the group's attached source column. {@link GroupRef#update} compares the
+    * attribute name alone, so it also accepts an unrelated same-named column (embedded or
+    * expression column, another source's column).
+    *
+    * <p>A group attached to a worksheet table ({@link SourceInfo#ASSET}, created by
+    * {@code Editor#addNamedGroup(name, table, column, ...)}) additionally applies to that
+    * table's own column; the dialog cannot create such a group, so it is not resolved
+    * through mirrors of that table.</p>
+    *
+    * @param table    the table owning the column
+    * @param column   the table's own column (not the group's data ref)
+    * @param group    the named group assembly
+    */
+   static boolean namedGroupAppliesToColumn(TableAssembly table, ColumnRef column,
+                                            NamedGroupAssembly group)
+   {
+      if(group.getAttachedType() != AttachedAssembly.COLUMN_ATTACHED) {
+         return true;
+      }
+
+      AttachedAssembly attached = AssetUtil.getColumnAttachedAssembly(table, column);
+
+      if(attached != null && attached.equals(group)) {
+         return true;
+      }
+
+      SourceInfo source = group.getAttachedSource();
+      DataRef attribute = group.getAttachedAttribute();
+
+      return source != null && source.getType() == SourceInfo.ASSET &&
+         Tool.equals(source.getSource(), table.getName()) && attribute != null &&
+         Tool.equals(attribute.getAttribute(), column.getAttribute());
+   }
+
+   /**
+    * Describes a column-attached group's attachment, e.g. {@code SA.CUSTOMERS.STATE}.
+    */
+   private static String describeNamedGroupAttachment(NamedGroupAssembly group) {
+      SourceInfo source = group.getAttachedSource();
+      DataRef attribute = group.getAttachedAttribute();
+      String attr = attribute == null ? null : attribute.getAttribute();
+
+      if(source == null || source.getSource() == null) {
+         return String.valueOf(attr);
+      }
+
+      return attr == null ? source.getSource() : source.getSource() + "." + attr;
+   }
+
+   /**
     * Finds a worksheet-side {@link GroupRef} that would silently lose its named-group mapping
     * if {@code groupName}'s attachment were changed to the given NOT-YET-APPLIED attachment.
     *
@@ -1153,7 +1207,9 @@ public final class WorksheetMutationSupport {
             // mismatch -- resolve and validate up front so an unresolvable name is a
             // loud PairingException here rather than a silently ungrouped column, and
             // re-check after update() below for the two mismatch cases it can't catch
-            // ahead of time.
+            // ahead of time. update() matches a COLUMN_ATTACHED group by attribute name
+            // only, so namedGroupAppliesToColumn() then checks the column really
+            // resolves to the group's attached source.
             Assembly namedGroupAssembly = t.getWorksheet() == null ? null :
                t.getWorksheet().getAssembly(spec.namedGroup());
 
@@ -1170,6 +1226,16 @@ public final class WorksheetMutationSupport {
                throw new inetsoft.web.wiz.pairing.PairingException(
                   "Named group '" + spec.namedGroup() + "' does not apply to column '" +
                   spec.field() + "' (attached column or data type does not match).");
+            }
+
+            if(!namedGroupAppliesToColumn(t, resolved, (NamedGroupAssembly) namedGroupAssembly)) {
+               throw new inetsoft.web.wiz.pairing.PairingException(
+                  "Named group '" + spec.namedGroup() + "' is attached to " +
+                  describeNamedGroupAttachment((NamedGroupAssembly) namedGroupAssembly) +
+                  " and does not apply to column '" + spec.field() + "' of table '" +
+                  t.getName() + "'. Create a group attached to this column's own source " +
+                  "(add_named_group with its datasource/sourceTable/attribute), or use a " +
+                  "column the group is attached to.");
             }
          }
 

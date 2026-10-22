@@ -105,12 +105,15 @@ public class WorksheetStructure {
    public static class ConditionLeaf {
       private String field; private String operation; private List<String> values = new ArrayList<>();
       private boolean negated; private String junction; private String phase; // pre|post|preRuntime|ranking
+      private String of; // ranking only: the aggregate the ranking is ranked by (alias, else column)
       public String getField() { return field; } public void setField(String v) { this.field = v; }
       public String getOperation() { return operation; } public void setOperation(String v) { this.operation = v; }
       public List<String> getValues() { return values; } public void setValues(List<String> v) { this.values = v; }
       public boolean isNegated() { return negated; } public void setNegated(boolean v) { this.negated = v; }
       public String getJunction() { return junction; } public void setJunction(String v) { this.junction = v; }
       public String getPhase() { return phase; } public void setPhase(String v) { this.phase = v; }
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public String getOf() { return of; } public void setOf(String v) { this.of = v; }
    }
 
    public static class AggregateSummary {

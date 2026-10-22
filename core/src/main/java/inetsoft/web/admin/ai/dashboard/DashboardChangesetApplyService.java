@@ -369,13 +369,13 @@ public class DashboardChangesetApplyService {
       IdentityID owner = DashboardChangePlanService.parseOwner(original.getOwner());
       List<String> requested = original.getDashboards();
       List<String> before = readFolderOrderAtApply(owner, user);
-      String beforeProjection = String.join("|", before);
+      String beforeProjection = DashboardChangePlanService.projectOrder(before);
 
       mutationEntered.set(true);
       writeFolderOrder(owner, requested, user);
 
       List<String> after = readFolderOrderAtApply(owner, user);
-      String afterProjection = String.join("|", after);
+      String afterProjection = DashboardChangePlanService.projectOrder(after);
       boolean verified = after.equals(requested);
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new DashboardApplyOutcome(key, beforeProjection, afterProjection, status,

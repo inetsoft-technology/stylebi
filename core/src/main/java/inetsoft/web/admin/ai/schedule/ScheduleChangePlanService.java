@@ -18,6 +18,8 @@
 package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.web.api.schedule.*;
+import inetsoft.report.internal.Util;
+import inetsoft.sree.schedule.FTPUtil;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
@@ -146,6 +148,7 @@ public class ScheduleChangePlanService {
 
       requireSupportedConditions(label, spec.getConditions());
       requireSupportedActions(label, spec.getActions());
+      requireExistingViewsheets(label, spec.getActions());
 
       String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
       requireUnseen(label, taskId, seenTaskIds);
@@ -252,6 +255,8 @@ public class ScheduleChangePlanService {
          TimeCondition tc = (TimeCondition) conditions.get(i);
          ScheduleConditionConverter.requireKnownTimeRange(
             label + ".spec.conditions[" + i + "]", tc.getTimeRange());
+         ScheduleConditionConverter.requireKnownTimeZone(
+            label + ".spec.conditions[" + i + "]", tc.getTimeZone());
 
          if(tc.getType() == TimeCondition.Type.AT && tc.getDate() == null) {
             throw new IllegalArgumentException(
@@ -271,6 +276,30 @@ public class ScheduleChangePlanService {
             throw new IllegalArgumentException(
                label + ".spec.actions[" + i + "]: only viewsheet actions are supported in this " +
                "area (got " + actions.get(i).getClass().getSimpleName() + ")");
+         }
+      }
+   }
+
+   /**
+    * Refuses a viewsheet action whose sheet is provably absent (no asset at that path in that
+    * organization), which the apply would otherwise store and the scheduler only fail on at run
+    * time. {@link AdminScheduleGateway#viewsheetExists} fails open, so only a sure miss refuses.
+    * A blank identifier is left to the checks that own it.
+    */
+   private void requireExistingViewsheets(String label, List<ScheduleAction> actions) {
+      if(actions == null) {
+         return;
+      }
+
+      for(int i = 0; i < actions.size(); i++) {
+         String viewsheet = ((ViewsheetAction) actions.get(i)).getViewsheet();
+
+         if(viewsheet != null && !viewsheet.isBlank() &&
+            !scheduleGateway.viewsheetExists(viewsheet))
+         {
+            throw new IllegalArgumentException(
+               label + ".spec.actions[" + i + "].viewsheet: \"" + viewsheet + "\" does not " +
+               "identify an existing viewsheet (no asset at that path in that organization)");
          }
       }
    }
@@ -307,8 +336,13 @@ public class ScheduleChangePlanService {
             .append(",daysOfWeek=").append(Arrays.toString(tc.getDaysOfWeek()))
             .append(",dayOfMonth=").append(tc.getDayOfMonth())
             .append(",weekOfMonth=").append(tc.getWeekOfMonth())
+            .append(",dayOfWeek=").append(tc.getDayOfWeek())
             .append(",monthsOfYear=").append(Arrays.toString(tc.getMonthsOfYear()))
             .append(",weekdayOnly=").append(tc.isWeekdayOnly())
+            .append(",hourEnd=").append(tc.getHourEnd())
+            .append(",minuteEnd=").append(tc.getMinuteEnd())
+            .append(",secondEnd=").append(tc.getSecondEnd())
+            .append(",hourlyInterval=").append(tc.getHourlyInterval())
             .append(",date=").append(tc.getDate())
             .append(",timeRange=").append(tc.getTimeRange())
             .append(",timeZone=").append(tc.getTimeZone())
@@ -323,11 +357,194 @@ public class ScheduleChangePlanService {
             .append(",notifies=").append(va.getNotifies())
             .append(",format=").append(va.getFormat())
             .append(",subject=").append(va.getSubject())
-            .append(",message=").append(va.getMessage())
-            .append(']');
+            .append(",message=").append(va.getMessage());
+         appendActionDetails(sb, va);
+         sb.append(']');
       }
 
       return sb.toString();
+   }
+
+   /**
+    * Appends every other action field {@link AdminScheduleGateway} writes onto the stored action,
+    * so the plan text and hash cover everything the create will persist. Nullable fields the
+    * gateway skips when null are skipped here too. Secrets are never rendered: an FTP password is
+    * omitted (one embedded in the path is stripped) and a parameter value is shown only as a
+    * short digest.
+    */
+   private static void appendActionDetails(StringBuilder sb, ViewsheetAction va) {
+      appendIfNotNull(sb, "sender", va.getSender());
+      appendIfNotNull(sb, "ccAddresses", va.getCCAddresses());
+      appendIfNotNull(sb, "bccAddresses", va.getBCCAddresses());
+      appendIfNotNull(sb, "attachmentName", va.getAttachmentName());
+      // the gateway uses the singular bookmark fields only when bookmarkNames is empty, and the
+      // plural users/types only when it is not
+      boolean hasNames = va.getBookmarkNames() != null && !va.getBookmarkNames().isEmpty();
+      String singularIgnored = hasNames ? "(ignored:bookmarkNames)" : "";
+      String pluralIgnored = hasNames ? "" : "(ignored:no bookmarkNames)";
+      appendIfNotNull(sb, "bookmarkName", va.getBookmarkName(), singularIgnored);
+      appendIfNotNull(sb, "bookmarkUser", va.getBookmarkUser(), singularIgnored);
+      appendIfNotNull(sb, "bookmarkType", va.getBookmarkType(), singularIgnored);
+      appendIfNotNull(sb, "bookmarkUsers", va.getBookmarkUsers(), pluralIgnored);
+      appendIfNotNull(sb, "bookmarkTypes", va.getBookmarkTypes(), pluralIgnored);
+      sb.append(",htmlMessage=").append(va.isHtmlMessage());
+      appendIfNotNull(sb, "emailZip", va.isEmailZip());
+      appendIfNotNull(sb, "emailLink", va.isEmailLink());
+      appendIfNotNull(sb, "emailMatch", va.isEmailMatch());
+      appendIfNotNull(sb, "emailExpandSelections", va.isEmailExpandSelections());
+      appendIfNotNull(sb, "emailOnlyDataComponents", va.isEmailOnlyDataComponents());
+      appendIfNotNull(sb, "exportAllTabbedTables", va.isExportAllTabbedTables());
+      appendIfNotNull(sb, "emailCSVConfig", va.getEmailCSVConfig());
+
+      // the gateway stores these two only when there is a notification recipient
+      boolean hasNotifies = va.getNotifies() != null && !va.getNotifies().isEmpty();
+      appendNotify(sb, "notifyIfFailed", va.isNotifyIfFailed(), hasNotifies);
+      appendNotify(sb, "notifyLink", va.isNotifyLink(), hasNotifies);
+
+      sb.append(",saveToServerMatch=").append(va.isSaveToServerMatch())
+         .append(",saveToServerExpandSelections=").append(va.isSaveToServerExpandSelections())
+         .append(",saveToServerOnlyDataComponents=").append(va.isSaveToServerOnlyDataComponents())
+         .append(",saveExportAllTabbedTables=").append(va.isSaveExportAllTabbedTables());
+      appendIfNotNull(sb, "saveToServerCsvConfig", va.getSaveToServerCsvConfig());
+
+      Map<String, Object> parameters = va.getParameters();
+
+      if(parameters != null && !parameters.isEmpty()) {
+         sb.append(",parameters={");
+         boolean first = true;
+
+         for(Map.Entry<String, Object> e : new TreeMap<>(parameters).entrySet()) {
+            sb.append(first ? "" : ",").append(e.getKey()).append("=sha256:")
+               .append(shortDigest(String.valueOf(e.getValue())));
+            first = false;
+         }
+
+         sb.append('}');
+      }
+
+      List<ScheduleAlert> alerts = va.getAlerts();
+
+      if(alerts != null) {
+         List<String> effective = new ArrayList<>();
+
+         for(ScheduleAlert alert : alerts) {
+            // the gateway ignores an alert that lacks either part
+            if(alert != null && alert.getElementId() != null &&
+               alert.getHighlightName() != null)
+            {
+               effective.add(alert.getElementId() + ":" + alert.getHighlightName());
+            }
+         }
+
+         if(!effective.isEmpty()) {
+            sb.append(",alerts=").append(effective);
+         }
+      }
+
+      List<ViewsheetAction.SaveToServerFilePath> paths = va.getSaveToServerFilePaths();
+
+      if(paths != null) {
+         List<String> effective = new ArrayList<>();
+
+         for(ViewsheetAction.SaveToServerFilePath p : paths) {
+            // the gateway ignores an entry without a path or a format
+            if(p != null && p.getPath() != null && p.getFormat() != null) {
+               effective.add(projectFilePath(p));
+            }
+         }
+
+         if(!effective.isEmpty()) {
+            sb.append(",saveToServerFilePaths=").append(effective);
+         }
+      }
+   }
+
+   private static void appendIfNotNull(StringBuilder sb, String name, Object value) {
+      appendIfNotNull(sb, name, value, "");
+   }
+
+   private static void appendIfNotNull(StringBuilder sb, String name, Object value,
+                                       String annotation)
+   {
+      if(value != null) {
+         sb.append(',').append(name).append('=').append(value).append(annotation);
+      }
+   }
+
+   private static void appendNotify(StringBuilder sb, String name, Boolean value,
+                                    boolean hasNotifies)
+   {
+      if(value != null) {
+         sb.append(',').append(name).append('=').append(value);
+
+         if(!hasNotifies) {
+            sb.append("(ignored:no notifies)");
+         }
+      }
+   }
+
+   /**
+    * Renders a save-to-server entry without its password: the password field is only reported as
+    * set, and a password embedded in an FTP/SFTP path is stripped.
+    */
+   private static String projectFilePath(ViewsheetAction.SaveToServerFilePath p) {
+      String path = p.getPath();
+      boolean sftp = path.toLowerCase().startsWith("sftp://");
+      FTPUtil.PathPassword split = FTPUtil.splitPassword(path, sftp);
+
+      if(split != null) {
+         path = split.path();
+      }
+
+      StringBuilder sb = new StringBuilder();
+      sb.append("{format=").append(p.getFormat()).append(",path=").append(path);
+
+      // the gateway applies the path last: a password in it wins over the username/password
+      // fields and over a stored secret, and the secret is only used with useCredential
+      String ignored = split != null ? "(ignored:path password)"
+         : p.isUseCredential() ? "(ignored:useCredential)" : "";
+
+      if(p.getUsername() != null) {
+         sb.append(",username=").append(p.getUsername()).append(ignored);
+      }
+
+      if(p.isUseCredential()) {
+         sb.append(",useCredential=true").append(split != null ? ignored : "");
+
+         if(p.getSecretId() != null) {
+            sb.append(",secretId=").append(p.getSecretId()).append(split != null ? ignored : "");
+         }
+      }
+
+      // the placeholder the API returns for a stored password is dropped by the gateway
+      boolean fieldPassword = p.getPassword() != null && !p.getPassword().isEmpty() &&
+         !Util.PLACEHOLDER_PASSWORD.equals(p.getPassword());
+
+      if(split != null) {
+         sb.append(",password=set");
+      }
+      else if(fieldPassword) {
+         sb.append(",password=set").append(ignored);
+      }
+
+      return sb.append('}').toString();
+   }
+
+   private static String shortDigest(String value) {
+      try {
+         byte[] digest = MessageDigest.getInstance("SHA-256")
+            .digest(value.getBytes(StandardCharsets.UTF_8));
+         StringBuilder hex = new StringBuilder();
+
+         for(int i = 0; i < 4; i++) {
+            hex.append(String.format("%02x", digest[i]));
+         }
+
+         return hex.toString();
+      }
+      catch(NoSuchAlgorithmException e) {
+         throw new IllegalStateException("SHA-256 is required to hash a schedule change plan", e);
+      }
    }
 
    /**

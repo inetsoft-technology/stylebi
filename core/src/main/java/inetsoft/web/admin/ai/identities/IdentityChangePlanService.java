@@ -25,6 +25,7 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.ai.PlanChange;
+import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.SecurityProviderGuard;
 import inetsoft.web.admin.ai.TaskAuditToken;
@@ -87,21 +88,24 @@ public class IdentityChangePlanService {
       String currentOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seenKeys = new HashSet<>();
+      // Bug #79016: hidden per-change hash input for a supplied user password (see hash()).
+      Map<String, String> hiddenInputs = new LinkedHashMap<>();
       int index = 0;
 
       for(IdentityChangeRequest change : req.getChanges()) {
          String label = "changes[" + index++ + "]";
-         changes.add(resolveOne(label, change, user, currentOrgId, seenKeys));
+         changes.add(resolveOne(label, change, user, currentOrgId, seenKeys, hiddenInputs));
       }
 
       // Every verb is risk:high, snapshotScope:storage, unconditionally (spec section 4/7).
-      String planHash = hash(changes);
+      String planHash = hash(changes, hiddenInputs);
       return new ResolvedPlan(req.getTask().trim(), Collections.unmodifiableList(changes),
                               true, true, planHash, TaskAuditToken.issue(planHash, req.getTask().trim()));
    }
 
    private PlanChange resolveOne(String label, IdentityChangeRequest change, Principal user,
-                                 String currentOrgId, Set<String> seenKeys)
+                                 String currentOrgId, Set<String> seenKeys,
+                                 Map<String, String> hiddenInputs)
       throws Exception
    {
       if(change == null) {
@@ -121,7 +125,8 @@ public class IdentityChangePlanService {
             throw new IllegalArgumentException(label + ".spec: required for verb=create");
          }
 
-         return resolveCreate(label, unitType, change.getSpec(), user, currentOrgId, seenKeys);
+         return resolveCreate(label, unitType, change.getSpec(), user, currentOrgId, seenKeys,
+                              hiddenInputs);
       }
 
       if(IdentityChangeRequest.VERB_UPDATE.equals(verb)) {
@@ -145,14 +150,19 @@ public class IdentityChangePlanService {
    // ---------------------------------------------------------------- create
 
    private PlanChange resolveCreate(String label, IdentityUnitType unitType, IdentitySpec spec,
-                                    Principal user, String currentOrgId, Set<String> seenKeys)
+                                    Principal user, String currentOrgId, Set<String> seenKeys,
+                                    Map<String, String> hiddenInputs)
       throws Exception
    {
       requireLegalFields(label, unitType, spec);
 
+      if(unitType != IdentityUnitType.ORGANIZATION) {
+         normalizeMemberRefs(label, unitType, spec, blankToDefault(spec.getOrgId(), currentOrgId));
+      }
+
       switch(unitType) {
       case USER:
-         return resolveCreateUser(label, spec, user, currentOrgId, seenKeys);
+         return resolveCreateUser(label, spec, user, currentOrgId, seenKeys, hiddenInputs);
       case GROUP:
          return resolveCreateGroup(label, spec, user, currentOrgId, seenKeys);
       case ROLE:
@@ -163,7 +173,8 @@ public class IdentityChangePlanService {
    }
 
    private PlanChange resolveCreateUser(String label, IdentitySpec spec, Principal user,
-                                        String currentOrgId, Set<String> seenKeys)
+                                        String currentOrgId, Set<String> seenKeys,
+                                        Map<String, String> hiddenInputs)
       throws Exception
    {
       String name = requireNonBlank(label + ".spec.name", spec.getName());
@@ -175,6 +186,15 @@ public class IdentityChangePlanService {
       requireNoBlankPassword(label, spec.getPassword());
       requireCreateIdFree(label, () -> securityService.getUser(id, user), key);
       String proposed = IdentityProjection.projectUserSpec(id, spec);
+      // Bug #79016: the projection carries only pw:set, so two different passwords hashed alike.
+      // The digest goes into the hash only (the apply-time read-back is masked and is compared
+      // through the projection, never the hash). requireNoBlankPassword has already refused a
+      // blank value, so a non-null password is the effective one.
+      if(spec.getPassword() != null) {
+         PlanHashInputs.addHidden(hiddenInputs, key, "pw",
+                                  PlanHashInputs.digest(PASSWORD_DIGEST_DOMAIN, spec.getPassword()));
+      }
+
       return new PlanChange(key, orgId, null, proposed, AdminChangeRecord.RISK_HIGH,
                             AdminChangeRecord.SCOPE_STORAGE, true, "create user " + id.getLabel());
    }
@@ -310,6 +330,7 @@ public class IdentityChangePlanService {
       requireRenameFreeOfSeparators(label, spec, id);
       String key = key(IdentityUnitType.USER, id.convertToKey());
       requireUnseen(label, key, seenKeys);
+      normalizeMemberRefs(label, IdentityUnitType.USER, spec, id.getOrgID());
       SecurityUser existing = requireGet(label, () -> securityService.getUser(id, user), key);
       String before = IdentityProjection.projectUser(existing);
       SecurityUser merged = IdentityMerge.mergeUser(existing, spec, id);
@@ -327,6 +348,7 @@ public class IdentityChangePlanService {
       requireRenameFreeOfSeparators(label, spec, id);
       String key = key(IdentityUnitType.GROUP, id.convertToKey());
       requireUnseen(label, key, seenKeys);
+      normalizeMemberRefs(label, IdentityUnitType.GROUP, spec, id.getOrgID());
       SecurityGroup existing = requireGet(label, () -> securityService.getGroup(id, user), key);
       String before = IdentityProjection.projectGroup(existing, id);
       SecurityGroup merged = IdentityMerge.mergeGroup(existing, spec, id);
@@ -344,6 +366,7 @@ public class IdentityChangePlanService {
       requireRenameFreeOfSeparators(label, spec, id);
       String key = key(IdentityUnitType.ROLE, id.convertToKey());
       requireUnseen(label, key, seenKeys);
+      normalizeMemberRefs(label, IdentityUnitType.ROLE, spec, id.getOrgID());
       SecurityRole existing = requireGet(label, () -> securityService.getRole(id, user), key);
       String before = IdentityProjection.projectRole(existing, id);
       SecurityRole merged = IdentityMerge.mergeRole(existing, spec, id);
@@ -701,6 +724,97 @@ public class IdentityChangePlanService {
       }
    }
 
+   // ---------------------------------------------------------------- member/list references
+
+   /**
+    * Bug #79016: resolves the org-qualified forms a membership/assignment list entry can take
+    * ({@code name:org}, the storage key {@code name~;~org}, the caret label {@code name^org}) with
+    * the same {@link AdminIdentityRefs#parse} that {@code id}/{@code owner} use, and replaces the
+    * entry with the bare name. These lists are plain name strings, so the identity they name can
+    * only live in the unit's own organization: a reference that resolves to another org is
+    * refused, naming the field, instead of being taken literally (a literal
+    * {@code admin^host-org} member is never added). Entries without a separator are left exactly
+    * as given, with no directory lookup. Mutates {@code spec} in place, like {@link
+    * #clearSingleBlankLists}, so the projection, the hash and apply (which resolves first) all see
+    * the resolved names.
+    *
+    * <p>The eight fields it covers, each parsed as its own kind: user {@code groups}/{@code roles};
+    * group {@code parentGroups}/{@code memberUsers}/{@code memberGroups}/{@code roles}; role
+    * {@code inheritedRoles}/{@code assignedUsers}/{@code assignedGroups}.
+    */
+   void normalizeMemberRefs(String label, IdentityUnitType unitType, IdentitySpec spec,
+                            String unitOrgId)
+   {
+      switch(unitType) {
+      case USER:
+         spec.setGroups(normalizeRefs(label, "groups", spec.getGroups(),
+                                      AdminIdentityRefs.Kind.GROUP, unitOrgId));
+         spec.setRoles(normalizeRefs(label, "roles", spec.getRoles(),
+                                     AdminIdentityRefs.Kind.ROLE, unitOrgId));
+         break;
+      case GROUP:
+         spec.setParentGroups(normalizeRefs(label, "parentGroups", spec.getParentGroups(),
+                                            AdminIdentityRefs.Kind.GROUP, unitOrgId));
+         spec.setMemberUsers(normalizeRefs(label, "memberUsers", spec.getMemberUsers(),
+                                           AdminIdentityRefs.Kind.USER, unitOrgId));
+         spec.setMemberGroups(normalizeRefs(label, "memberGroups", spec.getMemberGroups(),
+                                            AdminIdentityRefs.Kind.GROUP, unitOrgId));
+         spec.setRoles(normalizeRefs(label, "roles", spec.getRoles(),
+                                     AdminIdentityRefs.Kind.ROLE, unitOrgId));
+         break;
+      case ROLE:
+         spec.setInheritedRoles(normalizeRefs(label, "inheritedRoles", spec.getInheritedRoles(),
+                                              AdminIdentityRefs.Kind.ROLE, unitOrgId));
+         spec.setAssignedUsers(normalizeRefs(label, "assignedUsers", spec.getAssignedUsers(),
+                                             AdminIdentityRefs.Kind.USER, unitOrgId));
+         spec.setAssignedGroups(normalizeRefs(label, "assignedGroups", spec.getAssignedGroups(),
+                                              AdminIdentityRefs.Kind.GROUP, unitOrgId));
+         break;
+      default:
+         break;
+      }
+   }
+
+   private List<String> normalizeRefs(String label, String fieldName, List<String> values,
+                                      AdminIdentityRefs.Kind kind, String unitOrgId)
+   {
+      if(values == null) {
+         return null;
+      }
+
+      List<String> result = new ArrayList<>(values.size());
+
+      for(int i = 0; i < values.size(); i++) {
+         String value = values.get(i);
+
+         if(value == null || !hasReferenceSeparator(value)) {
+            result.add(value);
+            continue;
+         }
+
+         String field = label + ".spec." + fieldName + "[" + i + "]";
+         IdentityID resolved =
+            AdminIdentityRefs.parse(field, value, unitOrgId, kind, true, false, directory());
+
+         if(!Objects.equals(resolved.getOrgID(), unitOrgId)) {
+            throw new IllegalArgumentException(
+               field + ": \"" + value.trim() + "\" names organization \"" + resolved.getOrgID() +
+               "\", but this identity lives in organization \"" + unitOrgId + "\" and its " +
+               fieldName + " list can only reference identities of that organization -- drop the " +
+               "organization qualifier (set spec.orgId on create to pick the organization the " +
+               "identity is created in)");
+         }
+
+         result.add(resolved.getName());
+      }
+
+      return result;
+   }
+
+   private static boolean hasReferenceSeparator(String value) {
+      return value.indexOf(':') >= 0 || value.indexOf('^') >= 0 ||
+         value.contains(IdentityID.KEY_DELIMITER);
+   }
    // ---------------------------------------------------------------- shared helpers
 
    @FunctionalInterface
@@ -845,7 +959,7 @@ public class IdentityChangePlanService {
     * IdentityChangesetApplyService}'s {@code writeAudit} calls, its only use post-resolve) with
     * no bearing on what is actually mutated or verified, and the caller is never required to
     * replay it byte-for-byte between preview and apply. */
-   private static String hash(List<PlanChange> changes) {
+   private static String hash(List<PlanChange> changes, Map<String, String> hiddenInputs) {
       StringBuilder canonical = new StringBuilder();
 
       for(PlanChange change : changes) {
@@ -854,6 +968,8 @@ public class IdentityChangePlanService {
             .append(canonical(change.proposedValue())).append(SEP)
             .append(change.risk()).append(SEP)
             .append(change.snapshotScope()).append(SEP);
+         // Bug #79016: appended only for a change that supplied a password.
+         PlanHashInputs.appendHidden(canonical, SEP, hiddenInputs, change.property());
       }
 
       try {
@@ -877,6 +993,8 @@ public class IdentityChangePlanService {
    }
 
    private static final char SEP = (char) 0x1f;
+   private static final String PASSWORD_DIGEST_DOMAIN =
+      "inetsoft.admin.ai.identity.password\u0000";
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
    private final SecurityService securityService;
    private final SecurityEngine securityEngine;

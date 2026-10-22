@@ -86,6 +86,7 @@ import inetsoft.web.wiz.service.FakeNamedConnectorQuery;
 import inetsoft.web.wiz.service.MetadataApiService;
 import inetsoft.web.wiz.service.RawDataService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
+import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.junit.jupiter.api.Tag;
@@ -117,7 +118,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -3372,6 +3375,156 @@ class WorksheetAgentControllerTest {
       verify(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug #79074: refreshData's single-assembly branch must also keep the runtime's heartbeat
+   // alive while its (potentially long-running, background-continuing) reload is in flight.
+   // ---------------------------------------------------------------------------
+   //
+   // RuntimeHeartbeatKeepAlive.INTERVAL_MS is shrunk for the duration of these tests so the
+   // periodic refresh can be observed without waiting out the real (minutes-long) production
+   // interval.
+
+   /**
+    * Happy path: a reload slow enough to need several heartbeat ticks, but fast enough to finish
+    * inside RenderWaitSupport.awaitOrRetry's own bound, must refresh the runtime's heartbeat while
+    * it runs and must not touch the idle/accessed clock (access(true)) -- that call happens
+    * earlier, at pairing-access grant time, which this test harness bypasses entirely by handing
+    * {@code rws} to the mocked {@code runtimeAccess} directly.
+    */
+   @Test
+   void refreshDataKeepsHeartbeatAliveWhileReloadIsInFlight() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
+
+      try {
+         Principal agent = TestPrincipals.user("alice", "host-org");
+
+         Worksheet ws = new Worksheet();
+         TableAssembly crosstab = TestWorksheets.withGroupSumAndSort(
+            TestWorksheets.nonEmbeddedTableWithColumns(ws, "Crosstab1", "cust", "amount"),
+            "cust", "amount");
+         ((BoundTableAssembly) crosstab).setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+         ws.addAssembly(crosstab);
+
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         when(rws.getAssetQuerySandbox()).thenReturn(box);
+         when(box.getWorksheet()).thenReturn(ws);
+         when(box.getVariableTable()).thenReturn(new VariableTable());
+
+         CountDownLatch heartbeats = new CountDownLatch(3);
+         doAnswer(inv -> {
+            heartbeats.countDown();
+            return null;
+         }).when(rws).access(false);
+
+         doAnswer(invocation -> {
+            // Blocks until the heartbeat has ticked a few times, then lets the reload finish --
+            // well inside RenderWaitSupport.awaitOrRetry's own multi-second bound.
+            assertTrue(heartbeats.await(2, TimeUnit.SECONDS),
+                       "expected the runtime's heartbeat to be refreshed repeatedly while the " +
+                       "reload is still running");
+            return null;
+         }).when(box).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         when(sessions.resolve(eq("TOK-RD79074a"), any())).thenReturn(session("TOK-RD79074a"));
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         WorksheetAgentController ctrl = controller(featureOn(),
+            mock(SheetJoinService.class), mock(SheetSessionService.class),
+            mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+         try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+            ctrl.edit("TOK-RD79074a", refreshDataRequest("Crosstab1"), agent);
+         }
+
+         verify(rws, atLeastOnce()).access(false);
+         verify(rws, never()).access(true);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
+   /**
+    * The hard case the round-2 review flagged: RenderWaitSupport.awaitOrRetry does not cancel the
+    * reload on timeout, so a reload slower than its own bound keeps running on a background
+    * thread well past the point where the controller call itself has already thrown
+    * RenderNotReadyException. The heartbeat must survive that client-visible timeout -- it is
+    * started before the wait begins but stopped from INSIDE the reload's own callable, not by the
+    * outer catch(RenderNotReadyException) branch, which must leave it running.
+    */
+   @Test
+   void refreshDataKeepsHeartbeatRunningPastAClientVisibleTimeout() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
+
+      try {
+         Principal agent = TestPrincipals.user("alice", "host-org");
+
+         Worksheet ws = new Worksheet();
+         TableAssembly crosstab = TestWorksheets.withGroupSumAndSort(
+            TestWorksheets.nonEmbeddedTableWithColumns(ws, "Crosstab1", "cust", "amount"),
+            "cust", "amount");
+         ((BoundTableAssembly) crosstab).setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+         ws.addAssembly(crosstab);
+
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         when(rws.getAssetQuerySandbox()).thenReturn(box);
+         when(box.getWorksheet()).thenReturn(ws);
+         when(box.getVariableTable()).thenReturn(new VariableTable());
+
+         // Longer than RenderWaitSupport's own bound here (TABLE_WARM_MAX_ATTEMPTS *
+         // TABLE_WARM_RETRY_SLEEP_MS = 2000ms), so the controller call itself times out and
+         // throws while this is still sleeping in the background.
+         doAnswer(invocation -> {
+            Thread.sleep(2_500);
+            return null;
+         }).when(box).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         when(sessions.resolve(eq("TOK-RD79074b"), any())).thenReturn(session("TOK-RD79074b"));
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         WorksheetAgentController ctrl = controller(featureOn(),
+            mock(SheetJoinService.class), mock(SheetSessionService.class),
+            mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+         try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+            assertThrows(RenderNotReadyException.class,
+               () -> ctrl.edit("TOK-RD79074b", refreshDataRequest("Crosstab1"), agent));
+         }
+
+         // The controller call has already returned (thrown), ~2000ms in, but the background
+         // reload still has roughly 500ms left to run -- the heartbeat must still be ticking.
+         clearInvocations(rws);
+         Thread.sleep(300L);
+         verify(rws, atLeastOnce()).access(false);
+
+         // Once the background reload genuinely finishes (its own finally stops the heartbeat),
+         // no further ticks should arrive.
+         Thread.sleep(500L);
+         clearInvocations(rws);
+         Thread.sleep(150L);
+         verify(rws, never()).access(false);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
    /**
     * Bug #76711 round 6 (bulk branch): the "refresh all tables" branch (no table name given) had
     * the exact same gap as the single-assembly branch did before round 6 -- it invalidated the
@@ -3422,6 +3575,120 @@ class WorksheetAgentControllerTest {
       verify(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
       assertNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS),
          "the bulk refresh-all branch must also remove the row-cap hint unconditionally");
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79074: refreshData's bulk ("refresh all tables") branch must also keep the runtime's
+   // heartbeat alive while its sequential, synchronous per-table reloads are in flight -- more
+   // exposed than the single-assembly branch, since N slow tables compound into one even longer
+   // blocking call.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void refreshDataAllTablesKeepsHeartbeatAliveWhileReloadIsInFlight() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
+
+      try {
+         Principal agent = TestPrincipals.user("alice", "host-org");
+
+         Worksheet ws = new Worksheet();
+         BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+            ws, "Table1", "cust", "amount");
+         table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+         ws.addAssembly(table);
+
+         VariableTable vars = new VariableTable();
+
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         when(rws.getAssetQuerySandbox()).thenReturn(box);
+         when(box.getWorksheet()).thenReturn(ws);
+         when(box.getVariableTable()).thenReturn(vars);
+
+         CountDownLatch heartbeats = new CountDownLatch(3);
+         doAnswer(inv -> {
+            heartbeats.countDown();
+            return null;
+         }).when(rws).access(false);
+
+         doAnswer(invocation -> {
+            assertTrue(heartbeats.await(2, TimeUnit.SECONDS),
+                       "expected the runtime's heartbeat to be refreshed repeatedly while the " +
+                       "bulk reload is still running");
+            return null;
+         }).when(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         when(sessions.resolve(eq("TOK-RD79074c"), any())).thenReturn(session("TOK-RD79074c"));
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         WorksheetAgentController ctrl = controller(featureOn(),
+            mock(SheetJoinService.class), mock(SheetSessionService.class),
+            mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+         try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+            ctrl.edit("TOK-RD79074c", refreshDataRequest(null), agent);
+         }
+
+         verify(rws, atLeastOnce()).access(false);
+         verify(rws, never()).access(true);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
+   /** The periodic task must be unregistered once the bulk reload completes -- no leak. */
+   @Test
+   void refreshDataAllTablesStopsRefreshingHeartbeatOnceReloadCompletes() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 15L;
+
+      try {
+         Principal agent = TestPrincipals.user("alice", "host-org");
+
+         Worksheet ws = new Worksheet();
+         BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+            ws, "Table1", "cust", "amount");
+         table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+         ws.addAssembly(table);
+
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         when(rws.getAssetQuerySandbox()).thenReturn(box);
+         when(box.getWorksheet()).thenReturn(ws);
+         when(box.getVariableTable()).thenReturn(new VariableTable());
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         when(sessions.resolve(eq("TOK-RD79074d"), any())).thenReturn(session("TOK-RD79074d"));
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         WorksheetAgentController ctrl = controller(featureOn(),
+            mock(SheetJoinService.class), mock(SheetSessionService.class),
+            mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+         try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+            ctrl.edit("TOK-RD79074d", refreshDataRequest(null), agent);
+         }
+
+         clearInvocations(rws);
+         Thread.sleep(150L);
+         verify(rws, never()).access(anyBoolean());
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
    }
 
    /**
@@ -4992,11 +5259,14 @@ class WorksheetAgentControllerTest {
       );
    }
 
+   private RuntimeWorksheet lastSyncRuntime;
+
    private WorksheetAgentController variableSyncController(
       String token, Worksheet ws, VariableTable vtable, AssetQuerySandbox box)
       throws Exception
    {
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      lastSyncRuntime = rws;
       when(rws.getWorksheet()).thenReturn(ws);
       when(rws.getAssetQuerySandbox()).thenReturn(box);
       when(box.getVariableTable()).thenReturn(vtable);
@@ -5080,6 +5350,173 @@ class WorksheetAgentControllerTest {
 
       assertFalse(vtable.contains("n"),
          "a value of the old type must not survive a variable type change");
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79001 -- every removal path must drop the variable's runtime value
+   // ---------------------------------------------------------------------------
+
+   private static EditRequest opRequest(String op, String table, String name, String newName) {
+      return new EditRequest(
+         op, table, null, name, null, newName, null, null, null, null,
+         null, null, null, false, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null,
+         null, null,
+         null, null, null, null, null, null, null
+      );
+   }
+
+   private VariableTable valuesFor79001() {
+      VariableTable vtable = new VariableTable();
+      vtable.put("state", "MD");
+      vtable.put("other", "keep");
+      vtable.put("__refresh_report__", Boolean.TRUE);
+      return vtable;
+   }
+
+   private void assertOnlyStateDropped(VariableTable vtable) throws Exception {
+      assertFalse(vtable.contains("state"), "the removed variable's value must be dropped");
+      assertEquals("keep", vtable.get("other"), "other variables' values must survive");
+      assertEquals(Boolean.TRUE, vtable.get("__refresh_report__"), "system keys must survive");
+   }
+
+   @Test
+   void deleteTableOfVariableDropsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001A", ws, vtable, box);
+
+      ctrl.edit("TOK-79001A", opRequest("delete_table", "state", null, null), agent);
+
+      assertOnlyStateDropped(vtable);
+      verify(box).reset();
+   }
+
+   @Test
+   void removeJoinOfVariableDropsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001B", ws, vtable, box);
+
+      ctrl.edit("TOK-79001B", opRequest("remove_join", null, "state", null), agent);
+
+      assertOnlyStateDropped(vtable);
+   }
+
+   @Test
+   void renameTableOfVariableDropsRuntimeValueOfOldName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001C", ws, vtable, box);
+
+      ctrl.edit("TOK-79001C", opRequest("rename_table", "state", null, "region"), agent);
+
+      assertOnlyStateDropped(vtable);
+   }
+
+   @Test
+   void undoOfAddVariableDropsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001E", ws, vtable, box);
+      when(lastSyncRuntime.undo(any())).thenAnswer(inv -> {
+         ws.removeAssembly("state");
+         return true;
+      });
+
+      ctrl.undo("TOK-79001E", agent);
+
+      assertOnlyStateDropped(vtable);
+   }
+
+   @Test
+   void undoOfRenameVariableDropsValueMovedToNewName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "region");
+      addVariable(ws, "other");
+      VariableTable vtable = new VariableTable();
+      vtable.put("region", "MD");
+      vtable.put("other", "keep");
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001F", ws, vtable, box);
+      when(lastSyncRuntime.undo(any())).thenAnswer(inv -> {
+         ws.removeAssembly("region");
+         addVariable(ws, "state");
+         return true;
+      });
+
+      ctrl.undo("TOK-79001F", agent);
+
+      assertFalse(vtable.contains("region"));
+      assertFalse(vtable.contains("state"));
+      assertEquals("keep", vtable.get("other"));
+   }
+
+   @Test
+   void redoThatRemovesAVariableDropsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001G", ws, vtable, box);
+      when(lastSyncRuntime.redo(any())).thenAnswer(inv -> {
+         ws.removeAssembly("state");
+         return true;
+      });
+
+      ctrl.redo("TOK-79001G", agent);
+
+      assertOnlyStateDropped(vtable);
+   }
+
+   @Test
+   void undoThatRemovesNoVariableKeepsRuntimeValues() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001H", ws, vtable, box);
+      when(lastSyncRuntime.undo(any())).thenReturn(true);
+
+      ctrl.undo("TOK-79001H", agent);
+
+      assertEquals("MD", vtable.get("state"));
+      verify(box, never()).reset();
+   }
+
+   @Test
+   void addVariableDropsStaleValueLeftUnderItsName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001I", ws, vtable, box);
+
+      ctrl.edit("TOK-79001I", addVariableRequest("state", XSchema.STRING), agent);
+
+      assertOnlyStateDropped(vtable);
    }
 
    // ---------------------------------------------------------------------------
@@ -5643,6 +6080,110 @@ class WorksheetAgentControllerTest {
       clear.put("wDbl", null);
       ctrl.edit("TOK-SVS3", setVariableValuesRequest(clear), agent);
       verify(box, times(2)).refreshVariableTable(any());
+   }
+
+   /**
+    * A worksheet whose tables reference the given variables: stands in for a SQL table with a
+    * {@code $(name)} condition, which is what makes {@code getAllVariables} list a variable.
+    */
+   private static Worksheet worksheetReferencing(String... names) {
+      return new Worksheet() {
+         @Override
+         public synchronized UserVariable[] getAllVariables() {
+            return java.util.Arrays.stream(names).map(UserVariable::new)
+               .toArray(UserVariable[]::new);
+         }
+      };
+   }
+
+   /** Names of declared variables still reported as needing a value, as the warning path sees them. */
+   private static List<String> unsetVariableNames(AssetQuerySandbox box) {
+      return java.util.Arrays.stream(box.getAllVariables(box.getVariableTable()))
+         .map(v -> v.getName()).toList();
+   }
+
+   // Bug #79083: a top-level null must clear the variable back to "no session value yet", i.e.
+   // remove the key from the sandbox table, not leave key -> null (which hides the variable from
+   // getAllVariables and so suppresses the "no session value yet ... dropped" warning).
+   @Test
+   void setVariableValuesNullClearsKeyAndMatchesNeverSet() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC1");
+
+      List<String> neverSet = unsetVariableNames(box);
+      assertTrue(neverSet.contains("pState"), "a never-set variable is reported as needing a value");
+
+      ctrl.edit("TOK-SVC1", setVariableValuesRequest(Map.of("pState", "x")), agent);
+      assertEquals("x", box.getVariableTable().get("pState"));
+      assertFalse(unsetVariableNames(box).contains("pState"));
+
+      java.util.Map<String, Object> clear = new java.util.HashMap<>();
+      clear.put("pState", null);
+      ctrl.edit("TOK-SVC1", setVariableValuesRequest(clear), agent);
+
+      assertFalse(box.getVariableTable().contains("pState"),
+         "null must remove the key, not leave key -> null");
+      assertEquals(neverSet, unsetVariableNames(box),
+         "a cleared variable must be reported exactly like a never-set one");
+   }
+
+   @Test
+   void setVariableValuesCanSetAgainAfterClear() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC2");
+
+      ctrl.edit("TOK-SVC2", setVariableValuesRequest(Map.of("pState", "x")), agent);
+      java.util.Map<String, Object> clear = new java.util.HashMap<>();
+      clear.put("pState", null);
+      ctrl.edit("TOK-SVC2", setVariableValuesRequest(clear), agent);
+      ctrl.edit("TOK-SVC2", setVariableValuesRequest(Map.of("pState", "y")), agent);
+
+      assertEquals("y", box.getVariableTable().get("pState"));
+      assertFalse(unsetVariableNames(box).contains("pState"));
+   }
+
+   @Test
+   void setVariableValuesNullClearLeavesOtherVariablesAndEmptyStringIsLiteral() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      variableAssemblyForValues(ws, "pCity", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC3");
+
+      java.util.Map<String, Object> req = new java.util.HashMap<>();
+      req.put("pState", "x");
+      req.put("pCity", "");
+      ctrl.edit("TOK-SVC3", setVariableValuesRequest(req), agent);
+      java.util.Map<String, Object> clear = new java.util.HashMap<>();
+      clear.put("pState", null);
+      ctrl.edit("TOK-SVC3", setVariableValuesRequest(clear), agent);
+
+      assertFalse(box.getVariableTable().contains("pState"));
+      assertTrue(box.getVariableTable().contains("pCity"),
+         "an empty string is a literal value, not a clear");
+      assertEquals("", box.getVariableTable().get("pCity"));
+   }
+
+   @Test
+   void setVariableValuesNullInsideListIsStillRejected() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC4");
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-SVC4", setVariableValuesRequest(
+            Map.of("pState", java.util.Collections.singletonList((Object) null))), agent));
+      assertTrue(ex.getMessage().contains("pState"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("null"), ex.getMessage());
    }
 
    @ParameterizedTest
@@ -10218,6 +10759,100 @@ class WorksheetAgentControllerTest {
       }
    }
 
+   /**
+    * Bug #79062: a variable mirrored from another worksheet is declared under a hidden-copy
+    * assembly name (here OUTER1_0) that differs from the variable's own name (RATE), the name a
+    * `$(RATE)` reference carries. It must count as declared, not as undeclared.
+    */
+   @Test
+   void editSqlQueryEndpointTreatsAMirroredVariableAsDeclaredByItsOwnName() throws Exception {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly hiddenCopy = new DefaultVariableAssembly(ws, "OUTER1_0");
+      hiddenCopy.setVariable(new AssetVariable("RATE"));
+      ws.addAssembly(hiddenCopy);
+
+      WorksheetAgentController.SqlQueryResponse response =
+         editSqlQueryReportingVariables(ws, "RATE");
+
+      assertEquals(List.of(), response.undeclaredVariables());
+      assertEquals(List.of("RATE"), response.variablesNeedingValues());
+   }
+
+   @Test
+   void editSqlQueryEndpointStillReportsANameNoVariableDeclaresAsUndeclared() throws Exception {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly hiddenCopy = new DefaultVariableAssembly(ws, "OUTER1_0");
+      hiddenCopy.setVariable(new AssetVariable("RATE"));
+      ws.addAssembly(hiddenCopy);
+
+      WorksheetAgentController.SqlQueryResponse response =
+         editSqlQueryReportingVariables(ws, "RATE", "typo");
+
+      assertEquals(List.of("typo"), response.undeclaredVariables());
+      assertEquals(List.of("RATE"), response.variablesNeedingValues());
+   }
+
+   /** Runs editSqlQuery on a worksheet whose variable collection reports the given names. */
+   private WorksheetAgentController.SqlQueryResponse editSqlQueryReportingVariables(
+      Worksheet ws, String... names) throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
+      ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
+      ws.addAssembly(sqlt);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      doNothing().when(box).refreshColumnSelection(eq("SqlTable1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-79062"), any())).thenReturn(session("TOK-79062"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      ColumnSelection newColumns = new ColumnSelection();
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "a")));
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(newColumns);
+
+      WorksheetAgentController ctrl = securityController(editSvc, mock(DataSourceService.class),
+         securityEngine, mock(MetadataApiService.class), mock(XRepository.class),
+         queryManagerService);
+
+      List<VariableAssemblyModelInfo> infos = new ArrayList<>();
+
+      for(String name : names) {
+         VariableAssemblyModelInfo info = new VariableAssemblyModelInfo();
+         info.setName(name);
+         infos.add(info);
+      }
+
+      WSCollectVariablesCommand command = WSCollectVariablesCommand.builder()
+         .varInfos(infos)
+         .build();
+
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(command);
+
+         return ctrl.editSqlQuery("TOK-79062",
+            new WorksheetAgentController.EditSqlQueryRequest("SqlTable1", "SELECT 1"), agent);
+      }
+   }
+
    // ---------------------------------------------------------------------------
    // editSqlQuery -- differentiated "no columns" guard message (bug #76500, WSQ-006)
    // ---------------------------------------------------------------------------
@@ -12532,6 +13167,253 @@ class WorksheetAgentControllerTest {
       runInsertColumn(ws, insertColumnAt(0, false));
       assertEquals("col1,a,b", dataHeader(t));
       assertEquals("ex,col1,a,b", csNames(t));
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79078: add_table / edit_table must store maxRows on the table assembly (the field the
+   // model read and every render honour), not only on the query. The edit service is mocked so
+   // its applyOnRuntime runs the captured lambda against a REAL Worksheet.
+   // ---------------------------------------------------------------------------
+
+   private static final String MAXROWS_DS = "MyDatasource";
+
+   private record MaxRowsFixture(WorksheetAgentController ctrl, Worksheet ws, Principal agent) {}
+
+   private static MaxRowsFixture maxRowsFixture(String token, Worksheet ws) throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq(MAXROWS_DS), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      TabularDataSource<?> xds = mock(TabularDataSource.class);
+      when(xds.getType()).thenReturn("FakeColumnProducingNamedConnector");
+      when(xrepository.getDataSource(eq(MAXROWS_DS))).thenReturn(xds);
+
+      return new MaxRowsFixture(securityController(editSvc, dataSourceService,
+         mock(SecurityEngine.class), mock(MetadataApiService.class), xrepository,
+         mock(QueryManagerService.class)), ws, agent);
+   }
+
+   private static FakeColumnProducingNamedConnectorQuery maxRowsNamedQuery() {
+      FakeColumnProducingNamedConnectorQuery q = new FakeColumnProducingNamedConnectorQuery();
+      q.setColumnsByEndpoint(Map.of(
+         "Repos", List.of("repoId"), "Issues", List.of("issueId"), "Paged", List.of("pagedId")));
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn(MAXROWS_DS);
+      q.setDataSource(ds);
+      return q;
+   }
+
+   /** A live tabular table whose assembly and query both already carry the given cap. */
+   private static TabularTableAssembly maxRowsLiveTable(
+      Worksheet ws, String endpoint, int assemblyCap, int queryCap) throws Exception
+   {
+      FakeColumnProducingNamedConnectorQuery q = maxRowsNamedQuery();
+      q.setEndpoint(endpoint);
+      q.setMaxRows(queryCap);
+      TabularTableAssembly t = new TabularTableAssembly(ws, "Issues1");
+      ((TabularTableAssemblyInfo) t.getTableInfo()).setQuery(q);
+      t.setMaxRows(assemblyCap);
+      ws.addAssembly(t);
+      t.loadColumnSelection(new VariableTable(), true, null);
+      return t;
+   }
+
+   private static void runAddTabular(
+      MaxRowsFixture f, String token, EditRequest req, TabularQuery query) throws Exception
+   {
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq(MAXROWS_DS))).thenReturn(query);
+         f.ctrl().edit(token, req, f.agent());
+      }
+   }
+
+   @Test
+   void addTableEndpointFormStoresMaxRowsOnTheAssembly() throws Exception {
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-MR1", ws);
+      FakeColumnProducingNamedConnectorQuery q = maxRowsNamedQuery();
+
+      runAddTabular(f, "TOK-MR1",
+         addTabularTableRequestWithMaxRows("Iss", MAXROWS_DS, "Paged", null, 100), q);
+
+      assertEquals(100, ((TableAssembly) ws.getAssembly("Iss")).getMaxRows());
+      assertEquals(100, q.getMaxRows(), "the query-level cap the guard reads is kept");
+   }
+
+   @Test
+   void addTableSuffixFormStoresMaxRowsOnTheAssembly() throws Exception {
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-MR2", ws);
+      FakeColumnProducingCustomRestQuery q = new FakeColumnProducingCustomRestQuery();
+      q.setColumnsBySuffix(Map.of("/paged", List.of("id")));
+
+      runAddTabular(f, "TOK-MR2",
+         addTabularTableRequestWithMaxRows("Iss", MAXROWS_DS, null, "/paged", 30), q);
+
+      assertEquals(30, ((TableAssembly) ws.getAssembly("Iss")).getMaxRows());
+   }
+
+   @Test
+   void addTableWithoutMaxRowsLeavesTheAssemblyUncapped() throws Exception {
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-MR3", ws);
+
+      runAddTabular(f, "TOK-MR3",
+         addTabularTableRequestWithMaxRows("Iss", MAXROWS_DS, "Issues", null, null),
+         maxRowsNamedQuery());
+
+      assertEquals(-1, ((TableAssembly) ws.getAssembly("Iss")).getMaxRows(),
+         "no maxRows supplied: no default is invented");
+   }
+
+   @Test
+   void addTableMaxRowsZeroOnAnUnpagedEndpointStoresUnlimited() throws Exception {
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-MR4", ws);
+
+      runAddTabular(f, "TOK-MR4",
+         addTabularTableRequestWithMaxRows("Iss", MAXROWS_DS, "Issues", null, 0),
+         maxRowsNamedQuery());
+
+      assertEquals(-1, ((TableAssembly) ws.getAssembly("Iss")).getMaxRows());
+   }
+
+   @Test
+   void addTableNegativeMaxRowsIsRefusedBeforeAnythingIsAdded() throws Exception {
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-MR5", ws);
+
+      PairingException ex = assertThrows(PairingException.class, () -> runAddTabular(f, "TOK-MR5",
+         addTabularTableRequestWithMaxRows("Iss", MAXROWS_DS, "Issues", null, -5),
+         maxRowsNamedQuery()));
+
+      assertTrue(ex.getMessage().contains("maxRows cannot be negative (got -5)"), ex.getMessage());
+      assertNull(ws.getAssembly("Iss"));
+   }
+
+   @Test
+   void addTableQueryParamsFormStoresMaxRowsOnTheAssembly() throws Exception {
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-MR6", ws);
+      EditRequest req = addQueryParamsTableRequestWithMaxRows(
+         "Iss", MAXROWS_DS, Map.of("endpoint", "Issues"), 40);
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try {
+         runAddTabular(f, "TOK-MR6", req, maxRowsNamedQuery());
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+
+      assertEquals(40, ((TableAssembly) ws.getAssembly("Iss")).getMaxRows());
+   }
+
+   @Test
+   void editTableLowersTheAssemblyMaxRows() throws Exception {
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly t = maxRowsLiveTable(ws, "Repos", 100, 100);
+      MaxRowsFixture f = maxRowsFixture("TOK-MR7", ws);
+
+      f.ctrl().edit("TOK-MR7",
+         editTableRequest("Issues1", "Issues", null, null, null, null, null, 30), f.agent());
+
+      assertEquals(30, t.getMaxRows());
+   }
+
+   @Test
+   void editTableSuffixFormLowersTheAssemblyMaxRows() throws Exception {
+      Worksheet ws = new Worksheet();
+      FakeColumnProducingCustomRestQuery q = new FakeColumnProducingCustomRestQuery();
+      q.setColumnsBySuffix(Map.of("/a", List.of("a"), "/b", List.of("b")));
+      q.setSuffix("/a");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn(MAXROWS_DS);
+      q.setDataSource(ds);
+      TabularTableAssembly t = new TabularTableAssembly(ws, "Issues1");
+      ((TabularTableAssemblyInfo) t.getTableInfo()).setQuery(q);
+      t.setMaxRows(100);
+      ws.addAssembly(t);
+      t.loadColumnSelection(new VariableTable(), true, null);
+      MaxRowsFixture f = maxRowsFixture("TOK-MR8", ws);
+
+      f.ctrl().edit("TOK-MR8",
+         editTableRequest("Issues1", null, null, null, "/b", null, null, 30), f.agent());
+
+      assertEquals(30, t.getMaxRows());
+   }
+
+   @Test
+   void editTableWithoutMaxRowsKeepsTheExistingAssemblyCap() throws Exception {
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly t = maxRowsLiveTable(ws, "Repos", 100, 100);
+      MaxRowsFixture f = maxRowsFixture("TOK-MR9", ws);
+
+      f.ctrl().edit("TOK-MR9",
+         editTableRequest("Issues1", "Issues", null, null, null, null, null, null), f.agent());
+
+      assertEquals(100, t.getMaxRows());
+   }
+
+   @Test
+   void editTableMaxRowsZeroOnAnUnpagedTableStoresUnlimited() throws Exception {
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly t = maxRowsLiveTable(ws, "Repos", 100, 100);
+      MaxRowsFixture f = maxRowsFixture("TOK-MR10", ws);
+
+      f.ctrl().edit("TOK-MR10",
+         editTableRequest("Issues1", "Issues", null, null, null, null, null, 0), f.agent());
+
+      assertEquals(-1, t.getMaxRows());
+   }
+
+   @Test
+   void editTableMaxRowsZeroOnAPagedTableIsStillRefusedAndKeepsTheCap() throws Exception {
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly t = maxRowsLiveTable(ws, "Paged", 100, 100);
+      MaxRowsFixture f = maxRowsFixture("TOK-MR11", ws);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         f.ctrl().edit("TOK-MR11",
+            editTableRequest("Issues1", "Paged", null, null, null, null, null, 0), f.agent()));
+
+      assertTrue(ex.getMessage().contains("paginated"), ex.getMessage());
+      assertEquals(100, t.getMaxRows());
+   }
+
+   @Test
+   void editTableNegativeMaxRowsIsRefusedBeforeAnyMutation() throws Exception {
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly t = maxRowsLiveTable(ws, "Repos", 100, 100);
+      MaxRowsFixture f = maxRowsFixture("TOK-MR12", ws);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         f.ctrl().edit("TOK-MR12",
+            editTableRequest("Issues1", "Issues", null, null, null, null, null, -1), f.agent()));
+
+      assertTrue(ex.getMessage().contains("maxRows cannot be negative (got -1)"), ex.getMessage());
+      assertEquals(100, t.getMaxRows());
+      assertEquals("Repos", ((FakeColumnProducingNamedConnectorQuery)
+         ((TabularTableAssemblyInfo) t.getTableInfo()).getQuery()).getEndpoint());
    }
 
 }

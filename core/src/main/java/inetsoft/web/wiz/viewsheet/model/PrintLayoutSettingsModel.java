@@ -26,10 +26,17 @@ package inetsoft.web.wiz.viewsheet.model;
  * never been configured ({@code screensPane().getPrintLayout()} reads back {@code null}) --
  * never a zeroed-out instance of this record -- so a caller can tell "unconfigured" apart from
  * "configured with every field at its default".
+ *
+ * <p>{@code printableWidth}/{@code printableHeight} are derived, read-only: the page body (paper
+ * minus margins, landscape-swapped; header/footer are not subtracted) in {@code coordinateUnit}
+ * ({@code "pt"}, 1/72 in, whatever {@code units} is), floored to match the PDF export body, in
+ * the same space as the layout objects' {@code layoutX/layoutY/layoutWidth/layoutHeight}.
  */
 public record PrintLayoutSettingsModel(String paperSize, double marginTop, double marginLeft,
                                         double marginBottom, double marginRight,
                                         float footerFromEdge, float headerFromEdge,
                                         boolean landscape, float scaleFont, int numberingStart,
-                                        double customWidth, double customHeight, String units) {
+                                        double customWidth, double customHeight, String units,
+                                        int printableWidth, int printableHeight,
+                                        String coordinateUnit) {
 }

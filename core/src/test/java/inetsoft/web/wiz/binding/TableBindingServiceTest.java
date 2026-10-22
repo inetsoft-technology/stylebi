@@ -74,6 +74,26 @@ class TableBindingServiceTest {
       return new FieldRef(column, "dimension", null, null, null);
    }
 
+   /** Bug #79017: only an explicit null on a rows/cols dimension is an ungroup request. */
+   @Test
+   void ungroupDimensionsListsOnlyExplicitNullsOnRowsAndCols() throws Exception {
+      com.fasterxml.jackson.databind.ObjectMapper mapper =
+         new com.fasterxml.jackson.databind.ObjectMapper();
+      FieldRef clear = mapper.readValue(
+         "{\"column\":\"Category\",\"type\":\"dimension\",\"namedGroupValues\":null}",
+         FieldRef.class);
+      FieldRef omit = mapper.readValue(
+         "{\"column\":\"Region\",\"type\":\"dimension\"}", FieldRef.class);
+      FieldRef byName = mapper.readValue(
+         "{\"column\":\"Year\",\"type\":\"dimension\",\"namedGroup\":\"G\"," +
+         "\"namedGroupValues\":null}", FieldRef.class);
+
+      assertEquals(List.of("cols:Category"),
+                   TableBindingService.ungroupDimensions("cols", List.of(clear, omit, byName)));
+      assertEquals(List.of(), TableBindingService.ungroupDimensions("details", List.of(clear)));
+      assertEquals(List.of(), TableBindingService.ungroupDimensions("aggregates", List.of(clear)));
+   }
+
    @Test
    void setShelfPostsTheModelItReadRatherThanAFreshOne() throws Exception {
       CrosstabBindingModel existing = new CrosstabBindingModel();
@@ -642,7 +662,7 @@ class TableBindingServiceTest {
          .setColumnWidths("tok", principal(), "Table1",
                           java.util.Collections.singletonMap("Region", null)).applied();
 
-      verify(info).setColumnWidthValue(0, Double.NaN);
+      verify(info).removeColumnWidthValue2(0, lens);
       assertEquals(List.of("Region -> auto"), applied);
    }
 

@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
+import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -29,9 +30,11 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.SortInfo;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.SortRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
@@ -131,7 +134,8 @@ public class TableBindingService {
          relayShapeWarning(assemblyName, model, dispatcher);
 
          Map<String, ColumnOption> formOptions = captureFormOptions(assembly);
-         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
+         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher,
+                      ungroupDimensions(shelf, fields));
          restoreFormRefInvariant(assembly, shelf, formOptions);
       });
    }
@@ -531,8 +535,9 @@ public class TableBindingService {
    public List<String> addField(String sessionToken, Principal user, String assemblyName, String shelf,
                         FieldRef field, Integer position, String sourceTable) throws Exception
    {
-      return applyWithContext(sessionToken, user, assemblyName, shelf,
-         field == null ? List.of() : List.of(field),
+      List<FieldRef> added = field == null ? List.of() : List.of(field);
+      return applyWithContext(sessionToken, user, assemblyName, shelf, added,
+         ungroupDimensions(shelf, added),
          (model, rvs, source) -> {
             applySource(model, sourceTable);
             requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
@@ -1520,7 +1525,8 @@ public class TableBindingService {
     * around.
     *
     * <p>Width is in pixels. A {@code null} width resets the column back to auto-fit ({@code
-    * setColumnWidthValue(col, NaN)}); a finite positive width is stored with {@code
+    * removeColumnWidthValue2}, which clears the path-keyed width a previous call stored); a
+    * finite width of at least 1 pixel is stored with {@code
     * setColumnWidthValue2}, the same call {@code ComposerVSTableService.changeColumnWidth} makes
     * for a live column-drag resize (its own {@code setColumnWidthValue} javadoc calling the
     * value "a ratio to total width" is stale for this call path -- trust the usage site).
@@ -1539,6 +1545,11 @@ public class TableBindingService {
       List<String> applied = new ArrayList<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         if(rvs.getViewsheet().getAssembly(assemblyName) instanceof CalcTableVSAssembly calc) {
+            applyCalcColumnWidths(rvs, calc, assemblyName, widths, applied);
+            return;
+         }
+
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
          VSTableLens lens = TableLensGuard.requireRenderedLens(
@@ -1582,10 +1593,10 @@ public class TableBindingService {
                continue;
             }
 
-            if(width != null && (!Double.isFinite(width) || width <= 0)) {
-               errors.add(
-                  "'" + column + "' width must be a finite, positive number of pixels; got " +
-                  width + ".");
+            String widthError = widthError("'" + column + "'", width);
+
+            if(widthError != null) {
+               errors.add(widthError);
                continue;
             }
 
@@ -1602,12 +1613,12 @@ public class TableBindingService {
             Double width = values.get(i);
 
             if(width == null) {
-               info.setColumnWidthValue(cols.get(i), Double.NaN);
+               info.removeColumnWidthValue2(cols.get(i), lens);
                applied.add(names.get(i) + " -> auto");
             }
             else {
                info.setColumnWidthValue2(cols.get(i), width, lens);
-               applied.add(names.get(i) + " -> " + formatPixels(width) + "px");
+               applied.add(names.get(i) + " -> " + widthText(width));
             }
          }
 
@@ -1617,6 +1628,295 @@ public class TableBindingService {
       });
 
       return new TableWrite(applied, warnings);
+   }
+
+   /**
+    * Why {@code width} cannot be written, or {@code null} when it can ({@code null} width is a
+    * reset). The engine truncates a width to an int and treats 0 as a hidden column, so a width
+    * under 1 would hide the column rather than size it.
+    */
+   private static String widthError(String subject, Double width) {
+      if(width != null && (!Double.isFinite(width) || width < 1 || width > MAX_PIXELS)) {
+         return subject + " width must be a finite number of pixels from 1 to " +
+            MAX_PIXELS + " (0 hides a column and a fraction below 1 truncates to 0); got " +
+            width + ".";
+      }
+
+      return null;
+   }
+
+   /**
+    * Calc-table form of {@link #setColumnWidths}: the keys are LAYOUT column indices (the
+    * {@code col} of {@code get_calc_layout}), not rendered header text. A layout column that
+    * expands into several rendered columns shares one {@code Column [n]} data path, so one
+    * {@code setColumnWidthValue2} sizes all of them.
+    */
+   private void applyCalcColumnWidths(RuntimeViewsheet rvs, CalcTableVSAssembly assembly,
+                                      String assemblyName, Map<String, Double> widths,
+                                      List<String> applied)
+      throws Exception
+   {
+      VSTableLens lens = TableLensGuard.requireRenderedLens(
+         rvs, assembly, assemblyName, "its columns cannot be resolved");
+      CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getInfo();
+      TableLayout layout = info.getTableLayout();
+      int layoutCols = layout == null ? 0 : layout.getColCount();
+      List<String> errors = new ArrayList<>();
+      List<Integer> layoutIndexes = new ArrayList<>();
+      List<Integer> renderedCols = new ArrayList<>();
+      List<Double> values = new ArrayList<>();
+
+      for(Map.Entry<String, Double> entry : widths.entrySet()) {
+         String key = entry.getKey() == null ? "" : entry.getKey().trim();
+         int index;
+
+         try {
+            index = Integer.parseInt(key);
+         }
+         catch(NumberFormatException e) {
+            errors.add(
+               "'" + entry.getKey() + "' is not a layout column index. '" + assemblyName +
+               "' is a calc table: key each width by the layout column index get_calc_layout " +
+               "reports as 'col' (0 to " + (layoutCols - 1) + "), not by header text.");
+            continue;
+         }
+
+         if(index < 0 || index >= layoutCols) {
+            errors.add(
+               "Layout column " + index + " does not exist on '" + assemblyName +
+               "'; valid layout columns are 0 to " + (layoutCols - 1) + ".");
+            continue;
+         }
+
+         String widthError = widthError("Layout column " + index, entry.getValue());
+
+         if(widthError != null) {
+            errors.add(widthError);
+            continue;
+         }
+
+         int rendered = -1;
+
+         for(int c = 0; c < lens.getColCount() && rendered < 0; c++) {
+            TableDataPath path = lens.getDescriptor().getColDataPath(c);
+            String[] segments = path == null ? null : path.getPath();
+
+            if(segments != null && segments.length > 0 &&
+               ("Column [" + index + "]").equals(segments[0]))
+            {
+               rendered = c;
+            }
+         }
+
+         if(rendered < 0) {
+            errors.add(
+               "Layout column " + index + " of '" + assemblyName + "' renders no column right " +
+               "now (for example an expanding cell with no data), so its width cannot be set.");
+            continue;
+         }
+
+         layoutIndexes.add(index);
+         renderedCols.add(rendered);
+         values.add(entry.getValue());
+      }
+
+      if(!errors.isEmpty()) {
+         throw new IllegalArgumentException(String.join(" ", errors));
+      }
+
+      for(int i = 0; i < renderedCols.size(); i++) {
+         Double width = values.get(i);
+
+         if(width == null) {
+            info.removeColumnWidthValue2(renderedCols.get(i), lens);
+            applied.add("layout column " + layoutIndexes.get(i) + " -> auto");
+         }
+         else {
+            info.setColumnWidthValue2(renderedCols.get(i), width, lens);
+            applied.add("layout column " + layoutIndexes.get(i) + " -> " + widthText(width));
+         }
+      }
+
+      info.setExplicitTableWidthValue(true);
+      refreshLensSizes(lens);
+   }
+
+   /**
+    * Makes the cached rendered lens recompute its widths and row heights from the assembly info.
+    * {@code VSTableLens.initTableGrid} returns early while those arrays are populated, so an
+    * info edit alone would not render. This is the same reset the Composer's own resize does
+    * ({@code ComposerVSTableService.changeRowHeight}'s {@code lens.setRowHeights(null)}).
+    */
+   private static void refreshLensSizes(VSTableLens lens) {
+      lens.setColumnWidths(null);
+      lens.setRowHeights(null);
+   }
+
+   /**
+    * Sets header row heights (by 0-based header row index) and/or the single data row height of a
+    * Table, Crosstab or calc table, in pixels. Heights are ints in the engine, so a fractional
+    * value is rounded and the applied value reported. A header reset is all-or-nothing (one
+    * {@code userHeaderRowHeight} flag); a script-defined per-row height wins over either.
+    */
+   public TableWrite setRowHeights(String sessionToken, Principal user, String assemblyName,
+                                   Map<String, Double> headerRows, Double dataRowHeight,
+                                   boolean resetHeaderRows, boolean resetDataRowHeight)
+      throws Exception
+   {
+      boolean hasHeaderRows = headerRows != null && !headerRows.isEmpty();
+
+      if(!hasHeaderRows && dataRowHeight == null && !resetHeaderRows && !resetDataRowHeight) {
+         throw new IllegalArgumentException(
+            "setRowHeights requires 'headerRows', 'dataRowHeight', or a reset of either.");
+      }
+
+      if(hasHeaderRows && resetHeaderRows) {
+         throw new IllegalArgumentException(
+            "Give either header row heights or a header-row reset, not both.");
+      }
+
+      if(dataRowHeight != null && resetDataRowHeight) {
+         throw new IllegalArgumentException(
+            "Give either a data row height or a data-row reset, not both.");
+      }
+
+      List<String> applied = new ArrayList<>();
+
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(!(assembly instanceof CalcTableVSAssembly)) {
+            requireTableBinding(rvs, assemblyName);
+         }
+
+         VSTableLens lens = TableLensGuard.requireRenderedLens(
+            rvs, assembly, assemblyName, "its rows cannot be resolved");
+         TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
+         int headerRowCount = info instanceof CalcTableVSAssemblyInfo calcInfo
+            ? calcInfo.getHeaderRowCount() : lens.getHeaderRowCount();
+         List<String> errors = new ArrayList<>();
+         Map<Integer, Integer> headerHeights = new TreeMap<>();
+
+         if(hasHeaderRows) {
+            for(Map.Entry<String, Double> entry : headerRows.entrySet()) {
+               int row;
+
+               try {
+                  row = Integer.parseInt(entry.getKey() == null ? "" : entry.getKey().trim());
+               }
+               catch(NumberFormatException e) {
+                  errors.add("'" + entry.getKey() + "' is not a header row index.");
+                  continue;
+               }
+
+               if(row < 0 || row >= headerRowCount) {
+                  errors.add(
+                     "Header row " + row + " does not exist on '" + assemblyName + "'; it has " +
+                     headerRowCount + " header row(s), indexed 0 to " + (headerRowCount - 1) + ".");
+                  continue;
+               }
+
+               String error = heightError("Header row " + row, entry.getValue());
+
+               if(error != null) {
+                  errors.add(error);
+                  continue;
+               }
+
+               headerHeights.put(row, (int) Math.round(entry.getValue()));
+            }
+         }
+
+         if(dataRowHeight != null) {
+            String dataError = heightError("dataRowHeight", dataRowHeight);
+
+            if(dataError != null) {
+               errors.add(dataError);
+            }
+         }
+
+         if(!errors.isEmpty()) {
+            throw new IllegalArgumentException(String.join(" ", errors));
+         }
+
+         if(resetHeaderRows) {
+            info.setUserHeaderRowHeight(false);
+            info.setHeaderRowHeights(new int[]{ AssetUtil.defh });
+            applied.add("header rows -> default");
+         }
+
+         if(!headerHeights.isEmpty()) {
+            info.updateHeaderRowHeights(false);
+
+            if(info.getHeaderRowHeightsLength() < headerRowCount) {
+               int[] padded = new int[headerRowCount];
+
+               for(int i = 0; i < padded.length; i++) {
+                  padded[i] = info.getHeaderRowHeight(i);
+               }
+
+               info.setHeaderRowHeights(padded);
+            }
+
+            for(Map.Entry<Integer, Integer> entry : headerHeights.entrySet()) {
+               info.setHeaderRowHeight(entry.getKey(), entry.getValue());
+               Double requested = headerRows.get(String.valueOf(entry.getKey()));
+               applied.add("header row " + entry.getKey() + " -> " + entry.getValue() + "px" +
+                           roundedNote(requested, entry.getValue()));
+            }
+
+            info.setUserHeaderRowHeight(true);
+         }
+
+         if(resetDataRowHeight) {
+            info.setDataRowHeight(AssetUtil.defh);
+            info.setUserDataRowHeight(false);
+            applied.add("data rows -> default");
+         }
+
+         if(dataRowHeight != null) {
+            int height = (int) Math.round(dataRowHeight);
+            info.setDataRowHeight(height);
+            info.setUserDataRowHeight(true);
+            applied.add("data rows -> " + height + "px" + roundedNote(dataRowHeight, height));
+         }
+
+         if(info.getHeightSize() > 0) {
+            applied.add("note: script-defined per-row heights are set on '" + assemblyName +
+                        "' and override these heights for the rows they name.");
+         }
+
+         info.setExplicitTableWidthValue(true);
+         refreshLensSizes(lens);
+      });
+
+      return new TableWrite(applied, warnings);
+   }
+
+   /** The largest column width or row height written, in pixels; keeps the engine's int math safe. */
+   private static final long MAX_PIXELS = 32767;
+
+   /** The width as the engine applies it: it truncates to a whole pixel when it renders. */
+   private static String widthText(double width) {
+      long applied = (long) width;
+      return applied == width ? applied + "px"
+         : applied + "px (truncated from " + formatPixels(width) + ")";
+   }
+
+   private static String heightError(String subject, Double height) {
+      if(height == null || !Double.isFinite(height) || Math.round(height) < 1 ||
+         Math.round(height) > MAX_PIXELS)
+      {
+         return subject + " height must be a finite number of pixels from 1 to " +
+            MAX_PIXELS + "; got " + height + ".";
+      }
+
+      return null;
+   }
+
+   private static String roundedNote(Double requested, int applied) {
+      return requested != null && requested != applied
+         ? " (rounded from " + formatPixels(requested) + ")" : "";
    }
 
    /** Strips a trailing {@code .0} so a whole-pixel width reads as {@code "120px"}, not {@code "120.0px"}. */
@@ -1987,11 +2287,7 @@ public class TableBindingService {
    }
 
    private static FieldRef withLabel(FieldRef field, String label) {
-      return new FieldRef(field.column(), field.type(), field.aggregate(), field.dateLevel(),
-                          field.namedGroup(), field.chartType(), field.runtimeChartType(),
-                          field.namedGroupValues(), field.calculateInfo(), label,
-                          field.secondaryY(), field.visible(), field.timeSeries(),
-                          field.secondaryColumn(), field.operand());
+      return field.withLabel(label);
    }
 
    /**
@@ -2138,11 +2434,7 @@ public class TableBindingService {
    }
 
    private static FieldRef withVisibility(FieldRef field, boolean visible) {
-      return new FieldRef(field.column(), field.type(), field.aggregate(), field.dateLevel(),
-                          field.namedGroup(), field.chartType(), field.runtimeChartType(),
-                          field.namedGroupValues(), field.calculateInfo(), field.label(),
-                          field.secondaryY(), visible, field.timeSeries(),
-                          field.secondaryColumn(), field.operand());
+      return field.withVisible(visible);
    }
 
    private static Map<String, Object> describeOptions(BaseTableBindingModel model) {
@@ -2255,6 +2547,16 @@ public class TableBindingService {
                                  String shelf, List<FieldRef> unhiddenCandidates,
                                  ContextualShelfMutation mutation) throws Exception
    {
+      return applyWithContext(sessionToken, user, assemblyName, shelf, unhiddenCandidates,
+                              List.of(), mutation);
+   }
+
+   /** @param ungroup see {@link #ungroupDimensions} */
+   private List<String> applyWithContext(String sessionToken, Principal user, String assemblyName,
+                                 String shelf, List<FieldRef> unhiddenCandidates,
+                                 List<String> ungroup, ContextualShelfMutation mutation)
+      throws Exception
+   {
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
@@ -2269,7 +2571,7 @@ public class TableBindingService {
          relayShapeWarning(assemblyName, model, dispatcher);
 
          Map<String, ColumnOption> formOptions = captureFormOptions(assembly);
-         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher);
+         applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher, ungroup);
          // See restoreFormRefInvariant's own doc -- addField is the other wiz entry point
          // (besides setShelf) that can introduce a brand-new column onto a Table's details
          // shelf, so it needs the same safety net. removeField/moveField never introduce a new
@@ -2357,6 +2659,39 @@ public class TableBindingService {
                              BindingModel model, Principal user, CommandDispatcher dispatcher)
       throws Exception
    {
+      applyBinding(rvs, runtimeId, assemblyName, model, user, dispatcher, List.of());
+   }
+
+   /**
+    * The crosstab dimensions (as {@code "rows:<column>"}/{@code "cols:<column>"}) a write asked to
+    * ungroup with an explicit {@code namedGroupValues: null} (bug #79017). Only rows/cols qualify:
+    * a details shelf has no group, and a field that also names a group is not a clear.
+    */
+   static List<String> ungroupDimensions(String shelf, List<FieldRef> fields) {
+      String normalized = shelf == null ? "" : shelf.trim().toLowerCase();
+
+      if(fields == null || !"rows".equals(normalized) && !"cols".equals(normalized)) {
+         return List.of();
+      }
+
+      List<String> keys = new ArrayList<>();
+
+      for(FieldRef field : fields) {
+         if(field != null && field.clearsNamedGroupValues() && field.namedGroup() == null &&
+            field.column() != null)
+         {
+            keys.add(normalized + ":" + field.column());
+         }
+      }
+
+      return keys;
+   }
+
+   private void applyBinding(RuntimeViewsheet rvs, String runtimeId, String assemblyName,
+                             BindingModel model, Principal user, CommandDispatcher dispatcher,
+                             List<String> ungroup)
+      throws Exception
+   {
       VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
 
       if(assembly instanceof CrosstabVSAssembly crosstab &&
@@ -2369,6 +2704,7 @@ public class TableBindingService {
       event.setName(assemblyName);
       event.setBinding(model);
       event.setClearVacatedAliases(true);
+      event.setUngroupDimensions(ungroup);
       bindingModelService.setBinding(runtimeId, event, user, dispatcher);
    }
 
@@ -2552,7 +2888,10 @@ public class TableBindingService {
       if(assembly instanceof CalcTableVSAssembly) {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' is a calc table. Its binding lives in its cell layout, " +
-            "not its shelves — use the calc-table tools instead.");
+            "not its shelves, so shelf tools do not apply: use get_calc_layout, " +
+            "set_cell_binding and set_calc_cell_format for its content and format. Column " +
+            "width and row height do accept a calc table: set_column_widths (by layout " +
+            "column index) and set_row_heights.");
       }
    }
 

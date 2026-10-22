@@ -25,8 +25,10 @@ import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.util.CoreTool;
+import inetsoft.util.TimedQueue;
 import inetsoft.util.UserMessage;
 import inetsoft.web.wiz.pairing.PairingException;
+import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
 import inetsoft.web.wiz.service.WizVsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -112,6 +114,10 @@ public class WorksheetPreviewService {
       // runtime sheet). Snapshot the variable-bearing structures and restore them after.
       Map<String, ConditionSnapshot> snapshots = snapshotConditions(rws.getWorksheet());
       TableLens lens;
+      // See RuntimeHeartbeatKeepAlive's own class comment: keeps the runtime's heartbeat fresh
+      // for the duration of the blocking query below, so WorksheetEngine's recycle sweep never
+      // disposes it mid-query.
+      TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
 
       try {
          lens = box.getTableLens(tableName, AssetQuerySandbox.RUNTIME_MODE);
@@ -136,6 +142,7 @@ public class WorksheetPreviewService {
                                     + tableName + "': " + e.getMessage());
       }
       finally {
+         RuntimeHeartbeatKeepAlive.stop(heartbeat);
          restoreConditions(rws.getWorksheet(), snapshots);
       }
 

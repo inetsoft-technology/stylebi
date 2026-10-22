@@ -107,6 +107,14 @@ public class GeneralSettingsAccess {
       adapters.get(subModel).writer.write(model, principal);
    }
 
+   /** Whether {@code mv.cycles} is withheld on this deployment, so an empty list means "not
+    * enumerated" rather than "no cycles". Delegates to the predicate the producer itself uses
+    * ({@link MVSettingsService#isCycleListSuppressed}); a method here so tests that mock this class
+    * need no Spring context, and the mock defaults to {@code false}. */
+   public boolean isCycleListSuppressed() {
+      return MVSettingsService.isCycleListSuppressed();
+   }
+
    @FunctionalInterface
    private interface Reader {
       Object read(Principal principal) throws Exception;

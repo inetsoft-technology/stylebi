@@ -34,6 +34,7 @@ import inetsoft.uql.asset.internal.TableAssemblyInfo;
 import inetsoft.report.internal.Util;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
+import inetsoft.util.TimedQueue;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
@@ -53,7 +54,9 @@ import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.composer.ws.joins.JoinUtil;
 import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
+import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -155,6 +158,23 @@ public class WorksheetEditService {
       Editor editor = new Editor(rws.getWorksheet(), agent, securityEngine, innerJoinService,
          expressionDialogService, scriptEnvSupplier);
 
+      // Bug #79074: a mutator can itself execute a live query synchronously (e.g.
+      // convertToEmbedded's AssetEventUtil.convertEmbeddedTable -> box.getTableLens(...)), which
+      // can legitimately take a long time against a slow or multi-round-trip query -- same
+      // exposure WorksheetPreviewService.preview0 has. apply() is the single entry point for
+      // every mutator, so this is the one place that protects all of them generically. See
+      // RuntimeHeartbeatKeepAlive's own class comment.
+      //
+      // Deliberately a PLAIN try/finally, unlike a call site that itself uses
+      // RenderWaitSupport.awaitOrRetry (e.g. refreshData's single-assembly branch, or
+      // refreshAssemblies below): this wrapper has no visibility into whether some mutator's own
+      // internal background work survives a RenderNotReadyException escaping from here, so it
+      // cannot correctly decide to leave the heartbeat running the way that specific call site's
+      // own inner wrap can -- stopping unconditionally here is always correct for the common,
+      // fully-synchronous case, and a mutator with its own background-surviving timeout keeps
+      // itself protected via its own inner wrap regardless of what this outer one does.
+      TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
+
       try {
          mutation.accept(editor);
       }
@@ -167,6 +187,9 @@ public class WorksheetEditService {
          }
 
          LOG.info("Auto-confirmed cross join in agent edit: {}", me.getMessage());
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.stop(heartbeat);
       }
 
       // Checkpoint saved after the mutation so redo restores the post-edit state,
@@ -197,7 +220,20 @@ public class WorksheetEditService {
          SheetType.WORKSHEET, session.runtimeId(), agent);
       applySocketSession(rws, session);
 
-      T result = mutation.apply(rws);
+      // See apply()'s identical wrap for why (a mutation here can itself execute a live query
+      // synchronously, e.g. convertToEmbedded's AssetEventUtil.convertEmbeddedTable ->
+      // box.getTableLens(...)) and why this is a plain try/finally rather than
+      // RenderNotReadyException-aware.
+      TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
+      T result;
+
+      try {
+         result = mutation.apply(rws);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.stop(heartbeat);
+      }
+
       // Checkpoint saved after the mutation so redo restores the post-edit state.
       rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
       refreshAssemblies(rws);
@@ -229,7 +265,17 @@ public class WorksheetEditService {
          SheetType.WORKSHEET, session.runtimeId(), agent);
       applySocketSession(rws, session);
 
-      T result = mutation.apply(rws);
+      // See apply()'s identical wrap for why, including why this is a plain try/finally.
+      TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
+      T result;
+
+      try {
+         result = mutation.apply(rws);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.stop(heartbeat);
+      }
+
       refreshAssemblies(rws);
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
       return result;
@@ -329,33 +375,63 @@ public class WorksheetEditService {
                continue;
             }
 
+            // Bug #79074: refreshColumnSelection (called inside the callable below) can
+            // legitimately take a long time against a slow or multi-round-trip query, and
+            // RenderWaitSupport.awaitOrRetry does not cancel it on timeout -- it keeps running
+            // on its own virtual thread past this method's own bounded wait, the identical
+            // exposure WorksheetAgentController.refreshData's single-assembly branch has (see
+            // RuntimeHeartbeatKeepAlive's own class comment). This loop runs after EVERY
+            // mutation on EVERY table in the worksheet, so it is the single highest-value place
+            // to close this gap -- started before the wait, stopped from inside the callable's
+            // own completion so it survives a client-visible timeout for exactly as long as the
+            // real background work does.
+            TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
+
             try {
                RenderWaitSupport.awaitOrRetry(() -> {
-                  WorksheetEventUtil.refreshColumnSelection(rws, name, true);
-                  // Drop conditions left pointing at columns the refresh just removed. An op that
-                  // changes a table's output columns without touching its conditions leaves an
-                  // add_filter or set_ranking referencing a DataRef no longer in the selection --
-                  // edit_unpivot is the clearest case, since changing headerColumns renames every
-                  // melted column. The Composer validates at exactly this point, right after its
-                  // own refreshColumnSelection
-                  // (TableUnpivotDialogService#changeUnpivotTableRowHeaders), and
-                  // WorksheetMutationSupport already does it for the aggregate path. Doing it in
-                  // the shared refresh covers every op rather than requiring each to remember.
-                  //
-                  // After refreshColumnSelection and before loadTableData, deliberately: a stale
-                  // selection would make this delete conditions that are still live, and the
-                  // retry wrapper only re-runs the whole block, so ordering inside it holds.
-                  AssetUtil.validateConditions(ta.getColumnSelection(), ta);
-                  WorksheetEventUtil.loadTableData(rws, name, true, true);
+                  try {
+                     WorksheetEventUtil.refreshColumnSelection(rws, name, true);
+                     // Drop conditions left pointing at columns the refresh just removed. An op that
+                     // changes a table's output columns without touching its conditions leaves an
+                     // add_filter or set_ranking referencing a DataRef no longer in the selection --
+                     // edit_unpivot is the clearest case, since changing headerColumns renames every
+                     // melted column. The Composer validates at exactly this point, right after its
+                     // own refreshColumnSelection
+                     // (TableUnpivotDialogService#changeUnpivotTableRowHeaders), and
+                     // WorksheetMutationSupport already does it for the aggregate path. Doing it in
+                     // the shared refresh covers every op rather than requiring each to remember.
+                     //
+                     // After refreshColumnSelection and before loadTableData, deliberately: a stale
+                     // selection would make this delete conditions that are still live, and the
+                     // retry wrapper only re-runs the whole block, so ordering inside it holds.
+                     AssetUtil.validateConditions(ta.getColumnSelection(), ta);
+                     WorksheetEventUtil.loadTableData(rws, name, true, true);
+                  }
+                  finally {
+                     RuntimeHeartbeatKeepAlive.stop(heartbeat);
+                  }
                   return null;
                }, remaining, (int) Math.max(1, remaining / 1000));
                WorksheetEventUtil.fixAssemblyInfo(rws, ta);
             }
+            catch(RenderNotReadyException ex) {
+               // Timed out waiting, not failed: the refresh above is still running in the
+               // background and stops its own heartbeat (inside the callable's own finally)
+               // once it genuinely finishes. Do not stop it here, or the runtime's heartbeat can
+               // go stale while that work is still in flight -- same reasoning refreshData's
+               // single-assembly branch already documents for this identical shape.
+               //
+               // Deliberately swallowed here too, same as any other per-table failure: the
+               // mutation this method runs after has already succeeded and been checkpointed,
+               // so this is a best-effort warm-up, not a precondition the caller needs to know
+               // failed.
+               LOG.warn("Failed to refresh assembly: {}", name, ex);
+            }
             catch(Exception ex) {
-               // RenderNotReadyException (a timed-out table) is deliberately swallowed here,
-               // same as any other per-table failure: the mutation this method runs after has
-               // already succeeded and been checkpointed, so this is a best-effort warm-up, not
-               // a precondition the caller needs to know failed.
+               // Any other failure means the callable either already ran (its own finally above
+               // already stopped the heartbeat -- a harmless no-op here) or never ran at all,
+               // e.g. rejected before being submitted -- the only case this stop is load-bearing.
+               RuntimeHeartbeatKeepAlive.stop(heartbeat);
                LOG.warn("Failed to refresh assembly: {}", name, ex);
             }
          }
@@ -408,6 +484,35 @@ public class WorksheetEditService {
    private final InnerJoinService innerJoinService;
    private final ExpressionDialogService expressionDialogService;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetEditService.class);
+
+   /**
+    * Refuses a negative table row limit. A negative limit is a mistake, not a way to say
+    * "unlimited": the Composer's own control refuses it outright
+    * (FormValidators.positiveIntegerInRange, form-validators.ts:394-400, which admits
+    * 0..Integer.MAX_VALUE), while folding it into -1 would report success and apply no limit at
+    * all. Null (not supplied) is accepted.
+    */
+   public static void requireNonNegativeMaxRows(Integer maxRows) throws PairingException {
+      if(maxRows != null && maxRows < 0) {
+         throw new PairingException(
+            "maxRows cannot be negative (got " + maxRows + "). Pass a positive row limit, " +
+            "or 0 for no limit.");
+      }
+   }
+
+   /**
+    * Writes a table's own row limit -- the field the model read and every render of the table
+    * honour (a tabular query's own limit is overwritten from it on each execution). 0 means no
+    * limit and is stored as -1.
+    *
+    * @throws PairingException if {@code maxRows} is negative.
+    */
+   public static void applyAssemblyMaxRows(TableAssembly table, int maxRows)
+      throws PairingException
+   {
+      requireNonNegativeMaxRows(maxRows);
+      table.setMaxRows(maxRows <= 0 ? -1 : maxRows);
+   }
 
    // =========================================================================
    // Inner class: Editor
@@ -3161,18 +3266,7 @@ public class WorksheetEditService {
          }
 
          if(maxRows != null) {
-            // A negative limit is a mistake, not a way to say "unlimited": the Composer's own
-            // control refuses it outright (FormValidators.positiveIntegerInRange,
-            // form-validators.ts:394-400, which admits 0..Integer.MAX_VALUE), while this path
-            // silently folded it into -1 and reported success -- so a caller that sent -100
-            // meaning "a hundred rows, roughly" got no limit at all and no indication of it.
-            if(maxRows < 0) {
-               throw new PairingException(
-                  "maxRows cannot be negative (got " + maxRows + "). Pass a positive row limit, " +
-                  "or 0 for no limit.");
-            }
-
-            t.setMaxRows(maxRows <= 0 ? -1 : maxRows);
+            applyAssemblyMaxRows(t, maxRows);
          }
 
          if(distinct != null) {
@@ -4211,6 +4305,12 @@ public class WorksheetEditService {
        *   <li>{@code "detail"} — live detail view with aggregation disabled</li>
        *   <li>{@code "edit"} — edit mode (liveData=false, editMode=true)</li>
        * </ul>
+       *
+       * <p>{@code "full"} and {@code "default"} also take a non-runtime composed table (join,
+       * mirror, concatenation, rotate, unpivot) out of hierarchical view, as
+       * {@code TableModeService} does: {@code WorksheetEventUtil#getMode} forces
+       * {@code liveData=true} on a hierarchical composed table, so the mode would otherwise
+       * read back as "detail". The other modes leave the flag alone, as native does.
        */
       public void setTableMode(String tableName, String mode) throws PairingException {
          Assembly a = ws.getAssembly(tableName);
@@ -4241,6 +4341,7 @@ public class WorksheetEditService {
                table.setRuntime(false);
                table.setEditMode(false);
                ((TableAssemblyInfo) table.getTableInfo()).setAggregate(false);
+               leaveHierarchicalView(table);
             }
             case "detail" -> {
                table.setLiveData(true);
@@ -4263,7 +4364,17 @@ public class WorksheetEditService {
                // TableModeService#setDefaultTableMode:334.
                ((TableAssemblyInfo) table.getTableInfo()).setAggregate(
                   table.getAggregateInfo() != null && !table.getAggregateInfo().isEmpty());
+               leaveHierarchicalView(table);
             }
+         }
+      }
+
+      // TableModeService#setFullMode:140 / #setDefaultTableMode:358. The pixel-size and
+      // resetTableLens steps native also does are skipped: the former is cosmetic
+      // (fixAssemblyInfo re-syncs it) and loadTableData(..., reset=true) already resets the lens.
+      private void leaveHierarchicalView(TableAssembly table) {
+         if(table instanceof ComposedTableAssembly ctable && !table.isRuntime()) {
+            ctable.setHierarchical(false);
          }
       }
 

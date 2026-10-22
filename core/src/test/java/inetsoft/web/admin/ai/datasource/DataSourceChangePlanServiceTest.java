@@ -1255,4 +1255,58 @@ class DataSourceChangePlanServiceTest {
       change.setFolderPath(folderPath);
       return change;
    }
+
+   // -------------------------------------------------------------------------
+   // Bug #79016: separator-forged specs must not share a projection or a plan hash
+   // -------------------------------------------------------------------------
+
+   private static Map<String, Object> urlAndDriver(String url, String driver) {
+      Map<String, Object> spec = new LinkedHashMap<>();
+      spec.put("url", url);
+      spec.put("driver", driver);
+      return spec;
+   }
+
+   @Test void urlAndDriverSplitAtADifferentSeparatorHashDifferently() throws Exception {
+      stubLoginSource();
+
+      var a = resolveUpdate(urlAndDriver("jdbc:vfy:A;driver=B", "C"));
+      var b = resolveUpdate(urlAndDriver("jdbc:vfy:A", "B;driver=C"));
+
+      assertNotEquals(a.changes().get(0).proposedValue(), b.changes().get(0).proposedValue());
+      assertNotEquals(a.planHash(), b.planHash());
+   }
+
+   @Test void theSameForgedSpecPreviewedTwiceHashesTheSame() throws Exception {
+      stubLoginSource();
+
+      assertEquals(resolveUpdate(urlAndDriver("jdbc:vfy:A;driver=B", "C")).planHash(),
+                   resolveUpdate(urlAndDriver("jdbc:vfy:A;driver=B", "C")).planHash());
+   }
+
+   @Test void separatorsInAValueAreEscapedInTheDisplayedProjection() throws Exception {
+      stubLoginSource();
+
+      String proposed = resolveUpdate(urlAndDriver("jdbc:vfy:A;driver=B", "C"))
+         .changes().get(0).proposedValue();
+
+      assertTrue(proposed.contains(";url=jdbc:vfy:A\\;driver\\=B;driver=C;"), proposed);
+   }
+
+   @Test void projectionOfAnOrdinaryValueIsUnchangedByEscaping() {
+      JdbcDataSourceProperties p = jdbc("id-1", "Orders", false, null);
+
+      String projection = DataSourceProjection.projectJdbc(p);
+
+      assertTrue(projection.startsWith("type=jdbc;id=id-1;name=Orders;"), projection);
+   }
+
+   @Test void dependencyListEscapesACommaInAnAssetPath() {
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                        "a,b", null, "host-org");
+
+      String projection = DataSourceProjection.projectDependencies(List.of(entry));
+
+      assertTrue(projection.contains("a\\,b"), projection);
+   }
 }

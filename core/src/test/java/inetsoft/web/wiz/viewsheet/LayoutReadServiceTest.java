@@ -247,6 +247,77 @@ class LayoutReadServiceTest {
    }
 
    @Test
+   void getReportsFlooredPrintableBodySizeInPointsForLetterPortraitAndLandscape()
+      throws Exception
+   {
+      assertPrintable(468, 648, 8.5, 11, 1f, 1f, 1f, 1f, "inches", false, 0f, 0f);
+      assertPrintable(648, 468, 8.5, 11, 1f, 1f, 1f, 1f, "inches", true, 0f, 0f);
+   }
+
+   @Test
+   void getFloorsTheNonIntegralA4BodyToWhatThePdfExportKeeps() throws Exception {
+      // A4 1in: raw 451.28 x 697.89 -- ceil (the pageIndex Dimension) would say 452x698, the PDF
+      // body truncates to 451x697.
+      assertPrintable(451, 697, 8.2677165, 11.692913, 1f, 1f, 1f, 1f, "mm", false, 0f, 0f);
+      assertPrintable(697, 451, 8.2677165, 11.692913, 1f, 1f, 1f, 1f, "mm", true, 0f, 0f);
+   }
+
+   @Test
+   void getReportsTheSameBodyForEquivalentInchesMmAndPointsUnits() throws Exception {
+      for(String unit : new String[] { "inches", "mm", "points" }) {
+         assertPrintable(468, 648, 8.5, 11, 1f, 1f, 1f, 1f, unit, false, 0f, 0f);
+      }
+   }
+
+   @Test
+   void getSwapsACustomPortraitSizeForLandscape() throws Exception {
+      // 200x100mm, 10mm margins: raw 510.24 x 226.77 portrait-stored; landscape swaps them.
+      float m = (float) (10 / 25.4);
+      assertPrintable(510, 226, 200 / 25.4, 100 / 25.4, m, m, m, m, "mm", false, 0f, 0f);
+      assertPrintable(226, 510, 200 / 25.4, 100 / 25.4, m, m, m, m, "mm", true, 0f, 0f);
+   }
+
+   @Test
+   void getSubtractsAsymmetricMarginsFromTheCorrectAxisInLandscape() throws Exception {
+      // top 1, left 0.5, bottom 2, right 0.25 (inches)
+      assertPrintable(558, 576, 8.5, 11, 1f, 0.5f, 2f, 0.25f, "inches", false, 0f, 0f);
+      assertPrintable(738, 396, 8.5, 11, 1f, 0.5f, 2f, 0.25f, "inches", true, 0f, 0f);
+   }
+
+   @Test
+   void getDoesNotReduceThePrintableBodyByHeaderOrFooterFromEdge() throws Exception {
+      assertPrintable(468, 648, 8.5, 11, 1f, 1f, 1f, 1f, "inches", false, 0.9f, 0.9f);
+   }
+
+   @Test
+   void getReportsPointsAsTheCoordinateUnit() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installConfiguredPrint(8.5, 11, 1f, 1f, 1f, 1f, "inches", false, 0f, 0f);
+
+      PrintLayoutSettingsModel settings =
+         fx.service.get("tok1", AGENT, PRINT_LAYOUT).printSettings();
+
+      assertEquals("pt", settings.coordinateUnit());
+   }
+
+   private static void assertPrintable(int width, int height, double paperW, double paperH,
+                                       float top, float left, float bottom, float right,
+                                       String unit, boolean landscape, float header, float footer)
+      throws Exception
+   {
+      Fixture fx = new Fixture();
+      fx.installConfiguredPrint(paperW, paperH, top, left, bottom, right, unit, landscape,
+                                header, footer);
+
+      PrintLayoutSettingsModel settings =
+         fx.service.get("tok1", AGENT, PRINT_LAYOUT).printSettings();
+
+      assertNotNull(settings);
+      assertEquals(width, settings.printableWidth(), "printableWidth");
+      assertEquals(height, settings.printableHeight(), "printableHeight");
+   }
+
+   @Test
    void getReturnsNullPrintSettingsRatherThanAZeroedOutRecordWhenNeverConfigured()
       throws Exception
    {
@@ -492,6 +563,39 @@ class LayoutReadServiceTest {
          layout.setVSAssemblyLayouts(objects);
 
          masterVs.getLayoutInfo().setPrintLayout(layout);
+      }
+
+      /**
+       * A print layout whose real {@code PrintInfo} and the dialog model {@code printSettings}
+       * reads are configured consistently (paper size in inches, margins in inches, as stored).
+       */
+      void installConfiguredPrint(double paperW, double paperH, float top, float left,
+                                  float bottom, float right, String unit, boolean landscape,
+                                  float headerFromEdge, float footerFromEdge) throws Exception
+      {
+         PrintLayout layout = new PrintLayout();
+         PrintInfo printInfo = new PrintInfo("Custom", new DimensionD(paperW, paperH),
+                                             top, left, bottom, right, unit);
+         printInfo.setHeaderFromEdge(headerFromEdge);
+         printInfo.setFooterFromEdge(footerFromEdge);
+         layout.setPrintInfo(printInfo);
+         layout.setHorizontalScreen(landscape);
+         layout.setVSAssemblyLayouts(new ArrayList<>());
+         masterVs.getLayoutInfo().setPrintLayout(layout);
+
+         VSPrintLayoutDialogModel configured = new VSPrintLayoutDialogModel();
+         configured.setPaperSize("Custom");
+         configured.setMarginTop(top);
+         configured.setMarginLeft(left);
+         configured.setMarginBottom(bottom);
+         configured.setMarginRight(right);
+         configured.setUnits(unit);
+         configured.setLandscape(landscape);
+         configured.setHeaderFromEdge(headerFromEdge);
+         configured.setFooterFromEdge(footerFromEdge);
+         ScreensPaneModel screensPane = new ScreensPaneModel();
+         screensPane.setPrintLayout(configured);
+         withScreensPane(screensPane);
       }
 
       /** Adds a real device (viewsheet) layout named {@code name} to the master's LayoutInfo. */

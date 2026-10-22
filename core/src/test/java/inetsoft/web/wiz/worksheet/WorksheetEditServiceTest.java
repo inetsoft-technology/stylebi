@@ -36,8 +36,12 @@ import inetsoft.web.wiz.pairing.TestWorksheets;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.*;
 
+import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
+
 import java.security.Principal;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -215,6 +219,269 @@ class WorksheetEditServiceTest {
       svc.apply("TOK", agent, ed -> {});
 
       verify(box, never()).refreshColumnSelection(eq("Slow2"), anyBoolean());
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79074: refreshAssemblies -- called unconditionally after EVERY mutation, looping over
+   // every table in the worksheet -- must keep the runtime's heartbeat alive while a table's own
+   // refreshColumnSelection is in flight, the same exposure WorksheetAgentController.refreshData's
+   // single-assembly branch has (RenderWaitSupport.awaitOrRetry does not cancel the work on
+   // timeout, so it can keep running on its own thread past this method's own bounded wait).
+   // ---------------------------------------------------------------------------
+   //
+   // RuntimeHeartbeatKeepAlive.INTERVAL_MS is shrunk for the duration of these tests so the
+   // periodic refresh can be observed without waiting out the real (minutes-long) production
+   // interval.
+
+   @Test
+   void refreshAssembliesKeepsHeartbeatAliveWhileATableIsStillRefreshing() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
+
+      try {
+         Worksheet ws = new Worksheet();
+         EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+         ws.addAssembly(t);
+         TableAssembly slow = TestWorksheets.withGroupSumAndSort(
+            TestWorksheets.nonEmbeddedTableWithColumns(ws, "Slow1", "cust", "amount"),
+            "cust", "amount");
+         ws.addAssembly(slow);
+
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+         CountDownLatch heartbeats = new CountDownLatch(3);
+         doAnswer(inv -> {
+            heartbeats.countDown();
+            return null;
+         }).when(rws).access(false);
+
+         doAnswer(invocation -> {
+            // Blocks until the heartbeat has ticked a few times, then lets the refresh finish --
+            // well inside the shared refreshAssemblies budget (2000ms).
+            assertTrue(heartbeats.await(2, TimeUnit.SECONDS),
+                       "expected the runtime's heartbeat to be refreshed repeatedly while " +
+                       "Slow1 is still refreshing");
+            return null;
+         }).when(box).refreshColumnSelection(eq("Slow1"), anyBoolean());
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         Principal agent = TestPrincipals.user("alice", "host-org");
+         JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                        SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                        JoinSession.ConnectionMode.PAIRED, null, null, null);
+         when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         svc.apply("TOK", agent, ed -> ed.removeColumn("T", "a"));
+
+         verify(rws, atLeastOnce()).access(false);
+         verify(rws, never()).access(true);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
+   /**
+    * The hard case: a table's own refreshColumnSelection outlives the shared refreshAssemblies
+    * budget (2000ms), so awaitOrRetry times out and the per-table RenderNotReadyException is
+    * swallowed (same as {@link #applySwallowsATimedOutTableInsteadOfPropagatingTheFailure}) -- but
+    * the background work keeps running past that point, and the heartbeat must survive it, stopped
+    * only once the background work genuinely finishes.
+    */
+   @Test
+   void refreshAssembliesKeepsHeartbeatRunningPastATimedOutTable() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
+
+      try {
+         Worksheet ws = new Worksheet();
+         EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+         ws.addAssembly(t);
+         TableAssembly slow = TestWorksheets.withGroupSumAndSort(
+            TestWorksheets.nonEmbeddedTableWithColumns(ws, "Slow1", "cust", "amount"),
+            "cust", "amount");
+         ws.addAssembly(slow);
+
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         when(rws.getAssetQuerySandbox()).thenReturn(box);
+         // Longer than the shared refreshAssemblies budget (2000ms), so apply() itself returns
+         // (the timeout is swallowed) while this is still sleeping in the background.
+         doAnswer(invocation -> {
+            Thread.sleep(2_500);
+            return null;
+         }).when(box).refreshColumnSelection(eq("Slow1"), anyBoolean());
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         Principal agent = TestPrincipals.user("alice", "host-org");
+         JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                        SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                        JoinSession.ConnectionMode.PAIRED, null, null, null);
+         when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         // Must not throw -- the timeout on Slow1's warm-up is swallowed, same as the existing
+         // applySwallowsATimedOutTableInsteadOfPropagatingTheFailure test.
+         svc.apply("TOK", agent, ed -> ed.removeColumn("T", "a"));
+
+         // apply() has already returned (~2000ms in), but the background refresh still has
+         // roughly 500ms left to run -- the heartbeat must still be ticking.
+         clearInvocations(rws);
+         Thread.sleep(300L);
+         verify(rws, atLeastOnce()).access(false);
+
+         // Once the background refresh genuinely finishes (its own finally stops the heartbeat),
+         // no further ticks should arrive.
+         Thread.sleep(500L);
+         clearInvocations(rws);
+         Thread.sleep(150L);
+         verify(rws, never()).access(false);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79074: apply()/applyOnRuntime()/applyOnRuntimeNoCheckpoint() are the shared entry
+   // points every mutator funnels through -- a mutation that itself executes a live query
+   // synchronously (e.g. convertToEmbedded's AssetEventUtil.convertEmbeddedTable ->
+   // box.getTableLens(...), reached via applyOnRuntime) must not have its runtime evicted
+   // mid-query either. These wraps are deliberately plain try/finally (always stop), relying on
+   // refreshAssemblies'/refreshData's own call-site-specific wraps for the background-survives-
+   // a-timeout case -- see WorksheetEditService.apply's own comment for why.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void applyOnRuntimeRefreshesHeartbeatWhileTheMutationItselfIsSlow() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
+
+      try {
+         Worksheet ws = new Worksheet();
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         Principal agent = TestPrincipals.user("alice", "host-org");
+         JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                        SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                        JoinSession.ConnectionMode.PAIRED, null, null, null);
+         when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         CountDownLatch heartbeats = new CountDownLatch(3);
+         doAnswer(inv -> {
+            heartbeats.countDown();
+            return null;
+         }).when(rws).access(false);
+
+         svc.applyOnRuntime("TOK", agent, runtimeWs -> {
+            assertTrue(heartbeats.await(2, TimeUnit.SECONDS),
+                       "expected the runtime's heartbeat to be refreshed while the mutation " +
+                       "itself is still executing");
+            return null;
+         });
+
+         verify(rws, atLeastOnce()).access(false);
+         verify(rws, never()).access(true);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
+   @Test
+   void applyOnRuntimeStopsRefreshingHeartbeatOnceTheMutationCompletes() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 15L;
+
+      try {
+         Worksheet ws = new Worksheet();
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         Principal agent = TestPrincipals.user("alice", "host-org");
+         JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                        SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                        JoinSession.ConnectionMode.PAIRED, null, null, null);
+         when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         svc.applyOnRuntime("TOK", agent, runtimeWs -> null);
+
+         clearInvocations(rws);
+         Thread.sleep(150L);
+         verify(rws, never()).access(anyBoolean());
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
+   @Test
+   void applyOnRuntimeNoCheckpointRefreshesHeartbeatWhileTheMutationItselfIsSlow() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
+
+      try {
+         Worksheet ws = new Worksheet();
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         Principal agent = TestPrincipals.user("alice", "host-org");
+         JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                        SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                        JoinSession.ConnectionMode.PAIRED, null, null, null);
+         when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         CountDownLatch heartbeats = new CountDownLatch(3);
+         doAnswer(inv -> {
+            heartbeats.countDown();
+            return null;
+         }).when(rws).access(false);
+
+         svc.applyOnRuntimeNoCheckpoint("TOK", agent, runtimeWs -> {
+            assertTrue(heartbeats.await(2, TimeUnit.SECONDS),
+                       "expected the runtime's heartbeat to be refreshed while the mutation " +
+                       "itself is still executing");
+            return null;
+         });
+
+         verify(rws, atLeastOnce()).access(false);
+         verify(rws, never()).access(true);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
    }
 
    @Test
@@ -638,6 +905,53 @@ class WorksheetEditServiceTest {
       assertNotNull(t1Group.getNamedGroupInfo().getGroupCondition("East"),
                     "T1's GroupRef clone must pick up the new mapping immediately, without " +
                     "needing set_group_aggregate reissued on T1");
+   }
+
+   /**
+    * Bug #79144: renaming a named group (rename_table) must keep a leaf table's GroupRef pointing
+    * at it, otherwise the editNamedGroup sweep (which matches by the new name) skips the GroupRef.
+    */
+   @Test
+   void editNamedGroupAfterRenameRefreshesStandaloneLeafTableGroupRef() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t1 = TestWorksheets.tableWithColumns(ws, "T1", "state");
+      ws.addAssembly(t1);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      svc.apply("TOK", agent,
+                ed -> ed.addNamedGroup("G", null, null, "string",
+                                       List.of(new WorksheetMutationSupport.GroupMapping(
+                                          "West", List.of("CA"))),
+                                       false));
+      svc.apply("TOK", agent,
+                ed -> ed.setGroupAggregate("T1",
+                   List.of(new WorksheetMutationSupport.GroupSpec("state", null, "G")),
+                   List.of()));
+      svc.apply("TOK", agent, ed -> ed.renameTable("G", "G2"));
+      svc.apply("TOK", agent,
+                ed -> ed.editNamedGroup("G2", null,
+                                        List.of(new WorksheetMutationSupport.GroupMapping(
+                                           "East", List.of("NY"))),
+                                        false));
+
+      GroupRef t1Group = ((TableAssembly) ws.getAssembly("T1")).getAggregateInfo().getGroups()[0];
+      assertEquals("G2", t1Group.getNamedGroupAssembly());
+      assertNull(t1Group.getNamedGroupInfo().getGroupCondition("West"));
+      assertNotNull(t1Group.getNamedGroupInfo().getGroupCondition("East"));
    }
 
    /**

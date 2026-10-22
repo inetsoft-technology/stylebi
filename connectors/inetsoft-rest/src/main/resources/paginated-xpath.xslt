@@ -30,6 +30,8 @@
   <xsl:template match="/">
     <xsl:apply-templates mode="xpath"/>
     <xsl:apply-templates mode="pageCount"/>
+    <!-- attributes are not children, so a page count xpath ending in @attr needs its own visit -->
+    <xsl:apply-templates select="//@*" mode="pageCount"/>
   </xsl:template>
 
   <!-- xpath variable is set externally to the selection xpath from the query -->
