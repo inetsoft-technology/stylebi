@@ -722,7 +722,73 @@ public class WorksheetAgentController {
          return;
       }
 
+      RuntimeWorksheet before = editService.resolve(sessionToken, user);
+      java.util.Set<String> declaredBefore =
+         declaredVariableNames(before == null ? null : before.getWorksheet());
       editService.apply(sessionToken, user, editor -> dispatch(editor, req, resolvedNameHolder));
+      purgeValuesOfRemovedVariables(sessionToken, user, declaredBefore);
+   }
+
+   /**
+    * Names (lower-cased) of the variable assemblies declared in the worksheet.
+    */
+   private static java.util.Set<String> declaredVariableNames(Worksheet ws) {
+      java.util.Set<String> names = new java.util.HashSet<>();
+
+      if(ws != null) {
+         for(Assembly a : ws.getAssemblies()) {
+            if(a instanceof DefaultVariableAssembly) {
+               names.add(a.getName().toLowerCase());
+            }
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * Drops the runtime value of every variable that was declared before an edit/undo/redo and is
+    * not declared any more (Bug #79001). Runtime values live in the sandbox's VariableTable, not
+    * on the assembly, so any operation that removes a variable assembly (delete_table,
+    * remove_join, undo of add_variable, ...) would otherwise leave its value behind for a later
+    * variable of the same name. Only removed names are touched.
+    */
+   private void purgeValuesOfRemovedVariables(String sessionToken, Principal user,
+                                              java.util.Set<String> declaredBefore)
+      throws Exception
+   {
+      if(declaredBefore.isEmpty()) {
+         return;
+      }
+
+      editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
+         purgeRemovedVariableValues(rws, declaredBefore);
+         return null;
+      });
+   }
+
+   private static void purgeRemovedVariableValues(RuntimeWorksheet rws,
+                                                  java.util.Set<String> declaredBefore)
+   {
+      inetsoft.report.composition.execution.AssetQuerySandbox box = rws.getAssetQuerySandbox();
+
+      if(box == null || box.getVariableTable() == null) {
+         return;
+      }
+
+      java.util.Set<String> declaredAfter = declaredVariableNames(rws.getWorksheet());
+      boolean removed = false;
+
+      for(String name : declaredBefore) {
+         if(!declaredAfter.contains(name)) {
+            removeVariableValue(box.getVariableTable(), name);
+            removed = true;
+         }
+      }
+
+      if(removed) {
+         box.reset();
+      }
    }
 
    /**
@@ -800,6 +866,21 @@ public class WorksheetAgentController {
          box.reset();
          return null;
       });
+   }
+
+   /**
+    * A newly declared variable starts unset: drop any value left in the sandbox under its name
+    * by a removal path that did not clean up (Bug #79001 safety net).
+    */
+   private static void purgeStaleVariableValue(RuntimeWorksheet rws, String name) {
+      inetsoft.report.composition.execution.AssetQuerySandbox box = rws.getAssetQuerySandbox();
+
+      if(box != null && box.getVariableTable() != null &&
+         findVariableKey(box.getVariableTable(), name) != null)
+      {
+         removeVariableValue(box.getVariableTable(), name);
+         box.reset();
+      }
    }
 
    private static String findVariableKey(inetsoft.uql.VariableTable vtable, String name) {
@@ -4316,7 +4397,9 @@ public class WorksheetAgentController {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
       return editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
+         java.util.Set<String> declaredBefore = declaredVariableNames(rws.getWorksheet());
          boolean undone = rws.undo(null);
+         purgeRemovedVariableValues(rws, declaredBefore);
          return Map.of("undone", undone, "checkpoint", rws.getCurrent(),
                         "total", rws.size());
       });
@@ -4336,7 +4419,9 @@ public class WorksheetAgentController {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
       return editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
+         java.util.Set<String> declaredBefore = declaredVariableNames(rws.getWorksheet());
          boolean redone = rws.redo(null);
+         purgeRemovedVariableValues(rws, declaredBefore);
          return Map.of("redone", redone, "checkpoint", rws.getCurrent(),
                         "total", rws.size());
       });
@@ -5363,6 +5448,7 @@ public class WorksheetAgentController {
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
          createVariable(ws, varName, req.type(), req.label(), req.defaultValue(), req.choices());
+         purgeStaleVariableValue(rws, varName);
          return null;
       });
    }
@@ -5626,6 +5712,7 @@ public class WorksheetAgentController {
          Worksheet ws = rws.getWorksheet();
          createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue(),
                         body.choices());
+         purgeStaleVariableValue(rws, body.name());
          return null;
       });
    }
