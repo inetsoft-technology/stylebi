@@ -31,6 +31,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Insets;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
@@ -229,6 +231,45 @@ class ChartGapResolverTest {
       assertEquals(6, VSChartChromeDefaults.resolveAxisTitleGap(0, false, true, comfortable));
       assertEquals(12, VSChartChromeDefaults.resolveAxisTitleGap(0, false, false, comfortable));
       assertEquals(18, VSChartChromeDefaults.resolveLegendGap(0, false, comfortable));
+      assertEquals(new Insets(1, 6, 2, 6),
+                   VSChartChromeDefaults.resolveLegendPadding(null, false, comfortable));
+   }
+
+   @Test
+   void legendPaddingScalesWithDensity() {
+      assertEquals(new Insets(0, 2, 0, 2), VSChartChromeDefaults.legendPaddingForMode("dense"));
+      assertNull(VSChartChromeDefaults.legendPaddingForMode("compact"));
+      assertEquals(new Insets(1, 6, 2, 6), VSChartChromeDefaults.legendPaddingForMode("comfortable"));
+      assertEquals(new Insets(0, 2, 0, 2), VSChartChromeDefaults.legendPaddingForMode("roomy"));
+   }
+
+   @Test
+   void eachLegendPaddingIsAFreshInsets() {
+      assertNotSame(VSChartChromeDefaults.legendPaddingForMode("dense"),
+                    VSChartChromeDefaults.legendPaddingForMode("dense"));
+      assertNotSame(VSChartChromeDefaults.legendPaddingForMode("comfortable"),
+                    VSChartChromeDefaults.legendPaddingForMode("comfortable"));
+   }
+
+   @Test
+   void legendPaddingTakesTheDensityValueWhenModernAndUnset() {
+      assertNull(VSChartChromeDefaults.resolveLegendPadding(null, false, modern));
+      assertEquals(new Insets(0, 2, 0, 2),
+                   VSChartChromeDefaults.resolveLegendPadding(null, false, modernAt("dense")));
+   }
+
+   @Test
+   void legendPaddingKeepsAnOpinion() {
+      Insets stylesheet = new Insets(5, 5, 5, 5);
+      assertSame(stylesheet,
+                 VSChartChromeDefaults.resolveLegendPadding(stylesheet, true, modernAt("comfortable")));
+   }
+
+   @Test
+   void legendPaddingIsUnchangedWhenLegacy() {
+      assertNull(VSChartChromeDefaults.resolveLegendPadding(null, false, LEGACY));
+      Insets stored = new Insets(3, 3, 3, 3);
+      assertSame(stored, VSChartChromeDefaults.resolveLegendPadding(stored, true, LEGACY));
    }
 
    /** A marked chart's context on a dashboard of the given density. */

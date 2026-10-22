@@ -356,6 +356,28 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Whether the legend padding carries an opinion: an author's value or a stylesheet's.
+    */
+   public boolean hasPaddingValue() {
+      return padding.hasUserValue() || getPadding() != null;
+   }
+
+   /**
+    * Whether the author set the legend padding.
+    */
+   public boolean hasPaddingUserValue() {
+      return padding.hasUserValue();
+   }
+
+   /**
+    * Clear the legend padding at one tier, so the value falls back to the tier below it.
+    * @param type the type of value to clear: CSS or USER
+    */
+   public void resetPadding(CompositeValue.Type type) {
+      padding.resetValue(type);
+   }
+
+   /**
     * Get the legend item/title padding
     */
    public Insets getPadding() {
