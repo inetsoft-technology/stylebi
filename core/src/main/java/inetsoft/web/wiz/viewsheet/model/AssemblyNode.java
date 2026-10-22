@@ -26,13 +26,26 @@ import java.util.List;
  * rectangle it owns. An annotation is three linked assemblies, and listed flat they read as
  * three unrelated ones — so the read model groups them and the subordinate parts are omitted
  * from the top level.
+ *
+ * <p>{@code selectedPage} is populated only on a Tab, naming the member it currently shows; a
+ * member's own {@code visible} does not tell, since a page hidden by not being selected is still
+ * visible in its own right.
  */
 public record AssemblyNode(String name, String type, int x, int y, int width, int height,
                            int zIndex, String container, boolean visible,
-                           List<String> annotationParts, String annotationContent) {
+                           List<String> annotationParts, String annotationContent,
+                           String selectedPage) {
+   public AssemblyNode(String name, String type, int x, int y, int width, int height,
+                       int zIndex, String container, boolean visible,
+                       List<String> annotationParts, String annotationContent)
+   {
+      this(name, type, x, y, width, height, zIndex, container, visible, annotationParts,
+           annotationContent, null);
+   }
+
    public AssemblyNode(String name, String type, int x, int y, int width, int height,
                        int zIndex, String container, boolean visible)
    {
-      this(name, type, x, y, width, height, zIndex, container, visible, null, null);
+      this(name, type, x, y, width, height, zIndex, container, visible, null, null, null);
    }
 }

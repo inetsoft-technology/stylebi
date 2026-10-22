@@ -39,7 +39,21 @@ public record EditRequest(String op,
                           Integer type,
                           String axis,
                           String path,
-                          String scope) {
+                          String scope,
+                          String page) {
+   /**
+    * Compatibility constructor for callers built before {@code page} was added (op:"select_tab",
+    * naming the Tab member to show) -- defaults it to {@code null}.
+    */
+   public EditRequest(String op, String assembly, Integer x, Integer y, Integer width,
+                      Integer height, Integer zIndex, String title, Boolean locked,
+                      String container, List<String> assemblies, String newName, Integer type,
+                      String axis, String path, String scope)
+   {
+      this(op, assembly, x, y, width, height, zIndex, title, locked, container, assemblies,
+          newName, type, axis, path, scope, null);
+   }
+
    /**
     * Compatibility constructor for callers built before {@code path}/{@code scope} were added
     * (op:"add" with type:200/"viewsheet", naming the existing saved viewsheet asset to embed as
@@ -52,6 +66,6 @@ public record EditRequest(String op,
                       String axis)
    {
       this(op, assembly, x, y, width, height, zIndex, title, locked, container, assemblies,
-          newName, type, axis, null, null);
+          newName, type, axis, null, null, null);
    }
 }
