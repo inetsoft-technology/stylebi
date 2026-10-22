@@ -62,8 +62,9 @@ public abstract class SplineColorFrame extends LinearColorFrame {
    @Override
    public boolean equals(Object obj) {
       // equals used to see if two frames product the same mapping and legend.
-      // SplineColorFrame is hardcoded (e.g. BluesColorFrame) so only need to compare class.
-      return obj != null && obj.getClass() == getClass();
+      // delegate to super so two instances of the same class bound to different fields
+      // (e.g. two BluesColorFrame bound to different measures) are not treated as equal.
+      return super.equals(obj);
    }
 
    @Override
