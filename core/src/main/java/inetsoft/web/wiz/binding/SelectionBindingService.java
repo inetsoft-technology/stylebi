@@ -875,7 +875,10 @@ public class SelectionBindingService {
 
    private static List<String> singleSelectionLevelNames(SelectionTreeVSAssembly tree) {
       SelectionTreeVSAssemblyInfo info = tree.getSelectionTreeInfo();
-      return info == null ? null : info.getSingleSelectionLevelNames();
+
+      // Levels are meaningless in ID mode, yet the getter falls back to the ID columns' names there.
+      return info == null || info.getMode() != SelectionTreeVSAssemblyInfo.COLUMN
+         ? null : info.getSingleSelectionLevelNames();
    }
 
    /**

@@ -647,7 +647,7 @@ class SelectionBindingServiceTest {
       return listService;
    }
 
-   private static SelectionTreePropertyDialogModel treeBoundTo(String table,
+   static SelectionTreePropertyDialogModel treeBoundTo(String table,
                                                                 List<String> additional)
    {
       SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
@@ -656,7 +656,7 @@ class SelectionBindingServiceTest {
       return model;
    }
 
-   private static SelectionTreePropertyDialogService treeService(
+   static SelectionTreePropertyDialogService treeService(
       SelectionTreePropertyDialogModel model)
       throws Exception
    {
@@ -1667,16 +1667,24 @@ class SelectionBindingServiceTest {
    // ── single-select levels dropped by a rebind (#79168) ────────────────────────
 
    private static SelectionTreeVSAssembly treeWithLevels(List<String> before, List<String> after) {
-      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
       SelectionTreeVSAssemblyInfo beforeInfo = mock(SelectionTreeVSAssemblyInfo.class);
       SelectionTreeVSAssemblyInfo afterInfo = mock(SelectionTreeVSAssemblyInfo.class);
+      when(beforeInfo.getMode()).thenReturn(SelectionTreeVSAssemblyInfo.COLUMN);
+      when(afterInfo.getMode()).thenReturn(SelectionTreeVSAssemblyInfo.COLUMN);
       when(beforeInfo.getSingleSelectionLevelNames()).thenReturn(before);
       when(afterInfo.getSingleSelectionLevelNames()).thenReturn(after);
-      when(assembly.getSelectionTreeInfo()).thenReturn(beforeInfo, afterInfo);
+      return treeWithInfos(beforeInfo, afterInfo);
+   }
+
+   static SelectionTreeVSAssembly treeWithInfos(SelectionTreeVSAssemblyInfo before,
+                                                        SelectionTreeVSAssemblyInfo after)
+   {
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      when(assembly.getSelectionTreeInfo()).thenReturn(before, after);
       return assembly;
    }
 
-   private static Map<String, Object> rebindTreeLevels(SelectionTreeVSAssembly assembly,
+   static Map<String, Object> rebindTreeLevels(SelectionTreeVSAssembly assembly,
                                                        List<String> columns)
       throws Exception
    {
@@ -1750,7 +1758,7 @@ class SelectionBindingServiceTest {
 
    // ── harness ───────────────────────────────────────────────────────────────
 
-   private static SelectionBindingService harness(VSAssembly assembly,
+   static SelectionBindingService harness(VSAssembly assembly,
                                                    SelectionListPropertyDialogService listService,
                                                    SelectionTreePropertyDialogService treeService,
                                                    RangeSliderPropertyDialogService sliderService,
@@ -1838,7 +1846,7 @@ class SelectionBindingServiceTest {
       return sessions;
    }
 
-   private static Principal principal() {
+   static Principal principal() {
       return () -> "admin";
    }
 }
