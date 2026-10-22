@@ -75,20 +75,25 @@ class DateComparisonCrosstabChangeMatrixTest {
    private static final LocalDate FROM = LocalDate.of(2017, 1, 1);
    private static final LocalDate TO = LocalDate.of(2022, 1, 1);
    private static final int PRE_COUNT = 2;
+   /** The part of the subtotal row of a period. */
+   private static final String TOTAL = "Total|";
 
    /** One shape of each kind of period / interval / context, for the Percent and toDate runs. */
    private static final Set<String> SAMPLE = Set.of(
       "Y-all-gM", "Y-ytd-gW-cY", "Y-sameW-gD-cQ", "Y-sameD-gD-cM", "Q-qtd-gM-cQ", "Q-mtd-gW-cM",
       "M-wtd-gW-cM", "M-all-gD", "W-wtd-gD-cW", "D-all-gD");
 
+   /** A year, a quarter and a month period with parts, for the totals. */
+   private static final Set<String> WITH_TOTALS = Set.of("Y-all-gM", "Q-qtd-gM-cQ", "M-all-gD");
+
    private record Case(DcShape shape, String weekStart, boolean toDate, boolean inclusive,
-                       boolean percent, boolean onRows)
+                       boolean percent, boolean onRows, boolean totals)
    {
       @Override
       public String toString() {
          return shape.id() + " " + weekStart + (toDate ? " toDate" : "") +
             (inclusive ? " incl" : "") + (percent ? " percent" : " change") +
-            (onRows ? "" : " on columns");
+            (onRows ? "" : " on columns") + (totals ? " totals" : "");
       }
 
       DateComparisonInfo info(int option, int preCount) {
@@ -104,19 +109,26 @@ class DateComparisonCrosstabChangeMatrixTest {
             continue;
          }
 
-         cases.add(new Case(shape, "sunday", false, false, false, true));
+         cases.add(new Case(shape, "sunday", false, false, false, true, false));
 
          if(shape.usesWeeks()) {
-            cases.add(new Case(shape, "monday", false, false, false, true));
+            cases.add(new Case(shape, "monday", false, false, false, true, false));
          }
 
          if(SAMPLE.contains(shape.id())) {
-            cases.add(new Case(shape, "sunday", false, false, true, true));
-            cases.add(new Case(shape, "sunday", true, true, false, true));
+            cases.add(new Case(shape, "sunday", false, false, true, true, false));
+            cases.add(new Case(shape, "sunday", true, true, false, true, false));
 
             // the date on the columns hides the first period by columns, not by rows
-            cases.add(new Case(shape, "sunday", false, false, false, false));
-            cases.add(new Case(shape, "sunday", false, false, true, false));
+            cases.add(new Case(shape, "sunday", false, false, false, false, false));
+            cases.add(new Case(shape, "sunday", false, false, true, false, false));
+         }
+
+         // the total of each period with the Trend and Comparison computed for totals
+         if(WITH_TOTALS.contains(shape.id())) {
+            cases.add(new Case(shape, "sunday", false, false, false, true, true));
+            cases.add(new Case(shape, "sunday", false, false, true, true, true));
+            cases.add(new Case(shape, "sunday", false, false, false, false, true));
          }
       }
 
@@ -177,10 +189,10 @@ class DateComparisonCrosstabChangeMatrixTest {
       DcPeriods periods = new DcPeriods(shape.periodLevel());
       boolean aligned = shape.usesWeeks() && shape.periodLevel() != XConstants.WEEK_DATE_GROUP;
       Rows value = read(fixture.crosstab(sheet, "Value", valueInfo, "Date", "Paid", level,
-                                       c.onRows()),
+                                       c.onRows(), c.totals()),
                         shape, c.onRows());
       Rows change = read(fixture.crosstab(sheet, "Change", changeInfo, "Date", "Paid", level,
-                                        c.onRows()),
+                                        c.onRows(), c.totals()),
                          shape, c.onRows());
       List<String> problems = new ArrayList<>();
 
@@ -204,13 +216,16 @@ class DateComparisonCrosstabChangeMatrixTest {
          }
 
          long period = value.periods().get(i)[0];
+         boolean total = TOTAL.equals(value.parts().get(i));
 
          if(valueOf.put(period + "|" + value.parts().get(i), v) != null) {
             problems.add("Value crosstab repeats part " + value.parts().get(i) + " of period " +
                          periods.label(period));
          }
 
-         totals.merge(period, v, Double::sum);
+         if(!total) {
+            totals.merge(period, v, Double::sum);
+         }
       }
 
       // each period's total is the sum of the days the condition list keeps for it

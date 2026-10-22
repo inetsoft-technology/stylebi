@@ -284,6 +284,17 @@ public final class DcInMemoryViewsheetFixture {
                              String valueColumn, int dateLevel, boolean onRows)
       throws Exception
    {
+      return crosstab(sheet, name, dc, dateColumn, valueColumn, dateLevel, onRows, false);
+   }
+
+   /**
+    * @param totals whether the date shows a subtotal of its parts and the totals are computed
+    *               with the Trend and Comparison (Compute Trend and Comparison for Totals).
+    */
+   public TableLens crosstab(Sheet sheet, String name, DateComparisonInfo dc, String dateColumn,
+                             String valueColumn, int dateLevel, boolean onRows, boolean totals)
+      throws Exception
+   {
       Viewsheet vs = sheet.vs();
       CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, name);
       crosstab.setSourceInfo((SourceInfo) sheet.source().clone());
@@ -305,7 +316,8 @@ public final class DcInMemoryViewsheetFixture {
       }
 
       crosstab.getVSCrosstabInfo().setDesignAggregates(new DataRef[] { agg });
-      crosstab.getVSCrosstabInfo().setCalculateTotalValue(false);
+      dim.setSubTotalVisibleValue(totals ? "true" : "false");
+      crosstab.getVSCrosstabInfo().setCalculateTotalValue(totals);
       ((CrosstabVSAssemblyInfo) crosstab.getVSAssemblyInfo()).setDateComparisonInfo(dc);
       vs.addAssembly(crosstab);
       TableLens data = (TableLens) sheet.box().getData(name);
