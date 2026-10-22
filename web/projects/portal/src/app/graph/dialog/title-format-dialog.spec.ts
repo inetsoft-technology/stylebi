@@ -115,6 +115,25 @@ describe("Title Format Dialog Unit Test", () => {
       fixture.componentInstance.model = createMockTitleFormatDialogModel("state", 0, undefined);
       fixture.detectChanges();
 
+      const stepper: HTMLInputElement = fixture.nativeElement.querySelector(
+         "input[role=spinbutton][aria-label='_#(Title Distance from Axis)']");
+      expect(stepper).not.toBeNull();
+      expect(stepper.disabled).toBe(false);
       expect(fixture.nativeElement.querySelector("#titleLabelGapFollowsDefault")).toBeNull();
+   });
+
+   it("shows the follow-default box unticked when the author set a value", () => {
+      fixture = TestBed.createComponent(TitleFormatDialog);
+      fixture.componentInstance.model = createMockTitleFormatDialogModel("state", 6, false);
+      fixture.detectChanges();
+
+      const stepper: HTMLInputElement = fixture.nativeElement.querySelector(
+         "input[role=spinbutton][aria-label='_#(Title Distance from Axis)']");
+      const box: HTMLInputElement =
+         fixture.nativeElement.querySelector("#titleLabelGapFollowsDefault");
+      expect(box).not.toBeNull();
+      expect(box.checked).toBe(false);
+      expect(stepper).not.toBeNull();
+      expect(stepper.disabled).toBe(false);
    });
 });
