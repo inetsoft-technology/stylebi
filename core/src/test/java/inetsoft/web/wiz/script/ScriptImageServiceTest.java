@@ -23,6 +23,7 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
@@ -735,6 +736,107 @@ class ScriptImageServiceTest {
       vs.addAssembly(group);
 
       assertNull(wholeSheetNote(vs));
+   }
+
+   // -- Bug 79193: a list in a Selection Container is drawn as a title row, not an empty box --
+
+   private static CurrentSelectionVSAssembly selectionContainer(Viewsheet vs, String name,
+                                                                String... children)
+   {
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, name);
+      container.setAssemblies(children);
+      vs.addAssembly(container);
+      return container;
+   }
+
+   @Test
+   void standaloneDropdownListIsStillNamedWhenAContainerExists() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      dropdownList(vs, "Alone");
+      selectionContainer(vs, "Cont");
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("\"Alone\" is a dropdown-mode selection list"), note);
+   }
+
+   @Test
+   void doesNotNoteDropdownListsInASelectionContainer() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      dropdownList(vs, "InCont1");
+      dropdownList(vs, "InCont2");
+      selectionContainer(vs, "Cont", "InCont1", "InCont2");
+
+      assertNull(wholeSheetNote(vs));
+   }
+
+   @Test
+   void notesOnlyTheStandaloneListWhenAContainerListIsAlsoPresent() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      dropdownList(vs, "InCont");
+      dropdownList(vs, "Alone");
+      selectionContainer(vs, "Cont", "InCont");
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("\"Alone\" is a dropdown-mode selection list"), note);
+      assertFalse(note.contains("InCont"), note);
+   }
+
+   @Test
+   void stillNotesDropdownListsInATabOrGroupContainer() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      dropdownList(vs, "TabList");
+      dropdownList(vs, "GroupList");
+      TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
+      tab.setAssemblies(new String[] {"TabList"});
+      vs.addAssembly(tab);
+      GroupContainerVSAssembly group = new GroupContainerVSAssembly(vs, "Group1");
+      group.setAssemblies(new String[] {"GroupList"});
+      vs.addAssembly(group);
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("\"TabList\""), note);
+      assertTrue(note.contains("\"GroupList\""), note);
+   }
+
+   @Test
+   void doesNotNoteAListInASelectionContainerNestedInAGroupContainer() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      dropdownList(vs, "L1");
+      selectionContainer(vs, "Cont", "L1");
+      GroupContainerVSAssembly group = new GroupContainerVSAssembly(vs, "Group1");
+      group.setAssemblies(new String[] {"Cont"});
+      vs.addAssembly(group);
+
+      assertNull(wholeSheetNote(vs));
+   }
+
+   @Test
+   void doesNotNoteAListInAHiddenSelectionContainer() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      dropdownList(vs, "L1");
+      selectionContainer(vs, "Cont", "L1").getVSAssemblyInfo().setVisibleValue("false");
+
+      assertNull(wholeSheetNote(vs));
+   }
+
+   @Test
+   void stillNotesAnInContainerDropdownTreeWhileSkippingTheContainerList() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      dropdownList(vs, "ListIn");
+      tree(vs, "TreeIn", SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      selectionContainer(vs, "Cont", "ListIn", "TreeIn");
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("\"TreeIn\" is a dropdown-mode selection tree"), note);
+      assertFalse(note.contains("ListIn"), note);
    }
 
    @Test

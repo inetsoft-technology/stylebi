@@ -22,6 +22,7 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
@@ -360,6 +361,12 @@ public class ScriptImageService {
     * gap in the export pipeline, not something this render can paper over — Composer/Viewer render
     * dropdown mode correctly, so note the discrepancy rather than let a blank box pass as a
     * plausible result (see class doc's title-bar/tables-crosstabs fallback for the same pattern).
+    *
+    * <p>A selection <em>list</em> inside a Selection Container ({@code CurrentSelectionVSAssembly})
+    * is excluded: {@code VSSelectionListHelper.write} draws such a list as a "Title  selected
+    * values" row through {@code writeTitleInContainer} whatever its show type, so it is not a blank
+    * box. A list in a Tab or Group Container is drawn as a standalone list and is still named. The
+    * tree half is deliberately unchanged: {@code VSSelectionTreeHelper} has no container branch.
     */
    private static String dropdownSelectionListNote(Viewsheet vs) {
       if(vs == null) {
@@ -372,9 +379,11 @@ public class ScriptImageService {
       int count = 0;
 
       for(Assembly assembly : vs.getAssemblies(true, true)) {
+         // same container test as VSSelectionListHelper.write (incs)
          boolean list = assembly instanceof SelectionListVSAssembly selectionList &&
             selectionList.getVSAssemblyInfo() instanceof SelectionListVSAssemblyInfo info &&
-            info.getShowType() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE;
+            info.getShowType() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE &&
+            !(selectionList.getContainer() instanceof CurrentSelectionVSAssembly);
          boolean tree = assembly instanceof SelectionTreeVSAssembly selectionTree &&
             selectionTree.getShowType() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE;
 
