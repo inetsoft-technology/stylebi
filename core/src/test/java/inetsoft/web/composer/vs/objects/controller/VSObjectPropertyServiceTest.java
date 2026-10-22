@@ -23,7 +23,9 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.EmbeddedTableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
@@ -246,6 +248,53 @@ class VSObjectPropertyServiceTest {
       assertEquals(0, VSUtil.getScope("Region", dimension, DateRangeRef.NONE_INTERVAL),
                    "the current member's scope/index must resolve so the next level (City) can " +
                    "be looked up");
+   }
+
+   /**
+    * Bug #79076: the embedded flag of a freshly created embedded table is false. Passing that
+    * table's own info (as the wiz add op does to apply a name) must not be misread as a request to
+    * convert it to a simple table: nothing is swapped and no conversion is reported.
+    */
+   @Test
+   void pristineEmbeddedTableInfoIsNotATableModeChange() throws Exception {
+      EmbeddedTableVSAssembly table = new EmbeddedTableVSAssembly(viewsheet, "EmbeddedTable1");
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("EmbeddedTable1")).thenReturn(table);
+
+      assertFalse(((TableVSAssemblyInfo) table.getVSAssemblyInfo()).isEmbeddedTable());
+      assertFalse(controller.isTableModeChange(rvs, table.getVSAssemblyInfo(), "",
+                                               commandDispatcher));
+      verify(viewsheet, never()).addAssembly(any(VSAssembly.class));
+      verify(viewsheet, never()).removeAssembly(anyString());
+   }
+
+   /**
+    * A genuine embedded true -> false change on an embedded table info is still a conversion
+    * request, a pristine (flag false) one is not, and the simple -> embedded direction is
+    * unaffected by the live flag check.
+    */
+   @Test
+   void embeddedToSimpleIsARequestOnlyWhenTheLiveFlagActuallyChanges() {
+      EmbeddedTableVSAssembly pristine = new EmbeddedTableVSAssembly(viewsheet, "EmbeddedTable1");
+      EmbeddedTableVSAssembly converted = new EmbeddedTableVSAssembly(viewsheet, "EmbeddedTable2");
+      ((TableVSAssemblyInfo) converted.getVSAssemblyInfo()).setEmbeddedTable(true);
+
+      // requested info with the flag cleared, i.e. the user unchecked "embedded"
+      EmbeddedTableVSAssemblyInfo cleared = (EmbeddedTableVSAssemblyInfo)
+         converted.getVSAssemblyInfo().clone();
+      cleared.setEmbeddedTable(false);
+
+      assertTrue(VSObjectPropertyService.isEmbeddedToSimpleRequest(
+                    converted.getInfo(), cleared));
+      assertFalse(VSObjectPropertyService.isEmbeddedToSimpleRequest(
+                     pristine.getInfo(), (TableVSAssemblyInfo) pristine.getVSAssemblyInfo()));
+      // flag unchanged (true -> true)
+      assertFalse(VSObjectPropertyService.isEmbeddedToSimpleRequest(
+                     converted.getInfo(), (TableVSAssemblyInfo) converted.getVSAssemblyInfo()));
+      // a plain table info is never an embedded -> simple request
+      TableVSAssembly plain = new TableVSAssembly(viewsheet, "Table1");
+      assertFalse(VSObjectPropertyService.isEmbeddedToSimpleRequest(
+                     converted.getInfo(), (TableVSAssemblyInfo) plain.getVSAssemblyInfo()));
    }
 
    @Mock CoreLifecycleService coreLifecycleService;
