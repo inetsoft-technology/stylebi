@@ -621,7 +621,7 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
       return false;
    }
 
-   private boolean hasActiveSelection() {
+   public boolean hasActiveSelection() {
       final SelectionList slist = getStateSelectionList();
       final SelectionList vlist = getSelectionList();
       final int sCount = slist == null ? -1 : slist.getSelectionValueCount();
