@@ -52,26 +52,16 @@ npx ng test portal --include="**/vs-range-slider.component.spec.ts"
 
 ---
 
-### Task 0: Baseline exports (the user, before any production code)
+### Task 0: Baseline exports (done 2026-10-22, by script)
 
-Spec §8, MC-1. No production code lands until this is done.
+Spec §8, MC-1. Done before any production code, on the running pre-change server.
 
-**Files:**
-- Create (git-ignored): `$WT/.superpowers/baselines/range-slider-density/before/`
+**Location:** `E:/StyleBI/stylebi-enterprise/community/.superpowers/baselines/range-slider-density/` (git-ignored; call it `$BL`). Its `README.txt` lists the dashboards, objects, files and scripts.
 
-- [ ] **Step 1: Build a fixture on a pre-change server**
+- [x] **Step 1: Fixture.** Dashboards `RSD Modern Comfortable`, `RSD Modern Compact`, `RSD Modern Dense`, `RSD Legacy` (Revert applied) and `RSD Adhoc` (with a table), on `Examples/Order Details`: `RangeSlider1` 200×40, `RangeSlider2` 400×40, `CurrentSelection1` holding `SelectionList1` (Category) and an expanded `RangeSlider3` (Order Date).
+- [x] **Step 2: Exports and screenshots.** `$BL/before/<tier>.{pdf,png,html,pptx,xlsx}` and `$BL/before/viewer/*.png`, including the ad hoc filter new (Quantity), pulled out of the container (Order Date) and returned. Two export runs compare all same with `rsd-compare.py`.
 
-On a server built from code without this branch (the shared checkout's current build is fine), create four dashboards in the global folder: `RSD Legacy` (Revert applied), `RSD Modern Comfortable`, `RSD Modern Compact`, `RSD Modern Dense` (each pinning its density). Each holds:
-- a range slider at the default size;
-- a range slider an author widened to 400×40;
-- a selection container (300 wide) holding a selection list and a range slider, the slider expanded;
-- a table bound to a date column, for the ad hoc filter.
-
-- [ ] **Step 2: Export and store**
-
-Export each dashboard to PDF, PNG, HTML, PPTX and XLSX (match layout) into `before/`, and screenshot each in the viewer, plus the table's ad hoc filter on the date column open.
-
-- [ ] **Step 3: Tell the implementer the folder is filled**
+After the build from this branch, Task 10 re-runs `node rsd-export.js after` (from `community/web`) and `node rsd-shots.js after` (from `test/smoke`), then `python rsd-compare.py before after legacy` for MC-1.
 
 ---
 
@@ -812,7 +802,7 @@ Spec D4, §8, §11.
 **Files:**
 - Modify: `docs/superpowers/specs/lookfeel/chart-card-open-item-decisions.md` (§3, one line)
 - Modify: `docs/superpowers/specs/lookfeel/chart-card-roadmap.md` (one line beside the range slider painter half, `:230`)
-- Create (git-ignored): `$WT/.superpowers/baselines/range-slider-density/manual-checks.md`
+- Create (git-ignored): `$BL/manual-checks.md`
 
 - [ ] **Step 1: Add the two notes**
 
@@ -828,7 +818,7 @@ Run: `cd "$WT/web" && npm run test:portal 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | gre
 
 - [ ] **Step 4: Write the manual checks for the user**
 
-`manual-checks.md` lists MC-1 to MC-7 from spec §8, each with the fixture from Task 0, the steps, the expected result and an empty Result column. MC-1 compares against `before/`.
+`manual-checks.md` lists MC-1 to MC-7 from spec §8, each with the fixture from Task 0, the steps, the expected result and an empty Result column. Once the user's server runs this branch: MC-1 is `node rsd-export.js after` then `python rsd-compare.py before after legacy` (expect 5/5 same); MC-2, MC-3 and MC-5 start from `node rsd-shots.js after` (from `test/smoke`) beside `before/viewer/`.
 
 - [ ] **Step 5: Commit the notes**
 
