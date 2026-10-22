@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.viewsheet.controller.VSCalendarService;
+import inetsoft.web.viewsheet.event.calendar.CalendarSelectionEvent;
 import inetsoft.web.viewsheet.service.VSInputService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -300,6 +301,92 @@ class CalendarInputServiceTest {
 
       assertTrue(e.getMessage().contains("period-comparison"), e.getMessage());
       assertTrue(e.getMessage().contains("Cal1"), e.getMessage());
+   }
+
+   // ── date granularity vs daySelection (Bug #79152) ─────────────────────────
+
+   private static final String[] DAY_RANGE = {"d2024-1-5", "d2025-5-20"};
+   private static final String[] WEEK_RANGE = {"w2024-1-1", "w2025-5-3"};
+
+   /** Day tokens on a week-selection range calendar are painted as week numbers: switch it. */
+   @Test
+   void switchesAWeekSelectionRangeCalendarToDaySelectionForDayTokens() {
+      assertTrue(CalendarDisplayService.switchesToDaySelection(
+         true, false, false, DAY_RANGE, false, "Cal1"));
+   }
+
+   @Test
+   void leavesADayRangeCalendarAlone() {
+      assertFalse(CalendarDisplayService.switchesToDaySelection(
+         true, false, false, DAY_RANGE, true, "Cal1"));
+   }
+
+   @Test
+   void leavesWeekTokensOnAWeekRangeCalendarAlone() {
+      assertFalse(CalendarDisplayService.switchesToDaySelection(
+         true, false, false, WEEK_RANGE, false, "Cal1"));
+   }
+
+   /** Year view, a single calendar and period mode paint day tokens correctly already. */
+   @Test
+   void doesNotSwitchYearViewSingleOrPeriodCalendars() {
+      assertFalse(CalendarDisplayService.switchesToDaySelection(
+         true, false, true, DAY_RANGE, false, "Cal1"), "year view");
+      assertFalse(CalendarDisplayService.switchesToDaySelection(
+         false, false, false, DAY_RANGE, false, "Cal1"), "single calendar");
+      assertFalse(CalendarDisplayService.switchesToDaySelection(
+         true, true, false, DAY_RANGE, false, "Cal1"), "period mode");
+   }
+
+   @Test
+   void refusesWeekTokensOnADaySelectionRangeCalendar() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> CalendarDisplayService.switchesToDaySelection(
+            true, false, false, WEEK_RANGE, true, "Cal1"));
+
+      assertTrue(e.getMessage().contains("'dates'"), e.getMessage());
+      assertTrue(e.getMessage().contains("daySelection"), e.getMessage());
+   }
+
+   @Test
+   void refusesMixedDayAndWeekTokensInARangeCalendar() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> CalendarDisplayService.switchesToDaySelection(
+            true, false, false, new String[] {"d2024-1-5", "w2025-5-3"}, false, "Cal1"));
+
+      assertTrue(e.getMessage().contains("'dates'"), e.getMessage());
+      assertTrue(e.getMessage().contains("daySelection"), e.getMessage());
+   }
+
+   @Test
+   void doesNotRefuseWeekTokensOutsideRangeMonthView() {
+      assertDoesNotThrow(() -> CalendarDisplayService.switchesToDaySelection(
+         false, false, false, WEEK_RANGE, true, "Cal1"));
+      assertDoesNotThrow(() -> CalendarDisplayService.switchesToDaySelection(
+         true, false, true, WEEK_RANGE, true, "Cal1"));
+   }
+
+   @Test
+   void daySelectionSideEffectSaysWhatChangedThatItPersistsAndHowToRevert() {
+      String text = CalendarDisplayService.DAY_SELECTION_SIDE_EFFECT;
+
+      assertTrue(text.contains("week selection to day selection"), text);
+      assertTrue(text.contains("saved with the sheet"), text);
+      assertTrue(text.contains("daySelection:false"), text);
+   }
+
+   /**
+    * A null second navigation date never equals an empty first one, which the painter reads as a
+    * two-month range.
+    */
+   @Test
+   void selectionEventSendsBothNavigationDatesNonNull() {
+      CalendarSelectionEvent event =
+         CalendarDisplayService.selectionEvent(DAY_RANGE, null, null);
+
+      assertEquals("", event.getCurrentDate1());
+      assertEquals("", event.getCurrentDate2());
+      assertArrayEquals(DAY_RANGE, event.getDates());
    }
 
    // ── range-comparison reshaping and range checks (Bug #77033) ──────────────
