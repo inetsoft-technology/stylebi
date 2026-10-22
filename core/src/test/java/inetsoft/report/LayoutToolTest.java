@@ -18,11 +18,13 @@
 package inetsoft.report;
 
 import inetsoft.report.lens.CalcTableLens;
+import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +35,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -163,5 +166,145 @@ class LayoutToolTest {
       String exp = clens.getFormula(0, 0);
       assertTrue(exp != null && exp.startsWith("none("),
          "expected expression to be wrapped in none(...), was: " + exp);
+   }
+
+
+
+   /**
+    * #79030: an explicit "_TABLE_ROOT_" row/column group (the only way to attach an
+    * expanding group cell to the table root as an independent list) must survive the
+    * default-group normalization done when the lens is built; an unknown name is still
+    * reset, and merge groups are unchanged.
+    */
+   @Test
+   void keepsRootGroupForRowAndColGroupButStillResetsUnknownNames() throws Exception {
+      TableLayout layout = rootGroupLayout(2, TableCellBinding.EXPAND_V);
+      TableCellBinding cell = (TableCellBinding) layout.getCellBinding(0, 1);
+      cell.setRowGroup(CalcTableLens.ROOT_GROUP);
+      cell.setColGroup(CalcTableLens.ROOT_GROUP);
+      cell.setMergeRowGroup(CalcTableLens.ROOT_GROUP);
+      cell.setMergeColGroup("NoSuchCell");
+      TableCellBinding other = (TableCellBinding) layout.getCellBinding(0, 0);
+      other.setRowGroup("NoSuchCell");
+      other.setColGroup("NoSuchCell");
+
+      CalcTableLens clens = fillLens(layout);
+
+      assertEquals(CalcTableLens.ROOT_GROUP, clens.getRowGroup(0, 1));
+      assertEquals(CalcTableLens.ROOT_GROUP, clens.getColGroup(0, 1));
+      // the default group resolves to a concrete parent cell once the lens is built, so
+      // assert the invalid names are gone rather than the literal default
+      assertNotEquals(CalcTableLens.ROOT_GROUP, clens.getMergeRowGroup(0, 1));
+      assertNotEquals("NoSuchCell", clens.getMergeColGroup(0, 1));
+      assertNotEquals("NoSuchCell", clens.getRowGroup(0, 0));
+      assertNotEquals("NoSuchCell", clens.getColGroup(0, 0));
+   }
+
+   @Test
+   void buildTreeDoesNotRewriteRootGroupOnTheStoredLayout() {
+      TableLayout layout = rootGroupLayout(2, TableCellBinding.EXPAND_V);
+      TableCellBinding cell = (TableCellBinding) layout.getCellBinding(0, 1);
+      cell.setRowGroup(CalcTableLens.ROOT_GROUP);
+
+      LayoutTool.buildTree(layout);
+
+      assertEquals(CalcTableLens.ROOT_GROUP, cell.getRowGroup());
+   }
+
+   /**
+    * #79030: two expanding row-group cells side by side render as independent lists (row
+    * count is the larger list) when the second is attached to the root, and as nested
+    * groups (the product) when it keeps the default group.
+    */
+   @Test
+   void rootRowGroupRendersIndependentListsInsteadOfTheProduct() {
+      TableLayout layout = rootGroupLayout(2, TableCellBinding.EXPAND_V);
+      ((TableCellBinding) layout.getCellBinding(0, 1)).setRowGroup(CalcTableLens.ROOT_GROUP);
+      assertEquals(3, renderedRows(layout));
+
+      layout = rootGroupLayout(2, TableCellBinding.EXPAND_V);
+      assertEquals(6, renderedRows(layout));
+   }
+
+   @Test
+   void rootColGroupRendersIndependentListsInsteadOfTheProduct() {
+      TableLayout layout = rootGroupLayout(2, TableCellBinding.EXPAND_H);
+      ((TableCellBinding) layout.getCellBinding(1, 0)).setColGroup(CalcTableLens.ROOT_GROUP);
+      assertEquals(3, renderedCols(layout));
+
+      layout = rootGroupLayout(2, TableCellBinding.EXPAND_H);
+      assertEquals(6, renderedCols(layout));
+   }
+
+   private static int renderedRows(TableLayout layout) {
+      return render(layout).getRowCount();
+   }
+
+   private static int renderedCols(TableLayout layout) {
+      return render(layout).getColCount();
+   }
+
+   /** Fills the lens for the layout and evaluates it over the full A x B cross product. */
+   private static RuntimeCalcTableLens render(TableLayout layout) {
+      DefaultTableLens base = crossProductBase();
+      CalcTableLens clens = fillLens(layout, base);
+      GraalJavaScriptEnv env = new GraalJavaScriptEnv();
+      env.init();
+      CalcTableVSAssembly assembly = lastAssembly;
+      assembly.setScriptEnv(env);
+      assembly.setScriptTable(base);
+      clens.setScriptTable(base);
+      return clens.process();
+   }
+
+   private static CalcTableLens fillLens(TableLayout layout) {
+      return fillLens(layout, crossProductBase());
+   }
+
+   private static CalcTableVSAssembly lastAssembly;
+
+   private static CalcTableLens fillLens(TableLayout layout, DefaultTableLens base) {
+      Viewsheet viewsheet = new Viewsheet();
+      CalcTableVSAssembly assembly = new CalcTableVSAssembly(viewsheet, "CalcTable1");
+      assembly.setTableLayout(layout);
+      viewsheet.addAssembly(assembly);
+      lastAssembly = assembly;
+      LayoutTool.fillCalcTableLens(assembly, base, new VariableTable(), false);
+      return (CalcTableLens) assembly.getBaseTable();
+   }
+
+   /** Column A has 3 distinct values, column B has 2, over all 6 combinations. */
+   private static DefaultTableLens crossProductBase() {
+      return new DefaultTableLens(new Object[][] {
+         { "A", "B" },
+         { "a1", "b1" }, { "a1", "b2" },
+         { "a2", "b1" }, { "a2", "b2" },
+         { "a3", "b1" }, { "a3", "b2" }
+      });
+   }
+
+   /** Two group cells: side by side for EXPAND_V, stacked in one column for EXPAND_H. */
+   private static TableLayout rootGroupLayout(int count, int expansion) {
+      DefaultTableLens base = crossProductBase();
+      TableLayout layout = new TableLayout();
+      boolean vertical = expansion == TableCellBinding.EXPAND_V;
+      layout.setColCount(vertical ? count : 1);
+      TableDataPath rpath = base.getDescriptor().getRowDataPath(0);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(vertical ? 1 : count);
+      layout.addRegion(rpath, region);
+
+      String[] columns = { "A", "B" };
+      String[] names = { "RG", "CG" };
+
+      for(int i = 0; i < count; i++) {
+         TableCellBinding cell = new TableCellBinding(CellBinding.BIND_COLUMN, columns[i]);
+         cell.setBType(TableCellBinding.GROUP);
+         cell.setExpansion(expansion);
+         cell.setCellName(names[i]);
+         layout.setCellBinding(vertical ? 0 : i, vertical ? i : 0, cell);
+      }
+
+      return layout;
    }
 }
