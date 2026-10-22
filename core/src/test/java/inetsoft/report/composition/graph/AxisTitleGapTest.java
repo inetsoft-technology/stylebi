@@ -21,8 +21,10 @@ import inetsoft.graph.EGraph;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.test.*;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.util.XSourceInfo;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizMark;
@@ -70,7 +72,18 @@ class AxisTitleGapTest {
    @Test
    void markedChartWithACustomTitleResolvesTheCardGap() {
       // a custom title had never taken the descriptor's gap; a marked chart must still get it
-      assertEquals(4, xTitleGap(true, VizMark.MODERN_LIGHT, "Custom X Title", 0));
+      assertEquals(4, xTitleGap(true, VizMark.MODERN_LIGHT, "Custom X Title", null, null, null));
+   }
+
+   @Test
+   void markedChartHonoursAnAuthorZeroTitleGap() {
+      assertEquals(0, xTitleGap(true, VizMark.MODERN_LIGHT, "Custom X Title", 0, null, null));
+   }
+
+   @Test
+   void aComfortableDashboardWidensTheTitleGap() {
+      assertEquals(6, xTitleGap(true, VizMark.MODERN_LIGHT, null, null, null, "comfortable"));
+      assertEquals(12, xTitleGap(false, VizMark.MODERN_LIGHT, null, null, null, "comfortable"));
    }
 
    @Test
@@ -86,15 +99,21 @@ class AxisTitleGapTest {
     * on the dimension's own descriptor, and report the gap the x axis title ends up with.
     */
    private static int xTitleGap(boolean labelVisible, VizMark mark) {
-      return xTitleGap(labelVisible, mark, null, 0);
+      return xTitleGap(labelVisible, mark, null, null, null, null);
+   }
+
+   private static int xTitleGap(boolean labelVisible, VizMark mark, String customTitle,
+                               int titleGap)
+   {
+      return xTitleGap(labelVisible, mark, customTitle, titleGap, null, null);
    }
 
    /**
-    * Same as {@link #xTitleGap(boolean, VizMark)}, but also allows setting a custom axis title and
-    * a descriptor-level label gap, to exercise the custom-title branch of getTitleSpec.
+    * Same as {@link #xTitleGap(boolean, VizMark)}, but also allows a custom axis title, the title
+    * descriptor's user and stylesheet gaps, and a dashboard density.
     */
    private static int xTitleGap(boolean labelVisible, VizMark mark, String customTitle,
-                                int titleGap)
+                                Integer userGap, Integer cssGap, String density)
    {
       Object[][] rows = new Object[7][];
       rows[0] = new Object[]{ "State", "Total" };
@@ -123,14 +142,28 @@ class AxisTitleGapTest {
       assemblyInfo.setVSChartInfo(cinfo);
       ChartDescriptor chartDesc = new ChartDescriptor();
 
+      TitleDescriptor xTitleDesc = chartDesc.getTitlesDescriptor().getXTitleDescriptor();
+
       if(customTitle != null) {
-         TitleDescriptor xTitleDesc = chartDesc.getTitlesDescriptor().getXTitleDescriptor();
          xTitleDesc.setTitle(customTitle);
-         xTitleDesc.setLabelGap(titleGap);
+      }
+
+      if(userGap != null) {
+         xTitleDesc.setLabelGap(userGap, CompositeValue.Type.USER);
+      }
+
+      if(cssGap != null) {
+         xTitleDesc.setLabelGap(cssGap, CompositeValue.Type.CSS);
       }
 
       assemblyInfo.setChartDescriptor(chartDesc);
       assemblyInfo.setVizMark(mark);
+
+      if(density != null) {
+         Viewsheet vs = new Viewsheet();
+         vs.getViewsheetInfo().setVizDensity(density);
+         assemblyInfo.setViewsheet(vs);
+      }
 
       EGraph graph = GraphGenerator.getGenerator(
          assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
