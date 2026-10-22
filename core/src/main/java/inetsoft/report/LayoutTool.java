@@ -3382,6 +3382,9 @@ public class LayoutTool {
                String mrgrp = cell.getMergeRowGroup();
                String mcgrp = cell.getMergeColGroup();
 
+               // CalcTableLens.ROOT_GROUP is not a cell name but is a valid explicit
+               // reference (an independent list attached to the table root, not nested
+               // under the default group); do not reset it to the default group (#79030)
                if(!isDefaultName(rgrp) && !CalcTableLens.ROOT_GROUP.equals(rgrp) &&
                   !allnames.contains(rgrp)) {
                   log.append("Row group \"" + rgrp + "\"");
