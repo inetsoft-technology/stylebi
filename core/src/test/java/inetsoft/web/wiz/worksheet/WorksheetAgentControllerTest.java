@@ -4992,11 +4992,14 @@ class WorksheetAgentControllerTest {
       );
    }
 
+   private RuntimeWorksheet lastSyncRuntime;
+
    private WorksheetAgentController variableSyncController(
       String token, Worksheet ws, VariableTable vtable, AssetQuerySandbox box)
       throws Exception
    {
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      lastSyncRuntime = rws;
       when(rws.getWorksheet()).thenReturn(ws);
       when(rws.getAssetQuerySandbox()).thenReturn(box);
       when(box.getVariableTable()).thenReturn(vtable);
@@ -5080,6 +5083,173 @@ class WorksheetAgentControllerTest {
 
       assertFalse(vtable.contains("n"),
          "a value of the old type must not survive a variable type change");
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79001 -- every removal path must drop the variable's runtime value
+   // ---------------------------------------------------------------------------
+
+   private static EditRequest opRequest(String op, String table, String name, String newName) {
+      return new EditRequest(
+         op, table, null, name, null, newName, null, null, null, null,
+         null, null, null, false, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null,
+         null, null,
+         null, null, null, null, null, null, null
+      );
+   }
+
+   private VariableTable valuesFor79001() {
+      VariableTable vtable = new VariableTable();
+      vtable.put("state", "MD");
+      vtable.put("other", "keep");
+      vtable.put("__refresh_report__", Boolean.TRUE);
+      return vtable;
+   }
+
+   private void assertOnlyStateDropped(VariableTable vtable) throws Exception {
+      assertFalse(vtable.contains("state"), "the removed variable's value must be dropped");
+      assertEquals("keep", vtable.get("other"), "other variables' values must survive");
+      assertEquals(Boolean.TRUE, vtable.get("__refresh_report__"), "system keys must survive");
+   }
+
+   @Test
+   void deleteTableOfVariableDropsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001A", ws, vtable, box);
+
+      ctrl.edit("TOK-79001A", opRequest("delete_table", "state", null, null), agent);
+
+      assertOnlyStateDropped(vtable);
+      verify(box).reset();
+   }
+
+   @Test
+   void removeJoinOfVariableDropsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001B", ws, vtable, box);
+
+      ctrl.edit("TOK-79001B", opRequest("remove_join", null, "state", null), agent);
+
+      assertOnlyStateDropped(vtable);
+   }
+
+   @Test
+   void renameTableOfVariableDropsRuntimeValueOfOldName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001C", ws, vtable, box);
+
+      ctrl.edit("TOK-79001C", opRequest("rename_table", "state", null, "region"), agent);
+
+      assertOnlyStateDropped(vtable);
+   }
+
+   @Test
+   void undoOfAddVariableDropsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001E", ws, vtable, box);
+      when(lastSyncRuntime.undo(any())).thenAnswer(inv -> {
+         ws.removeAssembly("state");
+         return true;
+      });
+
+      ctrl.undo("TOK-79001E", agent);
+
+      assertOnlyStateDropped(vtable);
+   }
+
+   @Test
+   void undoOfRenameVariableDropsValueMovedToNewName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "region");
+      addVariable(ws, "other");
+      VariableTable vtable = new VariableTable();
+      vtable.put("region", "MD");
+      vtable.put("other", "keep");
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001F", ws, vtable, box);
+      when(lastSyncRuntime.undo(any())).thenAnswer(inv -> {
+         ws.removeAssembly("region");
+         addVariable(ws, "state");
+         return true;
+      });
+
+      ctrl.undo("TOK-79001F", agent);
+
+      assertFalse(vtable.contains("region"));
+      assertFalse(vtable.contains("state"));
+      assertEquals("keep", vtable.get("other"));
+   }
+
+   @Test
+   void redoThatRemovesAVariableDropsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001G", ws, vtable, box);
+      when(lastSyncRuntime.redo(any())).thenAnswer(inv -> {
+         ws.removeAssembly("state");
+         return true;
+      });
+
+      ctrl.redo("TOK-79001G", agent);
+
+      assertOnlyStateDropped(vtable);
+   }
+
+   @Test
+   void undoThatRemovesNoVariableKeepsRuntimeValues() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001H", ws, vtable, box);
+      when(lastSyncRuntime.undo(any())).thenReturn(true);
+
+      ctrl.undo("TOK-79001H", agent);
+
+      assertEquals("MD", vtable.get("state"));
+      verify(box, never()).reset();
+   }
+
+   @Test
+   void addVariableDropsStaleValueLeftUnderItsName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001I", ws, vtable, box);
+
+      ctrl.edit("TOK-79001I", addVariableRequest("state", XSchema.STRING), agent);
+
+      assertOnlyStateDropped(vtable);
    }
 
    // ---------------------------------------------------------------------------
