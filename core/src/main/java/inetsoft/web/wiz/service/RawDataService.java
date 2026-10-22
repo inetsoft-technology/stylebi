@@ -35,6 +35,7 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.util.Tool;
+import inetsoft.util.TimedQueue;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -147,6 +148,13 @@ public class RawDataService {
       }
 
       TableLens lens;
+      // Bug #79074: box.getTableLens(...) below blocks on the live query for as long as it
+      // takes -- same exposure WorksheetPreviewService.preview0 has, against the identical
+      // pairing-held, amap-registered RuntimeWorksheet (this method reuses the live session's
+      // own sandbox, per this method's own class-level Javadoc) -- and this export has no row
+      // cap at all, unlike preview's 200-row limit, so it is at least as exposed. See
+      // RuntimeHeartbeatKeepAlive's own class comment.
+      TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
 
       try {
          XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
@@ -167,6 +175,9 @@ public class RawDataService {
       catch(Exception e) {
          throw new RuntimeException(
             "Failed to export worksheet table '" + tableName + "': " + e.getMessage(), e);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.stop(heartbeat);
       }
    }
 

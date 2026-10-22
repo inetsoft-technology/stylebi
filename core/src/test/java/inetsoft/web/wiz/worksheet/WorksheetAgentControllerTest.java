@@ -86,6 +86,7 @@ import inetsoft.web.wiz.service.FakeNamedConnectorQuery;
 import inetsoft.web.wiz.service.MetadataApiService;
 import inetsoft.web.wiz.service.RawDataService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
+import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.junit.jupiter.api.Tag;
@@ -117,7 +118,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -3372,6 +3375,156 @@ class WorksheetAgentControllerTest {
       verify(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug #79074: refreshData's single-assembly branch must also keep the runtime's heartbeat
+   // alive while its (potentially long-running, background-continuing) reload is in flight.
+   // ---------------------------------------------------------------------------
+   //
+   // RuntimeHeartbeatKeepAlive.INTERVAL_MS is shrunk for the duration of these tests so the
+   // periodic refresh can be observed without waiting out the real (minutes-long) production
+   // interval.
+
+   /**
+    * Happy path: a reload slow enough to need several heartbeat ticks, but fast enough to finish
+    * inside RenderWaitSupport.awaitOrRetry's own bound, must refresh the runtime's heartbeat while
+    * it runs and must not touch the idle/accessed clock (access(true)) -- that call happens
+    * earlier, at pairing-access grant time, which this test harness bypasses entirely by handing
+    * {@code rws} to the mocked {@code runtimeAccess} directly.
+    */
+   @Test
+   void refreshDataKeepsHeartbeatAliveWhileReloadIsInFlight() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
+
+      try {
+         Principal agent = TestPrincipals.user("alice", "host-org");
+
+         Worksheet ws = new Worksheet();
+         TableAssembly crosstab = TestWorksheets.withGroupSumAndSort(
+            TestWorksheets.nonEmbeddedTableWithColumns(ws, "Crosstab1", "cust", "amount"),
+            "cust", "amount");
+         ((BoundTableAssembly) crosstab).setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+         ws.addAssembly(crosstab);
+
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         when(rws.getAssetQuerySandbox()).thenReturn(box);
+         when(box.getWorksheet()).thenReturn(ws);
+         when(box.getVariableTable()).thenReturn(new VariableTable());
+
+         CountDownLatch heartbeats = new CountDownLatch(3);
+         doAnswer(inv -> {
+            heartbeats.countDown();
+            return null;
+         }).when(rws).access(false);
+
+         doAnswer(invocation -> {
+            // Blocks until the heartbeat has ticked a few times, then lets the reload finish --
+            // well inside RenderWaitSupport.awaitOrRetry's own multi-second bound.
+            assertTrue(heartbeats.await(2, TimeUnit.SECONDS),
+                       "expected the runtime's heartbeat to be refreshed repeatedly while the " +
+                       "reload is still running");
+            return null;
+         }).when(box).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         when(sessions.resolve(eq("TOK-RD79074a"), any())).thenReturn(session("TOK-RD79074a"));
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         WorksheetAgentController ctrl = controller(featureOn(),
+            mock(SheetJoinService.class), mock(SheetSessionService.class),
+            mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+         try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+            ctrl.edit("TOK-RD79074a", refreshDataRequest("Crosstab1"), agent);
+         }
+
+         verify(rws, atLeastOnce()).access(false);
+         verify(rws, never()).access(true);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
+   /**
+    * The hard case the round-2 review flagged: RenderWaitSupport.awaitOrRetry does not cancel the
+    * reload on timeout, so a reload slower than its own bound keeps running on a background
+    * thread well past the point where the controller call itself has already thrown
+    * RenderNotReadyException. The heartbeat must survive that client-visible timeout -- it is
+    * started before the wait begins but stopped from INSIDE the reload's own callable, not by the
+    * outer catch(RenderNotReadyException) branch, which must leave it running.
+    */
+   @Test
+   void refreshDataKeepsHeartbeatRunningPastAClientVisibleTimeout() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
+
+      try {
+         Principal agent = TestPrincipals.user("alice", "host-org");
+
+         Worksheet ws = new Worksheet();
+         TableAssembly crosstab = TestWorksheets.withGroupSumAndSort(
+            TestWorksheets.nonEmbeddedTableWithColumns(ws, "Crosstab1", "cust", "amount"),
+            "cust", "amount");
+         ((BoundTableAssembly) crosstab).setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+         ws.addAssembly(crosstab);
+
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         when(rws.getAssetQuerySandbox()).thenReturn(box);
+         when(box.getWorksheet()).thenReturn(ws);
+         when(box.getVariableTable()).thenReturn(new VariableTable());
+
+         // Longer than RenderWaitSupport's own bound here (TABLE_WARM_MAX_ATTEMPTS *
+         // TABLE_WARM_RETRY_SLEEP_MS = 2000ms), so the controller call itself times out and
+         // throws while this is still sleeping in the background.
+         doAnswer(invocation -> {
+            Thread.sleep(2_500);
+            return null;
+         }).when(box).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         when(sessions.resolve(eq("TOK-RD79074b"), any())).thenReturn(session("TOK-RD79074b"));
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         WorksheetAgentController ctrl = controller(featureOn(),
+            mock(SheetJoinService.class), mock(SheetSessionService.class),
+            mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+         try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+            assertThrows(RenderNotReadyException.class,
+               () -> ctrl.edit("TOK-RD79074b", refreshDataRequest("Crosstab1"), agent));
+         }
+
+         // The controller call has already returned (thrown), ~2000ms in, but the background
+         // reload still has roughly 500ms left to run -- the heartbeat must still be ticking.
+         clearInvocations(rws);
+         Thread.sleep(300L);
+         verify(rws, atLeastOnce()).access(false);
+
+         // Once the background reload genuinely finishes (its own finally stops the heartbeat),
+         // no further ticks should arrive.
+         Thread.sleep(500L);
+         clearInvocations(rws);
+         Thread.sleep(150L);
+         verify(rws, never()).access(false);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
    /**
     * Bug #76711 round 6 (bulk branch): the "refresh all tables" branch (no table name given) had
     * the exact same gap as the single-assembly branch did before round 6 -- it invalidated the
@@ -3422,6 +3575,120 @@ class WorksheetAgentControllerTest {
       verify(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
       assertNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS),
          "the bulk refresh-all branch must also remove the row-cap hint unconditionally");
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79074: refreshData's bulk ("refresh all tables") branch must also keep the runtime's
+   // heartbeat alive while its sequential, synchronous per-table reloads are in flight -- more
+   // exposed than the single-assembly branch, since N slow tables compound into one even longer
+   // blocking call.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void refreshDataAllTablesKeepsHeartbeatAliveWhileReloadIsInFlight() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
+
+      try {
+         Principal agent = TestPrincipals.user("alice", "host-org");
+
+         Worksheet ws = new Worksheet();
+         BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+            ws, "Table1", "cust", "amount");
+         table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+         ws.addAssembly(table);
+
+         VariableTable vars = new VariableTable();
+
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         when(rws.getAssetQuerySandbox()).thenReturn(box);
+         when(box.getWorksheet()).thenReturn(ws);
+         when(box.getVariableTable()).thenReturn(vars);
+
+         CountDownLatch heartbeats = new CountDownLatch(3);
+         doAnswer(inv -> {
+            heartbeats.countDown();
+            return null;
+         }).when(rws).access(false);
+
+         doAnswer(invocation -> {
+            assertTrue(heartbeats.await(2, TimeUnit.SECONDS),
+                       "expected the runtime's heartbeat to be refreshed repeatedly while the " +
+                       "bulk reload is still running");
+            return null;
+         }).when(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         when(sessions.resolve(eq("TOK-RD79074c"), any())).thenReturn(session("TOK-RD79074c"));
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         WorksheetAgentController ctrl = controller(featureOn(),
+            mock(SheetJoinService.class), mock(SheetSessionService.class),
+            mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+         try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+            ctrl.edit("TOK-RD79074c", refreshDataRequest(null), agent);
+         }
+
+         verify(rws, atLeastOnce()).access(false);
+         verify(rws, never()).access(true);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
+   /** The periodic task must be unregistered once the bulk reload completes -- no leak. */
+   @Test
+   void refreshDataAllTablesStopsRefreshingHeartbeatOnceReloadCompletes() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 15L;
+
+      try {
+         Principal agent = TestPrincipals.user("alice", "host-org");
+
+         Worksheet ws = new Worksheet();
+         BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+            ws, "Table1", "cust", "amount");
+         table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+         ws.addAssembly(table);
+
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         when(rws.getAssetQuerySandbox()).thenReturn(box);
+         when(box.getWorksheet()).thenReturn(ws);
+         when(box.getVariableTable()).thenReturn(new VariableTable());
+
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         when(sessions.resolve(eq("TOK-RD79074d"), any())).thenReturn(session("TOK-RD79074d"));
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+         WorksheetAgentController ctrl = controller(featureOn(),
+            mock(SheetJoinService.class), mock(SheetSessionService.class),
+            mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+         try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+            ctrl.edit("TOK-RD79074d", refreshDataRequest(null), agent);
+         }
+
+         clearInvocations(rws);
+         Thread.sleep(150L);
+         verify(rws, never()).access(anyBoolean());
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
    }
 
    /**

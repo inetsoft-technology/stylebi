@@ -73,6 +73,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.CoreTool;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.MessageException;
+import inetsoft.util.TimedQueue;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -88,6 +89,7 @@ import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.RawDataService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
+import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
 import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
 import inetsoft.web.wiz.service.TabularQueryContractSupport;
 import inetsoft.web.wiz.script.PaneScopeService;
@@ -5093,6 +5095,16 @@ public class WorksheetAgentController {
             // after the work it guards actually finishes, on whichever thread that turns out to be.
             box.getVariableTable().put("__refresh_report__", "true");
 
+            // Bug #79074: the reload below (and the forced RUNTIME_MODE read inside it) can
+            // legitimately take a long time -- the same "slow or multi-round-trip query against
+            // a pairing-held runtime" exposure WorksheetPreviewService.preview0 has, see
+            // RuntimeHeartbeatKeepAlive's own class comment. RenderWaitSupport.awaitOrRetry does
+            // not cancel this work on timeout, so it can keep running on its own virtual thread
+            // well past this method's own bounded wait -- the heartbeat must therefore be started
+            // here (before the wait) but stopped from INSIDE the callable's own finally, where the
+            // real work actually finishes, not merely where this method's wait on it ends.
+            TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
+
             try {
                RenderWaitSupport.awaitOrRetry(() -> {
                   try {
@@ -5123,6 +5135,7 @@ public class WorksheetAgentController {
                   }
                   finally {
                      box.getVariableTable().remove("__refresh_report__");
+                     RuntimeHeartbeatKeepAlive.stop(heartbeat);
                   }
 
                   return null;
@@ -5131,16 +5144,18 @@ public class WorksheetAgentController {
             }
             catch(RenderNotReadyException e) {
                // Timed out waiting, not failed: the reload above is still running in the
-               // background and removes the flag itself once it finishes. Do not remove it here,
-               // or the flag can go missing while that work -- and the __refresh_report__-gated
-               // cache read it exists to suppress -- is still in flight.
+               // background and removes the flag (and stops its own heartbeat) itself once it
+               // finishes. Do not remove either here, or the flag can go missing -- and the
+               // runtime's heartbeat can go stale -- while that work is still in flight.
                throw e;
             }
             catch(Exception e) {
                // Any other failure means the callable either already ran (its own finally above
-               // already removed the flag -- this is then a harmless no-op) or never ran at all,
-               // e.g. rejected before being submitted -- the only case this remove is load-bearing.
+               // already removed the flag and stopped the heartbeat -- both are then harmless
+               // no-ops) or never ran at all, e.g. rejected before being submitted -- the only
+               // case these removals are load-bearing.
                box.getVariableTable().remove("__refresh_report__");
+               RuntimeHeartbeatKeepAlive.stop(heartbeat);
                throw e;
             }
          }
@@ -5173,42 +5188,58 @@ public class WorksheetAgentController {
             // because loadTableData there already covers the mode == RUNTIME_MODE case).
             box.getVariableTable().remove(XQuery.HINT_MAX_ROWS);
 
-            for(Assembly a : ws.getAssemblies()) {
-               if(a instanceof TableAssembly table) {
-                  int mode = WorksheetEventUtil.getMode(table);
-                  box.resetTableLens(table.getName(), mode);
+            // Bug #79074: this loop runs one forced RUNTIME_MODE read per table, sequentially, on
+            // this same blocking call -- the same "slow or multi-round-trip query against a
+            // pairing-held runtime" exposure WorksheetPreviewService.preview0 has (see
+            // RuntimeHeartbeatKeepAlive's own class comment), and more exposed than a single
+            // preview: N slow tables compound into one even longer blocking call. Unlike the
+            // single-assembly branch above, this one runs entirely synchronously on the calling
+            // thread (deliberately not wrapped in RenderWaitSupport.awaitOrRetry, per this
+            // branch's own long-standing comment below), so a single start/stop pair around the
+            // whole loop is enough -- there is no background-thread handoff to account for here.
+            TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
 
-                  DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
-                  assetDataCache.remove(key);
+            try {
+               for(Assembly a : ws.getAssemblies()) {
+                  if(a instanceof TableAssembly table) {
+                     int mode = WorksheetEventUtil.getMode(table);
+                     box.resetTableLens(table.getName(), mode);
 
-                  if(mode != AssetQuerySandbox.RUNTIME_MODE) {
-                     box.resetTableLens(table.getName(), AssetQuerySandbox.RUNTIME_MODE);
-                     DataKey runtimeKey = AssetDataCache.getCacheKey(
-                        table, box, null, AssetQuerySandbox.RUNTIME_MODE, true);
-                     assetDataCache.remove(runtimeKey);
-                  }
+                     DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
+                     assetDataCache.remove(key);
 
-                  // Bug #78940: see the single-table branch.
-                  clearNormalizedCache(table, box);
-                  WorksheetEventUtil.invalidateDependents(ws, table, box, assetDataCache);
+                     if(mode != AssetQuerySandbox.RUNTIME_MODE) {
+                        box.resetTableLens(table.getName(), AssetQuerySandbox.RUNTIME_MODE);
+                        DataKey runtimeKey = AssetDataCache.getCacheKey(
+                           table, box, null, AssetQuerySandbox.RUNTIME_MODE, true);
+                        assetDataCache.remove(runtimeKey);
+                     }
 
-                  try {
-                     clearBoundQueryCache(box, table, mode);
-                  }
-                  catch(Exception e) {
-                     LOG.warn("Failed to clear the bound query cache for table: " +
-                        table.getName(), e);
-                  }
+                     // Bug #78940: see the single-table branch.
+                     clearNormalizedCache(table, box);
+                     WorksheetEventUtil.invalidateDependents(ws, table, box, assetDataCache);
 
-                  box.getVariableTable().put("__refresh_report__", "true");
+                     try {
+                        clearBoundQueryCache(box, table, mode);
+                     }
+                     catch(Exception e) {
+                        LOG.warn("Failed to clear the bound query cache for table: " +
+                           table.getName(), e);
+                     }
 
-                  try {
-                     box.getTableLens(table.getName(), AssetQuerySandbox.RUNTIME_MODE);
-                  }
-                  finally {
-                     box.getVariableTable().remove("__refresh_report__");
+                     box.getVariableTable().put("__refresh_report__", "true");
+
+                     try {
+                        box.getTableLens(table.getName(), AssetQuerySandbox.RUNTIME_MODE);
+                     }
+                     finally {
+                        box.getVariableTable().remove("__refresh_report__");
+                     }
                   }
                }
+            }
+            finally {
+               RuntimeHeartbeatKeepAlive.stop(heartbeat);
             }
          }
 

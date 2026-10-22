@@ -27,12 +27,15 @@ import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.util.CoreTool;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
+import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -677,5 +680,101 @@ class WorksheetPreviewServiceTest {
       }
 
       return lens(headers, new Object[][]{ row });
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79074: keep the runtime's heartbeat alive while a slow query is in flight
+   // ---------------------------------------------------------------------------
+   //
+   // WorksheetEngine's recycle sweep disposes a runtime sheet once its heartbeat has gone
+   // stale for RuntimeSheet.DEFAULT_HEARTBEAT_TIMEOUT (3 minutes) -- with no "currently
+   // executing, don't evict" guard for worksheets the way ViewsheetEngine has for viewsheets.
+   // preview0() must therefore refresh the heartbeat itself while box.getTableLens(...) blocks,
+   // so a legitimately slow-but-finite query (e.g. a multi-round-trip REST pagination fetch)
+   // never gets its runtime disposed out from under it mid-query.
+   //
+   // RuntimeHeartbeatKeepAlive.INTERVAL_MS is shrunk for the duration of these tests so the periodic refresh can
+   // be observed without waiting out the real (minutes-long) production interval.
+
+   @Test
+   void refreshesHeartbeatPeriodicallyWhileQueryIsInFlight() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
+
+      try {
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         RuntimeWorksheet rws = rws(box);
+         CountDownLatch heartbeats = new CountDownLatch(3);
+         doAnswer(inv -> {
+            heartbeats.countDown();
+            return null;
+         }).when(rws).access(false);
+
+         when(box.getTableLens(eq("T"), anyInt())).thenAnswer(inv -> {
+            // Simulates a query that is still genuinely executing: block long enough for
+            // several heartbeat ticks to fire before letting the "query" finish.
+            assertTrue(heartbeats.await(2, TimeUnit.SECONDS),
+                       "expected the runtime's heartbeat to be refreshed repeatedly while " +
+                       "the query is still executing");
+            return lens(new String[]{ "A" }, new Object[][]{});
+         });
+
+         service.preview(rws, "T", 0, 10);
+
+         verify(rws, atLeastOnce()).access(false);
+         // Only the heartbeat clock should move -- the idle/access clock is untouched here;
+         // that one call happens earlier, at pairing-access grant time, outside this method.
+         verify(rws, never()).access(true);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
+   @Test
+   void stopsRefreshingHeartbeatOnceTheQueryCompletes() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 15L;
+
+      try {
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         RuntimeWorksheet rws = rws(box);
+         TableLens l = lens(new String[]{ "A" }, new Object[][]{});
+         when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+         service.preview(rws, "T", 0, 10);
+
+         // The periodic task must be unregistered once the call returns -- otherwise it would
+         // keep firing on this (now very short) interval forever, a background-task leak.
+         clearInvocations(rws);
+         Thread.sleep(150L);
+         verify(rws, never()).access(anyBoolean());
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
+   @Test
+   void stopsRefreshingHeartbeatWhenTheQueryThrows() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 15L;
+
+      try {
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         RuntimeWorksheet rws = rws(box);
+         when(box.getTableLens(eq("T"), anyInt()))
+            .thenThrow(new RuntimeException("query failed"));
+
+         assertThrows(PairingException.class, () -> service.preview(rws, "T", 0, 10));
+
+         // The failure path's finally block must also unregister the periodic task.
+         clearInvocations(rws);
+         Thread.sleep(150L);
+         verify(rws, never()).access(anyBoolean());
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
    }
 }
