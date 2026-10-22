@@ -1097,4 +1097,162 @@ class IdentityChangePlanServiceTest {
          super(authentication, authorization);
       }
    }
+
+   // -------------------------------------------------------------------------
+   // Bug #79016: user password reaches the plan hash; org-qualified list references resolve
+   // -------------------------------------------------------------------------
+
+   private ResolvedPlan previewUserWithPassword(String password) throws Exception {
+      when(securityService.getUser(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such user"));
+      IdentityChangeRequest change = createUser("bob");
+      change.getSpec().setPassword(password);
+      return service.resolve(request("task", List.of(change)), user);
+   }
+
+   @Test void createUserDifferentPasswordsHashDifferently() throws Exception {
+      ResolvedPlan a = previewUserWithPassword("Password1!AAA");
+      ResolvedPlan b = previewUserWithPassword("Password2!BBB");
+
+      assertNotEquals(a.planHash(), b.planHash());
+      // the displayed projection still carries only the presence token
+      assertEquals(a.changes().get(0).proposedValue(), b.changes().get(0).proposedValue());
+      assertTrue(a.changes().get(0).proposedValue().contains("password=pw:set;"));
+      assertFalse(a.changes().get(0).proposedValue().contains("Password1"));
+   }
+
+   @Test void createUserSamePasswordHashesTheSame() throws Exception {
+      assertEquals(previewUserWithPassword("Password1!AAA").planHash(),
+                   previewUserWithPassword("Password1!AAA").planHash());
+   }
+
+   private ResolvedPlan previewGroupCreate(IdentitySpec patch) throws Exception {
+      lenient().when(securityService.getGroup(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such group"));
+      IdentityChangeRequest change = createGroup("team");
+      change.getSpec().setMemberUsers(patch.getMemberUsers());
+      change.getSpec().setMemberGroups(patch.getMemberGroups());
+      change.getSpec().setParentGroups(patch.getParentGroups());
+      change.getSpec().setRoles(patch.getRoles());
+      return service.resolve(request("task", List.of(change)), user);
+   }
+
+   private static IdentitySpec memberUsers(String... names) {
+      IdentitySpec spec = new IdentitySpec();
+      spec.setMemberUsers(new java.util.ArrayList<>(Arrays.asList(names)));
+      return spec;
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "admin", "admin:host-org", "admin~;~host-org", "admin^host-org" })
+   void groupCreateResolvesEveryOrgQualifiedMemberFormToTheBareName(String ref) throws Exception {
+      ResolvedPlan plan = previewGroupCreate(memberUsers(ref));
+
+      String proposed = plan.changes().get(0).proposedValue();
+      assertTrue(proposed.contains("memberUsers=admin;"), proposed);
+      // the unit's own id key keeps its "~;~"; the member list must hold no org qualifier
+      assertFalse(proposed.contains("^"), proposed);
+      assertFalse(proposed.contains("admin~"), proposed);
+   }
+
+   @Test void qualifiedAndBareMemberHashTheSame() throws Exception {
+      assertEquals(previewGroupCreate(memberUsers("admin")).planHash(),
+                   previewGroupCreate(memberUsers("admin^host-org")).planHash());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "admin:other-org", "admin~;~other-org", "admin^other-org" })
+   void groupCreateRefusesAMemberFromAnotherOrgNamingTheField(String ref) {
+      when(editableAuthentication.getOrganization("other-org")).thenReturn(mock(Organization.class));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> previewGroupCreate(memberUsers(ref)));
+
+      assertTrue(ex.getMessage().matches("(?s).*memberUsers.*spec\\.orgId.*"), ex.getMessage());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "admin^SELF", "admin~;~SELF", "admin:SELF" })
+   void groupCreateRefusesAMemberWithAnUnknownOrgNamingTheField(String ref) {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> previewGroupCreate(memberUsers(ref)));
+
+      assertTrue(ex.getMessage().contains("memberUsers"), ex.getMessage());
+   }
+
+   @Test void groupCreateKeepsALiteralCaretMemberWhenOnlyThatUserExists() throws Exception {
+      IdentityID literal = new IdentityID("j^smith", "host-org");
+      when(editableAuthentication.getUser(eq(literal))).thenReturn(mock(User.class));
+
+      ResolvedPlan plan = previewGroupCreate(memberUsers("j^smith"));
+
+      assertTrue(plan.changes().get(0).proposedValue().contains("memberUsers=j^smith;"));
+   }
+
+   @Test void groupCreateResolvesEveryGroupListField() throws Exception {
+      IdentitySpec spec = new IdentitySpec();
+      spec.setParentGroups(new java.util.ArrayList<>(List.of("pg^host-org")));
+      spec.setMemberGroups(new java.util.ArrayList<>(List.of("mg:host-org")));
+      spec.setRoles(new java.util.ArrayList<>(List.of("r~;~host-org")));
+
+      String proposed = previewGroupCreate(spec).changes().get(0).proposedValue();
+
+      assertTrue(proposed.contains("parentGroups=pg;"), proposed);
+      assertTrue(proposed.contains("memberGroups=mg;"), proposed);
+      assertTrue(proposed.contains("roles=r;"), proposed);
+   }
+
+   @Test void userCreateResolvesGroupsAndRoles() throws Exception {
+      when(securityService.getUser(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such user"));
+      IdentityChangeRequest change = createUser("bob");
+      change.getSpec().setGroups(new java.util.ArrayList<>(List.of("g^host-org")));
+      change.getSpec().setRoles(new java.util.ArrayList<>(List.of("r:host-org")));
+
+      String proposed = service.resolve(request("task", List.of(change)), user)
+         .changes().get(0).proposedValue();
+
+      assertTrue(proposed.contains("groups=g;"), proposed);
+      assertTrue(proposed.contains("roles=r;"), proposed);
+   }
+
+   @Test void roleCreateResolvesInheritedRolesAssignedUsersAndAssignedGroups() throws Exception {
+      when(securityService.getRole(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such role"));
+      IdentityChangeRequest change = createRole("Analyst");
+      change.getSpec().setInheritedRoles(new java.util.ArrayList<>(List.of("ir^host-org")));
+      change.getSpec().setAssignedUsers(new java.util.ArrayList<>(List.of("au~;~host-org")));
+      change.getSpec().setAssignedGroups(new java.util.ArrayList<>(List.of("ag:host-org")));
+
+      String proposed = service.resolve(request("task", List.of(change)), user)
+         .changes().get(0).proposedValue();
+
+      assertTrue(proposed.contains("inheritedRoles=ir;"), proposed);
+      assertTrue(proposed.contains("assignedUsers=au;"), proposed);
+      assertTrue(proposed.contains("assignedGroups=ag;"), proposed);
+   }
+
+   @Test void updateResolvesQualifiedMembersAgainstTheTargetUnitsOwnOrg() throws Exception {
+      IdentityID id = new IdentityID("team", "host-org");
+      when(securityService.getGroup(eq(id), eq(user))).thenReturn(existingGroup(id));
+      IdentitySpec spec = memberUsers("admin^host-org");
+
+      String proposed = service.resolve(request("task", List.of(updateGroup("team", spec))), user)
+         .changes().get(0).proposedValue();
+
+      assertTrue(proposed.contains("memberUsers=admin;"), proposed);
+      // the spec the apply step reads was normalized in place, so apply sees the bare name too
+      assertEquals(List.of("admin"), spec.getMemberUsers());
+   }
+
+   @Test void updateRefusesAQualifiedMemberFromAnotherOrg() {
+      IdentityID id = new IdentityID("team", "host-org");
+      when(editableAuthentication.getOrganization("other-org")).thenReturn(mock(Organization.class));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(
+            updateGroup("team", memberUsers("admin:other-org")))), user));
+
+      assertTrue(ex.getMessage().contains("memberUsers"), ex.getMessage());
+   }
 }

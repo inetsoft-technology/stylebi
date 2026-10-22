@@ -722,7 +722,73 @@ public class WorksheetAgentController {
          return;
       }
 
+      RuntimeWorksheet before = editService.resolve(sessionToken, user);
+      java.util.Set<String> declaredBefore =
+         declaredVariableNames(before == null ? null : before.getWorksheet());
       editService.apply(sessionToken, user, editor -> dispatch(editor, req, resolvedNameHolder));
+      purgeValuesOfRemovedVariables(sessionToken, user, declaredBefore);
+   }
+
+   /**
+    * Names (lower-cased) of the variable assemblies declared in the worksheet.
+    */
+   private static java.util.Set<String> declaredVariableNames(Worksheet ws) {
+      java.util.Set<String> names = new java.util.HashSet<>();
+
+      if(ws != null) {
+         for(Assembly a : ws.getAssemblies()) {
+            if(a instanceof DefaultVariableAssembly) {
+               names.add(a.getName().toLowerCase());
+            }
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * Drops the runtime value of every variable that was declared before an edit/undo/redo and is
+    * not declared any more (Bug #79001). Runtime values live in the sandbox's VariableTable, not
+    * on the assembly, so any operation that removes a variable assembly (delete_table,
+    * remove_join, undo of add_variable, ...) would otherwise leave its value behind for a later
+    * variable of the same name. Only removed names are touched.
+    */
+   private void purgeValuesOfRemovedVariables(String sessionToken, Principal user,
+                                              java.util.Set<String> declaredBefore)
+      throws Exception
+   {
+      if(declaredBefore.isEmpty()) {
+         return;
+      }
+
+      editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
+         purgeRemovedVariableValues(rws, declaredBefore);
+         return null;
+      });
+   }
+
+   private static void purgeRemovedVariableValues(RuntimeWorksheet rws,
+                                                  java.util.Set<String> declaredBefore)
+   {
+      inetsoft.report.composition.execution.AssetQuerySandbox box = rws.getAssetQuerySandbox();
+
+      if(box == null || box.getVariableTable() == null) {
+         return;
+      }
+
+      java.util.Set<String> declaredAfter = declaredVariableNames(rws.getWorksheet());
+      boolean removed = false;
+
+      for(String name : declaredBefore) {
+         if(!declaredAfter.contains(name)) {
+            removeVariableValue(box.getVariableTable(), name);
+            removed = true;
+         }
+      }
+
+      if(removed) {
+         box.reset();
+      }
    }
 
    /**
@@ -800,6 +866,21 @@ public class WorksheetAgentController {
          box.reset();
          return null;
       });
+   }
+
+   /**
+    * A newly declared variable starts unset: drop any value left in the sandbox under its name
+    * by a removal path that did not clean up (Bug #79001 safety net).
+    */
+   private static void purgeStaleVariableValue(RuntimeWorksheet rws, String name) {
+      inetsoft.report.composition.execution.AssetQuerySandbox box = rws.getAssetQuerySandbox();
+
+      if(box != null && box.getVariableTable() != null &&
+         findVariableKey(box.getVariableTable(), name) != null)
+      {
+         removeVariableValue(box.getVariableTable(), name);
+         box.reset();
+      }
    }
 
    private static String findVariableKey(inetsoft.uql.VariableTable vtable, String name) {
@@ -4137,28 +4218,29 @@ public class WorksheetAgentController {
 
          Worksheet ws = rws.getWorksheet();
          inetsoft.uql.VariableTable vtable = new inetsoft.uql.VariableTable();
+         Map<String, String> resolvedKeys = new HashMap<>();
 
          if(req.variableValues() != null) {
             for(Map.Entry<String, Object> entry : req.variableValues().entrySet()) {
-               String vname = entry.getKey();
-               Assembly assembly = ws.getAssembly(vname);
-               WorksheetEditService.Editor.refuseMirrorOrHiddenCopy(
-                  assembly, vname, "Set values on the source worksheet's variable instead.");
+               String reqKey = entry.getKey();
 
-               // L2-Group8: mirror VariableInputDialogService.initVariableInfos, which can
-               // only ever be invoked for a variable the worksheet actually declares (its
-               // VariableInfo list is generated from the worksheet's own variables). This
-               // agent endpoint takes a free-form map, so an unknown/misspelled key must be
-               // rejected loudly instead of silently doing nothing (CLAUDE.md tool-misuse
-               // guidance: a typo'd variable name must not report {ok:true}).
-               if(!(assembly instanceof DefaultVariableAssembly va) || va.getVariable() == null) {
+               // L2-Group8: this agent endpoint takes a free-form map, so an unknown/misspelled
+               // key must be rejected loudly instead of silently doing nothing (CLAUDE.md
+               // tool-misuse guidance: a typo'd variable name must not report {ok:true}).
+               AssetVariable declared = resolveSettableVariable(ws, reqKey);
+
+               // A runtime value is read by the variable's own name (parameter.RATE), which
+               // differs from the declaring assembly's name for a mirrored variable
+               // (mirror M_RATE / hidden copy OUTER1_0 declare variable RATE).
+               String vname = declared.getName();
+               String previous = resolvedKeys.put(vname, reqKey);
+
+               if(previous != null) {
                   throw new PairingException(
-                     "Unknown variable: '" + vname + "'. set_variable_values can only set " +
-                     "values for variables that already exist in this worksheet " +
-                     "(use add_variable to create one first).");
+                     "variableValues['" + previous + "'] and variableValues['" + reqKey +
+                     "'] both set variable '" + vname + "'. Supply only one of them.");
                }
 
-               AssetVariable declared = va.getVariable();
                Object rawValue = entry.getValue();
 
                // WBS-029: rawValue is either a plain String (single value, unchanged path) or
@@ -4213,6 +4295,92 @@ public class WorksheetAgentController {
          box.reset();
          return null;
       });
+   }
+
+   /**
+    * Resolves a {@code variableValues} key to the variable it sets. An assembly named
+    * {@code key} wins; otherwise the key is matched against the variable names declared by
+    * the worksheet's variable assemblies, including mirrored ones, whose assembly names
+    * differ from the variable's own name.
+    */
+   private static AssetVariable resolveSettableVariable(Worksheet ws, String key)
+      throws PairingException
+   {
+      List<VariableAssembly> matches = declaringVariables(ws, key).stream()
+         .filter(WorksheetAgentController::isNamedVariable).toList();
+
+      if(matches.isEmpty()) {
+         TreeSet<String> settable = new TreeSet<>();
+
+         for(Assembly a : ws.getAssemblies()) {
+            if(a instanceof VariableAssembly va && isNamedVariable(va)) {
+               settable.add(va.getVariable().getName());
+            }
+         }
+
+         throw new PairingException(
+            "Unknown variable: '" + key + "'. set_variable_values can only set values for " +
+            "variables declared in this worksheet, including mirrored ones" +
+            (settable.isEmpty() ? " (this worksheet declares none)." :
+             "; settable variables: " + String.join(", ", settable) + "."));
+      }
+
+      AssetVariable first = matches.get(0).getVariable();
+
+      for(VariableAssembly other : matches) {
+         AssetVariable v = other.getVariable();
+
+         if(v.getDisplayStyle() != first.getDisplayStyle() ||
+            !Objects.equals(variableType(v), variableType(first)))
+         {
+            StringBuilder names = new StringBuilder();
+
+            for(VariableAssembly m : matches) {
+               names.append(names.length() > 0 ? ", " : "").append(m.getName());
+            }
+
+            throw new PairingException(
+               "Variable '" + key + "' is declared with different types or display styles by " +
+               names + "; set_variable_values cannot tell which one to apply.");
+         }
+      }
+
+      return first;
+   }
+
+   /**
+    * The variable assemblies that declare {@code name}: the assembly named {@code name} if it
+    * is one, otherwise every one whose variable's own name is {@code name}, mirrored ones
+    * included (their assembly names differ from the variable's).
+    */
+   private static List<VariableAssembly> declaringVariables(Worksheet ws, String name) {
+      if(ws.getAssembly(name) instanceof VariableAssembly va) {
+         return List.of(va);
+      }
+
+      List<VariableAssembly> matches = new ArrayList<>();
+
+      for(Assembly a : ws.getAssemblies()) {
+         if(a instanceof VariableAssembly va && isNamedVariable(va) &&
+            name.equals(va.getVariable().getName()))
+         {
+            matches.add(va);
+         }
+      }
+
+      return matches;
+   }
+
+   private static boolean isDeclaredVariable(Worksheet ws, String name) {
+      return !declaringVariables(ws, name).isEmpty();
+   }
+
+   private static boolean isNamedVariable(VariableAssembly va) {
+      return va.getVariable() != null && va.getVariable().getName() != null;
+   }
+
+   private static String variableType(AssetVariable v) {
+      return v.getTypeNode() == null ? null : v.getTypeNode().getType();
    }
 
    /**
@@ -4316,7 +4484,9 @@ public class WorksheetAgentController {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
       return editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
+         java.util.Set<String> declaredBefore = declaredVariableNames(rws.getWorksheet());
          boolean undone = rws.undo(null);
+         purgeRemovedVariableValues(rws, declaredBefore);
          return Map.of("undone", undone, "checkpoint", rws.getCurrent(),
                         "total", rws.size());
       });
@@ -4336,7 +4506,9 @@ public class WorksheetAgentController {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
       return editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
+         java.util.Set<String> declaredBefore = declaredVariableNames(rws.getWorksheet());
          boolean redone = rws.redo(null);
+         purgeRemovedVariableValues(rws, declaredBefore);
          return Map.of("redone", redone, "checkpoint", rws.getCurrent(),
                         "total", rws.size());
       });
@@ -5363,6 +5535,7 @@ public class WorksheetAgentController {
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
          createVariable(ws, varName, req.type(), req.label(), req.defaultValue(), req.choices());
+         purgeStaleVariableValue(rws, varName);
          return null;
       });
    }
@@ -5626,6 +5799,7 @@ public class WorksheetAgentController {
          Worksheet ws = rws.getWorksheet();
          createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue(),
                         body.choices());
+         purgeStaleVariableValue(rws, body.name());
          return null;
       });
    }
@@ -5910,7 +6084,7 @@ public class WorksheetAgentController {
          // "needs set_variable_values before a non-default value is desired" signal, not
          // "undeclared". Only a name with no matching assembly at all is genuinely undeclared
          // (e.g. a typo'd $(name) with no add_variable call behind it).
-         if(!(ws.getAssembly(name) instanceof DefaultVariableAssembly)) {
+         if(!isDeclaredVariable(ws, name)) {
             names.add(name);
          }
       }
@@ -5942,7 +6116,7 @@ public class WorksheetAgentController {
       for(VariableAssemblyModelInfo info : command.varInfos()) {
          String name = info.getName();
 
-         if(ws.getAssembly(name) instanceof DefaultVariableAssembly) {
+         if(isDeclaredVariable(ws, name)) {
             names.add(name);
          }
       }

@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.viewsheet;
 
+import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.sheet.Sheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.AssetEntry;
@@ -131,7 +132,7 @@ final class ViewsheetProjection {
       }
 
       return Arrays.stream(dependencies)
-         .map(e -> e.getType() + ":" + e.getPath())
+         .map(e -> PlanHashInputs.escape(e.getType() + ":" + e.getPath()))
          .sorted()
          .collect(Collectors.joining(","));
    }
@@ -154,7 +155,7 @@ final class ViewsheetProjection {
    }
 
    private static String canonical(String value) {
-      return value == null ? NULL_MARKER : value;
+      return value == null ? NULL_MARKER : PlanHashInputs.escape(value);
    }
 
    private static final String NULL_MARKER = String.valueOf((char) 0x01);

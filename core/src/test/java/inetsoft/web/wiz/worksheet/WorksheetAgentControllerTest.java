@@ -4992,11 +4992,14 @@ class WorksheetAgentControllerTest {
       );
    }
 
+   private RuntimeWorksheet lastSyncRuntime;
+
    private WorksheetAgentController variableSyncController(
       String token, Worksheet ws, VariableTable vtable, AssetQuerySandbox box)
       throws Exception
    {
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      lastSyncRuntime = rws;
       when(rws.getWorksheet()).thenReturn(ws);
       when(rws.getAssetQuerySandbox()).thenReturn(box);
       when(box.getVariableTable()).thenReturn(vtable);
@@ -5080,6 +5083,173 @@ class WorksheetAgentControllerTest {
 
       assertFalse(vtable.contains("n"),
          "a value of the old type must not survive a variable type change");
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79001 -- every removal path must drop the variable's runtime value
+   // ---------------------------------------------------------------------------
+
+   private static EditRequest opRequest(String op, String table, String name, String newName) {
+      return new EditRequest(
+         op, table, null, name, null, newName, null, null, null, null,
+         null, null, null, false, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null,
+         null, null,
+         null, null, null, null, null, null, null
+      );
+   }
+
+   private VariableTable valuesFor79001() {
+      VariableTable vtable = new VariableTable();
+      vtable.put("state", "MD");
+      vtable.put("other", "keep");
+      vtable.put("__refresh_report__", Boolean.TRUE);
+      return vtable;
+   }
+
+   private void assertOnlyStateDropped(VariableTable vtable) throws Exception {
+      assertFalse(vtable.contains("state"), "the removed variable's value must be dropped");
+      assertEquals("keep", vtable.get("other"), "other variables' values must survive");
+      assertEquals(Boolean.TRUE, vtable.get("__refresh_report__"), "system keys must survive");
+   }
+
+   @Test
+   void deleteTableOfVariableDropsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001A", ws, vtable, box);
+
+      ctrl.edit("TOK-79001A", opRequest("delete_table", "state", null, null), agent);
+
+      assertOnlyStateDropped(vtable);
+      verify(box).reset();
+   }
+
+   @Test
+   void removeJoinOfVariableDropsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001B", ws, vtable, box);
+
+      ctrl.edit("TOK-79001B", opRequest("remove_join", null, "state", null), agent);
+
+      assertOnlyStateDropped(vtable);
+   }
+
+   @Test
+   void renameTableOfVariableDropsRuntimeValueOfOldName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001C", ws, vtable, box);
+
+      ctrl.edit("TOK-79001C", opRequest("rename_table", "state", null, "region"), agent);
+
+      assertOnlyStateDropped(vtable);
+   }
+
+   @Test
+   void undoOfAddVariableDropsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001E", ws, vtable, box);
+      when(lastSyncRuntime.undo(any())).thenAnswer(inv -> {
+         ws.removeAssembly("state");
+         return true;
+      });
+
+      ctrl.undo("TOK-79001E", agent);
+
+      assertOnlyStateDropped(vtable);
+   }
+
+   @Test
+   void undoOfRenameVariableDropsValueMovedToNewName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "region");
+      addVariable(ws, "other");
+      VariableTable vtable = new VariableTable();
+      vtable.put("region", "MD");
+      vtable.put("other", "keep");
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001F", ws, vtable, box);
+      when(lastSyncRuntime.undo(any())).thenAnswer(inv -> {
+         ws.removeAssembly("region");
+         addVariable(ws, "state");
+         return true;
+      });
+
+      ctrl.undo("TOK-79001F", agent);
+
+      assertFalse(vtable.contains("region"));
+      assertFalse(vtable.contains("state"));
+      assertEquals("keep", vtable.get("other"));
+   }
+
+   @Test
+   void redoThatRemovesAVariableDropsRuntimeValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      addVariable(ws, "other");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001G", ws, vtable, box);
+      when(lastSyncRuntime.redo(any())).thenAnswer(inv -> {
+         ws.removeAssembly("state");
+         return true;
+      });
+
+      ctrl.redo("TOK-79001G", agent);
+
+      assertOnlyStateDropped(vtable);
+   }
+
+   @Test
+   void undoThatRemovesNoVariableKeepsRuntimeValues() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "state");
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001H", ws, vtable, box);
+      when(lastSyncRuntime.undo(any())).thenReturn(true);
+
+      ctrl.undo("TOK-79001H", agent);
+
+      assertEquals("MD", vtable.get("state"));
+      verify(box, never()).reset();
+   }
+
+   @Test
+   void addVariableDropsStaleValueLeftUnderItsName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      VariableTable vtable = valuesFor79001();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79001I", ws, vtable, box);
+
+      ctrl.edit("TOK-79001I", addVariableRequest("state", XSchema.STRING), agent);
+
+      assertOnlyStateDropped(vtable);
    }
 
    // ---------------------------------------------------------------------------
@@ -10215,6 +10385,100 @@ class WorksheetAgentControllerTest {
          assertEquals("SqlTable1", response.tableName());
          assertEquals(List.of(), response.undeclaredVariables());
          assertEquals(List.of("declaredVar"), response.variablesNeedingValues());
+      }
+   }
+
+   /**
+    * Bug #79062: a variable mirrored from another worksheet is declared under a hidden-copy
+    * assembly name (here OUTER1_0) that differs from the variable's own name (RATE), the name a
+    * `$(RATE)` reference carries. It must count as declared, not as undeclared.
+    */
+   @Test
+   void editSqlQueryEndpointTreatsAMirroredVariableAsDeclaredByItsOwnName() throws Exception {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly hiddenCopy = new DefaultVariableAssembly(ws, "OUTER1_0");
+      hiddenCopy.setVariable(new AssetVariable("RATE"));
+      ws.addAssembly(hiddenCopy);
+
+      WorksheetAgentController.SqlQueryResponse response =
+         editSqlQueryReportingVariables(ws, "RATE");
+
+      assertEquals(List.of(), response.undeclaredVariables());
+      assertEquals(List.of("RATE"), response.variablesNeedingValues());
+   }
+
+   @Test
+   void editSqlQueryEndpointStillReportsANameNoVariableDeclaresAsUndeclared() throws Exception {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly hiddenCopy = new DefaultVariableAssembly(ws, "OUTER1_0");
+      hiddenCopy.setVariable(new AssetVariable("RATE"));
+      ws.addAssembly(hiddenCopy);
+
+      WorksheetAgentController.SqlQueryResponse response =
+         editSqlQueryReportingVariables(ws, "RATE", "typo");
+
+      assertEquals(List.of("typo"), response.undeclaredVariables());
+      assertEquals(List.of("RATE"), response.variablesNeedingValues());
+   }
+
+   /** Runs editSqlQuery on a worksheet whose variable collection reports the given names. */
+   private WorksheetAgentController.SqlQueryResponse editSqlQueryReportingVariables(
+      Worksheet ws, String... names) throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
+      ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
+      ws.addAssembly(sqlt);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      doNothing().when(box).refreshColumnSelection(eq("SqlTable1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-79062"), any())).thenReturn(session("TOK-79062"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      ColumnSelection newColumns = new ColumnSelection();
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "a")));
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(newColumns);
+
+      WorksheetAgentController ctrl = securityController(editSvc, mock(DataSourceService.class),
+         securityEngine, mock(MetadataApiService.class), mock(XRepository.class),
+         queryManagerService);
+
+      List<VariableAssemblyModelInfo> infos = new ArrayList<>();
+
+      for(String name : names) {
+         VariableAssemblyModelInfo info = new VariableAssemblyModelInfo();
+         info.setName(name);
+         infos.add(info);
+      }
+
+      WSCollectVariablesCommand command = WSCollectVariablesCommand.builder()
+         .varInfos(infos)
+         .build();
+
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(command);
+
+         return ctrl.editSqlQuery("TOK-79062",
+            new WorksheetAgentController.EditSqlQueryRequest("SqlTable1", "SELECT 1"), agent);
       }
    }
 

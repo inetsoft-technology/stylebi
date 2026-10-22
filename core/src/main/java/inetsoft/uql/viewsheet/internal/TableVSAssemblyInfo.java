@@ -25,6 +25,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.DynamicValue;
 import inetsoft.uql.viewsheet.DynamicValue2;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.util.Tool;
@@ -36,6 +37,8 @@ import org.w3c.dom.NodeList;
 
 import java.awt.*;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * TableVSAssemblyInfo, the assembly info of a table assembly.
@@ -642,6 +645,21 @@ public class TableVSAssemblyInfo extends TableDataVSAssemblyInfo {
    @Override
    public void setRowHyperlink(Hyperlink rowHyperlink) {
       this.rowHyperlink = rowHyperlink;
+   }
+
+   /**
+    * Get the dynamic values of the cell hyperlinks plus the row hyperlink, so that a
+    * script-valued row link is evaluated like a cell link.
+    */
+   @Override
+   public List<DynamicValue> getHyperlinkDynamicValues() {
+      List<DynamicValue> list = new ArrayList<>(super.getHyperlinkDynamicValues());
+
+      if(rowHyperlink != null && VSUtil.isScriptValue(rowHyperlink.getLinkValue())) {
+         list.add(rowHyperlink.getDLink());
+      }
+
+      return list;
    }
 
    /**

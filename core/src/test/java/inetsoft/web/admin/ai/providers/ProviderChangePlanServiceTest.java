@@ -791,8 +791,9 @@ class ProviderChangePlanServiceTest {
 
       String proposed = plan.changes().get(0).proposedValue();
       assertTrue(proposed.contains("hostName=rotated-host.example.com;"));
-      assertTrue(proposed.contains("rootDN=dc=example,dc=com;")); // untouched field carried over
-      assertTrue(proposed.contains("adminID=cn=admin;")); // untouched field carried over
+      // untouched fields carried over; '=' and ',' in a value display escaped (Bug #79016)
+      assertTrue(proposed.contains("rootDN=dc\\=example\\,dc\\=com;"));
+      assertTrue(proposed.contains("adminID=cn\\=admin;"));
       verify(proposedProvider).tearDown();
    }
 
@@ -1248,5 +1249,123 @@ class ProviderChangePlanServiceTest {
       req.setTask(task);
       req.setChanges(changes);
       return req;
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #79016: separator-forged specs and password rotation reach the plan hash
+   // -------------------------------------------------------------------------
+
+   private ResolvedPlan previewDatabaseCreate(ProviderDatabaseSpec spec) throws Exception {
+      stubEmptyAuthenticationChain(List.of());
+      return service.resolve(request("task", List.of(
+         createDatabase(ProviderChain.AUTHENTICATION, "db1", spec))), user);
+   }
+
+   private ResolvedPlan previewLdapUpdate(ProviderLdapSpec patch) throws Exception {
+      stubHealthyAuthenticationChainOf("p1");
+      when(authenticationProviderService.getAuthenticationProvider("p1")).thenReturn(ldapModel("p1"));
+      AuthenticationProvider proposedProvider = sysAdminProvider("p1");
+      lenient().when(authenticationProviderService.buildProviderForPreflightSimulation(any()))
+         .thenReturn(Optional.of(proposedProvider));
+      return service.resolve(request("update", List.of(updateAuth("p1", patch))), user);
+   }
+
+   @Test void databaseCreateDifferentPasswordsHashDifferently() throws Exception {
+      ProviderDatabaseSpec a = databaseSpec();
+      a.setPassword("pw-one");
+      ProviderDatabaseSpec b = databaseSpec();
+      b.setPassword("pw-two");
+
+      ResolvedPlan planA = previewDatabaseCreate(a);
+      ResolvedPlan planB = previewDatabaseCreate(b);
+
+      assertNotEquals(planA.planHash(), planB.planHash());
+      // the displayed projection is unchanged: presence token only, never the value
+      assertEquals(planA.changes().get(0).proposedValue(), planB.changes().get(0).proposedValue());
+      assertTrue(planA.changes().get(0).proposedValue().contains("password=pw:set;"));
+      assertFalse(planA.changes().get(0).proposedValue().contains("pw-one"));
+   }
+
+   @Test void databaseCreateSamePasswordHashesTheSame() throws Exception {
+      ProviderDatabaseSpec a = databaseSpec();
+      a.setPassword("pw-one");
+      ProviderDatabaseSpec b = databaseSpec();
+      b.setPassword("pw-one");
+
+      assertEquals(previewDatabaseCreate(a).planHash(), previewDatabaseCreate(b).planHash());
+   }
+
+   @Test void ldapUpdatePasswordRotationChangesTheHash() throws Exception {
+      ProviderLdapSpec a = new ProviderLdapSpec();
+      a.setPassword("rotated-one");
+      ProviderLdapSpec b = new ProviderLdapSpec();
+      b.setPassword("rotated-two");
+
+      ResolvedPlan planA = previewLdapUpdate(a);
+      ResolvedPlan planB = previewLdapUpdate(b);
+
+      assertNotEquals(planA.planHash(), planB.planHash());
+      assertEquals(planA.changes().get(0).proposedValue(), planB.changes().get(0).proposedValue());
+      assertFalse(planA.changes().get(0).proposedValue().contains("rotated-one"));
+      assertEquals(planA.planHash(), previewLdapUpdate(a).planHash());
+   }
+
+   @Test void ldapUpdateWithoutPasswordIsUnaffectedByTheHiddenInput() throws Exception {
+      ProviderLdapSpec noPassword = new ProviderLdapSpec();
+      noPassword.setHostName("rotated-host.example.com");
+      ProviderLdapSpec withPassword = new ProviderLdapSpec();
+      withPassword.setHostName("rotated-host.example.com");
+      withPassword.setPassword("rotated-one");
+
+      assertNotEquals(previewLdapUpdate(noPassword).planHash(),
+                      previewLdapUpdate(withPassword).planHash());
+   }
+
+   @Test void databaseUpdatePasswordRotationChangesTheHash() throws Exception {
+      stubHealthyAuthenticationChainOf("db1");
+      when(authenticationProviderService.getAuthenticationProvider("db1")).thenReturn(dbModel("db1"));
+      AuthenticationProvider proposedProvider = sysAdminProvider("db1");
+      lenient().when(authenticationProviderService.buildProviderForPreflightSimulation(any()))
+         .thenReturn(Optional.of(proposedProvider));
+
+      ProviderDatabaseSpec a = new ProviderDatabaseSpec();
+      a.setPassword("rotated-one");
+      ProviderDatabaseSpec b = new ProviderDatabaseSpec();
+      b.setPassword("rotated-two");
+
+      String hashA = service.resolve(
+         request("update", List.of(updateAuthDatabase("db1", a))), user).planHash();
+      String hashB = service.resolve(
+         request("update", List.of(updateAuthDatabase("db1", b))), user).planHash();
+
+      assertNotEquals(hashA, hashB);
+   }
+
+   @Test void databaseCreateSeparatorForgedFieldsHashDifferently() throws Exception {
+      // userQuery="a;userListQuery=b" + userListQuery="c" vs userQuery="a" + userListQuery="b;userListQuery=c"
+      ProviderDatabaseSpec forgedA = databaseSpec();
+      forgedA.setUserQuery("a;userListQuery=b");
+      forgedA.setUserListQuery("c");
+      ProviderDatabaseSpec forgedB = databaseSpec();
+      forgedB.setUserQuery("a");
+      forgedB.setUserListQuery("b;userListQuery=c");
+
+      ResolvedPlan planA = previewDatabaseCreate(forgedA);
+      ResolvedPlan planB = previewDatabaseCreate(forgedB);
+
+      assertNotEquals(planA.changes().get(0).proposedValue(), planB.changes().get(0).proposedValue());
+      assertNotEquals(planA.planHash(), planB.planHash());
+      assertTrue(planA.changes().get(0).proposedValue().contains("userQuery=a\\;userListQuery\\=b;"));
+   }
+
+   @Test void projectionEscapesSeparatorsInLdapFiltersAndRoleLists() {
+      ProviderLdapSpec spec = ldapSpec();
+      spec.setUserFilter("(&(uid={0});x=y)");
+      spec.setSysAdminRoles(List.of("a,b", "c"));
+
+      String projection = ProviderProjection.projectLdapSpec("p1", spec);
+
+      assertTrue(projection.contains("userFilter=(&(uid\\={0})\\;x\\=y);"));
+      assertTrue(projection.contains("sysAdminRoles=a\\,b,c;"));
    }
 }

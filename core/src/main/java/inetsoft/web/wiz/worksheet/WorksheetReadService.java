@@ -136,7 +136,7 @@ public class WorksheetReadService {
       List<WorksheetModel.FilterModel> postConditions =
          readConditions(t.getPostConditionList());
       List<WorksheetModel.FilterModel> rankingConditions =
-         readConditions(t.getRankingConditionList());
+         readConditions(t.getRankingConditionList(), t.getAggregateInfo());
       List<WorksheetModel.FilterModel> mvUpdatePreConditions =
          readConditions(t.getMVUpdatePreConditionList());
       List<WorksheetModel.FilterModel> mvUpdatePostConditions =
@@ -794,6 +794,12 @@ public class WorksheetReadService {
    // -------------------------------------------------------------------------
 
    private List<WorksheetModel.FilterModel> readConditions(ConditionListWrapper wrapper) {
+      return readConditions(wrapper, null);
+   }
+
+   private List<WorksheetModel.FilterModel> readConditions(ConditionListWrapper wrapper,
+                                                           AggregateInfo aggregateInfo)
+   {
       if(wrapper == null || wrapper.isEmpty()) {
          return Collections.emptyList();
       }
@@ -836,13 +842,59 @@ public class WorksheetReadService {
 
             result.add(new WorksheetModel.FilterModel(
                field, operation, values, pendingJunction, choiceQuery, valueSpecs, negated,
-               item.getLevel(), pendingJunctionLevel));
+               item.getLevel(), pendingJunctionLevel,
+               xc instanceof RankingCondition rc ? rankingOf(rc.getDataRef(), aggregateInfo)
+                  : null));
             pendingJunction = null;
             pendingJunctionLevel = null;
          }
       }
 
       return result;
+   }
+
+   /**
+    * The spelling of a ranking condition's {@code of} reference that set_ranking/set_rankings
+    * accept back: the aggregate's alias, else its source column. When several aggregates of
+    * {@code info} share that name the name alone cannot say which one is meant, so the view form
+    * (e.g. {@code Average(Qty)}) is returned instead. Null when the ranking has no {@code of}.
+    */
+   public static String rankingOf(DataRef ref, AggregateInfo info) {
+      if(ref == null) {
+         return null;
+      }
+
+      String name = outputName(ref);
+
+      if(ref instanceof AggregateRef ar && info != null) {
+         int same = 0;
+
+         for(AggregateRef other : info.getAggregates()) {
+            if(Objects.equals(outputName(other), name)) {
+               same++;
+            }
+         }
+
+         if(same > 1) {
+            return ar.toView();
+         }
+      }
+
+      return name;
+   }
+
+   private static String outputName(DataRef ref) {
+      DataRef inner = ref;
+
+      if(ref instanceof AggregateRef || ref instanceof GroupRef) {
+         inner = ((ref instanceof AggregateRef ar) ? ar.getDataRef() : ((GroupRef) ref).getDataRef());
+      }
+
+      if(inner instanceof ColumnRef cr && cr.getAlias() != null && !cr.getAlias().isBlank()) {
+         return cr.getAlias();
+      }
+
+      return ref.getAttribute();
    }
 
    /**

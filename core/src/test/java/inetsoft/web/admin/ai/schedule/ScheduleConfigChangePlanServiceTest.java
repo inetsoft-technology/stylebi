@@ -494,4 +494,126 @@ class ScheduleConfigChangePlanServiceTest {
       req.setChanges(changes);
       return req;
    }
+
+   // -------------------------------------------------------------------------
+   // Bug #79016: password/secretId reach the plan hash; caller text is separator-escaped
+   // -------------------------------------------------------------------------
+
+   private static ScheduleConfigChangeRequest createLocationWithCredential(
+      String path, String label, Map<String, Object> credential)
+   {
+      Map<String, Object> info = new HashMap<>(credential);
+      info.put("path", path);
+      ScheduleConfigChangeRequest change = createLocation(path, label);
+      change.getSpec().put("pathInfoModel", info);
+      return change;
+   }
+
+   private static Map<String, Object> userAndPassword(String username, String password) {
+      Map<String, Object> credential = new HashMap<>();
+      credential.put("username", username);
+      credential.put("password", password);
+      return credential;
+   }
+
+   private static Map<String, Object> secretId(String secretId) {
+      Map<String, Object> credential = new HashMap<>();
+      credential.put("useCredential", true);
+      credential.put("secretId", secretId);
+      return credential;
+   }
+
+   private ResolvedPlan preview(ScheduleConfigChangeRequest change) throws Exception {
+      stubConfig(List.of(), List.of());
+      return service.resolve(request("task", List.of(change)), user);
+   }
+
+   @Test void serverLocationDifferentPasswordsHashDifferently() throws Exception {
+      ResolvedPlan a = preview(createLocationWithCredential(
+         "/qa/loc", "Loc", userAndPassword("ftpuser", "pw-one")));
+      ResolvedPlan b = preview(createLocationWithCredential(
+         "/qa/loc", "Loc", userAndPassword("ftpuser", "pw-two")));
+
+      assertNotEquals(a.planHash(), b.planHash());
+      // the displayed projection still shows only (set), never the value
+      assertEquals(a.changes().get(0).proposedValue(), b.changes().get(0).proposedValue());
+      assertTrue(a.changes().get(0).proposedValue().contains("password=(set)"));
+      assertFalse(a.changes().get(0).proposedValue().contains("pw-one"));
+   }
+
+   @Test void serverLocationSamePasswordHashesTheSame() throws Exception {
+      assertEquals(
+         preview(createLocationWithCredential(
+            "/qa/loc", "Loc", userAndPassword("ftpuser", "pw-one"))).planHash(),
+         preview(createLocationWithCredential(
+            "/qa/loc", "Loc", userAndPassword("ftpuser", "pw-one"))).planHash());
+   }
+
+   @Test void serverLocationDifferentSecretIdsHashDifferently() throws Exception {
+      ResolvedPlan a = preview(createLocationWithCredential("/qa/loc", "Loc", secretId("cred-a")));
+      ResolvedPlan b = preview(createLocationWithCredential("/qa/loc", "Loc", secretId("cred-b")));
+
+      assertNotEquals(a.planHash(), b.planHash());
+      assertEquals(a.changes().get(0).proposedValue(), b.changes().get(0).proposedValue());
+   }
+
+   @Test void serverLocationPasswordWithNoUsernameIsNotCountedAsEffective() throws Exception {
+      // refused outright (a password is only persisted alongside a username), so nothing to hash
+      assertThrows(IllegalArgumentException.class, () -> preview(createLocationWithCredential(
+         "/qa/loc", "Loc", userAndPassword(null, "pw-one"))));
+   }
+
+   @Test void locationWithoutCredentialHashesLikeBefore() throws Exception {
+      // no password and no secretId: the hash has no hidden segment, so it differs from a plan
+      // that supplies one but is stable across identical previews
+      ResolvedPlan plain = preview(createLocation("/qa/loc", "Loc"));
+      ResolvedPlan again = preview(createLocation("/qa/loc", "Loc"));
+      ResolvedPlan withPassword = preview(createLocationWithCredential(
+         "/qa/loc", "Loc", userAndPassword("ftpuser", "pw-one")));
+
+      assertEquals(plain.planHash(), again.planHash());
+      assertNotEquals(plain.planHash(), withPassword.planHash());
+   }
+
+   @Test void updateWithAChangedPasswordChangesTheHash() throws Exception {
+      stubConfig(List.of(location("/qa/loc", "Loc")), List.of());
+      ScheduleConfigChangeRequest a = createLocationWithCredential(
+         "/qa/loc", "Loc", userAndPassword("ftpuser", "pw-one"));
+      a.setVerb(ScheduleConfigChangeRequest.VERB_UPDATE);
+      a.setKey("/qa/loc");
+      ScheduleConfigChangeRequest b = createLocationWithCredential(
+         "/qa/loc", "Loc", userAndPassword("ftpuser", "pw-two"));
+      b.setVerb(ScheduleConfigChangeRequest.VERB_UPDATE);
+      b.setKey("/qa/loc");
+
+      assertNotEquals(service.resolve(request("task", List.of(a)), user).planHash(),
+                      service.resolve(request("task", List.of(b)), user).planHash());
+   }
+
+   @Test void serverLocationProjectionEscapesPathLabelAndUsername() {
+      ServerLocation location = ServerLocation.builder()
+         .path("/a;label=x").label("L;ftp=true").build();
+
+      String projection = ScheduleConfigChangePlanService.projectServerLocation(location);
+
+      assertTrue(projection.startsWith("path=/a\\;label\\=x;label=L\\;ftp\\=true;ftp=false;"),
+                 projection);
+   }
+
+   @Test void serverLocationLabelCannotForgeTheNextFieldInTheHash() throws Exception {
+      // these two differ only in where the ";username=u" boundary sits
+      ResolvedPlan forged = preview(createLocation("/qa/loc", "Loc;ftp=false"));
+      ResolvedPlan plain = preview(createLocation("/qa/loc", "Loc"));
+
+      assertNotEquals(forged.changes().get(0).proposedValue(),
+                      plain.changes().get(0).proposedValue());
+      assertNotEquals(forged.planHash(), plain.planHash());
+   }
+
+   @Test void timeRangeProjectionEscapesTheName() {
+      TimeRangeModel range = range("Morning;defaultRange=true", "06:00:00", "12:00:00", false);
+
+      assertTrue(ScheduleConfigChangePlanService.projectTimeRange(range)
+                    .startsWith("name=Morning\\;defaultRange\\=true;startTime="));
+   }
 }

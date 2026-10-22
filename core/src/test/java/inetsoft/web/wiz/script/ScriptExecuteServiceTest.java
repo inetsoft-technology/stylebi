@@ -548,6 +548,114 @@ class ScriptExecuteServiceTest {
       assertTrue(runLiveWithLibrary("safe()", lib, false, scope).requiresConfirmation());
    }
 
+   /** Bug #78998: entry name "lib" never equals the exposed namespace, so only root indexing helps. */
+   private void assertGatedViaNamespace(String libSource, String script) throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      ScriptExecResult result = runLiveWithLibrary(script, Map.of("lib", libSource), false, scope);
+
+      assertTrue(result.requiresConfirmation(), libSource);
+      assertTrue(result.confirmationReason().contains("\"runQuery\""));
+      assertTrue(result.confirmationReason().contains("(entry \"lib\")"));
+      verify(scope, never()).execute(anyString(), nullable(String.class));
+   }
+
+   @Test
+   void objectLiteralMemberIsGated() throws Exception {
+      assertGatedViaNamespace("var Ns = { count: function() { return runQuery('q').length; } };",
+                              "'n=' + Ns.count()");
+   }
+
+   @Test
+   void assignedMemberIsGated() throws Exception {
+      assertGatedViaNamespace("var Ns = {};\nNs.count = function() { return runQuery('q'); };",
+                              "Ns.count()");
+      assertGatedViaNamespace("Ns = {};\nNs.count = function() { return runQuery('q'); };",
+                              "Ns.count()");
+   }
+
+   @Test
+   void nestedNamespaceIsGated() throws Exception {
+      assertGatedViaNamespace("var A = A || {};\nA.B = {};\nA.B.count = function() { return runQuery('q'); };",
+                              "A.B.count()");
+   }
+
+   @Test
+   void factoryAndIifeNamespacesAreGated() throws Exception {
+      assertGatedViaNamespace(
+         "var Ns = (function() { return { count: function() { return runQuery('q'); } }; })();",
+         "Ns.count()");
+      assertGatedViaNamespace(
+         "var Ns = make();\nfunction make() { return { count: function() { return runQuery('q'); } }; }",
+         "Ns.count()");
+   }
+
+   @Test
+   void objectAssignAndGlobalQualifiedNamespacesAreGated() throws Exception {
+      assertGatedViaNamespace(
+         "var Ns = {};\nObject.assign(Ns, { count: function() { return runQuery('q'); } });",
+         "Ns.count()");
+      assertGatedViaNamespace("window.Ns = { count: function() { return runQuery('q'); } };",
+                              "Ns.count()");
+      assertGatedViaNamespace("this.Ns = { count: function() { return runQuery('q'); } };",
+                              "Ns.count()");
+      assertGatedViaNamespace("Ns = { count: function() { return runQuery('q'); } };",
+                              "Ns['count']()");
+   }
+
+   @Test
+   void unrelatedMemberCallIsNotGated() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+      Map<String, String> lib = Map.of("lib",
+         "var Ns = { count: function() { return runQuery('q'); } };");
+
+      ScriptExecResult result = runLiveWithLibrary("other.count()", lib, false, scope);
+
+      assertTrue(result.ok());
+      assertFalse(result.requiresConfirmation());
+   }
+
+   @Test
+   void functionLocalNamesAreNotIndexedAsRoots() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+      Map<String, String> lib = Map.of("lib",
+         "var Ns = { count: function() { var result = runQuery('q'); var i = 0; return result; } };");
+
+      // 'result' and 'i' are locals of the library function, not exposed globals
+      ScriptExecResult result =
+         runLiveWithLibrary("var result = 2; for(var i = 0; i < 3; i++) { result += i; } result",
+                            lib, false, scope);
+
+      assertTrue(result.ok());
+      assertFalse(result.requiresConfirmation());
+   }
+
+   @Test
+   void globalObjectNamesAreNotIndexedAsRoots() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+      Map<String, String> lib = Map.of("lib",
+         "window.Ns = { count: function() { return runQuery('q'); } };\nthis.x = 1;");
+
+      ScriptExecResult result = runLiveWithLibrary("window.foo = 1; this.bar = 2; 3", lib, false, scope);
+
+      assertTrue(result.ok());
+      assertFalse(result.requiresConfirmation());
+   }
+
+   @Test
+   void nonDestructiveNamespaceIsNotGated() throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+      Map<String, String> lib = Map.of("lib", "var Ns = { count: function() { return 1; } };");
+
+      ScriptExecResult result = runLiveWithLibrary("Ns.count()", lib, false, scope);
+
+      assertTrue(result.ok());
+      assertFalse(result.requiresConfirmation());
+   }
+
    @Test
    void unreferencedLibraryFunctionDoesNotRequireConfirmation() throws Exception {
       ViewsheetScope scope = mock(ViewsheetScope.class);

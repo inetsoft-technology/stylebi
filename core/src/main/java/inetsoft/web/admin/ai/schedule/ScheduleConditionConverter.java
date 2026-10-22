@@ -96,6 +96,47 @@ final class ScheduleConditionConverter {
       }
    }
 
+   /**
+    * Refuses a time zone id the JVM cannot resolve. {@link TimeZone#getTimeZone(String)} silently
+    * answers GMT for such an id, so a typo would otherwise be stored as GMT. A null or blank id
+    * means "no time zone given" and is accepted, as is a case variant of "UTC"/"GMT" (the zero
+    * offset it resolves to is what was meant). {@link #convertCondition(TimeCondition)}
+    * deliberately stays lenient (cycle rollback feeds it stored zones), so user input must be
+    * checked here, at plan time.
+    *
+    * @param conditionLabel the path of the condition, e.g. {@code changes[0].spec.conditions[1]}.
+    */
+   static void requireKnownTimeZone(String conditionLabel, String timeZone) {
+      if(timeZone == null || timeZone.isBlank()) {
+         return;
+      }
+
+      String trimmed = timeZone.strip();
+
+      if("UTC".equalsIgnoreCase(trimmed) || "GMT".equalsIgnoreCase(trimmed)) {
+         return;
+      }
+
+      // an id the JVM cannot resolve comes back as GMT, whose own id is the only valid spelling
+      if("GMT".equals(TimeZone.getTimeZone(timeZone).getID())) {
+         throw new IllegalArgumentException(
+            conditionLabel + ".timeZone: \"" + timeZone + "\" is not a recognized time zone id " +
+            "(use a Java/IANA id such as \"America/New_York\" or \"Etc/UTC\", or a custom id " +
+            "such as \"GMT+8\"); it would otherwise be stored as GMT");
+      }
+   }
+
+   /**
+    * Applies {@link #requireKnownTimeZone} to every condition of a list.
+    *
+    * @param conditionsLabel the path of the list, e.g. {@code changes[0].spec.conditions}.
+    */
+   static void requireKnownTimeZones(String conditionsLabel, List<TimeCondition> conditions) {
+      for(int i = 0; i < conditions.size(); i++) {
+         requireKnownTimeZone(conditionsLabel + "[" + i + "]", conditions.get(i).getTimeZone());
+      }
+   }
+
    static inetsoft.sree.schedule.TimeCondition convertCondition(TimeCondition condition) {
       inetsoft.sree.schedule.TimeCondition output = new inetsoft.sree.schedule.TimeCondition();
       final TimeCondition.Type type = condition.getType();

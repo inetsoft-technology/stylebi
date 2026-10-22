@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai.permissions;
 
 import inetsoft.sree.security.IdentityID;
+import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.sree.security.Permission;
 import inetsoft.sree.security.ResourceAction;
 
@@ -192,9 +193,15 @@ final class PermissionProjection {
       return result;
    }
 
+   /** Escapes the projection separators plus the key's own '|' so a crafted identity name cannot
+    * pass for a second grant or shift the type|org|name boundaries (Bug #79016). */
+   private static String escapeKeyPart(String part) {
+      return PlanHashInputs.escape(part).replace("|", "\\|");
+   }
+
    private static String identityKey(String type, IdentityID id) {
       String orgId = id == null || id.getOrgID() == null ? "" : id.getOrgID();
       String name = id == null || id.getName() == null ? "" : id.getName();
-      return type + "|" + orgId + "|" + name;
+      return type + "|" + escapeKeyPart(orgId) + "|" + escapeKeyPart(name);
    }
 }

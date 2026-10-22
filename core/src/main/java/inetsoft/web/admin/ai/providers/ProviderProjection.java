@@ -17,9 +17,11 @@
  */
 package inetsoft.web.admin.ai.providers;
 
+import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.security.*;
 
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.TreeSet;
 
 /**
@@ -47,7 +49,7 @@ final class ProviderProjection {
       StringBuilder sb = new StringBuilder();
 
       for(SecurityProviderStatus p : providers) {
-         sb.append(p.name()).append('|')
+         sb.append(PlanHashInputs.escape(p.name())).append('|')
             .append(withLdapFlag ? (p.ldap() ? "LDAP" : "OTHER") : "-").append(';');
       }
 
@@ -291,12 +293,20 @@ final class ProviderProjection {
    }
 
    private static void append(StringBuilder sb, String field, String value) {
-      sb.append(field).append('=').append(value == null ? "" : value).append(';');
+      // Bug #79016: separator-escaped, so e.g. an LDAP filter or a DB query holding ';' or '='
+      // cannot pass for the next field. Identity for a value without a separator.
+      sb.append(field).append('=').append(PlanHashInputs.escape(value)).append(';');
    }
 
    private static void appendSorted(StringBuilder sb, String field, List<String> values) {
       TreeSet<String> sorted = values == null ? new TreeSet<>() : new TreeSet<>(values);
-      sb.append(field).append('=').append(String.join(",", sorted)).append(';');
+      StringJoiner joined = new StringJoiner(",");
+
+      for(String value : sorted) {
+         joined.add(PlanHashInputs.escape(value));
+      }
+
+      sb.append(field).append('=').append(joined).append(';');
    }
 
    private static boolean isBlank(String s) {

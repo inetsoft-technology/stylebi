@@ -21,6 +21,7 @@ import inetsoft.web.admin.datasource.*;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
+import inetsoft.web.admin.ai.PlanHashInputs;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -99,14 +100,17 @@ final class DataSourceProjection {
       }
 
       return dependencies.stream()
-         .map(o -> o instanceof AssetEntry
-            ? ((AssetEntry) o).getType() + ":" + ((AssetEntry) o).getPath() : String.valueOf(o))
+         .map(o -> PlanHashInputs.escape(o instanceof AssetEntry
+            ? ((AssetEntry) o).getType() + ":" + ((AssetEntry) o).getPath() : String.valueOf(o)))
          .sorted()
          .collect(Collectors.joining(","));
    }
 
+   /** Bug #79016: separator-escaped ({@code \ , ; =}), so {@code url="A;driver=B", driver="C"} can
+    * no longer project (and hash) like {@code url="A", driver="B;driver=C"}. Identity for a value
+    * without a separator; a value with one now displays with a backslash before it. */
    private static String canonical(String value) {
-      return value == null ? NULL_MARKER : value;
+      return value == null ? NULL_MARKER : PlanHashInputs.escape(value);
    }
 
    private static final String NULL_MARKER = String.valueOf((char) 0x01);

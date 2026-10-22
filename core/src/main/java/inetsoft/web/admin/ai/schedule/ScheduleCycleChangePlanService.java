@@ -155,6 +155,8 @@ public class ScheduleCycleChangePlanService {
 
       ScheduleConditionConverter.requireKnownTimeRanges(
          label + ".spec.conditions", change.spec().conditions());
+      ScheduleConditionConverter.requireKnownTimeZones(
+         label + ".spec.conditions", change.spec().conditions());
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(user);
       List<inetsoft.sree.schedule.ScheduleCondition> conditions =
          ScheduleConditionConverter.convertConditions(change.spec().conditions());
@@ -218,6 +220,8 @@ public class ScheduleCycleChangePlanService {
 
       if(spec.conditions() != null) {
          ScheduleConditionConverter.requireKnownTimeRanges(
+            label + ".spec.conditions", spec.conditions());
+         ScheduleConditionConverter.requireKnownTimeZones(
             label + ".spec.conditions", spec.conditions());
       }
 
