@@ -330,6 +330,47 @@ class FilterEffectGuardTest {
       }
 
       @Test
+      void aTimeSliderWithARealSelectionNoLongerFiltersWhenDisabled() throws Exception {
+         Stack s = stack();
+         TimeSliderVSAssembly slider = s.timeSlider("Slider", true);
+         assertTrue(slider.containsSelection());
+
+         List<String> warnings = s.set("Slider", Map.of("enabled", false));
+
+         assertEquals(1, warnings.size(), warnings.toString());
+         assertTrue(warnings.get(0).startsWith(FilterEffectGuard.PREFIX), warnings.get(0));
+         assertTrue(warnings.get(0).contains("'Slider' no longer filters"), warnings.get(0));
+         assertFalse(slider.containsSelection());
+         // the stored selection is kept: only the enabled flag changed
+         assertEquals(1, slider.getSelectionList().getSelectionValueCount());
+         assertEquals(2, slider.getStateSelectionList().getSelectionValueCount());
+      }
+
+      @Test
+      void aTimeSliderWithoutASelectionOrAlreadyDisabledIsSilent() throws Exception {
+         Stack s = stack();
+         s.timeSlider("Whole", false);
+         assertTrue(s.set("Whole", Map.of("enabled", false)).isEmpty());
+
+         TimeSliderVSAssembly off = s.timeSlider("Off", true);
+         off.getVSAssemblyInfo().setEnabledValue("false");
+         assertTrue(s.set("Off", Map.of("enabled", false)).isEmpty());
+      }
+
+      @Test
+      void aTimeSliderUnderADisabledContainerIsNamed() throws Exception {
+         Stack s = stack();
+         s.timeSlider("Slider", true);
+         s.container("Box", "Slider");
+
+         List<String> warnings = s.setContainer("Box", Map.of("enabled", false));
+
+         assertEquals(1, warnings.size(), warnings.toString());
+         assertTrue(warnings.get(0).contains("child filter Slider no longer filter"),
+                    warnings.get(0));
+      }
+
+      @Test
       void aContainerResolvingToItselfDoesNotLoop() {
          Viewsheet vs = mock(Viewsheet.class);
          CurrentSelectionVSAssembly cs = mock(CurrentSelectionVSAssembly.class);
@@ -377,6 +418,8 @@ class FilterEffectGuardTest {
       final SelectionContainerPropertyDialogService containerService =
          mock(SelectionContainerPropertyDialogService.class);
       final TabPropertyDialogService tabService = mock(TabPropertyDialogService.class);
+      final RangeSliderPropertyDialogService sliderService =
+         mock(RangeSliderPropertyDialogService.class);
       final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       final AssemblyPropertyService service;
 
@@ -396,6 +439,7 @@ class FilterEffectGuardTest {
             wireCalendar();
             wireContainer();
             wireTab();
+            wireSlider();
          }
          catch(Exception e) {
             throw new IllegalStateException(e);
@@ -407,7 +451,7 @@ class FilterEffectGuardTest {
             mock(ChartPropertyDialogService.class), mock(TableViewPropertyDialogService.class),
             mock(CrosstabPropertyDialogService.class), listService,
             mock(SelectionTreePropertyDialogService.class), mock(VSInputService.class),
-            mock(RangeSliderPropertyDialogService.class), calendarService, tabService,
+            sliderService, calendarService, tabService,
             mock(CalcTablePropertyDialogService.class),
             mock(GroupContainerPropertyDialogService.class),
             mock(LinePropertyDialogService.class), mock(OvalPropertyDialogService.class),
@@ -439,6 +483,30 @@ class FilterEffectGuardTest {
          list.setStateSelectionList(values);
          vs.addAssembly(list, false);
          return list;
+      }
+
+      /**
+       * @param selected true: the value list holds one range of the two the state list knows,
+       *                 which is how {@code containsSelection()} sees a narrowed slider
+       */
+      TimeSliderVSAssembly timeSlider(String name, boolean selected) {
+         TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, name);
+         SelectionList all = new SelectionList();
+         all.addSelectionValue(new SelectionValue("a", "a"));
+         all.addSelectionValue(new SelectionValue("b", "b"));
+         SelectionList chosen = new SelectionList();
+         chosen.addSelectionValue(new SelectionValue("a", "a"));
+
+         if(selected) {
+            slider.setSelectionList(chosen);
+         }
+         else {
+            slider.setSelectionList(all);
+         }
+
+         slider.setStateSelectionList(all);
+         vs.addAssembly(slider, false);
+         return slider;
       }
 
       CalendarVSAssembly calendar(String name, String... dates) {
@@ -489,6 +557,18 @@ class FilterEffectGuardTest {
                          model.getTabGeneralPaneModel().getGeneralPropPaneModel());
             return null;
          }).when(tabService).setTabPropertyDialogModel(any(), any(), any(), any(), any(), any());
+      }
+
+      private void wireSlider() throws Exception {
+         doAnswer(inv -> new RangeSliderPropertyDialogModel()).when(sliderService)
+            .getRangeSliderPropertyModel(any(), any(), any());
+         doAnswer(inv -> {
+            RangeSliderPropertyDialogModel model = inv.getArgument(2);
+            applyEnabled(inv.getArgument(1),
+                         model.getRangeSliderGeneralPaneModel().getGeneralPropPaneModel());
+            return null;
+         }).when(sliderService)
+            .setRangeSliderPropertyModel(any(), any(), any(), any(), any(), any());
       }
 
       private void wireCalendar() throws Exception {
