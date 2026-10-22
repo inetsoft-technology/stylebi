@@ -48,20 +48,47 @@ import inetsoft.util.TimedQueue;
  * it from inside that work's own callable, so the heartbeat survives a client-visible timeout as
  * long as the background execution it was protecting is still genuinely running).</p>
  *
- * <p>Deliberately scoped to the specific blocking call a caller identifies, rather than extending
- * {@code WorksheetEngine}'s shared {@code emap} mechanism to cover worksheet runtimes generically:
- * as of this writing, exactly three call sites in {@code inetsoft.web.wiz} reach a long-lived,
- * pairing-held runtime's own {@code AssetQuerySandbox.getTableLens} this way (this class's own
- * two callers plus {@code WorksheetPreviewService.preview0}) -- every other {@code getTableLens}
- * call site in that package (e.g. {@code RawDataService}, {@code WorksheetTableService.probeTable}/
- * {@code probeExecutable}) deliberately builds a fresh, disposable {@code AssetQuerySandbox}
- * rather than using the runtime's own, specifically to avoid a stale-cache correctness problem
- * unrelated to this one -- and is therefore not registered in {@code WorksheetEngine.amap} and not
- * exposed to this defect at all. A product-wide {@code WorksheetService} interface change (moving
- * {@code addExecution}/{@code removeExecution} up from {@code ViewsheetService}, and changing
- * {@code isValidExecutingObject}'s single existing override to also recognize worksheet runtimes)
- * would be a materially larger, harder-to-verify-without-a-live-instance change for a gap that is,
- * on inspection, closed and bounded rather than open-ended.</p>
+ * <p><b>History (round 3 correction):</b> an earlier revision of this comment claimed "exactly
+ * three call sites" reach a long-lived, pairing-held runtime's own
+ * {@code AssetQuerySandbox.getTableLens} this way. That count was wrong -- an independent review
+ * found a fourth, genuinely exposed site ({@code RawDataService.writeLiveWorksheetTableCsvStream},
+ * reached via {@code WorksheetAgentController.exportTable()}), and further auditing found a fifth
+ * ({@code WorksheetAgentController.convertToEmbedded}'s {@code AssetEventUtil.convertEmbeddedTable}
+ * call, reached via {@code applyOnRuntime}) -- both now fixed. Rather than continue patching
+ * individual call sites one at a time (an approach that had already missed two real sites), this
+ * is now wired into the two actual shared choke points every worksheet mutation and its post-edit
+ * warm-up pass goes through: {@code WorksheetEditService.apply}/{@code applyOnRuntime}/
+ * {@code applyOnRuntimeNoCheckpoint} (the documented "single entry point for every mutator," and
+ * for operations needing the full {@code RuntimeWorksheet}) and {@code WorksheetEditService
+ * .refreshAssemblies} (the per-table, post-mutation cache-warming pass every one of those three
+ * methods calls unconditionally). Together these cover every mutation-style wiz endpoint
+ * automatically, not just the ones audited so far -- a future mutator that itself executes a slow
+ * query, or a slow table anywhere in the worksheet after any edit, is protected without needing to
+ * remember this class at all. {@code WorksheetPreviewService.preview0} and
+ * {@code RawDataService.writeLiveWorksheetTableCsvStream} remain explicitly wrapped because they
+ * are pure-read operations reached via {@code WorksheetEditService.resolve()}, which (unlike
+ * {@code apply}/{@code applyOnRuntime(NoCheckpoint)}) hands back the raw runtime and returns
+ * immediately -- it has no "after the caller's own work" point to hook, and is used far too
+ * broadly (70+ call sites, almost all fast metadata reads) to wrap generically without auditing
+ * every one of them individually. {@code RawDataService.writeWorksheetTableCsvStream} and
+ * {@code WorksheetTableService.probeTable}/{@code probeExecutable} remain unwrapped because each
+ * deliberately builds a fresh, disposable {@code AssetQuerySandbox} rather than using the
+ * runtime's own (for an unrelated stale-cache correctness reason), so none is registered in
+ * {@code WorksheetEngine.amap} and none is exposed to this defect at all -- confirmed by reading
+ * each method's own body, not inferred from its name.</p>
+ *
+ * <p>Promoting {@code addExecution}/{@code removeExecution} from {@code ViewsheetService} up to
+ * {@code WorksheetService} generically (so {@code WorksheetEngine}'s shared {@code emap} sweep
+ * itself recognizes a worksheet runtime as busy) was reconsidered at this same round and set aside
+ * again: unlike {@code ViewsheetEngine}'s own usage -- where literally every viewsheet action
+ * funnels through one shared refresh method ({@code CoreLifecycleService.refreshViewsheet}) that
+ * already calls {@code addExecution}/{@code removeExecution} -- the wiz worksheet surface has two
+ * genuinely different access shapes (the mutate-and-refresh pipeline this class now wraps, and the
+ * resolve-and-do-your-own-thing pattern {@code preview}/export use), so an engine-level promotion
+ * would still require the same per-call-site discipline for the second shape; it would also be a
+ * product-wide interface change with no live instance available to verify it, for a gap that
+ * turned out, on this more rigorous pass, to still be closed and enumerable -- not open-ended --
+ * once wired at the two choke points described above.</p>
  */
 public final class RuntimeHeartbeatKeepAlive {
    private RuntimeHeartbeatKeepAlive() {

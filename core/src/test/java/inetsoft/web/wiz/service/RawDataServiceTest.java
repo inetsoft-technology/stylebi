@@ -38,16 +38,23 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -287,5 +294,80 @@ class RawDataServiceTest {
       assertTrue(ex.getMessage().contains("undefinedFn is not defined"),
          "expected the underlying cause, got: " + ex.getMessage());
       assertEquals(0, out.size());
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79074: writeLiveWorksheetTableCsvStream reuses the live session's own, pairing-held,
+   // amap-registered AssetQuerySandbox -- the identical exposure WorksheetPreviewService.preview0
+   // has -- and this export has no row cap at all (unlike preview's 200-row limit), so it is at
+   // least as exposed to WorksheetEngine's recycle sweep disposing the runtime mid-query.
+   // ---------------------------------------------------------------------------
+   //
+   // RuntimeHeartbeatKeepAlive.INTERVAL_MS is shrunk for the duration of these tests so the
+   // periodic refresh can be observed without waiting out the real (minutes-long) production
+   // interval.
+
+   @Test
+   void writeLiveWorksheetTableCsvStreamKeepsHeartbeatAliveWhileQueryIsInFlight() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 20L;
+
+      try {
+         Deps deps = new Deps();
+         Worksheet ws = new Worksheet();
+         EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+         ws.addAssembly(t);
+
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         RuntimeWorksheet rws = liveRuntimeWorksheet(ws, box);
+
+         CountDownLatch heartbeats = new CountDownLatch(3);
+         doAnswer(inv -> {
+            heartbeats.countDown();
+            return null;
+         }).when(rws).access(false);
+
+         when(box.getTableLens(eq("T"), anyInt())).thenAnswer(inv -> {
+            assertTrue(heartbeats.await(2, TimeUnit.SECONDS),
+                       "expected the runtime's heartbeat to be refreshed repeatedly while the " +
+                       "export query is still executing");
+            return simpleLens();
+         });
+
+         deps.service().writeLiveWorksheetTableCsvStream(rws, "T", new ByteArrayOutputStream());
+
+         verify(rws, atLeastOnce()).access(false);
+         verify(rws, never()).access(true);
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
+   }
+
+   @Test
+   void writeLiveWorksheetTableCsvStreamStopsRefreshingHeartbeatOnceQueryCompletes() throws Exception {
+      long saved = RuntimeHeartbeatKeepAlive.INTERVAL_MS;
+      RuntimeHeartbeatKeepAlive.INTERVAL_MS = 15L;
+
+      try {
+         Deps deps = new Deps();
+         Worksheet ws = new Worksheet();
+         EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+         ws.addAssembly(t);
+
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         TableLens lens = simpleLens();
+         when(box.getTableLens(eq("T"), anyInt())).thenReturn(lens);
+         RuntimeWorksheet rws = liveRuntimeWorksheet(ws, box);
+
+         deps.service().writeLiveWorksheetTableCsvStream(rws, "T", new ByteArrayOutputStream());
+
+         clearInvocations(rws);
+         Thread.sleep(150L);
+         verify(rws, never()).access(anyBoolean());
+      }
+      finally {
+         RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
+      }
    }
 }
