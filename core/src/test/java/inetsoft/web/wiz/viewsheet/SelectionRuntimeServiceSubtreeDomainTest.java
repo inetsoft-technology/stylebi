@@ -21,7 +21,11 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.test.SwapperTestConfiguration;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.CompositeSelectionValue;
 import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
@@ -1418,5 +1422,51 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       verify(h.selections()).applySelection(anyString(), anyString(), any(),
                                             any(Principal.class), any(), anyString());
       assertEquals(List.of(List.of("Business")), result.get("scopedBySearchDropped"));
+   }
+
+   /**
+    * Bug #79201: the bound check reads {@code getDataRefs()} for an ID-mode tree too. Real
+    * assemblies (no mocks), because the diagnosis could not confirm from the mock fixtures that
+    * an ID-mode tree populates its refs: parent-id/id/label refs are stored in dataRefs, so a
+    * bound ID-mode tree must not be refused on a read, while an unbound one is.
+    */
+   @Test
+   void selectionStateOfARealIdModeTreeIsRefusedOnlyWhenUnbound() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      SelectionTreeVSAssembly idTree = new SelectionTreeVSAssembly(vs, "Tree1");
+      idTree.setMode(SelectionTreeVSAssemblyInfo.ID);
+      SelectionRuntimeServiceTest.Harness unbound = SelectionRuntimeServiceTest.harness(idTree);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> unbound.service().selectionState(
+            "tok", SelectionRuntimeServiceTest.principal(), "Tree1"));
+      assertTrue(e.getMessage().contains("no column bound"), e.getMessage());
+
+      idTree.setDataRefs(new DataRef[] {
+         new ColumnRef(new AttributeRef("Q", "PARENT_ID")),
+         new ColumnRef(new AttributeRef("Q", "ID")),
+         new ColumnRef(new AttributeRef("Q", "LABEL")) });
+      assertEquals(3, idTree.getDataRefs().length);
+      SelectionRuntimeServiceTest.Harness bound = SelectionRuntimeServiceTest.harness(idTree);
+
+      Map<String, Object> result = bound.service().selectionState(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1");
+
+      assertEquals(false, result.get("computed"));
+   }
+
+   /** Same for a real column-mode tree and a real selection list. */
+   @Test
+   void selectionStateOfRealUnboundAssembliesIsRefused() {
+      Viewsheet vs = new Viewsheet();
+      SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly(vs, "Tree1");
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "List1");
+
+      assertThrows(IllegalArgumentException.class,
+         () -> SelectionRuntimeServiceTest.harness(tree).service().selectionState(
+            "tok", SelectionRuntimeServiceTest.principal(), "Tree1"));
+      assertThrows(IllegalArgumentException.class,
+         () -> SelectionRuntimeServiceTest.harness(list).service().selectionState(
+            "tok", SelectionRuntimeServiceTest.principal(), "List1"));
    }
 }

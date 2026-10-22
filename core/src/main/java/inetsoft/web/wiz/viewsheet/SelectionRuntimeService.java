@@ -1190,6 +1190,10 @@ public class SelectionRuntimeService {
          return calendarState(assemblyName, assembly);
       }
 
+      // An unbound list/tree never gets a runtime SelectionList, so computed:false would never
+      // turn true however often the caller renders and retries (Bug #79201).
+      requireBoundColumn(assembly, assemblyName, true);
+
       SelectionList list = selectionListOf(assembly);
       Map<String, Object> result = new LinkedHashMap<>();
       result.put("assembly", assemblyName);
@@ -1296,20 +1300,36 @@ public class SelectionRuntimeService {
     * mechanism (a range/composite time info, not a single {@code DataRef}) and is left alone.
     */
    private static void requireBoundColumn(SelectionVSAssembly assembly, String assemblyName) {
+      requireBoundColumn(assembly, assemblyName, false);
+   }
+
+   /**
+    * @param forRead true when the refusal is worded for a read of the state,
+    *                not for a write that would silently do nothing.
+    */
+   private static void requireBoundColumn(SelectionVSAssembly assembly, String assemblyName,
+                                          boolean forRead)
+   {
       if(assembly instanceof SelectionListVSAssembly list && list.getDataRef() == null) {
-         throw new IllegalArgumentException(unboundColumnMessage(assemblyName));
+         throw new IllegalArgumentException(unboundColumnMessage(assemblyName, forRead));
       }
 
       if(assembly instanceof SelectionTreeVSAssembly tree) {
          DataRef[] refs = tree.getDataRefs();
 
          if(refs == null || refs.length == 0 || Arrays.stream(refs).allMatch(Objects::isNull)) {
-            throw new IllegalArgumentException(unboundColumnMessage(assemblyName));
+            throw new IllegalArgumentException(unboundColumnMessage(assemblyName, forRead));
          }
       }
    }
 
-   private static String unboundColumnMessage(String assemblyName) {
+   private static String unboundColumnMessage(String assemblyName, boolean forRead) {
+      if(forRead) {
+         return "'" + assemblyName + "' has no column bound, so there are no candidate values to " +
+            "read and it will never report any, however often it is rendered. Call " +
+            "set_selection_source first, then read its state.";
+      }
+
       return "'" + assemblyName + "' has no column bound -- select/deselect/clear would silently " +
          "do nothing against it. Call set_selection_source first (or confirm its binding actually " +
          "took effect via get_assembly_properties).";
