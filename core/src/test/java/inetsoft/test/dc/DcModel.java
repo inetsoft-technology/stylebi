@@ -58,6 +58,18 @@ public final class DcModel {
    public static Set<LocalDate> expected(DcShape shape, LocalDate end, boolean inclusive,
                                          boolean change, int preCount)
    {
+      return expected(shape, end, end, inclusive, change, preCount);
+   }
+
+   /**
+    * @param cut the interval's own End Date (the dialog's "End Date" of the interval, when it is
+    *            not the periods' End Date): the place in its unit where To Date cuts and the
+    *            position of the unit in its context are taken from it. The periods still count
+    *            back from {@code end}, and nothing after {@code end} is kept.
+    */
+   public static Set<LocalDate> expected(DcShape shape, LocalDate end, LocalDate cut,
+                                         boolean inclusive, boolean change, int preCount)
+   {
       int periodLevel = shape.periodLevel();
       int unit = shape.intervalUnit();
       int context = shape.contextLevel();
@@ -88,7 +100,7 @@ public final class DcModel {
             }
          }
          else {
-            List<LocalDate> unitDays = intervalDays(shape, start, finish, end, periods);
+            List<LocalDate> unitDays = intervalDays(shape, start, finish, cut, periods);
 
             if(unitDays == null) {
                return null;

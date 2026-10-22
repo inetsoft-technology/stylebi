@@ -88,6 +88,14 @@ public record DcShape(int periodLevel, int intervalLevel, int granularity, int c
    public DateComparisonInfo toInfo(String endDay, boolean toDate, boolean inclusive, int option,
                                     int preCount, boolean intervalInclusive)
    {
+      return toInfo(endDay, null, toDate, inclusive, option, preCount, intervalInclusive);
+   }
+
+   /** @param intervalEnd the interval's own End Date, or null for the periods' End Date. */
+   public DateComparisonInfo toInfo(String endDay, String intervalEnd, boolean toDate,
+                                    boolean inclusive, int option, int preCount,
+                                    boolean intervalInclusive)
+   {
       DateComparisonInfo dc = new DateComparisonInfo();
       StandardPeriods periods = new StandardPeriods();
       periods.setPreCount(preCount);
@@ -106,7 +114,12 @@ public record DcShape(int periodLevel, int intervalLevel, int granularity, int c
          interval.setContextLevel(contextLevel);
       }
 
-      interval.setEndDayAsToDate(true);
+      interval.setEndDayAsToDate(intervalEnd == null);
+
+      if(intervalEnd != null) {
+         interval.setIntervalEndDateValue(intervalEnd);
+      }
+
       interval.setInclusive(intervalInclusive);
       dc.setDateComparisonInterval(interval);
       dc.setComparisonOption(option);

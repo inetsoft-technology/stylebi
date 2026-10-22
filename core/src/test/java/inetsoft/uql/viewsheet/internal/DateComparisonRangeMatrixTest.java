@@ -239,7 +239,7 @@ class DateComparisonRangeMatrixTest {
     *   to-date part crosses the quarter end (Change at 2021-01-02, Monday weeks).</li>
     * </ul>
     */
-   private static boolean knownGap(DcShape shape, String weekStart, String end, boolean inclusive,
+   static boolean knownGap(DcShape shape, String weekStart, String end, boolean inclusive,
                                    boolean change)
    {
       boolean sameDayByWeek = shape.intervalUnit() == XConstants.DAY_DATE_GROUP &&
