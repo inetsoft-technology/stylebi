@@ -658,6 +658,64 @@ class BindingAgentControllerTest {
       assertEquals(List.of("Region -> 120px"), response.get("applied"));
    }
 
+   /** Bug #79029: /table/row-height forwards every field; an omitted reset flag means false. */
+   @Test
+   void setTableRowHeightForwardsToTheServiceAndTreatsNullResetsAsFalse() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      TableBindingService tableService = mock(TableBindingService.class);
+      java.util.Map<String, Double> headerRows = java.util.Map.of("0", 40.0);
+      when(tableService.setRowHeights(any(), any(), any(), any(), any(), anyBoolean(),
+                                      anyBoolean()))
+         .thenReturn(new TableBindingService.TableWrite(
+            List.of("header row 0 -> 40px", "data rows -> 30px"), List.of()));
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(ViewsheetSessionService.class), mock(BindableFieldsService.class),
+         mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(ViewsheetFormatService.class), mock(SheetAgentBroadcastService.class));
+
+      java.util.Map<String, Object> response = controller.setTableRowHeight(
+         "tok", new BindingAgentController.TableRowHeightRequest(
+            "Calc1", headerRows, 30.0, null, null), principal());
+
+      verify(tableService).setRowHeights(eq("tok"), any(Principal.class), eq("Calc1"),
+                                         eq(headerRows), eq(30.0), eq(false), eq(false));
+      assertEquals(List.of("header row 0 -> 40px", "data rows -> 30px"),
+                   response.get("applied"));
+      assertFalse(response.containsKey("warnings"), response.toString());
+
+      controller.setTableRowHeight(
+         "tok", new BindingAgentController.TableRowHeightRequest(
+            "Calc1", null, null, Boolean.TRUE, Boolean.FALSE), principal());
+
+      verify(tableService).setRowHeights(eq("tok"), any(Principal.class), eq("Calc1"),
+                                         isNull(), isNull(), eq(true), eq(false));
+   }
+
+   @Test
+   void setTableRowHeightRefusesWhenTheFeatureIsDisabled() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(false);
+      TableBindingService tableService = mock(TableBindingService.class);
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(ViewsheetSessionService.class), mock(BindableFieldsService.class),
+         mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(ViewsheetFormatService.class), mock(SheetAgentBroadcastService.class));
+
+      assertThrows(ResponseStatusException.class, () -> controller.setTableRowHeight(
+         "tok", new BindingAgentController.TableRowHeightRequest(
+            "Calc1", null, 30.0, null, null), principal()));
+      verifyNoInteractions(tableService);
+   }
+
    /** Bug #78406: the three table writes that bypass apply() relay mutate's warnings. */
    @Test
    void tableColumnWidthLabelsAndCrosstabVisibilityRelayWarningsOnlyWhenPresent()
