@@ -79,6 +79,26 @@ class WorksheetRenameEntityCollisionTest {
       assertEquals("BaseRenamed", ginfo.getAggregate(0).getDataRef().getEntity());
    }
 
+   /**
+    * Bug #79144: the named-group reference of a leaf table's GroupRef is keyed by assembly name,
+    * not by entity, so it must follow a NamedGroupAssembly rename even on leaf tables.
+    */
+   @Test
+   void renamingNamedGroupRewritesLeafTableGroupRef() {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly leaf = boundTable(ws, "Leaf");
+      AggregateInfo ginfo = aggregateInfo("Product");
+      ginfo.getGroup(0).setNamedGroupAssembly("NG");
+      leaf.setAggregateInfo(ginfo);
+      ws.addAssembly(leaf);
+      ws.addAssembly(new DefaultNamedGroupAssembly(ws, "NG"));
+
+      assertTrue(ws.renameAssembly("NG", "NG2", true));
+
+      assertEquals("NG2", ginfo.getGroup(0).getNamedGroupAssembly());
+      assertEquals("Product", ginfo.getGroup(0).getDataRef().getEntity());
+   }
+
    private static BoundTableAssembly boundTable(Worksheet ws, String name) {
       BoundTableAssembly table = new BoundTableAssembly(ws, name);
       ColumnSelection columns = new ColumnSelection();
