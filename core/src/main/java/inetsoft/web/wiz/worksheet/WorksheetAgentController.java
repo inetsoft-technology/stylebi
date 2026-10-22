@@ -4408,8 +4408,9 @@ public class WorksheetAgentController {
     * is 0 or greater) is a plain {@code String}, rejecting any other JSON type (e.g. a number
     * or boolean) with a message naming the field path and the element's actual runtime type.
     * The top-level scalar entry ({@code index == -1}) permits {@code null} (clears the variable
-    * back to "no session value yet"; {@link #setVariableValues} removes the key); a {@code null} list element does not,
-    * since a list conveys 2+ (or exactly 1) explicit values with no "leave unset" case.
+    * back to "no session value yet"; {@link #setVariableValues} removes the key); a
+    * {@code null} list element does not, since a list conveys 2+ (or exactly 1) explicit
+    * values with no "leave unset" case.
     */
    private static String requireStringElement(String vname, int index, Object raw)
       throws PairingException
