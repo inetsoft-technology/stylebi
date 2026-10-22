@@ -821,7 +821,7 @@ public final class TableBindingMutator {
             // A flag the ref already stored is an echo (a dormant sort carried with it stays
             // tolerated, bug #78214); only a newly-set true is checked against the sort.
             if(field.timeSeries() && !wasTimeSeries) {
-               requireNoOverriddenSort(model, ref, field.column());
+               requireNoOverriddenSort(model, rvs, source, ref, field.column());
             }
          }
 
@@ -900,12 +900,13 @@ public final class TableBindingMutator {
     * honours the flag for any date-typed column whatever its level or place, so only the data
     * type decides.
     */
-   private static void requireNoOverriddenSort(BindingModel model, BDimensionRefModel ref,
+   private static void requireNoOverriddenSort(BindingModel model, RuntimeViewsheet rvs,
+                                               SourceInfo source, BDimensionRefModel ref,
                                                String column)
    {
       String sort = ChartTimeSeriesGuard.overriddenSort(ref);
 
-      if(sort == null || !mayBeDate(model, ref, column)) {
+      if(sort == null || !mayBeDate(model, rvs, source, ref, column)) {
          return;
       }
 
@@ -918,9 +919,12 @@ public final class TableBindingMutator {
    }
 
    /** Not known to be a non-date column: the flag only has an effect on a date-typed column. */
-   private static boolean mayBeDate(BindingModel model, BDimensionRefModel ref, String column) {
+   private static boolean mayBeDate(BindingModel model, RuntimeViewsheet rvs, SourceInfo source,
+                                    BDimensionRefModel ref, String column)
+   {
+      // The bound source's own column type, so a component source (bug #79022) is typed too.
       String type = ref.getDataType() != null ? ref.getDataType()
-         : FieldRefFactory.dataTypeOf(model, column);
+         : FieldRefFactory.dimensionDataType(model, rvs, source, column);
       return type == null || XSchema.isDateType(type);
    }
 
@@ -1551,7 +1555,7 @@ public final class TableBindingMutator {
       }
 
       if(dimension.isTimeSeries() && ChartBindingMutator.overridesAscending(sort) &&
-         mayBeDate(model, dimension, dimensionColumn(dimension)))
+         mayBeDate(model, null, null, dimension, dimensionColumn(dimension)))
       {
          String name = dimensionColumn(dimension);
          throw new IllegalArgumentException(

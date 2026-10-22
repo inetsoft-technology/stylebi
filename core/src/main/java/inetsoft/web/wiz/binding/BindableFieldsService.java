@@ -24,6 +24,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.BindableVSAssembly;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.DataVSAssembly;
 import inetsoft.uql.viewsheet.ListInputVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -74,6 +75,7 @@ public class BindableFieldsService {
    {
       String source = null;
       boolean sourceIsComponent = false;
+      boolean chart = false;
       String modelName = null;
       String treeScope = assembly;
 
@@ -90,6 +92,7 @@ public class BindableFieldsService {
          }
 
          source = sourceNameOf(target);
+         chart = target instanceof ChartVSAssembly;
          sourceIsComponent = target instanceof DataVSAssembly data && data.getSourceInfo() != null &&
             data.getSourceInfo().getType() == SourceInfo.VS_ASSEMBLY;
 
@@ -133,7 +136,25 @@ public class BindableFieldsService {
 
       addSkipped(tables, skipped);
 
+      if(chart) {
+         withoutComponents(tables, source, sourceIsComponent);
+      }
+
       return assembly == null ? tables : marked(tables, source, sourceIsComponent);
+   }
+
+   /**
+    * Bug #79022: the agent tools bind a chart to a worksheet table or model only
+    * ({@code ChartBindingService.applySource} refuses a component), so a chart's listing does not
+    * offer the other components the shared tree lists; picking one would only be refused. A
+    * component the chart is already bound to (through the Composer) stays, so its current
+    * columns are still listed.
+    */
+   private static void withoutComponents(List<BindableTable> tables, String source,
+                                         boolean sourceIsComponent)
+   {
+      tables.removeIf(table -> table.isComponent() &&
+         !(sourceIsComponent && table.name().equalsIgnoreCase(source)));
    }
 
    /**

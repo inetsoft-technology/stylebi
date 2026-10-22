@@ -2943,6 +2943,98 @@ class TableBindingServiceTest {
       assertEquals("Region", posted.getRows().get(0).getColumnValue());
    }
 
+   private static inetsoft.uql.ColumnSelection componentColumns(String... nameTypePairs) {
+      inetsoft.uql.ColumnSelection columns = new inetsoft.uql.ColumnSelection();
+
+      for(int i = 0; i < nameTypePairs.length; i += 2) {
+         inetsoft.uql.asset.ColumnRef column = new inetsoft.uql.asset.ColumnRef(
+            new inetsoft.uql.erm.AttributeRef(null, nameTypePairs[i]));
+         column.setDataType(nameTypePairs[i + 1]);
+         columns.addAttribute(column);
+      }
+
+      return columns;
+   }
+
+   // Review r1 #1: on a first bind the component's base table is not yet among the model's
+   // worksheet tables, so its column types must come from the component's own output. A
+   // same-named string column on a worksheet table must not decide it either.
+   @Test
+   void setShelfDefaultsANumericComponentMeasureWithNoAggregateToSum() throws Exception {
+      CrosstabBindingModel existing = withTablesAndColumns(Map.of("ORDERS", List.of("Amount")));
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      ViewsheetSessionService sessions = sessionsForNamed(Map.of(
+         "Crosstab1", mock(CrosstabVSAssembly.class), "T1", componentNamed("T1")));
+
+      try(var vsUtil = mockStatic(inetsoft.uql.viewsheet.internal.VSUtil.class,
+                                  CALLS_REAL_METHODS))
+      {
+         vsUtil.when(() -> inetsoft.uql.viewsheet.internal.VSUtil
+            .getColumnsForVSAssemblyBinding(any(), eq("__vs_assembly__T1")))
+            .thenReturn(componentColumns("Region", "string", "Amount", "double"));
+
+         serviceWith(sessions, existing, bindings)
+            .setShelf("tok", principal(), "Crosstab1", "aggregates",
+                      List.of(new FieldRef("Amount", "measure", null, null, null)),
+                      "__vs_assembly__T1");
+      }
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals("__vs_assembly__T1", posted.getSource().getSource());
+      assertEquals(inetsoft.uql.asset.SourceInfo.VS_ASSEMBLY, posted.getSource().getType());
+      assertEquals("Sum", posted.getAggregates().get(0).getFormula());
+   }
+
+   @Test
+   void setShelfStillDefaultsAStringComponentMeasureToCount() throws Exception {
+      CrosstabBindingModel existing = withTablesAndColumns(Map.of("ORDERS", List.of("Region")));
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      ViewsheetSessionService sessions = sessionsForNamed(Map.of(
+         "Crosstab1", mock(CrosstabVSAssembly.class), "T1", componentNamed("T1")));
+
+      try(var vsUtil = mockStatic(inetsoft.uql.viewsheet.internal.VSUtil.class,
+                                  CALLS_REAL_METHODS))
+      {
+         vsUtil.when(() -> inetsoft.uql.viewsheet.internal.VSUtil
+            .getColumnsForVSAssemblyBinding(any(), eq("__vs_assembly__T1")))
+            .thenReturn(componentColumns("Region", "string", "Amount", "double"));
+
+         serviceWith(sessions, existing, bindings)
+            .setShelf("tok", principal(), "Crosstab1", "aggregates",
+                      List.of(new FieldRef("Region", "measure", null, null, null)),
+                      "__vs_assembly__T1");
+      }
+
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals("Count", posted.getAggregates().get(0).getFormula());
+   }
+
+   // Bug #79022 review r1 #1: a dimension bound to another viewsheet component reads its type
+   // from the component's output, so date handling sees a date column before the engine has built
+   // the component's base table.
+   @Test
+   void dimensionDataTypeOfAComponentSourceComesFromTheComponentsOutput() {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      inetsoft.uql.asset.SourceInfo source = new inetsoft.uql.asset.SourceInfo(
+         inetsoft.uql.asset.SourceInfo.VS_ASSEMBLY, null, "__vs_assembly__T1");
+      inetsoft.uql.ColumnSelection columns = new inetsoft.uql.ColumnSelection();
+      inetsoft.uql.asset.ColumnRef date =
+         new inetsoft.uql.asset.ColumnRef(new inetsoft.uql.erm.AttributeRef(null, "OrderDate"));
+      date.setDataType("date");
+      columns.addAttribute(date);
+
+      try(var vsUtil =
+             mockStatic(inetsoft.uql.viewsheet.internal.VSUtil.class, CALLS_REAL_METHODS))
+      {
+         vsUtil.when(() -> inetsoft.uql.viewsheet.internal.VSUtil
+            .getColumnsForVSAssemblyBinding(any(), eq("__vs_assembly__T1"))).thenReturn(columns);
+
+         assertEquals("date", FieldRefFactory.dimensionDataType(
+            new CrosstabBindingModel(), rvs, source, "OrderDate"));
+      }
+   }
+
    @Test
    void readShowsAComponentSourceWithoutItsStoragePrefix() throws Exception {
       CrosstabBindingModel existing = new CrosstabBindingModel();

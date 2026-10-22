@@ -160,7 +160,7 @@ public final class BindableColumns {
       Set<String> columns = new LinkedHashSet<>();
 
       for(BindableTable table : listed) {
-         if(scope != null && !scope.equalsIgnoreCase(table.name())) {
+         if(scope != null && !isKey(table, scope)) {
             continue;
          }
 
@@ -267,13 +267,20 @@ public final class BindableColumns {
       String current = currentSourceOf(listed);
 
       if(current != null) {
-         if(requested != null && !requested.equalsIgnoreCase(current)) {
+         // The bare name of the bound source is that source, even when a worksheet table and a
+         // component share it: naming what is already bound is not a repoint.
+         if(requested != null && !current.equalsIgnoreCase(lookup(listed, requested)) &&
+            !requested.equalsIgnoreCase(current) &&
+            !requested.equalsIgnoreCase(BindingSources.displayName(current)))
+         {
             throw new IllegalArgumentException(
-               "'" + assembly + "' is bound to '" + current + "', and '" + requested +
+               "'" + assembly + "' is bound to '" + BindingSources.displayName(current) +
+               "', and '" + requested +
                "' is a different table. Every field on an assembly comes from its one source, so " +
                "this is either the wrong column or a deliberate repoint — and repointing discards " +
                "every field already bound, so it is not done implicitly. Pick a column from '" +
-               current + "', or call set_chart_source with force: true to move the assembly.");
+               BindingSources.displayName(current) + "', or call set_chart_source with force: " +
+               "true to move the assembly.");
          }
 
          // Already sourced: nothing to establish, and require() narrows the column check to it.
@@ -294,8 +301,8 @@ public final class BindableColumns {
       List<String> labels = new ArrayList<>();
 
       for(BindableTable table : listed) {
-         if(hasAll(columnsOf(listed, table.name()), named)) {
-            candidates.add(table.name());
+         if(hasAll(columnsOf(listed, keyOf(table)), named)) {
+            candidates.add(keyOf(table));
             // A viewsheet component may share a worksheet table's name; say which is which.
             labels.add(table.isComponent() ? table.name() + " (viewsheet component)"
                                            : table.name());
@@ -321,8 +328,11 @@ public final class BindableColumns {
       throw new IllegalArgumentException(
          describe(named) + " exists in more than one table (" + String.join(", ", labels) +
          "), so which one to bind '" + assembly + "' to cannot be told from the column name alone. " +
-         "Pass 'table' to say which, the way dropping a column in the Composer does. Guessing " +
-         "would bind the wrong table and render something that looks right.");
+         "Pass 'table' to say which, the way dropping a column in the Composer does" +
+         (candidates.stream().anyMatch(BindingSources::isComponent) ?
+            " (a worksheet table by its name, a viewsheet component as '" +
+            BindingSources.componentSource("<name>") + "')" : "") +
+         ". Guessing would bind the wrong table and render something that looks right.");
    }
 
    private static List<FieldRef> named(Collection<FieldRef> fields) {
@@ -340,14 +350,16 @@ public final class BindableColumns {
    private static String matchListed(List<BindableTable> listed, String requested,
                                      String assembly)
    {
+      String key = lookup(listed, requested);
+
+      if(key != null) {
+         return key;
+      }
+
       List<String> names = new ArrayList<>();
 
       for(BindableTable table : listed) {
          names.add(table.name());
-
-         if(requested.equalsIgnoreCase(table.name())) {
-            return table.name();
-         }
       }
 
       throw new IllegalArgumentException(
@@ -356,9 +368,61 @@ public final class BindableColumns {
          ". A source the assembly cannot see binds nothing and renders an empty assembly.");
    }
 
+   /**
+    * The listed table a caller-stated name selects, as its {@link #keyOf key}, or {@code null}.
+    * A worksheet table and a viewsheet component may share a name (bug #79022): the bare name
+    * selects the worksheet table, as {@code set_table_source} does, and the component's stored,
+    * {@code __vs_assembly__}-prefixed name selects the component. A bare name no worksheet table
+    * has selects the component of that name.
+    */
+   static String lookup(List<BindableTable> listed, String requested) {
+      if(requested == null) {
+         return null;
+      }
+
+      if(BindingSources.isComponent(requested)) {
+         String bare = BindingSources.displayName(requested);
+
+         for(BindableTable table : listed) {
+            if(table.isComponent() && bare.equalsIgnoreCase(table.name())) {
+               return keyOf(table);
+            }
+         }
+
+         return null;
+      }
+
+      BindableTable component = null;
+
+      for(BindableTable table : listed) {
+         if(requested.equalsIgnoreCase(table.name())) {
+            if(!table.isComponent()) {
+               return keyOf(table);
+            }
+
+            component = component == null ? table : component;
+         }
+      }
+
+      return component == null ? null : keyOf(component);
+   }
+
+   /**
+    * A listed table's identity: a viewsheet component's stored, {@code __vs_assembly__}-prefixed
+    * source name, else its own name. The bare name alone cannot tell a component from a
+    * worksheet table of the same name.
+    */
+   static String keyOf(BindableTable table) {
+      return table.isComponent() ? BindingSources.componentSource(table.name()) : table.name();
+   }
+
+   private static boolean isKey(BindableTable table, String key) {
+      return key != null && key.equalsIgnoreCase(keyOf(table));
+   }
+
    private static boolean hasWarnings(List<BindableTable> listed, String name) {
       for(BindableTable table : listed) {
-         if(name.equalsIgnoreCase(table.name()) && table.hasWarnings()) {
+         if(isKey(table, name) && table.hasWarnings()) {
             return true;
          }
       }
@@ -370,7 +434,7 @@ public final class BindableColumns {
       Set<String> columns = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
 
       for(BindableTable table : listed) {
-         if(name.equalsIgnoreCase(table.name())) {
+         if(isKey(table, name)) {
             for(var field : table.fields()) {
                if(field.column() != null) {
                   columns.add(field.column());
@@ -450,7 +514,7 @@ public final class BindableColumns {
    private static String currentSourceOf(List<BindableTable> tables) {
       for(BindableTable table : tables) {
          if(Boolean.TRUE.equals(table.current())) {
-            return table.name();
+            return keyOf(table);
          }
       }
 

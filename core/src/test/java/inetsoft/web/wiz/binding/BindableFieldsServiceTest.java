@@ -1003,7 +1003,9 @@ class BindableFieldsServiceTest {
    @Test
    void listsASkippedComponentAsAWarnedZeroFieldTable() throws Exception {
       for(String source : new String[] {"ORDERS1", "Bad"}) {
-         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         // A crosstab: a chart's listing leaves components out (bug #79022).
+         inetsoft.uql.viewsheet.CrosstabVSAssembly chart =
+            mock(inetsoft.uql.viewsheet.CrosstabVSAssembly.class);
          // A skipped entry is a viewsheet component, which is stored under its prefixed name.
          when(chart.getSourceInfo()).thenReturn("Bad".equals(source)
             ? new SourceInfo(SourceInfo.VS_ASSEMBLY, null, "__vs_assembly__Bad")
@@ -1067,6 +1069,47 @@ class BindableFieldsServiceTest {
          assertEquals(viaComponent, vsTable.current());
          assertEquals(!viaComponent, ws.current());
       }
+   }
+
+   /**
+    * Review r1 #4 (bug #79022): the agent tools refuse a component as a chart's source, so a
+    * chart's listing does not offer components; one the chart is already bound to stays.
+    */
+   @Test
+   void aChartsListingLeavesOutComponentsItCannotBindTo() throws Exception {
+      AssetEntry componentEntry = entry(AssetEntry.Type.TABLE, "T1", null);
+      when(componentEntry.getPath()).thenReturn("/components/__vs_assembly__T1");
+      TreeNodeModel component = TreeNodeModel.builder().label("T1").data(componentEntry)
+         .addChildren(columnNode("Region", "string")).build();
+      TreeNodeModel worksheet = TreeNodeModel.builder().label("ORDERS")
+         .data(entry(AssetEntry.Type.TABLE, "ORDERS", null))
+         .addChildren(columnNode("Region", "string")).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root")
+         .addChildren(worksheet).addChildren(component).build();
+
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getSourceInfo()).thenReturn(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      List<BindableTable> forChart = serviceFor(root, "Chart1", chart)
+         .list("rt1", "Chart1", principal());
+
+      assertEquals(List.of("ORDERS"), forChart.stream().map(BindableTable::name).toList());
+
+      ChartVSAssembly bound = mock(ChartVSAssembly.class);
+      when(bound.getSourceInfo())
+         .thenReturn(new SourceInfo(SourceInfo.VS_ASSEMBLY, null, "__vs_assembly__T1"));
+      List<BindableTable> forBound = serviceFor(root, "Chart1", bound)
+         .list("rt1", "Chart1", principal());
+
+      assertEquals(2, forBound.size());
+      assertTrue(forBound.stream()
+         .anyMatch(t -> t.isComponent() && Boolean.TRUE.equals(t.current())));
+
+      inetsoft.uql.viewsheet.CrosstabVSAssembly crosstab =
+         mock(inetsoft.uql.viewsheet.CrosstabVSAssembly.class);
+      List<BindableTable> forCrosstab = serviceFor(root, "X1", crosstab)
+         .list("rt1", "X1", principal());
+
+      assertTrue(forCrosstab.stream().anyMatch(BindableTable::isComponent));
    }
 
    /** The serialized shape: an ordinary table has no "warnings" key at all. */

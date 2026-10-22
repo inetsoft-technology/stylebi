@@ -850,8 +850,13 @@ class BindingAgentControllerTest {
             "T1", null, java.util.List.of(), java.util.List.of(), "viewsheet"),
          new inetsoft.web.wiz.binding.model.BindableTable("Plain", null, java.util.List.of()));
 
-      // the first listing match wins, as the column check does
+      // a shared bare name is the worksheet table, as set_table_source resolves it; the
+      // prefixed name is the component (review r1 #3)
       assertEquals("T1", BindingAgentController.storedSource(listed, "T1"));
+      assertEquals("T1", BindingAgentController.storedSource(
+         java.util.List.of(listed.get(1), listed.get(0)), "T1"));
+      assertEquals("__vs_assembly__T1",
+                   BindingAgentController.storedSource(listed, "__vs_assembly__T1"));
       assertEquals("Plain", BindingAgentController.storedSource(listed, "Plain"));
       assertEquals("__vs_assembly__Only", BindingAgentController.storedSource(
          java.util.List.of(new inetsoft.web.wiz.binding.model.BindableTable(
