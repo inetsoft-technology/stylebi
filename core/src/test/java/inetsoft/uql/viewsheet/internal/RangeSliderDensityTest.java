@@ -241,6 +241,15 @@ class RangeSliderDensityTest {
       assertEquals(new Dimension(400, 40), info.getPixelSize());
    }
 
+   @Test
+   void revertReturnsADefaultSliderToTheLegacyBox() {
+      TimeSliderVSAssemblyInfo info = marked("comfortable");
+      assertEquals(new Dimension(232, 82), info.getPixelSize(), "premise: the tier box");
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
+      assertEquals(new Dimension(200, 40), info.getPixelSize());
+   }
+
    @ParameterizedTest
    @CsvSource({ "400, 55", "200, 40", "400, 82", "232, 82" })
    void aRestoreLeavesAnUnmarkedSliderAlone(int w, int h) {
