@@ -1229,31 +1229,18 @@ class WorksheetEditServiceMutatorsTest {
    @Test
    void setGroupAggregateAppliesDatasourceScopedNamedGroup() throws Exception {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+
+      // A table bound the way WorksheetAgentController#addLogicalModelTable binds a logical
+      // model entity: MODEL SourceInfo, entity-qualified columns.
+      BoundTableAssembly t = new BoundTableAssembly(ws, "T");
+      t.setSourceInfo(new SourceInfo(SourceInfo.MODEL, "Examples/Orders", "Order Model"));
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef("Customer", "state")));
+      cs.addAttribute(new ColumnRef(new AttributeRef("Customer", "amount")));
+      t.setColumnSelection(cs);
       ws.addAssembly(t);
 
-      // Built the way WorksheetAgentController#addDatasourceScopedNamedGroup builds a
-      // datasource/logical-model-scoped "Only For" grouping (Bug #76097's shape, and this
-      // bug's own PWA-006 repro): attached to a MODEL SourceInfo/AttributeRef, not to any
-      // worksheet table -- unlike Editor.addNamedGroup's table+column path used by the other
-      // tests above. GroupRef.update()'s COLUMN_ATTACHED branch matches only by attribute
-      // name (not table/source identity, see GroupRef.java:443-450), so this must resolve
-      // for set_group_aggregate even though it would NOT resolve for set_cell_binding's
-      // stricter, source-aware FieldRefFactory#resolveNamedGroupInfo matcher.
-      NamedGroupInfo ngi = new NamedGroupInfo();
-      ngi.setOthers(XConstants.LEAVE_OTHERS);
-      AttributeRef attrRef = new AttributeRef("Customer", "state");
-      attrRef.setDataType(XSchema.STRING);
-      ConditionList conds = WorksheetMutationSupport.buildGroupConditionList(
-         XSchema.STRING, new ColumnRef(attrRef),
-         new WorksheetMutationSupport.GroupMapping("Northeast", List.of("NY", "NJ")), ws);
-      ngi.setGroupCondition("Northeast", conds);
-
-      DefaultNamedGroupAssembly nga = new DefaultNamedGroupAssembly(ws, "NortheastGroup");
-      nga.setNamedGroupInfo(ngi);
-      nga.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
-      nga.setAttachedSource(new SourceInfo(SourceInfo.MODEL, "Examples/Orders", "Order Model"));
-      nga.setAttachedAttribute(new ColumnRef(attrRef));
+      DefaultNamedGroupAssembly nga = datasourceScopedGroup(ws, "NortheastGroup");
       ws.addAssembly(nga);
 
       Principal agent = TestPrincipals.user("alice", "host-org");
@@ -1268,9 +1255,58 @@ class WorksheetEditServiceMutatorsTest {
       GroupRef gr = ai.getGroup(0);
       assertEquals("NortheastGroup", gr.getNamedGroupAssembly());
       assertNotNull(gr.getNamedGroupInfo(),
-         "a datasource-scoped named group must resolve via set_group_aggregate even though " +
-         "its attached source (MODEL/Examples/Orders) differs from the worksheet table's " +
-         "own source, since GroupRef.update() matches only by attribute name");
+         "a datasource-scoped named group must resolve via set_group_aggregate on a table " +
+         "bound to the group's own source");
+   }
+
+   @Test
+   void setGroupAggregateRefusesDatasourceScopedNamedGroupOnUnrelatedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+      ws.addAssembly(t);
+      ws.addAssembly(datasourceScopedGroup(ws, "NortheastGroup"));
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // GroupRef.update() matches a COLUMN_ATTACHED group by attribute name only, so it
+      // accepts the embedded table's "state"; the Group and Aggregate dialog never offers
+      // the group there (Bug #79137).
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T",
+               List.of(new WorksheetMutationSupport.GroupSpec("state", null, "NortheastGroup")),
+               List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)))));
+      assertTrue(ex.getMessage().contains("NortheastGroup"));
+      assertTrue(ex.getMessage().contains("Order Model.state"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("does not apply to column 'state'"));
+      assertEquals(0, t.getAggregateInfo().getGroupCount());
+   }
+
+   /**
+    * Built the way WorksheetAgentController#addDatasourceScopedNamedGroup builds a
+    * datasource/logical-model-scoped "Only For" grouping (Bug #76097's shape, and PWA-006's
+    * repro): attached to a MODEL SourceInfo/AttributeRef, not to any worksheet table -- unlike
+    * Editor.addNamedGroup's table+column path used by the other tests.
+    */
+   private static DefaultNamedGroupAssembly datasourceScopedGroup(Worksheet ws, String name)
+      throws Exception
+   {
+      NamedGroupInfo ngi = new NamedGroupInfo();
+      ngi.setOthers(XConstants.LEAVE_OTHERS);
+      AttributeRef attrRef = new AttributeRef("Customer", "state");
+      attrRef.setDataType(XSchema.STRING);
+      ConditionList conds = WorksheetMutationSupport.buildGroupConditionList(
+         XSchema.STRING, new ColumnRef(attrRef),
+         new WorksheetMutationSupport.GroupMapping("Northeast", List.of("NY", "NJ")), ws);
+      ngi.setGroupCondition("Northeast", conds);
+
+      DefaultNamedGroupAssembly nga = new DefaultNamedGroupAssembly(ws, name);
+      nga.setNamedGroupInfo(ngi);
+      nga.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+      nga.setAttachedSource(new SourceInfo(SourceInfo.MODEL, "Examples/Orders", "Order Model"));
+      nga.setAttachedAttribute(new ColumnRef(attrRef));
+      return nga;
    }
 
    @Test
