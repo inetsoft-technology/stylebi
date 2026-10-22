@@ -33,6 +33,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.text.DateFormat;
+import java.text.ParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -293,7 +295,8 @@ public class SelectionRuntimeService {
 
             if(assembly instanceof TimeSliderVSAssembly slider) {
                // Pure: depends only on the slider's own buckets and the requested values.
-               sliderRange = sliderBucketRange(assemblyName, bucketsOf(slider), values, clamped);
+               sliderRange = sliderBucketRange(assemblyName, bucketsOf(slider), slider.getTimeInfo(),
+                                               values, clamped);
             }
          }
 
@@ -449,9 +452,10 @@ public class SelectionRuntimeService {
                result.put("totalBuckets", after.length);
 
                if(!clamped.isEmpty()) {
-                  // A requested bound outside the slider's actual bucket range was silently
-                  // substituted with the nearest one -- disclose which, the same way
-                  // scopedBySearch discloses a write landing on a narrower scope than asked.
+                  // A requested bound landed on a bucket whose value is not the requested text
+                  // (clamped to the nearest bucket, or normalized from a label / date spelling)
+                  // -- disclose which, the same way scopedBySearch discloses a write landing on
+                  // a narrower scope than asked.
                   result.put("clampedBounds", clamped);
                }
             }
@@ -2479,17 +2483,20 @@ public class SelectionRuntimeService {
    /**
     * The result of resolving one requested Range Slider bound to a bucket: which index it landed
     * on, the bucket's own value (what actually gets applied), and whether that differs from what
-    * was requested (an out-of-range numeric bound clamped to the nearest bucket).
+    * was requested (an out-of-range bound clamped to the nearest bucket, or a label / date
+    * spelling normalized to the bucket it names).
     */
-   record BucketResolution(int index, String appliedValue, boolean clamped) {}
+   record BucketResolution(int index, String appliedValue, boolean adjusted) {}
 
    /**
     * Resolves every requested value into the {@code [start, end]} bucket-index range a Range
-    * Slider apply should select, collecting a disclosure entry for each bound that had to be
-    * clamped. {@code values} is one bucket-value per single-segment path -- a slider has no
-    * hierarchy, so anything longer is refused.
+    * Slider apply should select, collecting a disclosure entry for each bound that landed on a
+    * bucket other than its literal text. {@code values} is one bucket-value per single-segment
+    * path -- a slider has no hierarchy, so anything longer is refused. {@code tinfo} is the
+    * slider's own time info (null when unknown), which says whether its buckets are dates and at
+    * what level.
     */
-   static int[] sliderBucketRange(String assemblyName, SelectionValue[] buckets,
+   static int[] sliderBucketRange(String assemblyName, SelectionValue[] buckets, TimeInfo tinfo,
                                   List<List<String>> values, List<Map<String, Object>> clampedOut)
    {
       if(buckets.length == 0) {
@@ -2507,11 +2514,11 @@ public class SelectionRuntimeService {
                "must be a single bound, not a path of " + path.size() + ".");
          }
 
-         BucketResolution resolved = bucketIndex(assemblyName, buckets, path.get(0));
+         BucketResolution resolved = bucketIndex(assemblyName, buckets, tinfo, path.get(0));
          start = Math.min(start, resolved.index());
          end = Math.max(end, resolved.index());
 
-         if(resolved.clamped()) {
+         if(resolved.adjusted()) {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("requested", path.get(0));
             entry.put("applied", resolved.appliedValue());
@@ -2523,21 +2530,52 @@ public class SelectionRuntimeService {
    }
 
    /**
-    * Resolves one requested bound to a bucket index: an exact match against a bucket's own raw
-    * {@code SelectionValue.getValue()} first (the same value the assembly's own apply/clear paths
-    * compare, per {@code TimeSliderSelection.populateNumberList}/{@code populateDateList}); failing
-    * that, for a value that parses as a number, the numerically nearest bucket -- clamping an
-    * out-of-range bound to the slider's actual extent rather than refusing it, matching this file's
-    * existing forgiving-on-unambiguous-intent convention ({@link #requireSortOrder}'s aliases).
-    * Anything else (unparseable, no exact match) fails loud by name rather than silently landing on
-    * some default.
+    * Resolves one requested bound to a bucket index, in order: an exact match against a bucket's
+    * own raw {@code SelectionValue.getValue()} (the same value the assembly's own apply/clear paths
+    * compare, per {@code TimeSliderSelection.populateNumberList}/{@code populateDateList}); a
+    * unique match on the bucket's display label (a composite slider's "2024,Q2", a formatted
+    * number's "$350", a day slider's "2023-03-01"); for a date slider, the bucket period the
+    * requested date falls in; for a number, the numerically nearest bucket -- clamping an
+    * out-of-range bound to the slider's actual extent rather than refusing it, matching this
+    * file's existing forgiving-on-unambiguous-intent convention ({@link #requireSortOrder}'s
+    * aliases). Anything else fails loud by name, with a real bucket as the example, rather than
+    * silently landing on some default.
     */
    static BucketResolution bucketIndex(String assemblyName, SelectionValue[] buckets,
-                                       String requested)
+                                       TimeInfo tinfo, String requested)
    {
       for(int i = 0; i < buckets.length; i++) {
          if(buckets[i] != null && Tool.equals(requested, buckets[i].getValue())) {
             return new BucketResolution(i, buckets[i].getValue(), false);
+         }
+      }
+
+      int labelled = -1;
+
+      for(int i = 0; i < buckets.length; i++) {
+         if(buckets[i] != null && requested != null && requested.equals(buckets[i].getLabel())) {
+            if(labelled >= 0) {
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' has more than one bucket labelled '" + requested +
+                  "'. Use a bucket's value instead, e.g. '" + buckets[labelled].getValue() +
+                  "' (for a composite slider, join the column values with '::').");
+            }
+
+            labelled = i;
+         }
+      }
+
+      if(labelled >= 0) {
+         return new BucketResolution(labelled, buckets[labelled].getValue(), true);
+      }
+
+      // Only a single-column date slider has a level; a number slider on a non-date column and a
+      // composite slider (which has no level) never take the date path.
+      if(tinfo instanceof SingleTimeInfo single && single.isDateTime()) {
+         BucketResolution resolved = dateBucket(buckets, single.getRangeType(), requested);
+
+         if(resolved != null) {
+            return resolved;
          }
       }
 
@@ -2568,7 +2606,112 @@ public class SelectionRuntimeService {
       }
 
       throw new IllegalArgumentException(
-         "'" + assemblyName + "' has no bucket matching '" + requested + "'.");
+         "'" + assemblyName + "' has no bucket matching '" + requested + "'." +
+         bucketExamples(buckets, tinfo));
+   }
+
+   /**
+    * Resolves a date spelling to the bucket of the period it falls in: the bucket whose value is
+    * the requested date formatted with the slider's own value format, else (a strided slider whose
+    * buckets skip periods, or a date outside the range) the latest bucket not after it, or the
+    * first bucket when it precedes them all. Null when {@code requested} is not a date spelling.
+    */
+   private static BucketResolution dateBucket(SelectionValue[] buckets, int rangeType,
+                                              String requested)
+   {
+      Date target = SliderDateBound.resolve(requested, rangeType);
+
+      if(target == null) {
+         return null;
+      }
+
+      DateFormat format = SliderDateBound.valueFormat(rangeType);
+      String formatted = format.format(target);
+      Date targetDate;
+
+      try {
+         // Re-read through the format so a time-of-day target and its buckets share one date.
+         targetDate = format.parse(formatted);
+      }
+      catch(ParseException e) {
+         return null;
+      }
+
+      int enclosing = -1;
+      int first = -1;
+      Date enclosingDate = null;
+      Date firstDate = null;
+
+      for(int i = 0; i < buckets.length; i++) {
+         String value = buckets[i] == null ? null : buckets[i].getValue();
+
+         if(value == null) {
+            continue;
+         }
+
+         if(value.equals(formatted)) {
+            return new BucketResolution(i, value, true);
+         }
+
+         Date date;
+
+         try {
+            date = format.parse(value);
+         }
+         catch(ParseException e) {
+            continue;
+         }
+
+         if(firstDate == null || date.before(firstDate)) {
+            first = i;
+            firstDate = date;
+         }
+
+         if(!date.after(targetDate) && (enclosingDate == null || date.after(enclosingDate))) {
+            enclosing = i;
+            enclosingDate = date;
+         }
+      }
+
+      int index = enclosing >= 0 ? enclosing : first;
+      return index < 0 ? null : new BucketResolution(index, buckets[index].getValue(), true);
+   }
+
+   /** A real first and last bucket (value and label) to show a caller what a bound looks like. */
+   private static String bucketExamples(SelectionValue[] buckets, TimeInfo tinfo) {
+      SelectionValue first = null;
+      SelectionValue last = null;
+
+      for(SelectionValue bucket : buckets) {
+         if(bucket != null && bucket.getValue() != null) {
+            first = first == null ? bucket : first;
+            last = bucket;
+         }
+      }
+
+      if(first == null) {
+         return "";
+      }
+
+      StringBuilder sb = new StringBuilder(" Its buckets run from ").append(describeBucket(first));
+
+      if(last != first) {
+         sb.append(" to ").append(describeBucket(last));
+      }
+
+      sb.append('.');
+
+      if(tinfo instanceof CompositeTimeInfo) {
+         sb.append(" For a composite slider, join the column values with '::'.");
+      }
+
+      return sb.toString();
+   }
+
+   private static String describeBucket(SelectionValue bucket) {
+      String label = bucket.getLabel();
+      return "'" + bucket.getValue() + "'" +
+         (label == null || label.equals(bucket.getValue()) ? "" : " (label '" + label + "')");
    }
 
    private static Double parseNumeric(String value) {
