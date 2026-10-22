@@ -18,8 +18,10 @@
 package inetsoft.web.graph.model.dialog;
 
 import inetsoft.test.*;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VizContext;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -101,5 +103,24 @@ public class LegendFormatDialogModelTest {
       b.setSymbolRoundCorners(true);
 
       assertTrue(a.equalsContent(b));
+   }
+
+   @Test
+   public void aStylesheetGapLeavesTheBoxTicked() {
+      LegendsDescriptor legends = new LegendsDescriptor();
+      legends.setGap(20, CompositeValue.Type.CSS);
+
+      assertEquals(Boolean.TRUE,
+                   LegendFormatDialogModel.gapFollowsDefault(legends, VizContext.of(VizMark.MODERN_LIGHT)));
+   }
+
+   @Test
+   public void anAuthorZeroUnticksTheBox() {
+      LegendsDescriptor legends = new LegendsDescriptor();
+      legends.setGap(0);
+
+      assertEquals(Boolean.FALSE,
+                   LegendFormatDialogModel.gapFollowsDefault(legends, VizContext.of(VizMark.MODERN_LIGHT)));
+      assertNull(LegendFormatDialogModel.gapFollowsDefault(legends, VizContext.LEGACY));
    }
 }
