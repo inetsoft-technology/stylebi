@@ -91,6 +91,21 @@ public class TitleFormatDialogModelTest {
    }
 
    @Test
+   void aLegacyTitleTextEditDoesNotStoreTheGap() {
+      TitleDescriptor title = new TitleDescriptor();
+      title.setLabelGap(20, CompositeValue.Type.CSS);
+      TitleFormatDialogModel dialog = new TitleFormatDialogModel(title, "X", VizContext.LEGACY);
+
+      assertEquals(20, dialog.getTitleFormatPaneModel().getLabelGap());
+
+      dialog.getTitleFormatPaneModel().setTitle("Custom X Title");
+      dialog.updateTitleProperties(title, VizContext.LEGACY);
+
+      assertEquals("Custom X Title", title.getTitleValue());
+      assertFalse(title.hasLabelGapUserValue());
+   }
+
+   @Test
    void tickingTheBoxClearsOnlyTheGap() {
       TitleDescriptor title = new TitleDescriptor();
       title.setLabelGap(6);

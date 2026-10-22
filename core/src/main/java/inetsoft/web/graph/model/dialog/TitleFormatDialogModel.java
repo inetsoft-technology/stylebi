@@ -76,6 +76,8 @@ public class TitleFormatDialogModel implements Serializable {
    }
 
    public void updateTitleProperties(TitleDescriptor titleDesc, VizContext ctx) {
+      // taken before the title edit, which changes whether the title is custom
+      int shownGap = shownLabelGap(titleDesc, ctx);
       String title = titleFormatPaneModel.getTitle();
 
       if(!Objects.equals(title, this.oldTitle)) {
@@ -101,7 +103,7 @@ public class TitleFormatDialogModel implements Serializable {
 
       if(labelGapFollowsDefault == null) {
          // no checkbox was shown, so store only a real edit
-         if(titleFormatPaneModel.getLabelGap() != shownLabelGap(titleDesc, ctx)) {
+         if(titleFormatPaneModel.getLabelGap() != shownGap) {
             titleDesc.setLabelGap(titleFormatPaneModel.getLabelGap());
          }
       }
