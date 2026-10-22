@@ -1994,9 +1994,7 @@ public class VSObjectPropertyService {
       boolean toEmbedded = false;
 
       // convert embedded table to simple table
-      if(oinfo instanceof EmbeddedTableVSAssemblyInfo &&
-         !oinfo.isEmbeddedTable())
-      {
+      if(isEmbeddedToSimpleRequest(assembly.getInfo(), oinfo)) {
          newAssembly = VSEventUtil.createVSAssembly(rvs, Viewsheet.TABLE_VIEW_ASSET);
 
          if(newAssembly == null) {
@@ -2079,6 +2077,21 @@ public class VSObjectPropertyService {
       this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
 
       return true;
+   }
+
+   /**
+    * Check whether the requested table info asks to convert an embedded table to a simple table.
+    * The embedded flag of a freshly created embedded table assembly is false, so an embedded
+    * table info with the flag cleared is only a conversion request when the live assembly's own
+    * flag is set, i.e. when the flag is actually being changed (Bug #79076).
+    *
+    * @param liveInfo the info of the assembly currently in the viewsheet.
+    * @param oinfo    the requested table info.
+    */
+   static boolean isEmbeddedToSimpleRequest(AssemblyInfo liveInfo, TableVSAssemblyInfo oinfo) {
+      return oinfo instanceof EmbeddedTableVSAssemblyInfo && !oinfo.isEmbeddedTable() &&
+         liveInfo instanceof TableVSAssemblyInfo &&
+         ((TableVSAssemblyInfo) liveInfo).isEmbeddedTable();
    }
 
    /**
