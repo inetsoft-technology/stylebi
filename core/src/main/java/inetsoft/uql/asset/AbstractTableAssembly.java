@@ -1721,6 +1721,13 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
          renameExpressionDependeds(oname, nname);
          renameAggregateInfo(oname, nname);
       }
+      else {
+         // a named-group reference is keyed by the group assembly's name, not by an entity, so it
+         // must follow the rename on leaf tables too
+         for(GroupRef group : ginfo.getGroups()) {
+            group.renameDepended(oname, nname);
+         }
+      }
 
       renameConditionListWrapper(preconds, oname, nname, ws);
       renameConditionListWrapper(postconds, oname, nname, ws);

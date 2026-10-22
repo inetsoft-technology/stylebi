@@ -908,6 +908,53 @@ class WorksheetEditServiceTest {
    }
 
    /**
+    * Bug #79144: renaming a named group (rename_table) must keep a leaf table's GroupRef pointing
+    * at it, otherwise the editNamedGroup sweep (which matches by the new name) skips the GroupRef.
+    */
+   @Test
+   void editNamedGroupAfterRenameRefreshesStandaloneLeafTableGroupRef() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t1 = TestWorksheets.tableWithColumns(ws, "T1", "state");
+      ws.addAssembly(t1);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      svc.apply("TOK", agent,
+                ed -> ed.addNamedGroup("G", null, null, "string",
+                                       List.of(new WorksheetMutationSupport.GroupMapping(
+                                          "West", List.of("CA"))),
+                                       false));
+      svc.apply("TOK", agent,
+                ed -> ed.setGroupAggregate("T1",
+                   List.of(new WorksheetMutationSupport.GroupSpec("state", null, "G")),
+                   List.of()));
+      svc.apply("TOK", agent, ed -> ed.renameTable("G", "G2"));
+      svc.apply("TOK", agent,
+                ed -> ed.editNamedGroup("G2", null,
+                                        List.of(new WorksheetMutationSupport.GroupMapping(
+                                           "East", List.of("NY"))),
+                                        false));
+
+      GroupRef t1Group = ((TableAssembly) ws.getAssembly("T1")).getAggregateInfo().getGroups()[0];
+      assertEquals("G2", t1Group.getNamedGroupAssembly());
+      assertNull(t1Group.getNamedGroupInfo().getGroupCondition("West"));
+      assertNotNull(t1Group.getNamedGroupInfo().getGroupCondition("East"));
+   }
+
+   /**
     * Companion to {@link #editNamedGroupRefreshesStandaloneLeafTableGroupRefImmediately}: a
     * table that IS a JOIN sub-table already self-healed before this fix (incidentally, via
     * {@code refreshAssemblies}'s {@code checkValidity}/{@code getTableAssemblies} sweep of its
