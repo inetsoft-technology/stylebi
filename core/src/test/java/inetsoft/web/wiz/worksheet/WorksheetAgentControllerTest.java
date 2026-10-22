@@ -10388,6 +10388,100 @@ class WorksheetAgentControllerTest {
       }
    }
 
+   /**
+    * Bug #79062: a variable mirrored from another worksheet is declared under a hidden-copy
+    * assembly name (here OUTER1_0) that differs from the variable's own name (RATE), the name a
+    * `$(RATE)` reference carries. It must count as declared, not as undeclared.
+    */
+   @Test
+   void editSqlQueryEndpointTreatsAMirroredVariableAsDeclaredByItsOwnName() throws Exception {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly hiddenCopy = new DefaultVariableAssembly(ws, "OUTER1_0");
+      hiddenCopy.setVariable(new AssetVariable("RATE"));
+      ws.addAssembly(hiddenCopy);
+
+      WorksheetAgentController.SqlQueryResponse response =
+         editSqlQueryReportingVariables(ws, "RATE");
+
+      assertEquals(List.of(), response.undeclaredVariables());
+      assertEquals(List.of("RATE"), response.variablesNeedingValues());
+   }
+
+   @Test
+   void editSqlQueryEndpointStillReportsANameNoVariableDeclaresAsUndeclared() throws Exception {
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly hiddenCopy = new DefaultVariableAssembly(ws, "OUTER1_0");
+      hiddenCopy.setVariable(new AssetVariable("RATE"));
+      ws.addAssembly(hiddenCopy);
+
+      WorksheetAgentController.SqlQueryResponse response =
+         editSqlQueryReportingVariables(ws, "RATE", "typo");
+
+      assertEquals(List.of("typo"), response.undeclaredVariables());
+      assertEquals(List.of("RATE"), response.variablesNeedingValues());
+   }
+
+   /** Runs editSqlQuery on a worksheet whose variable collection reports the given names. */
+   private WorksheetAgentController.SqlQueryResponse editSqlQueryReportingVariables(
+      Worksheet ws, String... names) throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
+      ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
+      ws.addAssembly(sqlt);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      doNothing().when(box).refreshColumnSelection(eq("SqlTable1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-79062"), any())).thenReturn(session("TOK-79062"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      ColumnSelection newColumns = new ColumnSelection();
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "a")));
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(newColumns);
+
+      WorksheetAgentController ctrl = securityController(editSvc, mock(DataSourceService.class),
+         securityEngine, mock(MetadataApiService.class), mock(XRepository.class),
+         queryManagerService);
+
+      List<VariableAssemblyModelInfo> infos = new ArrayList<>();
+
+      for(String name : names) {
+         VariableAssemblyModelInfo info = new VariableAssemblyModelInfo();
+         info.setName(name);
+         infos.add(info);
+      }
+
+      WSCollectVariablesCommand command = WSCollectVariablesCommand.builder()
+         .varInfos(infos)
+         .build();
+
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(command);
+
+         return ctrl.editSqlQuery("TOK-79062",
+            new WorksheetAgentController.EditSqlQueryRequest("SqlTable1", "SELECT 1"), agent);
+      }
+   }
+
    // ---------------------------------------------------------------------------
    // editSqlQuery -- differentiated "no columns" guard message (bug #76500, WSQ-006)
    // ---------------------------------------------------------------------------
