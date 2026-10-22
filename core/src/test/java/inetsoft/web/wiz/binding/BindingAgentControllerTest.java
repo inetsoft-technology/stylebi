@@ -897,4 +897,28 @@ class BindingAgentControllerTest {
 
       verify(broadcast, never()).sendAgentInactive(any());
    }
+
+   // Bug #79022: a listed component is stored under its prefixed name, a worksheet table of the
+   // same name under its own.
+   @Test
+   void storedSourceKeepsTheKindOfTheListedTable() {
+      java.util.List<inetsoft.web.wiz.binding.model.BindableTable> listed = java.util.List.of(
+         new inetsoft.web.wiz.binding.model.BindableTable("T1", null, java.util.List.of()),
+         new inetsoft.web.wiz.binding.model.BindableTable(
+            "T1", null, java.util.List.of(), java.util.List.of(), "viewsheet"),
+         new inetsoft.web.wiz.binding.model.BindableTable("Plain", null, java.util.List.of()));
+
+      // a shared bare name is the worksheet table, as set_table_source resolves it; the
+      // prefixed name is the component (review r1 #3)
+      assertEquals("T1", BindingAgentController.storedSource(listed, "T1"));
+      assertEquals("T1", BindingAgentController.storedSource(
+         java.util.List.of(listed.get(1), listed.get(0)), "T1"));
+      assertEquals("__vs_assembly__T1",
+                   BindingAgentController.storedSource(listed, "__vs_assembly__T1"));
+      assertEquals("Plain", BindingAgentController.storedSource(listed, "Plain"));
+      assertEquals("__vs_assembly__Only", BindingAgentController.storedSource(
+         java.util.List.of(new inetsoft.web.wiz.binding.model.BindableTable(
+            "Only", null, java.util.List.of(), java.util.List.of(), "viewsheet")), "Only"));
+      assertNull(BindingAgentController.storedSource(listed, null));
+   }
 }

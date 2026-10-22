@@ -19,10 +19,12 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.BindableVSAssembly;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.DataVSAssembly;
 import inetsoft.uql.viewsheet.ListInputVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -72,6 +74,8 @@ public class BindableFieldsService {
       throws Exception
    {
       String source = null;
+      boolean sourceIsComponent = false;
+      boolean chart = false;
       String modelName = null;
       String treeScope = assembly;
 
@@ -88,6 +92,9 @@ public class BindableFieldsService {
          }
 
          source = sourceNameOf(target);
+         chart = target instanceof ChartVSAssembly;
+         sourceIsComponent = target instanceof DataVSAssembly data && data.getSourceInfo() != null &&
+            data.getSourceInfo().getType() == SourceInfo.VS_ASSEMBLY;
 
          // Bug #76607: a viewsheet-scoped calc field on a Logical Model is stored keyed by the
          // model's own name (Viewsheet.calcmap), not any one entity -- so it has no single entity
@@ -129,7 +136,25 @@ public class BindableFieldsService {
 
       addSkipped(tables, skipped);
 
-      return assembly == null ? tables : marked(tables, source);
+      if(chart) {
+         withoutComponents(tables, source, sourceIsComponent);
+      }
+
+      return assembly == null ? tables : marked(tables, source, sourceIsComponent);
+   }
+
+   /**
+    * Bug #79022: the agent tools bind a chart to a worksheet table or model only
+    * ({@code ChartBindingService.applySource} refuses a component), so a chart's listing does not
+    * offer the other components the shared tree lists; picking one would only be refused. A
+    * component the chart is already bound to (through the Composer) stays, so its current
+    * columns are still listed.
+    */
+   private static void withoutComponents(List<BindableTable> tables, String source,
+                                         boolean sourceIsComponent)
+   {
+      tables.removeIf(table -> table.isComponent() &&
+         !(sourceIsComponent && table.name().equalsIgnoreCase(source)));
    }
 
    /**
@@ -139,7 +164,8 @@ public class BindableFieldsService {
    private static void addSkipped(List<BindableTable> tables, Map<String, String> skipped) {
       skipped.forEach((name, reason) -> {
          if(tables.stream().noneMatch(t -> name.equalsIgnoreCase(t.name()))) {
-            tables.add(new BindableTable(name, null, List.of(), List.of(name + ": " + reason)));
+            tables.add(new BindableTable(name, null, List.of(), List.of(name + ": " + reason),
+                                         BindableTable.VIEWSHEET));
          }
       });
    }
@@ -149,7 +175,9 @@ public class BindableFieldsService {
       if(assembly instanceof DataVSAssembly data) {
          SourceInfo source = data.getSourceInfo();
 
-         return source == null || source.isEmpty() ? null : source.getSource();
+         // A component source is stored under its prefixed name; the listing names it bare.
+         return source == null || source.isEmpty() ? null :
+            BindingSources.displayName(source.getSource());
       }
 
       // Bug #78599: a ComboBox/RadioButton/CheckBox's table is its list-values binding;
@@ -216,7 +244,8 @@ public class BindableFieldsService {
          if(model.equalsIgnoreCase(seen.name())) {
             List<BindableField> all = new ArrayList<>(seen.fields());
             all.addAll(fields);
-            tables.set(i, new BindableTable(seen.name(), seen.current(), all, seen.warnings()));
+            tables.set(i, new BindableTable(seen.name(), seen.current(), all, seen.warnings(),
+                                            seen.sourceType()));
             return;
          }
       }
@@ -234,13 +263,19 @@ public class BindableFieldsService {
     * is accurate: nothing is live, and that is exactly the state where a shelf write would be
     * accepted and render nothing.
     */
-   private static List<BindableTable> marked(List<BindableTable> tables, String source) {
+   private static List<BindableTable> marked(List<BindableTable> tables, String source,
+                                             boolean sourceIsComponent)
+   {
       List<BindableTable> out = new ArrayList<>(tables.size());
 
       for(BindableTable table : tables) {
          // equalsIgnoreCase is null-safe on its argument, so a sourceless assembly yields false.
-         out.add(new BindableTable(table.name(), table.name().equalsIgnoreCase(source),
-                                   table.fields(), table.warnings()));
+         // A component and a worksheet table may share a name; only the one of the stored kind is
+         // the live source.
+         out.add(new BindableTable(table.name(),
+                                   table.name().equalsIgnoreCase(source) &&
+                                      table.isComponent() == sourceIsComponent,
+                                   table.fields(), table.warnings(), table.sourceType()));
       }
 
       return out;
@@ -281,7 +316,8 @@ public class BindableFieldsService {
             String model = modelOf(node);
 
             if(model == null) {
-               tables.add(new BindableTable(node.label(), null, fields));
+               tables.add(new BindableTable(node.label(), null, fields, List.of(),
+                                            isComponent(node) ? BindableTable.VIEWSHEET : null));
             }
             else {
                fold(tables, model, fields);
@@ -425,6 +461,16 @@ public class BindableFieldsService {
       }
 
       return new BindableField(column, dataTypeOf(node), roleOf(node));
+   }
+
+   /**
+    * Whether this table node is another component of the viewsheet, which
+    * {@code VSTreeHandler.appendVSAssemblyTree} puts under {@code /components/} with the
+    * {@code Assembly.TABLE_VS_BOUND} prefix on its path.
+    */
+   private boolean isComponent(TreeNodeModel node) {
+      return node.data() instanceof AssetEntry entry && entry.getPath() != null &&
+         entry.getPath().startsWith("/components/" + Assembly.TABLE_VS_BOUND);
    }
 
    /** Whether this node IS a source table, as opposed to a folder grouping one's columns. */

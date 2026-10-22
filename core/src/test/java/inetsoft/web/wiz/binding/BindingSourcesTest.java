@@ -55,4 +55,56 @@ class BindingSourcesTest {
       assertSame(empty, BindingSources.effective(empty, null));
       assertNull(BindingSources.effective(null, null));
    }
+
+   // Bug #79022: a viewsheet component is a VS_ASSEMBLY source under its prefixed name.
+   @Test
+   void storesAComponentAsAViewsheetAssemblySourceUnderItsPrefixedName() {
+      inetsoft.web.binding.model.SourceInfo source =
+         BindingSources.assetSource(BindingSources.componentSource("OrderLines2025"));
+
+      assertEquals(SourceInfo.VS_ASSEMBLY, source.getType());
+      assertEquals("__vs_assembly__OrderLines2025", source.getSource());
+      assertEquals("OrderLines2025", source.getView());
+   }
+
+   @Test
+   void storesAWorksheetTableAsAnAssetSourceEvenWhenNamedLikeAComponent() {
+      assertEquals(SourceInfo.ASSET, BindingSources.assetSource("OrderLines2025").getType());
+   }
+
+   @Test
+   void showsAComponentSourceWithoutItsStoragePrefix() {
+      assertEquals("OrderLines2025", BindingSources.displayName("__vs_assembly__OrderLines2025"));
+      assertEquals("Orders", BindingSources.displayName("Orders"));
+      assertNull(BindingSources.displayName(null));
+   }
+
+   @Test
+   void comparesSourcesByKindAndBareName() {
+      var component = BindingSources.assetSource("__vs_assembly__T1");
+
+      assertTrue(BindingSources.alreadyPointedAt(component, "__vs_assembly__t1"));
+      assertFalse(BindingSources.alreadyPointedAt(component, "T1"));
+      assertFalse(BindingSources.alreadyPointedAt(BindingSources.assetSource("T1"),
+                                                  "__vs_assembly__T1"));
+   }
+
+   @Test
+   void keepsTheComponentTypeWhenResolvingTheEffectiveSource() {
+      SourceInfo result = BindingSources.effective(
+         new SourceInfo(), BindingSources.assetSource("__vs_assembly__T1"));
+
+      assertEquals(SourceInfo.VS_ASSEMBLY, result.getType());
+      assertEquals("__vs_assembly__T1", result.getSource());
+   }
+
+   @Test
+   void aChartRefusesAComponentSourceInsteadOfStoringItAsAWorksheetTable() {
+      var model = new inetsoft.web.binding.model.ChartBindingModel();
+      var e = assertThrows(IllegalArgumentException.class,
+         () -> ChartBindingService.applySource(model, "__vs_assembly__T1"));
+
+      assertTrue(e.getMessage().contains("'T1'"));
+      assertNull(model.getSource());
+   }
 }

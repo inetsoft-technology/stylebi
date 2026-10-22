@@ -705,4 +705,69 @@ class BindableColumnsTest {
 
       assertEquals("anything", out.get(0).column());
    }
+
+   // Review r1 #3 (bug #79022): a worksheet table and a viewsheet component share a name. The
+   // bare name selects the worksheet table (as set_table_source does), the stored prefixed name
+   // selects the component, whichever is listed first.
+
+   private static List<BindableTable> clash(boolean componentFirst) {
+      BindableTable ws = new BindableTable("T1", null,
+         List.of(new BindableField("Region", null, null)));
+      BindableTable component = new BindableTable("T1", null,
+         List.of(new BindableField("Region", null, null), new BindableField("Total", null, null)),
+         List.of(), BindableTable.VIEWSHEET);
+      return componentFirst ? List.of(component, ws) : List.of(ws, component);
+   }
+
+   @Test
+   void anExplicitTableNameSelectsByKindWhenAWorksheetTableAndAComponentShareIt() {
+      for(boolean componentFirst : new boolean[] {true, false}) {
+         List<BindableTable> listed = clash(componentFirst);
+
+         assertEquals("T1", BindableColumns.requireSource(
+            listed, "Crosstab1", "T1", List.of(dim("Region"))));
+         assertEquals("__vs_assembly__T1", BindableColumns.requireSource(
+            listed, "Crosstab1", "__vs_assembly__T1", List.of(dim("Total"))));
+         // the stated worksheet table is checked against its own columns, not the component's
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> BindableColumns.requireSource(listed, "Crosstab1", "T1", List.of(dim("Total"))));
+         assertTrue(thrown.getMessage().contains("'Total' is not a column of 'T1'"),
+                    thrown.getMessage());
+      }
+   }
+
+   @Test
+   void anInferredClashNamesHowToPickTheComponent() {
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> BindableColumns.requireSource(clash(false), "Crosstab1", null,
+                                             List.of(dim("Region"))));
+
+      assertTrue(thrown.getMessage().contains("T1 (viewsheet component)"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'__vs_assembly__<name>'"), thrown.getMessage());
+   }
+
+   @Test
+   void aBareNameNoWorksheetTableHasSelectsTheComponent() {
+      List<BindableTable> listed = List.of(new BindableTable("T1", null,
+         List.of(new BindableField("Total", null, null)), List.of(), BindableTable.VIEWSHEET));
+
+      assertEquals("__vs_assembly__T1", BindableColumns.requireSource(
+         listed, "Crosstab1", "T1", List.of(dim("Total"))));
+   }
+
+   @Test
+   void aCrosstabBoundToAComponentAcceptsItsBareOrPrefixedName() {
+      List<BindableTable> listed = List.of(
+         new BindableTable("T1", null, List.of(new BindableField("Region", null, null))),
+         new BindableTable("T1", true, List.of(new BindableField("Total", null, null)),
+                           List.of(), BindableTable.VIEWSHEET));
+
+      assertNull(BindableColumns.requireSource(
+         listed, "Crosstab1", "__vs_assembly__T1", List.of(dim("Total"))));
+      // the bare name of the bound component is that component, not a repoint to the table
+      assertNull(BindableColumns.requireSource(
+         listed, "Crosstab1", "T1", List.of(dim("Total"))));
+      assertEquals("Total", BindableColumns.canonicalize(
+         listed, "Crosstab1", null, List.of(dim("total"))).get(0).column());
+   }
 }

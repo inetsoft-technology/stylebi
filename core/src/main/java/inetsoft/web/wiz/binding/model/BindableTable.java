@@ -36,16 +36,35 @@ import java.util.List;
  *                 instance a viewsheet component whose script failed so it has no runtime columns.
  *                 Omitted from the JSON when empty. A warned table means "columns unknown", not
  *                 "has no columns".
+ * @param sourceType {@code "viewsheet"} when this table is another component of the same
+ *                   viewsheet (a Table/Crosstab/Calc Table whose rendered output is bound as a
+ *                   source, the Composer's "Components" folder), and omitted for a worksheet table
+ *                   or model entity. The name alone cannot say which: a component and a worksheet
+ *                   table may share one, and each is stored as a different kind of source.
  */
 public record BindableTable(String name, Boolean current, List<BindableField> fields,
-                            @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> warnings)
+                            @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> warnings,
+                            @JsonInclude(JsonInclude.Include.NON_NULL) String sourceType)
 {
+   public static final String VIEWSHEET = "viewsheet";
+
    public BindableTable {
       warnings = warnings == null ? List.of() : List.copyOf(warnings);
    }
 
+   public BindableTable(String name, Boolean current, List<BindableField> fields,
+                        List<String> warnings)
+   {
+      this(name, current, fields, warnings, null);
+   }
+
    public BindableTable(String name, Boolean current, List<BindableField> fields) {
-      this(name, current, fields, List.of());
+      this(name, current, fields, List.of(), null);
+   }
+
+   /** Whether this table is another component of the viewsheet rather than a worksheet table. */
+   public boolean isComponent() {
+      return VIEWSHEET.equals(sourceType);
    }
 
    /** Whether this table's column list is known to be incomplete. */

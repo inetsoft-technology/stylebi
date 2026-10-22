@@ -71,6 +71,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -283,14 +284,14 @@ public class TableBindingService {
             "list_bindable_fields reports what this assembly can bind to.");
       }
 
-      return apply(sessionToken, user, assemblyName, model -> {
-         String resolved = resolveTable(model, table, assemblyName);
+      return applyWithRvs(sessionToken, user, assemblyName, (rvs, model) -> {
+         String resolved = resolveTable(rvs, model, table, assemblyName);
 
          if(!force) {
             requireNoBoundFields(model, assemblyName, resolved);
          }
          else {
-            discardBoundFields(model, resolved);
+            discardBoundFields(rvs, model, resolved);
          }
 
          // Only type, prefix and source survive the trip back: VSBindingService.updateSourceInfo
@@ -298,25 +299,33 @@ public class TableBindingService {
          // three. Setting them directly rather than through the SourceInfo(uql.SourceInfo)
          // convenience constructor also avoids that constructor's toView() call, which drags in
          // VSUtil for a display string nothing here reads.
-         SourceInfo source = new SourceInfo();
-         source.setType(inetsoft.uql.asset.SourceInfo.ASSET);
-         source.setSource(resolved);
-         source.setView(resolved);
-         model.setSource(source);
+         // A viewsheet component is stored under its prefixed name with the VS_ASSEMBLY type, as
+         // the Composer's own drop does; the crosstab/table apply that follows rebuilds the
+         // assembly from it.
+         model.setSource(BindingSources.assetSource(resolved));
       }, true);
    }
 
-   /** Matches a requested table against what the assembly can actually bind to. */
-   private static String resolveTable(BaseTableBindingModel model, String table,
-                                      String assemblyName)
+   /**
+    * Matches a requested table against what the assembly can actually bind to: a worksheet table,
+    * or else another component of the viewsheet that {@code list_bindable_fields} offers.
+    *
+    * @return the source to store; a component comes back under its prefixed storage name
+    */
+   private static String resolveTable(RuntimeViewsheet rvs, BaseTableBindingModel model,
+                                      String table, String assemblyName)
    {
       List<BindingModel.SourceTable> tables = model.getTables();
       List<String> names = new ArrayList<>();
 
-      if(tables != null) {
+      if(tables != null && !BindingSources.isComponent(table)) {
          for(BindingModel.SourceTable candidate : tables) {
             if(candidate.getName() != null) {
-               names.add(candidate.getName());
+               // The base worksheet also holds the engine's own tables for components already
+               // rendered; those are internal, and a component is offered by its bare name.
+               if(!BindingSources.isComponent(candidate.getName())) {
+                  names.add(candidate.getName());
+               }
 
                if(candidate.getName().equalsIgnoreCase(table)) {
                   return candidate.getName();
@@ -325,8 +334,17 @@ public class TableBindingService {
          }
       }
 
+      String component = BindingSources.findComponent(rvs, assemblyName, table);
+
+      if(component != null) {
+         return BindingSources.componentSource(component);
+      }
+
       throw new IllegalArgumentException(
-         "'" + assemblyName + "' cannot bind to '" + table + "'. Available: " + names + ". " +
+         "'" + assemblyName + "' cannot bind to '" + table + "'. Available worksheet tables: " +
+         names + ". Another Table/Crosstab/Calc Table of this viewsheet is also accepted by name " +
+         "(list_bindable_fields on this assembly lists them), unless it is this assembly itself, " +
+         "a chart, hidden, or already bound back to this assembly. " +
          "A source the assembly cannot see binds nothing and renders an empty assembly.");
    }
 
@@ -337,9 +355,7 @@ public class TableBindingService {
    private static void requireNoBoundFields(BaseTableBindingModel model, String assemblyName,
                                             String table)
    {
-      SourceInfo current = model.getSource();
-
-      if(current != null && table.equalsIgnoreCase(current.getSource())) {
+      if(BindingSources.alreadyPointedAt(model.getSource(), table)) {
          return;
       }
 
@@ -387,10 +403,10 @@ public class TableBindingService {
     * re-resolve it against (the same limitation {@link TableBindingMutator}'s context-less
     * {@code setShelf} overload already has everywhere else it is used).
     */
-   private static void discardBoundFields(BaseTableBindingModel model, String table) {
-      SourceInfo current = model.getSource();
-
-      if(current != null && table.equalsIgnoreCase(current.getSource())) {
+   private static void discardBoundFields(RuntimeViewsheet rvs, BaseTableBindingModel model,
+                                         String table)
+   {
+      if(BindingSources.alreadyPointedAt(model.getSource(), table)) {
          return;
       }
 
@@ -399,7 +415,7 @@ public class TableBindingService {
          return;
       }
 
-      List<String> availableColumns = columnsOf(model, table);
+      List<String> availableColumns = columnsOf(rvs, model, table);
       List<BAggregateRefModel> aggregatesBefore = model.getAggregates() == null
          ? List.of() : new ArrayList<>(model.getAggregates());
 
@@ -460,9 +476,23 @@ public class TableBindingService {
     * would still treat every field as unresolved whenever the new source itself is qualified and
     * the old field is not, silently degrading back to discarding everything.
     */
-   private static List<String> columnsOf(BaseTableBindingModel model, String table) {
+   private static List<String> columnsOf(RuntimeViewsheet rvs, BaseTableBindingModel model,
+                                         String table)
+   {
       List<String> names = new ArrayList<>();
       List<BindingModel.SourceTable> tables = model.getTables();
+
+      if(BindingSources.isComponent(table)) {
+         // A component's columns are the rendered header text of its output, the spelling
+         // list_bindable_fields reports; they are not among the worksheet's tables.
+         ColumnSelection columns = VSUtil.getColumnsForVSAssemblyBinding(rvs, table);
+
+         for(int i = 0; i < columns.getAttributeCount(); i++) {
+            names.add(columns.getAttribute(i).getName());
+         }
+
+         return names;
+      }
 
       if(tables != null) {
          for(BindingModel.SourceTable candidate : tables) {
@@ -2008,7 +2038,8 @@ public class TableBindingService {
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
       out.put("objectType", model instanceof CrosstabBindingModel ? "crosstab" : "table");
-      out.put("source", model.getSource() == null ? null : model.getSource().getSource());
+      out.put("source", model.getSource() == null ? null
+         : BindingSources.displayName(model.getSource().getSource()));
 
       // A sourceless assembly accepts shelf writes and renders nothing, with no error anywhere
       // to say why. Saying so on the read every caller is told to make first is the cheapest
@@ -2567,12 +2598,29 @@ public class TableBindingService {
                       boolean preservePercentageBy)
       throws Exception
    {
+      return applyWithRvs(sessionToken, user, assemblyName, (rvs, model) -> mutation.accept(model),
+                          allowCalcTable, preservePercentageBy);
+   }
+
+   private List<String> applyWithRvs(String sessionToken, Principal user, String assemblyName,
+                      BiConsumer<RuntimeViewsheet, BaseTableBindingModel> mutation,
+                      boolean allowCalcTable)
+      throws Exception
+   {
+      return applyWithRvs(sessionToken, user, assemblyName, mutation, allowCalcTable, true);
+   }
+
+   private List<String> applyWithRvs(String sessionToken, Principal user, String assemblyName,
+                      BiConsumer<RuntimeViewsheet, BaseTableBindingModel> mutation,
+                      boolean allowCalcTable, boolean preservePercentageBy)
+      throws Exception
+   {
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName, allowCalcTable);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
          String livePercentageBy = preservePercentageBy ? livePercentageByValue(assembly) : null;
          TableBindingMutator.drainNotes();
-         mutation.accept(model);
+         mutation.accept(rvs, model);
          relayNotes(assemblyName, dispatcher);
 
          if(preservePercentageBy) {

@@ -951,7 +951,7 @@ public class BindingAgentController {
             BindableColumns.canonicalize(tables, assembly, source, fields);
          BindableColumns.require(tables, assembly, repointTool, canonical);
 
-         return new Resolved(source, canonical);
+         return new Resolved(storedSource(tables, source), canonical);
       }
       catch(IllegalArgumentException e) {
          throw e;
@@ -960,6 +960,21 @@ public class BindingAgentController {
          LOG.debug("Could not list bindable columns for {}; skipping the check", assembly, e);
          return new Resolved(null, fields);
       }
+   }
+
+   /**
+    * The source string to store for a listed table: a viewsheet component is stored under its
+    * prefixed name with the VS_ASSEMBLY type, a worksheet table or model under its own name.
+    * A bare name a worksheet table and a component share is the worksheet table, as
+    * {@code set_table_source} resolves it; the prefixed name is the component.
+    */
+   static String storedSource(List<BindableTable> tables, String source) {
+      if(source == null) {
+         return null;
+      }
+
+      String key = BindableColumns.lookup(tables, source);
+      return key != null ? key : source;
    }
 
    /** The source to establish and the field list to store, spelled as the source spells them. */

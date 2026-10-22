@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.filter.ConditionGroup;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.report.internal.binding.SummaryAttr;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.JunctionOperator;
@@ -36,7 +37,9 @@ import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
@@ -64,12 +67,17 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /** Converts between StyleBI's ref models and the agent-facing {@link FieldRef}. */
 public final class FieldRefFactory {
    public static final String DIMENSION = "dimension";
    public static final String MEASURE = "measure";
 
    private static final List<String> TYPES = List.of(DIMENSION, MEASURE);
+
+   private static final Logger LOG = LoggerFactory.getLogger(FieldRefFactory.class);
 
    private FieldRefFactory() {
    }
@@ -209,8 +217,9 @@ public final class FieldRefFactory {
    public static String dimensionDataType(BindingModel model, RuntimeViewsheet rvs,
                                           SourceInfo source, String column)
    {
-      CalculateRef calc = findCalcField(model, rvs, source, column);
-      return calc != null ? calc.getDataType() : dataTypeOf(model, column);
+      // The bound source's own column first, as a measure's type is resolved: a component
+      // source (bug #79022) is not among the worksheet tables dataTypeOf scans.
+      return sourceColumnType(model, rvs, source, column);
    }
 
    /**
@@ -976,7 +985,8 @@ public final class FieldRefFactory {
          String dataType = found != null ? found.getDataType() : null;
 
          if(dataType == null) {
-            BindingModel.SourceTable bound = boundTable(model, effectiveSource(model, source));
+            BindingModel.SourceTable bound =
+               boundTable(model, rvs, effectiveSource(model, source));
             BindingModel.SourceTableColumn own =
                bound == null ? null : ownedColumn(bound, column);
             dataType = own != null ? own.getDataType() : dataTypeOf(model, column);
@@ -999,7 +1009,7 @@ public final class FieldRefFactory {
          return found.getDataType();
       }
 
-      BindingModel.SourceTable bound = boundTable(model, effectiveSource(model, source));
+      BindingModel.SourceTable bound = boundTable(model, rvs, effectiveSource(model, source));
       BindingModel.SourceTableColumn own = bound == null ? null : ownedColumn(bound, column);
       return own != null ? own.getDataType() : dataTypeOf(model, column);
    }
@@ -1123,6 +1133,65 @@ public final class FieldRefFactory {
       inetsoft.web.binding.model.SourceInfo modelSource =
          model == null ? null : model.getSource();
       return modelSource == null ? null : modelSource.getSource();
+   }
+
+   /**
+    * The bound source's columns: the worksheet table {@code name} names, or else, for another
+    * viewsheet component (bug #79022), that component's rendered output columns. A component's
+    * table is in {@code model.getTables()} only once the engine has already built its base table
+    * for some earlier render, so on a first bind it is not there and every column of it would
+    * read as untyped -- a numeric measure with no aggregate then defaulted to Count, not Sum.
+    */
+   private static BindingModel.SourceTable boundTable(BindingModel model, RuntimeViewsheet rvs,
+                                                      String name)
+   {
+      BindingModel.SourceTable table = boundTable(model, name);
+
+      if(table != null || rvs == null || !BindingSources.isComponent(name)) {
+         return table;
+      }
+
+      return componentTable(rvs, name);
+   }
+
+   /**
+    * A component source's columns, with their types, from the same lookup the Composer's own
+    * component binding and {@code list_bindable_fields} read
+    * ({@code VSUtil.getColumnsForVSAssemblyBinding}), or {@code null} when they cannot be read.
+    *
+    * @param name the component's stored, {@code __vs_assembly__}-prefixed source name.
+    */
+   static BindingModel.SourceTable componentTable(RuntimeViewsheet rvs, String name) {
+      if(rvs == null || rvs.getViewsheet() == null || name == null) {
+         return null;
+      }
+
+      ColumnSelection columns;
+
+      try {
+         columns = VSUtil.getColumnsForVSAssemblyBinding(rvs, name);
+      }
+      catch(RuntimeException e) {
+         ScriptTimeoutGuard.rethrowStop(e);
+         LOG.debug("Columns of component source {} could not be read", name, e);
+         return null;
+      }
+
+      if(columns == null) {
+         return null;
+      }
+
+      List<BindingModel.SourceTableColumn> out = new ArrayList<>();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef ref = columns.getAttribute(i);
+         out.add(new BindingModel.SourceTableColumn(ref.getName(), ref.getDataType()));
+      }
+
+      BindingModel.SourceTable table = new BindingModel.SourceTable();
+      table.setName(name);
+      table.setColumns(out);
+      return table;
    }
 
    private static BindingModel.SourceTable boundTable(BindingModel model, String name) {
