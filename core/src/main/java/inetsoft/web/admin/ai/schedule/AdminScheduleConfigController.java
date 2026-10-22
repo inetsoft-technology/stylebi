@@ -22,7 +22,6 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
-import inetsoft.web.admin.ai.ApplyResult;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -85,7 +84,7 @@ public class AdminScheduleConfigController {
       resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/settings",
       actions = ResourceAction.ACCESS))
    @PostMapping("/api/wiz/v1/admin/schedule/config/apply")
-   public ApplyResult apply(@RequestBody ScheduleConfigApplyRequest req, Principal user) throws Exception {
+   public ScheduleConfigApplyResult apply(@RequestBody ScheduleConfigApplyRequest req, Principal user) throws Exception {
       requireSiteAdmin(user);
       return applyService.apply(req, user);
    }
