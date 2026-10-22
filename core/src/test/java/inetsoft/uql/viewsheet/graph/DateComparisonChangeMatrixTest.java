@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.graph;
 
+import inetsoft.graph.EGraph;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphtDataSelector;
 import inetsoft.report.composition.graph.VGraphPair;
@@ -100,7 +101,19 @@ class DateComparisonChangeMatrixTest {
       public String toString() {
          return shape.id() + " " + weekStart + " end=" + endDay +
             (toDate ? " toDate" : "") + (inclusive ? " incl" : "") +
-            (option == DateComparisonInfo.PERCENT ? " percent" : " change");
+            (option == DateComparisonInfo.PERCENT ? " percent" :
+               option == DateComparisonInfo.CHANGE_VALUE ? " change+value" :
+               option == DateComparisonInfo.PERCENT_VALUE ? " percent+value" : " change");
+      }
+
+      boolean percent() {
+         return option == DateComparisonInfo.PERCENT || option == DateComparisonInfo.PERCENT_VALUE;
+      }
+
+      /** Change and value together: the value is plotted too, the Change on top of it. */
+      boolean valuePlus() {
+         return option == DateComparisonInfo.CHANGE_VALUE ||
+            option == DateComparisonInfo.PERCENT_VALUE;
       }
 
       /** Bug #79061 finding 5: these give a chart without a row. */
@@ -153,6 +166,12 @@ class DateComparisonChangeMatrixTest {
                                DateComparisonInfo.CHANGE));
             cases.add(new Case(shape, "sunday", "2021-11-10", false, false,
                                DateComparisonInfo.PERCENT));
+
+            // Change and Percent together with the value
+            cases.add(new Case(shape, "sunday", "2021-11-10", false, false,
+                               DateComparisonInfo.CHANGE_VALUE));
+            cases.add(new Case(shape, "sunday", "2021-11-10", false, false,
+                               DateComparisonInfo.PERCENT_VALUE));
          }
       }
 
@@ -293,6 +312,26 @@ class DateComparisonChangeMatrixTest {
       Map<String, Integer> rows = new HashMap<>();
       TreeMap<Long, Double> totals = new TreeMap<>();
       List<String> problems = new ArrayList<>();
+
+      // Change alone plots the Change; with the value, the value is plotted too and the Change
+      // on top of it, from the same data set
+      EGraph graph = pair.getEGraph();
+      List<String> plotted = new ArrayList<>();
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         for(int v = 0; v < graph.getElement(i).getVarCount(); v++) {
+            plotted.add(graph.getElement(i).getVar(v));
+         }
+      }
+
+      List<String> expectedPlotted = c.valuePlus() ?
+         List.of(data.getHeader(valueCol), data.getHeader(changeCol)) :
+         List.of(data.getHeader(changeCol));
+
+      if(!plotted.equals(expectedPlotted)) {
+         problems.add("plots " + plotted + ", expected " + expectedPlotted);
+      }
+
       long[] periodOf = new long[data.getRowCount()];
       String[] partOf = new String[data.getRowCount()];
 
@@ -343,7 +382,7 @@ class DateComparisonChangeMatrixTest {
          }
       }
 
-      boolean percent = c.option() == DateComparisonInfo.PERCENT;
+      boolean percent = c.percent();
       int judged = 0;
       int unjudged = 0;
 
