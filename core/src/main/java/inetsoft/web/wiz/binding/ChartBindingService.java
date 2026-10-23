@@ -505,7 +505,9 @@ public class ChartBindingService {
     * start/end/milestone. A null {@code field} clears it.
     *
     * <p>Goes through the same {@code changeChartRef} event as the list shelves, so the 13
-    * snapshotted aesthetic fields are preserved identically.
+    * snapshotted chart-level aesthetic fields are preserved identically. A Gantt start/milestone
+    * measure's own colour/shape/size/text fields are not chart-level; {@link
+    * ChartBindingMutator#setSingleShelf} carries them onto the replacement measure.
     */
    public List<String> setSingleShelf(String sessionToken, Principal user, String assemblyName,
                               String shelf, FieldRef field, String sourceTable, String linkUri)

@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.ChartBindingModel;
+import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticColorModel;
@@ -1208,6 +1209,94 @@ class ChartBindingMutatorTest {
       ChartBindingMutator.setSingleShelf(
          gantt, "start", measure("Price"), null, null, null, new GanttVSChartInfo());
       assertNotNull(ChartBindingMutator.readSingleShelf(gantt, "start"));
+   }
+
+   // ── Gantt start/milestone aesthetic fields (#79256) ───────────────────────
+
+   /** A shelf measure with colour/size/text fields, as {@code set_aesthetic_field} leaves it. */
+   private static AestheticInfo aestheticOn(String column) {
+      AestheticInfo info = new AestheticInfo();
+      info.setFullName(column);
+      return info;
+   }
+
+   private static ChartAggregateRefModel boundWithAesthetics(
+      ChartBindingModel model, String shelf, FieldRef field)
+   {
+      ChartBindingMutator.setSingleShelf(model, shelf, field);
+      ChartAggregateRefModel ref =
+         (ChartAggregateRefModel) ChartBindingMutator.readSingleShelf(model, shelf);
+      ref.setColorField(aestheticOn("PHASE"));
+      ref.setSizeField(aestheticOn("OWNER"));
+      ref.setTextField(aestheticOn("TASK"));
+      return ref;
+   }
+
+   private static void assertAestheticsCarried(
+      ChartAggregateRefModel before, ChartAggregateRefModel after)
+   {
+      assertNotSame(before, after);
+      assertSame(before.getColorField(), after.getColorField());
+      assertSame(before.getSizeField(), after.getSizeField());
+      assertSame(before.getTextField(), after.getTextField());
+      assertEquals("PHASE", after.getColorField().getFullName());
+   }
+
+   @Test
+   void replacingTheGanttStartMeasureKeepsItsAestheticFields() {
+      for(FieldRef replacement : List.of(
+         new FieldRef("START_DATE", "measure", "Max", null, null),
+         new FieldRef("START_DATE", "measure", "Min", null, null),
+         new FieldRef("OTHER_DATE", "measure", "Min", null, null)))
+      {
+         ChartBindingModel model = new ChartBindingModel();
+         ChartAggregateRefModel before = boundWithAesthetics(
+            model, "start", new FieldRef("START_DATE", "measure", "Min", null, null));
+
+         ChartBindingMutator.setSingleShelf(model, "start", replacement);
+
+         assertAestheticsCarried(
+            before, (ChartAggregateRefModel) ChartBindingMutator.readSingleShelf(model, "start"));
+      }
+   }
+
+   @Test
+   void replacingTheGanttMilestoneMeasureKeepsItsAestheticFields() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAggregateRefModel before = boundWithAesthetics(
+         model, "milestone", new FieldRef("DUE", "measure", "Min", null, null));
+
+      ChartBindingMutator.setSingleShelf(
+         model, "milestone", new FieldRef("DUE", "measure", "Max", null, null));
+
+      assertAestheticsCarried(
+         before, (ChartAggregateRefModel) ChartBindingMutator.readSingleShelf(model, "milestone"));
+   }
+
+   @Test
+   void replacingTheGanttEndMeasureLeavesItsRefFresh() {
+      ChartBindingModel model = new ChartBindingModel();
+      boundWithAesthetics(model, "end", new FieldRef("END_DATE", "measure", "Max", null, null));
+
+      ChartBindingMutator.setSingleShelf(
+         model, "end", new FieldRef("END_DATE", "measure", "Min", null, null));
+
+      ChartAggregateRefModel after =
+         (ChartAggregateRefModel) ChartBindingMutator.readSingleShelf(model, "end");
+      assertNull(after.getColorField(), "only start and milestone carry aesthetic fields");
+   }
+
+   @Test
+   void replacingABarYMeasureStillStartsFreshOnAestheticFields() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      ((ChartAggregateRefModel) model.getYFields().get(0)).setColorField(aestheticOn("PHASE"));
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Orders", "measure", "Count", null, null)));
+
+      assertNull(((ChartAggregateRefModel) model.getYFields().get(0)).getColorField());
    }
 
    // ── single shelf field kind (#78360) ──────────────────────────────────────
