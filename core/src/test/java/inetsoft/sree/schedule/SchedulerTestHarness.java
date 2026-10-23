@@ -61,6 +61,13 @@ public class SchedulerTestHarness implements AutoCloseable {
    private final ApplicationContext savedAppContext;
 
    public SchedulerTestHarness() throws Exception {
+      this("org.quartz.simpl.RAMJobStore");
+   }
+
+   /**
+    * @param jobStoreClass the Quartz job store class, a {@code RAMJobStore} or a subclass of it.
+    */
+   public SchedulerTestHarness(String jobStoreClass) throws Exception {
       // Real DAO backed by in-memory storage — package-private constructor accessible here
       InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
       dao = new ScheduleStatusDao(storage);
@@ -132,7 +139,7 @@ public class SchedulerTestHarness implements AutoCloseable {
       Properties props = new Properties();
       props.setProperty("org.quartz.scheduler.instanceName", "SchedulerTestHarness");
       props.setProperty("org.quartz.threadPool.threadCount", "4");
-      props.setProperty("org.quartz.jobStore.class", "org.quartz.simpl.RAMJobStore");
+      props.setProperty("org.quartz.jobStore.class", jobStoreClass);
       quartz = new StdSchedulerFactory(props).getScheduler();
       quartz.getListenerManager()
             .addJobListener(new JobCompletionListener("test-listener"));
