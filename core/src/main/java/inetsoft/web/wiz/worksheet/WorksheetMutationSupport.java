@@ -3561,13 +3561,13 @@ public final class WorksheetMutationSupport {
     * <p>Bug #79224: {@code "subquery"} pulls the value(s) from a column of ANOTHER table already
     * in this worksheet (StyleBI's native "Use a Subquery in a Condition" feature,
     * {@code SubqueryDialog}/{@link SubQueryValue}) -- a fixed single value or an
-    * {@code ONE_OF}/{@code NOT_ONE_OF} list of every value in {@code table}.
-    * {@code subqueryColumn}/{@code currentColumn} (both-or-neither) additionally correlate the
-    * subquery per current-table row, matching the native dialog's "Subquery column"/"Current
-    * table column" pair. {@code table}/{@code column}/{@code subqueryColumn}/
-    * {@code currentColumn} are Jackson-deserialized directly from the wire request body (see
-    * {@link EditRequest}), so these names are the actual wire contract, not an internal
-    * convenience -- they must stay in sync with {@code worksheetTools.ts}'s own schema and with
+    * {@code ONE_OF}/{@code NOT_ONE_OF} list of every value in {@code inSubQueryColumn}.
+    * {@code where}'s {@code subQueryColumn}/{@code currentTableColumn} (both-or-neither)
+    * additionally correlate the subquery per current-table row, matching the native dialog's
+    * "Subquery column"/"Current table column" pair. {@code subQueryName}/
+    * {@code inSubQueryColumn}/{@code where} are Jackson-deserialized directly from the wire
+    * request body (see {@link EditRequest}), so these names are the actual wire contract, not
+    * an internal convenience -- they must stay in sync with {@code worksheetTools.ts}'s own schema and with
     * {@code WorksheetModel.ValueSpecModel}'s matching fields on the read side.
     *
     * @param valueType      {@code "field"}, {@code "expression"}, or {@code "subquery"}
