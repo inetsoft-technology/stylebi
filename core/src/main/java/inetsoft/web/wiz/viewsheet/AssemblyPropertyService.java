@@ -314,6 +314,8 @@ public class AssemblyPropertyService {
          // Copied, not referenced: PropertyPath.set mutates the list-input editor in place.
          ListInputEditorGuard.Snapshot listEditorBefore =
             ListInputEditorGuard.snapshot(type, model);
+         Map<String, Object> patchGuardsBefore =
+            PatchGuards.snapshot(type, model, resolved.values());
 
          // PropertyPath.set returns the root the caller must keep using: if a future alias
          // ever targets a direct top-level field of an Immutables dialog model (no nested pane
@@ -350,6 +352,7 @@ public class AssemblyPropertyService {
          // Before the measure check, so a measure is never looked up against a table set the
          // patch is about to be refused for.
          SelectionSourceGuard.requireSourceUnchanged(type, sourceBefore, model);
+         PatchGuards.require(type, patchGuardsBefore, model);
          model = requireKnownSelectionMeasure(runtimeId, user, assemblyName, type, model,
                                               measureBefore);
          model = requireKnownSelectionFormula(assemblyName, type, model, formulaBefore);
