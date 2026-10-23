@@ -198,7 +198,7 @@ public class SelectionRuntimeService {
       final Map<String, Object> result = new LinkedHashMap<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
+         SelectionVSAssembly assembly = requireSelection(rvs, assemblyName, true);
          final Map<String, OtherSelection> othersBefore = snapshotOthers(rvs, assembly);
 
          if(assembly instanceof CalendarVSAssembly && (typedValues != null || hasDeselect)) {
@@ -619,7 +619,7 @@ public class SelectionRuntimeService {
       final Map<String, Object> result = new LinkedHashMap<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
+         SelectionVSAssembly assembly = requireSelection(rvs, assemblyName, true);
          final Map<String, OtherSelection> othersBefore = snapshotOthers(rvs, assembly);
          requireBoundColumn(assembly, assemblyName);
 
@@ -970,7 +970,7 @@ public class SelectionRuntimeService {
       final Map<String, Object> result = new LinkedHashMap<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
+         SelectionVSAssembly assembly = requireSelection(rvs, assemblyName, true);
          final Map<String, OtherSelection> othersBefore = snapshotOthers(rvs, assembly);
 
          if(!(assembly instanceof SelectionTreeVSAssembly)) {
@@ -1190,7 +1190,7 @@ public class SelectionRuntimeService {
    {
       requireName(assemblyName);
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
-      SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
+      SelectionVSAssembly assembly = requireSelection(rvs, assemblyName, true);
 
       if(assembly instanceof TimeSliderVSAssembly) {
          throw new IllegalArgumentException(
@@ -1292,6 +1292,17 @@ public class SelectionRuntimeService {
     * second copy that could drift.
     */
    public static SelectionVSAssembly requireSelection(RuntimeViewsheet rvs, String assemblyName) {
+      return requireSelection(rvs, assemblyName, false);
+   }
+
+   /**
+    * @param inputValueHint true on the value-oriented paths (set/clear/subtree/state), where a Form
+    *                       input is refused with a pointer to {@code set_input_value}; false on the
+    *                       binding path, where that tool would be the wrong advice.
+    */
+   public static SelectionVSAssembly requireSelection(RuntimeViewsheet rvs, String assemblyName,
+                                                      boolean inputValueHint)
+   {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
@@ -1305,7 +1316,9 @@ public class SelectionRuntimeService {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' is a " + assembly.getClass().getSimpleName() +
             ", not a selection assembly. Selections exist on selection lists, selection trees and " +
-            "range sliders.");
+            "range sliders." +
+            (inputValueHint && assembly instanceof InputVSAssembly ?
+               " '" + assemblyName + "' is a Form input; set its value with set_input_value." : ""));
       }
 
       return selection;
