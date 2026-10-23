@@ -30,8 +30,8 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.function.Predicate;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -125,13 +125,11 @@ public final class DcDays {
 
    /** The same days found by evaluating the condition list on every day, to check {@link #kept}. */
    public static List<LocalDate> keptDayByDay(DateComparisonInfo dc, LocalDate from, LocalDate to) {
-      ColumnRef ref = new ColumnRef(new AttributeRef(null, "Order Date"));
-      ref.setDataType(XSchema.DATE);
-      ConditionGroup group = new ConditionGroup(dc.getDateComparisonConditions(ref));
+      Predicate<Date> keeps = keeps(dc);
       List<LocalDate> days = new ArrayList<>();
 
       for(LocalDate day = from; !day.isAfter(to); day = day.plusDays(1)) {
-         if(group.evaluate(new Object[] { DcPeriods.toDate(day) })) {
+         if(keeps.test(DcPeriods.toDate(day))) {
             days.add(day);
          }
       }
