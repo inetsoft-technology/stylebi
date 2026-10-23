@@ -56,16 +56,56 @@ class CalendarInputServiceTest {
    @Test
    void refusesRangeComparisonWithoutDoubleCalendar() {
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> CalendarDisplayService.plan(false, false, false, false, null, null, true, "Cal1"));
+         () -> CalendarDisplayService.plan(false, false, false, false, null, null, true, true, "Cal1"));
 
       assertTrue(e.getMessage().contains("double-calendar"), e.getMessage());
+   }
+
+   /**
+    * The Composer hides the comparison toggle while {@code calendar.dateCompare.enabled} is false,
+    * but the service behind it does not check, so turning the mode on is refused here, before any
+    * toggle is applied.
+    */
+   @Test
+   void refusesRangeComparisonWhenTheServerHidesIt() {
+      Exception alone = assertThrows(IllegalArgumentException.class,
+         () -> CalendarDisplayService.plan(true, false, false, false, null, null, true, false, "Cal1"));
+      assertTrue(alone.getMessage().contains("calendar.dateCompare.enabled"), alone.getMessage());
+      assertTrue(alone.getMessage().contains("set_date_comparison"), alone.getMessage());
+
+      Exception withDouble = assertThrows(IllegalArgumentException.class,
+         () -> CalendarDisplayService.plan(false, false, false, false, null, true, true, false, "Cal1"));
+      assertTrue(withDouble.getMessage().contains("calendar.dateCompare.enabled"),
+                 withDouble.getMessage());
+   }
+
+   /** The property message wins over the double-calendar one: that advice could not succeed. */
+   @Test
+   void reportsTheDisabledPropertyBeforeTheDoubleCalendarRequirement() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> CalendarDisplayService.plan(false, false, false, false, null, null, true, false, "Cal1"));
+
+      assertTrue(e.getMessage().contains("calendar.dateCompare.enabled"), e.getMessage());
+   }
+
+   /** Switching the mode off, or leaving it on when it already is, stays allowed. */
+   @Test
+   void stillAllowsRangeComparisonThatDoesNotTurnItOn() {
+      CalendarDisplayService.DisplayPlan off =
+         CalendarDisplayService.plan(true, false, true, false, null, null, false, false, "Cal1");
+      assertTrue(off.setRange());
+      assertFalse(off.rangeValue());
+
+      CalendarDisplayService.DisplayPlan stays =
+         CalendarDisplayService.plan(true, false, true, false, null, null, true, false, "Cal1");
+      assertFalse(stays.setRange(), "already in comparison mode: nothing to do, nothing refused");
    }
 
    /** Asking for both in one call is legal, and the plan orders double before range. */
    @Test
    void allowsRangeComparisonWhenTheSameCallTurnsOnDoubleCalendar() {
       CalendarDisplayService.DisplayPlan plan =
-         CalendarDisplayService.plan(false, false, false, false, null, true, true, "Cal1");
+         CalendarDisplayService.plan(false, false, false, false, null, true, true, true, "Cal1");
 
       assertTrue(plan.setDouble(), "double calendar must be applied");
       assertTrue(plan.doubleValue());
@@ -77,7 +117,7 @@ class CalendarInputServiceTest {
    @Test
    void refusesRangeComparisonWhileSwitchingToASingleCalendar() {
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> CalendarDisplayService.plan(true, false, false, false, null, false, true, "Cal1"));
+         () -> CalendarDisplayService.plan(true, false, false, false, null, false, true, true, "Cal1"));
 
       assertTrue(e.getMessage().contains("single calendar"), e.getMessage());
    }
@@ -90,11 +130,11 @@ class CalendarInputServiceTest {
     */
    @Test
    void reportsThatChangingTheDisplayClearedTheDates() {
-      assertTrue(CalendarDisplayService.plan(false, false, false, true, true, null, null, "Cal1")
+      assertTrue(CalendarDisplayService.plan(false, false, false, true, true, null, null, true, "Cal1")
                     .sideEffects().contains("the selected dates were cleared"),
                  "a year-view change clears the dates");
 
-      assertTrue(CalendarDisplayService.plan(false, false, false, true, null, true, null, "Cal1")
+      assertTrue(CalendarDisplayService.plan(false, false, false, true, null, true, null, true, "Cal1")
                     .sideEffects().contains("the selected dates were cleared"),
                  "so does a double-calendar change");
    }
@@ -102,7 +142,7 @@ class CalendarInputServiceTest {
    /** With nothing selected there is nothing to lose, and it must not claim otherwise. */
    @Test
    void doesNotClaimClearedDatesWhenNoneWereSelected() {
-      assertFalse(CalendarDisplayService.plan(false, false, false, false, true, null, null, "Cal1")
+      assertFalse(CalendarDisplayService.plan(false, false, false, false, true, null, null, true, "Cal1")
                      .sideEffects().contains("the selected dates were cleared"));
    }
 
@@ -110,7 +150,7 @@ class CalendarInputServiceTest {
    @Test
    void reportsTheClearedDatesOnlyOnce() {
       List<String> effects =
-         CalendarDisplayService.plan(false, false, false, true, true, true, null, "Cal1")
+         CalendarDisplayService.plan(false, false, false, true, true, true, null, true, "Cal1")
             .sideEffects();
 
       assertEquals(1, effects.stream().filter(e -> e.contains("dates were cleared")).count(),
@@ -120,17 +160,17 @@ class CalendarInputServiceTest {
    /** Turning on double calendar also forces submit-on-change off and doubles the width. */
    @Test
    void reportsTheWidthAndSubmitOnChangeEffectsOfDoubleCalendar() {
-      assertTrue(CalendarDisplayService.plan(false, false, false, false, null, true, null, "Cal1")
+      assertTrue(CalendarDisplayService.plan(false, false, false, false, null, true, null, true, "Cal1")
                     .sideEffects().stream().anyMatch(e -> e.contains("widened")));
    }
 
    /** Turning it off silently turns range comparison off with it — but only if it was on. */
    @Test
    void reportsThatLeavingDoubleCalendarTurnsOffRangeComparison() {
-      assertTrue(CalendarDisplayService.plan(true, false, true, false, null, false, null, "Cal1")
+      assertTrue(CalendarDisplayService.plan(true, false, true, false, null, false, null, true, "Cal1")
                     .sideEffects().contains("range comparison was turned off"));
 
-      assertFalse(CalendarDisplayService.plan(true, false, false, false, null, false, null, "Cal1")
+      assertFalse(CalendarDisplayService.plan(true, false, false, false, null, false, null, true, "Cal1")
                      .sideEffects().contains("range comparison was turned off"),
                   "nothing to turn off when period was already false");
    }
@@ -139,7 +179,7 @@ class CalendarInputServiceTest {
    @Test
    void planNothingWhenTheDisplayAlreadyMatches() {
       CalendarDisplayService.DisplayPlan plan =
-         CalendarDisplayService.plan(false, true, false, false, true, false, null, "Cal1");
+         CalendarDisplayService.plan(false, true, false, false, true, false, null, true, "Cal1");
 
       assertFalse(plan.setDouble());
       assertFalse(plan.setYearView());
