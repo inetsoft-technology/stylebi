@@ -5398,6 +5398,96 @@ class WorksheetAgentControllerTest {
       verify(box).reset();
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug #79223 -- edit_join takes an edge selector and remove_join_edge is routed
+   // ---------------------------------------------------------------------------
+
+   private WorksheetAgentController joinEdgeController(String token, Worksheet ws) throws Exception {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq(token), any())).thenReturn(session(token));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         new InnerJoinService(null, null));
+
+      return controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), editSvc,
+         mock(WorksheetService.class));
+   }
+
+   private static Worksheet chainTables79223() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "A", "a1", "a2"));
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "B", "b1", "b2"));
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "C", "c1"));
+      return ws;
+   }
+
+   /** J = A-B on a1=b1 and a2=b2, B-C on b1=c1, all INNER, built through the add_join op. */
+   private void addChainJoin79223(WorksheetAgentController ctrl, String token, Principal agent)
+      throws Exception
+   {
+      ctrl.edit(token, joinEdgeRequest(
+         "{\"op\":\"add_join\",\"name\":\"J\",\"joinPaths\":[" +
+         "{\"leftTable\":\"A\",\"leftKey\":\"a1\",\"rightTable\":\"B\",\"rightKey\":\"b1\",\"joinType\":\"INNER\"}," +
+         "{\"leftTable\":\"A\",\"leftKey\":\"a2\",\"rightTable\":\"B\",\"rightKey\":\"b2\",\"joinType\":\"INNER\"}," +
+         "{\"leftTable\":\"B\",\"leftKey\":\"b1\",\"rightTable\":\"C\",\"rightKey\":\"c1\",\"joinType\":\"INNER\"}]}"),
+         agent);
+   }
+
+   private static EditRequest joinEdgeRequest(String json) throws Exception {
+      return new com.fasterxml.jackson.databind.ObjectMapper().readValue(json, EditRequest.class);
+   }
+
+   @Test
+   void editJoinRoutesTheEdgeSelectorToTheNamedPair() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = chainTables79223();
+      WorksheetAgentController ctrl = joinEdgeController("TOK-79223A", ws);
+      addChainJoin79223(ctrl, "TOK-79223A", agent);
+      RelationalJoinTableAssembly join = (RelationalJoinTableAssembly) ws.getAssembly("J");
+
+      ctrl.edit("TOK-79223A", joinEdgeRequest(
+         "{\"op\":\"edit_join\",\"name\":\"J\",\"joinType\":\"LEFT\"," +
+         "\"leftTable\":\"C\",\"rightTable\":\"B\"}"), agent);
+
+      assertEquals(TableAssemblyOperator.RIGHT_JOIN,
+                   join.getOperator("B", "C").getOperator(0).getOperation(),
+                   "C LEFT B is stored as B RIGHT C");
+      assertEquals(TableAssemblyOperator.INNER_JOIN,
+                   join.getOperator("A", "B").getOperator(0).getOperation(),
+                   "the other pair must not change");
+      assertThrows(PairingException.class, () -> ctrl.edit("TOK-79223A", joinEdgeRequest(
+         "{\"op\":\"edit_join\",\"name\":\"J\",\"joinType\":\"LEFT\"}"), agent),
+         "no selector on a two-edge join must be refused");
+   }
+
+   @Test
+   void removeJoinEdgeIsRoutedAndDropsOneKey() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = chainTables79223();
+      WorksheetAgentController ctrl = joinEdgeController("TOK-79223B", ws);
+      addChainJoin79223(ctrl, "TOK-79223B", agent);
+      RelationalJoinTableAssembly join = (RelationalJoinTableAssembly) ws.getAssembly("J");
+
+      ctrl.edit("TOK-79223B", joinEdgeRequest(
+         "{\"op\":\"remove_join_edge\",\"name\":\"J\",\"leftTable\":\"A\"," +
+         "\"rightTable\":\"B\",\"leftKey\":\"a2\",\"rightKey\":\"b2\"}"), agent);
+
+      assertEquals(1, join.getOperator("A", "B").getOperatorCount());
+      assertEquals("a1", join.getOperator("A", "B").getOperator(0).getLeftAttribute().getAttribute());
+      assertNotNull(join.getOperator("B", "C"));
+      assertSame(join, ws.getAssembly("J"));
+   }
+
    @Test
    void removeJoinOfVariableDropsRuntimeValue() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");

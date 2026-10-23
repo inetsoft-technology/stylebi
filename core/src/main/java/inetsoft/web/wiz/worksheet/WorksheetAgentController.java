@@ -4074,9 +4074,13 @@ public class WorksheetAgentController {
             editor.editExpression(req.table(), req.name(), req.expression(),
                                   req.type(), req.sql());
          }
+         // edit_join/remove_join_edge reuse leftTable/rightTable as the optional edge selector.
          case "edit_join" ->
             editor.editJoin(req.name(), req.leftKey(), req.rightKey(), req.joinType(),
-                            req.leftKeys(), req.rightKeys());
+                            req.leftKeys(), req.rightKeys(), req.leftTable(), req.rightTable());
+         case "remove_join_edge" ->
+            editor.removeJoinEdge(req.name(), req.leftTable(), req.rightTable(),
+                                  req.leftKey(), req.rightKey());
          // add_table_to_join reuses add_join's fields with a different meaning: leftTable/
          // leftKey(s) name the EXISTING join's own source (not a new one), rightTable/rightKey(s)
          // name the table being added. Safe to reuse -- this switch keys strictly on req.op(), so

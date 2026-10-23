@@ -2840,26 +2840,52 @@ public class WorksheetEditService {
       }
 
       /**
-       * Replaces the key columns and join type of an existing two-table join assembly,
-       * keeping the same source tables.
+       * Edits ONE edge of an existing join assembly in place -- its join type, its key columns,
+       * or both -- without touching any other edge.
        *
-       * <p>Supports both single-key ({@code leftKey}/{@code rightKey}) and multi-key
-       * ({@code leftKeys}/{@code rightKeys}) joins. When the list parameters are provided
-       * they take precedence and fully replace all key pairs on the first operator.</p>
+       * <p>An <i>edge</i> is one stored (left table, right table) pair of the join. It is
+       * selected with {@code edgeLeft}/{@code edgeRight}, in either order: the pair is resolved
+       * by walking the STORED pairs, forward or reversed, and a reversed match mirrors LEFT and
+       * RIGHT so the caller's meaning is kept. The join is always read back in its stored
+       * orientation, so a caller's {@code (B, A) LEFT} reads back as {@code A RIGHT B}.</p>
+       *
+       * <p>Without a selector a one-edge join keeps its old behavior; a join with 2+ edges is
+       * refused (the edit used to land on whichever pair came first in hash order) and the
+       * candidate edges are listed.</p>
+       *
+       * <p>A join-type change sets {@code operation} only on the equi-type operators
+       * (INNER/LEFT/RIGHT/FULL) of that pair, exactly like the Composer's own
+       * {@code EquiJoinService.setEquiJoin}, so non-equi operators (&gt;, &lt;, !=) of the pair
+       * are preserved. A pair holding only non-equi operators is refused. New keys replace the
+       * WHOLE key list of the pair: {@code leftKey}/{@code rightKey} with a selector leave one
+       * key; {@code leftKeys}/{@code rightKeys} set the list. Key changes also replace the
+       * pair's non-equi operators. Other pairs are never rewritten.</p>
+       *
+       * <p>A CROSS pair can only be re-keyed (new keys, which turn it into a keyed join);
+       * without keys it is refused, so this op never yields a key-less INNER. {@code CROSS} on a
+       * join with several edges is refused; use remove_join_edge or rebuild. With a selector, or
+       * on any multi-edge join, an edit that changes nothing (same stored type after mirroring
+       * and same keys in order) is refused instead of silently succeeding.</p>
        *
        * @param name      the join assembly name
        * @param leftKey   the new left-side key column (single-key fallback)
        * @param rightKey  the new right-side key column (single-key fallback)
-       * @param joinType  new join type — {@code "INNER"}, {@code "LEFT"}, {@code "RIGHT"},
+       * @param joinType  new join type -- {@code "INNER"}, {@code "LEFT"}, {@code "RIGHT"},
        *                  {@code "FULL"}, {@code "CROSS"} (case-insensitive; defaults to
        *                  {@code "INNER"}). {@code "CROSS"} requires the same CROSS_JOIN
        *                  permission as {@link #addCrossJoin}.
-       * @throws PairingException if the assembly is not found or has no operators
+       * @param leftKeys  multi-key left columns, take precedence over {@code leftKey}
+       * @param rightKeys multi-key right columns, take precedence over {@code rightKey}
+       * @param edgeLeft  left table of the edge to edit (optional, with {@code edgeRight})
+       * @param edgeRight right table of the edge to edit (optional, with {@code edgeLeft})
+       * @throws PairingException if the assembly is not found, has no operators, the edge is
+       *                          missing or ambiguous, or the edit is refused as described above
        * @throws SecurityException if changing to a cross join and the caller lacks
        *                           CROSS_JOIN permission
        */
       public void editJoin(String name, String leftKey, String rightKey, String joinType,
-                           List<String> leftKeys, List<String> rightKeys)
+                           List<String> leftKeys, List<String> rightKeys,
+                           String edgeLeft, String edgeRight)
          throws PairingException, SecurityException
       {
          Assembly a = ws.getAssembly(name);
@@ -2875,85 +2901,558 @@ public class WorksheetEditService {
             throw new PairingException("Join assembly not found: " + name);
          }
 
-         @SuppressWarnings("unchecked")
-         Enumeration<TableAssemblyOperator> iter =
-            (Enumeration<TableAssemblyOperator>) join.getOperators();
+         List<String[]> pairs = storedJoinPairs(join);
 
-         if(!iter.hasMoreElements()) {
+         if(pairs.isEmpty()) {
             throw new PairingException("Join assembly has no operators: " + name);
          }
 
-         TableAssemblyOperator top = iter.nextElement();
+         boolean selector = edgeLeft != null || edgeRight != null;
+         JoinEdge edge;
 
-         if(top.getOperatorCount() == 0) {
+         if(selector) {
+            edge = requireJoinEdge(join, pairs, edgeLeft, edgeRight);
+         }
+         else if(pairs.size() > 1) {
+            throw new PairingException(
+               "\"" + name + "\" has " + pairs.size() + " edges: " + describeJoinEdges(join, pairs) +
+               "; pass leftTable and rightTable to say which edge to edit.");
+         }
+         else {
+            edge = new JoinEdge(pairs.get(0)[0], pairs.get(0)[1],
+                                join.getOperator(pairs.get(0)[0], pairs.get(0)[1]), false);
+         }
+
+         TableAssemblyOperator stored = edge.top();
+
+         if(stored.getOperatorCount() == 0) {
             throw new PairingException("Join assembly has no key pairs: " + name);
          }
 
-         // Preserve the existing left/right table names.
-         TableAssemblyOperator.Operator existing = top.getOperator(0);
-         String leftTable  = existing.getLeftTable();
-         String rightTable = existing.getRightTable();
          int operation = parseJoinType(joinType);
+         boolean cross = operation == TableAssemblyOperator.CROSS_JOIN;
+         String label = edge.label();
+
+         if(operation == TableAssemblyOperator.MERGE_JOIN) {
+            throw new PairingException(
+               "edit_join does not support joinType \"MERGE\" -- rows are paired by position; " +
+               "use add_merge_join instead.");
+         }
+
+         if(cross && pairs.size() > 1) {
+            throw new PairingException(
+               "Cannot make edge " + label + " a CROSS join: \"" + name + "\" has " +
+               pairs.size() + " edges (" + describeJoinEdges(join, pairs) + ") and a cross join " +
+               "must be the only edge. Use remove_join_edge to drop the edge instead.");
+         }
 
          // Changing an existing join into a cross join is as sensitive as creating
          // one, so it must clear the same permission gate as addCrossJoin(); otherwise
          // a caller denied CROSS_JOIN could add an INNER join and then edit it to CROSS.
-         if(operation == TableAssemblyOperator.CROSS_JOIN) {
+         if(cross) {
             requirePermission(ResourceType.CROSS_JOIN);
          }
 
-         // Build a replacement operator with updated keys and join type.
-         TableAssemblyOperator newTop = new TableAssemblyOperator();
+         boolean storedCross = stored.getOperator(0).isCrossJoin();
+         boolean listKeys = leftKeys != null && rightKeys != null && !leftKeys.isEmpty();
+         boolean newKeys = listKeys || (leftKey != null && rightKey != null);
 
-         if(leftKeys != null && rightKeys != null && !leftKeys.isEmpty()) {
-            int count = Math.min(leftKeys.size(), rightKeys.size());
+         // The pair is stored as (edge.left, edge.right); the caller's join type and key sides are
+         // relative to (edgeLeft, edgeRight), so a reversed match flips them.
+         int storedOp = edge.reversed() ? mirrorJoinOperation(operation) : operation;
+
+         if(cross && storedCross) {
+            if(selector) {
+               throw new PairingException("edge " + label + " is already CROSS; nothing to change");
+            }
+
+            return;
+         }
+
+         if(storedCross && !newKeys) {
+            throw new PairingException(
+               "Edge " + label + " is a CROSS join with no keys; edit_join cannot turn it into a " +
+               "keyed join without new leftKey/rightKey. Pass the key columns, or remove_join and " +
+               "rebuild.");
+         }
+
+         if(cross) {
+            TableAssemblyOperator newTop = new TableAssemblyOperator();
+            TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+            op.setLeftTable(edge.left());
+            op.setRightTable(edge.right());
+            op.setOperation(TableAssemblyOperator.CROSS_JOIN);
+            newTop.addOperator(op);
+            join.setOperator(edge.left(), edge.right(), newTop);
+            return;
+         }
+
+         if(newKeys) {
+            List<String> callerLeft = listKeys ? leftKeys : List.of(leftKey);
+            List<String> callerRight = listKeys ? rightKeys : List.of(rightKey);
+            int count = Math.min(callerLeft.size(), callerRight.size());
+            TableAssembly leftAssembly = requireTable(edge.left());
+            TableAssembly rightAssembly = requireTable(edge.right());
+            TableAssemblyOperator newTop = new TableAssemblyOperator();
 
             for(int i = 0; i < count; i++) {
+               String storedLeftKey = edge.reversed() ? callerRight.get(i) : callerLeft.get(i);
+               String storedRightKey = edge.reversed() ? callerLeft.get(i) : callerRight.get(i);
+
+               if(WorksheetMutationSupport.resolveJoinKey(leftAssembly, storedLeftKey) == null) {
+                  throw new PairingException(
+                     "Column \"" + storedLeftKey + "\" not found on table \"" + edge.left() + "\".");
+               }
+
+               if(WorksheetMutationSupport.resolveJoinKey(rightAssembly, storedRightKey) == null) {
+                  throw new PairingException(
+                     "Column \"" + storedRightKey + "\" not found on table \"" + edge.right() + "\".");
+               }
+
                TableAssemblyOperator.Operator newOp = new TableAssemblyOperator.Operator();
-               newOp.setLeftTable(leftTable);
-               newOp.setRightTable(rightTable);
-               newOp.setLeftAttribute(new AttributeRef(null, leftKeys.get(i)));
-               newOp.setRightAttribute(new AttributeRef(null, rightKeys.get(i)));
-               newOp.setOperation(operation);
+               newOp.setLeftTable(edge.left());
+               newOp.setRightTable(edge.right());
+               newOp.setLeftAttribute(new AttributeRef(null, storedLeftKey));
+               newOp.setRightAttribute(new AttributeRef(null, storedRightKey));
+               newOp.setOperation(storedOp);
                newTop.addOperator(newOp);
             }
+
+            requireCompatibleJoinKeyTypes(newTop, leftAssembly, rightAssembly);
+
+            if((selector || pairs.size() > 1) && sameJoinOperators(stored, newTop)) {
+               throw new PairingException(
+                  "edge " + label + " is already " + operationName(storedOp) +
+                  " on the same keys; nothing to change");
+            }
+
+            join.setOperator(edge.left(), edge.right(), newTop);
+            return;
          }
-         else if(leftKey != null && rightKey != null) {
-            TableAssemblyOperator.Operator newOp = new TableAssemblyOperator.Operator();
-            newOp.setLeftTable(leftTable);
-            newOp.setRightTable(rightTable);
-            newOp.setLeftAttribute(new AttributeRef(null, leftKey));
-            newOp.setRightAttribute(new AttributeRef(null, rightKey));
-            newOp.setOperation(operation);
-            newTop.addOperator(newOp);
-         }
-         else {
-            // No new keys provided — preserve existing key pairs, only update join type.
-            for(int i = 0; i < top.getOperatorCount(); i++) {
-               TableAssemblyOperator.Operator orig = top.getOperator(i);
-               TableAssemblyOperator.Operator newOp = new TableAssemblyOperator.Operator();
-               newOp.setLeftTable(orig.getLeftTable());
-               newOp.setRightTable(orig.getRightTable());
-               newOp.setLeftAttribute(orig.getLeftAttribute());
-               newOp.setRightAttribute(orig.getRightAttribute());
-               newOp.setOperation(operation);
-               newTop.addOperator(newOp);
+
+         // Type change only: in place on the equi-type operators of this pair, like the native
+         // EquiJoinService. Never go through join.getOperator(callerLeft, callerRight): for a
+         // reversed order it returns a reversed COPY, and mutating that is a silent no-op.
+         List<TableAssemblyOperator.Operator> toChange = new ArrayList<>();
+         List<String> nonEqui = new ArrayList<>();
+         int equiCount = 0;
+
+         for(TableAssemblyOperator.Operator op : stored.getOperators()) {
+            if(op.isEqualJoin()) {
+               equiCount++;
+
+               if(op.getOperation() != storedOp) {
+                  toChange.add(op);
+               }
+            }
+            else {
+               nonEqui.add(op.getName());
             }
          }
 
-         if(leftTable == null || rightTable == null) {
-            // Every join-creating path (addJoin/addCrossJoin/addMergeJoin) must set both
-            // table names on each operator it builds; a null here means that invariant broke
-            // upstream, and writing to (null, null) would silently discard this edit instead
-            // of applying it to the real join edge (see bug-76730-WBS-050).
+         if(equiCount == 0) {
             throw new PairingException(
-               "Join assembly \"" + name + "\" has an operator with no left/right table name " +
-               "recorded -- refusing to edit rather than silently discarding the change.");
+               "Edge " + label + " holds only non-equi operators (" + String.join(", ", nonEqui) +
+               "), which have no join type to change. Pass new leftKey/rightKey to replace them.");
          }
 
-         requireCompatibleJoinKeyTypes(newTop, requireTable(leftTable), requireTable(rightTable));
+         if(toChange.isEmpty()) {
+            if(selector) {
+               throw new PairingException(
+                  "edge " + label + " is already " + operationName(storedOp) +
+                  "; nothing to change");
+            }
 
-         join.setOperator(leftTable, rightTable, newTop);
+            return;
+         }
+
+         for(TableAssemblyOperator.Operator op : toChange) {
+            op.setOperation(storedOp);
+         }
+      }
+
+      /**
+       * Edits a join without an edge selector; see
+       * {@link #editJoin(String, String, String, String, List, List, String, String)}.
+       */
+      public void editJoin(String name, String leftKey, String rightKey, String joinType,
+                           List<String> leftKeys, List<String> rightKeys)
+         throws PairingException, SecurityException
+      {
+         editJoin(name, leftKey, rightKey, joinType, leftKeys, rightKeys, null, null);
+      }
+
+      /**
+       * Removes one edge of a join assembly IN PLACE (the join keeps its name and identity, so
+       * assemblies built on it stay attached) -- the per-edge counterpart of {@link #removeJoin},
+       * which refuses a join with dependents.
+       *
+       * <p>With {@code leftKey}/{@code rightKey} only that one key condition of the pair is
+       * dropped; removing a pair's last key removes the pair. The join is rebuilt through
+       * {@link InnerJoinService#editExistingJoinTable} from its STORED operators minus the
+       * removed one, with CROSS pairs left out of the list (the whole-list validity check
+       * rejects a CROSS mixed with keyed pairs; the rewrite restores them).</p>
+       *
+       * <p>The rewrite does not reject an edit that splits the join into disconnected parts, so
+       * the NON-CROSS pairs are checked first: the edit is refused when it would leave MORE
+       * connected components over the join's tables than it has now (a join that already holds a
+       * CROSS-attached table still allows an unrelated removal). Removing the only edge is
+       * refused; use remove_join. A CROSS pair or an unknown pair/key is refused, listing the
+       * candidates. The join reads back in stored orientation.</p>
+       *
+       * @param name       the join assembly name
+       * @param edgeLeft   left table of the edge, in either order
+       * @param edgeRight  right table of the edge
+       * @param leftKey    optional left key of the single condition to drop (with rightKey)
+       * @param rightKey   optional right key of the single condition to drop
+       * @throws PairingException if the join/edge/key is not found or the removal is refused
+       */
+      public void removeJoinEdge(String name, String edgeLeft, String edgeRight,
+                                 String leftKey, String rightKey)
+         throws PairingException
+      {
+         Assembly a = ws.getAssembly(name);
+
+         if(a instanceof MergeJoinTableAssembly) {
+            throw new PairingException(
+               "\"" + name + "\" is a MERGE join -- it has no keyed edges to remove. Remove it " +
+               "and rebuild with addMergeJoin instead.");
+         }
+
+         if(!(a instanceof RelationalJoinTableAssembly join)) {
+            throw new PairingException("Join assembly not found: " + name);
+         }
+
+         List<String[]> pairs = storedJoinPairs(join);
+         JoinEdge edge = requireJoinEdge(join, pairs, edgeLeft, edgeRight);
+
+         if((leftKey == null) != (rightKey == null)) {
+            throw new PairingException(
+               "Pass both leftKey and rightKey to drop one key condition, or neither to drop " +
+               "the whole edge.");
+         }
+
+         if(isCrossPair(edge.top())) {
+            throw new PairingException(
+               "Edge " + edge.label() + " is a CROSS join; remove_join_edge cannot remove it " +
+               "(candidates: " + describeJoinEdges(join, pairs) + "). Use remove_join and rebuild.");
+         }
+
+         List<TableAssemblyOperator.Operator> keep = new ArrayList<>();
+         List<String[]> before = new ArrayList<>();
+         List<String[]> after = new ArrayList<>();
+
+         for(String[] p : pairs) {
+            TableAssemblyOperator top = join.getOperator(p[0], p[1]);
+
+            if(isCrossPair(top)) {
+               continue;
+            }
+
+            before.add(p);
+            boolean target = p[0].equals(edge.left()) && p[1].equals(edge.right());
+            int kept = 0;
+            int dropped = 0;
+
+            for(TableAssemblyOperator.Operator op : top.getOperators()) {
+               if(target && (leftKey == null ||
+                  joinKeyMatches(op, edge.reversed() ? rightKey : leftKey,
+                                 edge.reversed() ? leftKey : rightKey)))
+               {
+                  dropped++;
+                  continue;
+               }
+
+               TableAssemblyOperator.Operator copy = (TableAssemblyOperator.Operator) op.clone();
+
+               if(copy.getLeftTable() == null || "null".equals(copy.getLeftTable())) {
+                  copy.setLeftTable(p[0]);
+               }
+
+               if(copy.getRightTable() == null || "null".equals(copy.getRightTable())) {
+                  copy.setRightTable(p[1]);
+               }
+
+               keep.add(copy);
+               kept++;
+            }
+
+            if(target && dropped == 0) {
+               throw new PairingException(
+                  "Edge " + edge.label() + " has no key condition " + leftKey + " = " + rightKey +
+                  "; its conditions are: " + describeJoinKeys(top) + ".");
+            }
+
+            if(kept > 0) {
+               after.add(p);
+            }
+         }
+
+         if(after.isEmpty()) {
+            throw new PairingException(
+               "Edge " + edge.label() + " is the only edge of \"" + name + "\"; removing it " +
+               "would leave a cartesian product. Use remove_join to delete the join instead.");
+         }
+
+         String[] tables = join.getTableNames();
+         List<List<String>> beforeGroups = joinComponents(tables, before);
+         List<List<String>> afterGroups = joinComponents(tables, after);
+
+         if(afterGroups.size() > beforeGroups.size()) {
+            throw new PairingException(
+               "Removing edge " + edge.label() + " would disconnect \"" + name + "\" into " +
+               afterGroups + ", leaving the parts with no join between them (a cartesian " +
+               "product). Remove the table with remove_join, or keep a path between them.");
+         }
+
+         TableAssemblyOperator top = new TableAssemblyOperator();
+         keep.forEach(top::addOperator);
+         List<Object[]> snapshot = new ArrayList<>();
+
+         for(String[] p : pairs) {
+            snapshot.add(new Object[] { p, join.getOperator(p[0], p[1]).clone() });
+         }
+
+         try {
+            innerJoinService.editExistingJoinTable(ws, join, top, false);
+            keepCrossPairsExactly(join, snapshot);
+         }
+         catch(Exception e) {
+            // editExistingJoinTable clears the pairs before it validates the last time; put the
+            // join back as it was so a refused edit leaves nothing half-written.
+            for(Object[] s : snapshot) {
+               String[] p = (String[]) s[0];
+               join.setOperator(p[0], p[1], (TableAssemblyOperator) s[1]);
+            }
+
+            for(String[] p : storedJoinPairs(join)) {
+               if(snapshot.stream().noneMatch(
+                  s -> ((String[]) s[0])[0].equals(p[0]) && ((String[]) s[0])[1].equals(p[1])))
+               {
+                  join.removeOperator(p[0], p[1]);
+               }
+            }
+
+            if(e instanceof PairingException pe) {
+               throw pe;
+            }
+
+            throw new PairingException(
+               "Failed to remove edge " + edge.label() + " from \"" + name + "\": " +
+               e.getMessage());
+         }
+      }
+
+      /**
+       * editExistingJoinTable clears every pair first, and AbstractJoinTableAssembly.removeOperator
+       * writes a CROSS operator at the pair that empties the join; nothing overwrites it when that
+       * pair is the one being removed, so which pair keeps a stray CROSS depends on hash order.
+       * Make the CROSS pairs exactly the ones the join had before the edit (same table pair, either
+       * order): drop a CROSS pair that is new, restore one that went missing.
+       */
+      private static void keepCrossPairsExactly(RelationalJoinTableAssembly join,
+                                                List<Object[]> snapshot)
+      {
+         List<String[]> oldCross = new ArrayList<>();
+
+         for(Object[] s : snapshot) {
+            if(isCrossPair((TableAssemblyOperator) s[1])) {
+               oldCross.add((String[]) s[0]);
+            }
+         }
+
+         for(String[] p : storedJoinPairs(join)) {
+            if(isCrossPair(join.getOperator(p[0], p[1])) &&
+               oldCross.stream().noneMatch(o -> sameTablePair(o, p)))
+            {
+               join.removeOperator(p[0], p[1]);
+            }
+         }
+
+         for(Object[] s : snapshot) {
+            String[] o = (String[]) s[0];
+
+            if(isCrossPair((TableAssemblyOperator) s[1]) &&
+               storedJoinPairs(join).stream().noneMatch(p -> sameTablePair(o, p)))
+            {
+               join.setOperator(o[0], o[1], (TableAssemblyOperator) s[1]);
+            }
+         }
+      }
+
+      private static boolean sameTablePair(String[] a, String[] b) {
+         return a[0].equals(b[0]) && a[1].equals(b[1]) || a[0].equals(b[1]) && a[1].equals(b[0]);
+      }
+
+      /** One stored (left, right) pair of a join and the caller's orientation relative to it. */
+      private record JoinEdge(String left, String right, TableAssemblyOperator top,
+                              boolean reversed)
+      {
+         String label() {
+            return left + "-" + right;
+         }
+      }
+
+      private static List<String[]> storedJoinPairs(RelationalJoinTableAssembly join) {
+         List<String[]> pairs = new ArrayList<>();
+
+         for(Enumeration<?> e = join.getOperatorTables(); e.hasMoreElements(); ) {
+            pairs.add((String[]) e.nextElement());
+         }
+
+         return pairs;
+      }
+
+      /**
+       * Resolves the edge by walking the STORED pairs, forward or reversed; never through
+       * {@code join.getOperator(l, r)}, whose reversed-order result is a copy.
+       */
+      private static JoinEdge requireJoinEdge(RelationalJoinTableAssembly join,
+                                              List<String[]> pairs, String l, String r)
+         throws PairingException
+      {
+         if(l == null || l.isBlank() || r == null || r.isBlank()) {
+            throw new PairingException(
+               "Name the edge with both leftTable and rightTable (candidates: " +
+               describeJoinEdges(join, pairs) + ").");
+         }
+
+         for(String[] p : pairs) {
+            if(p[0].equals(l) && p[1].equals(r)) {
+               return new JoinEdge(p[0], p[1], join.getOperator(p[0], p[1]), false);
+            }
+
+            if(p[0].equals(r) && p[1].equals(l)) {
+               return new JoinEdge(p[0], p[1], join.getOperator(p[0], p[1]), true);
+            }
+         }
+
+         throw new PairingException(
+            "\"" + join.getName() + "\" has no edge between \"" + l + "\" and \"" + r +
+            "\"; its edges are: " + describeJoinEdges(join, pairs) + ".");
+      }
+
+      private static String describeJoinEdges(RelationalJoinTableAssembly join,
+                                              List<String[]> pairs)
+      {
+         List<String> parts = new ArrayList<>();
+
+         for(String[] p : pairs) {
+            TableAssemblyOperator top = join.getOperator(p[0], p[1]);
+            parts.add(p[0] + "-" + p[1] + " (" + (top == null || top.getOperatorCount() == 0 ?
+               "no keys" : operationName(top.getOperator(0).getOperation())) + ")");
+         }
+
+         parts.sort(null);
+         return String.join(", ", parts);
+      }
+
+      private static String describeJoinKeys(TableAssemblyOperator top) {
+         List<String> keys = new ArrayList<>();
+
+         for(TableAssemblyOperator.Operator op : top.getOperators()) {
+            keys.add(op.getName());
+         }
+
+         return String.join(", ", keys);
+      }
+
+      private static String operationName(int operation) {
+         return switch(operation) {
+            case TableAssemblyOperator.INNER_JOIN -> "INNER";
+            case TableAssemblyOperator.LEFT_JOIN -> "LEFT";
+            case TableAssemblyOperator.RIGHT_JOIN -> "RIGHT";
+            case TableAssemblyOperator.FULL_JOIN -> "FULL";
+            case TableAssemblyOperator.CROSS_JOIN -> "CROSS";
+            case TableAssemblyOperator.MERGE_JOIN -> "MERGE";
+            default -> "NON-EQUI";
+         };
+      }
+
+      private static int mirrorJoinOperation(int operation) {
+         return switch(operation) {
+            case TableAssemblyOperator.LEFT_JOIN -> TableAssemblyOperator.RIGHT_JOIN;
+            case TableAssemblyOperator.RIGHT_JOIN -> TableAssemblyOperator.LEFT_JOIN;
+            default -> operation;
+         };
+      }
+
+      private static boolean isCrossPair(TableAssemblyOperator top) {
+         for(TableAssemblyOperator.Operator op : top.getOperators()) {
+            if(op.isCrossJoin() || op.isMergeJoin()) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+
+      private static boolean joinKeyMatches(TableAssemblyOperator.Operator op, String storedLeft,
+                                            String storedRight)
+      {
+         return refNamed(op.getLeftAttribute(), storedLeft) &&
+            refNamed(op.getRightAttribute(), storedRight);
+      }
+
+      private static boolean refNamed(DataRef ref, String key) {
+         return ref != null && key != null &&
+            (key.equals(ref.getAttribute()) || key.equals(ref.getName()));
+      }
+
+      /** Same operations and same key columns, in the same order. */
+      private static boolean sameJoinOperators(TableAssemblyOperator a, TableAssemblyOperator b) {
+         if(a.getOperatorCount() != b.getOperatorCount()) {
+            return false;
+         }
+
+         for(int i = 0; i < a.getOperatorCount(); i++) {
+            TableAssemblyOperator.Operator x = a.getOperator(i);
+            TableAssemblyOperator.Operator y = b.getOperator(i);
+
+            if(x.getOperation() != y.getOperation() ||
+               !joinKeyMatches(x, y.getLeftAttribute() == null ? null :
+                                  y.getLeftAttribute().getAttribute(),
+                               y.getRightAttribute() == null ? null :
+                                  y.getRightAttribute().getAttribute()))
+            {
+               return false;
+            }
+         }
+
+         return true;
+      }
+
+      /** Connected components of {@code tables} linked by {@code edges}, each sorted. */
+      private static List<List<String>> joinComponents(String[] tables, List<String[]> edges) {
+         java.util.Map<String, String> parent = new java.util.HashMap<>();
+
+         for(String t : tables) {
+            parent.put(t, t);
+         }
+
+         for(String[] e : edges) {
+            parent.putIfAbsent(e[0], e[0]);
+            parent.putIfAbsent(e[1], e[1]);
+            parent.put(rootOf(parent, e[0]), rootOf(parent, e[1]));
+         }
+
+         java.util.Map<String, List<String>> groups = new java.util.TreeMap<>();
+
+         for(String t : parent.keySet()) {
+            groups.computeIfAbsent(rootOf(parent, t), k -> new ArrayList<>()).add(t);
+         }
+
+         List<List<String>> result = new ArrayList<>(groups.values());
+         result.forEach(g -> g.sort(null));
+         return result;
+      }
+
+      private static String rootOf(java.util.Map<String, String> parent, String t) {
+         while(!parent.get(t).equals(t)) {
+            t = parent.get(t);
+         }
+
+         return t;
       }
 
       /**
