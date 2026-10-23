@@ -207,47 +207,56 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
 
                   if(authc != null && SecurityEngine.getSecurity().isSecurityEnabled()) {
                      for(AuthenticationProvider p : authc.getProviders()) {
-                        User providerUser = p.getUser(properUserID);
+                        try {
+                           User providerUser = p.getUser(properUserID);
 
-                        if(providerUser != null) {
-                           // a provider may match the org ignoring case (e.g. the database
-                           // provider with security.user.caseSensitive=false); record the
-                           // provider's stored org id so the session never carries a
-                           // non-canonical one (Bug #77081). Prefer the id on the returned
-                           // user; scan the provider's orgs only for providers that echo it.
-                           String storedOrgID = AuthenticationService.getStoredOrganizationID(
-                              providerUser, properUserID.orgID);
+                           if(providerUser != null) {
+                              // a provider may match the org ignoring case (e.g. the database
+                              // provider with security.user.caseSensitive=false); record the
+                              // provider's stored org id so the session never carries a
+                              // non-canonical one (Bug #77081). Prefer the id on the returned
+                              // user; scan the provider's orgs only for providers that echo it.
+                              String storedOrgID = AuthenticationService.getStoredOrganizationID(
+                                 providerUser, properUserID.orgID);
 
-                           if(storedOrgID == null) {
-                              storedOrgID = getStoredOrganizationID(p, properUserID.orgID);
+                              if(storedOrgID == null) {
+                                 storedOrgID = getStoredOrganizationID(p, properUserID.orgID);
+                              }
+
+                              if(storedOrgID != null && !storedOrgID.equals(properUserID.orgID)) {
+                                 properUserID = new IdentityID(properUserID.name, storedOrgID);
+                                 recordedOrgID = storedOrgID;
+                              }
+
+                              providerName = p.getProviderName();
+                              break;
                            }
 
-                           if(storedOrgID != null && !storedOrgID.equals(properUserID.orgID)) {
-                              properUserID = new IdentityID(properUserID.name, storedOrgID);
-                              recordedOrgID = storedOrgID;
-                           }
+                           String originalOrg = properUserID.orgID;
 
-                           providerName = p.getProviderName();
-                           break;
-                        }
+                           for(String sameOrg : p.getOrganizationIDs()) {
+                              if(sameOrg.equalsIgnoreCase(originalOrg)) {
+                                 IdentityID userID = new IdentityID(properUserID.name, sameOrg);
 
-                        String originalOrg = properUserID.orgID;
-
-                        for(String sameOrg : p.getOrganizationIDs()) {
-                           if(sameOrg.equalsIgnoreCase(originalOrg)) {
-                              IdentityID userID = new IdentityID(properUserID.name, sameOrg);
-
-                              if(provider.getUser(userID) != null) {
-                                 properUserID = userID;
-                                 recordedOrgID = sameOrg;
-                                 providerName = p.getProviderName();
-                                 break;
+                                 if(provider.getUser(userID) != null) {
+                                    properUserID = userID;
+                                    recordedOrgID = sameOrg;
+                                    providerName = p.getProviderName();
+                                    break;
+                                 }
                               }
                            }
-                        }
 
-                        if(!providerName.isEmpty()) {
-                           break;
+                           if(!providerName.isEmpty()) {
+                              break;
+                           }
+                        }
+                        catch(Exception e) {
+                           // only decides the provider name/org id to record; a provider that
+                           // cannot answer is treated as not owning the user (Bug #79268)
+                           LOG.warn("Provider {} failed to look up user {}, skipping it: {}",
+                                    p.getProviderName(), properUserID, e.toString());
+                           LOG.debug("Provider user lookup failure", e);
                         }
                      }
                   }

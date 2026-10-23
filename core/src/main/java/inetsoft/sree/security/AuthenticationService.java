@@ -221,11 +221,21 @@ public class AuthenticationService {
             Audit.getInstance().auditSession(sessionRecord, principal);
          }
          else if(principal == null && userId != null) {
-            User u = securityEngine.getSecurityProvider().getUser(userId);
+            // audit enrichment only: a provider that throws here must not replace the login
+            // result (Bug #79268)
+            try {
+               User u = securityEngine.getSecurityProvider().getUser(userId);
 
-            if(u != null) {
-               sessionRecord.setUserGroup(Arrays.asList(u.getGroups()));
-               sessionRecord.setUserRole(Arrays.stream(u.getRoles()).map(id -> id.name).toList());
+               if(u != null) {
+                  sessionRecord.setUserGroup(Arrays.asList(u.getGroups()));
+                  sessionRecord.setUserRole(
+                     Arrays.stream(u.getRoles()).map(id -> id.name).toList());
+               }
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to look up user {} for the login audit record: {}", userId,
+                        e.toString());
+               LOG.debug("Audit user lookup failure", e);
             }
 
             Audit.getInstance().auditSession(sessionRecord, principal);

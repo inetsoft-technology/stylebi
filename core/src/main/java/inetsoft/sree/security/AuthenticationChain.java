@@ -274,7 +274,24 @@ public class AuthenticationChain
       for(AuthenticationProvider provider : getProviders()) {
          // Use the first provider that contains the user to authenticate. This is intentionally
          // different from checking if the authentication is successful with any provider.
-         if(provider.getUser(userIdentity) != null) {
+         boolean owner;
+
+         try {
+            owner = provider.getUser(userIdentity) != null;
+         }
+         catch(Exception e) {
+            // A provider that cannot answer is treated as not owning the user so it does not
+            // block users owned by later providers (Bug #79268). Caveat: a later provider that
+            // owns a same-named user answers instead of the failing one; that provider's own
+            // valid credential is still required, so this is not an authentication bypass.
+            // An exception from authenticate() below still propagates.
+            LOG.warn("Provider {} failed to look up user {}, skipping it: {}",
+                     provider.getProviderName(), userIdentity, e.toString());
+            LOG.debug("Provider user lookup failure", e);
+            continue;
+         }
+
+         if(owner) {
             return provider.authenticate(userIdentity, credential);
          }
       }
