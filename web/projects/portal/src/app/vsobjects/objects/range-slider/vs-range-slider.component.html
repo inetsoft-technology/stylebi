@@ -51,7 +51,7 @@
       [style.border-right]="model.titleFormat.border.right"
       [style.border-bottom]="model.titleFormat.border.bottom ? model.titleFormat.border.bottom : '1px solid ' + headerBorderBottomColor"
       [style.border-top]="model.titleFormat.border.top"
-      [style.border-radius.px]="model.vizModern ? model.titleFormat.roundCorner : model.objectFormat.roundCorner">
+      [style.border-radius]="headerBorderRadius">
       @if (!model.adhocFilter) {
         <div class="vs-range-slider-header__buttons"
           [class.force-toolbar]="keyNav || mobileDevice"

@@ -97,10 +97,14 @@ labels also touch the track: the current-value label ends exactly at the track's
   - **Inside a selection container:** a dropped child gets top and bottom borders
     (`GroupingService:96-99`) and a converted slider gets all four (`initDefaultFormat(true)`), so a
     contained slider draws as a rounded box. Contained lists already do *(my call: accepted, as for lists)*.
-  - **Title lane:** for a marked slider, the lane binds `titleFormat.roundCorner`, as the list header does
-    (`vs-selection.component.html:61`), instead of `objectFormat.roundCorner`
-    (`vs-range-slider.component.html:54`), so the lane stays square under a rounded body. An unmarked
-    slider keeps today's binding *(my call)*.
+  - **Title lane:** for a marked slider, the lane follows the list header's corner rule
+    (`VSSelection.headerBorderRadius`, Bug #78990): its top corners take the card's radius when the card
+    has one, and otherwise the title's own `titleFormat.roundCorner`; its bottom corners take the
+    title's, except on a collapsed contained slider, which is all header and takes the card's on all
+    four. The lane then never draws square over a rounded card. `VSRangeSlider.headerBorderRadius` holds
+    the rule. An unmarked slider keeps today's binding, `objectFormat.roundCorner` on all four corners
+    *(my call)*. *(Amended after the rebase onto #7123, which replaced the list header's plain
+    `titleFormat.roundCorner` binding that this bullet first mirrored.)*
   - **Ad hoc filter:** see D7.
 - **No surface.** The background stays unset. Choice B2 (a white card like charts and tables) was
   declined: whether filters sit on surfaces is a look decision of its own.

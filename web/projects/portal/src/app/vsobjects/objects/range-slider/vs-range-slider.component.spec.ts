@@ -446,3 +446,45 @@ describe("VSRangeSlider – density", () => {
       expect(padded.getLabelPosition()).toBe(plain.getLabelPosition());
    });
 });
+
+describe("VSRangeSlider – header corners", () => {
+   beforeEach(() => {
+      vi.spyOn(GuiTool, "measureText").mockReturnValue(10);
+   });
+
+   afterEach(() => {
+      vi.restoreAllMocks();
+   });
+
+   function corners(card: number, title: number,
+                    overrides: Partial<VSRangeSliderModel> = {}): string
+   {
+      const model = makeVSRangeSliderModel({
+         vizModern: true, container: "SelectionContainer1",
+         containerType: "VSSelectionContainer", ...overrides,
+      });
+      model.objectFormat.roundCorner = card;
+      model.titleFormat.roundCorner = title;
+      return createVSRangeSlider(model).comp.headerBorderRadius;
+   }
+
+   it("rounds the header's top corners with the card", () => {
+      expect(corners(6, 0)).toBe("6px 6px 0px 0px");
+   });
+
+   it("takes the card's radius over the title's at the card edge", () => {
+      expect(corners(6, 2)).toBe("6px 6px 2px 2px");
+   });
+
+   it("keeps the title's own radius on a square card", () => {
+      expect(corners(0, 4)).toBe("4px 4px 4px 4px");
+   });
+
+   it("rounds all four corners of a collapsed slider, which is all header", () => {
+      expect(corners(6, 0, { hidden: true })).toBe("6px 6px 6px 6px");
+   });
+
+   it("keeps the card's radius on all four corners when unmarked", () => {
+      expect(corners(6, 0, { vizModern: false })).toBe("6px");
+   });
+});

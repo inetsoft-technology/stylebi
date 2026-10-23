@@ -48,6 +48,7 @@ import { NEVER, Subject } from "rxjs";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
+import { InteractService } from "../../../widget/interact/interact.service";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { ModelService } from "../../../widget/services/model.service";
 import { DialogService } from "../../../widget/slide-out/dialog-service.service";
@@ -461,6 +462,10 @@ describe("VSRangeSlider – display / rendering (P3)", () => {
             updateState: vi.fn(),
          };
          const timerService = { defer: vi.fn((fn: any) => fn()) };
+         // a contained slider's title lane is wInteractable
+         const interactService = {
+            addInteractable: vi.fn(), notify: vi.fn(), removeInteractable: vi.fn(),
+         };
          const context = new ContextProvider(
             false, false, false, false, false, false, false, false, false, false, false,
          );
@@ -480,6 +485,7 @@ describe("VSRangeSlider – display / rendering (P3)", () => {
                { provide: FixedDropdownService, useValue: dropdownService },
                { provide: GlobalSubmitService, useValue: globalSubmitService },
                { provide: TimerService, useValue: timerService },
+               { provide: InteractService, useValue: interactService },
                PopComponentService,
             ],
          });
@@ -542,6 +548,26 @@ describe("VSRangeSlider – display / rendering (P3)", () => {
          expect(inset.style["bottom"]).toBe("16px");
          expect(inset.style["width"]).toBe("");
          expect(inset.style["height"]).toBe("");
+      });
+
+      function containedHeader(vizModern: boolean): HTMLElement {
+         const model = makeVSRangeSliderModel({
+            vizModern, container: "SelectionContainer1", containerType: "VSSelectionContainer",
+         });
+         model.objectFormat.roundCorner = 6;
+         model.titleFormat.roundCorner = 0;
+         fixture.componentInstance.model = model;
+         fixture.detectChanges();
+
+         return fixture.nativeElement.querySelector("div.vs-range-slider-header");
+      }
+
+      it("should round a marked contained header's top corners with the card", () => {
+         expect(containedHeader(true).style["border-radius"]).toBe("6px 6px 0px 0px");
+      });
+
+      it("should keep the card's radius on an unmarked contained header", () => {
+         expect(containedHeader(false).style["border-radius"]).toBe("6px");
       });
 
       // Bug #20993

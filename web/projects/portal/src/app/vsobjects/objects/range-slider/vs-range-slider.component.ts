@@ -458,6 +458,23 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       return this.spaced ? 6 : 0;
    }
 
+   /**
+    * Header corners that meet the card's corners take the card's radius, or they draw square over
+    * it. A collapsed slider is all header, so its bottom corners meet the card's too.
+    */
+   get headerBorderRadius(): string {
+      if(!this.model.vizModern) {
+         const own = this.model.objectFormat.roundCorner;
+         return own == null ? null : own + "px";
+      }
+
+      const card = this.model.objectFormat.roundCorner ?? 0;
+      const title = this.model.titleFormat.roundCorner ?? 0;
+      const top = card > 0 ? card : title;
+      const bottom = card > 0 && this.model.container && this.model.hidden ? card : title;
+      return `${top}px ${top}px ${bottom}px ${bottom}px`;
+   }
+
    getLabelPosition(): number {
       const inset = this.bodyInset;
       const objectWidth = this.model.objectFormat.width - inset.left - inset.right;
