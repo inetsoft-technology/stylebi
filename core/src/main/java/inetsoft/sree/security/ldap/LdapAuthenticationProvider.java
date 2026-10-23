@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.DataChangeListener;
@@ -1064,6 +1065,8 @@ public abstract class LdapAuthenticationProvider
     * Flushes all pool directory contexts.
     */
    protected void flushContextPool() {
+      // reset before flush(), which takes the pool lock that a stuck create() may be holding
+      clearCommunicationFailure();
       cacheLock.lock();
 
       try {
@@ -1076,6 +1079,64 @@ public abstract class LdapAuthenticationProvider
       }
 
       contextPool.flush();
+   }
+
+   /**
+    * Adds the JNDI connect and read timeouts to the environment of a new directory context so a
+    * directory that accepts the connection but never answers cannot block a caller forever
+    * (Bug #79220). Every context creation site must call this.
+    *
+    * @param env the context environment.
+    */
+   static void applyTimeouts(Map<Object, Object> env) {
+      env.put("com.sun.jndi.ldap.connect.timeout",
+              Long.toString(getTimeoutProperty(CONNECT_TIMEOUT_PROPERTY, DEFAULT_CONNECT_TIMEOUT)));
+      env.put("com.sun.jndi.ldap.read.timeout",
+              Long.toString(getTimeoutProperty(READ_TIMEOUT_PROPERTY, DEFAULT_READ_TIMEOUT)));
+   }
+
+   private static long getTimeoutProperty(String name, long defaultValue) {
+      try {
+         long value = Long.parseLong(SreeEnv.getProperty(name, Long.toString(defaultValue)).trim());
+         return value > 0 ? value : defaultValue;
+      }
+      catch(NumberFormatException | NullPointerException e) {
+         return defaultValue;
+      }
+   }
+
+   private static long getFailureRetryInterval() {
+      try {
+         return Long.parseLong(SreeEnv.getProperty(
+            FAILURE_RETRY_INTERVAL_PROPERTY, Long.toString(DEFAULT_FAILURE_RETRY_INTERVAL)).trim());
+      }
+      catch(NumberFormatException | NullPointerException e) {
+         return DEFAULT_FAILURE_RETRY_INTERVAL;
+      }
+   }
+
+   /**
+    * Throws at once if creating a context failed with a communication error within the retry
+    * interval, so borrowers queued behind a slow failing create() do not each wait a full timeout.
+    */
+   void checkRecentCommunicationFailure() throws CommunicationException {
+      long failed = lastCommunicationFailure;
+      long interval = getFailureRetryInterval();
+
+      if(failed != 0L && interval > 0L && System.currentTimeMillis() - failed < interval) {
+         throw new CommunicationException(
+            "LDAP directory " + getHost() + ':' + getPort() + " is unreachable (" +
+            lastCommunicationFailureMessage + "); retrying after the failure retry interval");
+      }
+   }
+
+   void recordCommunicationFailure(CommunicationException exc) {
+      lastCommunicationFailureMessage = exc.getMessage();
+      lastCommunicationFailure = System.currentTimeMillis();
+   }
+
+   void clearCommunicationFailure() {
+      lastCommunicationFailure = 0L;
    }
 
    LdapAuthenticationClient getClient() {
@@ -1167,6 +1228,8 @@ public abstract class LdapAuthenticationProvider
    }
 
    private final ContextPool contextPool;
+   private volatile long lastCommunicationFailure;
+   private volatile String lastCommunicationFailureMessage;
    private final LdapAuthenticationClient client;
    private String protocol;
    private int userScope = SearchControls.ONELEVEL_SCOPE;
@@ -1189,6 +1252,13 @@ public abstract class LdapAuthenticationProvider
    private final ThreadLocal<Boolean> ignoreCache = ThreadLocal.withInitial(() -> false);
 
    private static final String ENTRYDN_ATTRIBUTE = "entrydn";
+   static final String CONNECT_TIMEOUT_PROPERTY = "ldap.security.connection.timeout";
+   static final String READ_TIMEOUT_PROPERTY = "ldap.security.read.timeout";
+   static final String FAILURE_RETRY_INTERVAL_PROPERTY =
+      "ldap.security.connection.failureRetryInterval";
+   static final long DEFAULT_CONNECT_TIMEOUT = 5000L;
+   static final long DEFAULT_READ_TIMEOUT = 15000L;
+   static final long DEFAULT_FAILURE_RETRY_INTERVAL = 30000L;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(LdapAuthenticationProvider.class);

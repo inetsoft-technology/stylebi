@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.naming.AuthenticationException;
+import javax.naming.CommunicationException;
 import javax.naming.ldap.LdapContext;
 
 final class ContextPool extends ObjectPool<LdapContext> {
@@ -37,8 +38,15 @@ final class ContextPool extends ObjectPool<LdapContext> {
    protected LdapContext create() throws Exception {
       LdapContext context;
 
+      // this runs under the pool lock; fail at once if the directory just proved unreachable
+      provider.checkRecentCommunicationFailure();
+
       try {
          context = provider.createContext();
+      }
+      catch(CommunicationException exc) {
+         provider.recordCommunicationFailure(exc);
+         throw exc;
       }
       catch(AuthenticationException exc) {
          LOG.error(
@@ -53,6 +61,7 @@ final class ContextPool extends ObjectPool<LdapContext> {
          throw exc;
       }
 
+      provider.clearCommunicationFailure();
       provider.initInstance(context);
       return context;
    }
