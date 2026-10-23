@@ -3912,6 +3912,16 @@ public class WorksheetEditService {
             throw new PairingException("Assembly not found: " + sourceName);
          }
 
+         // Bug #79176 (item 5): a hidden (outer) assembly is the copy that backs a mirror. A
+         // clone keeps the outer flag, so it would be a hidden assembly no mirror owns, which
+         // delete_table of the mirror never removes. Thrown outside the try so the message is
+         // not rewrapped as "Cannot duplicate assembly".
+         if(wsa.isOuter()) {
+            throw new PairingException(
+               "'" + sourceName + "' is a hidden copy that backs a mirror and cannot be " +
+               "duplicated. Duplicate the mirror itself instead.");
+         }
+
          if(ws.getAssembly(newName) != null) {
             throw new PairingException("Assembly already exists: " + newName);
          }
