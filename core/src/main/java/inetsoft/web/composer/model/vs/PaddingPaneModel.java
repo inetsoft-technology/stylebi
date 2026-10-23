@@ -56,8 +56,9 @@ public class PaddingPaneModel implements Serializable {
    }
 
    /**
-    * Whether the padding follows the modern card inset. Null on an unmarked assembly, where there is
-    * no default to follow and the checkbox is not shown.
+    * Whether the padding follows its modern default: the card inset, or a chart legend's density
+    * padding. Null on an unmarked assembly, where there is no default to follow and the checkbox is
+    * not shown.
     */
    public Boolean getFollowsDefault() {
       return followsDefault;

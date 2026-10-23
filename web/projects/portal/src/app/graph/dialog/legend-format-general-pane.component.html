@@ -92,6 +92,71 @@
         </div>
       }
     </div>
+    <div class="shell-form-row--field row">
+      <div class="col-6" role="group" aria-labelledby="legendRowSpacingLabel"
+        [title]="'_#(composer.vs.chart.legendRowSpacingTip)'">
+        <label class="form-label" id="legendRowSpacingLabel">_#(Row Spacing)</label>
+        <div class="row">
+          <div class="col d-flex flex-column">
+            <number-stepper [(ngModel)]="model.padding.top" [min]="0"
+                            ariaLabel="_#(Top)"
+                            [disabled]="model.padding.followsDefault === true"
+                            [ngModelOptions]="{standalone: true}"
+                            data-test="legend-padding-top">
+            </number-stepper>
+            <label>_#(Top)</label>
+          </div>
+          <div class="col d-flex flex-column">
+            <number-stepper [(ngModel)]="model.padding.bottom" [min]="0"
+                            ariaLabel="_#(Bottom)"
+                            [disabled]="model.padding.followsDefault === true"
+                            [ngModelOptions]="{standalone: true}"
+                            data-test="legend-padding-bottom">
+            </number-stepper>
+            <label>_#(Bottom)</label>
+          </div>
+        </div>
+      </div>
+      <div class="col-6" role="group" aria-labelledby="legendSideIndentLabel"
+        [title]="'_#(composer.vs.chart.legendSideIndentTip)'">
+        <label class="form-label" id="legendSideIndentLabel">_#(Side Indent)</label>
+        <div class="row">
+          <div class="col d-flex flex-column">
+            <number-stepper [(ngModel)]="model.padding.left" [min]="0"
+                            ariaLabel="_#(Left)"
+                            [disabled]="model.padding.followsDefault === true"
+                            [ngModelOptions]="{standalone: true}"
+                            data-test="legend-padding-left">
+            </number-stepper>
+            <label>_#(Left)</label>
+          </div>
+          <div class="col d-flex flex-column">
+            <number-stepper [(ngModel)]="model.padding.right" [min]="0"
+                            ariaLabel="_#(Right)"
+                            [disabled]="model.padding.followsDefault === true"
+                            [ngModelOptions]="{standalone: true}"
+                            data-test="legend-padding-right">
+            </number-stepper>
+            <label>_#(Right)</label>
+          </div>
+        </div>
+      </div>
+    </div>
+    @if (showPaddingFollowDefault) {
+      <div class="shell-form-row--field row">
+        <div class="checkbox col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="legendPaddingFollowsDefault"
+              [ngModel]="model.padding.followsDefault"
+              (ngModelChange)="paddingFollowDefaultChanged($event)"
+              [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="legendPaddingFollowsDefault">
+              _#(composer.vs.followDefaultDensity)
+            </label>
+          </div>
+        </div>
+      </div>
+    }
   </fieldset>
   <fieldset>
     <legend>_#(Symbol)</legend>

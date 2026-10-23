@@ -18,6 +18,7 @@
 package inetsoft.web.graph.model.dialog;
 
 import inetsoft.graph.guide.legend.LegendItem;
+import inetsoft.web.composer.model.vs.PaddingPaneModel;
 
 import java.io.Serializable;
 
@@ -115,6 +116,18 @@ public class LegendFormatGeneralPaneModel implements Serializable {
       this.gapFollowsDefault = gapFollowsDefault;
    }
 
+   /**
+    * The legend row spacing (top / bottom) and side indent (left / right). Its followsDefault is
+    * null on an unmarked chart.
+    */
+   public PaddingPaneModel getPadding() {
+      return padding;
+   }
+
+   public void setPadding(PaddingPaneModel padding) {
+      this.padding = padding;
+   }
+
    public boolean isRoundCorners() {
       return roundCorners;
    }
@@ -152,6 +165,7 @@ public class LegendFormatGeneralPaneModel implements Serializable {
    private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
    private int gap;
    private Boolean gapFollowsDefault;
+   private PaddingPaneModel padding;
    private boolean roundCorners;
    private boolean symbolRoundCorners;
    private boolean symbolRoundCornersVisible;

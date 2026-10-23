@@ -60,9 +60,16 @@ let createModel: () => LegendFormatGeneralPaneModel = () => {
       gap: 0,
       roundCorners: false,
       symbolRoundCorners: false,
-      symbolRoundCornersVisible: true
+      symbolRoundCornersVisible: true,
+      padding: { top: 0, left: 4, bottom: 1, right: 4, followsDefault: true }
    };
 };
+
+const PADDING_SIDES = ["top", "bottom", "left", "right"];
+
+let paddingSteppers = (fixture: ComponentFixture<LegendFormatGeneralPane>): HTMLElement[] =>
+   PADDING_SIDES.map(side =>
+      fixture.nativeElement.querySelector(`[data-test="legend-padding-${side}"]`));
 
 describe("LegendFormatGeneralPane Unit Tests", () => {
    let uiContextService: any;
@@ -142,5 +149,92 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
          .map((e: HTMLElement) => e.textContent.trim());
       expect(labels).toContain("_#(Distance from Chart)");
       expect(labels).not.toContain("_#(Legend Gap)");
+   });
+
+   async function render(model: LegendFormatGeneralPaneModel):
+      Promise<ComponentFixture<LegendFormatGeneralPane>>
+   {
+      const fixture = TestBed.createComponent(LegendFormatGeneralPane);
+      fixture.componentInstance.model = model;
+      fixture.componentInstance.form = new FormGroup({});
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture;
+   }
+
+   it("captions the legend padding 'Row Spacing' and 'Side Indent'", async () => {
+      const fixture = await render(createModel());
+
+      const labels: string[] = Array.from(fixture.nativeElement.querySelectorAll("label"))
+         .map((e: HTMLElement) => e.textContent.trim());
+      expect(labels).toEqual(expect.arrayContaining([
+         "_#(Row Spacing)", "_#(Side Indent)", "_#(Top)", "_#(Bottom)", "_#(Left)", "_#(Right)"
+      ]));
+   });
+
+   it("disables the four spacing steppers while following the default", async () => {
+      const fixture = await render(createModel());
+
+      for(const stepper of paddingSteppers(fixture)) {
+         expect(stepper).toBeTruthy();
+         expect(stepper.classList.contains("disabled")).toBe(true);
+      }
+
+      const box: HTMLInputElement = fixture.nativeElement.querySelector("#legendPaddingFollowsDefault");
+      expect(box).toBeTruthy();
+      expect(box.checked).toBe(true);
+   });
+
+   it("enables the four spacing steppers once the box is unticked", async () => {
+      const model = createModel();
+      model.padding.followsDefault = false;
+      const fixture = await render(model);
+
+      for(const stepper of paddingSteppers(fixture)) {
+         expect(stepper).toBeTruthy();
+         expect(stepper.classList.contains("disabled")).toBe(false);
+      }
+   });
+
+   it("toggles the four spacing steppers from the padding follow-default box", async () => {
+      const fixture = await render(createModel());
+      const box: HTMLInputElement = fixture.nativeElement.querySelector("#legendPaddingFollowsDefault");
+
+      box.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.model.padding.followsDefault).toBe(false);
+      expect(fixture.componentInstance.model.gapFollowsDefault).toBeUndefined();
+
+      for(const stepper of paddingSteppers(fixture)) {
+         expect(stepper.classList.contains("disabled")).toBe(false);
+      }
+
+      box.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.model.padding.followsDefault).toBe(true);
+
+      for(const stepper of paddingSteppers(fixture)) {
+         expect(stepper.classList.contains("disabled")).toBe(true);
+      }
+   });
+
+   it("hides the padding follow-default box on an unmarked chart", async () => {
+      const model = createModel();
+      model.padding.followsDefault = undefined;
+      const fixture = await render(model);
+
+      expect(fixture.nativeElement.querySelector("#legendPaddingFollowsDefault")).toBeNull();
+
+      for(const stepper of paddingSteppers(fixture)) {
+         expect(stepper).toBeTruthy();
+         expect(stepper.classList.contains("disabled")).toBe(false);
+      }
    });
 });

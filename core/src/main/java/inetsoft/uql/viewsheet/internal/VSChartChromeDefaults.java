@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.graph.internal.GDefaults;
 
 import java.awt.Color;
+import java.awt.Insets;
 
 /**
  * Supplies the modern in-graph chart-chrome palette for viewsheet charts, for the VizContext it is
@@ -183,6 +184,29 @@ public final class VSChartChromeDefaults {
          return 14;
       default:
          return 10;
+      }
+   }
+
+   /**
+    * Resolve the legend padding: the density's value when the context is modern and the
+    * descriptor carries no opinion, otherwise unchanged. Null means the engine's built-in insets.
+    */
+   public static Insets resolveLegendPadding(Insets current, boolean hasOpinion, VizContext ctx) {
+      return ctx.modern && !hasOpinion ? legendPaddingForMode(ctx.density) : current;
+   }
+
+   /**
+    * Legend padding for a density mode, a new instance per call; compact is null, the engine's
+    * built-in insets. Unrecognized modes fall back to dense.
+    */
+   static Insets legendPaddingForMode(String mode) {
+      switch(mode) {
+      case VSDensityDefaults.COMFORTABLE:
+         return new Insets(1, 6, 2, 6);
+      case VSDensityDefaults.COMPACT:
+         return null;
+      default:
+         return new Insets(0, 2, 0, 2);
       }
    }
 

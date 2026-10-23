@@ -29,6 +29,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Insets;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -145,6 +146,53 @@ class ChartGapPersistenceTest {
       copy.setLabelGap(9);
 
       assertEquals(5, axis.getLabelGap());
+   }
+
+   @Test
+   void aLegendPaddingOpinionIsAnAuthorOrStylesheetValue() {
+      LegendsDescriptor legends = new LegendsDescriptor();
+      assertFalse(legends.hasPaddingValue());
+      assertFalse(legends.hasPaddingUserValue());
+
+      legends.setPadding(new Insets(5, 5, 5, 5), CompositeValue.Type.CSS);
+      assertTrue(legends.hasPaddingValue());
+      assertFalse(legends.hasPaddingUserValue());
+
+      legends.setPadding(new Insets(0, 4, 1, 4));
+      assertTrue(legends.hasPaddingUserValue());
+   }
+
+   @Test
+   void resetPaddingHandsBackTheStylesheetValue() {
+      LegendsDescriptor legends = new LegendsDescriptor();
+      legends.setGap(20);
+      legends.setPadding(new Insets(5, 5, 5, 5), CompositeValue.Type.CSS);
+      legends.setPadding(new Insets(3, 3, 3, 3));
+
+      legends.resetPadding(CompositeValue.Type.USER);
+
+      assertEquals(new Insets(5, 5, 5, 5), legends.getPadding());
+      assertFalse(legends.hasPaddingUserValue());
+      assertEquals(20, legends.getGap(), "other author values survive");
+   }
+
+   @Test
+   void anAuthorLegendPaddingSurvivesSaveLoadAndClone() throws Exception {
+      LegendsDescriptor legends = new LegendsDescriptor();
+      legends.setPadding(new Insets(1, 6, 2, 6));
+
+      LegendsDescriptor loaded = parse(new LegendsDescriptor(), xml(legends));
+      assertTrue(loaded.hasPaddingUserValue());
+      assertEquals(new Insets(1, 6, 2, 6), loaded.getPadding());
+
+      LegendsDescriptor copy = (LegendsDescriptor) legends.clone();
+      copy.setPadding(new Insets(9, 9, 9, 9));
+      assertEquals(new Insets(1, 6, 2, 6), legends.getPadding());
+   }
+
+   @Test
+   void aLegendWithoutPaddingLoadsWithoutOne() throws Exception {
+      assertFalse(parse(new LegendsDescriptor(), xml(new LegendsDescriptor())).hasPaddingValue());
    }
 
    private static String xml(XMLSerializable obj) {
