@@ -185,7 +185,7 @@ public class SelectionBindingService {
             SelectionListPropertyDialogModel model =
                selectionListService.getSelectionListPropertyModel(runtimeId, assemblyName, user);
             SelectionListPaneModel pane = model.getSelectionListPaneModel();
-            requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
+            requireRepoint(assemblyName, tables, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
 
             List<String> finalAdditional = finalAdditional(
@@ -211,7 +211,7 @@ public class SelectionBindingService {
             SelectionTreePropertyDialogModel model =
                selectionTreeService.getSelectionTreePropertyModel(runtimeId, assemblyName, user);
             SelectionTreePaneModel pane = model.getSelectionTreePaneModel();
-            requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
+            requireRepoint(assemblyName, tables, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
 
             // An ID-mode tree takes no additional tables: the Composer clears them when it
@@ -294,7 +294,7 @@ public class SelectionBindingService {
             RangeSliderPropertyDialogModel model =
                rangeSliderService.getRangeSliderPropertyModel(runtimeId, assemblyName, user);
             RangeSliderDataPaneModel pane = model.getRangeSliderDataPaneModel();
-            requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
+            requireRepoint(assemblyName, tables, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
 
             List<String> finalAdditional = finalAdditional(
@@ -330,7 +330,7 @@ public class SelectionBindingService {
             CalendarPropertyDialogModel model =
                calendarService.getCalendarPropertyModel(runtimeId, assemblyName, user);
             CalendarDataPaneModel pane = model.getCalendarDataPaneModel();
-            requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
+            requireRepoint(assemblyName, tables, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
 
             List<String> finalAdditional = finalAdditional(
@@ -412,14 +412,18 @@ public class SelectionBindingService {
     * {@code force}, matching {@code TableBindingService}'s own same-source tolerance; only an
     * actual table change while already bound requires it.
     */
-   private static void requireRepoint(String assemblyName, String currentTable,
-                                      String resolvedTable, boolean force)
+   private static void requireRepoint(String assemblyName, List<BindableTable> tables,
+                                      String currentTable, String resolvedTable, boolean force)
    {
       if(currentTable == null || currentTable.isBlank() || force) {
          return;
       }
 
-      if(currentTable.equalsIgnoreCase(resolvedTable)) {
+      // Resolve the stored table the way the request was resolved, then compare exactly: Customers
+      // and CUSTOMERS are two tables, so moving between them is a repoint (bug #79192).
+      String live = TableNames.resolveStored(availableNames(tables), currentTable);
+
+      if(live != null ? live.equals(resolvedTable) : currentTable.equals(resolvedTable)) {
          return;
       }
 
@@ -495,18 +499,13 @@ public class SelectionBindingService {
    }
 
    /**
-    * Case-insensitive lookup shared by {@link #resolveTable} and {@link #resolveAdditionalTable}
+    * Table lookup shared by {@link #resolveTable} and {@link #resolveAdditionalTable}
     * — both need the same "does this name match a bindable table" match, just with different
-    * error messages on a miss.
+    * error messages on a miss. An exact name wins, a unique case-only match is canonicalized, and
+    * several case-only matches are refused ({@link TableNames}).
     */
    private static String findByName(List<BindableTable> tables, String name) {
-      for(BindableTable candidate : tables) {
-         if(candidate.name() != null && candidate.name().equalsIgnoreCase(name)) {
-            return candidate.name();
-         }
-      }
-
-      return null;
+      return TableNames.resolve(availableNames(tables), name);
    }
 
    private static List<String> availableNames(List<BindableTable> tables) {
@@ -566,7 +565,7 @@ public class SelectionBindingService {
                                      List<String> resolvedAdditional)
    {
       for(String additionalTable : resolvedAdditional) {
-         if(additionalTable.equalsIgnoreCase(resolvedTable)) {
+         if(additionalTable.equals(resolvedTable)) {
             throw new IllegalArgumentException(
                "'" + assemblyName + "' cannot use 'additionalTables' entry '" + additionalTable +
                "': it is the source table itself ('" + resolvedTable + "'). " +
@@ -644,7 +643,7 @@ public class SelectionBindingService {
 
          BindableTable candidate = findTable(tables, additionalTable);
 
-         if(additionalTable.equalsIgnoreCase(resolvedTable) || noneAllowed ||
+         if(candidate != null && resolvedTable.equals(candidate.name()) || noneAllowed ||
             candidate == null || !missingColumns(candidate, resolvedTable, bound).isEmpty())
          {
             dropped.add(additionalTable);
@@ -662,15 +661,17 @@ public class SelectionBindingService {
       return changed ? kept : null;
    }
 
-   /** Case-insensitive lookup that returns null, never throws, for an unknown name. */
+   /**
+    * Lookup that returns null, never throws, for an unknown or case-ambiguous name (the entries it
+    * serves are dropped or refused by the caller, which has its own message).
+    */
    private static BindableTable findTable(List<BindableTable> tables, String name) {
-      for(BindableTable candidate : tables) {
-         if(candidate.name() != null && candidate.name().equalsIgnoreCase(name)) {
-            return candidate;
-         }
+      try {
+         return TableNames.resolveTable(tables, name);
       }
-
-      return null;
+      catch(IllegalArgumentException e) {
+         return null;
+      }
    }
 
    /**
@@ -713,7 +714,7 @@ public class SelectionBindingService {
       List<String> names = new ArrayList<>();
 
       for(BindableTable candidate : tables) {
-         if(candidate.name() != null && !candidate.name().equalsIgnoreCase(resolvedTable) &&
+         if(candidate.name() != null && !candidate.name().equals(resolvedTable) &&
             missingColumns(candidate, resolvedTable, bound).isEmpty())
          {
             names.add(candidate.name());
@@ -760,7 +761,8 @@ public class SelectionBindingService {
       List<BindableField> fields = List.of();
 
       for(BindableTable candidate : tables) {
-         if(candidate.name().equalsIgnoreCase(table)) {
+         // `table` is a resolved name; Customers and CUSTOMERS are different tables (bug #79192).
+         if(candidate.name().equals(table)) {
             fields = candidate.fields();
             break;
          }

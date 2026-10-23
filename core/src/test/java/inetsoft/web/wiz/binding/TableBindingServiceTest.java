@@ -988,6 +988,47 @@ class TableBindingServiceTest {
                    "worksheet tables bind as ASSET — the form used everywhere else");
    }
 
+   // Bug #79192: worksheet tables Customers and CUSTOMERS are two tables.
+   @Test
+   void setSourceBindsTheExactTableWhenACaseVariantIsListedFirst() throws Exception {
+      CrosstabBindingModel existing = withTables("CUSTOMERS", "Customers");
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      harness(mock(CrosstabVSAssembly.class), existing, bindings)
+         .setSource("tok", principal(), "Crosstab1", "Customers", false);
+
+      assertEquals("Customers",
+                   ((CrosstabBindingModel) capture(bindings).getBinding()).getSource().getSource());
+   }
+
+   @Test
+   void setSourceRefusesACaseOnlyAmbiguousNameNamingBothTables() {
+      CrosstabBindingModel existing = withTables("CUSTOMERS", "Customers");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(mock(CrosstabVSAssembly.class), existing, mock(VSBindingModelService.class))
+            .setSource("tok", principal(), "Crosstab1", "customers", false));
+
+      assertTrue(thrown.getMessage().contains("CUSTOMERS") &&
+                 thrown.getMessage().contains("Customers"), thrown.getMessage());
+   }
+
+   @Test
+   void setSourceTreatsACaseVariantOfTheBoundTableAsARepoint() {
+      CrosstabBindingModel existing = withTables("CUSTOMERS", "Customers");
+      existing.setSource(new inetsoft.web.binding.model.SourceInfo());
+      existing.getSource().setSource("CUSTOMERS");
+      existing.setRows(List.of(new inetsoft.web.binding.model.BDimensionRefModel()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(mock(CrosstabVSAssembly.class), existing, mock(VSBindingModelService.class))
+            .setSource("tok", principal(), "Crosstab1", "Customers", false));
+
+      assertTrue(thrown.getMessage().contains("force"), thrown.getMessage());
+   }
+
    @Test
    void setSourceRefusesATableTheAssemblyCannotSee() {
       CrosstabBindingModel existing = withTables("ORDERS", "CUSTOMERS");

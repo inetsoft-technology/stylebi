@@ -18,8 +18,13 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.web.binding.model.BindingModel;
+import inetsoft.web.binding.model.ChartBindingModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -81,12 +86,68 @@ class BindingSourcesTest {
 
    @Test
    void comparesSourcesByKindAndBareName() {
-      var component = BindingSources.assetSource("__vs_assembly__T1");
+      var component = modelBoundTo("__vs_assembly__T1");
 
       assertTrue(BindingSources.alreadyPointedAt(component, "__vs_assembly__t1"));
       assertFalse(BindingSources.alreadyPointedAt(component, "T1"));
-      assertFalse(BindingSources.alreadyPointedAt(BindingSources.assetSource("T1"),
-                                                  "__vs_assembly__T1"));
+      assertFalse(BindingSources.alreadyPointedAt(modelBoundTo("T1"), "__vs_assembly__T1"));
+   }
+
+   private static ChartBindingModel modelBoundTo(String source, String... tableNames) {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setSource(BindingSources.assetSource(source));
+      List<BindingModel.SourceTable> tables = new ArrayList<>();
+
+      for(String name : tableNames) {
+         BindingModel.SourceTable table = new BindingModel.SourceTable();
+         table.setName(name);
+         tables.add(table);
+      }
+
+      model.setTables(tables);
+      return model;
+   }
+
+   // Bug #79192: worksheet tables Customers and CUSTOMERS are two tables.
+   @Test
+   void resolveSelectsTheExactTableWhateverTheListingOrder() {
+      assertEquals("Customers", BindingSources.resolve(
+         modelBoundTo(null, "CUSTOMERS", "Customers"), "Customers", "Chart1"));
+      assertEquals("Customers", BindingSources.resolve(
+         modelBoundTo(null, "Customers", "CUSTOMERS"), "Customers", "Chart1"));
+      assertEquals("CUSTOMERS", BindingSources.resolve(
+         modelBoundTo(null, "Customers", "CUSTOMERS"), "CUSTOMERS", "Chart1"));
+   }
+
+   @Test
+   void resolveRefusesACaseOnlyAmbiguousNameNamingBothTables() {
+      var e = assertThrows(IllegalArgumentException.class, () -> BindingSources.resolve(
+         modelBoundTo(null, "CUSTOMERS", "Customers"), "customers", "Chart1"));
+
+      assertTrue(e.getMessage().contains("CUSTOMERS") && e.getMessage().contains("Customers"),
+                 e.getMessage());
+   }
+
+   @Test
+   void resolveStillCanonicalizesAUniqueCaseOnlyMatchAndRefusesAnUnknownName() {
+      assertEquals("Orders", BindingSources.resolve(
+         modelBoundTo(null, "Orders"), "orders", "Chart1"));
+      assertThrows(IllegalArgumentException.class, () -> BindingSources.resolve(
+         modelBoundTo(null, "Orders"), "Nope", "Chart1"));
+   }
+
+   @Test
+   void aCaseVariantTableIsNotTheTableTheAssemblyIsAlreadyPointedAt() {
+      var model = modelBoundTo("CUSTOMERS", "Customers", "CUSTOMERS");
+
+      assertTrue(BindingSources.alreadyPointedAt(model, "CUSTOMERS"));
+      assertFalse(BindingSources.alreadyPointedAt(model, "Customers"));
+   }
+
+   @Test
+   void aStoredSourceThatDriftedInCaseStillIdentifiesItsOneTable() {
+      assertTrue(BindingSources.alreadyPointedAt(
+         modelBoundTo("customers", "Customers", "Orders"), "Customers"));
    }
 
    @Test

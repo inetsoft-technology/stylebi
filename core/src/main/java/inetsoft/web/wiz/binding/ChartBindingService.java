@@ -307,7 +307,7 @@ public class ChartBindingService {
    private static void requireNoBoundFields(ChartBindingModel model, String assemblyName,
                                             String table)
    {
-      if(BindingSources.alreadyPointedAt(model.getSource(), table)) {
+      if(BindingSources.alreadyPointedAt(model, table)) {
          return;
       }
 
@@ -367,7 +367,7 @@ public class ChartBindingService {
     * that no longer existed in the chart's new source (bug #76495).
     */
    private static void discardBoundFields(ChartBindingModel model, String table) {
-      if(BindingSources.alreadyPointedAt(model.getSource(), table)) {
+      if(BindingSources.alreadyPointedAt(model, table)) {
          return;
       }
 
@@ -480,7 +480,7 @@ public class ChartBindingService {
 
       if(tables != null) {
          for(BindingModel.SourceTable candidate : tables) {
-            if(table.equalsIgnoreCase(candidate.getName()) && candidate.getColumns() != null) {
+            if(table.equals(candidate.getName()) && candidate.getColumns() != null) {
                for(BindingModel.SourceTableColumn column : candidate.getColumns()) {
                   if(column.getName() == null) {
                      continue;
