@@ -116,7 +116,21 @@ body {
 .bd-selected-assembly {
   // active, not selected: the class binds to isFocused(). --inet-viz-active-border is the
   // outline-no-fill token that names this state; --inet-viz-selected-border is the teal family.
+  // Legacy only: marked assemblies draw focus like selection (below).
   border: 1px dotted var(--inet-viz-active-border) !important;
+}
+
+// modern assemblies draw inner selection and keyboard focus like the composer's selected assembly
+.viz-modern .bd-selected-cell,
+.viz-dark .bd-selected-cell {
+  border-style: dashed !important;
+}
+
+// an outline, not a border, so the ring sits outside the box as the composer's does
+.viz-modern.bd-selected-assembly,
+.viz-dark.bd-selected-assembly {
+  border: none !important;
+  outline: 2px dashed var(--inet-viz-selected-border);
 }
 
 .bd-highlight-med-filler {
@@ -1345,7 +1359,7 @@ wizard-binding-tree .bg-node-selected {
 // Selection binds to the shipped focus family: a selection is a focus state, and #dc581e was an
 // orphan orange in no palette. --inet-focus-ring-color is already the primary at ~30% alpha, which
 // is what the old fill was approximating. drawRegions reads `color` as its fill and `border-color`
-// as its stroke from this rule's computed style.
+// as its stroke from this rule's computed style. Chrome areas take --inet-viz-selected-border instead.
 .viz-modern .chart-object-canvas {
   color: var(--inet-focus-ring-color);
   border-color: var(--inet-primary-color);

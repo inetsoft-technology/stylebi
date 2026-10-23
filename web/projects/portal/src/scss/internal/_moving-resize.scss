@@ -164,6 +164,19 @@ $handle-mid: calc(50% - 4px);
   }
 }
 
+// hollow like the assembly's own handles. !important beats .bg-primary's
+.title-resize-handle.bg-primary,
+.selection-list-cell-handle.bg-primary {
+  background-color: var(--inet-shell-surface-default) !important;
+  border: 1px solid var(--inet-composer-selected-outline);
+}
+
+// a selected narrow title's full-width drag target; drawn, it shows through a dashed border's gaps
+.selected-cell > .title-resize-handle.resize-line {
+  background-color: transparent !important;
+  border: none;
+}
+
 .container-gutter {
   display: none;
 }

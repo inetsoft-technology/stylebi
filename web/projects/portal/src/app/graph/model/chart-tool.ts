@@ -762,6 +762,9 @@ export namespace ChartTool {
       return !!areaName && CHROME_AREAS.has(areaName);
    }
 
+   // Chromium's dash for a 2px dashed outline, which the composer's outer selection draws
+   const CHROME_SELECTION_DASH: number[] = [6, 4];
+
    /**
     * Draw a shape on a given canvas
     *
@@ -859,6 +862,17 @@ export namespace ChartTool {
          // scale its weight with the size of the band. Data selections keep the fill — marking
          // values is what a fill is for. Gate-off keeps the old behaviour for both.
          const strokeOnly = vizModern && ChartTool.isChromeArea(areaName);
+
+         // chrome selections match the assembly's outer selection outline: same token, dashed
+         if(strokeOnly) {
+            const outline = canvasCssStyle.getPropertyValue("--inet-viz-selected-border").trim();
+
+            if(outline) {
+               context.strokeStyle = outline;
+            }
+         }
+
+         context.setLineDash(strokeOnly ? CHROME_SELECTION_DASH : []);
 
          const dregions = Tool.clone(regions);
 
