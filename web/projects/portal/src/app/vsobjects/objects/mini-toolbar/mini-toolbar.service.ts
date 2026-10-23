@@ -122,7 +122,7 @@ export const CORNER_KEBAB_INSET = 4;
 /**
  * An anchored type whose lane cannot hold the strip (hidden or under the minimum) but whose card
  * is tall enough for a control: the kebab takes the card's top-right corner instead of the lane,
- * and opens the whole flattened inventory. Applied by VSObjectContainerComponent alone — the
+ * and opens the whole flattened inventory. Applied by VSObjectContainerComponent alone â€” the
  * floating mount sites overlay the strip and never occupy the lane.
  */
 export function isCornerKebab(objectType: string, vizModern: boolean, laneHeight: number,
@@ -134,11 +134,11 @@ export function isCornerKebab(objectType: string, vizModern: boolean, laneHeight
 
 /**
  * The remainder of the laneless case: an anchored type whose lane cannot hold the strip and whose
- * card is shorter than ACTION_FLOOR draws no chrome at all — no strip, no kebab, right-click
+ * card is shorter than ACTION_FLOOR draws no chrome at all â€” no strip, no kebab, right-click
  * only. It is not a fallback to the floating strip.
  *
  * A lane rule, so it belongs to the mount site that puts the strip in a lane. Applied by
- * VSObjectContainerComponent alone — the five floating mount sites (composer, binding pane, both
+ * VSObjectContainerComponent alone â€” the five floating mount sites (composer, binding pane, both
  * wizard panes, embedded chart) overlay the strip on the assembly and never occupy the lane, so
  * the fit this measures does not arise there. Applying it in the shared action layer instead
  * emptied their toolbars too.
