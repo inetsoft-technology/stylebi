@@ -21,6 +21,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.security.ldap.LdapAuthenticationProvider;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
@@ -1238,6 +1239,22 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
       }
 
       return Optional.empty();
+   }
+
+   /**
+    * Gets the names of the configured authentication providers that are LDAP or Active Directory
+    * providers.
+    *
+    * @return the provider names in chain order, empty if there are none or security is not
+    *         initialized.
+    */
+   public List<String> getLdapAuthenticationProviderNames() {
+      return getAuthenticationChain()
+         .map(chain -> chain.getProviders().stream()
+            .filter(LdapAuthenticationProvider.class::isInstance)
+            .map(AuthenticationProvider::getProviderName)
+            .toList())
+         .orElse(List.of());
    }
 
    /**

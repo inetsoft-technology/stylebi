@@ -50,6 +50,7 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -154,6 +155,12 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
          throw new MessageException(Catalog.getCatalog().getString("security.authentication.exists"));
       }
 
+      // checked before getProviderFromModel, which validates the parameters and may connect
+      if(model.providerType() == SecurityProviderType.LDAP && multiTenantSupplier.getAsBoolean()) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("em.security.multitenant.ldapProviderNotAllowed"));
+      }
+
       AuthenticationProvider newProvider = getProviderFromModel(model)
          .orElseThrow(() -> new MessageException("Failed to create new authentication provider"));
 
@@ -182,6 +189,17 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       if(!model.providerName().equals(name) &&
          getProviderByName(model.providerName()) != null) {
          throw new MessageException(Catalog.getCatalog().getString("security.authentication.exists"));
+      }
+
+      // Turning a provider of another type into an LDAP one is refused under multi-tenancy.
+      // An existing LDAP provider (legacy state) stays editable, so it can be fixed or replaced.
+      if(model.providerType() == SecurityProviderType.LDAP && multiTenantSupplier.getAsBoolean()) {
+         AuthenticationProvider existing = getProviderByName(name);
+
+         if(existing != null && !(existing instanceof LdapAuthenticationProvider)) {
+            throw new MessageException(
+               Catalog.getCatalog().getString("em.security.multitenant.ldapProviderNotAllowed"));
+         }
       }
 
       try {
@@ -333,6 +351,13 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       return SecurityProviderStatus.builder()
          .from(provider)
          .build();
+   }
+
+   /**
+    * Replaces the multi-tenancy check, for tests.
+    */
+   void setMultiTenantSupplier(BooleanSupplier multiTenantSupplier) {
+      this.multiTenantSupplier = multiTenantSupplier;
    }
 
    public AuthenticationProvider getProviderByName(String name) {
@@ -955,6 +980,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
    }
 
    private final SecurityEngine securityEngine;
+   private BooleanSupplier multiTenantSupplier = SUtil::isMultiTenant;
    private final ObjectMapper objectMapper;
    private final Cluster cluster;
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
