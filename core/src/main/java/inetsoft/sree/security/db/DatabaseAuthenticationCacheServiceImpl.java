@@ -18,6 +18,7 @@
 
 package inetsoft.sree.security.db;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.util.Tool;
@@ -73,10 +74,106 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
       this.executor = Executors.newScheduledThreadPool(2, r ->
          new Thread(r, "DatabaseAuthenticationCache"));
       this.zeroSince = cluster.getLong(prefix + ".zeroSince");
+      this.refreshSeq = cluster.getLong(prefix + ".refreshSeq");
 
       // Schedule periodic cleanup check
       executor.scheduleAtFixedRate(
          this::checkAndCleanup, CLEANUP_CHECK_INTERVAL_MS, CLEANUP_CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS);
+   }
+
+   /**
+    * Starts the periodic reload of this service instance. Ignite calls this once per deployed
+    * instance, after {@link #init()}, both on the first deployment and on a failover redeployment.
+    * It must not block and must not need the provider, which is not bound yet on a redeployed
+    * instance.
+    */
+   @Override
+   public void execute() {
+      if(loadingCount.get() != 0L) {
+         // A previous host died during a load and never released the load lock. Only one
+         // instance of this service exists at a time, so nobody else holds it.
+         LOG.info("Clearing the load lock left by a previous host of {}", prefix);
+         loadingCount.set(0L);
+      }
+
+      // The first use of the cache does the initial load, so without a loaded cache the first
+      // tick only has to catch a failed first load.
+      long delay = lastLoadTime.get() != 0L ?
+         getSafeReloadDelay() : Math.min(FAILURE_RETRY_DELAY_MS, getIdleDelay());
+      scheduleReload(delay);
+   }
+
+   /**
+    * One tick of the periodic reload. It always schedules the next tick unless the service was
+    * cancelled, so an early return or an error never ends the reload chain.
+    */
+   void scheduledReload() {
+      long delay = FAILURE_RETRY_DELAY_MS;
+
+      try {
+         if(clientCount.get() <= 0L) {
+            // the provider was removed and waits for the cleanup, or no node uses it
+            delay = getIdleDelay();
+         }
+         else {
+            loadInternal(true);
+            delay = getSafeReloadDelay();
+         }
+      }
+      catch(Throwable e) {
+         LOG.warn("Scheduled reload of the database authentication cache {} failed", prefix, e);
+      }
+      finally {
+         if(!cancelled.get()) {
+            scheduleReload(delay);
+         }
+      }
+   }
+
+   private void scheduleReload(long delay) {
+      try {
+         executor.schedule(this::scheduledReload, Math.max(MIN_RELOAD_DELAY_MS, delay),
+                           TimeUnit.MILLISECONDS);
+      }
+      catch(RejectedExecutionException ignore) {
+         // cancelled
+      }
+   }
+
+   private long getSafeReloadDelay() {
+      try {
+         return Math.max(MIN_RELOAD_DELAY_MS, getNextReloadDelay());
+      }
+      catch(Throwable e) {
+         LOG.debug("Failed to compute the next reload delay of {}", prefix, e);
+         return FAILURE_RETRY_DELAY_MS;
+      }
+   }
+
+   private static long getIdleDelay() {
+      long interval = getCacheInterval();
+      return interval > 0L ? interval : IDLE_DELAY_MS;
+   }
+
+   /**
+    * Gets the reload interval. This is the same value as the provider's cache interval, read
+    * here so that it is available on a host that has no provider bound yet.
+    *
+    * @return the interval in milliseconds, or a value <= 0 if the cache is disabled.
+    */
+   private static long getCacheInterval() {
+      long interval = -1L;
+
+      if("true".equals(SreeEnv.getProperty("security.cache"))) {
+         try {
+            interval = Long.parseLong(SreeEnv.getProperty("security.cache.interval"));
+         }
+         catch(Exception e) {
+            LOG.debug("Invalid security cache interval", e);
+         }
+      }
+
+      return interval;
    }
 
    public boolean isLoading() {
@@ -97,11 +194,14 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
    }
 
    public void refresh() {
+      // a load that is running when this is called may have resolved an older provider, so it
+      // sees the change and loads once more when it ends
+      refreshSeq.incrementAndGet();
       executor.submit(() -> loadInternal(false));
    }
 
    public void connect() {
-      provider = getProvider(providerName);
+      provider = lookupProvider();
       clientCount.incrementAndGet();
       zeroSince.set(0L); // Clear the zero timestamp since we have an active client
    }
@@ -208,6 +308,10 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          if(clientCount != null) {
             cluster.destroyLong(prefix + ".clientCount");
          }
+
+         if(refreshSeq != null) {
+            cluster.destroyLong(prefix + ".refreshSeq");
+         }
       }
    }
 
@@ -224,8 +328,22 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          return;
       }
 
+      // read before the provider is resolved: a refresh requested after this point is run again
+      long seqAtStart = refreshSeq.get();
+      DatabaseAuthenticationProvider current = null;
+
       try {
-         AuthenticationDAO dao = provider.getDao();
+         current = resolveProvider();
+
+         if(current == null) {
+            // not bound on this host yet and not in its chain: a failed attempt, retried later
+            LOG.debug("Provider {} is not available on this host, the load is retried later",
+                      providerName);
+            lastFailureTime.set(System.currentTimeMillis());
+            return;
+         }
+
+         AuthenticationDAO dao = current.getDao();
          QueryResult<IdentityID[]> newUsers = dao.getUsers();
 
          if(cancelled.get()) {
@@ -233,7 +351,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          }
 
          if(newUsers.failed()) {
-            handleError();
+            handleError(current);
             return;
          }
 
@@ -244,7 +362,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          }
 
          if(newRoles.failed()) {
-            handleError();
+            handleError(current);
             return;
          }
 
@@ -255,7 +373,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          }
 
          if(newGroups.failed()) {
-            handleError();
+            handleError(current);
             return;
          }
 
@@ -266,7 +384,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          }
 
          if(newOrganizations.failed()) {
-            handleError();
+            handleError(current);
             return;
          }
 
@@ -278,7 +396,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          }
 
          if(newUserRoles.failed()) {
-            handleError();
+            handleError(current);
             return;
          }
 
@@ -300,7 +418,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
             QueryResult<String[]> result;
 
             if((result = dao.getOrganizationMembers(orgID, orgIDs)).failed()) {
-               handleError();
+               handleError(current);
                return;
             }
 
@@ -311,7 +429,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
             newOrgMembers.put(orgID, result.result());
 
             if((result = dao.getOrganizationRoles(orgID)).failed()) {
-               handleError();
+               handleError(current);
                return;
             }
 
@@ -350,24 +468,65 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
       }
       catch(Exception ex) {
          LOG.warn("Failed to load database authentication cache for provider '{}'", providerName, ex);
-         handleError();
+         handleError(current);
       }
       finally {
+         // the periodic reload is rescheduled by scheduledReload(), whatever happened here
          loadingCount.set(0);
 
-         if(scheduled) {
-            executor.schedule(() -> loadInternal(true), getNextReloadDelay(), TimeUnit.MILLISECONDS);
+         // A refresh that arrived while this load ran lost the load lock, and this load may have
+         // used the configuration from before it: load once more.
+         if(!cancelled.get() && refreshSeq.get() != seqAtStart) {
+            try {
+               executor.submit(() -> loadInternal(false));
+            }
+            catch(RejectedExecutionException ignore) {
+               // cancelled
+            }
          }
       }
    }
 
-   private void handleError() {
+   private void handleError(DatabaseAuthenticationProvider current) {
       lastFailureTime.set(System.currentTimeMillis());
-      provider.getConnectionProvider().resetConnection();
+
+      if(current != null) {
+         current.getConnectionProvider().resetConnection();
+      }
+   }
+
+   /**
+    * Resolves the provider to load with. The host's own chain is the current configuration, so
+    * the provider is looked up there first. If it is not there, for example while the host's
+    * chain swaps its provider instances, the last bound instance is used, which may be
+    * {@code null} on a redeployed instance.
+    */
+   private DatabaseAuthenticationProvider resolveProvider() {
+      try {
+         provider = lookupProvider();
+      }
+      catch(Exception e) {
+         LOG.debug("Provider {} not found on this host, using the last bound instance: {}",
+                   providerName, e.getMessage());
+      }
+
+      return provider;
+   }
+
+   /**
+    * Looks the provider up in the security chain of this node.
+    *
+    * @throws IllegalStateException if the provider is not in this node's chain.
+    */
+   DatabaseAuthenticationProvider lookupProvider() {
+      return getProvider(providerName);
    }
 
    private static DatabaseAuthenticationProvider getProvider(String providerName) {
-      SecurityProvider root = SecurityEngine.getSecurity().getSecurityProvider();
+      // Without the engine's init lock or the chain's read lock: the callers may hold the
+      // provider's cache locks, which the engine takes while it holds the init lock, and an EM
+      // edit takes while it holds the chain's write lock, to tear the providers down.
+      SecurityProvider root = SecurityEngine.getSecurity().peekSecurityProvider();
 
       if(root == null) {
          throw new IllegalStateException("Security not configured");
@@ -382,7 +541,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
          provider = db;
       }
       else if(rootAuthentication instanceof AuthenticationChain chain) {
-         for(AuthenticationProvider child : chain.getProviders()) {
+         for(AuthenticationProvider child : chain.peekProviders()) {
             if(child instanceof DatabaseAuthenticationProvider db &&
                Objects.equals(providerName, db.getProviderName()))
             {
@@ -420,26 +579,38 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
    }
 
    private boolean isReloadRequired() {
-      Instant loaded = getLastLoadTime();
-      Instant failed = getLastFailureTime();
+      long interval = getCacheInterval();
 
-      if(failed != null && (loaded == null || failed.isAfter(loaded.plusSeconds(60L)))) {
-         return true;
+      if(interval <= 0L) {
+         // the cache was turned off, or the interval is invalid
+         return false;
       }
 
-      return loaded == null ||
-         Instant.now().isAfter(loaded.plusMillis(provider.getCacheRefreshDelay()));
-   }
-
-   private long getNextReloadDelay() {
       Instant loaded = getLastLoadTime();
       Instant failed = getLastFailureTime();
 
       if(failed != null && (loaded == null || failed.isAfter(loaded))) {
-         return failed.plusMillis(60L).toEpochMilli();
+         // the same condition and time as the failure branch of getNextReloadDelay()
+         return !Instant.now().isBefore(failed.plusMillis(FAILURE_RETRY_DELAY_MS));
       }
 
-      long interval = provider.getCacheRefreshDelay();
+      return loaded == null || Instant.now().isAfter(loaded.plusMillis(interval));
+   }
+
+   private long getNextReloadDelay() {
+      long interval = getCacheInterval();
+
+      if(interval <= 0L) {
+         return IDLE_DELAY_MS;
+      }
+
+      Instant loaded = getLastLoadTime();
+      Instant failed = getLastFailureTime();
+
+      if(failed != null && (loaded == null || failed.isAfter(loaded))) {
+         return Math.max(MIN_RELOAD_DELAY_MS, Duration.between(
+            Instant.now(), failed.plusMillis(FAILURE_RETRY_DELAY_MS)).toMillis());
+      }
 
       if(loaded == null) {
          // shouldn't happen based on the sequence of calls, but just in case
@@ -447,17 +618,12 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
       }
 
       long delay = interval - Duration.between(loaded, Instant.now()).toMillis();
-
-      if(delay <= 0) {
-         return 1L;
-      }
-
-      return delay;
+      return Math.max(MIN_RELOAD_DELAY_MS, delay);
    }
 
    private final String providerName;
 
-   private transient DatabaseAuthenticationProvider provider;
+   private transient volatile DatabaseAuthenticationProvider provider;
    private transient Cluster cluster;
    private transient String prefix;
 
@@ -476,6 +642,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
    private transient AtomicBoolean cancelled;
    private transient DistributedLong clientCount;
    private transient DistributedLong zeroSince;
+   private transient DistributedLong refreshSeq;
    private transient ScheduledExecutorService executor;
 
    private static final Logger LOG =
@@ -490,4 +657,11 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
    private static final long CLEANUP_GRACE_PERIOD_MS = 5 * 60 * 1000L;
    // How often to check for cleanup (5 minutes)
    private static final long CLEANUP_CHECK_INTERVAL_MS = 5 * 60 * 1000L;
+   // The shortest delay between two ticks of the periodic reload, so that a tick that returns
+   // early while a reload is overdue can't spin
+   private static final long MIN_RELOAD_DELAY_MS = 1000L;
+   // How long to wait before retrying a failed load (1 minute)
+   private static final long FAILURE_RETRY_DELAY_MS = 60_000L;
+   // The tick delay while the cache is disabled (1 hour, the default interval)
+   private static final long IDLE_DELAY_MS = 3_600_000L;
 }

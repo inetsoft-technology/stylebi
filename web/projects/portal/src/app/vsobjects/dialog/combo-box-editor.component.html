@@ -115,7 +115,7 @@
         <div class="form-row-float-label row">
           @if (!model.calendar || (model.calendar && !model.embedded)) {
             <div #dropDownBody class="col form-floating dropDownBody">
-              @if (valueList?.length < 500) {
+              @if (valueList?.length <= 500) {
                 <select class="form-control defaultvalue" id="defaultvalue"
                   [disabled]="model.noDefault || !(model.query || model.embedded)"
                   [(ngModel)]="model.defaultValue">
@@ -131,6 +131,7 @@
                   [disabled]="model.noDefault || !(model.query || model.embedded)"
                   [class.disabled]="model.noDefault || !(model.query || model.embedded)"
                   [fixedDropdown]="dropdownOptions" dropdownPlacement="bottom">
+                  {{ defaultValueText }}
                 </div>
               }
               <label>_#(Default Value)</label>

@@ -130,6 +130,36 @@ class CrossTabFilterPercentCalcTotalTest {
    }
 
    /**
+    * Bug #79130: with the option on, a CompoundGrowth total cell must not show the raw total
+    * (its Sum) formatted as a percent.
+    */
+   @ParameterizedTest(name = "sideBySide={0} byRow={1}")
+   @MethodSource("layouts")
+   void compoundGrowthTotalsNeverShowRawTotalWhenOptionOn(boolean sideBySide, boolean byRow) {
+      CrossTabFilter f = build("Compound", true, sideBySide, byRow, false);
+      List<Cell> totals = calcCells(f, true);
+
+      assertFalse(totals.isEmpty());
+
+      for(Cell cell : totals) {
+         assertNull(cell.value, cell.toString());
+      }
+   }
+
+   /**
+    * Bug #79130: detail cells of CompoundGrowth are unchanged by the option.
+    */
+   @ParameterizedTest(name = "sideBySide={0} byRow={1}")
+   @MethodSource("layouts")
+   void compoundGrowthDetailCellsUnchangedByOption(boolean sideBySide, boolean byRow) {
+      List<Cell> on = calcCells(build("Compound", true, sideBySide, byRow, false), false);
+      List<Cell> off = calcCells(build("Compound", false, sideBySide, byRow, false), false);
+
+      assertFalse(on.isEmpty());
+      assertEquals(off, on);
+   }
+
+   /**
     * With "Compute Trend and Comparison for Totals" on, the totals hold the computed calc
     * value as before, never the raw aggregate.
     */

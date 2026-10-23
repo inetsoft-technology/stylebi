@@ -218,8 +218,12 @@ export class SsoSettingsPageComponent implements OnDestroy {
                   MessageDialogType.INFO);
             }
          },
-         error: () => this.showMessage(
-            "_#(js:Error)", "_#(js:em.security.sso.saveFailed)", MessageDialogType.ERROR)
+         error: (error) => {
+            const message = error?.error?.message;
+            this.showMessage("_#(js:Error)",
+               typeof message === "string" && message.trim() ? message
+                  : "_#(js:em.security.sso.saveFailed)", MessageDialogType.ERROR);
+         }
       });
       this.changed = false;
    }

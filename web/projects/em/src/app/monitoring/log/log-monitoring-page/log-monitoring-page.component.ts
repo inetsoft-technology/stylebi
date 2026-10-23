@@ -27,7 +27,7 @@ import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { LogMonitoringModel } from "../log-monitoring-model";
-import { LogViewLinks } from "../log-view-links";
+import { LogViewLinksService } from "../log-view-links.service";
 import { LogMonitoringViewComponent } from "../log-monitoring-view/log-monitoring-view.component";
 import { MatIcon } from "@angular/material/icon";
 import { MatCard, MatCardTitle } from "@angular/material/card";
@@ -69,6 +69,10 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
    fluentdLogging = false;
    model: LogMonitoringModel = DEFAULT_VIEW_VALUES;
    logContents = new Subject<string[]>();
+   // true while the log file list is being requested; listing waits for every cluster node and
+   // can take several seconds when a node is slow to answer
+   loadingLogFiles = true;
+   private reloadTimer: any = null;
    private subscriptions;
    private destroy$ = new Subject<void>();
    private lastReloadTime = 0;
@@ -76,19 +80,21 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
    constructor(private http: HttpClient,
                private pageTitle: PageHeaderService,
                private downloadService: DownloadService,
-               private monitoringDataService: MonitoringDataService)
+               private monitoringDataService: MonitoringDataService,
+               private logViewLinksService: LogViewLinksService)
    {
       this.pageTitle.title = "_#(js:Logs)";
    }
 
    ngOnInit(): void {
-      this.http.get<LogViewLinks>("../api/em/monitoring/log/links")
+      this.logViewLinksService.getLinks()
          .pipe(
             tap(links => {
                this.fluentdLogging = links.fluentdLogging;
 
                if(this.fluentdLogging) {
                   this.model = null;
+                  this.loadingLogFiles = false;
                }
             }),
             // the file log viewer is not shown when fluentd logging is used, and the file log
@@ -99,23 +105,27 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
          .subscribe({
             next: (data) => {
                this.model = data;
+               this.loadingLogFiles = false;
 
                if(!this.fluentdLogging) {
                   if(this.isLogSelected()) {
                      this.refreshLog();
                   }
                   else {
-                     setTimeout(() => this.reloadLogFiles(), 5000);
+                     this.scheduleReload();
                   }
                }
             },
             error: () => {
-               setTimeout(() => this.reloadLogFiles(), 5000);
+               this.loadingLogFiles = false;
+               this.scheduleReload();
             }
          });
    }
 
    ngOnDestroy() {
+      clearTimeout(this.reloadTimer);
+
       if(this.subscriptions) {
          this.subscriptions.unsubscribe();
       }
@@ -188,10 +198,16 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
       }
    }
 
+   private scheduleReload() {
+      clearTimeout(this.reloadTimer);
+      this.reloadTimer = setTimeout(() => this.reloadLogFiles(), 5000);
+   }
+
    private reloadLogFiles() {
       const now = Date.now();
 
-      if(now - this.lastReloadTime < 10000) {
+      // a list request waits for every cluster node, so never start one while another is pending
+      if(this.loadingLogFiles || now - this.lastReloadTime < 10000) {
          return;
       }
 
@@ -202,17 +218,23 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
          this.subscriptions = null;
       }
 
-      this.http.get<LogMonitoringModel>(GET_LOGVIEWER_MODEL_URL)
-         .subscribe(data => {
-            this.model = data;
+      this.loadingLogFiles = true;
 
-            if(this.isLogSelected()) {
-               this.http.get<string[]>(REFRESH_LOG_URL + this.refreshUrlVars)
-                  .subscribe((logData) => {
-                     this.logContents.next(logData || []);
-                     this.updateSubscription();
-                  });
-            }
+      this.http.get<LogMonitoringModel>(GET_LOGVIEWER_MODEL_URL)
+         .subscribe({
+            next: data => {
+               this.model = data;
+               this.loadingLogFiles = false;
+
+               if(this.isLogSelected()) {
+                  this.http.get<string[]>(REFRESH_LOG_URL + this.refreshUrlVars)
+                     .subscribe((logData) => {
+                        this.logContents.next(logData || []);
+                        this.updateSubscription();
+                     });
+               }
+            },
+            error: () => this.loadingLogFiles = false
          });
    }
 

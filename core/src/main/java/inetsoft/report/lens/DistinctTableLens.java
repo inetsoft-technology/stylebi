@@ -22,6 +22,7 @@ import inetsoft.report.filter.*;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.util.TableLoadException;
+import inetsoft.util.MessageException;
 import inetsoft.util.ThreadPool;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
@@ -29,6 +30,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
@@ -415,7 +417,8 @@ public class DistinctTableLens extends AbstractTableLens
     * next pass finds the rows of the table (bug #77333).
     * @param target the rows of the pass.
     * @param stall the stall the pass failed with, if any.
-    * @param baseFailure the lost swap file, the load failure or the script stop of the base
+    * @param baseFailure the lost swap file, the load failure, the script stop or the message
+    *                    exception (e.g. a failed set table merge) of the base
     *                    the pass failed with, if any.
     * @param background {@code true} if on the worker: its user messages, e.g. the warning of
     *                   a base that failed to load, are kept for the readers before they are
@@ -771,6 +774,7 @@ public class DistinctTableLens extends AbstractTableLens
 
          // nor a stopped script of the base (bug #78134)
          ScriptTimeoutGuard.rethrowStop(ex);
+         rethrowMessageFailure(ex);
 
          synchronized(this) {
             completed = true;
@@ -822,8 +826,9 @@ public class DistinctTableLens extends AbstractTableLens
    }
 
    /**
-    * Find the lost swap file (bug #77651) or the load failure of the base (bug #77966) in the
-    * cause chain of a failure of the worker, or copy the script stop (bug #78134).
+    * Find the lost swap file (bug #77651), the load failure of the base (bug #77966) or its
+    * message exception, e.g. a failed set table merge (bug #78365), in the cause chain of a
+    * failure of the worker, or copy the script stop (bug #78134).
     */
    private static RuntimeException findBaseFailure(Throwable ex) {
       RuntimeException baseFailure = SwapFileReadException.find(ex);
@@ -832,9 +837,54 @@ public class DistinctTableLens extends AbstractTableLens
          baseFailure = TableLoadException.find(ex);
       }
 
+      if(baseFailure != null) {
+         return baseFailure;
+      }
+
       // a stopped script of the base, which fails every read as a stopped cell of a formula
       // table does (bug #78134)
-      return baseFailure != null ? baseFailure : ScriptTimeoutGuard.copyStop(ex);
+      baseFailure = ScriptTimeoutGuard.copyStop(ex);
+
+      // nor a failure to read the base, e.g. of a set table whose merge failed, as SortFilter
+      // fails it (bug #77524). a script failure is not one (bug #77875)
+      return baseFailure != null ? baseFailure : findMessageFailure(ex);
+   }
+
+   /**
+    * Find the message exception in the cause chain of a failure of the base, e.g. the failed
+    * merge of a set table, other than that of a script.
+    */
+   private static MessageException findMessageFailure(Throwable ex) {
+      return ex instanceof ScriptException ? null : MessageException.find(ex);
+   }
+
+   /**
+    * Rethrow the message exception of a failure of the base, which must not look like the end
+    * of the table either (bug #77524).
+    */
+   private static void rethrowMessageFailure(Throwable ex) {
+      MessageException failure = findMessageFailure(ex);
+
+      if(failure != null) {
+         throw failure;
+      }
+   }
+
+   /**
+    * A copy of a message exception, with the same message, levels, cause and stack trace.
+    */
+   private static MessageException copyMessage(MessageException failure) {
+      MessageException copy = new MessageException(
+         failure.getMessage(), failure.getLogLevel(), failure.isDumpStack(),
+         failure.getWarningLevel());
+
+      if(failure.getCause() != null) {
+         copy.initCause(failure.getCause());
+      }
+
+      copy.setKeywords(failure.getKeywords());
+      copy.setStackTrace(failure.getStackTrace());
+      return copy;
    }
 
    /**
@@ -849,6 +899,10 @@ public class DistinctTableLens extends AbstractTableLens
 
          if(stop != null) {
             return stop;
+         }
+
+         if(failure instanceof MessageException message) {
+            return copyMessage(message);
          }
       }
 
@@ -925,6 +979,7 @@ public class DistinctTableLens extends AbstractTableLens
 
          // nor a stopped script of the base (bug #78134)
          ScriptTimeoutGuard.rethrowStop(ex);
+         rethrowMessageFailure(ex);
 
          completed = true;
          LOG.error("Failed to validate table rows when getting row count", ex);
@@ -1487,8 +1542,8 @@ public class DistinctTableLens extends AbstractTableLens
    // the base row the worker has reached, and the stall it failed with (bug #76967)
    private transient volatile int scannedRows;
    private transient volatile LockStallException stallFailure;
-   // the swap file read failure (bug #77651) or the base load failure (bug #77966) the worker
-   // failed with, if any
+   // the swap file read failure (bug #77651), the base load failure (bug #77966), the script stop
+   // (bug #78134) or the message exception (bug #78365) of the base the worker failed with
    private transient volatile RuntimeException baseFailure;
    // the user messages of the worker, for the readers (bug #77966)
    private transient volatile UserMessage userMsg;

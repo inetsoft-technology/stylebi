@@ -101,6 +101,43 @@ class MVActionTest {
       verify(future, never()).get(anyLong(), any());
    }
 
+   /**
+    * Bug #78643: the clone sent to the scheduler node must drop its worksheet (plugin classes
+    * cannot be unmarshalled there); the original definition must be left alone.
+    */
+   @Test
+   void detachesWorksheetOnlyOnTheClonedMvBeforeDispatch() throws Throwable {
+      Future<String> future = mockFuture();
+      when(future.get(600000L, TimeUnit.MILLISECONDS)).thenReturn(null);
+
+      MVDef original = mock(MVDef.class);
+      MVDef copy = mock(MVDef.class);
+      when(original.getName()).thenReturn("mv1");
+      when(original.clone()).thenReturn(copy);
+      when(copy.getName()).thenReturn("mv1");
+      when(copy.hasData()).thenReturn(false);
+
+      MVAction action = new MVAction(original);
+
+      try(MockedStatic<SreeEnv> sreeEnvStatic = mockStatic(SreeEnv.class);
+          MockedStatic<Cluster> clusterStatic = mockStatic(Cluster.class))
+      {
+         sreeEnvStatic.when(() -> SreeEnv.getProperty("schedule.task.timeout")).thenReturn(null);
+         Cluster cluster = mock(Cluster.class);
+         when(cluster.isSchedulerRunning()).thenReturn(true);
+         when(cluster.<String>submit(any(), eq(true))).thenReturn(future);
+         clusterStatic.when(Cluster::getInstance).thenReturn(cluster);
+
+         Method method =
+            MVAction.class.getDeclaredMethod("createMV", Principal.class, MVDef.class);
+         method.setAccessible(true);
+         method.invoke(action, (Principal) null, original);
+      }
+
+      verify(copy).detachWorksheetForDispatch();
+      verify(original, never()).detachWorksheetForDispatch();
+   }
+
    @SuppressWarnings("unchecked")
    private static Future<String> mockFuture() {
       return mock(Future.class);
