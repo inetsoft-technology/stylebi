@@ -109,9 +109,11 @@ public class SelectionBindingService {
     *                        flat, self-referencing table ({@code SelectionTreeVSAssemblyInfo.ID}
     *                        mode) instead of {@code columns}' fixed hierarchy levels. Required
     *                        together with {@code idColumn}/{@code labelColumn}; refused alongside
-    *                        a non-empty {@code columns}. Unlike {@code measure}, this is a literal
-    *                        column name only — {@code "$(ComponentName)"} is refused (#76768; see
-    *                        {@code resolveIdModeColumnRef}'s doc for why it cannot work here).
+    *                        a non-empty {@code columns}. As of #79252, also accepts a
+    *                        {@code "$(ComponentName)"} dynamic reference, forwarded untouched the
+    *                        same way {@code measure} already is — see
+    *                        {@code resolveIdModeColumnRef}'s doc for the mechanism that makes this
+    *                        safe.
     * @param idColumn  selection tree only — the column holding each row's own unique key. See
     *                  {@code parentIdColumn}.
     * @param labelColumn  selection tree only — the column holding each row's displayed label. See
@@ -149,14 +151,6 @@ public class SelectionBindingService {
          throw new IllegalArgumentException(
             "set_selection_source requires at least one column in 'columns', or " +
             "'parentIdColumn'/'idColumn'/'labelColumn' for a selection tree's ID-hierarchy mode.");
-      }
-
-      if(idMode) {
-         // Validated up front, before touching any session state -- see resolveIdModeColumnRef's
-         // doc for why a dynamic reference cannot work for these three fields, unlike `measure`.
-         refuseIfDynamic("parentIdColumn", parentIdColumn);
-         refuseIfDynamic("idColumn", idColumn);
-         refuseIfDynamic("labelColumn", labelColumn);
       }
 
       List<String> columnsOrEmpty = columns == null ? List.of() : columns;
@@ -233,37 +227,59 @@ public class SelectionBindingService {
                          resolvedTable, pane.getAdditionalTables(), measure, result);
 
             if(idMode) {
-               // #76768: an arbitrary-depth tree from one flat, self-referencing table, distinct
-               // from the fixed-hierarchy-levels COLUMN mode below. Literal columns only --
-               // unlike `measure`, a "$(ComponentName)" value here cannot work: refuseIfDynamic
-               // rejects it up front. See that method's own doc for why.
-               OutputColumnRefModel parentIdRef = resolveIdModeColumnRef(
+               // #76768/#79252: an arbitrary-depth tree from one flat, self-referencing table,
+               // distinct from the fixed-hierarchy-levels COLUMN mode below. A literal column is
+               // resolved and canonicalized the same way it always was; a "$(ComponentName)"
+               // dynamic reference is now forwarded untouched, exactly like `measure` -- see
+               // resolveIdModeColumnRef's doc for the mechanism that makes this safe.
+               ResolvedIdColumn parentId = resolveIdModeColumnRef(
                   tables, assemblyName, resolvedTable, "parentIdColumn", parentIdColumn);
-               OutputColumnRefModel idRef = resolveIdModeColumnRef(
+               ResolvedIdColumn id = resolveIdModeColumnRef(
                   tables, assemblyName, resolvedTable, "idColumn", idColumn);
-               OutputColumnRefModel labelRef = resolveIdModeColumnRef(
+               ResolvedIdColumn label = resolveIdModeColumnRef(
                   tables, assemblyName, resolvedTable, "labelColumn", labelColumn);
 
-               // Persist the canonicalized names (parentIdRef.getAttribute(), etc.), not the raw
-               // caller-supplied strings: dataRefs (parentIdRef/idRef/labelRef, built off the
-               // resolved BindableField) already hold the canonical DB casing, and
+               // Persist the canonicalized names (parentId.value(), etc.) for a literal column --
+               // dataRefs (parentId.ref()/id.ref()/label.ref(), built off the resolved
+               // BindableField) already hold the canonical DB casing, and
                // SelectionTreeVSAQuery2.refreshSelectionValue0 matches parentId/id/label against
                // dataRefs by name with a case-sensitive Tool.equals. Persisting the raw input here
                // instead would silently break a case-mismatched call (e.g. "state_id" for a real
                // "STATE_ID" column) exactly the way Bug #76747 did for additionalTables before
-               // resolveAdditionalTables started returning the canonical name.
+               // resolveAdditionalTables started returning the canonical name. A dynamic value has
+               // no column to canonicalize -- its raw "$(ComponentName)" string is stored as-is,
+               // same as `measure`.
                pane.setMode(SelectionTreeVSAssemblyInfo.ID);
-               pane.setParentId(parentIdRef.getAttribute());
-               pane.setId(idRef.getAttribute());
-               pane.setLabel(labelRef.getAttribute());
-               pane.setParentIdRef(parentIdRef);
-               pane.setIdRef(idRef);
-               pane.setLabelRef(labelRef);
+               pane.setParentId(parentId.value());
+               pane.setId(id.value());
+               pane.setLabel(label.value());
+
+               // A literal column's Ref model seeds dataRefs so the tree already has a matching
+               // column at bind time. A dynamic reference has none to seed with, so the pane's own
+               // existing Ref (if any -- e.g. a previous literal pick, left over from before this
+               // field became dynamic) is left untouched, exactly as the Composer's own
+               // selection-tree-id-pane.component.ts does for the identical case:
+               // SelectionTreeVSAssemblyInfo.update()/restoreRefs() additively rebuilds dataRefs
+               // from the live-resolved value on the very next refresh regardless (and, per
+               // ViewsheetSandbox.executeView's unconditional refreshMetaData call, on first
+               // render too), so there is nothing unsafe about leaving it alone here.
+               if(parentId.ref() != null) {
+                  pane.setParentIdRef(parentId.ref());
+               }
+
+               if(id.ref() != null) {
+                  pane.setIdRef(id.ref());
+               }
+
+               if(label.ref() != null) {
+                  pane.setLabelRef(label.ref());
+               }
+
                selectionTreeService.setSelectionTreePropertyModel(
                   runtimeId, assemblyName, model, linkUri, user, dispatcher);
-               result.put("parentIdColumn", parentIdRef.getAttribute());
-               result.put("idColumn", idRef.getAttribute());
-               result.put("labelColumn", labelRef.getAttribute());
+               result.put("parentIdColumn", parentId.value());
+               result.put("idColumn", id.value());
+               result.put("labelColumn", label.value());
             }
             else {
                requireArity(assemblyName, "a selection tree", resolvedColumns, 1, null);
@@ -801,57 +817,60 @@ public class SelectionBindingService {
    }
 
    /**
-    * Resolves one ID-hierarchy-mode column (parentIdColumn/idColumn/labelColumn) into the
-    * {@code OutputColumnRefModel} {@code SelectionTreePropertyDialogService.setAssemblyInfoDataRefs}
-    * needs to build the tree's {@code dataRefs}.
-    *
-    * <p>Unlike {@code measure}, this deliberately does NOT accept a {@code "$(ComponentName)"}
-    * dynamic reference (#76768's original ask, walked back after live-tracing the query path):
-    * {@code SelectionTreeVSAQuery2.refreshSelectionValue0} locates the id/parentId/label columns
-    * by matching {@code assembly.getDataRefs()[i].getName()} against the *resolved* value of
-    * {@code assembly.getID()}/{@code getParentID()}/{@code getLabel()} — and
-    * {@code setAssemblyInfoDataRefs}'s ID-mode branch only adds a ref to {@code dataRefs} for a
-    * literal column, never for a dynamic one (there is no real column to add). So a dynamic
-    * parentIdColumn/idColumn/labelColumn can never find a matching index at runtime: for
-    * {@code idColumn} specifically this means an immediate empty tree ({@code idIndex == -1}
-    * short-circuits {@code refreshSelectionValue0}); for {@code parentIdColumn}/{@code labelColumn}
-    * it silently drops the hierarchy/labels instead. This is structurally different from
-    * {@code measure}, whose dynamic value is resolved through a separate per-row aggregation path
-    * that never touches {@code dataRefs} at all — the two are not analogous despite the shape of
-    * the ask. See {@link #refuseIfDynamic}.
+    * One resolved ID-hierarchy-mode column (parentIdColumn/idColumn/labelColumn): {@code value} is
+    * what {@code SelectionTreePaneModel.setParentId}/{@code setId}/{@code setLabel} store (the
+    * canonical column name for a literal, or the raw {@code "$(ComponentName)"} string for a
+    * dynamic reference, unchanged), and {@code ref} is the {@code OutputColumnRefModel}
+    * {@code SelectionTreePropertyDialogService.setAssemblyInfoDataRefs} needs to seed the tree's
+    * {@code dataRefs} with — null for a dynamic reference, which has no literal column to seed.
     */
-   private static OutputColumnRefModel resolveIdModeColumnRef(List<BindableTable> tables,
-                                                               String assemblyName, String table,
-                                                               String fieldName, String value)
-   {
-      refuseIfDynamic(fieldName, value);
-
-      List<BindableField> resolved = resolveColumns(tables, assemblyName, table, List.of(value));
-      return columnRef(table, resolved.get(0));
+   private record ResolvedIdColumn(String value, OutputColumnRefModel ref) {
    }
 
    /**
-    * Refuses a {@code "$(ComponentName)"}-shaped value for a field that cannot actually support
-    * one (#76768) — see {@link #resolveIdModeColumnRef}'s doc for why. Explicit and loud rather
-    * than silently forwarding a value that would render an empty or broken tree with no error
-    * anywhere in the chain.
+    * Resolves one ID-hierarchy-mode column (parentIdColumn/idColumn/labelColumn).
+    *
+    * <p>#76768 originally refused a {@code "$(ComponentName)"} dynamic reference here outright, on
+    * the premise that {@code SelectionTreeVSAQuery2.refreshSelectionValue0} locates the
+    * id/parentId/label columns by matching {@code assembly.getDataRefs()[i].getName()} against the
+    * live-resolved {@code assembly.getID()}/{@code getParentID()}/{@code getLabel()}, and that
+    * {@code dataRefs} is built once, at bind time, from a literal column only — so a dynamic
+    * reference could never find a matching index at runtime. #79252 found that premise incomplete:
+    * {@code SelectionTreeVSAssemblyInfo.update()}/{@code restoreRefs()} additively rebuilds
+    * {@code dataRefs} from the table's live column selection, keyed on the live-resolved getters,
+    * on every ordinary input-driven refresh (and, per {@code ViewsheetSandbox.executeView}'s
+    * unconditional {@code refreshMetaData} call, on first render too) — before the selection query
+    * runs. So a dynamic reference is forwarded untouched here, exactly like {@code measure}
+    * already is: its raw string becomes the pane's {@code DynamicValue}, and no
+    * {@code OutputColumnRefModel} is produced for it, since there is no literal column to seed
+    * {@code dataRefs} with — the caller leaves the pane's existing ref (if any) untouched for that
+    * case, matching the Composer's own {@code selection-tree-id-pane.component.ts}.
     */
-   private static void refuseIfDynamic(String fieldName, String value) {
+   private static ResolvedIdColumn resolveIdModeColumnRef(List<BindableTable> tables,
+                                                           String assemblyName, String table,
+                                                           String fieldName, String value)
+   {
       // Deliberately not VSUtil.isVariableValue: that class's static initializer reaches into a
       // live Spring application context, which SelectionBindingServiceTest's plain-Mockito setup
       // does not provide -- pulling it in here would break every idMode unit test with a
-      // NoClassDefFoundError/ExceptionInInitializerError instead of a clean assertion failure.
-      String trimmed = value == null ? null : value.trim();
+      // NoClassDefFoundError/ExceptionInInitializerError instead of a clean assertion failure. This
+      // mirrors SelectionMeasureResolver.resolve's own plain prefix/suffix check for the identical
+      // reason.
+      String trimmed = value.trim();
 
-      if(trimmed != null && trimmed.startsWith("$(") && trimmed.endsWith(")")) {
-         throw new IllegalArgumentException(
-            "set_selection_source's '" + fieldName + "' does not accept a \"$(ComponentName)\" " +
-            "dynamic reference: StyleBI's selection-tree query engine matches ID-hierarchy " +
-            "columns by name against the resolved column list, not against a live runtime " +
-            "value, so a dynamic parentIdColumn/idColumn/labelColumn would silently render an " +
-            "empty or broken tree instead of the swap this would suggest. Use a literal column " +
-            "name, as reported by list_bindable_fields.");
+      if(trimmed.startsWith("$(") && trimmed.endsWith(")")) {
+         if(trimmed.substring(2, trimmed.length() - 1).isBlank()) {
+            throw new IllegalArgumentException(
+               "set_selection_source's '" + fieldName + "' \"" + trimmed + "\" needs a component " +
+               "name between the parentheses, e.g. \"$(TextInput1)\".");
+         }
+
+         return new ResolvedIdColumn(trimmed, null);
       }
+
+      List<BindableField> resolved = resolveColumns(tables, assemblyName, table, List.of(value));
+      BindableField field = resolved.get(0);
+      return new ResolvedIdColumn(field.column(), columnRef(table, field));
    }
 
    private static OutputColumnRefModel[] columnRefs(String table, List<BindableField> fields) {

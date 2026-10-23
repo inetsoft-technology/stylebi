@@ -179,23 +179,90 @@ class SelectionBindingServiceTest {
    }
 
    @Test
-   void refusesADynamicReferenceOnAnIdModeColumn() {
-      // #76768: unlike `measure`, an id/parentId/label column cannot support "$(ComponentName)"
-      // -- SelectionTreeVSAQuery2.refreshSelectionValue0 matches these columns by name against
-      // assembly.getDataRefs(), which never contains an entry for a dynamic (non-literal) value,
-      // so the tree would silently render empty/broken rather than actually swap. Refused loudly
-      // instead, naming the field.
+   void forwardsADynamicReferenceOnAnIdModeColumn() throws Exception {
+      // #79252: #76768 originally refused "$(ComponentName)" here outright, on the premise that
+      // SelectionTreeVSAQuery2.refreshSelectionValue0 matches these columns by name against a
+      // dataRefs snapshot frozen once at bind time, which a dynamic value could never populate.
+      // That premise was incomplete -- SelectionTreeVSAssemblyInfo.update()/restoreRefs()
+      // additively rebuilds dataRefs from the live-resolved value on every ordinary refresh,
+      // before the selection query runs -- so the raw "$(ComponentName)" string is now forwarded
+      // untouched, exactly like `measure` already is.
       SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
       SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+      when(treeService.getSelectionTreePropertyModel(eq("rt1"), eq("Tree1"), any()))
+         .thenReturn(new SelectionTreePropertyDialogModel());
+
+      Map<String, Object> result = harness(assembly, null, treeService, null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY", "STATE",
+                   "$(RadioButton1)", false, "");
+
+      ArgumentCaptor<SelectionTreePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(SelectionTreePropertyDialogModel.class);
+      verify(treeService).setSelectionTreePropertyModel(
+         eq("rt1"), eq("Tree1"), captor.capture(), eq(""), any(), any());
+      SelectionTreePaneModel pane = captor.getValue().getSelectionTreePaneModel();
+      assertEquals(SelectionTreeVSAssemblyInfo.ID, pane.getMode());
+      assertEquals("CITY", pane.getParentId());
+      assertEquals("STATE", pane.getId());
+      assertEquals("$(RadioButton1)", pane.getLabel());
+      assertEquals("CITY", pane.getParentIdRef().getAttribute());
+      assertEquals("STATE", pane.getIdRef().getAttribute());
+      // No literal column to seed dataRefs with for a dynamic value -- the fresh model's labelRef
+      // (null by default) is left untouched rather than cleared or guessed at.
+      assertNull(pane.getLabelRef());
+      assertEquals("CITY", result.get("parentIdColumn"));
+      assertEquals("STATE", result.get("idColumn"));
+      assertEquals("$(RadioButton1)", result.get("labelColumn"));
+   }
+
+   @Test
+   void leavesAnExistingLiteralRefUntouchedWhenAColumnBecomesDynamic() throws Exception {
+      // Mirrors the Composer's own selection-tree-id-pane.component.ts: picking a dynamic value
+      // for labelColumn does not clear a previously-stored literal labelRef -- it is simply not
+      // read any more once the field is dynamic, and SelectionTreeVSAssemblyInfo.update() rebuilds
+      // dataRefs from the live-resolved value regardless.
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      OutputColumnRefModel staleLabelRef = new OutputColumnRefModel();
+      staleLabelRef.setTable("ORDERS");
+      staleLabelRef.setAttribute("ORDER_DATE");
+      staleLabelRef.setName("ORDER_DATE");
+      model.getSelectionTreePaneModel().setLabelRef(staleLabelRef);
+      SelectionTreePropertyDialogService treeService = treeService(model);
+
+      harness(assembly, null, treeService, null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY", "STATE",
+                   "$(RadioButton1)", false, "");
+
+      ArgumentCaptor<SelectionTreePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(SelectionTreePropertyDialogModel.class);
+      verify(treeService).setSelectionTreePropertyModel(
+         eq("rt1"), eq("Tree1"), captor.capture(), eq(""), any(), any());
+      SelectionTreePaneModel pane = captor.getValue().getSelectionTreePaneModel();
+      assertEquals("$(RadioButton1)", pane.getLabel());
+      assertSame(staleLabelRef, pane.getLabelRef());
+   }
+
+   @Test
+   void refusesABlankDynamicReferenceOnAnIdModeColumn() throws Exception {
+      // Mirrors SelectionMeasureResolver.resolve's own "$()" guard for `measure`. Thrown from
+      // inside the idMode resolution, same as a bad `measure` value is (applyMeasure runs after
+      // the property model is already fetched) -- not up front the way #76768's outright refusal
+      // used to be -- so the property model still needs stubbing, and what's actually verified is
+      // that the write itself never happens.
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+      when(treeService.getSelectionTreePropertyModel(eq("rt1"), eq("Tree1"), any()))
+         .thenReturn(new SelectionTreePropertyDialogModel());
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () ->
          harness(assembly, null, treeService, null, null)
             .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY", "STATE",
-                      "$(RadioButton1)", false, ""));
+                      "$()", false, ""));
 
       assertTrue(thrown.getMessage().contains("labelColumn"));
-      assertTrue(thrown.getMessage().contains("does not accept"));
-      verifyNoInteractions(treeService);
+      assertTrue(thrown.getMessage().contains("needs a component name"));
+      verify(treeService, never()).setSelectionTreePropertyModel(any(), any(), any(), any(), any(), any());
    }
 
    @Test
