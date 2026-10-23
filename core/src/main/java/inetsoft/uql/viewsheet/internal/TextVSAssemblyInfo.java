@@ -64,6 +64,12 @@ public class TextVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
    @Override
    public void initDefaultFormat() {
       setDefaultFormat(true);
+      VizContext ctx = VizContext.of(this);
+
+      // a new marked text starts at its tier's control height
+      if(ctx.modern && takesDensitySize()) {
+         setPixelSize(defaultSize(ctx));
+      }
    }
 
    /**
@@ -116,6 +122,40 @@ public class TextVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
             : DEFAULT_BORDER_COLOR;
          def.setBorderColorsValue(new BorderColors(border, border, border, border));
       }
+   }
+
+   /**
+    * Not reached by a restore, Modernize or Revert, so a text already on a dashboard keeps its
+    * height until the dashboard's density changes.
+    */
+   @Override
+   protected void seedDensitySize(VizContext ctx) {
+      if(ctx.modern && followsDensitySize()) {
+         setPixelSize(defaultSize(ctx));
+      }
+   }
+
+   // an auto-size text's height comes from its content
+   @Override
+   public boolean takesDensitySize() {
+      return !isAutoSize();
+   }
+
+   // only a tier height: 20 is the legacy height, never a seeded one
+   @Override
+   public boolean followsDensitySize() {
+      return takesDensitySize() && !isUserSize() &&
+         VSDensityDefaults.isControlHeight(getPixelSize().height);
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      return new Dimension(getPixelSize().width, VSDensityDefaults.controlHeight(ctx));
+   }
+
+   @Override
+   public boolean densitySizeIsHeightOnly() {
+      return true;
    }
 
    /**
