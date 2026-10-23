@@ -314,6 +314,54 @@ class ChartBindingServiceTest {
                    "worksheet tables bind as ASSET — the form the DnD path uses too");
    }
 
+   // Bug #79192: worksheet tables Customers and CUSTOMERS are two tables.
+   @Test
+   void setSourceBindsTheExactTableWhenACaseVariantIsListedFirst() throws Exception {
+      ChartBindingModel existing = chartWithTables("CUSTOMERS", "Customers");
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+
+      harness(existing, refs, mock(ChangeChartTypeService.class),
+              mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class))
+         .setSource("tok", principal(), "Chart1", "Customers", false, "");
+
+      ArgumentCaptor<ChangeChartRefEvent> captor =
+         ArgumentCaptor.forClass(ChangeChartRefEvent.class);
+      verify(refs).changeChartRef(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                  anyString());
+      assertEquals("Customers", captor.getValue().getModel().getSource().getSource());
+   }
+
+   @Test
+   void setSourceRefusesACaseOnlyAmbiguousNameNamingBothTables() {
+      ChartBindingModel existing = chartWithTables("CUSTOMERS", "Customers");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "customers", false, ""));
+
+      assertTrue(thrown.getMessage().contains("CUSTOMERS") &&
+                 thrown.getMessage().contains("Customers"), thrown.getMessage());
+   }
+
+   @Test
+   void setSourceTreatsACaseVariantOfTheBoundTableAsARepoint() {
+      ChartBindingModel existing = chartWithTables("CUSTOMERS", "Customers");
+      existing.setSource(assetSource("CUSTOMERS"));
+      existing.setXFields(List.of(new ChartDimensionRefModel()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "Customers", false, ""));
+
+      assertTrue(thrown.getMessage().contains("force"), thrown.getMessage());
+   }
+
    @Test
    void setSourceRefusesATableTheChartCannotSee() {
       ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");

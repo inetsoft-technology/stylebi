@@ -295,9 +295,11 @@ public final class BindableColumns {
       if(current != null) {
          // The bare name of the bound source is that source, even when a worksheet table and a
          // component share it: naming what is already bound is not a repoint.
-         if(requested != null && !current.equalsIgnoreCase(lookup(listed, requested)) &&
-            !requested.equalsIgnoreCase(current) &&
-            !requested.equalsIgnoreCase(BindingSources.displayName(current)))
+         // Resolve the request first, then compare exactly: Customers and CUSTOMERS are two tables,
+         // so naming one while bound to the other is a different table (bug #79192).
+         if(requested != null && !current.equals(lookup(listed, requested)) &&
+            !requested.equals(current) &&
+            !requested.equals(BindingSources.displayName(current)))
          {
             throw new IllegalArgumentException(
                "'" + assembly + "' is bound to '" + BindingSources.displayName(current) +
@@ -406,31 +408,35 @@ public final class BindableColumns {
          return null;
       }
 
-      if(BindingSources.isComponent(requested)) {
-         String bare = BindingSources.displayName(requested);
-
-         for(BindableTable table : listed) {
-            if(table.isComponent() && bare.equalsIgnoreCase(table.name())) {
-               return keyOf(table);
-            }
-         }
-
-         return null;
-      }
-
-      BindableTable component = null;
+      List<BindableTable> components = new ArrayList<>();
+      List<BindableTable> worksheet = new ArrayList<>();
 
       for(BindableTable table : listed) {
-         if(requested.equalsIgnoreCase(table.name())) {
-            if(!table.isComponent()) {
-               return keyOf(table);
-            }
-
-            component = component == null ? table : component;
-         }
+         (table.isComponent() ? components : worksheet).add(table);
       }
 
-      return component == null ? null : keyOf(component);
+      if(BindingSources.isComponent(requested)) {
+         BindableTable table = TableNames.resolveTable(components,
+                                                       BindingSources.displayName(requested));
+         return table == null ? null : keyOf(table);
+      }
+
+      // Exact beats case-insensitive (bug #79192): worksheet tables Customers and CUSTOMERS are
+      // two tables, and a name only differing by case is ambiguous rather than a first match.
+      BindableTable table = TableNames.resolveTable(worksheet, requested);
+
+      if(table != null && table.name().equals(requested)) {
+         return keyOf(table);
+      }
+
+      BindableTable component = TableNames.resolveTable(components, requested);
+
+      if(component != null && component.name().equals(requested)) {
+         return keyOf(component);
+      }
+
+      table = table != null ? table : component;
+      return table == null ? null : keyOf(table);
    }
 
    /**
@@ -443,7 +449,8 @@ public final class BindableColumns {
    }
 
    private static boolean isKey(BindableTable table, String key) {
-      return key != null && key.equalsIgnoreCase(keyOf(table));
+      // Exact: the key is already a resolved listed name, and two tables may differ only by case.
+      return key != null && key.equals(keyOf(table));
    }
 
    private static boolean hasWarnings(List<BindableTable> listed, String name) {
