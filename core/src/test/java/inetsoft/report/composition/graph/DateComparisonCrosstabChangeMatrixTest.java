@@ -25,6 +25,7 @@ import inetsoft.test.dc.DcPeriods;
 import inetsoft.test.dc.DcShape;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -37,6 +38,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -71,7 +73,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
                                   DcInMemoryViewsheetFixture.Config.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class DateComparisonCrosstabChangeMatrixTest {
    private static final String END = "2021-11-10";
    private static final double MAX_UNJUDGED = 0.5;
@@ -86,11 +88,26 @@ class DateComparisonCrosstabChangeMatrixTest {
                                  DcInMemoryViewsheetFixture.dayValue(day) });
       }
    }
+
    /** The part of the subtotal row of a period. */
    private static final String TOTAL = "Total|";
 
    /** A year, a quarter and a month period with parts, for the totals. */
    private static final Set<String> WITH_TOTALS = Set.of("Y-all-gM", "Q-qtd-gM-cQ", "M-all-gD");
+
+   /**
+    * The share of all the rows of the Change crosstabs that may be left unjudged (Bug #79061,
+    * finding 4), over the whole class. Measured: 158 of 8302 rows, 1.9 %.
+    */
+   private static final double MAX_UNJUDGED_TOTAL = 0.05;
+   private static final AtomicInteger JUDGED_TOTAL = new AtomicInteger();
+   private static final AtomicInteger UNJUDGED_TOTAL = new AtomicInteger();
+
+   static {
+      // an id that is not a legal shape would silently drop its cases
+      DcShape.SAMPLE.forEach(DcShape::byId);
+      WITH_TOTALS.forEach(DcShape::byId);
+   }
 
    private record Case(DcShape shape, String weekStart, boolean toDate, boolean inclusive,
                        boolean percent, boolean onRows, boolean totals)
@@ -151,6 +168,23 @@ class DateComparisonCrosstabChangeMatrixTest {
    @AfterEach
    void tearDown() {
       fixture.tearDown();
+   }
+
+   /**
+    * Over the whole class, so that a bug that empties many Change rows cannot hide in the bound
+    * per case.
+    */
+   @AfterAll
+   static void fewRowsAreLeftUnjudged() {
+      int judged = JUDGED_TOTAL.get();
+      int unjudged = UNJUDGED_TOTAL.get();
+
+      // a run of a few cases only has too few rows for a share
+      if(judged >= 1000) {
+         assertTrue(unjudged <= (judged + unjudged) * MAX_UNJUDGED_TOTAL,
+                    unjudged + " of " + (judged + unjudged) + " rows were left unjudged, more than " +
+                    (int) (MAX_UNJUDGED_TOTAL * 100) + " %");
+      }
    }
 
    @ParameterizedTest(name = "{0}")
@@ -288,6 +322,9 @@ class DateComparisonCrosstabChangeMatrixTest {
                          expected + " (" + current + " vs " + before + ")");
          }
       }
+
+      JUDGED_TOTAL.addAndGet(judged);
+      UNJUDGED_TOTAL.addAndGet(unjudged);
 
       if(judged == 0 || unjudged > judged * MAX_UNJUDGED) {
          problems.add("judged " + judged + " rows, left " + unjudged + " unjudged");

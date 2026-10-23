@@ -306,6 +306,7 @@ public final class DcInMemoryViewsheetFixture {
       crosstab.getVSCrosstabInfo().setCalculateTotalValue(totals);
       ((CrosstabVSAssemblyInfo) crosstab.getVSAssemblyInfo()).setDateComparisonInfo(dc);
       vs.addAssembly(crosstab);
+      // the crosstab's data is a TableLens; it is read to its end, as the viewer scrolls
       TableLens data = (TableLens) sheet.box().getData(name);
       data.moreRows(Integer.MAX_VALUE);
 

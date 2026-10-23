@@ -73,7 +73,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * <p>Combinations: every shape at the datatest End Date; the shapes that use weeks also at
  * 2021-01-02 and with Monday weeks; one shape of each kind with toDate + inclusive and Percent;
  * the Week-period shapes at the two daylight saving End Dates (they need the surefire zone
- * America/New_York).</p>
+ * America/New_York); the SAMPLE shapes also with Change + Value and Percent + Value, which plot
+ * the value as well as the Change from the same data set.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
@@ -81,7 +82,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
                                   DcInMemoryViewsheetFixture.Config.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class DateComparisonChangeMatrixTest {
    private static final String[] DST_END_DAYS = { "2021-03-14", "2021-11-07" };
    /** The largest share of rows whose part the previous period lacks (small charts have a few). */
@@ -261,7 +262,7 @@ class DateComparisonChangeMatrixTest {
                            DcInMemoryViewsheetFixture::dayValue);
    }
 
-   /** What is wrong with the chart of a case; empty when it is as expected. */
+   /** The variables the graph plots, element by element, in order. */
    private static List<String> plottedVars(EGraph graph) {
       List<String> vars = new ArrayList<>();
 
@@ -274,6 +275,7 @@ class DateComparisonChangeMatrixTest {
       return vars;
    }
 
+   /** What is wrong with the chart of a case; empty when it is as expected. */
    private List<String> judge(Case c) throws Exception {
       DcShape shape = c.shape();
       VGraphPair pair = pair(c);
@@ -326,7 +328,8 @@ class DateComparisonChangeMatrixTest {
          List.of(data.getHeader(changeCol));
 
       if(!plotted.equals(expectedPlotted)) {
-         problems.add("plots " + plotted + ", expected " + expectedPlotted);
+         problems.add("plots " + plotted + ", expected " + expectedPlotted +
+                      " (the order matters: the value, then the Change)");
       }
 
       long[] periodOf = new long[data.getRowCount()];

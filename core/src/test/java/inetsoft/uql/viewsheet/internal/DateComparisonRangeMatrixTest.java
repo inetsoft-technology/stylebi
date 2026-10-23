@@ -77,7 +77,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class DateComparisonRangeMatrixTest {
    private static final String SHAPES_SNAPSHOT = "inetsoft/uql/viewsheet/internal/dc-matrix/dc-shapes.txt";
    private static final String[] WEEK_STARTS = { "sunday", "monday" };
