@@ -5664,6 +5664,19 @@ class AssemblyPropertyServiceTest {
       assertEquals(10, pane.top());
    }
 
+   /** A write that only echoes the stored scale and tile values of a legacy image is not refused. */
+   @Test
+   void acceptsABareEchoOfALegacyScaleAndTileImage() throws Exception {
+      Map<String, Object> echo = new LinkedHashMap<>();
+      echo.put(SCALE_PANE + "scaleImageChecked", true);
+      echo.put(SCALE_PANE + "tile", true);
+      ImageScalePaneModel pane = setImageScale(imageWithScale(true, true, true, 0), echo);
+      assertTrue(pane.scaleImageChecked() && pane.tile());
+
+      pane = setImageScale(imageWithScale(true, true, true, 0), Map.of(SCALE_PANE + "tile", true));
+      assertTrue(pane.scaleImageChecked() && pane.tile());
+   }
+
    @Test
    void refusesAnInsetWhileAspectRatioIsOnOrScaleIsOff() {
       String msg = refuseImageScale(imageWithScale(true, false, true, 0),
