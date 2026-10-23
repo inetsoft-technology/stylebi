@@ -485,7 +485,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
     * Touch has no hover, so a kebab that is resident only while anchored would be unreachable in
     * max mode, where anchoring is off — there is no lane — but the type still carries the design.
     * A lane too short to hold the strip opts out of the strip, measured by anchoredLaneHeight
-    * against ANCHORED_LANE_MIN: it gets the corner kebab (isCornerKebab above) or, on a card
+    * against ANCHORED_LANE_MIN: it gets the corner kebab (isCornerKebab below) or, on a card
     * under ACTION_FLOOR, nothing — see isChromeSuppressed below. Neither falls back to the
     * floating strip.
     */
@@ -504,6 +504,14 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          !VSObjectContainer.isMaxModeSelection(object) &&
          isCornerKebab(object.objectType, object.vizModern, anchoredLaneHeight(object),
                        object.objectFormat.height);
+   }
+
+   /**
+    * Whether covered controls keep clear of the corner: only where the kebab can draw, under the
+    * same hideMiniToolbar and enabled gates as the strip's mount.
+    */
+   public hasCornerReserve(object: VSObjectModel): boolean {
+      return !this.hideMiniToolbar && !!object.enabled && this.isCornerKebab(object);
    }
 
    /**

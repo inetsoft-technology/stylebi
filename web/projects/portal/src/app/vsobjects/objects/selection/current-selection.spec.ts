@@ -110,3 +110,12 @@ describe("CurrentSelection Unit Tests", () => {
       });
    }));
 });
+
+describe("CurrentSelection corner kebab reserve (compiled CSS)", () => {
+   it("moves the row's mini-menu left of the corner kebab", () => {
+      const styleText = ((CurrentSelection as any).ɵcmp.styles as string[]).join("\n");
+
+      expect(styleText).toMatch(
+         /\.viz-corner-kebab[^{},]*\.mini-menu[^{},]*\{[^}]*right:\s*var\(--viz-corner-kebab-reserve\)/);
+   });
+});

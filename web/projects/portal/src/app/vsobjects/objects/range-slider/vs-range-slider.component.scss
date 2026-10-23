@@ -214,6 +214,11 @@
   z-index: 100;
 }
 
+// clear of an untitled container's corner kebab
+:host-context(.viz-corner-kebab) .vs-range-slider-header__buttons {
+  right: var(--viz-corner-kebab-reserve);
+}
+
 collapse-toggle-button {
   float: right;
   height: 100%;

@@ -432,4 +432,21 @@ describe("VSObjectContainer corner kebab", () => {
       expect(viewerComponent(titled).isCornerKebab(titled)).toBe(false);
       expect(viewerComponent(dropdown).isCornerKebab(dropdown)).toBe(false);
    });
+
+   // The reserve follows the template's mount gate, so no gap opens where no kebab draws
+   it("reserves the corner only where its kebab can draw", () => {
+      const untitled = cornerObject({ enabled: true });
+      const comp = viewerComponent(untitled);
+
+      expect(comp.hasCornerReserve(untitled)).toBe(true);
+
+      comp.hideMiniToolbar = true;
+      expect(comp.hasCornerReserve(untitled)).toBe(false);
+
+      const disabled = cornerObject({ enabled: false });
+      expect(viewerComponent(disabled).hasCornerReserve(disabled)).toBe(false);
+
+      const titled = cornerObject({ enabled: true, titleVisible: true, titleFormat: { height: 30 } });
+      expect(viewerComponent(titled).hasCornerReserve(titled)).toBe(false);
+   });
 });

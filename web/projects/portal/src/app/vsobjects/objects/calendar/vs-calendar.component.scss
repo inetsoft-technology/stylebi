@@ -274,9 +274,12 @@ year-calendar, month-calendar {
   }
 }
 
+// .calendar-body is a flex row, so a double calendar's second panel holds the top-right corner
 :host-context(.viz-corner-kebab) {
-  .month-calendar:not(.second-calendar) .child-calendar-title,
-  .year-calendar:not(.second-calendar) .child-calendar-title {
+  .month-calendar:not(.double-calendar) .child-calendar-title,
+  .month-calendar.double-calendar.second-calendar .child-calendar-title,
+  .year-calendar:not(.double-calendar) .child-calendar-title,
+  .year-calendar.double-calendar.second-calendar .child-calendar-title {
     padding-right: var(--viz-corner-kebab-reserve);
   }
 }

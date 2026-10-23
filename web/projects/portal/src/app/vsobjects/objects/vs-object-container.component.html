@@ -53,7 +53,7 @@
         [class.viz-density-compact]="vsObject.vizDensity === 'compact'"
         [class.viz-density-comfortable]="vsObject.vizDensity === 'comfortable'"
         [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
-        [class.viz-corner-kebab]="isCornerKebab(vsObject)"
+        [class.viz-corner-kebab]="hasCornerReserve(vsObject)"
         [style.z-index]="getContainerZIndex(vsObject)"
         (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)"
         (mouseleave)="onMouseLeave(vsObject)">
