@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.erm.DataRef;
@@ -28,6 +29,7 @@ import inetsoft.web.viewsheet.controller.VSCalendarService;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import inetsoft.web.viewsheet.event.SortSelectionListEvent;
 import inetsoft.web.viewsheet.service.VSSelectionService;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,7 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A selection assembly's runtime state: which values are selected, how the list is sorted, and
@@ -619,6 +622,13 @@ public class SelectionRuntimeService {
       final Map<String, Object> result = new LinkedHashMap<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         CurrentSelectionVSAssembly container = containerOf(rvs, assemblyName);
+
+         if(container != null) {
+            clearContainer(rvs, runtimeId, dispatcher, user, linkUri, container, result);
+            return;
+         }
+
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
          final Map<String, OtherSelection> othersBefore = snapshotOthers(rvs, assembly);
          requireBoundColumn(assembly, assemblyName);
@@ -716,6 +726,160 @@ public class SelectionRuntimeService {
 
       result.put("persistsOnSave", true);
       return result;
+   }
+
+   /** The Selection Container named {@code assemblyName}, or null when it is anything else. */
+   private static CurrentSelectionVSAssembly containerOf(RuntimeViewsheet rvs, String assemblyName) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      return vs != null && vs.getAssembly(assemblyName) instanceof CurrentSelectionVSAssembly c ?
+         c : null;
+   }
+
+   /**
+    * Clears a Selection Container the way its own Unselect All button does: every child filter
+    * and, when Show Current Selections is on, every filter that sits in no Selection Container.
+    * Delegates to {@code VSSelectionService.unselectAll} so the apply path, the single
+    * {@code mutate} checkpoint and the hidden-container Tab refresh (bug-62311) are the native
+    * ones, then reports each filter from its before/after state.
+    *
+    * <p>The container's stored out-of-container list is only rebuilt on a sheet reset, so it is
+    * refreshed here first; otherwise a filter added after Show Current Selections was switched on
+    * would be skipped without a trace. A filter can still filter afterwards -- a search keeps its
+    * hidden selection and a single-select filter re-selects -- so each entry carries the leaf
+    * clear's retained/reselected fields and {@code stillFiltering} names them.
+    */
+   private void clearContainer(RuntimeViewsheet rvs, String runtimeId,
+                               CapturingCommandDispatcher dispatcher, Principal user,
+                               String linkUri, CurrentSelectionVSAssembly container,
+                               Map<String, Object> result)
+      throws Exception
+   {
+      CurrentSelectionVSAssemblyInfo info =
+         (CurrentSelectionVSAssemblyInfo) container.getVSAssemblyInfo();
+      boolean showCurrent = info.isShowCurrentSelection();
+      Viewsheet vs = container.getViewsheet();
+
+      if(showCurrent) {
+         ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+         if(box != null) {
+            box.lockWrite();
+         }
+
+         try {
+            container.updateOutSelection();
+         }
+         finally {
+            if(box != null) {
+               box.unlockWrite();
+            }
+         }
+      }
+
+      // Keyed by absolute name; unselectAll resolves both name lists in the container's own
+      // viewsheet, which is where they are resolved here too.
+      Map<String, SelectionVSAssembly> filters = new LinkedHashMap<>();
+      Map<String, String> scopes = new HashMap<>();
+      List<String> children = Arrays.asList(container.getAssemblies());
+      String[] outNames = showCurrent ? info.getOutSelectionNames() : null;
+      List<String> outside = outNames == null ? List.of() : Arrays.asList(outNames);
+
+      for(String name : Stream.concat(children.stream(), outside.stream()).toList()) {
+         if(vs.getAssembly(name) instanceof SelectionVSAssembly filter &&
+            filters.putIfAbsent(filter.getAbsoluteName(), filter) == null)
+         {
+            scopes.put(filter.getAbsoluteName(), children.contains(name) ? "child" : "outside");
+            requireBoundColumn(filter, filter.getAbsoluteName());
+         }
+      }
+
+      final Set<String> cleared = filters.keySet();
+      final Map<String, OtherSelection> othersBefore =
+         snapshotOthers(rvs, cleared, container.getAbsoluteName());
+      Map<String, FilterState> before = new HashMap<>();
+      filters.forEach((name, filter) -> before.put(name, readState(filter)));
+
+      selections.unselectAll(runtimeId, container.getAbsoluteName(), user, dispatcher, linkUri);
+
+      List<Map<String, Object>> entries = new ArrayList<>();
+      List<String> stillFiltering = new ArrayList<>();
+      int total = 0;
+
+      for(Map.Entry<String, SelectionVSAssembly> e : filters.entrySet()) {
+         Map<String, Object> entry =
+            clearedEntry(e.getValue(), scopes.get(e.getKey()), before.get(e.getKey()),
+                         readState(e.getValue()));
+         total += (Integer) entry.get("clearedCount");
+
+         if((Integer) entry.get("selectedTotal") > 0) {
+            stillFiltering.add(e.getKey());
+         }
+
+         entries.add(entry);
+      }
+
+      result.put("assembly", container.getName());
+      result.put("type", describe(container));
+      result.put("showCurrentSelection", showCurrent);
+      result.put("childCount", children.size());
+      result.put("outsideCount", outside.size());
+      result.put("clearedCount", total);
+      result.put("clearedFilters", entries);
+      result.put("stillFiltering", stillFiltering);
+      reportOthersChanged(result, rvs, othersBefore, cleared, container.getAbsoluteName());
+   }
+
+   /** What a filter has applied, in the unit its leaf clear counts in. */
+   record FilterState(List<List<String>> paths, int count, int selectedBuckets, int totalBuckets) {
+   }
+
+   private static FilterState readState(SelectionVSAssembly assembly) {
+      if(assembly instanceof TimeSliderVSAssembly slider) {
+         SelectionValue[] buckets = bucketsOf(slider);
+         int selected = countSelected(buckets);
+         return new FilterState(List.of(), isFullRangeSelected(buckets) ? 0 : selected, selected,
+                                buckets.length);
+      }
+
+      if(assembly instanceof CalendarVSAssembly) {
+         String[] dates = ((CalendarVSAssemblyInfo) assembly.getVSAssemblyInfo()).getDates();
+         return new FilterState(List.of(), dates == null ? 0 : dates.length, 0, 0);
+      }
+
+      if(assembly instanceof SelectionTreeVSAssembly tree && tree.isIDMode()) {
+         return new FilterState(selectedNodeIds(assembly), countSelected(assembly), 0, 0);
+      }
+
+      List<List<String>> paths = selectedPaths(assembly);
+      return new FilterState(paths, paths.size(), 0, 0);
+   }
+
+   /** One filter's entry in a container clear, shaped like the leaf clear's own result. */
+   private static Map<String, Object> clearedEntry(SelectionVSAssembly assembly, String scope,
+                                                   FilterState before, FilterState after)
+   {
+      Map<String, Object> entry = new LinkedHashMap<>();
+      entry.put("assembly", assembly.getAbsoluteName());
+      entry.put("scope", scope);
+      entry.put("type", describe(assembly));
+
+      if(assembly instanceof TimeSliderVSAssembly) {
+         entry.put("clearedCount", before.count());
+         entry.put("selectedTotal", after.count());
+         entry.put("fullRange", after.count() == 0);
+         entry.put("selectedBuckets", after.selectedBuckets());
+         entry.put("totalBuckets", after.totalBuckets());
+      }
+      else if(assembly instanceof CalendarVSAssembly) {
+         entry.put("clearedCount", before.count());
+         entry.put("selectedTotal", after.count());
+      }
+      else {
+         boolean idMode = assembly instanceof SelectionTreeVSAssembly tree && tree.isIDMode();
+         reportRetainedAfterClear(entry, assembly, before.paths(), after.paths(), idMode);
+      }
+
+      return entry;
    }
 
    /**
@@ -1290,6 +1454,9 @@ public class SelectionRuntimeService {
     * <p>Public (reuse seam): {@code SelectionBindingService} type-checks the same four assembly
     * classes before it can bind a column to any of them, so it shares this rather than keeping a
     * second copy that could drift.
+    *
+    * <p>A Selection Container is refused here too -- it holds no selection of its own. Only
+    * clear_selection accepts one (see {@link #clearContainer}); the message says so.
     */
    public static SelectionVSAssembly requireSelection(RuntimeViewsheet rvs, String assemblyName) {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
@@ -1305,7 +1472,9 @@ public class SelectionRuntimeService {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' is a " + assembly.getClass().getSimpleName() +
             ", not a selection assembly. Selections exist on selection lists, selection trees and " +
-            "range sliders.");
+            "range sliders." + (assembly instanceof CurrentSelectionVSAssembly ?
+               " A selection container's filters are cleared with clear_selection; to change or " +
+               "read one, name the filter inside it." : ""));
       }
 
       return selection;
@@ -1761,16 +1930,6 @@ public class SelectionRuntimeService {
    private static Map<String, OtherSelection> snapshotOthers(RuntimeViewsheet rvs,
                                                              SelectionVSAssembly target)
    {
-      Map<String, OtherSelection> snapshot = new LinkedHashMap<>();
-      Viewsheet viewsheet = rvs.getViewsheet();
-      Assembly[] assemblies = viewsheet == null ? null : viewsheet.getAssemblies(true);
-
-      // An empty snapshot means "unknown -> report nothing": diffOthers iterates only the keys of
-      // the "before" snapshot and skips any key missing from "after".
-      if(assemblies == null) {
-         return snapshot;
-      }
-
       Set<String> skip = new HashSet<>();
       skip.add(target.getAbsoluteName());
 
@@ -1782,8 +1941,29 @@ public class SelectionRuntimeService {
          catch(RuntimeException ex) {
             LOG.warn("Could not resolve the selection cluster of {}; other selections will not " +
                      "be reported", target.getAbsoluteName(), ex);
-            return snapshot;
+            return new LinkedHashMap<>();
          }
+      }
+
+      return snapshotOthers(rvs, skip, target.getAbsoluteName());
+   }
+
+   /**
+    * As above, for a write that touches several assemblies at once: skips exactly the absolute
+    * names in {@code skip} -- not their cluster neighbors, which a multi-target write may have
+    * cleared without listing them, so they must still show up as changed.
+    */
+   private static Map<String, OtherSelection> snapshotOthers(RuntimeViewsheet rvs,
+                                                             Set<String> skip, String targetName)
+   {
+      Map<String, OtherSelection> snapshot = new LinkedHashMap<>();
+      Viewsheet viewsheet = rvs.getViewsheet();
+      Assembly[] assemblies = viewsheet == null ? null : viewsheet.getAssemblies(true);
+
+      // An empty snapshot means "unknown -> report nothing": diffOthers iterates only the keys of
+      // the "before" snapshot and skips any key missing from "after".
+      if(assemblies == null) {
+         return snapshot;
       }
 
       for(Assembly other : assemblies) {
@@ -1807,7 +1987,7 @@ public class SelectionRuntimeService {
          }
          catch(RuntimeException ex) {
             LOG.warn("Could not snapshot selection {} while writing {}; it will not be reported",
-                     selection.getAbsoluteName(), target.getAbsoluteName(), ex);
+                     selection.getAbsoluteName(), targetName, ex);
          }
       }
 
@@ -1819,8 +1999,20 @@ public class SelectionRuntimeService {
                                            Map<String, OtherSelection> before,
                                            SelectionVSAssembly target)
    {
-      List<Map<String, Object>> changed = diffOthers(before, snapshotOthers(rvs, target));
+      reportOthersChanged(result, diffOthers(before, snapshotOthers(rvs, target)));
+   }
 
+   /** As above, against every assembly except the absolute names in {@code skip}. */
+   private static void reportOthersChanged(Map<String, Object> result, RuntimeViewsheet rvs,
+                                           Map<String, OtherSelection> before, Set<String> skip,
+                                           String targetName)
+   {
+      reportOthersChanged(result, diffOthers(before, snapshotOthers(rvs, skip, targetName)));
+   }
+
+   private static void reportOthersChanged(Map<String, Object> result,
+                                           List<Map<String, Object>> changed)
+   {
       if(!changed.isEmpty()) {
          result.put("otherSelectionsChanged", changed);
       }
@@ -3058,6 +3250,9 @@ public class SelectionRuntimeService {
       }
       else if(assembly instanceof CalendarVSAssembly) {
          return "a calendar";
+      }
+      else if(assembly instanceof CurrentSelectionVSAssembly) {
+         return "a selection container";
       }
 
       return "a " + assembly.getClass().getSimpleName();
