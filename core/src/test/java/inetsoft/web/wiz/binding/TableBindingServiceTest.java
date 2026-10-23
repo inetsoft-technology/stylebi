@@ -2812,6 +2812,75 @@ class TableBindingServiceTest {
       assertTrue(thrown.getMessage().contains("Category (hidden)"), thrown.getMessage());
    }
 
+   /**
+    * Bug #79208 round-1 review (blocking finding, scenario 1): two hidden columns, the second
+    * with a {@code null} label value. The original fix applied {@code Category}'s alias to the
+    * live ColumnRef the moment its entry was walked, then threw on {@code Category2} from the
+    * very same loop -- stranding {@code Category}'s mutation on the live, shared session even
+    * though the whole call failed. The fix must resolve and value-validate every hidden entry
+    * before applying any of them.
+    */
+   @Test
+   void setColumnLabelsLeavesAnEarlierHiddenColumnUntouchedWhenALaterHiddenLabelIsInvalid()
+      throws Exception
+   {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category", "Category2"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      Map<String, String> labels = new java.util.LinkedHashMap<>();
+      labels.put("Category", "Cat X");
+      labels.put("Category2", null);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnLabels("tok", principal(), "PbFour", labels, null));
+
+      assertTrue(thrown.getMessage().contains("Category2"), thrown.getMessage());
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef categoryRef =
+         (inetsoft.uql.asset.ColumnRef) info.getHiddenColumns().getAttribute("Category");
+      assertNull(categoryRef.getAlias(),
+                "'Category' must not be aliased -- the whole request failed because " +
+                "'Category2' had no label, and nothing must be applied until the whole " +
+                "request is known to succeed");
+   }
+
+   /**
+    * Bug #79208 round-1 review (blocking finding, scenario 2): one hidden column with a valid
+    * label plus one label key that resolves to nothing (neither shown nor hidden). The original
+    * fix applied the hidden column's alias immediately, then let the remaining-labels call into
+    * {@code TableBindingMutator.setColumnLabels} throw "not bound" for the unresolvable key --
+    * again after the hidden column's live mutation had already landed. The fix must not apply the
+    * hidden column's alias until the shown-column remainder is confirmed resolvable too.
+    */
+   @Test
+   void setColumnLabelsLeavesAHiddenColumnUntouchedWhenAnotherLabelKeyIsUnbound() throws Exception {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      Map<String, String> labels = new java.util.LinkedHashMap<>();
+      labels.put("Category", "Cat X");
+      labels.put("NoSuchColumn", "Y");
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setColumnLabels("tok", principal(), "PbFour", labels, null));
+
+      assertTrue(thrown.getMessage().contains("NoSuchColumn"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Region, State, City, Company"), thrown.getMessage());
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef categoryRef =
+         (inetsoft.uql.asset.ColumnRef) info.getHiddenColumns().getAttribute("Category");
+      assertNull(categoryRef.getAlias(),
+                "'Category' must not be aliased -- the whole request failed because " +
+                "'NoSuchColumn' is not bound, and nothing must be applied until the whole " +
+                "request is known to succeed");
+   }
+
    private static TableVSAssembly tableWithHiddenB() {
       TableVSAssembly table = tableWithColumns("TableView2", "A", "C");
       ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));

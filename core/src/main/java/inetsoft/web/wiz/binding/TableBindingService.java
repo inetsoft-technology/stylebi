@@ -1322,12 +1322,20 @@ public class TableBindingService {
          // model.getDetails(), since VSTableBindingFactory.updateTableAssembly rebuilds the SHOWN
          // ColumnSelection from the whole details list on every commit and would silently
          // un-hide it.
+         //
+         // Round 2: every hidden-column label is resolved and value-validated (but not yet
+         // applied) up front; the resolved ColumnRef.setAlias() calls are only made once the
+         // remaining (shown) labels are also confirmed resolvable below -- see
+         // resolveHiddenColumnLabels's javadoc for why.
          boolean hadInput = (labels != null && !labels.isEmpty()) ||
                             (entries != null && !entries.isEmpty());
          Map<String, String> remainingLabels = labels;
+         List<PendingHiddenLabel> pendingHidden = List.of();
 
          if(table != null && labels != null && !labels.isEmpty()) {
-            remainingLabels = applyHiddenColumnLabels(table, labels, applied);
+            HiddenLabelResolution resolution = resolveHiddenColumnLabels(table, labels);
+            remainingLabels = resolution.remaining();
+            pendingHidden = resolution.pending();
          }
 
          boolean hasRemaining = (remainingLabels != null && !remainingLabels.isEmpty()) ||
@@ -1344,6 +1352,13 @@ public class TableBindingService {
          }
          else {
             write = new TableBindingMutator.ColumnLabelWrite(List.of(), List.of());
+         }
+
+         // Only now that the remaining (shown) labels are confirmed resolvable -- the mutator
+         // call above would have thrown otherwise, before any live mutation here -- do the
+         // already-resolved hidden-column labels get applied to the live ColumnRefs.
+         if(!pendingHidden.isEmpty()) {
+            applyPendingHiddenLabels(pendingHidden, applied);
          }
 
          if(!write.tableRenames().isEmpty() && table != null) {
@@ -1370,23 +1385,52 @@ public class TableBindingService {
    }
 
    /**
-    * Applies every {@code labels} key that names a hidden-but-bound column directly onto its
-    * live {@code ColumnRef} in {@link TableVSAssemblyInfo#getHiddenColumns()}, and leaves it out
-    * of the map returned -- so the caller passes only the shown-column labels on to {@link
-    * TableBindingMutator#setColumnLabels}. Bug #79208: a hidden column is never merged into
-    * {@code model.getDetails()} to resolve/alias it, because {@link
-    * VSTableBindingFactory#updateTableAssembly} rebuilds the SHOWN {@code ColumnSelection} from
-    * the entire {@code model.getDetails()} list on every commit (and explicitly scrubs any ref
-    * that lands there out of {@code getHiddenColumns()}) -- merging a hidden column in just to
-    * label it would silently un-hide it.
-    *
-    * @return a new map holding only the entries that still need the normal (shown) resolution.
+    * One hidden-but-bound column's label, resolved and value-validated by {@link
+    * #resolveHiddenColumnLabels} but not yet applied to the live {@code ColumnRef} -- see that
+    * method's javadoc for why the resolve and apply steps are split.
     */
-   private static Map<String, String> applyHiddenColumnLabels(TableVSAssembly table,
-                                                               Map<String, String> labels,
-                                                               List<String> applied)
+   private record PendingHiddenLabel(ColumnRef ref, String oldDisplay, String newAlias) {}
+
+   /**
+    * What {@link #resolveHiddenColumnLabels} returns: {@code remaining} is the (possibly empty)
+    * subset of the original {@code labels} map that names a shown column (or nothing at all), and
+    * so still needs {@link TableBindingMutator#setColumnLabels}'s own resolution; {@code pending}
+    * is every hidden-column label, already resolved and value-validated, waiting for {@link
+    * #applyPendingHiddenLabels} to actually apply it.
+    */
+   private record HiddenLabelResolution(Map<String, String> remaining,
+                                        List<PendingHiddenLabel> pending) {}
+
+   /**
+    * Resolves every {@code labels} key that names a hidden-but-bound column against its live
+    * {@code ColumnRef} in {@link TableVSAssemblyInfo#getHiddenColumns()}, and validates its value
+    * (the same "needs a label" check a shown column's alias gets) -- without calling {@link
+    * ColumnRef#setAlias} yet. Bug #79208 round 2: the original version of this method applied the
+    * alias immediately, one {@code labels} entry at a time, which let an earlier hidden column's
+    * mutation land on the live, shared session before a LATER entry in the very same request --
+    * another hidden column with an invalid value, or a shown column that {@code
+    * TableBindingMutator.setColumnLabels} goes on to reject -- was even looked at. A single
+    * invalid entry anywhere in the request then left a prior, valid hidden-column mutation
+    * stranded on the live session with no indication to the caller that anything had been
+    * applied. Splitting resolve (this method) from apply ({@link #applyPendingHiddenLabels})
+    * restores the same "resolve everything, then apply everything" discipline {@link
+    * TableBindingMutator#setColumnLabels} already has for shown columns: the caller only applies
+    * the returned {@code pending} list after the remaining (shown) labels have themselves been
+    * confirmed resolvable.
+    *
+    * <p>A hidden column is still never merged into {@code model.getDetails()} to resolve/alias
+    * it (bug #79208 round 1), because {@link VSTableBindingFactory#updateTableAssembly} rebuilds
+    * the SHOWN {@code ColumnSelection} from the entire {@code model.getDetails()} list on every
+    * commit (and explicitly scrubs any ref that lands there out of {@code getHiddenColumns()}) --
+    * merging a hidden column in just to label it would silently un-hide it.
+    *
+    * @return the shown-column remainder plus every resolved-but-unapplied hidden-column label.
+    */
+   private static HiddenLabelResolution resolveHiddenColumnLabels(TableVSAssembly table,
+                                                                  Map<String, String> labels)
    {
       Map<String, String> remaining = new LinkedHashMap<>();
+      List<PendingHiddenLabel> pending = new ArrayList<>();
 
       for(Map.Entry<String, String> label : labels.entrySet()) {
          String column = label.getKey();
@@ -1409,11 +1453,28 @@ public class TableBindingService {
             newAlias = null;
          }
 
-         ref.setAlias(newAlias);
-         applied.add(oldDisplay + " -> " + (newAlias == null ? ref.getAttribute() : newAlias));
+         pending.add(new PendingHiddenLabel(ref, oldDisplay, newAlias));
       }
 
-      return remaining;
+      return new HiddenLabelResolution(remaining, pending);
+   }
+
+   /**
+    * Applies every {@link PendingHiddenLabel} {@link #resolveHiddenColumnLabels} resolved, onto
+    * the live {@code ColumnRef}s in {@link TableVSAssemblyInfo#getHiddenColumns()}. Called only
+    * once the caller knows the whole {@code labels} request -- remaining (shown) labels included
+    * -- will succeed, so a hidden column's alias is never stranded on the live, shared session by
+    * a later failure elsewhere in the same request.
+    */
+   private static void applyPendingHiddenLabels(List<PendingHiddenLabel> pending,
+                                                List<String> applied)
+   {
+      for(PendingHiddenLabel label : pending) {
+         ColumnRef ref = label.ref();
+         String newAlias = label.newAlias();
+         ref.setAlias(newAlias);
+         applied.add(label.oldDisplay() + " -> " + (newAlias == null ? ref.getAttribute() : newAlias));
+      }
    }
 
    /**
