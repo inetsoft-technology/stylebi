@@ -3855,6 +3855,18 @@ public class SecurityService {
       }
    }
 
+   /**
+    * The resource paths of every node (folders as well as leaves) of the principal's action tree
+    * that is keyed by the given resource type, in tree order.
+    */
+   public List<String> getActionTreeResourcePaths(ResourceType type, Principal principal) {
+      return ActionPermissionService.findNodes(actionPermissionService.getActionTree(principal),
+                                               type)
+         .stream()
+         .map(ActionTreeNode::resource)
+         .toList();
+   }
+
    private ActionTreeNode getActionTreeNode(String resource, ResourceType type,
                                             Principal principal)
    {

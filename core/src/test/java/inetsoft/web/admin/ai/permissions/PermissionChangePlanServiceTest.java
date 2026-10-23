@@ -129,6 +129,8 @@ class PermissionChangePlanServiceTest {
    // -------------------------------------------------------------------------
 
    @Test void resolveAcceptsNewlyWidenedCapabilityResourceTypes() throws Exception {
+      stubActionTree(ResourceType.AI_ASSISTANT, "*");
+      stubActionTree(ResourceType.FREE_FORM_SQL, "*");
       stubRawPermission("AI_ASSISTANT", "*", null);
       when(securityService.getPermissionGrant("*", "AI_ASSISTANT", "bob", "USER", user))
          .thenReturn(null);
@@ -144,6 +146,126 @@ class PermissionChangePlanServiceTest {
          List.of("ACCESS"));
 
       assertDoesNotThrow(() -> service.resolve(request("task", List.of(freeFormSql)), user));
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #79216 -- a capability-level type's resourcePath must be a node of the action tree
+   // -------------------------------------------------------------------------
+
+   @Test void createRefusesAMadeUpPathOnACapabilityType() throws Exception {
+      stubActionTree(ResourceType.VIEWSHEET_ACTION, "Bookmark", "OpenBookmark", "ShareBookmark");
+      PermissionChangeRequest change = grantChange("VIEWSHEET_ACTION", "UseBookmark", "ROLE",
+         "bob", List.of("READ"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+
+      assertEquals("changes[0].resourcePath: \"UseBookmark\" is not a resource of type " +
+                   "VIEWSHEET_ACTION; call list_grantable_permission_actions for the grantable " +
+                   "(resourceType, resourcePath) pairs; valid: Bookmark, OpenBookmark, " +
+                   "ShareBookmark", ex.getMessage());
+   }
+
+   @Test void createRefusesAnUnknownChildOfAFolderNode() throws Exception {
+      stubActionTree(ResourceType.CHART_TYPE, "Bar/Bar", "Bar/Interval");
+      PermissionChangeRequest change = grantChange("CHART_TYPE", "Bar/Nope", "USER", "bob",
+         List.of("READ"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+
+      assertTrue(ex.getMessage().contains("changes[0].resourcePath"));
+      assertTrue(ex.getMessage().contains("\"Bar/Nope\""));
+   }
+
+   @Test void createRefusesAPathOnATypeAbsentFromTheCallersTree() {
+      PermissionChangeRequest change = grantChange("DEVICE", "foo", "USER", "bob",
+         List.of("ACCESS"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+
+      assertTrue(ex.getMessage().contains("changes[0].resourcePath"));
+      assertTrue(ex.getMessage().contains("list_grantable_permission_actions"));
+      assertFalse(ex.getMessage().contains("valid:"));
+   }
+
+   @Test void refusalOmitsTheInlineListWhenTheTypeHasManyPaths() throws Exception {
+      String[] paths = new String[30];
+
+      for(int i = 0; i < paths.length; i++) {
+         paths[i] = "Chart" + i;
+      }
+
+      stubActionTree(ResourceType.CHART_TYPE, paths);
+      PermissionChangeRequest change = grantChange("CHART_TYPE", "foo", "USER", "bob",
+         List.of("READ"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+
+      assertTrue(ex.getMessage().contains("list_grantable_permission_actions"));
+      assertFalse(ex.getMessage().contains("valid:"));
+      assertFalse(ex.getMessage().contains("Chart0"));
+   }
+
+   @Test void createAcceptsEveryKindOfActionTreeNode() throws Exception {
+      // leaf, folder keyed CHART_TYPE_FOLDER (whether it has children or not), a child keyed
+      // CHART_TYPE, and a portal tab named by the site's own configuration
+      stubActionTree(ResourceType.VIEWSHEET_ACTION, "Bookmark");
+      stubActionTree(ResourceType.CHART_TYPE_FOLDER, "Bar", "Point");
+      stubActionTree(ResourceType.CHART_TYPE, "Bar/Interval");
+      stubActionTree(ResourceType.PORTAL_TAB, "Design", "My Custom Tab");
+
+      for(String[] target : new String[][] {
+         { "VIEWSHEET_ACTION", "Bookmark" }, { "CHART_TYPE_FOLDER", "Bar" },
+         { "CHART_TYPE_FOLDER", "Point" }, { "CHART_TYPE", "Bar/Interval" },
+         { "PORTAL_TAB", "My Custom Tab" } })
+      {
+         stubRawPermission(target[0], target[1], null);
+         when(securityService.getPermissionGrant(target[1], target[0], "bob", "USER", user))
+            .thenReturn(null);
+         PermissionChangeRequest change = grantChange(target[0], target[1], "USER", "bob",
+            List.of("READ"));
+
+         assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user),
+                            target[0] + " " + target[1]);
+      }
+   }
+
+   @Test void updateAndDeleteOfAStaleCapabilityGrantStillWork() throws Exception {
+      // the tree no longer lists the path, but the grant exists and must stay editable/removable
+      Permission before = new Permission();
+      before.setUserGrantsForOrg(ResourceAction.READ, java.util.Set.of("bob"), "host-org");
+      stubRawPermission("VIEWSHEET_ACTION", "UseBookmark", before);
+      PermissionGrant existing = new PermissionGrant();
+      existing.setActions(List.of("READ"));
+      when(securityService.getPermissionGrant("UseBookmark", "VIEWSHEET_ACTION", "bob", "USER",
+                                              user)).thenReturn(existing);
+      PermissionChangeRequest update = updateChange("VIEWSHEET_ACTION", "UseBookmark", "USER",
+         "bob", List.of("READ", "WRITE"));
+      PermissionChangeRequest delete = deleteChange("bob");
+      delete.setResourceType("VIEWSHEET_ACTION");
+      delete.setResourcePath("UseBookmark");
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(update)), user));
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(delete)), user));
+   }
+
+   @Test void repositoryPathTypesAndDashboardAreNotCheckedAgainstTheTree() throws Exception {
+      for(String type : List.of("ASSET", "DATA_SOURCE", "DATA_SOURCE_FOLDER", "SCRIPT",
+                                "TABLE_STYLE", "DASHBOARD"))
+      {
+         stubRawPermission(type, "made/up/path", null);
+         when(securityService.getPermissionGrant("made/up/path", type, "bob", "USER", user))
+            .thenReturn(null);
+         PermissionChangeRequest change = grantChange(type, "made/up/path", "USER", "bob",
+            List.of("READ"));
+
+         assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user), type);
+      }
+
+      verify(securityService, never()).getActionTreeResourcePaths(any(), any());
    }
 
    @Test void resolveThrowsOnEmResourceType() {
@@ -517,6 +639,11 @@ class PermissionChangePlanServiceTest {
    // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
+
+   private void stubActionTree(ResourceType type, String... paths) {
+      lenient().when(securityService.getActionTreeResourcePaths(eq(type), any()))
+         .thenReturn(List.of(paths));
+   }
 
    private void stubRawPermission(String resourceType, String resourcePath, Permission value) {
       lenient().when(securityProvider.getPermission(ResourceType.valueOf(resourceType),

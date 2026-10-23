@@ -69,7 +69,9 @@ public class PermissionChangePlanService {
     * @throws IllegalArgumentException with a field-named message on a blank task, an empty change
     *                                 list, an unrecognized verb, an excluded/unrecognized resource
     *                                 type, an unrecognized identity type, a create whose grant
-    *                                 already exists, an update/delete whose grant does not exist,
+    *                                 already exists, a create whose capability-level
+    *                                 resourcePath is not in the action tree, an update/delete
+    *                                 whose grant does not exist,
     *                                 missing/present {@code actions} for the wrong verb, or the
     *                                 self-lockout preflight failing.
     */
@@ -144,6 +146,7 @@ public class PermissionChangePlanService {
          }
 
          requireActions(label, change.getActions());
+         requireActionTreeResource(label, resourceType, resourcePath, user);
 
          if(existing != null) {
             throw new IllegalArgumentException(
@@ -244,6 +247,35 @@ public class PermissionChangePlanService {
             + "grant on this resource, which would prevent this plan's own rollback from being "
             + "performed by you -- refusing to plan a change whose own undo you could not perform");
       }
+   }
+
+   /**
+    * Refuses a create for a capability-level type whose resourcePath is not a node of the
+    * caller's action tree: such a grant is stored under a path nothing reads, so it would never
+    * take effect. update/delete need no check, they already require the grant to exist.
+    */
+   private void requireActionTreeResource(String label, ResourceType type, String resourcePath,
+                                          Principal user)
+   {
+      if(!CAPABILITY_RESOURCE_TYPES.contains(type.name())) {
+         return;
+      }
+
+      List<String> valid = securityService.getActionTreeResourcePaths(type, user);
+
+      if(valid.contains(resourcePath)) {
+         return;
+      }
+
+      StringBuilder message = new StringBuilder(label + ".resourcePath: \"" + resourcePath +
+         "\" is not a resource of type " + type.name() + "; call " +
+         "list_grantable_permission_actions for the grantable (resourceType, resourcePath) pairs");
+
+      if(!valid.isEmpty() && valid.size() <= MAX_LISTED_PATHS) {
+         message.append("; valid: ").append(String.join(", ", valid));
+      }
+
+      throw new IllegalArgumentException(message.toString());
    }
 
    static String requireVerb(String label, String verb) {
@@ -427,6 +459,30 @@ public class PermissionChangePlanService {
       "MATERIALIZATION", "MY_DASHBOARDS", "PHYSICAL_TABLE",
       "PORTAL_REPOSITORY_TREE_DRAG_AND_DROP", "PROFILE", "UPLOAD_DRIVERS", "DEVICE", "VIEWSHEET",
       "WORKSHEET", "VIEWSHEET_TOOLBAR_ACTION", "SHARE", "SCHEDULER", "PORTAL_TAB");
+
+   /** The {@link #ALLOWED_RESOURCE_TYPES} whose resourcePath is a node of the action tree
+    * ({@code ActionPermissionService.getActionTree}), so a create is refused for any other path.
+    * Includes CHART_TYPE/CHART_TYPE_FOLDER, which are tree nodes although the engine files them as
+    * hierarchical. Fixed here rather than read off the tree, so a type absent from one caller's
+    * tree (e.g. DEVICE for an org admin) is refused instead of unchecked; {@code
+    * PermissionResourceTypeClassificationTest} fails when the tree and this set drift apart. */
+   static final Set<String> CAPABILITY_RESOURCE_TYPES = Set.of(
+      "CHART_TYPE", "CHART_TYPE_FOLDER",
+      "VIEWSHEET_ACTION", "SCHEDULE_OPTION", "AI_ASSISTANT", "CROSS_JOIN", "CREATE_DATA_SOURCE",
+      "VIEWSHEET_CALCULATED_FIELD", "WORKSHEET_EXPRESSION_COLUMN", "FREE_FORM_SQL",
+      "MATERIALIZATION", "MY_DASHBOARDS", "PHYSICAL_TABLE",
+      "PORTAL_REPOSITORY_TREE_DRAG_AND_DROP", "PROFILE", "UPLOAD_DRIVERS", "DEVICE", "VIEWSHEET",
+      "WORKSHEET", "VIEWSHEET_TOOLBAR_ACTION", "SHARE", "SCHEDULER", "PORTAL_TAB");
+
+   /** The {@link #ALLOWED_RESOURCE_TYPES} whose resourcePath is free text and never checked:
+    * repository paths, and DASHBOARD, which is keyed by display name. */
+   static final Set<String> OPEN_RESOURCE_TYPES = Set.of(
+      "ASSET", "REPORT", "DASHBOARD", "DATA_SOURCE", "DATA_SOURCE_FOLDER", "QUERY", "QUERY_FOLDER",
+      "DATA_MODEL_FOLDER", "SCRIPT", "SCRIPT_LIBRARY", "TABLE_STYLE", "TABLE_STYLE_LIBRARY",
+      "CUBE", "PROTOTYPE", "LIBRARY");
+
+   /** At most this many valid paths are listed inline in a refusal. */
+   private static final int MAX_LISTED_PATHS = 20;
 
    /** Every {@link ResourceAction} constant, by exact name -- what {@link #requireActions} checks
     * against and what the rejection message lists. */

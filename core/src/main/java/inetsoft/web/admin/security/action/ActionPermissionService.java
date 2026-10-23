@@ -777,6 +777,27 @@ public class ActionPermissionService {
       return builder.build();
    }
 
+   /**
+    * Every node of the tree, folders as well as leaves, that is keyed by the given resource type.
+    * The root itself is not a resource and is never returned.
+    */
+   public static List<ActionTreeNode> findNodes(ActionTreeNode root, ResourceType type) {
+      List<ActionTreeNode> found = new ArrayList<>();
+      Deque<ActionTreeNode> queue = new ArrayDeque<>(root.children());
+
+      while(!queue.isEmpty()) {
+         ActionTreeNode node = queue.removeFirst();
+
+         if(node.type() == type && node.resource() != null) {
+            found.add(node);
+         }
+
+         queue.addAll(node.children());
+      }
+
+      return found;
+   }
+
    public static boolean isOrgAdminAction(ResourceType type, String resource) {
       // isFluentdEnabled(), not a bare comparison, for consistency with the other readers of
       // log.provider. Organizations are enterprise-only, so this branch is unreachable on a

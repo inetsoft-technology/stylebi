@@ -180,20 +180,13 @@ public class ActionPermissionController {
     */
    private ActionTreeNode getActionNode(ResourceType type, String path, Principal principal) {
       ActionTreeNode root = actionService.getActionTree(principal);
-      Deque<ActionTreeNode> queue = new ArrayDeque<>(root.children());
 
-      while(!queue.isEmpty()) {
-         ActionTreeNode node = queue.removeFirst();
-
-         if(node.type() == type && node.resource() != null && node.resource().equals(path)) {
-            return node;
-         }
-
-         queue.addAll(node.children());
-      }
-
-      throw new java.lang.SecurityException(
-         "Unauthorized access to action permission " + type + ":" + path + " by user " + principal);
+      return ActionPermissionService.findNodes(root, type).stream()
+         .filter(node -> node.resource().equals(path))
+         .findFirst()
+         .orElseThrow(() -> new java.lang.SecurityException(
+            "Unauthorized access to action permission " + type + ":" + path + " by user " +
+            principal));
    }
 
    /**
