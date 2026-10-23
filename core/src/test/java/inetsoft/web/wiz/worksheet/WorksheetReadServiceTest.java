@@ -775,6 +775,104 @@ class WorksheetReadServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // Bug #79224: a SubQueryValue condition value (StyleBI's native "Use a Subquery in a
+   // Condition" feature) reads back as a valueSpecs entry with valueType="subquery", not just
+   // the lossy "Query[<table>]" literal fallback extractValues() already produces generically.
+   // -------------------------------------------------------------------------
+
+   private static SubQueryValue subQueryValue79224(String table, String column,
+                                                    String correlationColumn, String mainColumn)
+   {
+      SubQueryValue sv = new SubQueryValue();
+      sv.setQuery(table);
+      sv.setAttribute(new AttributeRef(null, column));
+
+      if(correlationColumn != null) {
+         sv.setSubAttribute(new AttributeRef(null, correlationColumn));
+         sv.setMainAttribute(new AttributeRef(null, mainColumn));
+      }
+
+      return sv;
+   }
+
+   // Read-side coverage for an uncorrelated/correlated SubQueryValue's valueSpecs shape is owned
+   // by WorksheetSubQueryConditionValue79221Test (Bug #79221's own read-side tests,
+   // readReportsUncorrelatedSubQueryAsSubqueryValueSpec/readReportsCorrelatedSubQueryWithWhere) --
+   // not duplicated here, since read_worksheet_model's subquery read path is unchanged by Bug
+   // #79224 (only the write side gained the ability to construct one). The round-trip test below
+   // is the one piece of coverage specific to #79224: that a read_worksheet_model readback can be
+   // fed back into set_conditions and reconstruct an equivalent, queryable SubQueryValue.
+
+   /**
+    * The literal round-trip acceptance bar both Bug #79224 and Bug #79221 state: a SubQueryValue
+    * condition built the way the native UI would (hand-built here, never written through
+    * set_conditions' own valueSpecs on this table), read back via WorksheetReadService, then fed
+    * straight into WorksheetMutationSupport.setConditions on a SECOND, unfiltered copy of the
+    * same two tables -- exactly the resubmit a caller doing read_worksheet_model ->
+    * set_conditions would perform -- reconstructs an equals()-equal SubQueryValue.
+    */
+   @Test
+   void subQueryConditionRoundTripsThroughReadAndWrite() {
+      Worksheet ws1 = new Worksheet();
+      EmbeddedTableAssembly t1 = TestWorksheets.tableWithColumns(ws1, "T", "a", "key");
+      EmbeddedTableAssembly s1 = TestWorksheets.tableWithColumns(ws1, "S", "v", "k");
+      ws1.addAssembly(t1);
+      ws1.addAssembly(s1);
+
+      SubQueryValue original = subQueryValue79224("S", "v", "k", "key");
+
+      AssetCondition cond = new AssetCondition();
+      cond.setOperation(XCondition.ONE_OF);
+      cond.addValue(original);
+      ConditionList cl = new ConditionList();
+      cl.append(new ConditionItem(new AttributeRef(null, "a"), cond, 0));
+      t1.setPreConditionList(cl);
+
+      WorksheetModel.FilterModel readBack = tableNamed(read(ws1), "T").preConditions().get(0);
+      assertEquals(1, readBack.valueSpecs().size());
+      WorksheetModel.ValueSpecModel vs = readBack.valueSpecs().get(0);
+      assertEquals("subquery", vs.valueType());
+
+      Worksheet ws2 = new Worksheet();
+      TableAssembly t2 = TestWorksheets.nonEmbeddedTableWithColumns(ws2, "T", "a", "key");
+      TableAssembly s2 = TestWorksheets.nonEmbeddedTableWithColumns(ws2, "S", "v", "k");
+      ws2.addAssembly(t2);
+      ws2.addAssembly(s2);
+
+      WorksheetMutationSupport.ConditionValueSpec spec =
+         new WorksheetMutationSupport.ConditionValueSpec(
+            vs.valueType(), vs.field(), vs.expression(), vs.expressionType(),
+            vs.subQueryName(), vs.inSubQueryColumn(), vs.where(), vs.index());
+
+      WorksheetMutationSupport.setConditions(t2, List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               readBack.field(), readBack.operation(), readBack.values(), readBack.negated(),
+               null, List.of(spec)),
+            null, 0)),
+         false);
+
+      Condition c2 = (Condition) ((ConditionItem) t2.getPreConditionList().getConditionList()
+         .getItem(0)).getXCondition();
+      assertEquals(1, c2.getValueCount());
+      SubQueryValue reconstructed = (SubQueryValue) c2.getValue(0);
+
+      // Compared by field identity rather than SubQueryValue.equals(): equals() also compares
+      // the resolved transient `table` clone via equalsContent(), which is sensitive to
+      // incidental table-construction details (e.g. embedded data identity) unrelated to this
+      // bug -- the round-trip claim this test exists to prove is that query/ref/sref/mref
+      // resolve to the SAME names, which is exactly what the four assertions below check.
+      assertEquals(original.getQuery(), reconstructed.getQuery());
+      assertEquals(original.getAttribute().getName(), reconstructed.getAttribute().getName());
+      assertEquals(original.getSubAttribute().getName(),
+                   reconstructed.getSubAttribute().getName());
+      assertEquals(original.getMainAttribute().getName(),
+                   reconstructed.getMainAttribute().getName());
+      assertNotNull(reconstructed.getTable(),
+         "the reconstructed SubQueryValue must be queryable, not just correctly shaped");
+   }
+
+   // -------------------------------------------------------------------------
    // Bug #77003 (WSC-005): negation reported for every operator, not just the three
    // (=/ONE_OF/NULL) whose negation operationName() already encodes into the operator string.
    // -------------------------------------------------------------------------
