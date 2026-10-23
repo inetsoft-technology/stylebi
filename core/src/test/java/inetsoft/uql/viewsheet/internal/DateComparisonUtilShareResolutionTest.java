@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.mockito.Mockito.*;
 
@@ -53,6 +57,14 @@ import static org.mockito.Mockito.*;
 @SreeHome
 @Tag("core")
 class DateComparisonUtilShareResolutionTest {
+   private final List<ViewsheetSandbox> sandboxes = new ArrayList<>();
+
+   @AfterEach
+   void disposeSandboxes() {
+      sandboxes.forEach(ViewsheetSandbox::dispose);
+      sandboxes.clear();
+   }
+
    @Test
    void descriptionUsesSharedDateComparisonNotStaleOwnDc() {
       DateComparisonInfo ownDc = mock(DateComparisonInfo.class);
@@ -172,8 +184,8 @@ class DateComparisonUtilShareResolutionTest {
 
    /**
     * A shares from B and B shares from C, both holding a stale copy: A resolves to C, the final
-    * source. When C has no date comparison or the link B points to is gone, A gets no date comparison and no query conditions, and the
-    * stale copies are not used instead.
+    * source. When C has no date comparison or the link B points to is gone, A gets no date
+    * comparison and no query conditions, and the stale copies are not used instead.
     */
    @Test
    void nestedShareResolvesToTheFinalSourceAndNotToAStaleCopy() {
@@ -259,13 +271,20 @@ class DateComparisonUtilShareResolutionTest {
       return (ChartVSAssemblyInfo) vs.getAssembly(name).getVSAssemblyInfo();
    }
 
-   /** A sandbox that only reads the date comparison of the assemblies, nothing is executed. */
-   private static ViewsheetSandbox sandbox(Viewsheet vs) {
+   /**
+    * A sandbox that only reads the date comparison of the assemblies, nothing is executed. It is
+    * disposed after the test.
+    */
+   private ViewsheetSandbox sandbox(Viewsheet vs) {
       AssetEntry entry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "test/ShareResolution", null,
          OrganizationManager.getInstance().getCurrentOrgID());
 
-      return new ViewsheetSandbox(vs, AbstractSheet.SHEET_RUNTIME_MODE, null, false, entry);
+      ViewsheetSandbox box =
+         new ViewsheetSandbox(vs, AbstractSheet.SHEET_RUNTIME_MODE, null, false, entry);
+      sandboxes.add(box);
+
+      return box;
    }
 
    private static void mockCrosstab(Viewsheet vs, String name, DateComparisonInfo dc,
