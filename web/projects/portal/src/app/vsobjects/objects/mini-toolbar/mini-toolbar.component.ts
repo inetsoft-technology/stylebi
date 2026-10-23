@@ -386,11 +386,13 @@ export class MiniToolbar implements OnChanges, OnDestroy {
       // Anchored strips are visibility: visible at rest, so the check above never trips for them
       // and any Esc keyup would dismiss a strip the user never saw. Revealed means the pill is
       // opaque; on a device that cannot hover the resting kebab is the affordance, so never dismiss.
+      // Focus inside means the Esc closed the kebab's own menu.
       if(this.kebabResident) {
          const container = toolbar.querySelector(".mini-toolbar-container");
 
          if(window.matchMedia?.("(hover: none)")?.matches || !container ||
-            window.getComputedStyle(container).opacity === "0")
+            window.getComputedStyle(container).opacity === "0" ||
+            this.element.nativeElement.contains(document.activeElement))
          {
             return;
          }

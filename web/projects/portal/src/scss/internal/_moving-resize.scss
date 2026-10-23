@@ -39,13 +39,23 @@ $handle-mid: calc(50% - 4px);
 // !important — !important only wins competing declarations on the same element. Hovering the
 // assembly while a dismissed anchored strip's container happens to still be in the DOM must not
 // resurrect it.
-.vs-object-parent-container:not(.popup-showing):hover + mini-toolbar > .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-container,
-.object-editor:not(.moving-resizing):hover + mini-toolbar > .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-container,
-.vs-object-container:hover .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-container,
-.force-show-toolbar.vs-object-parent-container + mini-toolbar > .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-container {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
+.vs-object-parent-container:not(.popup-showing):hover + mini-toolbar > .mini-toolbar--anchored:not(.hidden-mini-toolbar),
+.object-editor:not(.moving-resizing):hover + mini-toolbar > .mini-toolbar--anchored:not(.hidden-mini-toolbar),
+.vs-object-container:hover .mini-toolbar--anchored:not(.hidden-mini-toolbar),
+.force-show-toolbar.vs-object-parent-container + mini-toolbar > .mini-toolbar--anchored:not(.hidden-mini-toolbar) {
+  .mini-toolbar-container {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  // The group and kebab declare their own pointer-events, which the container's cannot reach. The
+  // weakest selector here, 0,6,0 and 0,7,0, still beats the component's encapsulated resting
+  // none, 0,4,0 and 0,6,0.
+  .mini-toolbar-container .mini-toolbar-button-group,
+  .mini-toolbar-container .mini-toolbar-button-group .mini-toolbar-kebab {
+    pointer-events: auto;
+  }
 }
 
 .vs-object-parent-container.max-mode + mini-toolbar > .mini-toolbar {

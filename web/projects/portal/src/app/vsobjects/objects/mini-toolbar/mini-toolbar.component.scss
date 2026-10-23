@@ -123,6 +123,22 @@
   .mini-toolbar--anchored:not(.hidden-mini-toolbar):has(:focus-visible) .mini-toolbar-container {
     opacity: 1;
   }
+
+  // No hit target at rest, so a control or dropdown over the corner keeps its clicks. The kebab
+  // needs its own none against its explicit auto below: 0,6,0 to 0,5,0 once encapsulated.
+  .mini-toolbar--anchored .mini-toolbar-kebab-group,
+  .mini-toolbar--anchored .mini-toolbar-kebab-group .mini-toolbar-kebab {
+    pointer-events: none;
+  }
+
+  // Strip hover holds the kebab once the pointer leaves the assembly for it; assembly hover is in
+  // _moving-resize.scss.
+  .mini-toolbar--anchored:not(.hidden-mini-toolbar):hover .mini-toolbar-kebab-group,
+  .mini-toolbar--anchored:not(.hidden-mini-toolbar):hover .mini-toolbar-kebab-group .mini-toolbar-kebab,
+  .mini-toolbar--anchored:not(.hidden-mini-toolbar):has(:focus-visible) .mini-toolbar-kebab-group,
+  .mini-toolbar--anchored:not(.hidden-mini-toolbar):has(:focus-visible) .mini-toolbar-kebab-group .mini-toolbar-kebab {
+    pointer-events: auto;
+  }
 }
 
 // The corner pill floats over the assembly with no lane behind it, so it carries a shadow. It has
@@ -156,13 +172,15 @@
 // :not(.hidden-mini-toolbar) is load-bearing on pointer-events: without it a dismissed strip's
 // kebab would keep pointer-events: auto. The kebab declares no visibility of its own, so it
 // inherits the host's, and .hidden-mini-toolbar { visibility: hidden !important } reaches it; an
-// inherited value loses to a descendant's own explicit one.
+// inherited value loses to a descendant's own explicit one. Where the device can hover, the resting
+// none above outranks this.
 .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-kebab {
   pointer-events: auto;
 }
 
-// Coarse pointer: the kebab is the whole strip and takes the hit-target floor rather than any
-// height band.
+// Coarse pointer: the kebab takes the hit-target floor rather than any height band. The action
+// buttons still render beside it unless the device is mobile (they sit inside
+// @if (!mobileDevice)).
 @media (pointer: coarse) {
   // :host-context(.viz-modern) .mini-toolbar-container above pins height: 24px — written when the
   // kebab lived outside the container, it now clips the 44px touch target below right back down
@@ -183,9 +201,9 @@
     min-height: var(--inet-control-height-touch);
   }
 
-  // The kebab is the whole strip here, so it draws at the revealed alpha. Referencing the derived
-  // property avoids the self-reference this file avoids further down. Gated on a tone being
-  // present: with none, --viz-strip-glyph-a-hover is undefined too.
+  // No hover lifts the alpha under a coarse pointer, so the kebab draws at the revealed one.
+  // Referencing the derived property avoids the self-reference this file avoids further down. Gated
+  // on a tone being present: with none, --viz-strip-glyph-a-hover is undefined too.
   :host([data-tone]) .mini-toolbar--anchored:not(.hidden-mini-toolbar) .mini-toolbar-kebab {
     --viz-strip-glyph-a: var(--viz-strip-glyph-a-hover);
   }
@@ -205,10 +223,11 @@
 }
 
 // The alpha the kebab shows while revealed arrives as --viz-strip-glyph-a, solved per background so
-// the pair always clears 3:1. The further-lifted alpha on direct hover is derived from it under a second name: a custom property whose own value
-// references itself is a cycle and resolves to nothing, so the step cannot be written onto
-// --viz-strip-glyph-a directly. One TS-supplied value, the relationship stated here. Gated on a
-// tone being present, since there is no --viz-strip-glyph-a to derive from otherwise.
+// the pair always clears 3:1. The further-lifted alpha on direct hover is derived from it under a
+// second name: a custom property whose own value references itself is a cycle and resolves to
+// nothing, so the step cannot be written onto --viz-strip-glyph-a directly. One TS-supplied value,
+// the relationship stated here. Gated on a tone being present, since there is no
+// --viz-strip-glyph-a to derive from otherwise.
 :host([data-tone]) .mini-toolbar--anchored {
   --viz-strip-glyph-a-hover: min(1, calc(var(--viz-strip-glyph-a, 0.55) + 0.3));
 }

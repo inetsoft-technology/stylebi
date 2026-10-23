@@ -512,12 +512,15 @@ describe("MiniToolbar.onKeyUp", () => {
       container.className = "mini-toolbar-container";
       toolbar.appendChild(container);
 
-      // The kebab's own group is always present and is never the reveal signal — onKeyUp must skip
-      // it via :not(.mini-toolbar-kebab-group) or it would read "inline-flex" and always dismiss.
+      // The kebab's own group is always in layout, so its display is not the reveal signal.
       const kebabGroup = document.createElement("div");
       kebabGroup.className = "mini-toolbar-button-group mini-toolbar-kebab-group";
       kebabGroup.style.display = "inline-flex";
       container.appendChild(kebabGroup);
+
+      const kebab = document.createElement("button");
+      kebab.className = "mini-toolbar-kebab";
+      kebabGroup.appendChild(kebab);
 
       if(groupDisplay !== undefined) {
          const group = document.createElement("div");
@@ -578,6 +581,37 @@ describe("MiniToolbar.onKeyUp", () => {
       const element = makeElement("visible");
       setOpacity(element, "1");
       const hideMiniToolbar = wire(comp, element);
+      const outside = document.createElement("button");
+      document.body.appendChild(outside);
+      outside.focus();
+
+      comp.onKeyUp();
+
+      expect(element.nativeElement.contains(document.activeElement)).toBe(false);
+      expect(hideMiniToolbar).toHaveBeenCalledWith("Chart1", true);
+   });
+
+   // Esc that closes the kebab's own menu must not dismiss the strip under the focused kebab
+   it("does not dismiss a revealed kebab-only strip whose kebab has focus", () => {
+      const comp = makeToolbar();
+      comp.anchorInTitleLane = true;
+      const element = makeElement("visible");
+      setOpacity(element, "1");
+      const hideMiniToolbar = wire(comp, element);
+      const kebab = element.nativeElement.querySelector(".mini-toolbar-kebab") as HTMLElement;
+      kebab.focus();
+
+      comp.onKeyUp();
+
+      expect(document.activeElement).toBe(kebab);
+      expect(hideMiniToolbar).not.toHaveBeenCalled();
+   });
+
+   it("still dismisses a focused non-anchored strip", () => {
+      const comp = makeToolbar();
+      const element = makeElement("visible");
+      const hideMiniToolbar = wire(comp, element);
+      (element.nativeElement.querySelector(".mini-toolbar-kebab") as HTMLElement).focus();
 
       comp.onKeyUp();
 

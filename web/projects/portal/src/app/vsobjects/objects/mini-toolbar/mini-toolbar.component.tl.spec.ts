@@ -46,6 +46,9 @@
  */
 
 import { render } from "@testing-library/angular";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 
 import { AssemblyAction } from "../../../common/action/assembly-action";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
@@ -586,6 +589,95 @@ describe("MiniToolbar rendered - resting opacity (compiled CSS only)", () => {
       const styleText = await compiledStyleText();
       expect(styleText).toMatch(
          /\.mini-toolbar--corner[^{}]*\.mini-toolbar-container[^{}]*\{[^}]*background-color:\s*var\(--inet-viz-surface-dark\)/);
+   });
+
+   // Bodies of every @media (hover: hover) block.
+   function hoverMediaBlocks(styleText: string): string[] {
+      const hoverMedia = /@media \(hover: ?hover\)\s*\{/g;
+      const blocks: string[] = [];
+      let m: RegExpExecArray;
+
+      while((m = hoverMedia.exec(styleText)) != null) {
+         let depth = 1;
+         let i = m.index + m[0].length;
+         const start = i;
+
+         while(depth > 0 && i < styleText.length) {
+            depth += styleText[i] == "{" ? 1 : styleText[i] == "}" ? -1 : 0;
+            i++;
+         }
+
+         blocks.push(styleText.substring(start, i));
+      }
+
+      return blocks;
+   }
+
+   // No pseudo-class anywhere in the selector, so a reveal cannot satisfy these.
+   const restGroup =
+      /\.mini-toolbar--anchored[^{},:]*\.mini-toolbar-kebab-group[^{},:]*[,{][^}]*pointer-events:\s*none/g;
+   const restKebab =
+      /\.mini-toolbar--anchored[^{},:]*\.mini-toolbar-kebab(?![-\w])[^{},:]*[,{][^}]*pointer-events:\s*none/g;
+
+   it("takes the transparent kebab out of hit-testing at rest only where the device can hover", async () => {
+      const styleText = await compiledStyleText();
+      const blocks = hoverMediaBlocks(styleText);
+      const count = (text: string, re: RegExp) => (text.match(re) || []).length;
+
+      for(const rest of [restGroup, restKebab]) {
+         const inside = blocks.reduce((sum, block) => sum + count(block, rest), 0);
+
+         expect(inside).toBeGreaterThan(0);
+         // a device that cannot hover draws the kebab at rest and must keep it clickable
+         expect(count(styleText, rest)).toBe(inside);
+      }
+   });
+
+   it("puts the kebab back in hit-testing on strip hover and keyboard focus, never on a dismissed strip", async () => {
+      const hoverText = hoverMediaBlocks(await compiledStyleText()).join("\n");
+
+      expect(hoverText).toMatch(
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:hover[^{},]*\.mini-toolbar-kebab-group[^{},]*[,{][^}]*pointer-events:\s*auto/);
+      expect(hoverText).toMatch(
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:hover[^{},]*\.mini-toolbar-kebab(?![-\w])[^{},]*[,{][^}]*pointer-events:\s*auto/);
+      expect(hoverText).toMatch(
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:has\([^)]*:focus-visible\)[^{},]*\.mini-toolbar-kebab-group[^{},]*[,{][^}]*pointer-events:\s*auto/);
+      expect(hoverText).toMatch(
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:has\([^)]*:focus-visible\)[^{},]*\.mini-toolbar-kebab(?![-\w])[^{},]*[,{][^}]*pointer-events:\s*auto/);
+   });
+
+   // The TL render injects only component styles, so the global rule is read as source.
+   it("puts the kebab back in hit-testing on assembly hover too, from the global stylesheet", () => {
+      const source = readFileSync(
+         join(dirname(fileURLToPath(import.meta.url)), "../../../../scss/internal/_moving-resize.scss"),
+         "utf-8").replace(/\r\n/g, "\n");
+      const reveals = new RegExp([
+         ".vs-object-parent-container:not(.popup-showing):hover + mini-toolbar > ",
+         ".object-editor:not(.moving-resizing):hover + mini-toolbar > ",
+         ".vs-object-container:hover ",
+         ".force-show-toolbar.vs-object-parent-container + mini-toolbar > "
+      ].map(prefix => (prefix + ".mini-toolbar--anchored:not(.hidden-mini-toolbar)")
+         .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(",\\s*") + "\\s*\\{", "g");
+      const bodies: string[] = [];
+      let m: RegExpExecArray;
+
+      while((m = reveals.exec(source)) != null) {
+         let depth = 1;
+         let i = m.index + m[0].length;
+
+         while(depth > 0 && i < source.length) {
+            depth += source[i] == "{" ? 1 : source[i] == "}" ? -1 : 0;
+            i++;
+         }
+
+         bodies.push(source.substring(m.index + m[0].length, i));
+      }
+
+      expect(bodies.length).toBe(1);
+      expect(bodies[0]).toMatch(
+         /(^|\n)\s*\.mini-toolbar-container\s*\{[^}]*opacity:\s*1;[^}]*pointer-events:\s*auto;/);
+      expect(bodies[0]).toMatch(
+         /\.mini-toolbar-container \.mini-toolbar-button-group,\s*\.mini-toolbar-container \.mini-toolbar-button-group \.mini-toolbar-kebab\s*\{\s*pointer-events:\s*auto;/);
    });
 });
 
