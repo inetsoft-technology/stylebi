@@ -109,6 +109,29 @@ class WorksheetTableServiceDeleteTablesTest {
          "ambiguous (multiple) leaf candidates must not be silently guessed");
    }
 
+   /**
+    * Bug #79176 (item 1): a primary is never hidden, so a sole leaf that is hidden from
+    * viewsheets must not be restored as primary after the previous primary was deleted.
+    */
+   @Test
+   void hiddenSoleLeafIsNotRestoredAsPrimary() {
+      Worksheet ws = new Worksheet();
+      TableAssembly base = new PhysicalBoundTableAssembly(ws, "BASE");
+      ws.addAssembly(base);
+      TableAssembly oldPrimary = new MirrorTableAssembly(ws, "OLD_PRIMARY", base);
+      ws.addAssembly(oldPrimary);
+      ws.setPrimaryAssembly("OLD_PRIMARY");
+      base.setVisibleTable(false);
+      ws.removeAssembly("OLD_PRIMARY");
+      assertNull(ws.getPrimaryAssemblyName(), "removeAssembly should have cleared the primary");
+
+      service().restorePrimaryAssembly(ws);
+
+      assertNull(ws.getPrimaryAssemblyName(),
+         "a hidden leaf must not be restored as a hidden primary");
+      assertFalse(base.isVisibleTable(), "the hidden table must not be silently made visible");
+   }
+
    @Test
    void noRemainingTablesLeavePrimaryNull() {
       Worksheet ws = new Worksheet();
