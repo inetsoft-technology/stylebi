@@ -20,6 +20,7 @@ package inetsoft.web.portal.controller;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
+import inetsoft.web.security.auth.ResourceExistsException;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.GlobalExceptionHandler;
@@ -85,6 +86,22 @@ public class ControllerErrorHandler extends ResponseEntityExceptionHandler {
       payload.put("error", "messageException");
       payload.put("message", e.getMessage());
       return new ResponseEntity<>(payload, null, HttpStatus.INTERNAL_SERVER_ERROR);
+   }
+
+   /**
+    * Handles requests that name a resource that already exists. The body carries the message
+    * in the same shape as a message exception.
+    */
+   @ExceptionHandler(ResourceExistsException.class)
+   public ResponseEntity<Map<String, String>> handleResourceExistsException(
+      ResourceExistsException e)
+   {
+      log("A resource with the specified name already exists", e, LogLevel.WARN);
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", "resourceExists");
+      payload.put("message", e.getMessage());
+      return new ResponseEntity<>(payload, null, HttpStatus.CONFLICT);
    }
 
    /**

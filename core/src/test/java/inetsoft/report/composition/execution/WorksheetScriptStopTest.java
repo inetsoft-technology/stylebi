@@ -17,6 +17,13 @@
  */
 package inetsoft.report.composition.execution;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.web.binding.VSScriptableController;
+import inetsoft.web.composer.model.ws.ExpressionDialogModel;
+import inetsoft.web.composer.ws.dialog.ExpressionDialogService;
 import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.WorksheetService;
@@ -29,6 +36,8 @@ import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.script.graal.ScriptStopTestSupport;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.script.graal.pool.PoolConfig;
@@ -123,6 +132,68 @@ class WorksheetScriptStopTest {
       ScriptStopTestSupport.setTimeout("10");
       assertEquals(ids(20), col(box.getTableLens("S", mode), "out"), "the same sandbox");
       assertEquals(ids(20), col(box(ws).getTableLens("S", mode), "out"), "a new sandbox");
+   }
+
+   /**
+    * Bug #78379: the stop names its column and table like an expression error does, and stays
+    * the stopped expression failure that the caches and filters rethrow. Its editor finds the
+    * column without the table, at the index of the lens (hidden columns shift it).
+    */
+   @ParameterizedTest
+   @ValueSource(ints = { AssetQuerySandbox.RUNTIME_MODE, AssetQuerySandbox.LIVE_MODE })
+   void stopNamesItsColumnAndTable(int mode) throws Exception {
+      Worksheet ws = ws(20, 12, true, false, false);
+      AssetQuerySandbox box = box(ws);
+      ExpressionFailedException stop = assertThrows(
+         ExpressionFailedException.class, () -> box.getTableLens("S", mode));
+      assertTrue(stop.isStopped(), "the stop flag");
+      assertTrue(ScriptTimeoutGuard.isStop(stop), "isStop");
+      assertEquals("out", stop.getColName());
+      assertEquals("S", stop.getTableName());
+      assertTrue(stop.getMessage().contains("out") && stop.getMessage().contains("S"),
+                 stop.getMessage());
+      assertTrue(ScriptTimeoutGuard.copyStop(stop) instanceof ExpressionFailedException,
+                 "copyStop keeps the type");
+
+      // no stopped table is kept
+      ScriptStopTestSupport.setTimeout("10");
+      TableAssembly table = (TableAssembly) ws.getAssembly("S");
+      XTable data = box.getTableLens("S", mode);
+      int index = 0;
+      ColumnRef expected = AssetUtil.findColumn(data, index, table.getColumnSelection());
+      assertEquals("out", expected.getName());
+      assertEquals(expected, ExpressionDialogService.findColumnWithoutData(
+         table, mode, index, table.getColumnSelection()), "the column of the lens index");
+   }
+
+   /**
+    * Bug #78379: the expression dialog of a stopped expression column opens, with the column
+    * (its old name and expression) found at the lens index, which hidden columns shift. The
+    * table read of the dialog still fails with the stop, so the dialog took the 500 before.
+    */
+   @Test
+   void expressionDialogOpensForStoppedColumn() throws Exception {
+      Worksheet ws = ws(20, 12, true, false, false);
+      TableAssembly table = (TableAssembly) ws.getAssembly("S");
+      table.getTableInfo().setLiveData(true);
+      AssetQuerySandbox box = box(ws);
+      assertEquals(AssetQuerySandbox.LIVE_MODE, AssetEventUtil.getMode(table));
+      assertThrows(ExpressionFailedException.class, () -> box.getTableLens("S", AssetQuerySandbox.LIVE_MODE));
+
+      ViewsheetService engine = mock(ViewsheetService.class);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(engine.getWorksheet("rid", null)).thenReturn(rws);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      VSScriptableController script = mock(VSScriptableController.class);
+      when(script.getScriptDefinition(rws, table, null)).thenReturn(JsonNodeFactory.instance.objectNode());
+      ExpressionDialogService service =
+         new ExpressionDialogService(engine, script, mock(DataSourceRegistry.class));
+
+      // lens index 0 is the expression column: id, a and b are hidden
+      ExpressionDialogModel model = service.getExpressionModel("rid", "S", "0", false, null);
+      assertEquals("out", model.oldName());
+      assertTrue(model.expression().contains("1500"), model.expression());
    }
 
    /**

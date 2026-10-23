@@ -322,7 +322,11 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
 
       if(identity == null) {
-         return false;
+         // Bug #79036, an authenticated (non-anonymous) principal with no roles, no groups and
+         // no local user (e.g. an SSO user whose provider sends no roles) has no identity, but
+         // must still get the "My Dashboards allowed by default" rule that a principal with at
+         // least one role or group gets. Nothing else is granted without an identity.
+         return isDefaultMyDashboardsRead(principal, pId, type, resource, action, orgID);
       }
 
       Permission perm = getPermission(type, resource, action, orgID);
@@ -641,6 +645,34 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          type.equals(ResourceType.SECURITY_GROUP) ||
          type.equals(ResourceType.SECURITY_ROLE) ||
          type.equals(ResourceType.SECURITY_ORGANIZATION);
+   }
+
+   /**
+    * Whether the default "My Dashboards" READ rule applies to a principal that has no identity
+    * (Bug #79036). Only an authenticated, non-anonymous SRPrincipal qualifies, only for READ on
+    * MY_DASHBOARDS (or the REPORT "My Dashboards" folder), and only while no permission is
+    * configured on it, mirroring the default applied to principals that have an identity.
+    */
+   private boolean isDefaultMyDashboardsRead(Principal principal, IdentityID pId,
+                                             ResourceType type, String resource,
+                                             ResourceAction action, String orgID)
+   {
+      if(!(principal instanceof SRPrincipal) || pId == null ||
+         XPrincipal.ANONYMOUS.equals(pId.name) || action != ResourceAction.READ ||
+         // internal principals (createUser() is null for them by design) stay denied
+         "true".equals(((SRPrincipal) principal).getProperty("__internal__")) ||
+         !(type == ResourceType.MY_DASHBOARDS ||
+           type == ResourceType.REPORT && Tool.MY_DASHBOARD.equals(resource)))
+      {
+         return false;
+      }
+
+      if(!ActionPermissionService.isOrgAdminAction(type, resource) && SUtil.isMultiTenant()) {
+         return false;
+      }
+
+      Permission perm = getPermission(type, resource, action, orgID);
+      return perm == null || !perm.hasOrgEditedGrantAll(orgID);
    }
 
    /**

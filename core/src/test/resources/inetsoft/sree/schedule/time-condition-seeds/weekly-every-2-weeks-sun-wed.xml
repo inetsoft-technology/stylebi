@@ -1,0 +1,1 @@
+<Condition type="TimeCondition" timeType="6" timezone="-18000000:America/New_York" hour="0" minute="0" second="15" hour_end="-1" minute_end="-1" second_end="-1" daysOfWeek="1,4" interval="2"></Condition>

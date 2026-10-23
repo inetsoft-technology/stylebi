@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition.graph.calc;
 
+import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.filter.ProductFormula;
 import inetsoft.util.NumberParserWrapper;
 
@@ -29,6 +30,24 @@ public class CompoundGrowthColumn extends RunningTotalColumn {
    @Override
    public boolean isAsPercent() {
       return true;
+   }
+
+   /**
+    * A total cell has no compound growth: with "Compute Trend and Comparison for Totals" on the
+    * running total would hand back the raw total (or compound raw totals as rates), which the
+    * percent format then shows as a percentage. Leave every total cell blank. (79130)
+    */
+   @Override
+   public Object calculate(CrossTabFilter.CrosstabDataContext context,
+                           CrossTabFilter.PairN tuplePair)
+   {
+      if(isTotalRow(context, tuplePair) || isGrandTotalRow(context, tuplePair) ||
+         isTotalCol(context, tuplePair) || isGrandTotalCol(context, tuplePair))
+      {
+         return INVALID;
+      }
+
+      return super.calculate(context, tuplePair);
    }
 
    private static class CGProductFormula extends ProductFormula {
