@@ -528,9 +528,9 @@ describe("MiniToolbar rendered - anchored hover persistence (compiled CSS only; 
       // literal string. ":not(.hidden-mini-toolbar)" before ":hover" is the load-bearing part: an
       // unscoped rule would resurrect a strip dismissed via Hide MiniToolbar.
       expect(styleText).toMatch(
-         /\.mini-toolbar--anchored[^{}]*:not\(\.hidden-mini-toolbar\)[^{}]*:hover[^{}]*\.mini-toolbar-button-group[^{},]*:not\(\.mini-toolbar-kebab-group\)[^{}]*[,{]/);
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:hover[^{},]*\.mini-toolbar-button-group[^{},]*:not\(\.mini-toolbar-kebab-group\)[^{},]*[,{]/);
       expect(styleText).toMatch(
-         /\.mini-toolbar--anchored[^{}]*:not\(\.hidden-mini-toolbar\)[^{}]*:has\([^)]*:focus-visible\)[^{}]*\.mini-toolbar-button-group[^{},]*:not\(\.mini-toolbar-kebab-group\)[^{}]*\{[^}]*display:\s*inline-flex/);
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:has\([^)]*:focus-visible\)[^{},]*\.mini-toolbar-button-group[^{},]*:not\(\.mini-toolbar-kebab-group\)[^{},]*\{[^}]*display:\s*inline-flex/);
    });
 });
 
@@ -577,9 +577,9 @@ describe("MiniToolbar rendered - resting opacity (compiled CSS only)", () => {
    it("reveals the pill on strip hover and on keyboard focus, never on a dismissed strip", async () => {
       const styleText = await compiledStyleText();
       expect(styleText).toMatch(
-         /\.mini-toolbar--anchored[^{}]*:not\(\.hidden-mini-toolbar\)[^{}]*:has\([^)]*:focus-visible\)[^{}]*\.mini-toolbar-container[^{}]*\{[^}]*opacity:\s*1/);
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:has\([^)]*:focus-visible\)[^{},]*\.mini-toolbar-container[^{},]*\{[^}]*opacity:\s*1/);
       expect(styleText).toMatch(
-         /\.mini-toolbar--anchored[^{}]*:not\(\.hidden-mini-toolbar\)[^{}]*:hover[^{}]*\.mini-toolbar-container[^{}]*[,{][^}]*opacity:\s*1/);
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:hover[^{},]*\.mini-toolbar-container[^{},]*[,{][^}]*opacity:\s*1/);
    });
 
    it("gives the corner pill the dark surface", async () => {
