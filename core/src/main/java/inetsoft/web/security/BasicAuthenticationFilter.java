@@ -238,7 +238,25 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                               if(sameOrg.equalsIgnoreCase(originalOrg)) {
                                  IdentityID userID = new IdentityID(properUserID.name, sameOrg);
 
-                                 if(provider.getUser(userID) != null) {
+                                 boolean found;
+
+                                 try {
+                                    // goes through the chain, so a failure is not
+                                    // necessarily from p
+                                    found = provider.getUser(userID) != null;
+                                 }
+                                 catch(RuntimeException e) {
+                                    if(e instanceof inetsoft.util.ShutdownException) {
+                                       throw e;
+                                    }
+
+                                    LOG.warn("Failed to look up user {} through the " +
+                                             "authentication chain: {}", userID, e.toString());
+                                    LOG.debug("Chain user lookup failure", e);
+                                    found = false;
+                                 }
+
+                                 if(found) {
                                     properUserID = userID;
                                     recordedOrgID = sameOrg;
                                     providerName = p.getProviderName();

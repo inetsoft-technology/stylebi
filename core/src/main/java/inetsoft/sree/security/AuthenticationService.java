@@ -233,6 +233,10 @@ public class AuthenticationService {
                }
             }
             catch(Exception e) {
+               if(e instanceof ShutdownException) {
+                  throw e;
+               }
+
                LOG.warn("Failed to look up user {} for the login audit record: {}", userId,
                         e.toString());
                LOG.debug("Audit user lookup failure", e);

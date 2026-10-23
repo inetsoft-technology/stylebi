@@ -108,6 +108,32 @@ class AuthenticationChainThrowingProviderTest {
       assertNull(chain.findUserOwner(NOBODY));
    }
 
+   // two providers failing with the identical instance must not replace the original failure
+   @Test
+   void getUserRethrowsOriginalFailureWhenProvidersThrowTheSameInstance() {
+      RuntimeException shared = new RuntimeException("shared failure");
+      AuthenticationProvider first = provider();
+      AuthenticationProvider second = provider();
+      when(first.getUser(any())).thenThrow(shared);
+      when(second.getUser(any())).thenThrow(shared);
+      AuthenticationChain chain = chainOf(first, second);
+
+      RuntimeException thrown = assertThrows(RuntimeException.class, () -> chain.getUser(PRV));
+
+      assertSame(shared, thrown);
+   }
+
+   @Test
+   void skippedProviderWithoutNameDoesNotFailTheLookup() {
+      AuthenticationProvider unnamed = throwing();
+      AuthenticationProvider owner = provider();
+      when(unnamed.getProviderName()).thenReturn(null);
+      when(owner.getUser(PRV)).thenReturn(PRV_USER);
+      AuthenticationChain chain = chainOf(unnamed, owner);
+
+      assertSame(PRV_USER, chain.getUser(PRV));
+   }
+
    private static AuthenticationProvider provider() {
       AuthenticationProvider p = mock(AuthenticationProvider.class);
       when(p.getProviderName()).thenReturn("p" + System.identityHashCode(p));

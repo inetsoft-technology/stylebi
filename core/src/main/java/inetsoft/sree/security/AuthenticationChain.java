@@ -73,7 +73,7 @@ public class AuthenticationChain
             if(failure == null) {
                failure = e;
             }
-            else {
+            else if(e != failure) {
                failure.addSuppressed(e);
             }
          }
@@ -128,7 +128,7 @@ public class AuthenticationChain
    public static void warnSkippedProvider(AuthenticationProvider provider, IdentityID user,
                                           Exception e)
    {
-      String name = provider.getProviderName();
+      String name = String.valueOf(provider.getProviderName());
       long now = System.currentTimeMillis();
       Long last = SKIP_WARNINGS.get(name);
 
