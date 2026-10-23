@@ -247,8 +247,17 @@ describe("SecurityProviderService — scene layer", () => {
          ["getOrganizations", () => service.getOrganizations(makeFileAuthnForm()),
             "../api/em/security/get-organizations"],
          ["getAllUserRoles", () => service.getAllUserRoles(makeFileAuthnForm()),
-            "../api/em/security/get-user-roles"]
+            "../api/em/security/get-user-roles"],
+         ["getUserEmails", () => service.getUserEmails(makeFileAuthnForm(), uid),
+            "../api/em/security/get-user-emails/"],
+         ["getUserRoles", () => service.getUserRoles(makeFileAuthnForm(), uid),
+            "../api/em/security/get-roles/"],
+         ["getGroupUsers", () => service.getGroupUsers(makeFileAuthnForm(), uid),
+            "../api/em/security/group/users/"],
+         ["getOrganizationMembers", () => service.getOrganizationMembers(makeFileAuthnForm(), "org1"),
+            "../api/em/security/organization-members/"]
       ];
+      const uid = { name: "u1", orgID: "host-org" } as any;
 
       for(const [name, call, url] of previews) {
          it(`[Risk 3] ${name} should show the error and emit nothing when the request fails`, () => {
@@ -257,7 +266,7 @@ describe("SecurityProviderService — scene layer", () => {
             let completed = false;
 
             call().subscribe({ next, complete: () => completed = true });
-            httpMock.expectOne(url)
+            httpMock.expectOne(r => r.url.startsWith(url))
                .flush("failed", { status: 500, statusText: "Internal Server Error" });
 
             expect(errorServiceSpy.showSnackBar).toHaveBeenCalled();
@@ -269,7 +278,7 @@ describe("SecurityProviderService — scene layer", () => {
             const next = vi.fn();
 
             call().subscribe(next);
-            httpMock.expectOne(url).flush({ ids: [], list: [], type: 0 });
+            httpMock.expectOne(r => r.url.startsWith(url)).flush({ ids: [], list: [], type: 0 });
 
             expect(next).toHaveBeenCalledTimes(1);
             expect(errorServiceSpy.showSnackBar).not.toHaveBeenCalled();
