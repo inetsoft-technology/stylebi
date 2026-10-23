@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -92,11 +93,15 @@ public class CalendarDisplayService {
          CalendarVSAssembly calendar = requireCalendar(rvs, assemblyName);
          CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
 
+         // Same key and overload as VSCalendarModel's comparisonVisible, so an organization-scoped
+         // override agrees with what the user's own Composer shows. Read per call, not cached.
+         boolean comparisonEnabled = SreeEnv.getBooleanProperty("calendar.dateCompare.enabled");
+
          DisplayPlan plan = plan(
             info.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE,
             info.isYearView(), info.isPeriod(),
             info.getDates() != null && info.getDates().length > 0,
-            yearView, doubleCalendar, rangeComparison, assemblyName);
+            yearView, doubleCalendar, rangeComparison, comparisonEnabled, assemblyName);
 
          result.put("assembly", assemblyName);
          result.put("changed", plan.changed());
@@ -523,9 +528,21 @@ public class CalendarDisplayService {
 
    static DisplayPlan plan(boolean isDouble, boolean isYearView, boolean isPeriod, boolean hasDates,
                            Boolean yearView, Boolean doubleCalendar, Boolean rangeComparison,
-                           String assemblyName)
+                           boolean comparisonEnabled, String assemblyName)
    {
       boolean wantsDouble = doubleCalendar != null ? doubleCalendar : isDouble;
+
+      // The Composer only offers the comparison toggle while calendar.dateCompare.enabled is true
+      // (or the calendar is already in comparison mode, so it can be switched off), but the
+      // service behind it does not check. Refused first so the caller is not told to pass
+      // doubleCalendar=true only to hit this on the next call.
+      if(rangeComparison != null && rangeComparison && !isPeriod && !comparisonEnabled) {
+         throw new IllegalArgumentException(
+            "rangeComparison is hidden and disabled on this server because the property " +
+            "calendar.dateCompare.enabled is false, so '" + assemblyName + "' cannot be switched " +
+            "to range comparison. To compare periods, use set_date_comparison on a chart or " +
+            "crosstab. rangeComparison=false is still accepted.");
+      }
 
       // Range comparison lives on the double calendar. The Composer hides the menu item unless
       // doubleCalendar is on (calendar-actions.ts: visible: () => this.model.doubleCalendar), and
