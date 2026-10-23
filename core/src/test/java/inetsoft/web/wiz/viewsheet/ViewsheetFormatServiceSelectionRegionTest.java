@@ -234,7 +234,9 @@ class ViewsheetFormatServiceSelectionRegionTest {
          new ViewsheetFormatService.FormatRequest(List.of("Tree1"), format(), false, "levels"),
          "")).getMessage();
 
-      assertTrue(message.contains("'cell', 'measureText' or 'measureBar'"), message);
+      // The list also names the Calendar targets (Bug #79228), so check each name separately.
+      assertTrue(message.contains("'cell'") && message.contains("'measureText'") &&
+                 message.contains("'measureBar'"), message);
    }
 
    // ── request wiring ──────────────────────────────────────────────────────────────────────

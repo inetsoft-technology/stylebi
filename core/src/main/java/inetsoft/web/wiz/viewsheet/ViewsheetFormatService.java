@@ -39,6 +39,8 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.CalendarVSAssembly;
+import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.BorderColors;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
@@ -595,6 +597,64 @@ public class ViewsheetFormatService {
       }
    }
 
+   private static boolean isCalendarTarget(String target) {
+      return CALENDAR_HEADER.equals(target) || CALENDAR_GRID.equals(target);
+   }
+
+   /**
+    * Bug #79228: {@code calendarHeader}/{@code calendarGrid} address regions only a Calendar has;
+    * on any other assembly the path written would be inert, so the request is refused. Fails open
+    * only when the viewsheet cannot be resolved.
+    */
+   private static void refuseCalendarTargetOnNonCalendar(Viewsheet viewsheet, List<String> names,
+                                                         String target)
+   {
+      if(viewsheet == null) {
+         return;
+      }
+
+      List<String> offenders = new ArrayList<>();
+
+      for(String name : names) {
+         VSAssembly assembly = viewsheet.getAssembly(name);
+
+         if(!(assembly instanceof CalendarVSAssembly)) {
+            offenders.add("'" + name + "' is " +
+                          (assembly == null ? "not found" : assembly.getClass().getSimpleName()));
+         }
+      }
+
+      if(!offenders.isEmpty()) {
+         String camel = CALENDAR_HEADER.equals(target) ? "calendarHeader" : "calendarGrid";
+         throw new IllegalArgumentException(
+            "set_format: target '" + camel + "' only applies to a Calendar; " +
+            String.join("; ", offenders) + ". The request was not applied. Use target 'header' " +
+            "or 'data' for a Table or Crosstab, or 'object' for the whole assembly.");
+      }
+   }
+
+   /**
+    * The Calendar format path for {@code calendarHeader} (the month/year title, shared by both
+    * views) or {@code calendarGrid} (the date grid: the month grid in month view, the year grid in
+    * year view).
+    */
+   private static TableDataPath calendarPath(RuntimeViewsheet rvs, String name, String target) {
+      if(CALENDAR_HEADER.equals(target)) {
+         return CalendarVSAssemblyInfo.CALENDAR_TITLE_PATH;
+      }
+
+      Viewsheet viewsheet = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
+
+      if(assembly instanceof CalendarVSAssembly calendar &&
+         ((CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo()).isYearView())
+      {
+         return CalendarVSAssemblyInfo.CALENDAR_YEAR_PATH;
+      }
+
+      return CalendarVSAssemblyInfo.CALENDAR_MONTH_PATH;
+   }
+
    /**
     * Refuses {@code target:"title"} for an assembly that has no title bar. Only an assembly whose
     * info is a {@link TitledVSAssemblyInfo} renders a title, so a write to the title path of any
@@ -655,6 +715,11 @@ public class ViewsheetFormatService {
 
    private static final ObjectMapper MAPPER = new ObjectMapper();
 
+   /** Normalized (lower-cased) form of target {@code calendarHeader}, see requireTarget. */
+   private static final String CALENDAR_HEADER = "calendarheader";
+   /** Normalized (lower-cased) form of target {@code calendarGrid}, see requireTarget. */
+   private static final String CALENDAR_GRID = "calendargrid";
+
    /**
     * What a {@code set_format} call reports back.
     *
@@ -701,8 +766,16 @@ public class ViewsheetFormatService {
          return setFieldFormat(sessionToken, user, request);
       }
 
-      if("object".equals(target) || "title".equals(target) || isSelectionRegionTarget(target)) {
+      if("object".equals(target) || "title".equals(target) || isCalendarTarget(target) ||
+         isSelectionRegionTarget(target))
+      {
          requireKnownAssemblies(sessionToken, user, request.assemblies());
+      }
+
+      if(isCalendarTarget(target)) {
+         RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
+         refuseCalendarTargetOnNonCalendar(resolved == null ? null : resolved.getViewsheet(),
+                                           request.assemblies(), target);
       }
 
       // Binding-only refusals run against a read-only resolve, before mutate: a refused request
@@ -812,6 +885,18 @@ public class ViewsheetFormatService {
                for(String name : request.assemblies()) {
                   data.add(requirePaths(computeHeaderRegionPaths(rvs, name, request.field()),
                                         name, "header"));
+               }
+
+               event.setData(data);
+            }
+            else if(isCalendarTarget(target)) {
+               // Same event.getData() per-path mechanism as "title" above. A Calendar keeps its
+               // month/year header text and its date grid under their own paths, not under the
+               // object path or the title-bar path; the grid path depends on the view mode.
+               ArrayList<TableDataPath[]> data = new ArrayList<>();
+
+               for(String name : request.assemblies()) {
+                  data.add(new TableDataPath[]{ calendarPath(rvs, name, target) });
                }
 
                event.setData(data);
@@ -1973,6 +2058,8 @@ public class ViewsheetFormatService {
          "cell".equals(target) ? "item label cells" :
          "measuretext".equals(target) ? "measure text" :
          "measurebar".equals(target) ? "measure bar" :
+         CALENDAR_HEADER.equals(target) ? "calendar header" :
+         CALENDAR_GRID.equals(target) ? "calendar grid" :
          "title".equals(target) ? "title" : "whole assembly";
    }
 
@@ -2823,13 +2910,16 @@ public class ViewsheetFormatService {
 
       if(!"object".equals(name) && !"title".equals(name) && !"text".equals(name) &&
          !"data".equals(name) && !"header".equals(name) && !"field".equals(name) &&
-         !isSelectionRegionTarget(name))
+         !isCalendarTarget(name) && !isSelectionRegionTarget(name))
       {
          throw new IllegalArgumentException(
             "set_format 'target' must be 'object', 'title', 'text', 'data', 'header', 'field', " +
-            "'cell', 'measureText' or 'measureBar', got '" + target + "'. 'cell', 'measureText' " +
+            "'cell', 'measureText', 'measureBar', 'calendarHeader' or 'calendarGrid', got '" +
+            target + "'. 'cell', 'measureText' " +
             "and 'measureBar' format a Selection List/Tree's item labels, measure numbers and " +
-            "measure bar separately (optional 'level' picks one tree level). 'object' (the " +
+            "measure bar separately (optional 'level' picks one tree level). 'calendarHeader' " +
+            "formats a Calendar's month/year header text; 'calendarGrid' formats its date grid " +
+            "(month grid in month view, year grid in year view). 'object' (the " +
             "default) formats the whole " +
             "assembly, including — for a chart — the font and colour that unstyled axis " +
             "titles and tick labels fall back to (not their number/date format: use 'field' " +
