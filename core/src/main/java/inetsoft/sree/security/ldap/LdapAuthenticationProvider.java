@@ -1079,6 +1079,8 @@ public abstract class LdapAuthenticationProvider
       }
 
       contextPool.flush();
+      // an in-flight create() that finished before flush() got the lock may have re-recorded
+      clearCommunicationFailure();
    }
 
    /**

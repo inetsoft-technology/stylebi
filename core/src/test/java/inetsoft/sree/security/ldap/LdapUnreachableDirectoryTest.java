@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(classes = BaseTestConfiguration.class,
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class LdapUnreachableDirectoryTest {
    private static final long TIMEOUT = 1500L;
 
