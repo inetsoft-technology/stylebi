@@ -26,6 +26,7 @@ import inetsoft.test.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.web.viewsheet.model.table.VSTableModel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,7 +42,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit test cases for {@link VSTableModel}.
@@ -81,6 +84,42 @@ class VSTableModelTest {
       VSTableModel.VSTableModelFactory factory = new VSTableModel.VSTableModelFactory();
       VSTableModel model = factory.createModel(assembly, rvs);
       assertNotNull(model);
+   }
+
+   @Test
+   void modelSaysWhichRowTypesArePinned() throws Exception {
+      Viewsheet viewsheet = new Viewsheet();
+      TableVSAssembly assembly = new TableVSAssembly(viewsheet, "Table");
+      assembly.initDefaultFormat();
+      viewsheet.addAssembly(assembly);
+      TableDataVSAssemblyInfo info = assembly.getTableDataVSAssemblyInfo();
+      Mockito.when(rvs.getViewsheet()).thenReturn(viewsheet);
+      Mockito.when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
+      Mockito.when(sandbox.getVSTableLens(Mockito.anyString(), Mockito.anyBoolean()))
+         .thenReturn(createEmptyTable());
+      VSTableModel.VSTableModelFactory factory = new VSTableModel.VSTableModelFactory();
+
+      info.setUserDataRowHeight(true);
+      info.setUserHeaderRowHeight(false);
+      VSTableModel model = factory.createModel(assembly, rvs);
+      assertTrue(model.isDataRowHeightPinned());
+      assertFalse(model.isHeaderRowHeightPinned());
+
+      info.setUserDataRowHeight(false);
+      info.setUserHeaderRowHeight(true);
+      model = factory.createModel(assembly, rvs);
+      assertFalse(model.isDataRowHeightPinned());
+      assertTrue(model.isHeaderRowHeightPinned());
+
+      info.setUserHeaderRowHeight(false);
+      model = factory.createModel(assembly, rvs);
+      assertFalse(model.isDataRowHeightPinned());
+      assertFalse(model.isHeaderRowHeightPinned());
+
+      // a height copied without its flag, as the wizard's table sync does
+      info.setDataRowHeight(30);
+      model = factory.createModel(assembly, rvs);
+      assertTrue(model.isDataRowHeightPinned());
    }
 
    private VSTableLens createEmptyTable() {

@@ -912,6 +912,14 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * Whether a stored height, not the density, decides the data rows: an author's, or one copied
+    * without its flag. A script's per-row height is not counted.
+    */
+   public boolean isDataRowHeightPinned() {
+      return userDataRowHeight || dataRowHeight != AssetUtil.defh;
+   }
+
+   /**
     * The cell's content padding, resolved across the tiers, or null when nothing defines one.
     * Null rather than a zero Insets: null is what the cell pipeline reads as "nothing here".
     */

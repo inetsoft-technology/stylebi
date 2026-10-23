@@ -27,6 +27,8 @@ import { NumberStepperComponent } from "../../../../widget/number-stepper/number
 export interface TableCellResizeDialogResult {
    width: number;
    height: number;
+   // absent when the dialog showed no box
+   followsDensity?: boolean;
 }
 
 @Component({
@@ -38,6 +40,8 @@ export interface TableCellResizeDialogResult {
 export class TableCellResizeDialogComponent implements OnInit {
    @Input() width: number;
    @Input() height: number;
+   // the cell height's follow-the-default-density box; null hides it
+   @Input() followsDensity: boolean | null = null;
    @Output() onCommit: EventEmitter<TableCellResizeDialogResult> = new EventEmitter<TableCellResizeDialogResult>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    public form: UntypedFormGroup;
@@ -62,6 +66,25 @@ export class TableCellResizeDialogComponent implements OnInit {
       this.subscriptions.add(this.form.get("cellHeight").valueChanges.subscribe((value) => {
          this.height = value;
       }));
+
+      if(this.followsDensity != null) {
+         this.form.addControl("followsDensity", new UntypedFormControl(this.followsDensity));
+         this.followsDensityChanged(this.followsDensity);
+         this.subscriptions.add(this.form.get("followsDensity").valueChanges
+            .subscribe((value) => this.followsDensityChanged(value)));
+      }
+   }
+
+   private followsDensityChanged(follows: boolean): void {
+      this.followsDensity = follows;
+
+      // a following height is the density's, so it keeps the shown value but can't be edited
+      if(follows) {
+         this.cellHeight.disable({ emitEvent: false });
+      }
+      else {
+         this.cellHeight.enable({ emitEvent: false });
+      }
    }
 
    public get cellHeight() {
@@ -77,9 +100,15 @@ export class TableCellResizeDialogComponent implements OnInit {
    }
 
    ok() {
-      this.onCommit.emit(<TableCellResizeDialogResult>{
+      const result: TableCellResizeDialogResult = {
          width: this.width,
          height: this.height
-      });
+      };
+
+      if(this.followsDensity != null) {
+         result.followsDensity = this.followsDensity;
+      }
+
+      this.onCommit.emit(result);
    }
 }

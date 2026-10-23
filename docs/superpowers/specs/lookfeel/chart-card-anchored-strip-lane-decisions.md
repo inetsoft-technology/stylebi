@@ -279,7 +279,10 @@ opt-back-in that exists nowhere today except the table reset-layout action.
 height in the interim, and the interim is however long the next scheduling decision takes.
 
 **Still open:** what an assembly already carrying the flag shows when the control first appears. Most
-plausibly unticked, which is accurate — the flag means an author set the height.
+plausibly unticked, which is accurate — the flag means an author set the height. **Answered for table
+row height on 2026-10-19: unticked.** The box lives only in the composer's Set Cell Size dialog, under
+Cell Height. A data row also counts as set when a data height is stored without its flag, which the
+wizard's table sync produces. See [the table row-height follow design](./2026-10-19-table-row-height-follow-design.md) D4.
 
 ---
 
@@ -443,6 +446,7 @@ pattern shows an unset state was never the requirement.
   The token has no consumers today, so nothing disagrees yet; it will the moment something binds it.
 - **The shape of decision 5's control**, whether cell height should get the same treatment, and how
   already-marked assemblies read back when it ships. Listed in full at the end of that decision.
+  Table row height's read-back is answered there (2026-10-19): unticked when the flag is set.
 
 ---
 

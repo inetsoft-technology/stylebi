@@ -33,6 +33,7 @@ import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.script.VariableScriptable;
@@ -427,7 +428,7 @@ public class ComposerVSTableService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
       int hint = changeColumnWidth(rvs, event.colEvent(), false);
-      changeRowHeight(rvs, event.rowEvent(), false);
+      changeCellHeight(rvs, event.rowEvent(), event.followsDensity());
       refreshVSAssembly(rvs, event.colEvent().getName(), hint, linkUri, dispatcher);
 
       return null;
@@ -979,6 +980,86 @@ public class ComposerVSTableService {
       if(lens != null) {
          lens.setRowHeights(null); // recalculate row heights
       }
+   }
+
+   /**
+    * Set Cell Size's row half. A marked table's follow-the-default-density box decides whether the
+    * row type follows the density or is pinned; without a box the height is pinned as typed.
+    */
+   private void changeCellHeight(RuntimeViewsheet rvs, ResizeTableRowEvent event,
+                                 Boolean followsDensity)
+      throws Exception
+   {
+      final TableDataVSAssembly table =
+         (TableDataVSAssembly) rvs.getViewsheet().getAssembly(event.getAssemblyName());
+      final TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) table.getInfo();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(followsDensity == null || info.getVizMark() == null || box.isEmpty()) {
+         changeRowHeight(rvs, event, false);
+         return;
+      }
+
+      final VSTableLens lens = box.get().getVSTableLens(table.getAbsoluteName(), false);
+
+      if(followsDensity) {
+         followDensityRowHeight(info, event.header(), lens);
+         return;
+      }
+
+      if(event.header() && !info.isUserHeaderRowHeight()) {
+         final int headerRowCount = info instanceof CalcTableVSAssemblyInfo ?
+            ((CalcTableVSAssemblyInfo) info).getHeaderRowCount() : lens.getHeaderRowCount();
+         pinHeaderRows(info, lens, headerRowCount);
+      }
+
+      changeRowHeight(rvs, event, false);
+   }
+
+   /**
+    * Hand a pinned row type back to the density: clear its flag and its stored heights.
+    */
+   static void followDensityRowHeight(TableDataVSAssemblyInfo info, boolean header,
+                                      VSTableLens lens)
+   {
+      boolean changed = false;
+
+      if(header && info.isUserHeaderRowHeight()) {
+         info.setUserHeaderRowHeight(false);
+         info.setHeaderRowHeights(new int[] { AssetUtil.defh });
+         changed = true;
+      }
+      else if(!header && info.isDataRowHeightPinned()) {
+         info.setUserDataRowHeight(false);
+         info.setDataRowHeight(AssetUtil.defh);
+         changed = true;
+      }
+
+      if(changed && lens != null) {
+         lens.setRowHeights(null);
+      }
+   }
+
+   /**
+    * Store every header row at the height it draws now, so setting the shared header flag moves
+    * none of them. A row's padding does not depend on the flag.
+    */
+   static void pinHeaderRows(TableDataVSAssemblyInfo info, VSTableLens lens, int headerRowCount) {
+      // rebuilt from the assembly, so the rows are what render draws now, not at the last load
+      if(lens != null) {
+         lens.setRowHeights(null);
+         lens.initTableGrid(info);
+      }
+
+      final int[] heights = new int[headerRowCount];
+      final int tier = VSDensityDefaults.headerRowHeight(VizContext.of(info), info);
+
+      for(int i = 0; i < headerRowCount; i++) {
+         final int current = lens == null ? -1 : lens.getRowHeight(i);
+         heights[i] = current > 0 ? current : tier;
+      }
+
+      info.setHeaderRowHeights(heights);
    }
 
 

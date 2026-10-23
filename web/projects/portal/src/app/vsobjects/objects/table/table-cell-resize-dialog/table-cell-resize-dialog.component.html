@@ -47,6 +47,15 @@
               _#(composer.vs.table.cellSize.error)
             </div>
           }
+          @if (followsDensity != null) {
+            <div class="form-check mt-1">
+              <input type="checkbox" class="form-check-input" id="cellHeightFollowsDensity"
+                     formControlName="followsDensity">
+              <label class="form-check-label" for="cellHeightFollowsDensity">
+                _#(composer.vs.followDefaultDensity)
+              </label>
+            </div>
+          }
         </div>
       </div>
     </form>

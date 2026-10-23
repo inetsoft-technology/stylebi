@@ -183,3 +183,75 @@ describe("BaseTable card top shift", () => {
       expect(comp.model.cardTopShift).toBe(82);
    });
 });
+
+describe("BaseTable cell height follow", () => {
+   const composer = {
+      viewer: false, preview: false, binding: false, composer: true,
+      vsWizard: false, vsWizardPreview: false, embedAssembly: false,
+   };
+   const cell = (row: number, rowSpan = 1): any => ({ row, col: 0, rowSpan, colSpan: 1 });
+   const table = (model: any, contextProvider: any = composer) =>
+      createTableComponent({
+         contextProvider,
+         model: { vizModern: true, headerRowCount: 1, ...model },
+      }).comp as any;
+
+   it("a data cell follows while data rows are not pinned", () => {
+      expect(table({ dataRowHeightPinned: false }).cellHeightFollowsDensity(cell(1))).toBe(true);
+      expect(table({ dataRowHeightPinned: true }).cellHeightFollowsDensity(cell(1))).toBe(false);
+   });
+
+   it("a header cell reads the header pin", () => {
+      const comp = table({ headerRowHeightPinned: true, dataRowHeightPinned: false });
+
+      expect(comp.cellHeightFollowsDensity(cell(0))).toBe(false);
+   });
+
+   it("a span cell starting in the header reads the header pin", () => {
+      const comp = table({ headerRowCount: 2, headerRowHeightPinned: false, dataRowHeightPinned: true });
+
+      expect(comp.cellHeightFollowsDensity(cell(0, 3))).toBe(true);
+   });
+
+   it("hides the box in the viewer", () => {
+      const comp = createTableComponent({ model: { vizModern: true, headerRowCount: 1 } }).comp as any;
+
+      expect(comp.cellHeightFollowsDensity(cell(1))).toBeNull();
+   });
+
+   it("hides the box in preview", () => {
+      const comp = table({}, { ...composer, preview: true });
+
+      expect(comp.cellHeightFollowsDensity(cell(1))).toBeNull();
+   });
+
+   it("hides the box on an unmarked table", () => {
+      expect(table({ vizModern: false }).cellHeightFollowsDensity(cell(1))).toBeNull();
+   });
+
+   it("sends followsDensity with the cell size event", () => {
+      const { comp, viewsheetClient } = createTableComponent({
+         contextProvider: composer, model: { vizModern: true, headerRowCount: 1 },
+      });
+
+      (comp as any).loadedRows = { start: 0, end: 0 };
+      (comp as any).updateCellSize({ width: 96, height: 16, followsDensity: true }, cell(1));
+
+      expect(viewsheetClient.sendEvent).toHaveBeenCalledWith(
+         "/events/composer/viewsheet/table/changeCellSize",
+         expect.objectContaining({ followsDensity: true }));
+   });
+
+   it("sends no followsDensity when the dialog had no box", () => {
+      const { comp, viewsheetClient } = createTableComponent({
+         model: { vizModern: true, headerRowCount: 1 },
+      });
+
+      (comp as any).loadedRows = { start: 0, end: 0 };
+      (comp as any).updateCellSize({ width: 96, height: 16 }, cell(1));
+
+      const event = viewsheetClient.sendEvent.mock.calls.find(
+         (c: any[]) => c[0] === "/events/composer/viewsheet/table/changeCellSize")[1];
+      expect(event.followsDensity).toBeUndefined();
+   });
+});

@@ -87,6 +87,8 @@ public abstract class BaseTableModel<T extends TableDataVSAssembly> extends VSOb
 
       shrink = tinfo.isShrink();
       explicitTableWidth = tinfo.isExplicitTableWidth();
+      dataRowHeightPinned = tinfo.isDataRowHeightPinned();
+      headerRowHeightPinned = tinfo.isUserHeaderRowHeight();
       enableAdhoc = tinfo.isEnableAdhoc();
       enableAdvancedFeatures =
          "true".equals(SreeEnv.getProperty("viewsheet.viewer.advancedFeatures"));
@@ -132,6 +134,20 @@ public abstract class BaseTableModel<T extends TableDataVSAssembly> extends VSOb
 
    public boolean isExplicitTableWidth() {
       return explicitTableWidth;
+   }
+
+   /**
+    * Whether a stored height, not the density, decides the data rows.
+    */
+   public boolean isDataRowHeightPinned() {
+      return dataRowHeightPinned;
+   }
+
+   /**
+    * Whether an author's heights, not the density, decide the header rows.
+    */
+   public boolean isHeaderRowHeightPinned() {
+      return headerRowHeightPinned;
    }
 
    public boolean isEnableAdhoc() {
@@ -254,6 +270,8 @@ public abstract class BaseTableModel<T extends TableDataVSAssembly> extends VSOb
    private boolean isTipOnClick;
    private boolean shrink;
    private boolean explicitTableWidth;
+   private boolean dataRowHeightPinned;
+   private boolean headerRowHeightPinned;
    private boolean enableAdhoc;
    private boolean enableAdvancedFeatures;
    private TableDataPath[] highlightedCells;
