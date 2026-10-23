@@ -251,12 +251,14 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                               break;
                            }
                         }
-                        catch(Exception e) {
+                        catch(RuntimeException e) {
                            // only decides the provider name/org id to record; a provider that
                            // cannot answer is treated as not owning the user (Bug #79268)
-                           LOG.warn("Provider {} failed to look up user {}, skipping it: {}",
-                                    p.getProviderName(), properUserID, e.toString());
-                           LOG.debug("Provider user lookup failure", e);
+                           if(e instanceof inetsoft.util.ShutdownException) {
+                              throw e;
+                           }
+
+                           AuthenticationChain.warnSkippedProvider(p, properUserID, e);
                         }
                      }
                   }

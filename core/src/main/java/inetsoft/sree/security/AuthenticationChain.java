@@ -23,6 +23,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.uql.util.Identity;
+import inetsoft.util.ShutdownException;
 import inetsoft.web.admin.security.AuthenticationProvidersChanged;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,11 +53,99 @@ public class AuthenticationChain
 
    @Override
    public User getUser(IdentityID userIdentity) {
-      return stream()
-         .map(p -> p.getUser(userIdentity))
-         .filter(Objects::nonNull)
-         .findFirst()
-         .orElseGet(() -> getExternalUser(userIdentity));
+      RuntimeException failure = null;
+
+      for(AuthenticationProvider p : getProviders()) {
+         try {
+            User user = p.getUser(userIdentity);
+
+            if(user != null) {
+               return user;
+            }
+         }
+         catch(RuntimeException e) {
+            if(e instanceof ShutdownException) {
+               throw e;
+            }
+
+            warnSkippedProvider(p, userIdentity, e);
+
+            if(failure == null) {
+               failure = e;
+            }
+            else {
+               failure.addSuppressed(e);
+            }
+         }
+      }
+
+      // A failure is never reported as "absent" (null): only a positive answer from a later
+      // provider can supersede it (Bug #79268). If nothing answered, the failure surfaces as
+      // it always did.
+      if(failure != null) {
+         throw failure;
+      }
+
+      return getExternalUser(userIdentity);
+   }
+
+   /**
+    * Finds the provider that owns a user, together with the user. A provider whose lookup
+    * fails is not the owner: it is skipped and the next provider is asked. Use this instead of
+    * calling {@code getUser} on each provider when only the owner is wanted.
+    * <p>
+    * Caveat: if an earlier provider fails and a later provider owns a user with the same
+    * identity, the later provider is returned. Authentication against it still needs that
+    * account's own credential.
+    *
+    * @return the owner or <tt>null</tt> if no provider answered with a user.
+    */
+   public UserOwner findUserOwner(IdentityID userIdentity) {
+      for(AuthenticationProvider p : getProviders()) {
+         try {
+            User user = p.getUser(userIdentity);
+
+            if(user != null) {
+               return new UserOwner(p, user);
+            }
+         }
+         catch(RuntimeException e) {
+            if(e instanceof ShutdownException) {
+               throw e;
+            }
+
+            warnSkippedProvider(p, userIdentity, e);
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Logs, at most once per provider per minute, that a provider failed a user lookup and was
+    * skipped. The stack trace is logged at debug level only.
+    */
+   public static void warnSkippedProvider(AuthenticationProvider provider, IdentityID user,
+                                          Exception e)
+   {
+      String name = provider.getProviderName();
+      long now = System.currentTimeMillis();
+      Long last = SKIP_WARNINGS.get(name);
+
+      if(last == null || now - last >= SKIP_WARNING_INTERVAL) {
+         SKIP_WARNINGS.put(name, now);
+         LOG.warn("Provider {} failed to look up user {}, skipping it (further failures " +
+                  "are logged at debug level for {} s): {}", name, user,
+                  SKIP_WARNING_INTERVAL / 1000, e.toString());
+      }
+
+      LOG.debug("Provider {} failed to look up user {}", name, user, e);
+   }
+
+   /**
+    * The provider that owns a user and the user it returned.
+    */
+   public record UserOwner(AuthenticationProvider provider, User user) {
    }
 
    @Override
@@ -271,32 +360,12 @@ public class AuthenticationChain
 
    @Override
    public boolean authenticate(IdentityID userIdentity, Object credential) {
-      for(AuthenticationProvider provider : getProviders()) {
-         // Use the first provider that contains the user to authenticate. This is intentionally
-         // different from checking if the authentication is successful with any provider.
-         boolean owner;
-
-         try {
-            owner = provider.getUser(userIdentity) != null;
-         }
-         catch(Exception e) {
-            // A provider that cannot answer is treated as not owning the user so it does not
-            // block users owned by later providers (Bug #79268). Caveat: a later provider that
-            // owns a same-named user answers instead of the failing one; that provider's own
-            // valid credential is still required, so this is not an authentication bypass.
-            // An exception from authenticate() below still propagates.
-            LOG.warn("Provider {} failed to look up user {}, skipping it: {}",
-                     provider.getProviderName(), userIdentity, e.toString());
-            LOG.debug("Provider user lookup failure", e);
-            continue;
-         }
-
-         if(owner) {
-            return provider.authenticate(userIdentity, credential);
-         }
-      }
-
-      return false;
+      // Use the first provider that contains the user to authenticate. This is intentionally
+      // different from checking if the authentication is successful with any provider. A
+      // provider that fails the lookup is skipped (Bug #79268); see findUserOwner for the
+      // same-name caveat. An exception from authenticate() itself still propagates.
+      UserOwner owner = findUserOwner(userIdentity);
+      return owner != null && owner.provider().authenticate(userIdentity, credential);
    }
 
    @Override
@@ -578,6 +647,8 @@ public class AuthenticationChain
    };
 
    private static final Logger LOG = LoggerFactory.getLogger(AuthenticationChain.class);
+   private static final long SKIP_WARNING_INTERVAL = 60000L;
+   private static final Map<String, Long> SKIP_WARNINGS = new java.util.concurrent.ConcurrentHashMap<>();
    // runs the cache refreshes after a chain reload, in order, off the storage event thread
    private static final ExecutorService RELOAD_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
       Thread thread = new Thread(r, "AuthenticationChainReload");

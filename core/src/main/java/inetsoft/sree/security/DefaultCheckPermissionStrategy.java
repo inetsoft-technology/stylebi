@@ -1031,10 +1031,11 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
    private AuthenticationProvider getCurrentProvider(Principal principal) {
       if(provider.getAuthenticationProvider() instanceof AuthenticationChain) {
          AuthenticationChain chain = (AuthenticationChain) provider.getAuthenticationProvider();
-         Optional<AuthenticationProvider> currProvider = chain.getProviders()
-            .stream()
-            .filter(p -> p.getUser(IdentityID.getIdentityIDFromKey(principal.getName())) != null)
-            .findFirst();
+         // a provider that fails the lookup is not the owner (Bug #79268)
+         AuthenticationChain.UserOwner owner = chain.findUserOwner(
+            IdentityID.getIdentityIDFromKey(principal.getName()));
+         Optional<AuthenticationProvider> currProvider =
+            Optional.ofNullable(owner).map(AuthenticationChain.UserOwner::provider);
 
          if(currProvider.isPresent()) {
             return currProvider.get();

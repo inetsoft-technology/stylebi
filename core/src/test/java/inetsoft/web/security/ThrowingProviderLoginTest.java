@@ -148,14 +148,12 @@ class ThrowingProviderLoginTest {
 
    // ── prv-basic, owned by the provider after the throwing one ───────────────
 
-   @Disabled("Bug #79268 known limit: after login the session path still calls AuthenticationChain.getUser (SecurityEngine.authenticate, checkPermission), which is not contained; see 04-fix.md")
    @Test
    void multiTenantPrvBasicLogsIn() {
       setMultiTenant(true);
       assertEquals(200, login("prv-basic", PRV_PASSWORD, null));
    }
 
-   @Disabled("Bug #79268 known limit: after login the session path still calls AuthenticationChain.getUser (SecurityEngine.authenticate, checkPermission), which is not contained; see 04-fix.md")
    @Test
    void singleTenantPrvBasicLogsIn() {
       setMultiTenant(false);
