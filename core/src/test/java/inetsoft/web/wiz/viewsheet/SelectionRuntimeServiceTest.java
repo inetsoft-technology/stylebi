@@ -701,6 +701,71 @@ class SelectionRuntimeServiceTest {
       assertEquals("18", clamped.get(0).get("applied"));
    }
 
+   /**
+    * Bug 79255: an in-range numeric bound that falls between two ticks must resolve to the tick
+    * it falls <i>in</i> (floor), the same as the native Range Slider Edit dialog
+    * ({@code vs-range-slider.component.ts}'s {@code showRangeSliderEditDialog}, which steps back
+    * one index from the first tick {@code >=} the requested value for both the start and the end
+    * bound) -- not to whichever tick is numerically nearest.
+    */
+   @Test
+   void inRangeNumericBoundFloorsToTheEnclosingBucketNotTheNearestOne() {
+      SelectionValue b100 = mock(SelectionValue.class);
+      when(b100.getValue()).thenReturn("100");
+      SelectionValue b150 = mock(SelectionValue.class);
+      when(b150.getValue()).thenReturn("150");
+      SelectionValue b200 = mock(SelectionValue.class);
+      when(b200.getValue()).thenReturn("200");
+      SelectionValue b250 = mock(SelectionValue.class);
+      when(b250.getValue()).thenReturn("250");
+      SelectionValue b300 = mock(SelectionValue.class);
+      when(b300.getValue()).thenReturn("300");
+      SelectionValue[] buckets = { b100, b150, b200, b250, b300 };
+
+      // The bug's own repro: 140 is nearer to 150 (distance 10) than to 100 (distance 40), and
+      // 290 is nearer to 300 (distance 10) than to 250 (distance 40) -- a nearest-by-distance
+      // scan would land on 150/300; floor must land on 100/250, matching native.
+      assertLands(buckets, null, "140", 0);
+      assertLands(buckets, null, "290", 3);
+
+      // Discriminating case (refute pass, point 3): 110 is nearer to 100 (distance 10) than to
+      // 150 (distance 40). Floor and nearest-by-distance agree here, which is exactly why this
+      // case proves the fix is genuine floor and not a disguised ceiling -- a ceiling bug would
+      // land on 150 (the first tick >= 110), not 100.
+      assertLands(buckets, null, "110", 0);
+
+      List<Map<String, Object>> clamped = new ArrayList<>();
+      int[] range = SelectionRuntimeService.sliderBucketRange("Slider1", buckets, null,
+         List.of(List.of("140"), List.of("290")), clamped);
+
+      assertArrayEquals(new int[]{ 0, 3 }, range);
+      assertEquals(2, clamped.size());
+      assertEquals("140", clamped.get(0).get("requested"));
+      assertEquals("100", clamped.get(0).get("applied"));
+      assertEquals("290", clamped.get(1).get("requested"));
+      assertEquals("250", clamped.get(1).get("applied"));
+   }
+
+   /**
+    * Out-of-range clamping is unaffected by the floor fix: a value below every bucket still lands
+    * on the first (lowest) bucket, and a value above every bucket still lands on the last
+    * (highest) bucket -- both are "trivially the floor" (every bucket is {@code <=} a
+    * sufficiently large request) or "no bucket qualifies, fall back to the first" (a
+    * sufficiently small request), the same outcome nearest-by-distance already gave before this
+    * fix.
+    */
+   @Test
+   void outOfRangeNumericBoundsAreUnaffectedByTheFloorFix() {
+      SelectionValue b0 = mock(SelectionValue.class);
+      when(b0.getValue()).thenReturn("0");
+      SelectionValue b18 = mock(SelectionValue.class);
+      when(b18.getValue()).thenReturn("18");
+      SelectionValue[] buckets = { b0, b18 };
+
+      assertLands(buckets, null, "500", 1);
+      assertLands(buckets, null, "-500", 0);
+   }
+
    /** A value that neither matches a bucket nor parses as a number is refused by name. */
    @Test
    void refusesARangeSliderValueThatMatchesNoBucketAndIsntNumeric() {
@@ -982,7 +1047,9 @@ class SelectionRuntimeServiceTest {
       SingleTimeInfo info = dateInfo(TimeInfo.NUMBER);
 
       assertLands(buckets, info, "$350", 1);
-      assertEquals(1, resolve(buckets, info, "333.3").index());
+      // 333.3 is between 100 and 350 -- bug 79255: floors to the enclosing bucket (100), not
+      // whichever bucket is numerically nearer (350, which this test asserted before the fix).
+      assertEquals(0, resolve(buckets, info, "333.3").index());
       assertTrue(resolve(buckets, info, "333.3").adjusted());
       assertThrows(IllegalArgumentException.class, () -> resolve(buckets, info, "2023-03"));
    }

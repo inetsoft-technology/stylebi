@@ -2724,12 +2724,13 @@ public class SelectionRuntimeService {
     * own raw {@code SelectionValue.getValue()} (the same value the assembly's own apply/clear paths
     * compare, per {@code TimeSliderSelection.populateNumberList}/{@code populateDateList}); a
     * unique match on the bucket's display label (a composite slider's "2024,Q2", a formatted
-    * number's "$350", a day slider's "2023-03-01"); for a date slider, the bucket period the
-    * requested date falls in; for a number, the numerically nearest bucket -- clamping an
-    * out-of-range bound to the slider's actual extent rather than refusing it, matching this
-    * file's existing forgiving-on-unambiguous-intent convention ({@link #requireSortOrder}'s
-    * aliases). Anything else fails loud by name, with a real bucket as the example, rather than
-    * silently landing on some default.
+    * number's "$350", a day slider's "2023-03-01"); for a date slider or a number, the bucket the
+    * requested value falls in -- the largest bucket not above it, falling back to the smallest
+    * bucket when the request is below every bucket, which also clamps an out-of-range bound to
+    * the slider's actual extent rather than refusing it, matching this file's existing
+    * forgiving-on-unambiguous-intent convention ({@link #requireSortOrder}'s aliases). Anything
+    * else fails loud by name, with a real bucket as the example, rather than silently landing on
+    * some default.
     */
    static BucketResolution bucketIndex(String assemblyName, SelectionValue[] buckets,
                                        TimeInfo tinfo, String requested)
@@ -2772,8 +2773,10 @@ public class SelectionRuntimeService {
       Double requestedNumber = parseNumeric(requested);
 
       if(requestedNumber != null) {
-         int nearest = -1;
-         double nearestDistance = Double.MAX_VALUE;
+         int enclosing = -1;
+         int first = -1;
+         Double enclosingNumber = null;
+         Double firstNumber = null;
 
          for(int i = 0; i < buckets.length; i++) {
             Double bucketNumber = buckets[i] == null ? null : parseNumeric(buckets[i].getValue());
@@ -2782,16 +2785,23 @@ public class SelectionRuntimeService {
                continue;
             }
 
-            double distance = Math.abs(bucketNumber - requestedNumber);
+            if(firstNumber == null || bucketNumber < firstNumber) {
+               first = i;
+               firstNumber = bucketNumber;
+            }
 
-            if(distance < nearestDistance) {
-               nearestDistance = distance;
-               nearest = i;
+            if(bucketNumber <= requestedNumber &&
+               (enclosingNumber == null || bucketNumber > enclosingNumber))
+            {
+               enclosing = i;
+               enclosingNumber = bucketNumber;
             }
          }
 
-         if(nearest >= 0) {
-            return new BucketResolution(nearest, buckets[nearest].getValue(), true);
+         int index = enclosing >= 0 ? enclosing : first;
+
+         if(index >= 0) {
+            return new BucketResolution(index, buckets[index].getValue(), true);
          }
       }
 
