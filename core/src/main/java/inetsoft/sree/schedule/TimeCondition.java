@@ -359,6 +359,18 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
     * @return the next time to retry. Negative value to stop retry.
     */
    public long getRetryTime(long curr, long lastRun, String orgId) {
+      return getRetryTime(curr, lastRun, orgId, null);
+   }
+
+   /**
+    * Get the next time to retry the condition, as {@link #getRetryTime(long, long, String)}
+    * computes it when the system clock reads {@code now}. Lets tests compute fire times for any
+    * date.
+    *
+    * @param now the system clock time the calculation starts from, or <code>null</code> to read
+    *            the system clock.
+    */
+   long getRetryTime(long curr, long lastRun, String orgId, Long now) {
       if(type == AT) {
          if(time.getTime() >= curr) {
             scheduleTime = time.getTime();
@@ -373,6 +385,10 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       // day after it is a local date of the condition's zone, and a wall time becomes an instant in
       // resolve() alone, so a daylight saving change cannot leave an hour stuck on the calendar.
       Calendar cal1 = getGregorianInstance(getTimeZone());
+
+      if(now != null) {
+         cal1.setTimeInMillis(now);
+      }
 
       if(getInterval() > 1 && lastRun > 0) {
          cal1.setTimeInMillis(lastRun);
