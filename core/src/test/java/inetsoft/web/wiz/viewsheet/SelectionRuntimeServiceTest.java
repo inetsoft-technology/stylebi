@@ -2433,6 +2433,46 @@ class SelectionRuntimeServiceTest {
    }
 
    @Test
+   void refusalOfAFormInputPointsToSetInputValue() {
+      for(VSAssembly input : new VSAssembly[] { mock(ComboBoxVSAssembly.class),
+                                                mock(SliderVSAssembly.class) })
+      {
+         Harness h = harness(input);
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> h.service.selectionState("tok", principal(), "Input1"));
+
+         assertTrue(e.getMessage().contains("Input1"), e.getMessage());
+         assertTrue(e.getMessage().contains("set_input_value"), e.getMessage());
+         assertFalse(e.getMessage().contains("set or clear"), e.getMessage());
+      }
+   }
+
+   @Test
+   void refusalOfANonInputAssemblyDoesNotMentionSetInputValue() {
+      Harness h = harness(mock(ChartVSAssembly.class));
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.selectionState("tok", principal(), "Chart1"));
+
+      assertFalse(e.getMessage().contains("set_input_value"), e.getMessage());
+   }
+
+   @Test
+   void bindingPathRefusalOfAFormInputDoesNotMentionSetInputValue() {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("Input1")).thenReturn(mock(ComboBoxVSAssembly.class));
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> SelectionRuntimeService.requireSelection(rvs, "Input1"));
+
+      assertTrue(e.getMessage().contains("not a selection assembly"), e.getMessage());
+      assertFalse(e.getMessage().contains("set_input_value"), e.getMessage());
+   }
+
+   @Test
    void refusesACallThatAsksForNothing() {
       Harness h = harness(list(XConstants.SORT_ASC, false, null));
 
