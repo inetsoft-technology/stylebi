@@ -30,22 +30,34 @@ import java.util.List;
  * <p>{@code selectedPage} is populated only on a Tab, naming the member it currently shows; a
  * member's own {@code visible} does not tell, since a page hidden by not being selected is still
  * visible in its own right.
+ *
+ * <p>{@code children} is populated only on a Selection Container, naming its children in display
+ * order; the flat assembly list carries no such order, and a reorder cannot be checked without it.
  */
 public record AssemblyNode(String name, String type, int x, int y, int width, int height,
                            int zIndex, String container, boolean visible,
                            List<String> annotationParts, String annotationContent,
-                           String selectedPage) {
+                           String selectedPage, List<String> children) {
+   public AssemblyNode(String name, String type, int x, int y, int width, int height,
+                       int zIndex, String container, boolean visible,
+                       List<String> annotationParts, String annotationContent,
+                       String selectedPage)
+   {
+      this(name, type, x, y, width, height, zIndex, container, visible, annotationParts,
+           annotationContent, selectedPage, null);
+   }
+
    public AssemblyNode(String name, String type, int x, int y, int width, int height,
                        int zIndex, String container, boolean visible,
                        List<String> annotationParts, String annotationContent)
    {
       this(name, type, x, y, width, height, zIndex, container, visible, annotationParts,
-           annotationContent, null);
+           annotationContent, null, null);
    }
 
    public AssemblyNode(String name, String type, int x, int y, int width, int height,
                        int zIndex, String container, boolean visible)
    {
-      this(name, type, x, y, width, height, zIndex, container, visible, null, null, null);
+      this(name, type, x, y, width, height, zIndex, container, visible, null, null, null, null);
    }
 }
