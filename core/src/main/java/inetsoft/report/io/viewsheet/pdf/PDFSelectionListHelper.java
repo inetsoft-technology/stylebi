@@ -117,7 +117,8 @@ public class PDFSelectionListHelper extends VSSelectionListHelper {
       }
 
       ((PDFCoordinateHelper) cHelper).drawTextBox(bounds, bounds, format, title,
-         PDFVSExporter.isBackgroundNeed(format, info.getFormat()), info.getTitlePadding());
+         PDFVSExporter.isBackgroundNeed(format, info.getFormat()),
+         getTitlePadding(info, cHelper.getScale()));
    }
 
    /**

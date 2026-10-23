@@ -20,6 +20,7 @@ package inetsoft.report.io.viewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.SelectionBaseVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.util.XPortalHelper;
@@ -91,6 +92,14 @@ public interface VSExporter {
     */
    default Insets getSelectionCardInset(VSAssemblyInfo info) {
       return new Insets(0, 0, 0, 0);
+   }
+
+   /**
+    * The left padding, in pixels, that starts a selection's title text over its rows in this
+    * format, or 0 where the title keeps its own.
+    */
+   default int getSelectionTitleIndent(SelectionBaseVSAssemblyInfo info) {
+      return 0;
    }
 
    /**

@@ -21,7 +21,8 @@ import { VSFormatModel } from "../../model/vs-format-model";
 import { VSSelection } from "./vs-selection.component";
 import {
    createSelectionComponent,
-   makeMockListModel
+   makeMockListModel,
+   makeMockTreeModel
 } from "./vs-selection.component.test-helpers";
 
 function fmt(width: number, height: number): VSFormatModel {
@@ -182,5 +183,60 @@ describe("VSSelection header corners", () => {
       component.model.hidden = false;
 
       expect(component.headerBorderRadius).toBe("6px 6px 0px 0px");
+   });
+});
+
+describe("VSSelection title alignment", () => {
+   const inset = (px: number) => ({ top: px, left: px, bottom: px, right: px });
+   const modern = (fields: any = {}) =>
+      ({ objectFormat: fmt(132, 202), titleFormat: fmt(132, 30), vizModern: true, ...fields });
+   const list = (fields: any = {}) => createComponent(modern(fields));
+
+   async function tree(fields: any = {}): Promise<VSSelection> {
+      const model = Object.assign(makeMockTreeModel(), modern(fields));
+      return (await createSelectionComponent({ model })).comp;
+   }
+
+   it("starts a modern list's title over its checkbox", async () => {
+      expect((await list({ padding: inset(8) })).getTitleTextLeft()).toBe(14);
+      expect((await list({ padding: inset(12) })).getTitleTextLeft()).toBe(18);
+      expect((await list({ padding: inset(16) })).getTitleTextLeft()).toBe(22);
+   });
+
+   it("starts a multi-level tree's title over its root toggle", async () => {
+      expect((await tree({ levels: 2, padding: inset(16) })).getTitleTextLeft()).toBe(18);
+   });
+
+   it("treats a one-level tree like a list", async () => {
+      expect((await tree({ levels: 1, padding: inset(16) })).getTitleTextLeft()).toBe(22);
+   });
+
+   it("aligns a zero-inset list with its checkbox", async () => {
+      expect((await list({ padding: inset(0) })).getTitleTextLeft()).toBe(6);
+   });
+
+   it("follows a dropdown's horizontal inset", async () => {
+      const comp = await list({ padding: inset(16), dropdown: true, maxMode: false });
+
+      expect(comp.getTitleTextLeft()).toBe(22);
+   });
+
+   it("keeps a legacy list's title even with an inset", async () => {
+      expect((await list({ vizModern: false, padding: inset(16) })).getTitleTextLeft()).toBeNull();
+   });
+
+   it("leaves a container child's title alone", async () => {
+      const comp = await list({ padding: inset(16), containerType: "VSSelectionContainer" });
+
+      expect(comp.getTitleTextLeft()).toBeNull();
+   });
+
+   it("leaves a centered or right-aligned title alone", async () => {
+      for(const hAlign of ["center", "right"]) {
+         const titleFormat = fmt(132, 30);
+         titleFormat.hAlign = hAlign;
+
+         expect((await list({ padding: inset(16), titleFormat })).getTitleTextLeft()).toBeNull();
+      }
    });
 });
