@@ -586,6 +586,7 @@ public class VSCompositeFormat implements XVSFormat {
 
       if(userElem != null) {
          userfmt.parseXML(Tool.getChildNodeByTagName(userElem, "VSFormat"));
+         userfmt.resolveSharedRoundCornerHint(deffmt.getRoundCornerValue());
       }
 
       // @by larryl, backward compatibility (10.1)

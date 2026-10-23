@@ -145,17 +145,22 @@ public class VSFormat implements XVSFormat, FullHashObject {
     */
    public static final int PRESENTER_DEFINED = 0x40000;
    /**
+    * Round corner defined.
+    */
+   public static final int ROUND_CORNER_DEFINED = 0x100000;
+   /**
+    * Round corner value defined.
+    */
+   public static final int ROUND_CORNER_VAL_DEFINED = 0x200000;
+   /**
     * Presenter value defined.
     */
-   public static final int PRESENTER_VAL_DEFINED = 0x80000;
+   public static final int PRESENTER_VAL_DEFINED = 0x400000;
    /**
-    * Round corner value defined.
+    * The one bit presenter and round corner values were both written to before they had their
+    * own. Still written for either, so older builds read the same flags as before.
     */
-   public static final int ROUND_CORNER_DEFINED = 0x80000;
-   /**
-    * Round corner value defined.
-    */
-   public static final int ROUND_CORNER_VAL_DEFINED = 0x80000;
+   private static final int SHARED_PRESENTER_ROUND_CORNER = 0x80000;
 
    /**
     * Constructor.
@@ -1994,6 +1999,10 @@ public class VSFormat implements XVSFormat, FullHashObject {
          hint = hint | ROUND_CORNER_VAL_DEFINED;
       }
 
+      if(pValDefined || roundCornerValDefined) {
+         hint = hint | SHARED_PRESENTER_ROUND_CORNER;
+      }
+
       return hint;
    }
 
@@ -2050,6 +2059,15 @@ public class VSFormat implements XVSFormat, FullHashObject {
       }
 
       if((hint & ROUND_CORNER_VAL_DEFINED) == ROUND_CORNER_VAL_DEFINED) {
+         roundCornerValDefined = true;
+      }
+
+      // written before the split: either value, so both are kept until the corner is resolved
+      sharedRoundCornerHint = (hint & SHARED_PRESENTER_ROUND_CORNER) != 0 &&
+         (hint & (PRESENTER_VAL_DEFINED | ROUND_CORNER_VAL_DEFINED)) == 0;
+
+      if(sharedRoundCornerHint) {
+         pValDefined = true;
          roundCornerValDefined = true;
       }
 
@@ -2175,6 +2193,18 @@ public class VSFormat implements XVSFormat, FullHashObject {
    }
 
    /**
+    * Resolve a round corner read from the shared presenter bit. A corner equal to the default it
+    * was saved over changed nothing on screen, so it is not kept as defined.
+    */
+   void resolveSharedRoundCornerHint(int defaultCorner) {
+      if(sharedRoundCornerHint && getRoundCornerValue() == defaultCorner) {
+         roundCornerValDefined = false;
+      }
+
+      sharedRoundCornerHint = false;
+   }
+
+   /**
     * Get the runtime rectangle's round corner.
     */
    public int getRoundCorner() {
@@ -2236,6 +2266,8 @@ public class VSFormat implements XVSFormat, FullHashObject {
    private boolean transValDefined = false;
    private boolean formatValDefined = false;
    private boolean pValDefined = false;
+   // set by a parse that read only the shared presenter/round corner bit
+   private transient boolean sharedRoundCornerHint = false;
 
    private static final Logger LOG = LoggerFactory.getLogger(VSFormat.class);
 }

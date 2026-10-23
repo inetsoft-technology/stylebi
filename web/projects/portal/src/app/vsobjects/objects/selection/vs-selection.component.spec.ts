@@ -141,3 +141,46 @@ describe("VSSelection card inset", () => {
       expect(component.getContentLeft() + component.getBodyWidth()).toBe(132 - 16);
    });
 });
+
+describe("VSSelection header corners", () => {
+   function corners(card: number, title: number, fields: any = {}): Promise<VSSelection> {
+      const objectFormat = fmt(132, 202);
+      const titleFormat = fmt(132, 30);
+      objectFormat.roundCorner = card;
+      titleFormat.roundCorner = title;
+      return createComponent({ objectFormat, titleFormat, ...fields });
+   }
+
+   it("rounds the header's top corners with the card", async () => {
+      const component = await corners(6, 0);
+
+      expect(component.headerBorderRadius).toBe("6px 6px 0px 0px");
+   });
+
+   it("takes the card's radius over the title's at the card edge", async () => {
+      const component = await corners(6, 2);
+
+      expect(component.headerBorderRadius).toBe("6px 6px 2px 2px");
+   });
+
+   it("keeps the title's own radius on a square card", async () => {
+      const component = await corners(0, 4);
+
+      expect(component.headerBorderRadius).toBe("4px 4px 4px 4px");
+   });
+
+   it("rounds all four corners of a collapsed dropdown, which is all header", async () => {
+      const component = await corners(6, 0, { dropdown: true, maxMode: false });
+
+      expect(component.isHidden).toBe(true);
+      expect(component.headerBorderRadius).toBe("6px 6px 6px 6px");
+   });
+
+   it("keeps the bottom corners of an open dropdown's header square", async () => {
+      const component = await corners(6, 0, { dropdown: true, maxMode: false });
+      // a list that becomes a dropdown starts collapsed
+      component.model.hidden = false;
+
+      expect(component.headerBorderRadius).toBe("6px 6px 0px 0px");
+   });
+});
