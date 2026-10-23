@@ -73,6 +73,7 @@ class SecurityServiceRoleAssignmentIntegrationTest {
    private static final IdentityID OA = new IdentityID("Organization Administrator", null);
    private static final IdentityID BOSS_ROLE = new IdentityID("boss77381", ORG_ID);
    private static final IdentityID PLAIN = new IdentityID("plain77381", ORG_ID);
+   private static final IdentityID SYS_DEFAULT = new IdentityID("SysDef76486", null);
    private static final IdentityID OTHER = new IdentityID("other77381", ORG_ID);
    private static final IdentityID BOSSES = new IdentityID("bosses", ORG_ID);
    private static final IdentityID VICTIM = new IdentityID("victim", ORG_ID);
@@ -90,6 +91,7 @@ class SecurityServiceRoleAssignmentIntegrationTest {
    private SRPrincipal boss;
    private MockedStatic<Audit> auditStatic;
    private boolean addedOa;
+   private boolean addedSysDefault;
 
    @BeforeEach
    void setUp() throws Exception {
@@ -179,6 +181,14 @@ class SecurityServiceRoleAssignmentIntegrationTest {
 
          if(addedOa && fileProvider.getRole(OA) != null) {
             fileProvider.removeRole(OA);
+         }
+         else if(fileProvider.getRole(OA) instanceof FSRole oa) {
+            oa.setDefaultRole(false);
+            fileProvider.setRole(OA, oa);
+         }
+
+         if(addedSysDefault && fileProvider.getRole(SYS_DEFAULT) != null) {
+            fileProvider.removeRole(SYS_DEFAULT);
          }
       }
 
@@ -294,6 +304,54 @@ class SecurityServiceRoleAssignmentIntegrationTest {
       assertEquals(Set.of(PLAIN), roles(NEW_USER), "the requested role is saved");
    }
 
+   /**
+    * Bug #76486: a caller holding only ADMIN on the users root, so the requested roles are
+    * ignored and the default roles are seeded, got every role flagged Default, including a system
+    * administrator role, the global Organization Administrator role and an organization
+    * administrator role of the org. The new user must get the ordinary default only; an
+    * organization administrator keeps the organization administrator defaults but not the system
+    * administrator one. The roles live in the file provider the authentication chain exposes, so
+    * the defaults and the check see the same roles.
+    */
+   @Test
+   void delegateWithOnlyUserAdmin_postCreatingUser_getsNoAdministratorDefaultRole() throws Exception {
+      grant(ResourceType.SECURITY_USER, IDENTITY_ROOT, ResourceAction.ADMIN, "delegate", "boss");
+      makeDefaultRoles();
+
+      createUser(delegate, null);
+
+      assertNotNull(fileProvider.getUser(NEW_USER), "the user must be created");
+      assertEquals(Set.of(PLAIN), roles(NEW_USER),
+                   "a delegate that may not assign administrator roles created a user holding " +
+                   roles(NEW_USER));
+      assertFalse(OrganizationManager.getInstance().isSiteAdmin(
+         builder.principalOf(NEW_USER.name, ORG_ID)), "the new user must not be a site admin");
+      assertFalse(OrganizationManager.getInstance().isOrgAdmin(
+         builder.principalOf(NEW_USER.name, ORG_ID)), "the new user must not be an org admin");
+   }
+
+   @Test
+   void orgAdmin_postCreatingUser_keepsOrgAdminDefaultsButNotTheSystemAdministratorOne()
+      throws Exception
+   {
+      grant(ResourceType.SECURITY_USER, IDENTITY_ROOT, ResourceAction.ADMIN, "delegate", "boss");
+      makeDefaultRoles();
+
+      createUser(boss, null);
+
+      assertEquals(Set.of(PLAIN, OA, BOSS_ROLE), roles(NEW_USER));
+   }
+
+   @Test
+   void siteAdmin_postCreatingUser_stillGetsEveryDefaultRole() throws Exception {
+      makeDefaultRoles();
+
+      createUser(builder.principalOf("sa", HOST), null);
+
+      assertEquals(Set.of(PLAIN, OA, BOSS_ROLE, SYS_DEFAULT), roles(NEW_USER),
+                   "a site admin keeps every default role, administrator ones included");
+   }
+
    private interface Call {
       void run() throws Exception;
    }
@@ -357,6 +415,23 @@ class SecurityServiceRoleAssignmentIntegrationTest {
    private Set<IdentityID> roles(IdentityID user) {
       IdentityID[] roles = fileProvider.getUser(user).getRoles();
       return roles == null ? Set.of() : new HashSet<>(Arrays.asList(roles));
+   }
+
+   // flags a system administrator role, the two organization administrator roles and a plain
+   // role as Default
+   private void makeDefaultRoles() {
+      if(fileProvider.getRole(SYS_DEFAULT) == null) {
+         FSRole sys = new FSRole(SYS_DEFAULT, new IdentityID[0], "");
+         sys.setSysAdmin(true);
+         fileProvider.addRole(sys);
+         addedSysDefault = true;
+      }
+
+      for(IdentityID id : List.of(SYS_DEFAULT, OA, BOSS_ROLE, PLAIN)) {
+         FSRole role = (FSRole) fileProvider.getRole(id);
+         role.setDefaultRole(true);
+         fileProvider.setRole(id, role);
+      }
    }
 
    private void setRoles(IdentityID userId, IdentityID... roles) {

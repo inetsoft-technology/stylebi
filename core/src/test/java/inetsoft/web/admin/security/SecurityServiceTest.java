@@ -161,6 +161,10 @@ class SecurityServiceTest {
       inetsoftConfigStatic.when(InetsoftConfig::getInstance).thenReturn(mock(InetsoftConfig.class));
 
       identityService = mock(IdentityService.class, withSettings().lenient());
+      // the default role filter of Bug #76486 keeps every role here; the roles are judged in
+      // IdentityServiceDefaultRolesTest and SecurityServiceRoleAssignmentIntegrationTest
+      when(identityService.filterAssignableDefaultRoles(any(), any()))
+         .thenAnswer(inv -> new ArrayList<>(inv.<Collection<IdentityID>>getArgument(0)));
       // the org self grant merge is IdentityService.setIdentityPermissions() with an explicit
       // bucket org (Bug #77271). Forward it to a real IdentityService over the same mocks, so the
       // org grant tests below check the permission calls the merge makes.

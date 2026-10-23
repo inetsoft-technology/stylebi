@@ -249,6 +249,9 @@ public class SecurityService {
             .filter(role -> provider.getRole(role).isDefaultRole())
             .filter(role -> role.getOrgID() == null || role.getOrgID().equalsIgnoreCase(id.orgID))
             .collect(Collectors.toSet());
+         // the defaults are not an explicit assignment, so drop only the administrator ones the
+         // caller could never assign, and never fail the creation over them (Bug #76486)
+         roles = new HashSet<>(identityService.filterAssignableDefaultRoles(roles, principal));
 
          // Only add roles if api user has root role permission
          if(securityProvider.checkPermission(
