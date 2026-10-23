@@ -88,6 +88,31 @@ class AuthenticationProviderControllerTest {
    }
 
    // -------------------------------------------------------------------------
+   // copyAuthenticationProvider()
+   // -------------------------------------------------------------------------
+
+   // Bug #79234: the copy of an LDAP provider is refused by the service under multi-tenancy; the
+   // error propagates to the caller and no copy status is read.
+   @Test
+   void copyAuthenticationProvider_ldapRefused_propagatesAndReturnsNoStatus() throws Exception {
+      AuthenticationProviderModel ldap = AuthenticationProviderModel.builder()
+         .providerName("corp-ldap")
+         .providerType(SecurityProviderType.LDAP)
+         .build();
+      when(authenticationProviderService.getAuthenticationProvider("corp-ldap")).thenReturn(ldap);
+      when(authenticationProviderService.getProviderListModel())
+         .thenReturn(SecurityProviderStatusList.builder().build());
+      doThrow(new inetsoft.util.MessageException("not allowed"))
+         .when(authenticationProviderService)
+         .addAuthenticationProvider(any(), anyString(), any());
+
+      assertThrows(inetsoft.util.MessageException.class,
+                   () -> controller.copyAuthenticationProvider("corp-ldap", principal));
+
+      verify(authenticationProviderService, never()).getProviderByName(anyString());
+   }
+
+   // -------------------------------------------------------------------------
    // addAuthenticationProvider()
    // -------------------------------------------------------------------------
 
