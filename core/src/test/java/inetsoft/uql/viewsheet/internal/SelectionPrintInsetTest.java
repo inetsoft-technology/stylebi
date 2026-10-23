@@ -120,6 +120,47 @@ class SelectionPrintInsetTest {
       assertEquals(16, box.getPadding().top, "a later edit to the assembly must not rewrite the page");
    }
 
+   @Test
+   void thePrintedTitleStartsOverTheValues() throws Exception {
+      SelectionListVSAssembly list = list("comfortable");
+      ((TitledVSAssemblyInfo) list.getInfo()).setTitleVisible(true);
+
+      assertEquals(baselineWithLeft(16), convertedTitleFor(list).getPadding());
+   }
+
+   @Test
+   void thePrintedTreeTitleStartsOverTheValues() throws Exception {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly(vs, "Tree1");
+      place(tree);
+      mark(tree.getVSAssemblyInfo());
+      ((TitledVSAssemblyInfo) tree.getInfo()).setTitleVisible(true);
+
+      assertEquals(baselineWithLeft(16), convertedTitleFor(tree).getPadding());
+   }
+
+   @Test
+   void aLegacyPrintedTitleIsUnchanged() throws Exception {
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "List1");
+      place(list);
+      // a new assembly inherits its sheet's mark, which follows the gate
+      list.getVSAssemblyInfo().setVizMark(null);
+      ((TitledVSAssemblyInfo) list.getInfo()).setTitleVisible(true);
+
+      assertEquals(baseline(), convertedTitleFor(list).getPadding());
+   }
+
+   private static Insets baseline() {
+      return new TextBoxElementDef(new TabularSheet(null, null), new DefaultTextLens("x"))
+         .getPadding();
+   }
+
+   private static Insets baselineWithLeft(int left) {
+      Insets padding = (Insets) baseline().clone();
+      padding.left = left;
+      return padding;
+   }
+
    private SelectionListVSAssembly list(String density) {
       SreeEnv.setProperty("viewsheet.density", density);
       SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "List1");
@@ -145,6 +186,19 @@ class SelectionPrintInsetTest {
 
    /** Run the converter's own add method for the assembly, and return the one box it added. */
    private TextBoxElement convertedBoxFor(VSAssembly assembly) throws Exception {
+      SectionBand band = convert(assembly);
+      assertEquals(1, band.getElementCount(), "exactly the selection's body box");
+      return (TextBoxElement) band.getElement(0);
+   }
+
+   /** The title box, which the converter adds before the value box. */
+   private TextBoxElement convertedTitleFor(VSAssembly assembly) throws Exception {
+      SectionBand band = convert(assembly);
+      assertEquals(2, band.getElementCount(), "the title box and the value box");
+      return (TextBoxElement) band.getElement(0);
+   }
+
+   private SectionBand convert(VSAssembly assembly) throws Exception {
       VsToReportConverter converter = new VsToReportConverter(null, null, null, null, null);
       Field field = VsToReportConverter.class.getDeclaredField("report");
       field.setAccessible(true);
@@ -172,9 +226,7 @@ class SelectionPrintInsetTest {
       m.setAccessible(true);
       m.invoke(converter, assembly, section.getID());
 
-      SectionBand band = section.getSection().getSectionContent()[0];
-      assertEquals(1, band.getElementCount(), "exactly the selection's body box");
-      return (TextBoxElement) band.getElement(0);
+      return section.getSection().getSectionContent()[0];
    }
 
    private final Viewsheet vs = new Viewsheet();
