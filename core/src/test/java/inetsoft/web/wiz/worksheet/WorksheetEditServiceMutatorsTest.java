@@ -7745,6 +7745,146 @@ class WorksheetEditServiceMutatorsTest {
          "the embedded table's internal types[] must be rolled back too, not just the ColumnRef");
    }
 
+   // ---- change_column_type: parse format (Bug #79225) ----
+
+   private EmbeddedTableAssembly embeddedTextDates(Worksheet ws, String name) {
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, name);
+      t.setEmbeddedData(new XEmbeddedTable(
+         new String[] { XSchema.STRING, XSchema.STRING },
+         new Object[][] { { "d", "n" }, { "03/7/2024", "1" }, { "12/25/2023", "2" },
+                          { "1/1/2025", "3" } }));
+      return t;
+   }
+
+   private static String isoDate(Object value) {
+      assertInstanceOf(java.util.Date.class, value, "expected a converted date, got " + value);
+      return new java.text.SimpleDateFormat("yyyy-MM-dd").format((java.util.Date) value);
+   }
+
+   @Test
+   void changeColumnTypeWithFormatParsesEveryTextDateRow() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedTextDates(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "d", "date", false, "MM/d/yyyy"));
+
+      assertEquals(XSchema.DATE, t.getEmbeddedData().getDataType(0));
+      assertEquals("2024-03-07", isoDate(t.getEmbeddedData().getObject(1, 0)));
+      assertEquals("2023-12-25", isoDate(t.getEmbeddedData().getObject(2, 0)));
+      assertEquals("2025-01-01", isoDate(t.getEmbeddedData().getObject(3, 0)));
+      DataRef ref = t.getColumnSelection(false).getAttribute("d");
+      assertEquals(XSchema.DATE, ((ColumnRef) ref).getDataType());
+   }
+
+   @Test
+   void changeColumnTypeWithWrongFormatAndNoConfirmationLeavesColumnUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedTextDates(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.changeColumnType("T", "d", "date", false, "yyyy.MM.dd")));
+
+      assertTrue(ex.getMessage().contains("Nothing was changed"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("yyyy.MM.dd"), ex.getMessage());
+      assertEquals(XSchema.STRING, t.getEmbeddedData().getDataType(0));
+      assertEquals("03/7/2024", t.getEmbeddedData().getObject(1, 0));
+      assertEquals(XSchema.STRING,
+         ((ColumnRef) t.getColumnSelection(false).getAttribute("d")).getDataType());
+   }
+
+   @Test
+   void changeColumnTypeWithWrongFormatAndConfirmationNullsUnparseableValues() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedTextDates(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "d", "date", true, "yyyy.MM.dd"));
+
+      assertEquals(XSchema.DATE, t.getEmbeddedData().getDataType(0));
+      assertNull(t.getEmbeddedData().getObject(1, 0));
+   }
+
+   @Test
+   void changeColumnTypeBlankFormatBehavesLikeNoFormat() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedTextDates(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "n", "integer", false, "   "));
+
+      assertEquals(XSchema.INTEGER, t.getEmbeddedData().getDataType(1));
+      assertEquals(1, ((Number) t.getEmbeddedData().getObject(1, 1)).intValue());
+   }
+
+   @Test
+   void changeColumnTypeRejectsAnInvalidFormatPatternBeforeChangingAnything() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedTextDates(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.changeColumnType("T", "d", "date", true, "bbbb")));
+
+      assertTrue(ex.getMessage().contains("Invalid format pattern"), ex.getMessage());
+      assertEquals(XSchema.STRING, t.getEmbeddedData().getDataType(0));
+      assertEquals("03/7/2024", t.getEmbeddedData().getObject(1, 0));
+   }
+
+   @Test
+   void changeColumnTypeRejectsAFormatForATargetTypeThatHasNone() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedTextDates(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.changeColumnType("T", "d", "boolean", true, "MM/d/yyyy")));
+
+      assertTrue(ex.getMessage().contains("format"), ex.getMessage());
+      assertEquals(XSchema.STRING, t.getEmbeddedData().getDataType(0));
+   }
+
+   @Test
+   void changeColumnTypeRejectsAFormatOnANonEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.changeColumnType("T", "a", "date", true, "MM/d/yyyy")));
+
+      assertTrue(ex.getMessage().contains("embedded"), ex.getMessage());
+   }
+
+   @Test
+   void editRequestCompatConstructorDefaultsFormatToNull() {
+      EditRequest req = new EditRequest(
+         "change_column_type", "T", "d", null, "date", null, null, null, null, null, null, null,
+         null, false, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null);
+
+      assertNull(req.format());
+      assertEquals("change_column_type", req.op());
+   }
+
    // =========================================================================
    // Column reorder tests
    // =========================================================================

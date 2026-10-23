@@ -532,10 +532,70 @@ public record EditRequest(
     * anything else (including omitted) for the global/enterprise repository. Only meaningful
     * together with {@code path}.
     */
-   String scope
+   String scope,
+   /**
+    * For change_column_type: the pattern used to parse the existing values when converting a
+    * column into a date, time, timeInstant or numeric type (e.g. {@code "MM/d/yyyy"} for
+    * {@code "03/7/2024"}, or {@code "#,##0.00"} for a number).
+    *
+    * <p>The Composer's Change Column Type dialog sends this as {@code formatSpec}
+    * ({@code WSColumnTypeEvent#formatSpec}) and {@code ColumnTypeDialogService#updateColumnType}
+    * hands the resulting {@link java.text.Format} to {@code XEmbeddedTable#setDataType}. Without
+    * it a text date that does not match the engine's default patterns becomes {@code null}
+    * (with {@code confirmed=true}) or is refused ({@code confirmed=false}). A value the pattern
+    * cannot parse follows {@link #confirmed()}. {@code null}/blank means no format, as before.
+    */
+   String format
 ) {
    /**
-    * Compatibility constructor for callers built before {@code path}/{@code scope} were added —
+    * Compatibility constructor for callers built before {@code format} was added -- defaults it
+    * to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices,
+      List<WorksheetMutationSupport.JoinPathSpec> joinPaths, Boolean mergeable,
+      Boolean visibleInViewsheet, Boolean confirmed, Integer rowCount, Boolean concatDistinct,
+      List<WorksheetMutationSupport.RankingSpec> rankings, Map<String, Object> queryParams,
+      Map<String, Object> extraProperties,
+      List<WorksheetMutationSupport.ConditionNode> mvUpdatePreConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvUpdatePostConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvDeletePreConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvDeletePostConditions,
+      Boolean mvForceAppendUpdates, String path, String scope)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
+           mergeable, visibleInViewsheet, confirmed, rowCount, concatDistinct, rankings,
+           queryParams, extraProperties, mvUpdatePreConditions, mvUpdatePostConditions,
+           mvDeletePreConditions, mvDeletePostConditions, mvForceAppendUpdates, path, scope,
+           null);
+   }
+
+   /**
+    * Compatibility constructor for callers built before {@code path}/{@code scope} were added—
     * defaults both to {@code null}.
     */
    public EditRequest(

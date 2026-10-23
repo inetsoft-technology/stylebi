@@ -4095,7 +4095,7 @@ public class WorksheetAgentController {
          case "change_column_type" ->
             // Absent confirmed means force, matching what this op did before the flag existed.
             editor.changeColumnType(req.table(), req.column(), req.type(),
-                                    req.confirmed() == null || req.confirmed());
+                                    req.confirmed() == null || req.confirmed(), req.format());
          case "add_concatenation" ->
             editor.addConcatenation(req.name(), req.tables(), req.concatType(),
                                     req.concatDistinct());
