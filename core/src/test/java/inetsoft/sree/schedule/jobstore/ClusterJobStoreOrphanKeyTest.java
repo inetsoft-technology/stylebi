@@ -224,6 +224,95 @@ class ClusterJobStoreOrphanKeyTest {
       assertTrue(nodes[2].getTriggersForJob(job.getKey()).isEmpty());
    }
 
+   /**
+    * Randomized node counts, operation mixes and timings with no barrier: whatever the
+    * interleaving, once the nodes are quiet every key listed in the group index has a job, and one
+    * removal per key empties the index.
+    */
+   @Test
+   void randomInterleavingsNeverLeaveAnOrphan() throws Exception {
+      ExecutorService pool = Executors.newFixedThreadPool(NODES);
+      Random random = new Random(79262L);
+
+      try {
+         for(int round = 0; round < 60; round++) {
+            int nodeCount = 2 + random.nextInt(NODES - 1);
+            JobDetail job = createJob("random" + round);
+            List<Future<?>> futures = new ArrayList<>();
+
+            for(int n = 0; n < nodeCount; n++) {
+               ClusterJobStore node = nodes[n];
+               long seed = random.nextLong();
+               futures.add(pool.submit(() -> {
+                  Random local = new Random(seed);
+                  int ops = 1 + local.nextInt(4);
+
+                  for(int i = 0; i < ops; i++) {
+                     switch(local.nextInt(3)) {
+                     case 0:
+                        node.removeJob(job.getKey());
+                        node.storeJob(job, true);
+                        break;
+                     case 1:
+                        node.storeJob(job, true);
+                        break;
+                     default:
+                        node.removeJob(job.getKey());
+                        break;
+                     }
+
+                     Thread.sleep(local.nextInt(3));
+                  }
+
+                  return null;
+               }));
+            }
+
+            for(Future<?> future : futures) {
+               future.get(60, TimeUnit.SECONDS);
+            }
+
+            for(JobKey key : jobKeys()) {
+               assertNotNull(nodes[0].retrieveJob(key),
+                             "index lists a job with no detail in round " + round);
+            }
+
+            nodes[0].removeJob(job.getKey());
+            assertEquals(Set.of(), jobKeys(), "key left after one removal in round " + round);
+         }
+      }
+      finally {
+         pool.shutdownNow();
+      }
+   }
+
+   /**
+    * The multimap is set-like per key: puts are idempotent, a removal drops only its value and
+    * the key goes with its last value, and values can be added again after a partial removal.
+    */
+   @Test
+   void multiMapKeepsSetSemanticsPerKey() {
+      MultiMap<String, String> map =
+         new IgniteMultiMap<>(ClusterJobStoreOrphanKeyTest.<String, Collection<String>>cache(
+            "ClusterJobStoreOrphanKeyTest.multimap"));
+      map.put("k", "a");
+      map.put("k", "b");
+      map.put("k", "a");
+      assertEquals(List.of("a", "b"), new ArrayList<>(map.get("k")));
+
+      map.remove("k", "a");
+      assertEquals(List.of("b"), new ArrayList<>(map.get("k")));
+      map.remove("k", "missing");
+      assertEquals(List.of("b"), new ArrayList<>(map.get("k")));
+
+      map.put("k", "a");
+      assertEquals(List.of("b", "a"), new ArrayList<>(map.get("k")));
+
+      map.remove("k", "a");
+      map.remove("k", "b");
+      assertFalse(map.containsKey("k"));
+   }
+
    private Set<JobKey> jobKeys() throws JobPersistenceException {
       return nodes[0].getJobKeys(GroupMatcher.jobGroupEquals(GROUP));
    }
