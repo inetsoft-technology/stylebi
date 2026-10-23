@@ -2763,6 +2763,293 @@ class TableBindingServiceTest {
       assertEquals(1, hiddenPositionOf(table, "B"));
    }
 
+   // ── set_column_labels / remove_table_field on a hidden column (bug-79208) ───
+
+   /**
+    * Bug #79208: TableBindingModel is built from the SHOWN ColumnSelection only, so a hidden
+    * column was never represented in it for TableBindingMutator.removeField to find, regardless
+    * of index -- removeField must resolve and remove it directly against the live hidden-columns
+    * selection instead.
+    */
+   @Test
+   void removeFieldRemovesAHiddenColumn() throws Exception {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      service.removeField("tok", principal(), "PbFour", "details", "Category");
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      assertNull(info.getColumnSelection().getAttribute("Category"),
+                "'Category' must not be in the shown column selection");
+      assertNull(info.getHiddenColumns().getAttribute("Category"),
+                "'Category' must be gone from the hidden columns too, not merely left there");
+   }
+
+   @Test
+   void removeFieldUnboundErrorListsHiddenColumnsMarkedHidden() throws Exception {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.removeField("tok", principal(), "PbFour", "details", "ghost_col"));
+
+      assertTrue(thrown.getMessage().contains("Region, State, City, Company"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Category (hidden)"), thrown.getMessage());
+   }
+
+   /**
+    * Bug #79208: a hidden column's label must land on the live {@code ColumnRef} in {@code
+    * getHiddenColumns()} directly -- merging it into {@code model.getDetails()} to resolve/alias
+    * it through TableBindingMutator would be un-done by VSTableBindingFactory.updateTableAssembly
+    * on the very next commit, since that rebuilds the SHOWN ColumnSelection from the whole
+    * details list and scrubs anything that lands there out of hidden.
+    */
+   @Test
+   void setColumnLabelsAppliesToAHiddenColumn() throws Exception {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      TableBindingService.TableWrite result = service.setColumnLabels(
+         "tok", principal(), "PbFour", Map.of("Category", "Cat X"), null);
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef hiddenRef =
+         (inetsoft.uql.asset.ColumnRef) info.getHiddenColumns().getAttribute("Category");
+      assertNotNull(hiddenRef, "'Category' must still be in the hidden-columns selection");
+      assertEquals("Cat X", hiddenRef.getAlias(),
+                  "the label must land on the hidden column's own ColumnRef");
+      assertNull(info.getColumnSelection().getAttribute("Category"),
+                "labeling a hidden column must not un-hide it");
+      assertEquals(List.of("Category -> Cat X"), result.applied());
+
+      // The regression this test exists to catch: if the fix ever merged the hidden column into
+      // model.getDetails() just to resolve/alias it, this real commit call would scrub it back
+      // out of getHiddenColumns() and silently un-hide it.
+      inetsoft.web.binding.service.VSTableBindingFactory.updateTableAssembly(written[0], table);
+      assertNotNull(info.getHiddenColumns().getAttribute("Category"),
+                   "'Category' must still be hidden after the real commit path runs too");
+   }
+
+   @Test
+   void setColumnLabelsUnboundErrorListsHiddenColumnsMarkedHidden() throws Exception {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setColumnLabels(
+            "tok", principal(), "PbFour", Map.of("ghost_col", "X"), null));
+
+      assertTrue(thrown.getMessage().contains("Region, State, City, Company"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Category (hidden)"), thrown.getMessage());
+   }
+
+   /**
+    * Bug #79208 round-1 review (blocking finding, scenario 1): two hidden columns, the second
+    * with a {@code null} label value. The original fix applied {@code Category}'s alias to the
+    * live ColumnRef the moment its entry was walked, then threw on {@code Category2} from the
+    * very same loop -- stranding {@code Category}'s mutation on the live, shared session even
+    * though the whole call failed. The fix must resolve and value-validate every hidden entry
+    * before applying any of them.
+    */
+   @Test
+   void setColumnLabelsLeavesAnEarlierHiddenColumnUntouchedWhenALaterHiddenLabelIsInvalid()
+      throws Exception
+   {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category", "Category2"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      Map<String, String> labels = new java.util.LinkedHashMap<>();
+      labels.put("Category", "Cat X");
+      labels.put("Category2", null);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnLabels("tok", principal(), "PbFour", labels, null));
+
+      assertTrue(thrown.getMessage().contains("Category2"), thrown.getMessage());
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef categoryRef =
+         (inetsoft.uql.asset.ColumnRef) info.getHiddenColumns().getAttribute("Category");
+      assertNull(categoryRef.getAlias(),
+                "'Category' must not be aliased -- the whole request failed because " +
+                "'Category2' had no label, and nothing must be applied until the whole " +
+                "request is known to succeed");
+   }
+
+   /**
+    * Bug #79208 round-1 review (blocking finding, scenario 2): one hidden column with a valid
+    * label plus one label key that resolves to nothing (neither shown nor hidden). The original
+    * fix applied the hidden column's alias immediately, then let the remaining-labels call into
+    * {@code TableBindingMutator.setColumnLabels} throw "not bound" for the unresolvable key --
+    * again after the hidden column's live mutation had already landed. The fix must not apply the
+    * hidden column's alias until the shown-column remainder is confirmed resolvable too.
+    */
+   @Test
+   void setColumnLabelsLeavesAHiddenColumnUntouchedWhenAnotherLabelKeyIsUnbound() throws Exception {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      Map<String, String> labels = new java.util.LinkedHashMap<>();
+      labels.put("Category", "Cat X");
+      labels.put("NoSuchColumn", "Y");
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setColumnLabels("tok", principal(), "PbFour", labels, null));
+
+      assertTrue(thrown.getMessage().contains("NoSuchColumn"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Region, State, City, Company"), thrown.getMessage());
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef categoryRef =
+         (inetsoft.uql.asset.ColumnRef) info.getHiddenColumns().getAttribute("Category");
+      assertNull(categoryRef.getAlias(),
+                "'Category' must not be aliased -- the whole request failed because " +
+                "'NoSuchColumn' is not bound, and nothing must be applied until the whole " +
+                "request is known to succeed");
+   }
+
+   /**
+    * Bug #79208 round 3 (Nelson-Bot B1, concrete case 1): {@code Category} is hidden, and the
+    * caller relabels it to {@code "Region"} -- the current (unaliased) display name of a SHOWN
+    * column on the same table. Before round 3, {@code resolveHiddenColumnLabels}/{@code
+    * applyPendingHiddenLabels} called {@code ColumnRef.setAlias} directly and never ran {@code
+    * TableBindingMutator.requireUniqueTableLabels}'s uniqueness guard at all, so this landed
+    * silently -- once {@code Category} is shown again, two columns would display "Region".
+    */
+   @Test
+   void setColumnLabelsRefusesAHiddenColumnLabelThatCollidesWithAShownColumn() throws Exception {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnLabels(
+            "tok", principal(), "PbFour", Map.of("Category", "Region"), null));
+
+      assertTrue(thrown.getMessage().contains("Region"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Category"), thrown.getMessage());
+      assertTrue(thrown.getMessage().toLowerCase().contains("told apart"), thrown.getMessage());
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef categoryRef =
+         (inetsoft.uql.asset.ColumnRef) info.getHiddenColumns().getAttribute("Category");
+      assertNull(categoryRef.getAlias(),
+                "'Category' must not be aliased -- its new label collides with the shown " +
+                "column 'Region', so nothing must be applied");
+   }
+
+   /**
+    * Bug #79208 round 3 (Nelson-Bot B1, concrete case 2): two hidden columns, both relabeled to
+    * the same value in one request. Since both are hidden, {@code remainingLabels} ends up empty
+    * and {@code TableBindingMutator.setColumnLabels} (and its {@code requireUniqueTableLabels}
+    * guard) is never even called -- before round 3, nothing else stood in the way of this either.
+    */
+   @Test
+   void setColumnLabelsRefusesTwoHiddenColumnsGivenTheSameLabel() throws Exception {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category", "Category2"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      Map<String, String> labels = new java.util.LinkedHashMap<>();
+      labels.put("Category", "Dup");
+      labels.put("Category2", "Dup");
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnLabels("tok", principal(), "PbFour", labels, null));
+
+      assertTrue(thrown.getMessage().contains("Dup"), thrown.getMessage());
+      assertTrue(thrown.getMessage().toLowerCase().contains("told apart"), thrown.getMessage());
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef categoryRef =
+         (inetsoft.uql.asset.ColumnRef) info.getHiddenColumns().getAttribute("Category");
+      inetsoft.uql.asset.ColumnRef category2Ref =
+         (inetsoft.uql.asset.ColumnRef) info.getHiddenColumns().getAttribute("Category2");
+      assertNull(categoryRef.getAlias(),
+                "'Category' must not be aliased -- it collides with 'Category2''s own pending " +
+                "label, so neither must be applied");
+      assertNull(category2Ref.getAlias(),
+                "'Category2' must not be aliased -- it collides with 'Category''s own pending " +
+                "label, so neither must be applied");
+   }
+
+   /**
+    * Bug #79208 round 4 (our own round-3 review, B2) -- the reviewer's exact live-verified
+    * probe, made permanent. {@code Category} is hidden; the request relabels only the SHOWN
+    * column {@code Region} to {@code "Category"} -- the hidden column's own bare, current
+    * display name, with {@code Category} itself never named in the request at all. Round 3's
+    * {@code requireUniqueHiddenLabels} only ever started the comparison from a hidden column's
+    * own pending label (and its first line early-returned on an empty {@code pendingHidden}
+    * entirely), so this direction went completely unchecked -- once {@code Category} is shown
+    * again (an ordinary, unrelated un-hide), two columns would display "Category".
+    */
+   @Test
+   void setColumnLabelsRefusesAShownColumnRenameThatCollidesWithAnUntouchedHiddenColumn()
+      throws Exception
+   {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnLabels(
+            "tok", principal(), "PbFour", Map.of("Region", "Category"), null));
+
+      assertTrue(thrown.getMessage().contains("Region"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Category"), thrown.getMessage());
+      assertTrue(thrown.getMessage().toLowerCase().contains("told apart"), thrown.getMessage());
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef regionRef =
+         (inetsoft.uql.asset.ColumnRef) info.getColumnSelection().getAttribute("Region");
+      assertNull(regionRef.getAlias(),
+                "'Region' must not be aliased -- its new label collides with the untouched " +
+                "hidden column 'Category', so nothing must be applied");
+   }
+
+   /**
+    * Control for round 4 (B2): a SHOWN column renamed to something that collides with neither
+    * another shown column nor the table's one hidden column must still succeed, confirming the
+    * new shown-vs-hidden check does not over-reject the ordinary case.
+    */
+   @Test
+   void setColumnLabelsStillAllowsAShownRenameThatDoesNotCollideWithAHiddenColumn()
+      throws Exception
+   {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      TableBindingService.TableWrite result = service.setColumnLabels(
+         "tok", principal(), "PbFour", Map.of("Region", "Sales Region"), null);
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef regionRef =
+         (inetsoft.uql.asset.ColumnRef) info.getColumnSelection().getAttribute("Region");
+      assertEquals("Sales Region", regionRef.getAlias(),
+                  "a shown rename that collides with nothing -- shown or hidden -- must still " +
+                  "be applied");
+      assertEquals(List.of("Region -> Sales Region"), result.applied());
+   }
+
    private static TableVSAssembly tableWithHiddenB() {
       TableVSAssembly table = tableWithColumns("TableView2", "A", "C");
       ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));

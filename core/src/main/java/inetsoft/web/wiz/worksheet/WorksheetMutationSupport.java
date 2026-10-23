@@ -669,6 +669,10 @@ public final class WorksheetMutationSupport {
             // add_filter/edit_condition take no valueSpecs, so only the column-name heuristic
             // applies here (numeric and date/time types); a string literal naming a column stays
             // accepted, as it does on set_conditions.
+            if(value instanceof String s) {
+               requireNotSubQueryDisplayText(t, field, s, i);
+            }
+
             if(value instanceof String s && looksLikeUnresolvedFieldReference(t, post, dtype, s)) {
                throw unresolvedFieldReferenceLiteral(s, i, dtype, false);
             }
@@ -3579,6 +3583,7 @@ public final class WorksheetMutationSupport {
     *                       constructor below) keeps the original append-only behavior for a
     *                       caller not resubmitting a readback.
     */
+   @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
    public record ConditionValueSpec(String valueType, String field, String expression,
                                     String expressionType, Integer index) {
       /**
@@ -3636,6 +3641,11 @@ public final class WorksheetMutationSupport {
             });
             yield expr;
          }
+         case "subquery" -> throw new IllegalArgumentException(
+            "A 'subquery' valueSpec is a read-only marker from read_worksheet_model: a sub " +
+            "query condition value cannot be created or carried by this tool. Remove the " +
+            "valueSpec and its values[] entry from the condition, or recreate the sub query " +
+            "condition in the Composer.");
          default -> throw new IllegalArgumentException(
             "'" + spec.valueType() + "' is not a condition value type. Accepted: field, " +
             "expression.");
@@ -3968,6 +3978,10 @@ public final class WorksheetMutationSupport {
                // point-named failure, strictly better than the silent data corruption it replaces.
                for(int i = 0; i < resolvedValues.size(); i++) {
                   Object value = resolvedValues.get(i);
+
+                  if(value instanceof String s) {
+                     requireNotSubQueryDisplayText(t, spec.field(), s, i);
+                  }
 
                   if(value instanceof String s && looksLikeUnresolvedFieldReference(t, post, dtype, s))
                   {
@@ -4978,6 +4992,35 @@ public final class WorksheetMutationSupport {
          dtype + " value -- if this is meant to compare against that column, " + remedy + ". " +
          "Left as a literal it would be silently coerced to a default value (e.g. 0, or the " +
          "current date) rather than compared against the column.");
+   }
+
+   private static final java.util.regex.Pattern SUBQUERY_DISPLAY_TEXT =
+      java.util.regex.Pattern.compile("^Query\\[(.+)\\]$");
+
+   /**
+    * Refuses a literal of the form {@code Query[name]} when {@code name} is a table in the
+    * worksheet: that is {@code SubQueryValue.toString()}, the text {@code read_worksheet_model}
+    * shows for a sub query value, and stored as a literal it would compare the column against
+    * the text itself. Applies to every column type, unlike
+    * {@link #looksLikeUnresolvedFieldReference}, and runs before the numeric/date parsers so a
+    * numeric or date column gets this message instead of a parse error. A literal that merely
+    * looks like the token on a worksheet without that table stays accepted.
+    */
+   private static void requireNotSubQueryDisplayText(TableAssembly t, String field, String value,
+                                                     int i)
+   {
+      java.util.regex.Matcher m = SUBQUERY_DISPLAY_TEXT.matcher(value);
+
+      if(m.matches() && t.getWorksheet() != null &&
+         t.getWorksheet().getAssembly(m.group(1)) instanceof TableAssembly)
+      {
+         throw new IllegalArgumentException(
+            "Condition value \"" + value + "\" at values[" + i + "] on \"" + field + "\" is the " +
+            "display text of a sub query value on table \"" + m.group(1) + "\" read back from " +
+            "the worksheet, not a literal. A sub query condition value cannot be created or " +
+            "carried by this tool: remove it from values, or recreate the sub query condition " +
+            "in the Composer.");
+      }
    }
 
    /**

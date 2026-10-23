@@ -246,17 +246,43 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                       value's pre-existing, lossy plain-string fallback (e.g.
     *                       {@code "MixedValuesProbe.B"} for a field reference), left there
     *                       unchanged for backward compatibility.
-    * @param valueType      {@code "field"} or {@code "expression"}
+    * @param valueType      {@code "field"}, {@code "expression"} or {@code "subquery"}. A
+    *                       {@code "subquery"} entry is a read-only marker: the write tools
+    *                       cannot create or carry a sub query value.
     * @param field          the referenced column's qualified name (or bare alias, when the
     *                       column has a display alias); set only when valueType is
     *                       {@code "field"}
     * @param expression     the expression body; set only when valueType is {@code "expression"}
     * @param expressionType {@code "sql"} or {@code "js"}; set only when valueType is
     *                       {@code "expression"}
+    * @param subQueryName   the worksheet table the sub query reads from; set only when
+    *                       valueType is {@code "subquery"}
+    * @param inSubQueryColumn the column of that table whose value is the operand; set only
+    *                       when valueType is {@code "subquery"}
+    * @param where          the per-row correlation of a correlated sub query; {@code null}
+    *                       for an uncorrelated one
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record ValueSpecModel(int index, String valueType, String field,
-                                 String expression, String expressionType) {}
+                                 String expression, String expressionType,
+                                 String subQueryName, String inSubQueryColumn,
+                                 SubQueryWhereModel where) {
+      public ValueSpecModel(int index, String valueType, String field, String expression,
+                            String expressionType)
+      {
+         this(index, valueType, field, expression, expressionType, null, null, null);
+      }
+   }
+
+   /**
+    * The correlation of a {@code "subquery"} {@link ValueSpecModel}, in the vocabulary of
+    * {@code WorksheetTable.SubQueryWhere}.
+    *
+    * @param subQueryColumn     the sub query table's column matched per row
+    * @param currentTableColumn the current table's column it is matched against
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record SubQueryWhereModel(String subQueryColumn, String currentTableColumn) {}
 
    /**
     * A single filter condition item.

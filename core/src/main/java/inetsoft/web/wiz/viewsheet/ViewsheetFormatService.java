@@ -45,6 +45,7 @@ import inetsoft.uql.viewsheet.BorderColors;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.FormatInfo;
+import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
@@ -60,6 +61,7 @@ import inetsoft.uql.viewsheet.graph.RadarChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionBaseVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
@@ -133,7 +135,10 @@ public class ViewsheetFormatService {
     *                   the table-style gate that strips whole-object background/borders/alignment
     *                   (a user-set whole-object foreground already wins over the style);
     *                   {@code "header"} does the same for the HEADER (row/column dimension label)
-    *                   cells -- see {@link #requireTarget}
+    *                   cells; {@code "cell"}, {@code "measureText"} and {@code "measureBar"}
+    *                   format a Selection List/Tree's item labels, measure text and measure bar
+    *                   separately, each for one tree {@code level} or all -- see
+    *                   {@link #requireTarget}
     * @param field      required when {@code target} is {@code "text"} — the column currently
     *                   bound to the chart's text aesthetic channel. Optional when {@code target}
     *                   is {@code "data"} or {@code "header"}: scopes the write to one named
@@ -146,6 +151,9 @@ public class ViewsheetFormatService {
     *                   when {@code target} is {@code "field"}: the chart field (its full name,
     *                   as the binding reports it) whose value format to set. Unused for any
     *                   other target.
+    * @param level      the 0-based tree level a {@code "cell"}, {@code "measureText"} or
+    *                   {@code "measureBar"} write is limited to (0 is the top level); null writes
+    *                   every level. Refused with any other target
     * @param formatKeys the names of the keys the caller's JSON {@code format} object carried
     *                   with a non-null value, captured before parsing so a key the target cannot
     *                   apply is refused by name rather than mistaken for a model default; null
@@ -156,25 +164,33 @@ public class ViewsheetFormatService {
                                boolean reset,
                                String target,
                                String field,
-                               Set<String> formatKeys)
+                               Set<String> formatKeys,
+                               Integer level)
    {
       /** Kept for existing callers that predate {@code target}/{@code field} — defaults both. */
       public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset) {
-         this(assemblies, format, reset, null, null, null);
+         this(assemblies, format, reset, null, null, null, null);
       }
 
       /** Kept for existing callers that predate {@code field} — defaults it to null. */
       public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset,
                            String target)
       {
-         this(assemblies, format, reset, target, null, null);
+         this(assemblies, format, reset, target, null, null, null);
       }
 
       /** Kept for existing callers that predate {@code formatKeys} — no raw keys. */
       public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset,
                            String target, String field)
       {
-         this(assemblies, format, reset, target, field, null);
+         this(assemblies, format, reset, target, field, null, null);
+      }
+
+      /** Kept for existing callers that predate {@code level} — writes every level. */
+      public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset,
+                           String target, String field, Set<String> formatKeys)
+      {
+         this(assemblies, format, reset, target, field, formatKeys, null);
       }
 
       /**
@@ -197,10 +213,11 @@ public class ViewsheetFormatService {
                                            @JsonProperty("format") JsonNode format,
                                            @JsonProperty("reset") boolean reset,
                                            @JsonProperty("target") String target,
-                                           @JsonProperty("field") String field)
+                                           @JsonProperty("field") String field,
+                                           @JsonProperty("level") Integer level)
       {
          return new FormatRequest(assemblies, parseFormat(format, "set_format"), reset, target,
-                                  field, formatKeys(format));
+                                  field, formatKeys(format), level);
       }
 
       /** The keys of a JSON {@code format} object whose value is not JSON null. */
@@ -729,6 +746,7 @@ public class ViewsheetFormatService {
       }
 
       String target = requireTarget(request.target());
+      requireLevelTarget(target, request.level());
 
       if("text".equals(target)) {
          if(request.assemblies().size() != 1) {
@@ -748,7 +766,9 @@ public class ViewsheetFormatService {
          return setFieldFormat(sessionToken, user, request);
       }
 
-      if("object".equals(target) || "title".equals(target) || isCalendarTarget(target)) {
+      if("object".equals(target) || "title".equals(target) || isCalendarTarget(target) ||
+         isSelectionRegionTarget(target))
+      {
          requireKnownAssemblies(sessionToken, user, request.assemblies());
       }
 
@@ -877,6 +897,18 @@ public class ViewsheetFormatService {
 
                for(String name : request.assemblies()) {
                   data.add(new TableDataPath[]{ calendarPath(rvs, name, target) });
+               }
+
+               event.setData(data);
+            }
+            else if(isSelectionRegionTarget(target)) {
+               // Same event.getData() per-path mechanism as "data"/"header" above: a Selection
+               // List/Tree's item labels, measure text and measure bar each have their own
+               // format path, the ones the Composer's Format pane writes for a selected region.
+               ArrayList<TableDataPath[]> data = new ArrayList<>();
+
+               for(String name : request.assemblies()) {
+                  data.add(computeSelectionRegionPaths(rvs, name, target, request.level()));
                }
 
                event.setData(data);
@@ -2023,9 +2055,12 @@ public class ViewsheetFormatService {
    private static String regionName(String target) {
       return "data".equals(target) ? "body cells" :
          "header".equals(target) ? "header cells" :
-         "title".equals(target) ? "title" :
+         "cell".equals(target) ? "item label cells" :
+         "measuretext".equals(target) ? "measure text" :
+         "measurebar".equals(target) ? "measure bar" :
          CALENDAR_HEADER.equals(target) ? "calendar header" :
-         CALENDAR_GRID.equals(target) ? "calendar grid" : "whole assembly";
+         CALENDAR_GRID.equals(target) ? "calendar grid" :
+         "title".equals(target) ? "title" : "whole assembly";
    }
 
    private static DataRef[] runtimeOrDesign(DataRef[] runtime, DataRef[] design) {
@@ -2182,7 +2217,7 @@ public class ViewsheetFormatService {
          throw new IllegalArgumentException(
             "set_format: target 'data' only applies to a Crosstab or Table assembly; '" + name +
             "' is " + (assembly == null ? "not found" :
-                       assembly.getClass().getSimpleName()) + ".");
+                       assembly.getClass().getSimpleName()) + "." + selectionTargetsHint(assembly));
       }
 
       boolean hasField = field != null && !field.isBlank();
@@ -2285,7 +2320,8 @@ public class ViewsheetFormatService {
          throw new IllegalArgumentException(
             "set_format: target 'header' only applies to a Crosstab or Table assembly; '" +
             name + "' is " + (assembly == null ? "not found" :
-                       assembly.getClass().getSimpleName()) + ".");
+                       assembly.getClass().getSimpleName()) + "." +
+            selectionTargetsHint(assembly));
       }
 
       boolean hasField = field != null && !field.isBlank();
@@ -2725,6 +2761,119 @@ public class ViewsheetFormatService {
       return out;
    }
 
+   /** Number of per-level measure paths an ID-hierarchy tree renders (VSSelectionBaseModel). */
+   private static final int ID_MODE_MEASURE_LEVELS = 10;
+
+   private static boolean isSelectionRegionTarget(String target) {
+      return "cell".equals(target) || "measuretext".equals(target) ||
+         "measurebar".equals(target);
+   }
+
+   /** Points a caller who aimed table targets at a Selection List/Tree to the right ones. */
+   private static String selectionTargetsHint(VSAssembly assembly) {
+      return assembly instanceof SelectionListVSAssembly ||
+         assembly instanceof SelectionTreeVSAssembly ?
+         " Use target 'cell' (item labels), 'measureText' or 'measureBar' for a Selection " +
+         "List/Tree's regions." : "";
+   }
+
+   /** {@code level} is meaningful only for the three Selection List/Tree region targets. */
+   private static void requireLevelTarget(String target, Integer level) {
+      if(level != null && !isSelectionRegionTarget(target)) {
+         throw new IllegalArgumentException(
+            "set_format: 'level' only applies to targets 'cell', 'measureText' and 'measureBar' " +
+            "on a Selection List/Tree; target '" + target + "' has no levels.");
+      }
+   }
+
+   /**
+    * Computes the {@code TableDataPath[]} a Selection List/Tree's {@code cell},
+    * {@code measuretext} or {@code measurebar} write goes to -- the same paths the Composer's
+    * Format pane writes for a selected region.
+    *
+    * <p>Item labels: a tree level other than the last is a folder cell
+    * {@code (level, GROUP_HEADER)}; the last level and a list's only level is
+    * {@code (-1, DETAIL)}. These use the two-argument {@link TableDataPath} constructor, whose
+    * {@code row} flag is what the renderer reads -- the six-argument form (row=false) would write
+    * a format nothing reads. An ID-hierarchy tree has one shared label format
+    * ({@code (-1, DETAIL)}; {@code FormatPainterService} rewrites every other label path to it),
+    * so a level above 0 is refused for {@code cell}.
+    *
+    * <p>Measure text and bar: {@link SelectionBaseVSAssemblyInfo#getMeasureTextPath} /
+    * {@link SelectionBaseVSAssemblyInfo#getMeasureBarPath} per level, where the last tree level's
+    * measure path keeps its own index (unlike its label cell). Only the positive-value bar is
+    * written; the negative bar's path ({@code getMeasureNBarPath}) is not.
+    *
+    * @param level the 0-based level, or null for every level
+    * @throws IllegalArgumentException if {@code name} is not a Selection List/Tree, or
+    *                                  {@code level} is outside the assembly's levels
+    */
+   static TableDataPath[] computeSelectionRegionPaths(RuntimeViewsheet rvs, String name,
+                                                      String target, Integer level)
+   {
+      Viewsheet viewsheet = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
+
+      if(!(assembly instanceof SelectionListVSAssembly) &&
+         !(assembly instanceof SelectionTreeVSAssembly))
+      {
+         throw new IllegalArgumentException(
+            "set_format: target '" + target + "' only applies to a Selection List or Selection " +
+            "Tree assembly; '" + name + "' is " +
+            (assembly == null ? "not found" : assembly.getClass().getSimpleName()) + "." +
+            (assembly instanceof CrosstabVSAssembly || assembly instanceof TableVSAssembly ?
+               " Use target 'data' or 'header' for its cells." : ""));
+      }
+
+      boolean cell = "cell".equals(target);
+      SelectionTreeVSAssembly tree =
+         assembly instanceof SelectionTreeVSAssembly t ? t : null;
+      boolean idMode = tree != null && tree.isIDMode();
+      DataRef[] refs = tree == null ? null : tree.getDataRefs();
+      int treeLevels = tree == null || idMode ? 1 : refs == null ? 0 : refs.length;
+
+      if(treeLevels == 0) {
+         throw new IllegalArgumentException(
+            "set_format: '" + name + "' has no tree levels bound yet, so there is no region to " +
+            "format; bind its levels first.");
+      }
+
+      // An ID-mode tree has one label format but renders measures for up to 10 levels.
+      int levels = idMode && !cell ? ID_MODE_MEASURE_LEVELS : treeLevels;
+
+      if(level != null && (level < 0 || level >= levels)) {
+         if(tree == null) {
+            throw new IllegalArgumentException(
+               "set_format: '" + name + "' is a Selection List and has no levels; omit 'level' " +
+               "(or use 0), got " + level + ".");
+         }
+
+         if(idMode && cell) {
+            throw new IllegalArgumentException(
+               "set_format: '" + name + "' is an ID-hierarchy Selection Tree with one item-label " +
+               "format shared by all levels; omit 'level' (or use 0), got " + level + ".");
+         }
+
+         throw new IllegalArgumentException(
+            "set_format: level " + level + " is out of range for '" + name + "' (" + levels +
+            " level" + (levels == 1 ? "" : "s") + ": 0-" + (levels - 1) + ").");
+      }
+
+      int first = level == null ? 0 : level;
+      int last = level == null ? levels - 1 : level;
+      TableDataPath[] paths = new TableDataPath[last - first + 1];
+
+      for(int i = first; i <= last; i++) {
+         paths[i - first] = !cell ?
+            ("measuretext".equals(target) ? SelectionBaseVSAssemblyInfo.getMeasureTextPath(i) :
+             SelectionBaseVSAssemblyInfo.getMeasureBarPath(i)) :
+            i < treeLevels - 1 ? new TableDataPath(i, TableDataPath.GROUP_HEADER) :
+            new TableDataPath(-1, TableDataPath.DETAIL);
+      }
+
+      return paths;
+   }
+
    /**
     * FormatPainterService dereferences the looked-up assembly without a null check, so an
     * unknown name would surface as a generic 500 instead of a refusal naming it (bug-79156).
@@ -2761,13 +2910,17 @@ public class ViewsheetFormatService {
 
       if(!"object".equals(name) && !"title".equals(name) && !"text".equals(name) &&
          !"data".equals(name) && !"header".equals(name) && !"field".equals(name) &&
-         !CALENDAR_HEADER.equals(name) && !CALENDAR_GRID.equals(name))
+         !isCalendarTarget(name) && !isSelectionRegionTarget(name))
       {
          throw new IllegalArgumentException(
-            "set_format 'target' must be 'object', 'title', 'text', 'data', 'header', " +
-            "'field', 'calendarHeader' or 'calendarGrid', got '" + target + "'. " +
-            "'calendarHeader' formats a Calendar's month/year header text; 'calendarGrid' " +
-            "formats its date grid (month grid in month view, year grid in year view). 'object' (the default) formats the whole " +
+            "set_format 'target' must be 'object', 'title', 'text', 'data', 'header', 'field', " +
+            "'cell', 'measureText', 'measureBar', 'calendarHeader' or 'calendarGrid', got '" +
+            target + "'. 'cell', 'measureText' " +
+            "and 'measureBar' format a Selection List/Tree's item labels, measure numbers and " +
+            "measure bar separately (optional 'level' picks one tree level). 'calendarHeader' " +
+            "formats a Calendar's month/year header text; 'calendarGrid' formats its date grid " +
+            "(month grid in month view, year grid in year view). 'object' (the " +
+            "default) formats the whole " +
             "assembly, including — for a chart — the font and colour that unstyled axis " +
             "titles and tick labels fall back to (not their number/date format: use 'field' " +
             "for that). 'field' sets one chart field's value format wherever it renders (axis " +
