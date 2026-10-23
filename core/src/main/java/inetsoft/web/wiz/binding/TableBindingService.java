@@ -1354,9 +1354,17 @@ public class TableBindingService {
             write = new TableBindingMutator.ColumnLabelWrite(List.of(), List.of());
          }
 
-         // Only now that the remaining (shown) labels are confirmed resolvable -- the mutator
-         // call above would have thrown otherwise, before any live mutation here -- do the
-         // already-resolved hidden-column labels get applied to the live ColumnRefs.
+         // Bug #79208 round 3 (Nelson-Bot B1): requireUniqueTableLabels above only ever sees
+         // model.getDetails() -- the SHOWN columns -- so it cannot catch a hidden column's
+         // pending label colliding with another column's display name. Checked here, against
+         // the same post-write state write.tableRenames() already validated shown-vs-shown,
+         // before anything (hidden or shown) is mutated below.
+         requireUniqueHiddenLabels(table, pendingHidden, write.tableRenames());
+
+         // Only now that the remaining (shown) labels are confirmed resolvable, and no hidden
+         // label collides with anything -- the mutator call above would have thrown otherwise,
+         // before any live mutation here -- do the already-resolved hidden-column labels get
+         // applied to the live ColumnRefs.
          if(!pendingHidden.isEmpty()) {
             applyPendingHiddenLabels(pendingHidden, applied);
          }
@@ -1474,6 +1482,101 @@ public class TableBindingService {
          String newAlias = label.newAlias();
          ref.setAlias(newAlias);
          applied.add(label.oldDisplay() + " -> " + (newAlias == null ? ref.getAttribute() : newAlias));
+      }
+   }
+
+   /**
+    * Bug #79208 round 3 (Nelson-Bot B1): {@link TableBindingMutator#requireUniqueTableLabels}
+    * only ever sees {@code model.getDetails()} -- the SHOWN columns -- so a hidden column's
+    * pending label bypassed that uniqueness guard entirely: nothing refused a hidden column's
+    * new alias colliding with another column's display name, shown or hidden. Once the hidden
+    * column is shown again (or a second colliding hidden column is shown), two columns display
+    * the same name.
+    *
+    * <p>Checked against the effective display name every column will have once this whole
+    * request lands -- a SHOWN column's current display, overridden by {@code tableRenames} for
+    * any shown column {@link TableBindingMutator#setColumnLabels} (already validated
+    * shown-vs-shown by {@code requireUniqueTableLabels}) is about to relabel, plus every OTHER
+    * hidden column's own pending label in this same request -- not just what is already live on
+    * either side. Mirrors the "judged by the result, not visit order" discipline {@code
+    * requireUniqueTableLabels}'s own javadoc describes for the shown-only case, including its
+    * case-sensitive comparison.
+    *
+    * <p>Called before anything (hidden or shown) is actually mutated -- {@code tableRenames} is
+    * {@link TableBindingMutator.ColumnLabelWrite}'s pure, not-yet-applied return value -- so a
+    * collision here leaves the whole request unmutated, the same atomicity guarantee round 2
+    * already established for the stranded-mutation case.
+    *
+    * @param table the live Table; dereferenced only once {@code pendingHidden} is confirmed
+    *              non-empty, which itself only ever happens when {@code table != null} (see
+    *              {@link #resolveHiddenColumnLabels}).
+    */
+   private static void requireUniqueHiddenLabels(TableVSAssembly table,
+                                                  List<PendingHiddenLabel> pendingHidden,
+                                                  List<TableBindingMutator.Rename> tableRenames)
+   {
+      if(pendingHidden.isEmpty()) {
+         return;
+      }
+
+      Map<String, String> renamed = new HashMap<>();
+
+      for(TableBindingMutator.Rename rename : tableRenames) {
+         renamed.put(rename.oldDisplayName(), rename.newDisplayName());
+      }
+
+      Set<String> shownDisplays = new HashSet<>();
+      Enumeration<DataRef> shownRefs =
+         ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getColumnSelection().getAttributes();
+
+      while(shownRefs.hasMoreElements()) {
+         if(shownRefs.nextElement() instanceof ColumnRef column) {
+            String current = column.getAlias() != null ? column.getAlias() : column.getAttribute();
+            shownDisplays.add(renamed.getOrDefault(current, current));
+         }
+      }
+
+      // Identity-keyed, not content-keyed: two hidden columns can legitimately share their
+      // CURRENT display (that is exactly the collision being checked for), so a ColumnRef's own
+      // equals()/hashCode() must never be allowed to merge two distinct columns into one key.
+      Map<ColumnRef, String> hiddenDisplays = new IdentityHashMap<>();
+      Enumeration<DataRef> hiddenRefs =
+         ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns().getAttributes();
+
+      while(hiddenRefs.hasMoreElements()) {
+         if(hiddenRefs.nextElement() instanceof ColumnRef column) {
+            hiddenDisplays.put(
+               column, column.getAlias() != null ? column.getAlias() : column.getAttribute());
+         }
+      }
+
+      for(PendingHiddenLabel label : pendingHidden) {
+         hiddenDisplays.put(label.ref(),
+            label.newAlias() != null ? label.newAlias() : label.ref().getAttribute());
+      }
+
+      for(PendingHiddenLabel label : pendingHidden) {
+         String display = label.newAlias() != null ? label.newAlias() : label.ref().getAttribute();
+
+         if(shownDisplays.contains(display)) {
+            throw new IllegalArgumentException(
+               "'" + display + "' would be the label of two columns, so they could no longer " +
+               "be told apart. Choose a different label for the hidden column '" +
+               label.ref().getAttribute() + "'.");
+         }
+
+         for(Map.Entry<ColumnRef, String> other : hiddenDisplays.entrySet()) {
+            if(other.getKey() == label.ref()) {
+               continue;
+            }
+
+            if(display.equals(other.getValue())) {
+               throw new IllegalArgumentException(
+                  "'" + display + "' would be the label of two columns, so they could no " +
+                  "longer be told apart. Choose a different label for the hidden column '" +
+                  label.ref().getAttribute() + "'.");
+            }
+         }
       }
    }
 
