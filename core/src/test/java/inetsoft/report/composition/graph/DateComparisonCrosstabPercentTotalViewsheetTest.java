@@ -20,59 +20,74 @@ package inetsoft.report.composition.graph;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.composition.graph.calc.ChangeCalc;
-import inetsoft.report.composition.graph.calc.ValueOfCalc;
 import inetsoft.test.*;
+import inetsoft.test.dc.DcInMemoryViewsheetFixture;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.time.LocalDate;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #78858, #78859: a viewsheet crosstab with a percent change calc (date comparison
- * "percent change", or a plain "% change from previous") and visible subtotals. With
- * "Compute Trend and Comparison for Totals" off, the total cells used to show the raw period
- * sum with a percent format (e.g. 32,105,100%). They are now blank. The cells are read through
- * the rendered text of the VS table lens, which is what the viewer and the exports show.
+ * Bug #78858, #78859 through the viewsheet: a crosstab with a date comparison "percent change"
+ * and visible subtotals. With "Compute Trend and Comparison for Totals" off, the total cells
+ * used to show the raw period sum with a percent format (e.g. 32,105,100%). They are now blank.
+ * The cells are read through the rendered text of the VS table lens, which is what the viewer
+ * and the exports show.
+ *
+ * <p>The table is in memory ({@link DcInMemoryViewsheetFixture}): the first of each month of
+ * 2024 and 2025, January to March, with 2024 = 100 / 200 / 300 and 2025 = 106 / 212 / 300, so
+ * the percent changes are 6% / 6% / 0%, the totals 600 and 618 (+3%). The layouts the
+ * {@code CrossTabFilter} wiring makes (plain percent change, column totals, absolute change)
+ * are in {@code CrossTabFilterPercentCalcTotalTest}.</p>
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
+                                  LibManagerTestConfiguration.class, PluginsTestConfiguration.class,
+                                  DcInMemoryViewsheetFixture.Config.class },
                       initializers = ConfigurationContextInitializer.class)
-@SreeHome(importResources = "/inetsoft/report/composition/EmbeddedVS1.zip")
-@Tag("slow")
+@SreeHome
+@Tag("core")
 class DateComparisonCrosstabPercentTotalViewsheetTest {
-   @BeforeEach
-   void setUp() {
-      box = vsResource.getRuntimeViewsheet().getViewsheetSandbox().orElseThrow();
-      vs = box.getViewsheet();
-      source = (SourceInfo) ((TableVSAssembly) vs.getAssembly("TableView1")).getSourceInfo().clone();
+   private final DcInMemoryViewsheetFixture fixture = new DcInMemoryViewsheetFixture();
 
-      // D covers 2024/2025, January to March
-      CalculateRef dateCalc = new CalculateRef(true);
-      dateCalc.setName("D");
-      ExpressionRef dateExpr = new ExpressionRef(null, "D");
-      dateExpr.setExpression("new Date(2024 + (field['day'] % 2), field['day'] % 3, 1)");
-      dateExpr.setDataType(XSchema.DATE);
-      dateCalc.setDataRef(dateExpr);
-      dateCalc.setSQL(false);
-      vs.addCalcField(source.getSource(), dateCalc);
+   @BeforeEach
+   void setUp() throws Exception {
+      fixture.setUp();
+      List<Object[]> rows = new ArrayList<>();
+      int[][] wind = { { 100, 200, 300 }, { 106, 212, 300 } };
+
+      for(int year = 0; year < 2; year++) {
+         for(int month = 0; month < 3; month++) {
+            rows.add(new Object[] { java.sql.Date.valueOf(LocalDate.of(2024 + year, month + 1, 1)),
+                                    wind[year][month] });
+         }
+      }
+
+      DcInMemoryViewsheetFixture.Sheet sheet = fixture.open("D", "wind", rows);
+      box = sheet.box();
+      vs = sheet.vs();
+      source = sheet.source();
+   }
+
+   @AfterEach
+   void tearDown() {
+      fixture.tearDown();
    }
 
    @Test
@@ -94,8 +109,8 @@ class DateComparisonCrosstabPercentTotalViewsheetTest {
 
       assertEquals("", rowText(lens, "2024", "Total", "%"));
       assertEquals("", rowText(lens, "2025", "Total", "%"));
-      assertEquals("321051", rowText(lens, "2024", "Total", "Sum"));
-      assertEquals("332681", rowText(lens, "2025", "Total", "Sum"));
+      assertEquals("600", rowText(lens, "2024", "Total", "Sum"));
+      assertEquals("618", rowText(lens, "2025", "Total", "Sum"));
       assertEquals("6%", rowText(lens, "2025", "Jan", "%"));
    }
 
@@ -104,74 +119,8 @@ class DateComparisonCrosstabPercentTotalViewsheetTest {
       VSTableLens lens = run("DcPctOn", rowDcCrosstab(dc(DateComparisonInfo.PERCENT)), true);
 
       assertEquals("", rowText(lens, "2024", "Total", null));
-      assertEquals("4%", rowText(lens, "2025", "Total", null));
+      assertEquals("3%", rowText(lens, "2025", "Total", null));
       assertEquals("6%", rowText(lens, "2025", "Jan", null));
-   }
-
-   @Test
-   void dcAbsoluteChangeTotalKeepsPlainAggregate() throws Exception {
-      VSTableLens lens = run("DcChangeOff", rowDcCrosstab(dc(DateComparisonInfo.CHANGE)), false);
-
-      assertEquals("321051", rowText(lens, "2024", "Total", null));
-      assertEquals("332681", rowText(lens, "2025", "Total", null));
-      // a detail month keeps its computed change: Sum(wind) of Jan 2025 minus Jan 2024 in the
-      // EmbeddedVS1 fixture (113120 - 107155), not a total and not a percent
-      assertEquals("5965", rowText(lens, "2025", "Jan", null));
-   }
-
-   /**
-    * The date dimension in columns, so the totals are column totals.
-    */
-   @Test
-   void dcPercentChangeColumnTotalsAreBlankWhenTotalsAreNotComputed() throws Exception {
-      VSDimensionRef dim = dateDim(XConstants.MONTH_DATE_GROUP);
-      dim.setSubTotalVisibleValue("true");
-      CrosstabVSAssembly crosstab = crosstab(dc(DateComparisonInfo.PERCENT));
-      crosstab.getVSCrosstabInfo().setDesignColHeaders(new DataRef[] { dim });
-      VSTableLens lens = run("ColDcPctOff", crosstab, false);
-
-      int yearRow = findRow(lens, "2024");
-      int monthRow = yearRow + 1;
-      int valueRow = lens.getRowCount() - 1;
-      List<String> totals = new ArrayList<>();
-      List<String> months2025 = new ArrayList<>();
-
-      for(int c = 0; c < lens.getColCount(); c++) {
-         if("Total".equals(lens.getText(monthRow, c))) {
-            totals.add(lens.getText(valueRow, c));
-         }
-         else if("2025".equals(lens.getText(yearRow, c))) {
-            months2025.add(lens.getText(valueRow, c));
-         }
-      }
-
-      assertEquals(List.of("", ""), totals, dump(lens));
-      assertEquals(List.of("6%", "6%", "0%"), months2025, dump(lens));
-   }
-
-   /**
-    * The shape of Bug #78858: no date comparison, a percent change from the previous month
-    * with a year subtotal.
-    */
-   @Test
-   void plainPercentChangeSubtotalIsBlank() throws Exception {
-      VSDimensionRef year = dateDim(XConstants.YEAR_DATE_GROUP);
-      year.setSubTotalVisibleValue("true");
-      VSDimensionRef month = dateDim(XConstants.MONTH_OF_YEAR_DATE_GROUP);
-      CrosstabVSAssembly crosstab = crosstab(null);
-      VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
-      cinfo.setDesignRowHeaders(new DataRef[] { year, month });
-      ChangeCalc calc = new ChangeCalc();
-      calc.setFrom(ValueOfCalc.PREVIOUS);
-      calc.setColumnName("MonthOfYear(D)");
-      calc.setAsPercent(true);
-      ((VSAggregateRef) cinfo.getDesignAggregates()[0]).setCalculator(calc);
-      VSTableLens lens = run("PlainPctOff", crosstab, false);
-
-      assertEquals("", rowText(lens, "2024", "Total", null));
-      assertEquals("", rowText(lens, "2025", "Total", null));
-      assertEquals("-3%", rowText(lens, "2024", "Feb", null));
-      assertEquals("6%", rowText(lens, "2024", "Mar", null));
    }
 
    private CrosstabVSAssembly rowDcCrosstab(DateComparisonInfo dc) {
@@ -285,16 +234,6 @@ class DateComparisonCrosstabPercentTotalViewsheetTest {
       dim.setDateLevelValue(level + "");
       return dim;
    }
-
-   private static OpenViewsheetEvent openViewsheetEvent() {
-      OpenViewsheetEvent event = new OpenViewsheetEvent();
-      event.setEntryId("1^128^__NULL__^EmbeddedVS1^host-org");
-      event.setViewer(true);
-      return event;
-   }
-
-   @RegisterExtension
-   RuntimeViewsheetExtension vsResource = new RuntimeViewsheetExtension(openViewsheetEvent());
 
    private ViewsheetSandbox box;
    private Viewsheet vs;

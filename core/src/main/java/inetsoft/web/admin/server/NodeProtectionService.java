@@ -32,6 +32,7 @@ import org.springframework.stereotype.Service;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.time.Duration;
+import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -63,18 +64,49 @@ public class NodeProtectionService implements MembershipListener, MapChangeListe
          ClusterConfig clusterConfig = InetsoftConfig.getInstance().getCluster();
 
          if(clusterConfig != null && !clusterConfig.isClientMode()) {
-            cluster.addReplicatedMapListener(NODE_PROTECTION_MAP, this);
-
-            // scheduleAtFixedRate is idempotent across the cluster (deduplicates by class name)
-            cluster.getScheduledExecutor().scheduleAtFixedRate(
-               new NodeProtectionCoordinatorTask(), 20L, 20L, TimeUnit.SECONDS);
-
-            if(clusterConfig.getMinSingleInstanceUptime() > 0L) {
-               minUptime = Duration.ofSeconds(clusterConfig.getMinSingleInstanceUptime());
-               cluster.addMembershipListener(this);
-               updateSingleInstance();
-            }
+            startCoordination(clusterConfig);
          }
+      }
+   }
+
+   void startCoordination(ClusterConfig clusterConfig) {
+      cluster.addReplicatedMapListener(NODE_PROTECTION_MAP, this);
+      // after the listener, so a value put in between is applied by one of the two
+      applyStoredProtection();
+
+      // scheduleAtFixedRate is idempotent across the cluster (deduplicates by class name)
+      cluster.getScheduledExecutor().scheduleAtFixedRate(
+         new NodeProtectionCoordinatorTask(), 20L, 20L, TimeUnit.SECONDS);
+
+      if(clusterConfig.getMinSingleInstanceUptime() > 0L) {
+         minUptime = Duration.ofSeconds(clusterConfig.getMinSingleInstanceUptime());
+         cluster.addMembershipListener(this);
+         updateSingleInstance();
+      }
+   }
+
+   /**
+    * Applies the value the coordinator stored for this node before the map listener was
+    * registered. The coordinator sees a node as soon as it joins the cluster, but it only puts
+    * a value when it changes, so a value put while this node was still starting would
+    * otherwise never be applied.
+    */
+   void applyStoredProtection() {
+      Map<String, Boolean> map = cluster.getReplicatedMap(NODE_PROTECTION_MAP);
+
+      // read under the lock that entryUpdated() takes through updateNodeProtection(), so a
+      // later map event is applied after this value and cannot be overwritten by it
+      lock.lock();
+
+      try {
+         Boolean value = map.get(cluster.getLocalMember());
+
+         if(value != null) {
+            updateNodeProtection(value);
+         }
+      }
+      finally {
+         lock.unlock();
       }
    }
 

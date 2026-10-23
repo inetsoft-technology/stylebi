@@ -117,7 +117,13 @@ class LdapCheckParametersCommunicationTest {
       reply = "not tls\r\n".getBytes(StandardCharsets.US_ASCII);
       SRSecurityException ex = assertThrows(SRSecurityException.class,
          () -> generic("ldaps", server.getLocalPort()).checkParameters());
-      assertTrue(ex.getMessage().contains("TLS"), ex.getMessage());
+      // The JDK client races between reading the plain-text bytes (SSLException, "TLS"
+      // wording) and seeing the server close (SocketException "Connection or outbound has
+      // closed", generic wording). Both are a reported connection failure; the wording
+      // depends on that race, so assert the failure kind, not the wording (Bug #79135).
+      assertInstanceOf(javax.naming.CommunicationException.class, ex.getCause(),
+                       ex.getMessage());
+      assertTrue(ex.getMessage().startsWith("Failed to"), ex.getMessage());
    }
 
    @Test

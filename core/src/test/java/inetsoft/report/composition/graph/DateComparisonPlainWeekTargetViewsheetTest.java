@@ -27,11 +27,12 @@ import inetsoft.report.composition.execution.DataMap;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.filter.DCMergeDatePartFilter.MergePartCell;
 import inetsoft.test.*;
+import inetsoft.test.dc.DcInMemoryViewsheetFixture;
+import inetsoft.test.dc.DcPeriods;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -41,20 +42,20 @@ import inetsoft.web.viewsheet.controller.VSDataTipService;
 import inetsoft.web.viewsheet.controller.chart.VSChartBrushService;
 import inetsoft.web.viewsheet.controller.chart.VSChartFlyoverService;
 import inetsoft.web.viewsheet.event.OpenDataTipEvent;
-import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.event.chart.VSChartBrushEvent;
 import inetsoft.web.viewsheet.event.chart.VSChartFlyoverEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.RegisterExtension;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.time.LocalDate;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -70,20 +71,30 @@ import static org.mockito.Mockito.*;
  * comparison's own week group: the filtered data lost the calc column and its merged
  * (week-day) cells, the brushed layer was empty and the background showed the calc week codes.
  * <p>
- * Fixture: EmbeddedVS1, calc D = new Date(2019 + day % 3, 0, 1 + floor(day / 3) % 70), so
- * every year has data in January to early March, inside the date comparison window. Expected
- * values are summed from the source table rows, not from the date comparison output.
- * <p>
- * The class takes about a minute on the dense fixture, so it runs with {@code slow}.
+ * Fixture: an in-memory runtime viewsheet ({@link DcInMemoryViewsheetFixture#openRuntime}) with
+ * one row per day from January 1 to March 11 of 2019, 2020 and 2021, inside the date comparison
+ * window. Expected values are summed from the source rows, not from the date comparison output.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
+                                  LibManagerTestConfiguration.class, PluginsTestConfiguration.class,
+                                  DcInMemoryViewsheetFixture.Config.class },
                       initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@SreeHome(importResources = "/inetsoft/report/composition/EmbeddedVS1.zip")
-@Tag("slow")
-@Tag("integration")
+@SreeHome
+@Tag("core")
 class DateComparisonPlainWeekTargetViewsheetTest {
+   private final DcInMemoryViewsheetFixture dcFixture = new DcInMemoryViewsheetFixture();
+
+   @BeforeEach
+   void setUp() {
+      dcFixture.setUp();
+   }
+
+   @AfterEach
+   void tearDown() {
+      dcFixture.tearDown();
+   }
+
    /**
     * VSChartBrushService on a plain week bar: the date comparison chart keeps the unbrushed
     * values as background and brushes the days of that week, merged like the unbrushed data;
@@ -248,21 +259,24 @@ class DateComparisonPlainWeekTargetViewsheetTest {
       final List<Object[]> rows = new ArrayList<>();
 
       Fixture() throws Exception {
-         rvs = vsResource.getRuntimeViewsheet();
-         box = rvs.getViewsheetSandbox().orElseThrow();
-         vs = box.getViewsheet();
-         SourceInfo sinfo =
-            (SourceInfo) ((TableVSAssembly) vs.getAssembly(TABLE)).getSourceInfo().clone();
+         List<Object[]> sheetRows = new ArrayList<>();
 
-         CalculateRef dateCalc = new CalculateRef(true);
-         dateCalc.setName("D");
-         ExpressionRef dateExpr = new ExpressionRef(null, "D");
-         dateExpr.setExpression(
-            "new Date(2019 + field['day'] % 3, 0, 1 + Math.floor(field['day'] / 3) % 70)");
-         dateExpr.setDataType(XSchema.DATE);
-         dateCalc.setDataRef(dateExpr);
-         dateCalc.setSQL(false);
-         vs.addCalcField(sinfo.getSource(), dateCalc);
+         for(int year = 2019; year <= 2021; year++) {
+            for(int offset = 0; offset < 70; offset++) {
+               LocalDate day = LocalDate.of(year, 1, 1).plusDays(offset);
+               int wind = DcInMemoryViewsheetFixture.dayValue(day);
+               sheetRows.add(new Object[] { java.sql.Date.valueOf(day), wind });
+               rows.add(new Object[] { DcPeriods.toDate(day), wind });
+            }
+         }
+
+         DcInMemoryViewsheetFixture.RuntimeSheet sheet = dcFixture.openRuntime(
+            new String[] { "D", "wind" }, new String[] { XSchema.DATE, XSchema.INTEGER },
+            sheetRows);
+         rvs = sheet.rvs();
+         box = sheet.box();
+         vs = sheet.vs();
+         SourceInfo sinfo = sheet.source();
 
          ChartVSAssembly chart2 = chart(sinfo, DC_CHART, XConstants.YEAR_DATE_GROUP, reporterDc());
          source = chart(sinfo, SOURCE, DateRangeRef.WEEK_OF_YEAR_PART, null);
@@ -280,30 +294,6 @@ class DateComparisonPlainWeekTargetViewsheetTest {
             allData.put(mergedKey(all.getData(YEAR, r), part, "Chart2 all data"),
                         number(all.getData(SUM, r)));
             dcDays.add(((MergePartCell) part).getOriginalData());
-         }
-
-         box.resetDataMap(TABLE);
-         TableLens table = (TableLens) box.getData(TABLE);
-         table.moreRows(Integer.MAX_VALUE);
-         int dayCol = -1;
-         int windCol = -1;
-
-         for(int c = 0; c < table.getColCount(); c++) {
-            if("day".equals(table.getObject(0, c))) {
-               dayCol = c;
-            }
-            else if("wind".equals(table.getObject(0, c))) {
-               windCol = c;
-            }
-         }
-
-         assertTrue(dayCol >= 0 && windCol >= 0, "fixture: day and wind columns");
-
-         for(int r = table.getHeaderRowCount(); r < table.getRowCount(); r++) {
-            int day = ((Number) table.getObject(r, dayCol)).intValue();
-            Date date = new GregorianCalendar(2019 + day % 3, Calendar.JANUARY,
-                                              1 + (day / 3) % 70).getTime();
-            rows.add(new Object[] { date, table.getObject(r, windCol) });
          }
       }
 
@@ -548,17 +538,6 @@ class DateComparisonPlainWeekTargetViewsheetTest {
       return agg;
    }
 
-   private static OpenViewsheetEvent openViewsheetEvent() {
-      OpenViewsheetEvent event = new OpenViewsheetEvent();
-      event.setEntryId("1^128^__NULL__^EmbeddedVS1^host-org");
-      event.setViewer(true);
-      return event;
-   }
-
-   @RegisterExtension
-   RuntimeViewsheetExtension vsResource = new RuntimeViewsheetExtension(openViewsheetEvent());
-
-   private static final String TABLE = "TableView1";
    private static final String SOURCE = "ChartWeek";
    private static final String DC_CHART = "Chart2";
    private static final String DC_CROSSTAB = "XDc";
