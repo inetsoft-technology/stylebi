@@ -24,8 +24,6 @@ import org.xml.sax.InputSource;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.*;
-import java.time.Month;
-import java.util.Calendar;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -35,8 +33,8 @@ import java.util.concurrent.*;
  * <p>
  * An input is the XML of one time condition ({@code <Condition type="TimeCondition" ...>}),
  * as task storage, EM task import and deploy import read it. {@link #check(String)} parses it
- * with {@link TimeCondition#parseXML}, which may reject it, skips the values of Bug #79056,
- * and then verifies that:
+ * with {@link TimeCondition#parseXML}, which may reject it, skips an hour, minute or second out
+ * of range (see {@code isTimeOutOfRange}), and then verifies that:
  * <ol>
  *    <li>parsing returns within {@link #STEP_LIMIT_MS} and throws no {@link Error};</li>
  *    <li>for each of a few start times, {@code getRetryTime} returns within
@@ -77,7 +75,7 @@ public final class TimeConditionProperties {
          return false; // rejected
       }
 
-      if(isKnownOutOfRange(condition)) {
+      if(isTimeOutOfRange(condition)) {
          return false;
       }
 
@@ -86,7 +84,7 @@ public final class TimeConditionProperties {
       for(long start : STARTS) {
          String where = xml + " from " + start;
          // the clock reads the start time, as when a task is saved (Scheduler.addTask)
-         long fire = timed(where, () -> condition.getRetryTime(start, start, start));
+         long fire = timed(where, () -> condition.getRetryTime(start, start, null, start));
 
          if(fire >= 0 && fire < start) {
             throw new AssertionError(where + " returned the earlier time " + fire);
@@ -98,7 +96,7 @@ public final class TimeConditionProperties {
 
          // as TimeConditionTriggerImpl.getFireTimeAfter computes it when the trigger fires
          long next = timed(where + " after the fire at " + fire,
-                           () -> condition.getRetryTime(fire + 30000, fire, fire));
+                           () -> condition.getRetryTime(fire + 30000, fire, null, fire));
 
          if(next >= 0 && next <= fire) {
             throw new AssertionError(
@@ -120,55 +118,19 @@ public final class TimeConditionProperties {
    }
 
    /**
-    * Out-of-range values, which no layer refuses (Bug #79056): some make getRetryTime loop
-    * forever, an hour or minute outside its range can repeat a fire or return a time before
-    * the start. Skipped so that the fuzzer looks for other defects; remove this check with
-    * the fix.
+    * An hour, minute or second outside its range, which no layer refuses: it can repeat a fire,
+    * and writing the XML changes it (see the note on Bug #79056, whose fix bounded the walks
+    * but kept these values). Skipped so that the fuzzer looks for other defects; remove this
+    * check when such values are refused.
     */
-   private static boolean isKnownOutOfRange(TimeCondition condition) {
-      int type = condition.getType();
-
-      if(type != TimeCondition.AT &&
+   private static boolean isTimeOutOfRange(TimeCondition condition) {
+      return condition.getType() != TimeCondition.AT &&
          (outOfRange(condition.getHour(), 23, false) ||
           outOfRange(condition.getMinute(), 59, false) ||
           outOfRange(condition.getSecond(), 59, false) ||
           outOfRange(condition.getHourEnd(), 23, true) ||
           outOfRange(condition.getMinuteEnd(), 59, true) ||
-          outOfRange(condition.getSecondEnd(), 59, true)))
-      {
-         return true;
-      }
-
-      if(type == TimeCondition.EVERY_WEEK || type == TimeCondition.EVERY_HOUR) {
-         for(int day : condition.getDaysOfWeek()) {
-            if(day < Calendar.SUNDAY || day > Calendar.SATURDAY) {
-               return true;
-            }
-         }
-      }
-
-      if(type == TimeCondition.EVERY_HOUR && condition.getHourlyInterval() > 0 &&
-         (long) (condition.getHourlyInterval() * 3600000) == 0)
-      {
-         return true;
-      }
-
-      if(type == TimeCondition.EVERY_MONTH) {
-         int longest = 0;
-
-         for(int month : condition.getMonthsOfYear()) {
-            if(month < Calendar.JANUARY || month > Calendar.DECEMBER) {
-               return true;
-            }
-
-            longest = Math.max(longest, Month.of(month + 1).maxLength());
-         }
-
-         return condition.getWeekOfMonth() < 0 &&
-            Math.abs(condition.getDayOfMonth()) > longest;
-      }
-
-      return false;
+          outOfRange(condition.getSecondEnd(), 59, true));
    }
 
    // an end time field is -1 when the condition has no end time

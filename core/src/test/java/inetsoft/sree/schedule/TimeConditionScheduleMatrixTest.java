@@ -18,11 +18,17 @@
 
 package inetsoft.sree.schedule;
 
+import inetsoft.sree.SreeEnv;
+import inetsoft.test.*;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
 import org.w3c.dom.Element;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.xml.sax.InputSource;
 
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -49,29 +55,36 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>The year runs from 2027-07-01 to 2028-07-01, so it has both DST changes of every zone
  * below and the leap day 2028-02-29. For a wall time that a DST change skips or repeats, the
- * oracle uses the rule proposed for D1 in #79041 (not decided yet): a skipped time moves later
- * by the length of the gap, and a repeated time fires once, at its first occurrence.</p>
+ * oracle uses the rule #79052 settled (D1 in #79041): a skipped time moves later by the length
+ * of the gap, and a repeated time fires once, at its later (standard-time) occurrence. Weeks of
+ * an every-N-weeks condition start on the <code>week.start</code> day (#79053), Sunday when it
+ * is not set, whatever the JVM locale. The context is needed because that setting is read
+ * through <code>SreeEnv</code>.</p>
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class TimeConditionScheduleMatrixTest {
    @BeforeEach
    void saveDefaults() {
       defaultZone = TimeZone.getDefault();
       defaultLocale = Locale.getDefault();
+      defaultWeekStart = SreeEnv.getProperty("week.start");
    }
 
    @AfterEach
    void restoreDefaults() {
       TimeZone.setDefault(defaultZone);
       Locale.setDefault(defaultLocale);
+      setWeekStart(defaultWeekStart);
    }
 
    @ParameterizedTest(name = "{0}")
    @MethodSource("dayCases")
-   void conditionFiresOnceAtItsWallClockTime(String name, ZoneId zone, DaySpec spec,
-                                             Locale locale)
-   {
-      assertDaySpec(name, zone, spec, locale, TIMES);
+   void conditionFiresOnceAtItsWallClockTime(String name, ZoneId zone, DaySpec spec, Env env) {
+      assertDaySpec(name, zone, spec, env, TIMES);
    }
 
    @ParameterizedTest(name = "{0}")
@@ -92,7 +105,7 @@ class TimeConditionScheduleMatrixTest {
          for(DaySpec spec : List.of(DAILY, WEEKLY_MON_WED_FRI, MONTHLY_LAST_DAY)) {
             for(LocalTime time : TIMES) {
                checks.add(() -> assertChain(id + " " + spec.name + " at " + time, zone,
-                  spec.create(time, zone), dayOracle(spec, time, zone)));
+                  spec.create(time, zone), dayOracle(spec, time, zone, null)));
             }
          }
       }
@@ -150,7 +163,7 @@ class TimeConditionScheduleMatrixTest {
       TimeCondition parsed = parseXml(xml);
 
       assertEquals("Asia/Shanghai", parsed.getTimeZone().getID());
-      assertEquals(dayOracle(DAILY, LocalTime.of(9, 0), ZoneId.of("Asia/Shanghai")),
+      assertEquals(dayOracle(DAILY, LocalTime.of(9, 0), ZoneId.of("Asia/Shanghai"), null),
                    chain(parsed, ZoneId.of("Asia/Shanghai")));
    }
 
@@ -164,35 +177,35 @@ class TimeConditionScheduleMatrixTest {
          "interval=\"1\"></Condition>");
 
       assertEquals("America/New_York", parsed.getTimeZone().getID());
-      assertEquals(dayOracle(DAILY, LocalTime.of(9, 0), ZoneId.of("America/New_York")),
+      assertEquals(dayOracle(DAILY, LocalTime.of(9, 0), ZoneId.of("America/New_York"), null),
                    chain(parsed, ZoneId.of("America/New_York")));
    }
 
-   // Current behavior, recorded in #79041: the fire time keeps the milliseconds of the clock
-   // reading the calculation starts from.
+   // Before #79052 the fire time kept the milliseconds of the clock reading the calculation
+   // started from, which let a trigger fired early at midnight get the same day again.
    @Test
-   void fireTimeKeepsTheMillisecondsOfTheClock() {
+   void fireTimeHasNoMilliseconds() {
       ZoneId zone = ZoneId.of("UTC");
       TimeCondition condition = DAILY.create(LocalTime.of(9, 0), zone);
       long now = ZonedDateTime.of(2027, 7, 1, 8, 0, 0, 123_000_000, zone)
          .toInstant().toEpochMilli();
 
-      long next = condition.getRetryTime(now, now, now);
+      long next = condition.getRetryTime(now, now, null, now);
 
-      assertEquals(ZonedDateTime.of(2027, 7, 1, 9, 0, 0, 123_000_000, zone).toInstant(),
+      assertEquals(ZonedDateTime.of(2027, 7, 1, 9, 0, 0, 0, zone).toInstant(),
                    Instant.ofEpochMilli(next));
    }
 
-   @Disabled("Bug #79052: a DST change makes a time condition fire twice or at the wrong time")
+   // Bug #79052
    @ParameterizedTest(name = "{0}")
    @MethodSource("dstCases")
    void conditionFiresOnceAtItsWallClockTimeAcrossDstChanges(String name, ZoneId zone,
-                                                             DaySpec spec, Locale locale)
+                                                             DaySpec spec, Env env)
    {
-      assertDaySpec(name, zone, spec, locale, DST_TIMES);
+      assertDaySpec(name, zone, spec, env, DST_TIMES);
    }
 
-   @Disabled("Bug #79052: a DST change makes a time condition fire twice or at the wrong time")
+   // Bug #79052
    @ParameterizedTest(name = "{0}")
    @MethodSource("dstHourCases")
    void hourlyConditionStartingInADstGapFiresInsideItsWindow(String name, ZoneId zone,
@@ -201,17 +214,17 @@ class TimeConditionScheduleMatrixTest {
       assertChain(spec.name, zone, spec.create(zone), hourOracle(spec, zone));
    }
 
-   @Disabled("Bug #79052: a DST change makes a time condition fire twice or at the wrong time")
+   // Bug #79052
    @ParameterizedTest(name = "{0} {1} {2} -> {3}")
    @CsvSource({
       // spring forward: the wall time doesn't exist and moves later by the gap
       "America/New_York,    2028-03-12, 02:30, 2028-03-12T03:30-04:00",
       "Europe/London,       2028-03-26, 01:30, 2028-03-26T02:30+01:00",
       "Australia/Lord_Howe, 2027-10-03, 02:15, 2027-10-03T02:45+11:00",
-      // fall back: the wall time happens twice and fires once, the first time
-      "America/New_York,    2027-11-07, 01:30, 2027-11-07T01:30-04:00",
-      "Europe/London,       2027-10-31, 01:30, 2027-10-31T01:30+01:00",
-      "Australia/Lord_Howe, 2028-04-02, 01:45, 2028-04-02T01:45+11:00"
+      // fall back: the wall time happens twice and fires once, the later (standard-time) time
+      "America/New_York,    2027-11-07, 01:30, 2027-11-07T01:30-05:00",
+      "Europe/London,       2027-10-31, 01:30, 2027-10-31T01:30Z",
+      "Australia/Lord_Howe, 2028-04-02, 01:45, 2028-04-02T01:45+10:30"
    })
    void dailyConditionFiresOnceOnADstChangeDay(String zoneId, String day, String time,
                                                String expected)
@@ -224,7 +237,7 @@ class TimeConditionScheduleMatrixTest {
       List<Instant> fires = new ArrayList<>();
 
       for(int i = 0; i < 3; i++) {
-         prev = condition.getRetryTime(prev + 30000, prev, prev);
+         prev = condition.getRetryTime(prev + 30000, prev, null, prev);
 
          if(Instant.ofEpochMilli(prev).atZone(zone).toLocalDate().equals(date)) {
             fires.add(Instant.ofEpochMilli(prev));
@@ -235,20 +248,10 @@ class TimeConditionScheduleMatrixTest {
                    "fires on " + day);
    }
 
-   @Disabled("Bug #79053: \"every N weeks\" runs every week or skips selected days")
-   @ParameterizedTest(name = "{0}")
-   @MethodSource("everyNWeeksBugCases")
-   void everyNWeeksFiresOnlyInEveryNthWeek(String name, ZoneId zone, DaySpec spec,
-                                           Locale locale)
-   {
-      assertDaySpec(name, zone, spec, locale, TIMES);
-   }
-
    // Quartz calls Trigger.triggered() up to 2 ms before the fire time
    // (QuartzSchedulerThread waits until less than 2 ms are left), so "now" can still be the
-   // previous day when a task fires at midnight.
-   @Disabled("Not filed yet, see the WP2-1 note on Testing #79041: a task that fires at 00:00:00 " +
-             "can fire again right away")
+   // previous day when a task fires at midnight. Before #79052 that gave the same day's fire time
+   // again (see the WP2-1 note on Testing #79041).
    @ParameterizedTest(name = "{0} at {1}")
    @CsvSource({
       "UTC, 00:00:00", "America/New_York, 00:00:00", "Asia/Shanghai, 00:00:00",
@@ -260,7 +263,7 @@ class TimeConditionScheduleMatrixTest {
       TimeCondition condition = DAILY.create(at, zone);
       long prev = ZonedDateTime.of(LocalDate.of(2027, 7, 2), at, zone).toInstant().toEpochMilli();
 
-      long next = condition.getRetryTime(prev + 30000, prev, prev - 2);
+      long next = condition.getRetryTime(prev + 30000, prev, null, prev - 2);
 
       assertEquals(ZonedDateTime.of(LocalDate.of(2027, 7, 3), at, zone).toInstant(),
                    Instant.ofEpochMilli(next),
@@ -272,14 +275,9 @@ class TimeConditionScheduleMatrixTest {
 
       for(String id : ZONES) {
          for(DaySpec spec : DAY_SPECS) {
-            // only the weekly calculation uses the locale's first day of the week
-            List<Locale> locales = spec.weekly ? List.of(Locale.US, Locale.CHINA) :
-               List.of(Locale.US);
-
-            for(Locale locale : locales) {
-               if(!spec.bugLocales.contains(locale)) {
-                  cases.add(dayCase(id, spec, locale));
-               }
+            // the week start and the JVM locale matter to weekly conditions only
+            for(Env env : spec.weekly ? WEEKLY_ENVS : List.of(DEFAULT_ENV)) {
+               cases.add(dayCase(id, spec, env));
             }
          }
       }
@@ -289,13 +287,7 @@ class TimeConditionScheduleMatrixTest {
 
    private static Stream<Arguments> dstCases() {
       return DST_ZONES.stream().flatMap(id -> DAY_SPECS.stream()
-         .filter(spec -> !spec.bugLocales.contains(Locale.US))
-         .map(spec -> dayCase(id, spec, Locale.US)));
-   }
-
-   private static Stream<Arguments> everyNWeeksBugCases() {
-      return DAY_SPECS.stream().flatMap(spec -> spec.bugLocales.stream()
-         .map(locale -> dayCase("UTC", spec, locale)));
+         .map(spec -> dayCase(id, spec, DEFAULT_ENV)));
    }
 
    private static Stream<Arguments> roundTripCases() {
@@ -303,9 +295,7 @@ class TimeConditionScheduleMatrixTest {
 
       for(String id : ROUND_TRIP_ZONES) {
          for(DaySpec spec : DAY_SPECS) {
-            if(!spec.bugLocales.contains(Locale.US)) {
-               cases.add(Arguments.of(id + " " + spec.name, ZoneId.of(id), spec.factory(), TIMES));
-            }
+            cases.add(Arguments.of(id + " " + spec.name, ZoneId.of(id), spec.factory(), TIMES));
          }
 
          for(HourSpec spec : HOUR_SPECS) {
@@ -361,23 +351,30 @@ class TimeConditionScheduleMatrixTest {
          .map(id -> Arguments.of(id + " " + HOURLY_FROM_GAP.name, ZoneId.of(id), HOURLY_FROM_GAP));
    }
 
-   private static Arguments dayCase(String id, DaySpec spec, Locale locale) {
-      String name = id + " " + spec.name + (spec.weekly ? " " + locale : "");
-      return Arguments.of(name, ZoneId.of(id), spec, locale);
+   private static Arguments dayCase(String id, DaySpec spec, Env env) {
+      String name = id + " " + spec.name + (spec.weekly ? " " + env : "");
+      return Arguments.of(name, ZoneId.of(id), spec, env);
    }
 
-   private void assertDaySpec(String name, ZoneId zone, DaySpec spec, Locale locale,
+   private void assertDaySpec(String name, ZoneId zone, DaySpec spec, Env env,
                               List<LocalTime> times)
    {
-      Locale.setDefault(locale);
+      Locale.setDefault(env.locale());
+      setWeekStart(env.weekStart() == null ? null : env.weekStart().name().toLowerCase());
       List<Executable> checks = new ArrayList<>();
 
       for(LocalTime time : times) {
          checks.add(() -> assertChain(spec.name + " at " + time, zone,
-            spec.create(time, zone), dayOracle(spec, time, zone)));
+            spec.create(time, zone), dayOracle(spec, time, zone, env.weekStart())));
       }
 
       assertAll(name, checks);
+   }
+
+   // an empty value clears the setting, as TimeConditionWeekStartTest does
+   private static void setWeekStart(String value) {
+      SreeEnv.setProperty("week.start", value == null ? "" : value);
+      Tool.clearWeekStartCache();
    }
 
    private static void assertChain(String name, ZoneId zone, TimeCondition condition,
@@ -399,7 +396,7 @@ class TimeConditionScheduleMatrixTest {
       long start = FROM.atZone(zone).toInstant().toEpochMilli();
       long end = TO.atZone(zone).toInstant().toEpochMilli();
       List<Instant> fires = new ArrayList<>();
-      long next = condition.getRetryTime(start, start, start);
+      long next = condition.getRetryTime(start, start, null, start);
 
       while(next >= 0 && next < end && fires.size() < MAX_FIRES) {
          if(!fires.isEmpty() && next <= fires.get(fires.size() - 1).toEpochMilli()) {
@@ -408,20 +405,24 @@ class TimeConditionScheduleMatrixTest {
          }
 
          fires.add(Instant.ofEpochMilli(next));
-         next = condition.getRetryTime(next + 30000, next, next);
+         next = condition.getRetryTime(next + 30000, next, null, next);
       }
 
       return fires;
    }
 
-   private static List<Instant> dayOracle(DaySpec spec, LocalTime time, ZoneId zone) {
+   private static List<Instant> dayOracle(DaySpec spec, LocalTime time, ZoneId zone,
+                                          DayOfWeek weekStart)
+   {
       Instant start = FROM.atZone(zone).toInstant();
       Instant end = TO.atZone(zone).toInstant();
       LocalDate startDate = FROM.toLocalDate();
       List<Instant> fires = new ArrayList<>();
 
       for(LocalDate day = startDate; !day.isAfter(TO.toLocalDate()); day = day.plusDays(1)) {
-         if(spec.runsOn.test(new Day(day, startDate))) {
+         if(spec.runsOn.test(new Day(day, startDate,
+                                     weekStart == null ? DayOfWeek.SUNDAY : weekStart)))
+         {
             Instant fire = resolve(day, time, zone);
 
             if(!fire.isBefore(start) && fire.isBefore(end)) {
@@ -463,10 +464,11 @@ class TimeConditionScheduleMatrixTest {
 
    /**
     * The instant a wall-clock time stands for: a time in the spring-forward gap moves later
-    * by the length of the gap, and a time in the fall-back overlap takes its first occurrence.
+    * by the length of the gap, and a time in the fall-back overlap takes its later occurrence.
     */
    private static Instant resolve(LocalDate day, LocalTime time, ZoneId zone) {
-      return ZonedDateTime.ofLocal(LocalDateTime.of(day, time), zone, null).toInstant();
+      return ZonedDateTime.ofLocal(LocalDateTime.of(day, time), zone, null)
+         .withLaterOffsetAtOverlap().toInstant();
    }
 
    private static String describeDifference(List<Instant> expected, List<Instant> actual,
@@ -501,9 +503,10 @@ class TimeConditionScheduleMatrixTest {
       return Arrays.stream(days).mapToInt(d -> d.getValue() % 7 + 1).sorted().toArray();
    }
 
-   private static long sundayWeek(LocalDate day) {
-      LocalDate sunday = day.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY));
-      return ChronoUnit.WEEKS.between(LocalDate.of(2000, 1, 2), sunday);
+   // the number of the week a day is in, for weeks that start on weekStart
+   private static long week(LocalDate day, DayOfWeek weekStart) {
+      LocalDate first = day.with(TemporalAdjusters.previousOrSame(weekStart));
+      return ChronoUnit.WEEKS.between(LocalDate.of(2000, 1, 2), first);
    }
 
    private static boolean isWeekday(LocalDate day) {
@@ -514,8 +517,22 @@ class TimeConditionScheduleMatrixTest {
       return day.getDayOfWeek() == dayOfWeek && (day.getDayOfMonth() - 1) / 7 + 1 == n;
    }
 
-   /** A date the oracle checks, and the date the schedule starts from. */
-   private record Day(LocalDate date, LocalDate start) {
+   /**
+    * A date the oracle checks, the date the schedule starts from, and the first day of the
+    * week (<code>week.start</code>).
+    */
+   private record Day(LocalDate date, LocalDate start, DayOfWeek weekStart) {
+   }
+
+   /**
+    * The JVM default locale and the <code>week.start</code> setting (<code>null</code> when not
+    * set) a case runs with.
+    */
+   private record Env(Locale locale, DayOfWeek weekStart) {
+      @Override
+      public String toString() {
+         return locale + (weekStart == null ? "" : ", week.start " + weekStart);
+      }
    }
 
    private interface DayRule {
@@ -523,16 +540,14 @@ class TimeConditionScheduleMatrixTest {
    }
 
    /**
-    * @param weekly     whether the condition is weekly, whose calculation depends on the
-    *                   locale's first day of the week.
-    * @param bugLocales default locales in which the condition is known to fire on the wrong
-    *                   days (Bug #79053).
+    * @param weekly whether the condition is weekly, whose weeks start on the
+    *               <code>week.start</code> day.
     */
-   private record DaySpec(String name, boolean weekly, Set<Locale> bugLocales,
+   private record DaySpec(String name, boolean weekly,
                           Function<LocalTime, TimeCondition> factory, DayRule runsOn)
    {
       DaySpec(String name, Function<LocalTime, TimeCondition> factory, DayRule runsOn) {
-         this(name, false, Set.of(), factory, runsOn);
+         this(name, false, factory, runsOn);
       }
 
       TimeCondition create(LocalTime time, ZoneId zone) {
@@ -598,14 +613,11 @@ class TimeConditionScheduleMatrixTest {
       return condition;
    }
 
-   private static DaySpec weeklySpec(String name, int interval, Set<Locale> bugLocales,
-                                     DayOfWeek... days)
-   {
+   private static DaySpec weeklySpec(String name, int interval, DayOfWeek... days) {
       Set<DayOfWeek> selected = EnumSet.copyOf(Arrays.asList(days));
-      // weeks start on Sunday, as the editor lists them
       DayRule rule = d -> selected.contains(d.date().getDayOfWeek()) &&
-         (sundayWeek(d.date()) - sundayWeek(d.start())) % interval == 0;
-      return new DaySpec(name, true, bugLocales, t -> weekly(t, interval, days), rule);
+         (week(d.date(), d.weekStart()) - week(d.start(), d.weekStart())) % interval == 0;
+      return new DaySpec(name, true, t -> weekly(t, interval, days), rule);
    }
 
    private static final LocalDateTime FROM = LocalDateTime.of(2027, 7, 1, 12, 34, 56);
@@ -640,10 +652,17 @@ class TimeConditionScheduleMatrixTest {
 
    private static final int[] ALL_MONTHS = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
 
+   private static final Env DEFAULT_ENV = new Env(Locale.US, null);
+
+   // a Sunday-first and a Monday-first JVM locale with week.start not set, and week.start set
+   // to Monday
+   private static final List<Env> WEEKLY_ENVS = List.of(
+      DEFAULT_ENV, new Env(Locale.CHINA, null), new Env(Locale.US, DayOfWeek.MONDAY));
+
    private static final DaySpec DAILY = new DaySpec(
       "daily", t -> daily(t, 1, false), d -> true);
    private static final DaySpec WEEKLY_MON_WED_FRI = weeklySpec(
-      "weekly Mon/Wed/Fri", 1, Set.of(), DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY);
+      "weekly Mon/Wed/Fri", 1, DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY);
    private static final DaySpec MONTHLY_LAST_DAY = new DaySpec(
       "monthly last day", t -> monthlyDay(t, TimeCondition.LAST_DAY_OF_MONTH, ALL_MONTHS),
       d -> d.date().getDayOfMonth() == d.date().lengthOfMonth());
@@ -654,14 +673,14 @@ class TimeConditionScheduleMatrixTest {
                   d -> ChronoUnit.DAYS.between(d.start(), d.date()) % 2 == 0),
       new DaySpec("weekdays", t -> daily(t, 1, true), d -> isWeekday(d.date())),
       WEEKLY_MON_WED_FRI,
-      weeklySpec("weekly Sat/Sun", 1, Set.of(), DayOfWeek.SATURDAY, DayOfWeek.SUNDAY),
-      weeklySpec("every 2 weeks Mon/Wed", 2, Set.of(), DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY),
-      weeklySpec("every 2 weeks Sat/Sun", 2, Set.of(Locale.CHINA),
-                 DayOfWeek.SATURDAY, DayOfWeek.SUNDAY),
-      weeklySpec("every 2 weeks Sun/Wed", 2, Set.of(Locale.CHINA),
-                 DayOfWeek.SUNDAY, DayOfWeek.WEDNESDAY),
-      weeklySpec("every 2 weeks Sun", 2, Set.of(Locale.CHINA), DayOfWeek.SUNDAY),
-      weeklySpec("every 2 weeks Sat", 2, Set.of(Locale.US, Locale.CHINA), DayOfWeek.SATURDAY),
+      weeklySpec("weekly Sat/Sun", 1, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY),
+      weeklySpec("every 2 weeks Mon/Wed", 2, DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY),
+      // Bug #79053: these fired every week, or skipped a day, depending on the locale
+      weeklySpec("every 2 weeks Sat/Sun", 2, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY),
+      weeklySpec("every 2 weeks Sun/Wed", 2, DayOfWeek.SUNDAY, DayOfWeek.WEDNESDAY),
+      weeklySpec("every 2 weeks Sun", 2, DayOfWeek.SUNDAY),
+      weeklySpec("every 2 weeks Sat", 2, DayOfWeek.SATURDAY),
+      weeklySpec("every 3 weeks Thu", 3, DayOfWeek.THURSDAY),
       new DaySpec("monthly day 1", t -> monthlyDay(t, 1, ALL_MONTHS),
                   d -> d.date().getDayOfMonth() == 1),
       new DaySpec("monthly day 29", t -> monthlyDay(t, 29, ALL_MONTHS),
@@ -704,4 +723,5 @@ class TimeConditionScheduleMatrixTest {
 
    private TimeZone defaultZone;
    private Locale defaultLocale;
+   private String defaultWeekStart;
 }
