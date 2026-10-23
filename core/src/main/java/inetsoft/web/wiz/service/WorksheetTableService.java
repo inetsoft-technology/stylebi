@@ -1066,7 +1066,11 @@ public class WorksheetTableService {
          }
       }
 
-      if(leaves.size() == 1) {
+      // a primary is never hidden: if the sole leaf is hidden from viewsheets, leave the
+      // worksheet without a primary rather than creating a hidden one
+      if(leaves.size() == 1 &&
+         ((TableAssembly) worksheet.getAssembly(leaves.get(0))).isVisibleTable())
+      {
          worksheet.setPrimaryAssembly(leaves.get(0));
       }
    }

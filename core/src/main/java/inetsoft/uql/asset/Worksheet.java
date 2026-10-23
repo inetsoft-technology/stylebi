@@ -393,7 +393,11 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
             ((TableAssembly) assembly).clearCache();
          }
 
-         if(primary == null && assembly.isVisible()) {
+         // a table hidden from viewsheets (visibleTable=false) must never be auto-promoted
+         // to primary; a primary is always visible (see WSPrimaryService)
+         if(primary == null && assembly.isVisible() &&
+            !(assembly instanceof TableAssembly table && !table.isVisibleTable()))
+         {
             primary = name;
          }
       }
