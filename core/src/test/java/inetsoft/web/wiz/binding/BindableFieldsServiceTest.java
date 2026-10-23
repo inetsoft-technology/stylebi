@@ -652,6 +652,33 @@ class BindableFieldsServiceTest {
       assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current());
    }
 
+   /**
+    * Bug #79192: worksheet tables Customers and CUSTOMERS are two tables, so only the one the
+    * assembly is bound to is current. A case-insensitive match flagged both.
+    */
+   @Test
+   void marksOnlyTheExactTableWhenTwoTablesDifferOnlyByCase() throws Exception {
+      for(String bound : new String[] {"Customers", "CUSTOMERS"}) {
+         TreeNodeModel root = TreeNodeModel.builder().label("root")
+            .addChildren(TreeNodeModel.builder().label("CUSTOMERS")
+               .data(entry(AssetEntry.Type.TABLE, "CUSTOMERS", null)).build())
+            .addChildren(TreeNodeModel.builder().label("Customers")
+               .data(entry(AssetEntry.Type.TABLE, "Customers", null)).build())
+            .build();
+         ChartVSAssembly chart = mock(ChartVSAssembly.class);
+         when(chart.getSourceInfo()).thenReturn(new SourceInfo(SourceInfo.ASSET, null, bound));
+
+         List<BindableTable> tables = serviceFor(root, "Chart1", chart).list("rt1", "Chart1",
+                                                                            principal());
+
+         for(BindableTable table : tables) {
+            assertEquals(table.name().equals(bound), table.current(),
+                         "only " + bound + " is current, but " + table.name() + " was " +
+                         table.current());
+         }
+      }
+   }
+
    private static BindableTable byName(List<BindableTable> tables, String name) {
       return tables.stream().filter(t -> name.equals(t.name())).findFirst().orElseThrow();
    }

@@ -110,6 +110,16 @@ public class DeployManagerService {
    }
 
    /**
+    * Thrown when an uploaded jar has no {@code JarFileInfo.xml}, i.e. it is not a
+    * partial deployment export. Distinguishes a bad upload from a server I/O fault.
+    */
+   public static class JarFileInfoMissingException extends IOException {
+      public JarFileInfoMissingException() {
+         super("JarFileInfo.xml missing");
+      }
+   }
+
+   /**
     * Get jar info.
     */
    public static PartialDeploymentJarInfo getInfo(String filePath, boolean isImportAsSiteAdmin)
@@ -118,7 +128,7 @@ public class DeployManagerService {
       File file = FileSystemService.getInstance().getFile(filePath, "JarFileInfo.xml");
 
       if(!file.exists()) {
-         throw new IOException("JarFileInfo.xml missing");
+         throw new JarFileInfoMissingException();
       }
 
       try(InputStream in = new FileInputStream(file)) {

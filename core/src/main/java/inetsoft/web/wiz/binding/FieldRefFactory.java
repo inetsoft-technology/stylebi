@@ -1199,10 +1199,19 @@ public final class FieldRefFactory {
          return null;
       }
 
-      for(BindingModel.SourceTable table : model.getTables()) {
-         if(name.equalsIgnoreCase(table.getName())) {
-            return table;
+      // Exact name first: a worksheet may hold tables differing only by case (bug #79192). A name
+      // matching several only by case identifies none of them.
+      try {
+         String resolved = TableNames.resolveSourceTable(model.getTables(), name);
+
+         for(BindingModel.SourceTable table : model.getTables()) {
+            if(resolved != null && resolved.equals(table.getName())) {
+               return table;
+            }
          }
+      }
+      catch(IllegalArgumentException e) {
+         // ambiguous by case only
       }
 
       return null;

@@ -270,6 +270,53 @@ public class WorksheetExpressionTableReadTest {
       assertEquals("c5", rows.get(3).get(1));
    }
 
+   /**
+    * Bug #79226: a lookup condition whose evaluation genuinely throws -- not merely a
+    * reference to something undefined, which reads as a clean false/no-match (see
+    * {@link #lookupConditionWithNoMatchStillReadsNull}) -- must fail the column loud,
+    * naming the condition and the underlying error, instead of silently selecting every
+    * row of the looked-up table.
+    */
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   public void lookupConditionThatThrowsFailsLoud(boolean pool) throws Exception {
+      open(pool);
+      Worksheet ws = new Worksheet();
+      lookupCategories(ws);
+      stringExpression(embedded(ws, "PROD", "CID", 3, 1), "boom",
+                       "CAT[\"CNAME? CID==field['NOPE'].length\"]");
+      box = sandbox(ws, pool);
+
+      Exception failure = assertThrows(Exception.class, () -> harness.await(harness.start(
+         () -> read(box, "PROD")).future, KNOWN_CAP, "throwing lookup condition"));
+      String message = String.valueOf(failure.getMessage());
+      assertTrue(message.contains("CID==field['NOPE'].length"), message);
+      assertTrue(message.contains("failed to evaluate"), message);
+   }
+
+   /**
+    * Bug #79226: a condition that is well-formed and legitimately matches nothing must
+    * still read {@code null} for that row, with no exception -- strict evaluation only
+    * fails loud on a condition that actually throws, never on one that cleanly evaluates
+    * to false.
+    */
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   public void lookupConditionWithNoMatchStillReadsNull(boolean pool) throws Exception {
+      open(pool);
+      Worksheet ws = new Worksheet();
+      lookupCategories(ws);
+      stringExpression(embedded(ws, "PROD", "CID", 3, 1), "none", "CAT[\"CNAME? CID==999\"]");
+      box = sandbox(ws, pool);
+
+      List<List<Object>> rows = harness.await(harness.start(() -> read(box, "PROD")).future,
+                                              KNOWN_CAP, "legitimately non-matching lookup");
+      assertEquals(4, rows.size());
+      assertNull(rows.get(1).get(1));
+      assertNull(rows.get(2).get(1));
+      assertNull(rows.get(3).get(1));
+   }
+
    private static void lookupCategories(Worksheet ws) {
       EmbeddedTableAssembly cat = new EmbeddedTableAssembly(ws, "CAT");
       Object[][] data = { { "CID", "CNAME" }, { 1, "a" }, { 2, "b" }, { 3, "c" } };

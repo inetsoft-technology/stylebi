@@ -135,6 +135,11 @@ public abstract class RangeProcessor {
                         "\" is not defined: column \"" + missing + "\" not found in " +
                         "condition '" + cond + "'");
                   }
+
+                  // any other condition-evaluation failure (a TypeError, NPE, ...) must fail
+                  // the row loud too, not be taken as a match (#79226)
+                  throw new NamedCellRange.ConditionEvaluationException(
+                     "Condition '" + cond + "' failed to evaluate: " + ex.getMessage(), ex);
                }
 
                LOG.error("Error occurred when finding rows matching condition: " +

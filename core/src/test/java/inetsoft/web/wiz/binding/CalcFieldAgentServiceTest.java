@@ -157,6 +157,30 @@ class CalcFieldAgentServiceTest {
       verifyNoInteractions(proxy);
    }
 
+   /**
+    * Bug #79192: worksheet tables ORDERS and Orders are two tables, so a name matching them only
+    * by case is refused naming both instead of storing the field under whichever sorted first.
+    */
+   @Test
+   void refusesATableNameThatMatchesSeveralTablesOnlyByCase() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(eq("rt1"), any(), any(Principal.class))).thenReturn(List.of(
+         new BindableTable("ORDERS", null, List.of(new BindableField("DISCOUNT", "double", null))),
+         new BindableTable("Orders", null, List.of(new BindableField("TOTAL", "double", null)))));
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsRunningAgainstRt1(), fields, proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "orders", null, "NetTotal", null, "field['Total']", "double", false, true, false, true);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("ORDERS") && thrown.getMessage().contains("Orders"),
+                 thrown.getMessage());
+      verifyNoInteractions(proxy);
+   }
+
    @Test
    void requiresName() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);

@@ -57,12 +57,16 @@ final class BindingSources {
          for(BindingModel.SourceTable candidate : tables) {
             if(candidate.getName() != null) {
                names.add(candidate.getName());
-
-               if(candidate.getName().equalsIgnoreCase(table)) {
-                  return candidate.getName();
-               }
             }
          }
+      }
+
+      // Exact match first, then a unique case-only match; Customers and CUSTOMERS are two tables
+      // (bug #79192), so a name matching several only by case is refused naming them all.
+      String resolved = TableNames.resolve(names, table);
+
+      if(resolved != null) {
+         return resolved;
       }
 
       throw new IllegalArgumentException(
@@ -144,9 +148,35 @@ final class BindingSources {
    }
 
    /** Whether the assembly is already pointed at this table, in which case nothing is discarded. */
-   static boolean alreadyPointedAt(SourceInfo current, String table) {
-      return current != null && isComponent(table) == isComponent(current.getSource()) &&
-         displayName(table).equalsIgnoreCase(displayName(current.getSource()));
+   static boolean alreadyPointedAt(BindingModel model, String table) {
+      SourceInfo current = model == null ? null : model.getSource();
+
+      if(current == null || table == null || isComponent(table) != isComponent(current.getSource())) {
+         return false;
+      }
+
+      String stored = displayName(current.getSource());
+
+      if(stored == null) {
+         return false;
+      }
+
+      if(isComponent(table)) {
+         return displayName(table).equalsIgnoreCase(stored);
+      }
+
+      // `table` is a resolved table name. Worksheet tables may differ only by case (bug #79192),
+      // so resolve the stored source the same way and compare the two exactly.
+      List<String> names = new ArrayList<>();
+
+      for(BindingModel.SourceTable candidate : model.getTables() == null ? List.<BindingModel.SourceTable>of() : model.getTables()) {
+         if(candidate.getName() != null) {
+            names.add(candidate.getName());
+         }
+      }
+
+      String live = TableNames.resolveStored(names, stored);
+      return live != null ? live.equals(table) : stored.equals(table);
    }
 
    /**

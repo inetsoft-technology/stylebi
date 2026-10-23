@@ -1007,9 +1007,10 @@ public class WorksheetReadService {
     * an ordinary literal-only condition's JSON is unaffected -- matching
     * {@link #extractChoiceQuery}'s own null-for-absent convention. Not applicable to
     * {@code RankingCondition}/{@code DateCondition}, same reasoning as
-    * {@link #extractChoiceQuery}. SUBQUERY-typed condition values (native UI only -- never
-    * written by set_conditions' own valueSpecs) are not modeled here and remain unaddressed,
-    * same as before this fix.
+    * {@link #extractChoiceQuery}. A {@link SubQueryValue} (native UI only -- set_conditions
+    * cannot write one) is reported as a read-only {@code "subquery"} entry naming its table,
+    * column and correlation, so a caller can tell it apart from the {@code "Query[name]"} text
+    * in {@code values}.
     */
    private List<WorksheetModel.ValueSpecModel> extractValueSpecs(XCondition xc) {
       if(!(xc instanceof Condition c)) {
@@ -1040,6 +1041,19 @@ public class WorksheetReadService {
             }
 
             specs.add(new WorksheetModel.ValueSpecModel(i, "field", ref.getName(), null, null));
+         }
+         else if(v instanceof SubQueryValue sq) {
+            if(specs == null) {
+               specs = new ArrayList<>();
+            }
+
+            WorksheetModel.SubQueryWhereModel where = sq.getSubAttribute() == null ? null :
+               new WorksheetModel.SubQueryWhereModel(
+                  sq.getSubAttribute().getName(),
+                  sq.getMainAttribute() == null ? null : sq.getMainAttribute().getName());
+            specs.add(new WorksheetModel.ValueSpecModel(
+               i, "subquery", null, null, null, sq.getQuery(),
+               sq.getAttribute() == null ? null : sq.getAttribute().getName(), where));
          }
       }
 
