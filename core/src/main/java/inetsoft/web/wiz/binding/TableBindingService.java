@@ -682,6 +682,17 @@ public class TableBindingService {
          (model, rvs, source) -> {
             TableVSAssembly table = rvs.getViewsheet().getAssembly(assemblyName)
                instanceof TableVSAssembly t ? t : null;
+
+            // Bug #79208: a hidden column is still bound, but TableBindingModel is built from
+            // the SHOWN ColumnSelection only (TableBindingModel.java), so TableBindingMutator
+            // could never find it regardless of index -- remove it from the live hidden-columns
+            // selection directly instead, the same way setFieldVisibility operates on it.
+            if(table != null && isHidden(table, column)) {
+               TableBindingMutator.requireShelf(model, shelf);
+               removeHiddenColumn(table, column);
+               return;
+            }
+
             List<String> full = table == null ? null : fullDetailsOrder(table, null);
 
             Integer shownIndex = index;
@@ -698,8 +709,13 @@ public class TableBindingService {
                }
             }
 
-            TableBindingMutator.removeField(model, shelf, column, shownIndex, rvs, source,
-                                            refModelService);
+            try {
+               TableBindingMutator.removeField(model, shelf, column, shownIndex, rvs, source,
+                                               refModelService);
+            }
+            catch(IllegalArgumentException e) {
+               throw withHiddenColumns(e, table, "It holds: ");
+            }
 
             if(full != null && !isHidden(table, column) &&
                full.removeIf(n -> n.equalsIgnoreCase(column)))
@@ -707,6 +723,81 @@ public class TableBindingService {
                restampHiddenPositions(table, full);
             }
          });
+   }
+
+   /**
+    * The hidden {@code ColumnRef} {@link #isHidden} matched, by the same {@link #refKey} lookup,
+    * or {@code null} when nothing matches.
+    */
+   private static ColumnRef findHiddenColumn(TableVSAssembly table, String name) {
+      Enumeration<DataRef> refs =
+         ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns().getAttributes();
+
+      while(refs.hasMoreElements()) {
+         DataRef ref = refs.nextElement();
+
+         if(name != null && refKey(ref).equalsIgnoreCase(name) && ref instanceof ColumnRef column) {
+            return column;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Removes a hidden-but-bound column's binding from {@link TableVSAssemblyInfo#getHiddenColumns()}
+    * directly -- bug #79208: {@link TableBindingModel} never represents a hidden column (it is
+    * built from {@link TableVSAssembly#getColumnSelection()}, the SHOWN selection, alone), so
+    * {@link TableBindingMutator#removeField} could never find it to remove it.
+    */
+   private static void removeHiddenColumn(TableVSAssembly table, String column) {
+      ColumnRef ref = findHiddenColumn(table, column);
+
+      if(ref != null) {
+         ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns().removeAttribute(ref);
+      }
+   }
+
+   /**
+    * Appends this Table's hidden-but-bound columns, suffixed {@code " (hidden)"}, to a "not
+    * found"/"not bound" error's own bound-columns list -- the same disclosure {@code
+    * set_table_column_sort} already gives (bug #78855/#7088) -- so a caller never reads "not
+    * bound"/"is not on the ... shelf" for a column {@code get_table_binding} itself still lists
+    * (with {@code visible:false}). Bug #79208.
+    *
+    * @param marker the literal text immediately preceding the bound-columns list in the message
+    *               this applies to (e.g. {@code "Bound columns: "}/{@code "It holds: "}); a
+    *               message without it, or one from a non-Table assembly, is returned unchanged.
+    */
+   private static IllegalArgumentException withHiddenColumns(IllegalArgumentException e,
+                                                              TableVSAssembly table, String marker)
+   {
+      String message = e.getMessage();
+      int at = message == null ? -1 : message.indexOf(marker);
+
+      if(table == null || at < 0 || !message.endsWith(".")) {
+         return e;
+      }
+
+      List<String> hiddenNames = boundColumnNames(
+         ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns());
+
+      if(hiddenNames.isEmpty()) {
+         return e;
+      }
+
+      List<String> suffixed =
+         hiddenNames.stream().map(n -> n + " (hidden)").toList();
+      String body = message.substring(0, message.length() - 1);
+      String noneToken = body.endsWith("(nothing)") ? "(nothing)" :
+                         body.endsWith("(none)") ? "(none)" : null;
+
+      if(noneToken != null) {
+         body = body.substring(0, body.length() - noneToken.length());
+         return new IllegalArgumentException(body + String.join(", ", suffixed) + ".");
+      }
+
+      return new IllegalArgumentException(body + ", " + String.join(", ", suffixed) + ".");
    }
 
    public List<String> moveField(String sessionToken, Principal user, String assemblyName,
@@ -1223,10 +1314,39 @@ public class TableBindingService {
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
-         TableBindingMutator.ColumnLabelWrite write =
-            TableBindingMutator.setColumnLabels(model, labels, entries);
+         TableVSAssembly table = assembly instanceof TableVSAssembly t ? t : null;
 
-         if(!write.tableRenames().isEmpty() && assembly instanceof TableVSAssembly table) {
+         // Bug #79208: a hidden column's label can't be resolved through TableBindingMutator
+         // either (same missing-from-the-model cause as removeField above) -- apply it directly
+         // onto the live ColumnRef in getHiddenColumns(), never by merging it into
+         // model.getDetails(), since VSTableBindingFactory.updateTableAssembly rebuilds the SHOWN
+         // ColumnSelection from the whole details list on every commit and would silently
+         // un-hide it.
+         boolean hadInput = (labels != null && !labels.isEmpty()) ||
+                            (entries != null && !entries.isEmpty());
+         Map<String, String> remainingLabels = labels;
+
+         if(table != null && labels != null && !labels.isEmpty()) {
+            remainingLabels = applyHiddenColumnLabels(table, labels, applied);
+         }
+
+         boolean hasRemaining = (remainingLabels != null && !remainingLabels.isEmpty()) ||
+                                (entries != null && !entries.isEmpty());
+         TableBindingMutator.ColumnLabelWrite write;
+
+         if(hasRemaining || !hadInput) {
+            try {
+               write = TableBindingMutator.setColumnLabels(model, remainingLabels, entries);
+            }
+            catch(IllegalArgumentException e) {
+               throw withHiddenColumns(e, table, "Bound columns: ");
+            }
+         }
+         else {
+            write = new TableBindingMutator.ColumnLabelWrite(List.of(), List.of());
+         }
+
+         if(!write.tableRenames().isEmpty() && table != null) {
             rekeyTableFormatWidthAndHighlight(table, write.tableRenames());
             aliasLiveColumns(table, write.tableRenames());
 
@@ -1247,6 +1367,53 @@ public class TableBindingService {
       });
 
       return new TableWrite(applied, warnings);
+   }
+
+   /**
+    * Applies every {@code labels} key that names a hidden-but-bound column directly onto its
+    * live {@code ColumnRef} in {@link TableVSAssemblyInfo#getHiddenColumns()}, and leaves it out
+    * of the map returned -- so the caller passes only the shown-column labels on to {@link
+    * TableBindingMutator#setColumnLabels}. Bug #79208: a hidden column is never merged into
+    * {@code model.getDetails()} to resolve/alias it, because {@link
+    * VSTableBindingFactory#updateTableAssembly} rebuilds the SHOWN {@code ColumnSelection} from
+    * the entire {@code model.getDetails()} list on every commit (and explicitly scrubs any ref
+    * that lands there out of {@code getHiddenColumns()}) -- merging a hidden column in just to
+    * label it would silently un-hide it.
+    *
+    * @return a new map holding only the entries that still need the normal (shown) resolution.
+    */
+   private static Map<String, String> applyHiddenColumnLabels(TableVSAssembly table,
+                                                               Map<String, String> labels,
+                                                               List<String> applied)
+   {
+      Map<String, String> remaining = new LinkedHashMap<>();
+
+      for(Map.Entry<String, String> label : labels.entrySet()) {
+         String column = label.getKey();
+
+         if(!isHidden(table, column)) {
+            remaining.put(column, label.getValue());
+            continue;
+         }
+
+         if(label.getValue() == null) {
+            throw new IllegalArgumentException(
+               "'" + column + "' needs a label -- pass an empty string to remove one.");
+         }
+
+         ColumnRef ref = findHiddenColumn(table, column);
+         String oldDisplay = ref.getAlias() != null ? ref.getAlias() : ref.getAttribute();
+         String newAlias = label.getValue().isEmpty() ? null : label.getValue();
+
+         if(newAlias != null && newAlias.equals(ref.getAttribute())) {
+            newAlias = null;
+         }
+
+         ref.setAlias(newAlias);
+         applied.add(oldDisplay + " -> " + (newAlias == null ? ref.getAttribute() : newAlias));
+      }
+
+      return remaining;
    }
 
    /**

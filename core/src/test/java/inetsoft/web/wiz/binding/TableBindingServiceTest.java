@@ -2722,6 +2722,96 @@ class TableBindingServiceTest {
       assertEquals(1, hiddenPositionOf(table, "B"));
    }
 
+   // ── set_column_labels / remove_table_field on a hidden column (bug-79208) ───
+
+   /**
+    * Bug #79208: TableBindingModel is built from the SHOWN ColumnSelection only, so a hidden
+    * column was never represented in it for TableBindingMutator.removeField to find, regardless
+    * of index -- removeField must resolve and remove it directly against the live hidden-columns
+    * selection instead.
+    */
+   @Test
+   void removeFieldRemovesAHiddenColumn() throws Exception {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      service.removeField("tok", principal(), "PbFour", "details", "Category");
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      assertNull(info.getColumnSelection().getAttribute("Category"),
+                "'Category' must not be in the shown column selection");
+      assertNull(info.getHiddenColumns().getAttribute("Category"),
+                "'Category' must be gone from the hidden columns too, not merely left there");
+   }
+
+   @Test
+   void removeFieldUnboundErrorListsHiddenColumnsMarkedHidden() throws Exception {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.removeField("tok", principal(), "PbFour", "details", "ghost_col"));
+
+      assertTrue(thrown.getMessage().contains("Region, State, City, Company"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Category (hidden)"), thrown.getMessage());
+   }
+
+   /**
+    * Bug #79208: a hidden column's label must land on the live {@code ColumnRef} in {@code
+    * getHiddenColumns()} directly -- merging it into {@code model.getDetails()} to resolve/alias
+    * it through TableBindingMutator would be un-done by VSTableBindingFactory.updateTableAssembly
+    * on the very next commit, since that rebuilds the SHOWN ColumnSelection from the whole
+    * details list and scrubs anything that lands there out of hidden.
+    */
+   @Test
+   void setColumnLabelsAppliesToAHiddenColumn() throws Exception {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingModel[] written = new TableBindingModel[1];
+      TableBindingService service = hiddenColumnService(table, written);
+
+      TableBindingService.TableWrite result = service.setColumnLabels(
+         "tok", principal(), "PbFour", Map.of("Category", "Cat X"), null);
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef hiddenRef =
+         (inetsoft.uql.asset.ColumnRef) info.getHiddenColumns().getAttribute("Category");
+      assertNotNull(hiddenRef, "'Category' must still be in the hidden-columns selection");
+      assertEquals("Cat X", hiddenRef.getAlias(),
+                  "the label must land on the hidden column's own ColumnRef");
+      assertNull(info.getColumnSelection().getAttribute("Category"),
+                "labeling a hidden column must not un-hide it");
+      assertEquals(List.of("Category -> Cat X"), result.applied());
+
+      // The regression this test exists to catch: if the fix ever merged the hidden column into
+      // model.getDetails() just to resolve/alias it, this real commit call would scrub it back
+      // out of getHiddenColumns() and silently un-hide it.
+      inetsoft.web.binding.service.VSTableBindingFactory.updateTableAssembly(written[0], table);
+      assertNotNull(info.getHiddenColumns().getAttribute("Category"),
+                   "'Category' must still be hidden after the real commit path runs too");
+   }
+
+   @Test
+   void setColumnLabelsUnboundErrorListsHiddenColumnsMarkedHidden() throws Exception {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setColumnLabels(
+            "tok", principal(), "PbFour", Map.of("ghost_col", "X"), null));
+
+      assertTrue(thrown.getMessage().contains("Region, State, City, Company"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Category (hidden)"), thrown.getMessage());
+   }
+
    private static TableVSAssembly tableWithHiddenB() {
       TableVSAssembly table = tableWithColumns("TableView2", "A", "C");
       ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
