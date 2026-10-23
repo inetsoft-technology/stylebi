@@ -889,8 +889,24 @@ class VisualFrameAliasesTest {
 
    @Test
    void stillRefusesACategoricalFrameWithNoPaletteMappingOrColorValueFrame() {
-      assertThrows(IllegalArgumentException.class,
-                   () -> VisualFrameAliases.create("color", spec("type", "categorical")));
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> VisualFrameAliases.create("color", spec("type", "categorical")));
+
+      assertTrue(e.getMessage().contains("'shareColors'"), "the refusal names the checkbox");
+   }
+
+   /** Bug #79256: shareColors is the pane's other checkbox and stands on its own the same way. */
+   @Test
+   void acceptsAnExplicitShareColorsOnItsOwnWhicheverWay() {
+      for(boolean share : new boolean[] { true, false }) {
+         CategoricalColorModel frame = assertInstanceOf(
+            CategoricalColorModel.class,
+            VisualFrameAliases.create("color", spec("type", "categorical", "shareColors", share)));
+
+         assertEquals(share, frame.isShareColors());
+         assertEquals(share, frame.isUseGlobal());
+      }
    }
 
    @Test

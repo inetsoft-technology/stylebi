@@ -819,19 +819,19 @@ public final class VisualFrameAliases {
       List<String> colors = strList(spec, "colors");
       Map<String, Object> mapping = mapping(spec);
       Boolean colorValueFrame = bool(spec, "colorValueFrame");
+      Boolean share = shareColors(spec);
 
-      // Tested for presence: any explicit colorValueFrame satisfies this precondition. A frame
-      // built without colors is completed from the channel's existing palette by
-      // ChartAestheticMutator.carryCategoricalColors, so false on its own switches the checkbox
-      // off and keeps the palette, exactly as unchecking it in the Composer does.
-      if(colors.isEmpty() && mapping.isEmpty() && colorValueFrame == null) {
+      // Tested for presence: any explicit checkbox (colorValueFrame, shareColors) satisfies this
+      // precondition. A frame built without colors is completed from the channel's existing
+      // palette by ChartAestheticMutator.carryCategoricalColors, so a checkbox on its own flips
+      // just that checkbox and keeps the palette, exactly as clicking it in the Composer does.
+      if(colors.isEmpty() && mapping.isEmpty() && !anyExplicit(colorValueFrame, share)) {
          throw new IllegalArgumentException(
             "A categorical colour frame needs a non-empty 'colors' list, a 'mapping' of value to " +
-            "colour, or an explicit 'colorValueFrame' true/false, e.g. " +
+            "colour, or an explicit 'colorValueFrame' or 'shareColors' true/false, e.g. " +
             "{type: \"categorical\", mapping: {\"East\": \"#4E79A7\"}}.");
       }
 
-      Boolean share = shareColors(spec);
       CategoricalColorModel model = new CategoricalColorModel();
 
       if(!colors.isEmpty()) {
@@ -878,6 +878,11 @@ public final class VisualFrameAliases {
       }
 
       return model;
+   }
+
+   /** Whether the spec set at least one of the categorical pane's checkboxes explicitly. */
+   private static boolean anyExplicit(Boolean... checkboxes) {
+      return Arrays.stream(checkboxes).anyMatch(Objects::nonNull);
    }
 
    /**
