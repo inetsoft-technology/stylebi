@@ -40,9 +40,10 @@ against them whatever happens on the left.~~ The extra cost is the left inset pl
 12–20px, not 32.
 
 **Amended 2026-10-23.** The kebab and the dropdown toggle sit on top of the title rather than
-truncating it. The label spans the whole lane and ends in an ellipsis (`title-cell.component.scss:27-33`).
-The anchored kebab strip and `.selection-list__header-buttons` are drawn over it. The conclusion
-stands: moving the text in costs only the left offset, which moves the ellipsis in by the same amount.
+truncating it. The label is a `display: table` that grows to its text, so a long title runs past the
+lane and is clipped at the lane's edge, with no ellipsis (`title-cell.component.scss:27-33`). The
+anchored kebab strip and `.selection-list__header-buttons` are drawn over it. The conclusion stands:
+moving the text in costs only the left offset, which hides that much more of a long title.
 
 The ruling's other consequence stays as it is. The kebab is anchored on the right, and
 `getLaneInset` keeps returning zero for a list or a tree.
@@ -153,8 +154,14 @@ pads the title by `inset.left + 6`, for lists and trees alike. Excel and CSV are
     `HTMLSelectionTreeHelper.java:157`).
 
   So the browser's tree target, at the toggle, has nothing to align with in export. One constant
-  lands within 2px of the first row: title at 14 / 18 / 22 against row text at 12 / 18 / 24 at
-  dense / compact / comfortable, and on the HTML checkbox. Only the inset varies, so D2 holds.
+  lands close to the first row, and only the inset varies, so D2 holds. Measured on the fixture
+  (title / first row, px from the card edge, dense / compact / comfortable):
+  - HTML: 14 / 18 / 22 on the list checkbox exactly; a tree's checkbox sits 2px left of it.
+  - PDF and PNG: title 14 / 18 / 22 against row text at 12.9 / 18.8 / 24.8.
+  - PowerPoint: title 14.7 / 18.7 / 22.7 against row text at 13.3 / 20.0 / 26.7.
+
+  The row side carries offsets of its own: the PDF text box adds about 0.8px, and PowerPoint passes
+  the cell padding through unscaled, so 8px lands as 8pt. Those predate this note and are left alone.
 - **Not taken:** copying the browser exactly, with trees at `inset.left + 2`, puts a PDF tree's
   title up to 6px left of its row text. Aligning with each format's own rows, at
   `inset + cellPadding.left`, makes the exported title follow the cell padding while the browser's
@@ -219,11 +226,13 @@ pads the title by `inset.left + 6`, for lists and trees alike. Excel and CSV are
 
 **Amended 2026-10-23.**
 - List, one-level tree, multi-level tree and dropdown list at all three densities: in the browser,
-  the title text's left edge equals the leading glyph's left edge. In export it is within 2px of the
-  first row's text (PDF, SVG, PowerPoint) or checkbox (HTML). In print it equals the value text's
-  left edge.
-- A long title at the 132px comfortable default: the ellipsis moves in by the offset, and the kebab
-  and toggle positions are unchanged. The kebab already sat over the title before this change.
+  the title text's left edge equals the leading glyph's left edge. In export the title starts at
+  `inset.left + 6`, which lands on the HTML list checkbox, and within 3px of the first row's text in
+  PDF and PNG, and 4px in PowerPoint (D8 has the measured numbers). In print it equals the value
+  text's left edge.
+- A long title at the 132px comfortable default: it starts at the offset and is clipped at the
+  lane's edge, and the kebab and toggle positions are unchanged. The kebab already sat over the
+  title before this change.
 - A container child, expanded and collapsed: unchanged.
 - A centered or right-aligned title: unchanged.
 - The composer's inline title edit: the text starts where the label's did.
