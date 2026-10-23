@@ -69,7 +69,7 @@ class DateComparisonCustomChangeTest {
       { { "2020-02-28", "2020-03-02" }, { "2021-02-27", "2021-03-02" } },
       // adjacent ranges
       { { "2020-01-01", "2020-01-31" }, { "2020-02-01", "2020-02-29" } },
-      // overlapping ranges
+      // overlapping ranges: has to stay the last set, OVERLAPPING_SET is its index
       { { "2020-01-01", "2020-03-31" }, { "2020-02-15", "2020-05-15" } } };
    private static final int[] GRANULARITIES = {
       DateComparisonInfo.ALL, DateComparisonInfo.YEAR, DateComparisonInfo.QUARTER,
@@ -77,12 +77,15 @@ class DateComparisonCustomChangeTest {
    private static final LocalDate FROM = LocalDate.of(2019, 1, 1);
    private static final LocalDate TO = LocalDate.of(2022, 1, 1);
 
-   private static final int OVERLAPPING_SET = 4;
+   /** The index of the overlapping set in {@link #RANGE_SETS}, the last one. */
+   private static final int OVERLAPPING_SET = RANGE_SETS.length - 1;
 
    /**
-    * Bug #79140 finding 1: with Change, the units of a range that the next range has no unit for
-    * (the 6th week of March 2019 against 5 in March 2020; January 30 and 31 against February's
-    * 29 days) are missing from the data set; with Value they are there.
+    * Whether the set at the granularity has an earlier range with units the next range has none
+    * for (the 6th week of March 2019 against 5 in March 2020; January 30 and 31 against
+    * February's 29 days). The matrix skips these combinations, which are only judged by the
+    * disabled {@link #changeKeepsTheUnitsOfAnEarlierLongerRange}. Remove them together when
+    * Bug #79140 finding 1 is fixed.
     */
    private static boolean earlierRangeIsLonger(int set, int granularity) {
       return set == 1 && granularity == DateComparisonInfo.WEEK ||
@@ -149,6 +152,11 @@ class DateComparisonCustomChangeTest {
                  String.join("\n", problems.subList(0, Math.min(8, problems.size()))));
    }
 
+   /**
+    * Bug #79140 finding 1: with Change, the units of a range that the next range has no unit for
+    * are missing from the data set; with Value they are there. The combinations this affects are
+    * skipped by {@link #earlierRangeIsLonger}.
+    */
    @Test
    @Disabled("Bug #79140 (finding 1): Change drops the units of an earlier range that the next range has no unit for")
    void changeKeepsTheUnitsOfAnEarlierLongerRange() {
@@ -159,6 +167,10 @@ class DateComparisonCustomChangeTest {
       assertTrue(problems.isEmpty(), problems.toString());
    }
 
+   /**
+    * Bug #79140 finding 2: the overlapping set is only run here, so the matrix does not skip
+    * anything for it. Enable this test when the finding is fixed.
+    */
    @Test
    @Disabled("Bug #79140 (finding 2): the days two overlapping Custom Periods share belong to the first one only")
    void overlappingRangesEachKeepTheirDays() {
