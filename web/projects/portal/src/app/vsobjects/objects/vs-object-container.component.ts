@@ -54,7 +54,7 @@ import { AdhocFilterService } from "./data-tip/adhoc-filter.service";
 import { DataTipService } from "./data-tip/data-tip.service";
 import { DateTipHelper } from "./data-tip/date-tip-helper";
 import { PopComponentService } from "./data-tip/pop-component.service";
-import { anchoredLaneHeight, isAnchoredChromeSuppressed, isAnchoredResident, MiniToolbarService }
+import { anchoredLaneHeight, isAnchoredChromeSuppressed, isAnchoredResident, isCornerKebab, MiniToolbarService }
    from "./mini-toolbar/mini-toolbar.service";
 import { StripGlyphTone, stripGlyphTone } from "./mini-toolbar/strip-glyph-tone";
 import { NavigationKeys } from "./navigation-keys";
@@ -501,8 +501,11 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
     * overlay it on the assembly instead, and a rule about lane fit must not reach them.
     */
    public isChromeSuppressed(object: VSObjectModel): boolean {
-      return isAnchoredChromeSuppressed(object.objectType, object.vizModern,
-                                        anchoredLaneHeight(object));
+      const lane = anchoredLaneHeight(object);
+      const height = object.objectFormat.height;
+
+      return isAnchoredChromeSuppressed(object.objectType, object.vizModern, lane, height) ||
+         isCornerKebab(object.objectType, object.vizModern, lane, height);
    }
 
    /**

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { anchoredLaneHeight, isAnchoredAssemblyType, isAnchoredChromeSuppressed, isAnchoredDesign, isAnchoredResident, MiniToolbarService }
+import { anchoredLaneHeight, isAnchoredAssemblyType, isAnchoredChromeSuppressed, isAnchoredDesign, isAnchoredResident, isCornerKebab, MiniToolbarService }
    from "./mini-toolbar.service";
 
 // The anchored set, asserted explicitly rather than left implied. It is now permanent rather than a
@@ -118,30 +118,38 @@ describe("isAnchoredResident", () => {
 // true for every non-anchored type and every gate-off assembly, stripping toolbars that ship today.
 describe("isAnchoredChromeSuppressed", () => {
    it("is true for an anchored type whose lane cannot hold the strip", () => {
-      expect(isAnchoredChromeSuppressed("VSChart", true, 20)).toBe(true);
-      expect(isAnchoredChromeSuppressed("VSChart", true, 23)).toBe(true);
+      expect(isAnchoredChromeSuppressed("VSChart", true, 20, 31)).toBe(true);
+      expect(isAnchoredChromeSuppressed("VSChart", true, 23, 31)).toBe(true);
    });
 
    it("is true at a zero lane, which is what a hidden title resolves to", () => {
-      expect(isAnchoredChromeSuppressed("VSChart", true, 0)).toBe(true);
+      expect(isAnchoredChromeSuppressed("VSChart", true, 0, 31)).toBe(true);
+   });
+
+   it("is false at the height floor, where the corner kebab draws", () => {
+      expect(isAnchoredChromeSuppressed("VSChart", true, 0, 32)).toBe(false);
+   });
+
+   it("is false when the lane holds the strip even below the floor", () => {
+      expect(isAnchoredChromeSuppressed("VSChart", true, 24, 31)).toBe(false);
    });
 
    it("is false once the lane holds the strip", () => {
-      expect(isAnchoredChromeSuppressed("VSChart", true, 24)).toBe(false);
-      expect(isAnchoredChromeSuppressed("VSChart", true, 30)).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSChart", true, 24, 31)).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSChart", true, 30, 31)).toBe(false);
    });
 
    it("is false with the gate off, so a legacy assembly keeps its toolbar", () => {
-      expect(isAnchoredChromeSuppressed("VSChart", false, 20)).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSChart", false, 20, 31)).toBe(false);
    });
 
    it("is false for a type outside the anchored set, so its toolbar is untouched", () => {
-      expect(isAnchoredChromeSuppressed("VSRangeSlider", true, 20)).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSRangeSlider", true, 20, 31)).toBe(false);
    });
 
    it("is false for a laneless type under the gate, whose toolbar must be untouched", () => {
-      expect(isAnchoredChromeSuppressed("VSText", true, 0)).toBe(false);
-      expect(isAnchoredChromeSuppressed("VSGauge", true, 0)).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSText", true, 0, 31)).toBe(false);
+      expect(isAnchoredChromeSuppressed("VSGauge", true, 0, 31)).toBe(false);
    });
 });
 
@@ -193,5 +201,27 @@ describe("isMiniToolbarVisible: the anchored strip and the inline header kebab n
 
    it("allows the anchored strip for a standalone selection, which mounts no inline kebab", () => {
       expect(service.isMiniToolbarVisible(selection())).toBe(true);
+   });
+});
+
+describe("isCornerKebab", () => {
+   const ANCHORED = ["VSChart", "VSTable", "VSCrosstab", "VSCalcTable", "VSSelectionList",
+                     "VSSelectionTree", "VSSelectionContainer", "VSCalendar"];
+
+   it("puts every anchored type in the corner when its title is hidden", () =>
+      ANCHORED.forEach(t => expect(isCornerKebab(t, true, 0, 200)).toBe(true)));
+   it("uses the corner below the lane minimum", () =>
+      expect(isCornerKebab("VSChart", true, 23, 200)).toBe(true));
+   it("leaves a lane that holds the strip to the lane", () =>
+      expect(isCornerKebab("VSChart", true, 24, 200)).toBe(false));
+   it("draws nothing below the height floor", () =>
+      expect(isCornerKebab("VSChart", true, 0, 31)).toBe(false));
+   it("starts exactly at the floor", () =>
+      expect(isCornerKebab("VSChart", true, 0, 32)).toBe(true));
+   it("is false with the gate off", () =>
+      expect(isCornerKebab("VSChart", false, 0, 200)).toBe(false));
+   it("is false outside the anchored set", () => {
+      expect(isCornerKebab("VSRangeSlider", true, 0, 200)).toBe(false);
+      expect(isCornerKebab("VSText", true, 0, 200)).toBe(false);
    });
 });

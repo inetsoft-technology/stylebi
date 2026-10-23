@@ -113,25 +113,44 @@ export function isAnchoredResident(objectType: string, vizModern: boolean,
    return isAnchoredDesign(objectType, vizModern) && laneHeight >= ANCHORED_LANE_MIN;
 }
 
+/** The shortest assembly height that fits a 24px control with 4px of clearance above and below. */
+export const ACTION_FLOOR = 32;
+
+/** Distance from the card's top and right edges to the corner kebab. */
+export const CORNER_KEBAB_INSET = 4;
+
 /**
- * The other side of the split: an anchored type whose lane cannot hold the strip draws no chrome
- * at all â€” no strip, no kebab, right-click only. It is not a fallback to the floating strip. The
- * height ladder removes every control once a control plus its clearance stops fitting; anchoring
- * and floating are two placements of a control that is not drawn here either way.
+ * An anchored type whose lane cannot hold the strip (hidden or under the minimum) but whose card
+ * is tall enough for a control: the kebab takes the card's top-right corner instead of the lane,
+ * and opens the whole flattened inventory. Applied by VSObjectContainerComponent alone — the
+ * floating mount sites overlay the strip and never occupy the lane.
+ */
+export function isCornerKebab(objectType: string, vizModern: boolean, laneHeight: number,
+                              objectHeight: number): boolean
+{
+   return isAnchoredDesign(objectType, vizModern) && laneHeight < ANCHORED_LANE_MIN &&
+      objectHeight >= ACTION_FLOOR;
+}
+
+/**
+ * The remainder of the laneless case: an anchored type whose lane cannot hold the strip and whose
+ * card is shorter than ACTION_FLOOR draws no chrome at all — no strip, no kebab, right-click
+ * only. It is not a fallback to the floating strip.
  *
  * A lane rule, so it belongs to the mount site that puts the strip in a lane. Applied by
- * VSObjectContainerComponent alone â€” the five floating mount sites (composer, binding pane, both
+ * VSObjectContainerComponent alone — the five floating mount sites (composer, binding pane, both
  * wizard panes, embedded chart) overlay the strip on the assembly and never occupy the lane, so
  * the fit this measures does not arise there. Applying it in the shared action layer instead
  * emptied their toolbars too.
  *
- * Deliberately a separate predicate rather than !isAnchoredResident: that would be true for every
- * non-anchored type and gate-off, stripping toolbars users have today.
+ * Deliberately a separate predicate rather than !isCornerKebab or !isAnchoredResident: those would
+ * be true for every non-anchored type and gate-off, stripping toolbars users have today.
  */
 export function isAnchoredChromeSuppressed(objectType: string, vizModern: boolean,
-                                           laneHeight: number): boolean
+                                           laneHeight: number, objectHeight: number): boolean
 {
-   return isAnchoredDesign(objectType, vizModern) && laneHeight < ANCHORED_LANE_MIN;
+   return isAnchoredDesign(objectType, vizModern) && laneHeight < ANCHORED_LANE_MIN &&
+      objectHeight < ACTION_FLOOR;
 }
 
 @Injectable()
