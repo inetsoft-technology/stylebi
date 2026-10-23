@@ -40,9 +40,11 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.report.internal.table.TableFormat;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptEnvRepository;
 import java.awt.Point;
+import java.text.Format;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -2492,6 +2494,19 @@ public class WorksheetEditService {
       public void changeColumnType(String table, String col, String type, boolean force)
          throws Exception
       {
+         changeColumnType(table, col, type, force, null);
+      }
+
+      /**
+       * @param format the pattern used to parse the column's existing values into {@code type}
+       *               (e.g. {@code "MM/d/yyyy"} for a date), or {@code null}/blank for none. The
+       *               Composer's dialog sends this as {@code formatSpec}; see
+       *               {@link EditRequest#format()}. Only embedded tables parse their data with it.
+       */
+      public void changeColumnType(String table, String col, String type, boolean force,
+                                   String format)
+         throws Exception
+      {
          if(!XSchema.isPrimitiveType(type)) {
             throw new PairingException(
                "Invalid column type: \"" + type + "\". Valid types: " +
@@ -2499,7 +2514,56 @@ public class WorksheetEditService {
                "char, date, time, timeInstant.");
          }
 
+         String pattern = format == null || format.isBlank() ? null : format.trim();
          TableAssembly t = requireTable(table);
+
+         if(pattern != null && !(t instanceof EmbeddedTableAssembly)) {
+            throw new PairingException(
+               "A parse format can only be applied when changing the type of a column of an " +
+               "embedded table (e.g. an imported CSV/Excel table); table \"" + table +
+               "\" is not one. Omit format.");
+         }
+
+         // Mirrors the format-type choice in the Change Column Type dialog
+         // (ColumnTypeDialog#transformFormat): the target type picks the format class and the
+         // user's text is the pattern. The dialog offers a format only for these target types.
+         Format parseFormat = null;
+
+         if(pattern != null) {
+            String formatType;
+
+            if(XSchema.isNumericType(type)) {
+               formatType = XConstants.DECIMAL_FORMAT;
+            }
+            else if(XSchema.DATE.equals(type)) {
+               formatType = XConstants.DATE_FORMAT;
+            }
+            else if(XSchema.TIME.equals(type)) {
+               formatType = XConstants.TIME_FORMAT;
+            }
+            else if(XSchema.TIME_INSTANT.equals(type)) {
+               formatType = XConstants.TIMEINSTANT_FORMAT;
+            }
+            else {
+               throw new PairingException(
+                  "A parse format only applies when converting to a date, time, timeInstant or " +
+                  "numeric type; \"" + type + "\" has none. Omit format.");
+            }
+
+            try {
+               parseFormat = TableFormat.getFormat(formatType, pattern);
+            }
+            catch(RuntimeException ex) {
+               parseFormat = null;
+            }
+
+            if(parseFormat == null) {
+               throw new PairingException(
+                  "Invalid format pattern \"" + pattern + "\" for type \"" + type +
+                  "\". Nothing was changed. Use a Java date pattern such as \"MM/d/yyyy\" or " +
+                  "\"yyyy.MM.dd\" for date, or a decimal pattern such as \"#,##0.00\" for numbers.");
+            }
+         }
 
          // Use the public column selection (matching the UI's ColumnTypeDialogService
          // approach) so that AssetUtil.findColumn can match against the embedded data.
@@ -2569,7 +2633,7 @@ public class WorksheetEditService {
 
                if(index >= 0) {
                   try {
-                     data.setDataType(index, type, null, null, force);
+                     data.setDataType(index, type, parseFormat, null, force);
                   }
                   catch(Exception ex) {
                      // force=false means setDataType throws rather than nulling the values it
@@ -2587,6 +2651,9 @@ public class WorksheetEditService {
 
                      throw new PairingException(
                         "\"" + col + "\" has values that cannot be converted to " + type +
+                        (parseFormat != null ?
+                           " with format \"" + pattern + "\" (check the format matches the data)" :
+                           "") +
                         ". Nothing was changed. Pass confirmed=true to convert anyway, which " +
                         "replaces every value that will not parse with null -- that discards " +
                         "data and cannot be undone by changing the type back.");
