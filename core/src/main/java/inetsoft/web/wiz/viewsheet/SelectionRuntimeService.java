@@ -1454,9 +1454,6 @@ public class SelectionRuntimeService {
     * <p>Public (reuse seam): {@code SelectionBindingService} type-checks the same four assembly
     * classes before it can bind a column to any of them, so it shares this rather than keeping a
     * second copy that could drift.
-    *
-    * <p>A Selection Container is refused here too -- it holds no selection of its own. Only
-    * clear_selection accepts one (see {@link #clearContainer}); the message says so.
     */
    public static SelectionVSAssembly requireSelection(RuntimeViewsheet rvs, String assemblyName) {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
@@ -1468,13 +1465,21 @@ public class SelectionRuntimeService {
             "name with success and no change, or an internal error, so this is refused here.");
       }
 
+      // A Selection Container holds no selection of its own; only clear_selection accepts one
+      // (see clearContainer), so every other caller is told where its clear lives.
+      if(assembly instanceof CurrentSelectionVSAssembly) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a CurrentSelectionVSAssembly, not a selection assembly. " +
+            "Selections exist on selection lists, selection trees and range sliders. A selection " +
+            "container's filters are cleared with clear_selection; to change or read one, name " +
+            "the filter inside it.");
+      }
+
       if(!(assembly instanceof SelectionVSAssembly selection)) {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' is a " + assembly.getClass().getSimpleName() +
             ", not a selection assembly. Selections exist on selection lists, selection trees and " +
-            "range sliders." + (assembly instanceof CurrentSelectionVSAssembly ?
-               " A selection container's filters are cleared with clear_selection; to change or " +
-               "read one, name the filter inside it." : ""));
+            "range sliders.");
       }
 
       return selection;
