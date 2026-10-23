@@ -271,6 +271,43 @@ class JoinEdgeEdit79223Test {
       assertMirrorAttached(ws, "J");
    }
 
+   /** Triangle whose A-B pair holds an equi key and a non-equi (GREATER) operator. */
+   private Worksheet triangleWithNonEquiPair() throws Exception {
+      Worksheet ws = triangleWithMirror();
+      TableAssemblyOperator.Operator extra = new TableAssemblyOperator.Operator();
+      extra.setLeftTable("A");
+      extra.setRightTable("B");
+      extra.setLeftAttribute(new inetsoft.uql.erm.AttributeRef(null, "ac"));
+      extra.setRightAttribute(new inetsoft.uql.erm.AttributeRef(null, "bc"));
+      extra.setOperation(TableAssemblyOperator.GREATER_JOIN);
+      join(ws, "T").getOperator("A", "B").addOperator(extra);
+      assertEquals("A->B [3:a1=b1, " + TableAssemblyOperator.GREATER_JOIN + ":ac=bc]",
+                   readback(ws, "T").get(0));
+      return ws;
+   }
+
+   @Test
+   void aNonEquiOperatorSurvivesRemovingADifferentEdge() throws Exception {
+      Worksheet ws = triangleWithNonEquiPair();
+
+      edit(ws, ed -> ed.removeJoinEdge("T", "A", "C", null, null));
+
+      assertEquals(List.of("A->B [3:a1=b1, " + TableAssemblyOperator.GREATER_JOIN + ":ac=bc]",
+                           "B->C [3:bc=c1]"), readback(ws, "T"));
+      assertMirrorAttached(ws, "T");
+   }
+
+   @Test
+   void droppingOneKeyOfAPairKeepsThatPairsNonEquiOperator() throws Exception {
+      Worksheet ws = triangleWithNonEquiPair();
+
+      edit(ws, ed -> ed.removeJoinEdge("T", "A", "B", "a1", "b1"));
+
+      assertEquals(List.of("A->B [" + TableAssemblyOperator.GREATER_JOIN + ":ac=bc]",
+                           "A->C [3:ac=c2]", "B->C [3:bc=c1]"), readback(ws, "T"));
+      assertMirrorAttached(ws, "T");
+   }
+
    @Test
    void removingTheLastKeyOfAPairIsAPairRemoval() throws Exception {
       Worksheet ws = triangleWithMirror();
