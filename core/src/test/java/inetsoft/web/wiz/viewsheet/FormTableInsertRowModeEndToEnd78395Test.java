@@ -235,6 +235,7 @@ class FormTableInsertRowModeEndToEnd78395Test {
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
                                           mock(AssemblyMaxModeService.class),
+                                          mock(SelectionLayoutService.class),
                                           rows,
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),

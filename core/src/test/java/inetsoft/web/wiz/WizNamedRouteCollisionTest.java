@@ -72,7 +72,7 @@ class WizNamedRouteCollisionTest {
       ViewsheetAssemblyAgentController agentController = new ViewsheetAssemblyAgentController(
          feature, null, null, null, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-         null, null, layoutReadService, null, null, null, null, null, null, null);
+         null, null, null, layoutReadService, null, null, null, null, null, null, null);
       WizTableStyleController tableStyleController = new WizTableStyleController(
          libManagerProvider, mock(TableStyleService.class), mock(SecurityEngine.class),
          mock(WizTableStylePreviewRenderer.class));
