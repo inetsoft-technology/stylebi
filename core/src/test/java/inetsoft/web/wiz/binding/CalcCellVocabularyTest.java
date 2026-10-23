@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.CellBinding;
 import inetsoft.report.GroupableCellBinding;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.erm.AttributeRef;
@@ -187,6 +188,42 @@ class CalcCellVocabularyTest {
       assertEquals("Region", described.get("value"));
       assertFalse(described.containsKey("type"), "the ambiguous keys must not come back out");
       assertFalse(described.containsKey("btype"));
+   }
+
+   /**
+    * Bug #79251: a formula group cell is ordered only by its script's toList options, so its
+    * stored sort is not reported; topn, dateLevel and namedGroup still feed dependent cells and
+    * stay. A column group cell is the control and still reports its sort.
+    */
+   @Test
+   void aFormulaGroupCellOmitsItsInertSortButKeepsTopnAndDateLevel() {
+      CellBindingInfo cell = new CellBindingInfo();
+      cell.setType(CellBinding.BIND_FORMULA);
+      cell.setBtype(CellBinding.GROUP);
+      cell.setValue("toList(data['Region'])");
+      cell.getOrder().setType(XConstants.SORT_DESC);
+      cell.getOrder().setOption(XConstants.NONE_DATE_GROUP);
+      cell.getTopn().setType(XCondition.TOP_N);
+      cell.getTopn().setTopn(3);
+
+      Map<String, Object> described = CalcCellVocabulary.describe(cell);
+
+      assertFalse(described.containsKey("sort"));
+      assertEquals("none", described.get("dateLevel"));
+      assertEquals("top", ((Map<?, ?>) described.get("topn")).get("mode"));
+      assertEquals(3, ((Map<?, ?>) described.get("topn")).get("n"));
+   }
+
+   @Test
+   void aColumnGroupCellStillReportsItsSort() {
+      CellBindingInfo cell = groupCell(null, false);
+      cell.getOrder().setType(XConstants.SORT_DESC);
+      cell.getOrder().setOption(XConstants.NONE_DATE_GROUP);
+
+      Map<String, Object> described = CalcCellVocabulary.describe(cell);
+
+      assertEquals("desc", ((Map<?, ?>) described.get("sort")).get("direction"));
+      assertEquals("none", described.get("dateLevel"));
    }
 
    // -- bug #76814: the named group a group cell carries is read back in the write vocabulary --

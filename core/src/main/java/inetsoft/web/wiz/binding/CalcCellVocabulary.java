@@ -843,7 +843,14 @@ public final class CalcCellVocabulary {
             sort.put("rankBy", rankByOf(aggregates, order.getSortCol()));
          }
 
-         out.put("sort", sort);
+         // A formula group cell is ordered only by the options inside its toList(...) script;
+         // the stored sort is never read for that cell's own list, so reporting it would claim an
+         // order that has no effect (bug #79251). topn, dateLevel and namedGroup still feed
+         // dependent summary cells, so they stay.
+         if(info.getType() != CellBinding.BIND_FORMULA) {
+            out.put("sort", sort);
+         }
+
          // DateLevels.name() takes the STORED numeric-string form; the write side stores "none"
          // unless the caller sets 'field.dateLevel', so a group cell whose field isn't a
          // date/time column reads "none" here -- the level is meaningful only when the bound

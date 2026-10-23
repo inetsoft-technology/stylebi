@@ -1138,6 +1138,44 @@ class CalcTableServiceTest {
    }
 
    /**
+    * Bug #79251: a formula group cell skipped applyDateGroup, so OrderModel's raw
+    * {@code YEAR_DATE_GROUP} default read back as dateLevel "year" on a string column. The write
+    * now stores NONE_DATE_GROUP, matching the native TableCellBinding default, and the stored sort
+    * is still written (it feeds the CalcGroup of dependent cells).
+    */
+   @Test
+   void aFormulaGroupCellWithoutDateLevelPersistsNoLevelRatherThanTheYearDefault() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "formula", "value", "toList(data['REGION'])", "grouping", "group",
+              "expand", "vertical", "sort", spec("direction", "desc")));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      CellBindingInfo bound = captor.getValue().getBinding();
+      assertEquals(CellBinding.BIND_FORMULA, bound.getType());
+      assertEquals(XConstants.NONE_DATE_GROUP, bound.getOrder().getOption());
+      assertEquals(XConstants.SORT_DESC, bound.getOrder().getType());
+   }
+
+   /** Control for bug #79251: a column group cell still reads dateLevel none and keeps its sort. */
+   @Test
+   void aColumnGroupCellStillPersistsItsSortAndNoLevel() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "sort", spec("direction", "desc"),
+              "field", spec("column", "REGION", "type", "dimension")));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      assertEquals(XConstants.NONE_DATE_GROUP, captor.getValue().getBinding().getOrder().getOption());
+      assertEquals(XConstants.SORT_DESC, captor.getValue().getBinding().getOrder().getType());
+   }
+
+   /**
     * Unlike a chart/table dimension's dlevelValue, a calc-table cell's OrderModel.option is a
     * plain int with no DynamicValue counterpart -- DateLevels.normalize() now returns a
     * "$(ComponentName)" value unchanged (bug #76751) rather than throwing, so applyDateGroup has
