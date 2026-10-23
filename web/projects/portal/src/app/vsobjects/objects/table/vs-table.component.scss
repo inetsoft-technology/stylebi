@@ -114,3 +114,7 @@ $stacking-order: (
 :host-context(.viz-modern) .table-focus-row > tbody > tr:hover > * {
   background-color: var(--inet-viz-hover-bg) !important;
 }
+
+:host-context(.viz-corner-kebab) .vstable-header tr:first-child > td:last-child .vs-header-cell-button-sort {
+  right: var(--viz-corner-kebab-reserve);
+}

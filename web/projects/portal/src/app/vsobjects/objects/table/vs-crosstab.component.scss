@@ -126,3 +126,7 @@ table {
     background: var(--inet-viz-surface-dark);
   }
 }
+
+:host-context(.viz-corner-kebab) .right-top-table tr:first-child > td:last-child .vs-header-cell-button-sort {
+  right: var(--viz-corner-kebab-reserve);
+}

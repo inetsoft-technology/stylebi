@@ -544,3 +544,15 @@ describe("MonthCalendar – display", () => {
       });
    });
 });
+
+describe("MonthCalendar corner kebab reserve (compiled CSS)", () => {
+   it("moves its top-right control left of the corner kebab", () => {
+      const { comp } = createMonthCalendar();
+      const styleText = ((comp.constructor as any).ɵcmp.styles as string[]).join("\n");
+
+      expect(styleText).toMatch(
+         /\.viz-corner-kebab[^{},]*\.month-calendar[^{},]*:not\(\.second-calendar\)[^{},]*child-calendar-title[^{}]*\{[^}]*padding-right:\s*var\(--viz-corner-kebab-reserve\)/);
+      expect(styleText).toMatch(
+         /\.viz-corner-kebab[^{},]*\.year-calendar[^{},]*:not\(\.second-calendar\)[^{},]*child-calendar-title[^{},]*\{[^}]*padding-right:\s*var\(--viz-corner-kebab-reserve\)/);
+   });
+});

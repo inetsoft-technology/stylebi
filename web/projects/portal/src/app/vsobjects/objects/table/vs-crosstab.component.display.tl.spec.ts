@@ -441,3 +441,13 @@ describe("VSCrosstab — Pass 3: Display", () => {
       });
    });
 });
+
+describe("VSCrosstab corner kebab reserve (compiled CSS)", () => {
+   it("moves its top-right control left of the corner kebab", () => {
+      const { comp } = createCrosstabComponent();
+      const styleText = ((comp.constructor as any).ɵcmp.styles as string[]).join("\n");
+
+      expect(styleText).toMatch(
+         /\.viz-corner-kebab[^{},]*right-top-table[^{},]*vs-header-cell-button-sort[^{},]*\{[^}]*right:\s*var\(--viz-corner-kebab-reserve\)/);
+   });
+});

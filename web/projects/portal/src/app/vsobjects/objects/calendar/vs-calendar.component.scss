@@ -273,3 +273,10 @@ year-calendar, month-calendar {
     background-color: rgb(245, 245, 245);
   }
 }
+
+:host-context(.viz-corner-kebab) {
+  .month-calendar:not(.second-calendar) .child-calendar-title,
+  .year-calendar:not(.second-calendar) .child-calendar-title {
+    padding-right: var(--viz-corner-kebab-reserve);
+  }
+}

@@ -419,4 +419,17 @@ describe("VSObjectContainer corner kebab", () => {
       expect(comp.isChromeSuppressed(obj)).toBe(false);
       expect(comp.isCornerKebab(obj)).toBe(false);
    });
+
+   it("marks only corner-placed assemblies for the reserve", () => {
+      const untitled = cornerObject();
+      const titled = cornerObject({ titleVisible: true, titleFormat: { height: 30 } });
+      const dropdown = cornerObject({
+         absoluteName: "SelectionList1", objectType: "VSSelectionList", dropdown: true,
+         titleVisible: false,
+      });
+
+      expect(viewerComponent(untitled).isCornerKebab(untitled)).toBe(true);
+      expect(viewerComponent(titled).isCornerKebab(titled)).toBe(false);
+      expect(viewerComponent(dropdown).isCornerKebab(dropdown)).toBe(false);
+   });
 });
