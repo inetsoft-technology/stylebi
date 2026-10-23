@@ -1499,7 +1499,9 @@ public final class WorksheetMutationSupport {
                ExpressionRef exp = new ExpressionRef(null, exprName);
                exp.setExpression(expression);
                exprCol = new ColumnRef(exp);
-               exprCol.setDataType(cref.getDataType());
+               // Bug #79176 (item 2): the merged type, not the first subtable's the live
+               // column stores, or Min/Max over this column read narrowed.
+               exprCol.setDataType(columnType(t, cref, false));
 
                // Carry over the alias from the secondary aggregate.
                if(cref.getAlias() != null) {
@@ -4716,6 +4718,11 @@ public final class WorksheetMutationSupport {
             ? effectiveType(merged, gcol) : stored;
       }
 
+      // a post-aggregate condition on an unaliased aggregate resolves to the AggregateRef itself
+      if(ref instanceof AggregateRef aref) {
+         return t.isAggregate() && !isCrosstab(t) ? followInputType(aref, merged, stored) : stored;
+      }
+
       if(!(ref instanceof ColumnRef cr)) {
          return stored;
       }
@@ -4728,7 +4735,8 @@ public final class WorksheetMutationSupport {
       GroupRef gref = ainfo == null || ainfo.isCrosstab() ? null : ainfo.getGroup(cr);
 
       if(gref == null) {
-         return stored;
+         return ainfo == null || ainfo.isCrosstab()
+            ? stored : aggregateOutputType(ainfo, cr, merged, stored);
       }
 
       ColumnSelection priv = t.getColumnSelection(false);
@@ -4740,6 +4748,39 @@ public final class WorksheetMutationSupport {
       }
 
       return effectiveType(merged, cr);
+   }
+
+   /**
+    * Bug #79176 (item 2): the type of an aggregate output over a concatenation. A formula with a
+    * fixed type (Sum, Count, ...) keeps the stored type. A formula that follows its input (Max,
+    * Min, First, Last, Mode, the Nth and Pth family) takes the merged type of its source column,
+    * as {@link AggregateRef#getDataType()} takes the source column's type, because the stored
+    * source type is the first subtable's. A fixed-type formula keeps the stored type, which is
+    * where {@code AggregateRef} already turns a percentage over an integer into a double.
+    */
+   private static String aggregateOutputType(AggregateInfo ainfo, ColumnRef out,
+                                             ColumnSelection merged, String stored)
+   {
+      AggregateRef aref = ainfo.getAggregate(out);
+      return aref == null ? stored : followInputType(aref, merged, stored);
+   }
+
+   private static boolean isCrosstab(TableAssembly t) {
+      AggregateInfo ainfo = t.getAggregateInfo();
+      return ainfo != null && ainfo.isCrosstab();
+   }
+
+   /** The merged type of {@code aref}'s source column when its formula follows its input. */
+   private static String followInputType(AggregateRef aref, ColumnSelection merged, String stored) {
+      AggregateFormula formula = aref.getFormula();
+
+      if(formula == null || AggregateFormula.NONE.equals(formula) ||
+         formula.getDataType() != null || !(aref.getDataRef() instanceof ColumnRef src))
+      {
+         return stored;
+      }
+
+      return effectiveType(merged, src);
    }
 
    /**
