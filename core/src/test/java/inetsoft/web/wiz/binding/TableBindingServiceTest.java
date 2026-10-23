@@ -2948,6 +2948,67 @@ class TableBindingServiceTest {
                 "label, so neither must be applied");
    }
 
+   /**
+    * Bug #79208 round 4 (our own round-3 review, B2) -- the reviewer's exact live-verified
+    * probe, made permanent. {@code Category} is hidden; the request relabels only the SHOWN
+    * column {@code Region} to {@code "Category"} -- the hidden column's own bare, current
+    * display name, with {@code Category} itself never named in the request at all. Round 3's
+    * {@code requireUniqueHiddenLabels} only ever started the comparison from a hidden column's
+    * own pending label (and its first line early-returned on an empty {@code pendingHidden}
+    * entirely), so this direction went completely unchecked -- once {@code Category} is shown
+    * again (an ordinary, unrelated un-hide), two columns would display "Category".
+    */
+   @Test
+   void setColumnLabelsRefusesAShownColumnRenameThatCollidesWithAnUntouchedHiddenColumn()
+      throws Exception
+   {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnLabels(
+            "tok", principal(), "PbFour", Map.of("Region", "Category"), null));
+
+      assertTrue(thrown.getMessage().contains("Region"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Category"), thrown.getMessage());
+      assertTrue(thrown.getMessage().toLowerCase().contains("told apart"), thrown.getMessage());
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef regionRef =
+         (inetsoft.uql.asset.ColumnRef) info.getColumnSelection().getAttribute("Region");
+      assertNull(regionRef.getAlias(),
+                "'Region' must not be aliased -- its new label collides with the untouched " +
+                "hidden column 'Category', so nothing must be applied");
+   }
+
+   /**
+    * Control for round 4 (B2): a SHOWN column renamed to something that collides with neither
+    * another shown column nor the table's one hidden column must still succeed, confirming the
+    * new shown-vs-hidden check does not over-reject the ordinary case.
+    */
+   @Test
+   void setColumnLabelsStillAllowsAShownRenameThatDoesNotCollideWithAHiddenColumn()
+      throws Exception
+   {
+      TableVSAssembly table = tableWithColumns("PbFour", "Region", "State", "City", "Company");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(
+         columnRefSelectionOf("Category"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      TableBindingService.TableWrite result = service.setColumnLabels(
+         "tok", principal(), "PbFour", Map.of("Region", "Sales Region"), null);
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef regionRef =
+         (inetsoft.uql.asset.ColumnRef) info.getColumnSelection().getAttribute("Region");
+      assertEquals("Sales Region", regionRef.getAlias(),
+                  "a shown rename that collides with nothing -- shown or hidden -- must still " +
+                  "be applied");
+      assertEquals(List.of("Region -> Sales Region"), result.applied());
+   }
+
    private static TableVSAssembly tableWithHiddenB() {
       TableVSAssembly table = tableWithColumns("TableView2", "A", "C");
       ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
