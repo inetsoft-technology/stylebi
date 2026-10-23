@@ -1793,4 +1793,46 @@ class PropertyAliasesTest {
          () -> PropertyAliases.resolveForWrite("text", "additionalTables"));
       assertFalse(text.getMessage().contains("set_selection_source"), text.getMessage());
    }
+
+   // ── Redmine #79233: selection short names that only existed as raw dotted paths ──────────
+
+   /**
+    * formula/showText/showBar were aliased on SelectionList only, and cellHeight/titleHeight
+    * on neither, although all of them are applied on save and writable through the raw path.
+    * Each alias must land on exactly the raw path the Composer dialog model carries.
+    */
+   @Test
+   void selectionAssembliesExposeTheMeasureAndSizeShortNames() {
+      String size = "selectionGeneralPaneModel.sizePositionPaneModel.";
+
+      for(String type : List.of("selectionlist", "selectiontree")) {
+         assertEquals(size + "cellHeight", PropertyAliases.resolveForWrite(type, "cellHeight"),
+                      type);
+         assertEquals(size + "titleHeight", PropertyAliases.resolveForWrite(type, "titleHeight"),
+                      type);
+      }
+
+      String treeMeasure = "selectionTreePaneModel.selectionMeasurePaneModel.";
+      String listMeasure = "selectionListPaneModel.selectionMeasurePaneModel.";
+
+      for(String field : List.of("formula", "showText", "showBar")) {
+         assertEquals(treeMeasure + field,
+                      PropertyAliases.resolveForWrite("selectiontree", field));
+         assertEquals(listMeasure + field,
+                      PropertyAliases.resolveForWrite("selectionlist", field));
+      }
+
+      assertEquals("calendarGeneralPaneModel.sizePositionPaneModel.titleHeight",
+                   PropertyAliases.resolveForWrite("calendar", "titleHeight"));
+      assertEquals("selectionContainerGeneralPaneModel.sizePositionPaneModel.titleHeight",
+                   PropertyAliases.resolveForWrite("selectioncontainer", "titleHeight"));
+   }
+
+   /** titleHeight is only offered where it is applied, not on every sizePosition type. */
+   @Test
+   void titleHeightIsNotAliasedOnTypesThatDoNotApplyIt() {
+      for(String type : List.of("gauge", "text", "image", "slider", "spinner", "textinput")) {
+         assertFalse(PropertyAliases.forType(type).aliases().containsKey("titleHeight"), type);
+      }
+   }
 }

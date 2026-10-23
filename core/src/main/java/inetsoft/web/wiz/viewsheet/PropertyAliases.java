@@ -934,6 +934,30 @@ public final class PropertyAliases {
    }
 
    /**
+    * {@code titleHeight} on the title-bearing selection assemblies (selection list/tree,
+    * calendar, selection container) -- Redmine #79233. It is deliberately not folded into
+    * {@link #sizePosition}: that helper is registered for every type, and the field is only
+    * applied where the assembly info is a titled/compound one (a plain slider already refuses
+    * it, see {@link #DEAD_FIELDS}), so aliasing it everywhere would advertise a no-op. Without
+    * this the field was genuinely applied and writable through its raw dotted path but had no
+    * short name, so {@code list_assembly_properties} never offered it.
+    */
+   private static void titleHeight(Map<String, String> aliases, String prefix) {
+      aliases.put("titleHeight", prefix + ".sizePositionPaneModel.titleHeight");
+   }
+
+   /**
+    * The measure sub-pane shared by selection list and tree: {@code formula}, {@code showText},
+    * {@code showBar} (Redmine #79233; selection list already had them, selection tree did not).
+    * {@code measure} is added only for the list, whose alias predates this helper.
+    */
+   private static void selectionMeasure(Map<String, String> aliases, String measure) {
+      aliases.put("formula", measure + ".formula");
+      aliases.put("showText", measure + ".showText");
+      aliases.put("showBar", measure + ".showBar");
+   }
+
+   /**
     * Gauge, text and image all hold a top-level {@code dataOutputPaneModel} — the query/column
     * this output assembly's value binds to. {@code aggregate} is genuinely consumed for all
     * three (not gauge-only — {@code TextPropertyDialogService} and {@code
@@ -1222,11 +1246,11 @@ public final class PropertyAliases {
       sizePosition(aliases, "selectionGeneralPaneModel");
       title(aliases, "selectionGeneralPaneModel");
       selectionGeneral(aliases);
+      aliases.put("cellHeight", "selectionGeneralPaneModel.sizePositionPaneModel.cellHeight");
+      titleHeight(aliases, "selectionGeneralPaneModel");
       String measure = "selectionListPaneModel.selectionMeasurePaneModel";
       aliases.put("measure", measure + ".measure");
-      aliases.put("formula", measure + ".formula");
-      aliases.put("showText", measure + ".showText");
-      aliases.put("showBar", measure + ".showBar");
+      selectionMeasure(aliases, measure);
       return aliases;
    }
 
@@ -1236,6 +1260,9 @@ public final class PropertyAliases {
       sizePosition(aliases, "selectionGeneralPaneModel");
       title(aliases, "selectionGeneralPaneModel");
       selectionGeneral(aliases);
+      aliases.put("cellHeight", "selectionGeneralPaneModel.sizePositionPaneModel.cellHeight");
+      titleHeight(aliases, "selectionGeneralPaneModel");
+      selectionMeasure(aliases, "selectionTreePaneModel.selectionMeasurePaneModel");
       aliases.put("selectChildren", "selectionTreePaneModel.selectChildren");
       aliases.put("mode", "selectionTreePaneModel.mode");
       // Not in selectionGeneral(): SelectionListPropertyDialogService never reads or writes
@@ -1396,6 +1423,7 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "calendarGeneralPaneModel");
       sizePosition(aliases, "calendarGeneralPaneModel");
+      titleHeight(aliases, "calendarGeneralPaneModel");
       title(aliases, "calendarGeneralPaneModel");
       aliases.put("showType", "calendarAdvancedPaneModel.showType");
       aliases.put("viewMode", "calendarAdvancedPaneModel.viewMode");
@@ -1540,6 +1568,7 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "selectionContainerGeneralPaneModel");
       sizePosition(aliases, "selectionContainerGeneralPaneModel");
+      titleHeight(aliases, "selectionContainerGeneralPaneModel");
       title(aliases, "selectionContainerGeneralPaneModel");
       aliases.put("showCurrentSelection",
          "selectionContainerGeneralPaneModel.showCurrentSelection");
