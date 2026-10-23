@@ -58,7 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
                                   DcInMemoryViewsheetFixture.Config.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class DateComparisonCustomChangeTest {
    private static final String[][][] RANGE_SETS = {
       // ranges with different numbers of units, one crossing a year and a quarter
