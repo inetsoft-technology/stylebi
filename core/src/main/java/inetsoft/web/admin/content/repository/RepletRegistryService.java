@@ -322,7 +322,12 @@ public class RepletRegistryService {
          boolean result = copyFolder(pathFrom, userFrom, typeFrom, pathTo,
             userTo, typeTo, move, infos, principal);
 
-         if(result) {
+         // Bug #78520, a worksheet folder's permission is an ASSET permission. A repository folder
+         // has a REPORT permission, which copyFolder has already copied. Its path can equal the
+         // path of a worksheet folder, so the ASSET permission must not be moved for it.
+         if(result && (typeFrom & RepositoryEntry.WORKSHEET_FOLDER) ==
+            RepositoryEntry.WORKSHEET_FOLDER)
+         {
             updateFolderPermission(pathFrom, pathTo);
          }
 

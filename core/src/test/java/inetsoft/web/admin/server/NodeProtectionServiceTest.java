@@ -34,10 +34,19 @@ package inetsoft.web.admin.server;
  * [G4] Events for other nodes are ignored.
  * [G5] While single-instance protection holds (minimum uptime not expired), a map false is
  *      not sent to the protector.
+ * [G6] Bug #78652: a value the coordinator stored for the local node before the listener was
+ *      registered (the node was still starting) is applied at startup, true and false.
+ * [G7] No stored value for the local node leaves the protector untouched.
+ * [G8] Bug #78652: startup registers the map listener first, then applies the stored value,
+ *      so a value put in between reaches the node through one of the two.
  */
 
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
+import inetsoft.sree.internal.cluster.DistributedScheduledExecutorService;
 import inetsoft.sree.internal.cluster.EntryEvent;
+import inetsoft.util.config.ClusterConfig;
+import org.mockito.InOrder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -108,6 +117,59 @@ class NodeProtectionServiceTest {
       service.entryUpdated(event(LOCAL, true, false));
 
       verify(protector, never()).updateNodeProtection(anyBoolean());
+   }
+
+   // [G6]
+   @Test
+   void storedTrueIsAppliedAtStartup() {
+      stored(true);
+
+      service.applyStoredProtection();
+
+      verify(protector).updateNodeProtection(true);
+      verify(protector, never()).updateNodeProtection(false);
+   }
+
+   // [G6]
+   @Test
+   void storedFalseIsAppliedAtStartup() {
+      stored(false);
+
+      service.applyStoredProtection();
+
+      verify(protector).updateNodeProtection(false);
+   }
+
+   // [G7]
+   @Test
+   void missingStoredValueIsIgnoredAtStartup() {
+      stored(null);
+
+      service.applyStoredProtection();
+
+      verify(protector, never()).updateNodeProtection(anyBoolean());
+   }
+
+   // [G8]
+   @Test
+   void startupRegistersListenerThenAppliesStoredValue() {
+      stored(true);
+      when(cluster.getScheduledExecutor()).thenReturn(mock(DistributedScheduledExecutorService.class));
+
+      service.startCoordination(mock(ClusterConfig.class));
+
+      InOrder order = inOrder(cluster, protector);
+      order.verify(cluster).addReplicatedMapListener(NodeProtectionService.NODE_PROTECTION_MAP, service);
+      order.verify(cluster).getReplicatedMap(NodeProtectionService.NODE_PROTECTION_MAP);
+      order.verify(protector).updateNodeProtection(true);
+   }
+
+   @SuppressWarnings("unchecked")
+   private void stored(Boolean value) {
+      DistributedMap<String, Boolean> map = mock(DistributedMap.class);
+      when(map.get(LOCAL)).thenReturn(value);
+      when(cluster.<String, Boolean>getReplicatedMap(NodeProtectionService.NODE_PROTECTION_MAP))
+         .thenReturn(map);
    }
 
    private static EntryEvent<String, Boolean> event(String key, Boolean oldValue, Boolean value) {

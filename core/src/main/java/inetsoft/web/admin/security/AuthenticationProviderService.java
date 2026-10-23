@@ -166,6 +166,13 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       List<AuthenticationProvider> providerList = chain.getProviders();
       providerList.add(newProvider);
       chain.setProviders(providerList);
+
+      // The cluster cache of a removed Database provider outlives it for a grace period, and a
+      // provider added under the same name would serve the removed configuration's data, so
+      // load it now (Bug #78793). The other nodes refresh it when they reload the chain.
+      if(newProvider instanceof DatabaseAuthenticationProvider && newProvider.isCacheEnabled()) {
+         newProvider.clearCache();
+      }
    }
 
    @Audited(

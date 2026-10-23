@@ -17,14 +17,19 @@
  */
 package inetsoft.sree.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.uql.util.Identity;
 import inetsoft.web.admin.security.AuthenticationProvidersChanged;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * {@code AuthenticationChain} wraps a list of authentication providers. When authorizing or getting
@@ -365,6 +370,114 @@ public class AuthenticationChain
    }
 
    @Override
+   Map<String, String> describeProviders(List<AuthenticationProvider> list) {
+      Map<String, String> result = new HashMap<>();
+
+      for(AuthenticationProvider provider : list) {
+         if(provider instanceof DatabaseAuthenticationProvider db) {
+            result.put(db.getProviderName(), describeCacheConfiguration(db));
+         }
+      }
+
+      return result;
+   }
+
+   /**
+    * Refreshes the cluster cache of each Database provider whose configuration the reload
+    * added or changed. The cache state of a provider name outlives a removed provider, and on
+    * the singleton host this refresh is the first one that runs after the host's chain has the
+    * new configuration, so it loads that configuration (Bug #78793).
+    * <p>
+    * The refreshes connect to the cache service on the singleton host, so they run on their own
+    * thread rather than on the storage event thread that calls this. They are submitted after
+    * the new providers are in the chain and run in order.
+    */
+   @Override
+   void providersReloaded(Map<String, String> before, List<AuthenticationProvider> list) {
+      List<DatabaseAuthenticationProvider> changed = new ArrayList<>();
+
+      for(AuthenticationProvider provider : list) {
+         if(provider instanceof DatabaseAuthenticationProvider db && db.isCacheEnabled()) {
+            String old = before.get(db.getProviderName());
+
+            if(old == null || !old.equals(describeCacheConfiguration(db))) {
+               changed.add(db);
+            }
+         }
+      }
+
+      if(!changed.isEmpty()) {
+         RELOAD_EXECUTOR.execute(() -> refreshReloaded(changed));
+      }
+   }
+
+   private void refreshReloaded(List<DatabaseAuthenticationProvider> providers) {
+      for(DatabaseAuthenticationProvider changed : providers) {
+         // A later reload may have replaced it: refresh the current provider of that name. A
+         // reload in progress empties the list before it sets the new one, so wait for it.
+         String waiter = "the cache refresh of security provider " + changed.getProviderName();
+         DatabaseAuthenticationProvider db = getProvidersAfterReload(waiter).stream()
+            .filter(p -> p instanceof DatabaseAuthenticationProvider &&
+                         Objects.equals(p.getProviderName(), changed.getProviderName()))
+            .map(DatabaseAuthenticationProvider.class::cast)
+            .filter(DatabaseAuthenticationProvider::isCacheEnabled)
+            .findFirst().orElse(null);
+
+         if(db == null) {
+            continue;
+         }
+
+         try {
+            db.clearCache();
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to refresh the cache of security provider {}",
+                     db.getProviderName(), e);
+         }
+      }
+   }
+
+   /**
+    * Describes the configuration that a Database provider loads its cache with, for comparing
+    * the same provider name before and after a reload on this node. The encrypted credential is
+    * replaced by its non-secret part: it is encrypted with a random IV, so it differs on every
+    * write, and a password change doesn't change the data the cache loads. Null values are
+    * written as empty strings, as a provider read from the file has them.
+    *
+    * @return the description, or {@code null} if the configuration could not be written.
+    */
+   private static String describeCacheConfiguration(DatabaseAuthenticationProvider provider) {
+      try {
+         ObjectNode config = (ObjectNode) provider.writeConfiguration(new ObjectMapper());
+         String login = "";
+
+         if(provider.isRequiresLogin()) {
+            login = provider.isUseCredential() ?
+               "secret:" + provider.getSecretId() :
+               "user:" + Objects.toString(provider.getDbUser(), "");
+         }
+
+         config.put("credential", login);
+         List<String> nulls = new ArrayList<>();
+         config.fields().forEachRemaining(e -> {
+            if(e.getValue().isNull()) {
+               nulls.add(e.getKey());
+            }
+         });
+
+         for(String field : nulls) {
+            config.put(field, "");
+         }
+
+         return provider.getClass().getName() + ":" + config;
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to describe security provider {}", provider.getProviderName(), e);
+         return null;
+      }
+   }
+
+   @Override
    public String getProviderName() {
       return chainName;
    }
@@ -376,7 +489,9 @@ public class AuthenticationChain
 
    @Override
    void setProviderList(List<AuthenticationProvider> list) {
-      stream()
+      // Without the chain's read lock: a reload calls this while it holds the reload lock, and an
+      // edit holding the write lock waits for the reload lock when it saves the chain.
+      getProviderList().stream()
          .filter(EditableAuthenticationProvider.class::isInstance)
          .map(EditableAuthenticationProvider.class::cast)
          .forEach(l -> l.removeAuthenticationChangeListener(changeDelegate));
@@ -390,7 +505,7 @@ public class AuthenticationChain
          LOG.debug("Failed to send authentication providers changed message", ex);
       }
 
-      stream()
+      list.stream()
          .filter(EditableAuthenticationProvider.class::isInstance)
          .map(EditableAuthenticationProvider.class::cast)
          .forEach(l -> l.addAuthenticationChangeListener(changeDelegate));
@@ -446,4 +561,10 @@ public class AuthenticationChain
    };
 
    private static final Logger LOG = LoggerFactory.getLogger(AuthenticationChain.class);
+   // runs the cache refreshes after a chain reload, in order, off the storage event thread
+   private static final ExecutorService RELOAD_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+      Thread thread = new Thread(r, "AuthenticationChainReload");
+      thread.setDaemon(true);
+      return thread;
+   });
 }

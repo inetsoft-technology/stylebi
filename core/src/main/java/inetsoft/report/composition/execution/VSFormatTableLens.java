@@ -21,6 +21,7 @@ import inetsoft.report.*;
 import inetsoft.report.filter.DCMergeDatePartFilter;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.lens.CalcTableLens;
+import inetsoft.report.script.formula.CalcRef;
 import inetsoft.report.script.viewsheet.TableDataVSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.SreeEnv;
@@ -34,6 +35,8 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSDictionary;
+import inetsoft.util.script.FormulaContext;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +45,7 @@ import java.awt.*;
 import java.text.Format;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * VSFormatTableLens, the table lens applies the format info contained in a
@@ -409,14 +413,17 @@ public final class VSFormatTableLens extends FormatTableLens {
 
             withDynamic = !dlist.isEmpty();
 
-            for(DynamicValue dynamicValue : dlist) {
-               box.executeDynamicValue(dynamicValue, scriptable);
+            if(withDynamic) {
+               executeFormatDynamicValues(dlist, scriptable, row, col);
             }
          }
          catch(RuntimeException ex) {
+            // row/col are thread-wide: don't leave this cell's location behind on a failure
+            restoreScriptableCell(scriptable, orow, ocol);
             throw ex;
          }
          catch(Exception ex) {
+            restoreScriptableCell(scriptable, orow, ocol);
             LOG.warn("Failed to set dynamic values", ex);
             throw new RuntimeException(ex);
          }
@@ -594,6 +601,97 @@ public final class VSFormatTableLens extends FormatTableLens {
 
       return fmt;
    }
+
+   /**
+    * Execute the dynamic values (format expressions) of a cell. A failing expression must not
+    * hide the table's data (#78493): that property falls back to its default format, the error
+    * is reported once, and the other properties still run. A script stop (timeout/cancel) is
+    * not a format error and still propagates.
+    */
+   private void executeFormatDynamicValues(List<DynamicValue> dlist,
+                                           TableDataVSAScriptable scriptable, int row, int col)
+      throws Exception
+   {
+      // named cells ($name) of a freehand table live in the lens's formula scope, not on the
+      // assembly scriptable, so make them resolvable here. Only the "$name" members are added
+      // (never row/col/field/sum...), so existing expressions keep their meaning.
+      CalcTableLens calc = getCalcTableLens();
+      RuntimeCalcTableLens rtable = calc instanceof RuntimeCalcTableLens ?
+         (RuntimeCalcTableLens) calc : null;
+      List<String> refs = new ArrayList<>();
+
+      if(scriptable != null && rtable != null) {
+         for(String name : rtable.getCellNames()) {
+            if(name != null) {
+               scriptable.addProperty("$" + name, new CalcRef(rtable, name));
+               refs.add("$" + name);
+            }
+         }
+      }
+
+      boolean located = rtable != null;
+
+      try {
+         if(located) {
+            // CalcRef resolves against the location of the cell being evaluated
+            FormulaContext.pushTable(rtable);
+            FormulaContext.pushCellLocation(new Point(col, row));
+         }
+
+         for(DynamicValue dynamicValue : dlist) {
+            try {
+               box.executeDynamicValue(dynamicValue, scriptable);
+
+               if(dynamicValue.getRValue() instanceof CalcRef) {
+                  dynamicValue.setRValue(((CalcRef) dynamicValue.getRValue()).unwrap());
+               }
+            }
+            catch(Exception ex) {
+               if(ScriptTimeoutGuard.isStop(ex)) {
+                  ScriptTimeoutGuard.rethrowStop(ex);
+               }
+
+               // drop the value left by a previous cell so it doesn't leak into this one
+               dynamicValue.setRValue(null);
+               reportFormatError(dynamicValue, ex);
+            }
+         }
+      }
+      finally {
+         if(located) {
+            FormulaContext.popCellLocation();
+            FormulaContext.popTable();
+         }
+
+         for(String ref : refs) {
+            scriptable.removeMember(ref);
+         }
+      }
+   }
+
+   private static void restoreScriptableCell(TableDataVSAScriptable scriptable, int orow,
+                                              int ocol)
+   {
+      if(scriptable != null) {
+         scriptable.setRow(orow);
+         scriptable.setCol(ocol);
+      }
+   }
+
+   private void reportFormatError(DynamicValue dval, Exception ex) {
+      String key = assembly.getName() + "\0" + dval.getDValue() + "\0" + ex.getMessage();
+
+      // the same expression fails on every cell access, report it only once
+      if(reportedFormatErrors.add(key)) {
+         LOG.warn("Format expression failed in {}, using the default format: {}",
+                  assembly.getName(), ex.getMessage());
+         Tool.addUserMessage(Catalog.getCatalog().getString(
+            "viewer.viewsheet.tableFormatScriptFailed", assembly.getName(),
+            dval.getDValue(), ex.getMessage()));
+      }
+   }
+
+   private final Set<String> reportedFormatErrors = ConcurrentHashMap.newKeySet();
 
    /**
     * VS table doesn't support span cells.

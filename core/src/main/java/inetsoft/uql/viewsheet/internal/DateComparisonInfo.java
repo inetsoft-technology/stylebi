@@ -1046,7 +1046,8 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
                continue;
             }
 
-            if(end.compareTo(start) <= 0) {
+            // a one-day period (start == end) is valid, only an inverted one is skipped
+            if(end.compareTo(start) < 0) {
                continue;
             }
 
@@ -1571,6 +1572,16 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
 
       while(rangeStartCal.before(rangeEndCal) || rangeStartCal.equals(rangeEndCal)) {
          int contextYear = rangeEndCal.get(Calendar.YEAR);
+
+         // rangeEndCal is the first day of the context week; a week can straddle New Year, and
+         // the days of it after Dec 31 still belong to this context week, so compare against
+         // the year of the week's last day. (#79061)
+         if(contextLevel == XConstants.WEEK_DATE_GROUP) {
+            Calendar weekEndCal = (Calendar) rangeEndCal.clone();
+            weekEndCal.add(Calendar.DATE, 6);
+            contextYear = weekEndCal.get(Calendar.YEAR);
+         }
+
          Date[] range = getIntervalDateRange(contextLevel, dcInterval.getLevel(),
             dcInterval.getGranularity(), rangeEndCal.getTime(), toDate);
          setToNextIntervalStart(rangeEndCal, contextCalendarLevel, contextLevelIsQuarter, false, alignWeek());
@@ -2095,10 +2106,16 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          nextQ.add(Calendar.DATE, -1);
       }
       else {
-         nextQ.add(Calendar.DATE, 7 - dayOfWeek);
+         // days from the next quarter's first day to the last day of its week, for any week
+         // start (7 - dayOfWeek is only right for Sunday weeks)
+         int dayInWeek = (dayOfWeek - getFirstDayOfWeek() + 7) % 7;
+         nextQ.add(Calendar.DATE, 6 - dayInWeek);
       }
 
       periodStartCal.set(Calendar.WEEK_OF_MONTH, weekOfQuarter);
+      // compare the first day of the week, not the weekday carried over from the period's
+      // start, which can be the last day of the week (e.g. Sunday Jan 1 in a Monday week). (#79061)
+      periodStartCal.set(Calendar.DAY_OF_WEEK, getFirstDayOfWeek());
       return !periodStartCal.after(nextQ);
    }
 

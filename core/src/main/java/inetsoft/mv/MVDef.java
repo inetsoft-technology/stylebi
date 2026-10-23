@@ -2629,6 +2629,23 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    }
 
    /**
+    * Drop the in-memory worksheet from this definition before it is sent to another cluster
+    * node, when the registered MV already holds the worksheet in storage. The worksheet graph
+    * can contain classes loaded only by a data source plugin class loader (e.g. a
+    * TabularQuery), which the receiving node's marshaller cannot resolve. The receiver
+    * restores the worksheet from the MV manager (which parses it through the plugin loader).
+    * Call this only on a clone; the container is replaced by a copy on clone, so the
+    * original definition is not affected.
+    */
+   public void detachWorksheetForDispatch() {
+      MVContainer c = this.container;
+
+      if(c != null && c.ws != null && MVManager.getManager().containsMV(this)) {
+         c.ws = null;
+      }
+   }
+
+   /**
     * Write the worksheet xml as compressed cdata.
     */
    private void writeWorksheet(Worksheet ws) throws IOException {

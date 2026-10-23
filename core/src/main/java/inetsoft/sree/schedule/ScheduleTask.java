@@ -259,6 +259,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       long retry = Long.MAX_VALUE;
       Scheduler scheduler = Scheduler.getScheduler();
       long lastRun = scheduler.getLastScheduledRunTime(getTaskId());
+      String orgId = getOrgId();
 
       for(int i = 0; i < conds.size(); i++) {
          ScheduleCondition cond = conds.elementAt(i);
@@ -267,8 +268,10 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          // if a task is run every two days, and the task just ran. if we use the
          // current time to check, it will be scheduled for tomorrow but it should
          // actually be scheduled two days from last run time
-         if(lastRun > 0 && cond instanceof TimeCondition) {
-            r0 = ((TimeCondition) cond).getRetryTime(time, lastRun);
+         if(cond instanceof TimeCondition && (lastRun > 0 || orgId != null)) {
+            // a never-run task anchors on the current time, in its organization like the
+            // later fires
+            r0 = ((TimeCondition) cond).getRetryTime(time, lastRun > 0 ? lastRun : time, orgId);
          }
          else {
             r0 = cond.getRetryTime(time);
@@ -304,7 +307,10 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                return true;
             }
          }
-         else if(cond.getRetryTime(time) > 0) {
+         else if(cond instanceof TimeCondition && getOrgId() != null ?
+            ((TimeCondition) cond).getRetryTime(time, time, getOrgId()) > 0 :
+            cond.getRetryTime(time) > 0)
+         {
             return true;
          }
       }
@@ -1075,6 +1081,49 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       }
 
       legacyOwner = false;
+   }
+
+   /**
+    * Get the id of the organization that owns this task, which is the organization in its id,
+    * so it is the same on every thread and node.
+    *
+    * @return the organization id, or <code>null</code> if the id has none.
+    */
+   public String getOrgId() {
+      return getOrgId(getTaskId());
+   }
+
+   /**
+    * Get the id of the organization in a task id, <code>name~;~org:task</code> or, for a data
+    * cycle task, <code>name~;~org__task</code>. The thread's principal is never consulted.
+    *
+    * @param taskId the task id, or a trigger name that starts with one.
+    *
+    * @return the organization id, or <code>null</code> if the id has none.
+    */
+   public static String getOrgId(String taskId) {
+      int index = taskId == null ? -1 : taskId.indexOf(IdentityID.KEY_DELIMITER);
+
+      if(index < 0) {
+         return null;
+      }
+
+      String rest = taskId.substring(index + IdentityID.KEY_DELIMITER.length());
+      // the owner key ends at the first ':' (task) or "__" (cycle task); the global org key
+      // itself starts with "__"
+      if(rest.startsWith("__GLOBAL__")) {
+         return null;
+      }
+
+      int end = rest.length();
+
+      for(String stop : new String[] { ":", "__" }) {
+         int i = rest.indexOf(stop);
+         end = i >= 0 ? Math.min(end, i) : end;
+      }
+
+      String org = rest.substring(0, end);
+      return org.isEmpty() || "null".equals(org) ? null : org;
    }
 
    /**
