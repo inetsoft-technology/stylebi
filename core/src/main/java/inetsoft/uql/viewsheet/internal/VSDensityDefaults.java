@@ -522,7 +522,7 @@ public final class VSDensityDefaults {
       }
    }
 
-   private static final String COMFORTABLE = "comfortable";
-   private static final String COMPACT = "compact";
-   private static final String DENSE = "dense";
+   static final String COMFORTABLE = "comfortable";
+   static final String COMPACT = "compact";
+   static final String DENSE = "dense";
 }

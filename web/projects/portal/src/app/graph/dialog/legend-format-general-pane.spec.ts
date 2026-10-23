@@ -131,4 +131,16 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
          done();
       });
    }));
+
+   it("labels the legend distance 'Distance from Chart'", () => {
+      const fixture = TestBed.createComponent(LegendFormatGeneralPane);
+      fixture.componentInstance.model = createModel();
+      fixture.componentInstance.form = new FormGroup({});
+      fixture.detectChanges();
+
+      const labels: string[] = Array.from(fixture.nativeElement.querySelectorAll("label"))
+         .map((e: HTMLElement) => e.textContent.trim());
+      expect(labels).toContain("_#(Distance from Chart)");
+      expect(labels).not.toContain("_#(Legend Gap)");
+   });
 });

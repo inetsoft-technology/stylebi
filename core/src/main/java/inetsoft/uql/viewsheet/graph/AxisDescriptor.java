@@ -457,6 +457,29 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
    }
 
    /**
+    * Whether the label gap carries an opinion: an author's value, a deliberate zero included, or a
+    * non-zero CSS one. A CSS zero cannot be told from unset.
+    */
+   public boolean hasLabelGapValue() {
+      return labelGap.hasUserValue() || getLabelGap() != 0;
+   }
+
+   /**
+    * Whether the author set the label gap.
+    */
+   public boolean hasLabelGapUserValue() {
+      return labelGap.hasUserValue();
+   }
+
+   /**
+    * Clear the label gap of the given tier, leaving other values untouched.
+    * @param type the type of value to clear: CSS or USER
+    */
+   public void resetLabelGap(CompositeValue.Type type) {
+      labelGap.resetValue(type);
+   }
+
+   /**
     * Check if the axis this descriptor according to is visible.
     */
    public boolean isVisible() {
@@ -674,6 +697,8 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
          labelGap.parse(val);
       }
 
+      GapZeroMarker.dropUnmarked(labelGap, Tool.getAttribute(node, "labelGapZero"));
+
       strictNull = "true".equalsIgnoreCase(Tool.getAttribute(node, "strictNull"));
    }
 
@@ -780,6 +805,7 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
       writer.print(" maxModeLabelVisible=\"" + maxModeLabelVisible + "\" ");
       writer.print(" maxModeLineVisible=\"" + maxModeLineVisible + "\" ");
       writer.print(" labelGap=\"" + labelGap + "\" ");
+      GapZeroMarker.write(writer, "labelGapZero", labelGap);
       writer.print(" strictNull=\"true\" ");
    }
 
@@ -843,6 +869,7 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
    public AxisDescriptor clone() {
       try {
          AxisDescriptor desc = (AxisDescriptor) super.clone();
+         desc.labelGap = labelGap.clone();
 
          if(increment != null) {
             desc.increment = increment.doubleValue();

@@ -22,6 +22,7 @@ import inetsoft.graph.data.PairsDataSet;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.ChartArea;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
@@ -36,6 +37,17 @@ import java.util.*;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AxisPropertyDialogModel implements Serializable {
    public AxisPropertyDialogModel() {
+   }
+
+   static int shownLabelGap(AxisDescriptor axisDesc, VizContext ctx) {
+      int gap = VSChartChromeDefaults.resolveAxisLabelGap(
+         axisDesc.getLabelGap(), axisDesc.hasLabelGapValue(), ctx);
+      // DefaultAxis draws a zero gap as 2
+      return gap == 0 ? 2 : gap;
+   }
+
+   static Boolean labelGapFollowsDefault(AxisDescriptor axisDesc, VizContext ctx) {
+      return ctx.modern ? !axisDesc.hasLabelGapUserValue() : null;
    }
 
    public AxisPropertyDialogModel(ChartInfo cInfo, AxisDescriptor axisDesc,
@@ -147,6 +159,9 @@ public class AxisPropertyDialogModel implements Serializable {
          // Inner axes of a scatter matrix share scale across cells; moving labels to the
          // opposite side breaks cell alignment. (Bug #74136)
          (!outer && GraphTypeUtil.isScatterMatrix(cInfo)));
+
+      axisLabelPaneModel.setLabelGap(shownLabelGap(axisDesc, ctx));
+      axisLabelPaneModel.setLabelGapFollowsDefault(labelGapFollowsDefault(axisDesc, ctx));
 
       RotationRadioGroupModel rotationRadioGroupModel = new RotationRadioGroupModel();
       CompositeTextFormat textFormat;
@@ -299,6 +314,22 @@ public class AxisPropertyDialogModel implements Serializable {
       }
 
       axisDesc.setLabelOnSecondaryAxis(axisLabelPaneModel.isLabelOnSecondaryAxis());
+
+      Boolean labelGapFollowsDefault = axisLabelPaneModel.getLabelGapFollowsDefault();
+
+      if(labelGapFollowsDefault == null) {
+         // no checkbox was shown, so store only a real edit
+         if(axisLabelPaneModel.getLabelGap() != shownLabelGap(axisDesc, ctx)) {
+            axisDesc.setLabelGap(axisLabelPaneModel.getLabelGap());
+         }
+      }
+      else if(labelGapFollowsDefault) {
+         // clearing the author tier hands the gap back to the stylesheet or the density default
+         axisDesc.resetLabelGap(CompositeValue.Type.USER);
+      }
+      else {
+         axisDesc.setLabelGap(axisLabelPaneModel.getLabelGap());
+      }
 
       RotationRadioGroupModel rotationRadioGroupModel =
          axisLabelPaneModel.getRotationRadioGroupModel();

@@ -28,14 +28,18 @@ import { TitleFormatPane } from "./title-format-pane.component";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("Title Format Dialog Unit Test", () => {
-   let createMockTitleFormatDialogModel: (title?: string) => TitleFormatDialogModel = (title?: string) => {
+   let createMockTitleFormatDialogModel: (title?: string, labelGap?: number,
+      labelGapFollowsDefault?: boolean) => TitleFormatDialogModel =
+      (title?: string, labelGap: number = 0, labelGapFollowsDefault?: boolean) => {
       return {
          titleFormatPaneModel: {
             title: title,
             currentTitle: title,
             rotationRadioGroupModel: {
                rotation: ""
-            }
+            },
+            labelGap: labelGap,
+            labelGapFollowsDefault: labelGapFollowsDefault
          },
          oldTitle: ""
       };
@@ -93,4 +97,43 @@ describe("Title Format Dialog Unit Test", () => {
       });
       okBtn.click();
    }));
+
+   it("shows the title distance disabled while the default is followed", () => {
+      fixture = TestBed.createComponent(TitleFormatDialog);
+      fixture.componentInstance.model = createMockTitleFormatDialogModel("state", 4, true);
+      fixture.detectChanges();
+
+      const stepper: HTMLInputElement = fixture.nativeElement.querySelector(
+         "input[role=spinbutton][aria-label='_#(Title Distance from Axis)']");
+      expect(stepper.disabled).toBe(true);
+      expect(stepper.getAttribute("aria-valuemin")).toBe("0");
+      expect(fixture.nativeElement.querySelector("#titleLabelGapFollowsDefault")).not.toBeNull();
+   });
+
+   it("hides the follow-default box on a legacy chart", () => {
+      fixture = TestBed.createComponent(TitleFormatDialog);
+      fixture.componentInstance.model = createMockTitleFormatDialogModel("state", 0, undefined);
+      fixture.detectChanges();
+
+      const stepper: HTMLInputElement = fixture.nativeElement.querySelector(
+         "input[role=spinbutton][aria-label='_#(Title Distance from Axis)']");
+      expect(stepper).not.toBeNull();
+      expect(stepper.disabled).toBe(false);
+      expect(fixture.nativeElement.querySelector("#titleLabelGapFollowsDefault")).toBeNull();
+   });
+
+   it("shows the follow-default box unticked when the author set a value", () => {
+      fixture = TestBed.createComponent(TitleFormatDialog);
+      fixture.componentInstance.model = createMockTitleFormatDialogModel("state", 6, false);
+      fixture.detectChanges();
+
+      const stepper: HTMLInputElement = fixture.nativeElement.querySelector(
+         "input[role=spinbutton][aria-label='_#(Title Distance from Axis)']");
+      const box: HTMLInputElement =
+         fixture.nativeElement.querySelector("#titleLabelGapFollowsDefault");
+      expect(box).not.toBeNull();
+      expect(box.checked).toBe(false);
+      expect(stepper).not.toBeNull();
+      expect(stepper.disabled).toBe(false);
+   });
 });

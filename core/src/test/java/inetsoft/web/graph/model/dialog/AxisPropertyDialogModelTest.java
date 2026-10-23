@@ -18,9 +18,13 @@
 package inetsoft.web.graph.model.dialog;
 
 import inetsoft.test.*;
+import inetsoft.uql.CompositeValue;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.AxisDescriptor;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.graph.CompositeTextFormat;
 import inetsoft.uql.viewsheet.internal.VizContext;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,7 +33,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
@@ -94,6 +98,108 @@ class AxisPropertyDialogModelTest {
       axisPropertyDialogModel.updateAxisPropertyDialogModel(axisDescriptor, columnName, "", false,
                                                             VizContext.ofGate());
       assertNull(axisDescriptor.getColumnLabelTextFormat(columnName).getUserDefinedFormat().getRotation());
+   }
+
+   @Test
+   void aLegacyAxisShowsTheTwoPixelsItDraws() {
+      assertEquals(2, AxisPropertyDialogModel.shownLabelGap(new AxisDescriptor(), VizContext.LEGACY));
+      assertNull(AxisPropertyDialogModel.labelGapFollowsDefault(new AxisDescriptor(), VizContext.LEGACY));
+   }
+
+   @Test
+   void aStoredAuthorZeroShowsTheTwoPixelsItDraws() {
+      // an author's 0 is an opinion, and the engine draws it as 2
+      AxisDescriptor axis = new AxisDescriptor();
+      axis.setLabelGap(0);
+
+      assertEquals(2, AxisPropertyDialogModel.shownLabelGap(axis, VizContext.LEGACY));
+      assertEquals(2, AxisPropertyDialogModel.shownLabelGap(axis, modernAt("compact")));
+   }
+
+   @Test
+   void aModernAxisShowsTheDashboardDensityDefault() {
+      VizContext ctx = modernAt("comfortable");
+
+      assertEquals(12, AxisPropertyDialogModel.shownLabelGap(new AxisDescriptor(), ctx));
+      assertEquals(Boolean.TRUE, AxisPropertyDialogModel.labelGapFollowsDefault(new AxisDescriptor(), ctx));
+   }
+
+   @Test
+   void aStylesheetGapIsShownWithTheBoxTicked() {
+      AxisDescriptor axis = new AxisDescriptor();
+      axis.setLabelGap(20, CompositeValue.Type.CSS);
+      VizContext ctx = modernAt("compact");
+
+      assertEquals(20, AxisPropertyDialogModel.shownLabelGap(axis, ctx));
+      assertEquals(Boolean.TRUE, AxisPropertyDialogModel.labelGapFollowsDefault(axis, ctx));
+   }
+
+   @Test
+   void anAuthorValueUnticksTheBox() {
+      AxisDescriptor axis = new AxisDescriptor();
+      axis.setLabelGap(5);
+      VizContext ctx = modernAt("compact");
+
+      assertEquals(5, AxisPropertyDialogModel.shownLabelGap(axis, ctx));
+      assertEquals(Boolean.FALSE, AxisPropertyDialogModel.labelGapFollowsDefault(axis, ctx));
+   }
+
+   @Test
+   void aLegacyOkWithoutEditsStoresNothing() throws Exception {
+      AxisDescriptor axis = new AxisDescriptor();
+      AxisLabelPaneModel pane = axisPropertyDialogModel.getAxisLabelPaneModel();
+      pane.setLabelGap(AxisPropertyDialogModel.shownLabelGap(axis, VizContext.LEGACY));
+      pane.setLabelGapFollowsDefault(null);
+
+      axisPropertyDialogModel.updateAxisPropertyDialogModel(axis, "", "", false, VizContext.LEGACY);
+
+      assertFalse(axis.hasLabelGapUserValue());
+   }
+
+   @Test
+   void aLegacyEditIsStored() throws Exception {
+      AxisDescriptor axis = new AxisDescriptor();
+      axisPropertyDialogModel.getAxisLabelPaneModel().setLabelGap(1);
+
+      axisPropertyDialogModel.updateAxisPropertyDialogModel(axis, "", "", false, VizContext.LEGACY);
+
+      assertEquals(1, axis.getLabelGap());
+   }
+
+   @Test
+   void tickingTheBoxHandsTheGapBackToTheStylesheet() throws Exception {
+      AxisDescriptor axis = new AxisDescriptor();
+      axis.setLabelGap(20, CompositeValue.Type.CSS);
+      axis.setLabelGap(6);
+      axisPropertyDialogModel.getAxisLabelPaneModel().setLabelGapFollowsDefault(true);
+
+      axisPropertyDialogModel.updateAxisPropertyDialogModel(axis, "", "", false, modernAt("compact"));
+
+      assertFalse(axis.hasLabelGapUserValue());
+      assertEquals(20, axis.getLabelGap());
+   }
+
+   @Test
+   void untickingStoresTheShownValue() throws Exception {
+      AxisDescriptor axis = new AxisDescriptor();
+      AxisLabelPaneModel pane = axisPropertyDialogModel.getAxisLabelPaneModel();
+      pane.setLabelGap(8);
+      pane.setLabelGapFollowsDefault(false);
+
+      axisPropertyDialogModel.updateAxisPropertyDialogModel(axis, "", "", false, modernAt("compact"));
+
+      assertTrue(axis.hasLabelGapUserValue());
+      assertEquals(8, axis.getLabelGap());
+   }
+
+   /** A marked chart's context on a dashboard of the given density. */
+   private static VizContext modernAt(String density) {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity(density);
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      vs.addAssembly(chart);
+      chart.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      return VizContext.of(chart.getVSAssemblyInfo());
    }
 
    private AxisPropertyDialogModel axisPropertyDialogModel;

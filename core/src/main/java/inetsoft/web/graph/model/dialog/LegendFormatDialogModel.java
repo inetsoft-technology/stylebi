@@ -36,6 +36,10 @@ public class LegendFormatDialogModel implements Serializable {
    public LegendFormatDialogModel() {
    }
 
+   static Boolean gapFollowsDefault(LegendsDescriptor legendsDesc, VizContext ctx) {
+      return ctx.modern ? !legendsDesc.hasGapUserValue() : null;
+   }
+
    public LegendFormatDialogModel(ChartInfo info, LegendsDescriptor legendsDesc,
       LegendDescriptor legendDesc, ChartArea area, List<String> targetFields,
       String aestheticType, String field, String titleName, boolean dimension, boolean time,
@@ -55,7 +59,7 @@ public class LegendFormatDialogModel implements Serializable {
       generalPaneModel.setSymbolSize(legendDesc.getSymbolSize());
       generalPaneModel.setGap(VSChartChromeDefaults.resolveLegendGap(
          legendsDesc.getGap(), legendsDesc.hasGapValue(), ctx));
-      generalPaneModel.setGapFollowsDefault(ctx.modern ? !legendsDesc.hasGapValue() : null);
+      generalPaneModel.setGapFollowsDefault(gapFollowsDefault(legendsDesc, ctx));
       generalPaneModel.setRoundCorners(legendsDesc.isRoundCorners());
       generalPaneModel.setSymbolRoundCorners(legendDesc.isSymbolRoundCorners());
       // only rect-based legends (Color/Size/Texture) actually render the rounded swatch;

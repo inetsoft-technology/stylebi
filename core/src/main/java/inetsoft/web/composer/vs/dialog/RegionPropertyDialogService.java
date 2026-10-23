@@ -263,7 +263,8 @@ public class RegionPropertyDialogService {
       TitleArea titleArea = regionHandler.getTitleArea(chartArea, axisType);
       String oldTitle = (String) titleArea.getChartAreaInfo().getProperty("titlename");
 
-      return new TitleFormatDialogModel(titleDesc, oldTitle);
+      return new TitleFormatDialogModel(titleDesc, oldTitle,
+                                        VizContext.of(chartAssemblyInfo));
    }
 
    @ClusterWriteMethod
@@ -290,7 +291,7 @@ public class RegionPropertyDialogService {
 
       ChartDescriptor descriptor = chartAssemblyInfo.getChartDescriptor();
       TitleDescriptor titleDesc = regionHandler.getTitleDescriptor(descriptor, axisType);
-      value.updateTitleProperties(titleDesc);
+      value.updateTitleProperties(titleDesc, VizContext.of(chartAssemblyInfo));
 
       this.vsObjectPropertyService.editObjectProperty(
          rvs, chartAssemblyInfo, objectId, objectId, linkUri, principal, commandDispatcher);

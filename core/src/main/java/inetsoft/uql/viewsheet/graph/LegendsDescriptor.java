@@ -349,6 +349,13 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Whether the author set the legend gap.
+    */
+   public boolean hasGapUserValue() {
+      return gap.hasUserValue();
+   }
+
+   /**
     * Get the legend item/title padding
     */
    public Insets getPadding() {
@@ -470,6 +477,7 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
       }
 
       writer.print(" gap=\"" + gap + "\"");
+      GapZeroMarker.write(writer, "gapZero", gap);
       writer.print(" padding=\"" + padding + "\"");
    }
 
@@ -544,6 +552,8 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
       if((val = Tool.getAttribute(tag, "gap")) != null) {
          gap.parse(val);
       }
+
+      GapZeroMarker.dropUnmarked(gap, Tool.getAttribute(tag, "gapZero"));
 
       if((val = Tool.getAttribute(tag, "padding")) != null) {
          padding.parse(val);

@@ -2668,7 +2668,8 @@ public abstract class GraphGenerator {
       axis.setLabelVisible(!maxMode && axisD.isLabelVisible() || maxMode && axisD.isMaxModeLabelVisible());
       axis.setTextFrame(axisD.getTextFrame());
       axis.setTruncate(axisD.isTruncate());
-      axis.setLabelGap(VSChartChromeDefaults.resolveAxisLabelGap(axisD.getLabelGap(), ctx));
+      axis.setLabelGap(VSChartChromeDefaults.resolveAxisLabelGap(
+         axisD.getLabelGap(), axisD.hasLabelGapValue(), ctx));
       // Bug #74171: pareto uses the right y-axis for its percentage scale, so
       // labelOnSecondaryAxis would hide the primary measure axis. Ignore the setting for
       // measure (linear) axes only; dimension axes on y are not affected. (Bug #74191)
@@ -6312,11 +6313,11 @@ public abstract class GraphGenerator {
          CompositeTextFormat tfmt = titleDesc.getTextFormat();
          tSpec.setTextSpec(GraphUtil.getTextSpec(tfmt, null, null));
 
-         // a custom title has never taken the descriptor's gap; feeding the resolver 0 on a legacy
-         // chart keeps that exactly, while a marked one still gets the card gap
-         int customTitleGap = vizContext.modern ? titleDesc.getLabelGap() : 0;
+         // a legacy custom title takes only an author's gap, never a stylesheet's
+         int customTitleGap = VSChartChromeDefaults.axisTitleGapSource(
+            titleDesc.getLabelGap(), titleDesc.hasLabelGapUserValue(), true, vizContext);
          tSpec.setLabelGap(VSChartChromeDefaults.resolveAxisTitleGap(
-            customTitleGap, abuttingLabelsDrawn, vizContext));
+            customTitleGap, titleDesc.hasLabelGapValue(), abuttingLabelsDrawn, vizContext));
          return tSpec;
       }
 
@@ -6343,7 +6344,7 @@ public abstract class GraphGenerator {
       }
 
       tSpec.setLabelGap(VSChartChromeDefaults.resolveAxisTitleGap(
-         titleDesc.getLabelGap(), abuttingLabelsDrawn, vizContext));
+         titleDesc.getLabelGap(), titleDesc.hasLabelGapValue(), abuttingLabelsDrawn, vizContext));
 
       return tSpec;
    }

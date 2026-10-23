@@ -179,6 +179,29 @@ public class TitleDescriptor implements AssetObject, ContentObject{
    }
 
    /**
+    * Whether the label gap carries an opinion: an author's value, a deliberate zero included, or a
+    * non-zero CSS one. A CSS zero cannot be told from unset.
+    */
+   public boolean hasLabelGapValue() {
+      return labelGap.hasUserValue() || getLabelGap() != 0;
+   }
+
+   /**
+    * Whether the author set the label gap.
+    */
+   public boolean hasLabelGapUserValue() {
+      return labelGap.hasUserValue();
+   }
+
+   /**
+    * Clear the label gap of the given tier, leaving other values untouched.
+    * @param type the type of value to clear: CSS or USER
+    */
+   public void resetLabelGap(CompositeValue.Type type) {
+      labelGap.resetValue(type);
+   }
+
+   /**
     * Create a copy of this object.
     */
    @Override
@@ -277,6 +300,7 @@ public class TitleDescriptor implements AssetObject, ContentObject{
       writer.print(" visible=\"" + visible + "\"");
       writer.print(" maxModeVisible=\"" + maxModeVisible + "\"");
       writer.print(" labelGap=\"" + labelGap + "\"");
+      GapZeroMarker.write(writer, "labelGapZero", labelGap);
    }
 
    /**
@@ -333,6 +357,8 @@ public class TitleDescriptor implements AssetObject, ContentObject{
       if(val != null) {
          labelGap.parse(val);
       }
+
+      GapZeroMarker.dropUnmarked(labelGap, Tool.getAttribute(tag, "labelGapZero"));
    }
 
    /**

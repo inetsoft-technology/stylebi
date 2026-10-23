@@ -283,6 +283,11 @@ public class CSSChartStyles {
 
       if(info.getAxisDescriptor() != null) {
          info.getAxisDescriptor().resetCompositeValues(CompositeValue.Type.CSS);
+         AxisDescriptor rtAxisDesc = getRTAxisDescriptor(info, null, info.getAxisDescriptor());
+
+         if(rtAxisDesc != null) {
+            rtAxisDesc.resetLabelGap(CompositeValue.Type.CSS);
+         }
       }
 
       // x axis
@@ -321,7 +326,14 @@ public class CSSChartStyles {
                null : ref);
 
             if(axisDesc != null) {
+               // a runtime clone renders in place of the design descriptor
+               AxisDescriptor rtAxisDesc = getRTAxisDescriptor(info, ref, axisDesc);
                axisDesc.resetCompositeValues(CompositeValue.Type.CSS);
+
+               if(rtAxisDesc != null) {
+                  rtAxisDesc.resetLabelGap(CompositeValue.Type.CSS);
+               }
+
                CSSStyle cssStyle = i == 0 || i == 1 || chartType == ChartType.MARIMEKKO ?
                   xAxisCssStyle : yAxisCssStyle;
 
@@ -346,6 +358,10 @@ public class CSSChartStyles {
 
                   if(val != null) {
                      axisDesc.setLabelGap(Integer.parseInt(val), CompositeValue.Type.CSS);
+
+                     if(rtAxisDesc != null) {
+                        rtAxisDesc.setLabelGap(Integer.parseInt(val), CompositeValue.Type.CSS);
+                     }
                   }
                }
             }
@@ -355,14 +371,18 @@ public class CSSChartStyles {
       if(chartType == ChartType.MARIMEKKO) {
          boolean ymeasure = info.getYFieldCount() > 0;
 
+         AxisDescriptor rtAxisDesc = getRTAxisDescriptor(info, null, info.getAxisDescriptor());
+
          if(ymeasure) {
             ChartRef ref = info.getYField(0);
-            setAxisDescriptorColumnFormat(yAxisCssStyle, info.getAxisDescriptor(),
+            setAxisDescriptorColumnFormat(yAxisCssStyle, info.getAxisDescriptor(), rtAxisDesc,
                                           ref.getFullName() + "%");
          }
          else {
-            setAxisDescriptorColumnFormat(yAxisCssStyle, info.getAxisDescriptor(), "value%");
-            setAxisDescriptorColumnFormat(xAxisCssStyle, info.getAxisDescriptor(), "value");
+            setAxisDescriptorColumnFormat(yAxisCssStyle, info.getAxisDescriptor(), rtAxisDesc,
+                                          "value%");
+            setAxisDescriptorColumnFormat(xAxisCssStyle, info.getAxisDescriptor(), rtAxisDesc,
+                                          "value");
          }
       }
 
@@ -464,7 +484,7 @@ public class CSSChartStyles {
    }
 
    private static void setAxisDescriptorColumnFormat(CSSStyle cssStyle, AxisDescriptor axisDesc,
-                                                     String column)
+                                                     AxisDescriptor rtAxisDesc, String column)
    {
       if(cssStyle != null) {
          CompositeTextFormat format = axisDesc.getColumnLabelTextFormat(column);
@@ -485,10 +505,37 @@ public class CSSChartStyles {
 
          if(val != null) {
             axisDesc.setLabelGap(Integer.parseInt(val), CompositeValue.Type.CSS);
+
+            if(rtAxisDesc != null) {
+               rtAxisDesc.setLabelGap(Integer.parseInt(val), CompositeValue.Type.CSS);
+            }
          }
 
          axisDesc.setColumnLabelTextFormat(column, format);
       }
+   }
+
+   /**
+    * The runtime clone that renders in place of a design axis descriptor, if one exists.
+    */
+   private static AxisDescriptor getRTAxisDescriptor(ChartInfo info, ChartRef ref,
+                                                     AxisDescriptor axisDesc)
+   {
+      if(ref instanceof VSChartRef && axisDesc == ref.getAxisDescriptor()) {
+         return ((VSChartRef) ref).getRTAxisDescriptor();
+      }
+
+      if(info instanceof VSChartInfo) {
+         if(axisDesc == info.getAxisDescriptor()) {
+            return ((VSChartInfo) info).getRTAxisDescriptor();
+         }
+
+         if(axisDesc == info.getAxisDescriptor2()) {
+            return ((VSChartInfo) info).getRTAxisDescriptor2();
+         }
+      }
+
+      return null;
    }
 
    public static ChartType getChartType(ChartInfo info) {

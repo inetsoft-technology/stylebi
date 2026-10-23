@@ -60,9 +60,27 @@ public class AxisLabelPaneModel implements Serializable {
       this.secondary = secondary;
    }
 
+   public int getLabelGap() {
+      return labelGap;
+   }
+
+   public void setLabelGap(int labelGap) {
+      this.labelGap = labelGap;
+   }
+
+   public Boolean getLabelGapFollowsDefault() {
+      return labelGapFollowsDefault;
+   }
+
+   public void setLabelGapFollowsDefault(Boolean labelGapFollowsDefault) {
+      this.labelGapFollowsDefault = labelGapFollowsDefault;
+   }
+
    private boolean showAxisLabel;
    private boolean showAxisLabelEnabled;
    private RotationRadioGroupModel rotationRadioGroupModel;
    private boolean labelOnSecondaryAxis;
    private boolean secondary;
+   private int labelGap;
+   private Boolean labelGapFollowsDefault;
 }

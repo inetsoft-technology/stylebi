@@ -38,7 +38,8 @@ let createLabelModel: () => AxisLabelPaneModel = () => {
    return {
       rotationRadioGroupModel: {rotation: "auto"},
       showAxisLabel: true,
-      labelOnSecondaryAxis: false
+      labelOnSecondaryAxis: false,
+      labelGap: 0
    };
 };
 

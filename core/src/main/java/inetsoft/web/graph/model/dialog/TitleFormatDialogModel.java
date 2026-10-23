@@ -18,7 +18,10 @@
 package inetsoft.web.graph.model.dialog;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.graph.TitleDescriptor;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 
 import java.io.Serializable;
 import java.util.Objects;
@@ -28,7 +31,16 @@ public class TitleFormatDialogModel implements Serializable {
    public TitleFormatDialogModel() {
    }
 
-   public TitleFormatDialogModel(TitleDescriptor titleDesc, String oldTitle) {
+   static int shownLabelGap(TitleDescriptor titleDesc, VizContext ctx) {
+      String title = titleDesc.getTitle();
+      boolean customTitle = title != null && !title.isEmpty();
+      int source = VSChartChromeDefaults.axisTitleGapSource(
+         titleDesc.getLabelGap(), titleDesc.hasLabelGapUserValue(), customTitle, ctx);
+      return VSChartChromeDefaults.resolveAxisTitleGap(
+         source, titleDesc.hasLabelGapValue(), true, ctx);
+   }
+
+   public TitleFormatDialogModel(TitleDescriptor titleDesc, String oldTitle, VizContext ctx) {
       this.oldTitle = oldTitle;
       String title = titleDesc.getTitle();
       String titleValue = titleDesc.getTitleValue();
@@ -58,9 +70,14 @@ public class TitleFormatDialogModel implements Serializable {
       }
 
       titleFormatPaneModel.setRotationRadioGroupModel(rotationModel);
+      titleFormatPaneModel.setLabelGap(shownLabelGap(titleDesc, ctx));
+      titleFormatPaneModel.setLabelGapFollowsDefault(
+         ctx.modern ? !titleDesc.hasLabelGapUserValue() : null);
    }
 
-   public void updateTitleProperties(TitleDescriptor titleDesc) {
+   public void updateTitleProperties(TitleDescriptor titleDesc, VizContext ctx) {
+      // taken before the title edit, which changes whether the title is custom
+      int shownGap = shownLabelGap(titleDesc, ctx);
       String title = titleFormatPaneModel.getTitle();
 
       if(!Objects.equals(title, this.oldTitle)) {
@@ -80,6 +97,22 @@ public class TitleFormatDialogModel implements Serializable {
 
       if(rotation != null) {
          titleDesc.getTextFormat().setRotation(Float.parseFloat(rotation));
+      }
+
+      Boolean labelGapFollowsDefault = titleFormatPaneModel.getLabelGapFollowsDefault();
+
+      if(labelGapFollowsDefault == null) {
+         // no checkbox was shown, so store only a real edit
+         if(titleFormatPaneModel.getLabelGap() != shownGap) {
+            titleDesc.setLabelGap(titleFormatPaneModel.getLabelGap());
+         }
+      }
+      else if(labelGapFollowsDefault) {
+         // clearing the author tier hands the gap back to the stylesheet or the density default
+         titleDesc.resetLabelGap(CompositeValue.Type.USER);
+      }
+      else {
+         titleDesc.setLabelGap(titleFormatPaneModel.getLabelGap());
       }
    }
 

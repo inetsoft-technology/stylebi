@@ -44,16 +44,36 @@ public class TitleFormatPaneModel implements Serializable {
       this.rotationRadioGroupModel = rotationModel;
    }
 
+   public int getLabelGap() {
+      return labelGap;
+   }
+
+   public void setLabelGap(int labelGap) {
+      this.labelGap = labelGap;
+   }
+
+   public Boolean getLabelGapFollowsDefault() {
+      return labelGapFollowsDefault;
+   }
+
+   public void setLabelGapFollowsDefault(Boolean labelGapFollowsDefault) {
+      this.labelGapFollowsDefault = labelGapFollowsDefault;
+   }
+
    @Override
    public String toString() {
       return "TitleFormatPaneModel{" +
          "title='" + title + '\'' +
          ", otitle='" + otitle + '\'' +
          ", rotationRadioGroupModel=" + rotationRadioGroupModel +
+         ", labelGap=" + labelGap +
+         ", labelGapFollowsDefault=" + labelGapFollowsDefault +
          '}';
    }
 
    private String title;
    private String otitle;
    private RotationRadioGroupModel rotationRadioGroupModel;
+   private int labelGap;
+   private Boolean labelGapFollowsDefault;
 }

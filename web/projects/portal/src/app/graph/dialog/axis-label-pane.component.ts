@@ -15,12 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, ViewChild, TemplateRef } from "@angular/core";
+import { Component, Input, OnInit, ViewChild, TemplateRef } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { AxisLabelPaneModel } from "../model/dialog/axis-label-panel-model";
 import { StyleConstants } from "../../common/util/style-constants";
 import { RotationRadioGroup } from "../../widget/format/rotation-radio-group.component";
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 
 
 @Component({
@@ -28,16 +29,26 @@ import { RotationRadioGroup } from "../../widget/format/rotation-radio-group.com
     templateUrl: "axis-label-pane.component.html",
     imports: [
     FormsModule,
+    NumberStepperComponent,
     RotationRadioGroup
 ]
 })
-export class AxisLabelPane {
+export class AxisLabelPane implements OnInit {
    @Input() model: AxisLabelPaneModel;
    form: UntypedFormGroup;
+   showLabelGapFollowDefault: boolean;
 
    constructor(private modalService: NgbModal) {
       this.form = new UntypedFormGroup({
          formatForm: new UntypedFormGroup({})
       });
+   }
+
+   ngOnInit(): void {
+      this.showLabelGapFollowDefault = this.model.labelGapFollowsDefault != null;
+   }
+
+   labelGapFollowDefaultChanged(follows: boolean): void {
+      this.model.labelGapFollowsDefault = follows;
    }
 }

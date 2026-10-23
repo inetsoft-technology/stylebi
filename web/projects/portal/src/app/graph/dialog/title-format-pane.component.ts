@@ -15,13 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, TemplateRef } from "@angular/core";
+import { Component, Input, OnInit, TemplateRef } from "@angular/core";
+import { FormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { RotationRadioGroup } from "../../widget/format/rotation-radio-group.component";
 import { TitleFormatPaneModel } from "../model/dialog/title-format-pane-model";
 import { StyleConstants } from "../../common/util/style-constants";
 import { UIContextService } from "../../common/services/ui-context.service";
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 
 @Component({
     selector: "title-format-pane",
@@ -32,17 +34,26 @@ import { UIContextService } from "../../common/services/ui-context.service";
          text-align:right;
       }
    `],
-    imports: [DynamicComboBox, RotationRadioGroup]
+    imports: [DynamicComboBox, FormsModule, NumberStepperComponent, RotationRadioGroup]
 })
-export class TitleFormatPane {
+export class TitleFormatPane implements OnInit {
    @Input() viewer: boolean = false;
    @Input() variableValues: string[] = [];
    @Input() model: TitleFormatPaneModel;
    @Input() vsId: string = null;
+   showLabelGapFollowDefault: boolean;
 
    constructor(private modalService: NgbModal,
                private uiContextService: UIContextService)
    {
+   }
+
+   ngOnInit(): void {
+      this.showLabelGapFollowDefault = this.model.labelGapFollowsDefault != null;
+   }
+
+   labelGapFollowDefaultChanged(follows: boolean): void {
+      this.model.labelGapFollowsDefault = follows;
    }
 
    onValueChange(value: string) {

@@ -69,13 +69,14 @@
         </div>
       </div>
     </div>
-    <div class="shell-form-row--field row">
+    <div class="shell-form-row--field row" [title]="'_#(composer.vs.chart.legendDistanceTip)'">
       <div class="col-6 form-floating">
         <number-stepper [(ngModel)]="model.gap" [min]="0"
+                        ariaLabel="_#(Distance from Chart)"
                         [disabled]="model.gapFollowsDefault === true"
                         [ngModelOptions]="{standalone: true}">
         </number-stepper>
-        <label>_#(Legend Gap)</label>
+        <label>_#(Distance from Chart)</label>
       </div>
       @if (showGapFollowDefault) {
         <div class="checkbox col-auto">
