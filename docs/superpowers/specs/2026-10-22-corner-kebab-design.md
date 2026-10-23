@@ -1,8 +1,10 @@
 # Corner kebab for assemblies without a title lane
 
+The [corner kebab decisions](./2026-10-23-corner-kebab-decisions.md) supersede this design where they differ.
+
 Date: 2026-10-22
 Branch base: `epic-74519`
-Status: design, not implemented
+Status: implemented on Bug #79211; the decisions file is the authority
 
 ## Problem
 
