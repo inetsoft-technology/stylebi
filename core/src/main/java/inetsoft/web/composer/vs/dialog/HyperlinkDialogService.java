@@ -33,6 +33,7 @@ import inetsoft.report.internal.table.TableHyperlinkAttr;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
@@ -355,6 +356,20 @@ public class HyperlinkDialogService {
                }
             }
 
+            // An axis link on a measure whose axis is linear has no label to carry it, so it
+            // would only land on the data points. Wiz path only: the Composer GUI never sets the
+            // flag and keeps accepting it.
+            if(model.isRejectDerivedMeasure() && model.isAxis() &&
+               model.getLinkType() != NONE && dcRef == null &&
+               isLinearMeasureAxisLink(chartInfo, chartRefs))
+            {
+               throw new IllegalArgumentException(
+                  "'" + model.getColName() + "' is a measure on a linear axis, so the axis " +
+                  "labels of that axis carry no link and a link set with axis:true would only " +
+                  "apply to the data points. Drop axis:true to set the data-point link on " +
+                  "purpose, or name a dimension to link its axis labels.");
+            }
+
             if(chartInfo instanceof MergedVSChartInfo &&
                !(GraphUtil.isDimension(ref) && !(ref instanceof VSChartGeoRef)))
             {
@@ -405,6 +420,91 @@ public class HyperlinkDialogService {
       }
 
       return null;
+   }
+
+   /**
+    * Whether an axis link written to {@code refs} is provably dead: every ref is a true measure
+    * (a non-discrete aggregate) whose axis the engine draws on a {@code LinearScale}, which has
+    * no label area to carry a link (see {@code GraphGenerator.createMeasureScale}). Anything not
+    * provable returns false, so the write goes ahead as before: no refs, any dimension, a
+    * chart type whose scales this does not model (merged, polar, on the chart or on any
+    * measure), a separated graph's per-measure scales (except by the aggregate/numeric rule),
+    * and a date-typed or unknown-typed unaggregated measure (TimeScale / CategoricalScale).
+    */
+   static boolean isLinearMeasureAxisLink(VSChartInfo chartInfo, ChartRef[] refs) {
+      if(chartInfo == null || refs == null || refs.length == 0 ||
+         chartInfo instanceof MergedVSChartInfo)
+      {
+         return false;
+      }
+
+      // rtype is a stored field that can be stale, so both are tested
+      if(isMergedOrPolar(chartInfo.getChartType()) ||
+         isMergedOrPolar(chartInfo.getRTChartType()))
+      {
+         return false;
+      }
+
+      List<ChartRef> shelves = new ArrayList<>();
+      shelves.addAll(Arrays.asList(chartInfo.getXFields()));
+      shelves.addAll(Arrays.asList(chartInfo.getYFields()));
+
+      for(ChartRef shelfRef : shelves) {
+         if(shelfRef instanceof VSChartAggregateRef a &&
+            (isMergedOrPolar(a.getChartType()) || isMergedOrPolar(a.getRTChartType())))
+         {
+            return false;
+         }
+      }
+
+      for(ChartRef ref : refs) {
+         if(!(ref instanceof ChartAggregateRef) || ((ChartAggregateRef) ref).isDiscrete() ||
+            !isLinearScaleMeasure(chartInfo, (ChartAggregateRef) ref))
+         {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   private static boolean isMergedOrPolar(int type) {
+      return GraphTypes.isMergedGraphType(type) || GraphTypes.isPolar(type);
+   }
+
+   private static boolean isLinearScaleMeasure(VSChartInfo chartInfo, ChartAggregateRef ref) {
+      boolean separated = chartInfo.isSeparatedGraph();
+
+      // log axis: only where the shared descriptor is the one the engine reads
+      if(!separated) {
+         AxisDescriptor desc = ref.isSecondaryY() ? chartInfo.getRTAxisDescriptor2() == null
+            ? chartInfo.getAxisDescriptor2() : chartInfo.getRTAxisDescriptor2()
+            : chartInfo.getRTAxisDescriptor() == null
+            ? chartInfo.getAxisDescriptor() : chartInfo.getRTAxisDescriptor();
+
+         if(desc != null && desc.isLogarithmicScale()) {
+            return true;
+         }
+
+         // several measures in a non-separated graph share one scale
+         ChartRef[] shelf = Arrays.asList(chartInfo.getXFields()).contains(ref)
+            ? chartInfo.getXFields() : chartInfo.getYFields();
+
+         if(Arrays.stream(shelf).filter(r -> r instanceof ChartAggregateRef a && !a.isDiscrete())
+            .count() > 1)
+         {
+            return true;
+         }
+      }
+
+      // single measure scale: createMeasureScale
+      String type = ref.getDataType();
+
+      if(XSchema.isDateType(type)) {
+         return false;
+      }
+
+      return ref.isAggregateEnabled() || AssetUtil.isNumberType(type);
    }
 
    /**
