@@ -1338,7 +1338,8 @@ public class SecurityService {
       // an organization ID change moves the organization's themes and theme selections in
       // setIdentity() (AbstractEditableAuthenticationProvider.copyThemes())
       identityService.setIdentity(oldOrganization, organizationModel, provider, principal);
-      applyOrganizationProperties(id, request.getProperties(), true);
+      // setIdentity() has already moved the org's properties to the new id on a rename
+      applyOrganizationProperties(organizationModel.id(), request.getProperties(), true);
       // a request without adminIdentities keeps the existing admins
       setOrganizationPermissions(
          oldId, newId, securityProvider, principal,

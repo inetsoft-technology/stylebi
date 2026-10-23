@@ -6002,6 +6002,26 @@ class SecurityServiceTest {
       verifyOnlyExplicitBucketCalls(authz);
    }
 
+   // Bug #79214: setIdentity() migrates the org's properties to the new id on a rename, so the
+   // replace must clean the NEW id's prefix, not the old one.
+   @Test
+   void updateOrganization_idRenameWithProperties_replacesUnderTheNewId() throws Exception {
+      stubOrgForUpdate(P, "Org Name");
+      Properties raw = new Properties();
+      raw.setProperty("inetsoft.org." + Q.toLowerCase() + ".qa.prop.old", "old");
+      raw.setProperty("inetsoft.org." + P.toLowerCase() + ".stale.under.old.id", "x");
+      sreeEnvStatic.when(SreeEnv::getProperties).thenReturn(raw);
+      SecurityOrganization request = newOrgRequest(Q, "Org Name");
+      request.setProperties(List.of(PropertyModel.builder().name("qa.prop.new").value("new").build()));
+
+      service.updateOrganization(P, request, principal);
+
+      organizationManagerStatic.verify(() -> OrganizationManager.runInOrgScope(eq(Q), any()));
+      sreeEnvStatic.verify(() -> SreeEnv.remove("inetsoft.org." + Q.toLowerCase() + ".qa.prop.old"));
+      sreeEnvStatic.verify(
+         () -> SreeEnv.remove("inetsoft.org." + P.toLowerCase() + ".stale.under.old.id"), never());
+   }
+
    @Test
    void updateOrganization_idRename_adminIdentities_writtenInNewBucketFromMigratedKey()
       throws Exception

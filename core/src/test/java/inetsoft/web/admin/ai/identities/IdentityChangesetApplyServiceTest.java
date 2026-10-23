@@ -585,6 +585,30 @@ class IdentityChangesetApplyServiceTest {
       assertNotEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
    }
 
+   // Bug #79214: an id rename combined with a properties update is verified at the NEW id against
+   // the merged properties (SecurityService is mocked here; the writer's own prefix is covered by
+   // SecurityServiceTest.updateOrganization_idRenameWithProperties_replacesUnderTheNewId).
+   @Test void updateOrganizationRenameWithPropertiesVerifiesPropertiesAtTheNewId() throws Exception {
+      SecurityOrganization before = existingOrganization("org1");
+      before.setProperties(List.of(PropertyModel.builder().name("qa.prop.old").value("old").build()));
+      SecurityOrganization after = existingOrganization("org2");
+      after.setProperties(List.of(PropertyModel.builder().name("qa.prop.new").value("new").build()));
+      when(securityService.getOrganization(eq("org1"), eq(user))).thenReturn(before);
+      when(securityService.getOrganization(eq("org2"), eq(user))).thenReturn(after);
+      when(securityService.getOrganizations(eq(user))).thenReturn(organizationList("org1"));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setId("org2");
+      spec.setProperties(List.of(PropertyModel.builder().name("qa.prop.new").value("new").build()));
+
+      var result = service.apply(applyRequest("rename org1", updateOrganization("org1", spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(securityService).updateOrganization(eq("org1"), argThat(req ->
+         "org2".equals(req.getId()) && req.getProperties().size() == 1 &&
+         "qa.prop.new".equals(req.getProperties().get(0).name())), eq(user));
+   }
+
    @Test void updateOrganizationReplacingPropertiesIsVerifiedWhenStoredSetMatches() throws Exception {
       SecurityOrganization before = existingOrganization("org1");
       before.setProperties(List.of(PropertyModel.builder().name("qa.prop.old").value("old").build()));
