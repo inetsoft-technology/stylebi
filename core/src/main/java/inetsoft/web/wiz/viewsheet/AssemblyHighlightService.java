@@ -31,8 +31,10 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.InputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.wiz.binding.VisualFrameAliases;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -777,7 +779,8 @@ public class AssemblyHighlightService {
 
    /**
     * Refuses a highlight on an output assembly that is not a Text or Image (Submit, Gauge,
-    * Cylinder, Thermometer, SlidingScale).
+    * Cylinder, Thermometer, SlidingScale) and on a Form input (Slider, Spinner, TextInput,
+    * CheckBox, RadioButton, ComboBox).
     *
     * <p>{@code HighlightDialogService} accepts every {@code OutputVSAssemblyInfo}, but an output's
     * highlight colour/font is only ever applied for Text and Image ({@code VSFormatModel},
@@ -791,9 +794,15 @@ public class AssemblyHighlightService {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
-      if(assembly == null ||
-         !(assembly.getVSAssemblyInfo() instanceof OutputVSAssemblyInfo info) ||
-         info instanceof TextVSAssemblyInfo || info instanceof ImageVSAssemblyInfo)
+      if(assembly == null) {
+         return;
+      }
+
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+      if(!(info instanceof InputVSAssemblyInfo) &&
+         (!(info instanceof OutputVSAssemblyInfo) ||
+          info instanceof TextVSAssemblyInfo || info instanceof ImageVSAssemblyInfo))
       {
          return;
       }

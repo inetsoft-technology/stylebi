@@ -32,9 +32,20 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.CheckBoxVSAssembly;
+import inetsoft.uql.viewsheet.ComboBoxVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
+import inetsoft.uql.viewsheet.ImageVSAssembly;
+import inetsoft.uql.viewsheet.RadioButtonVSAssembly;
+import inetsoft.uql.viewsheet.SliderVSAssembly;
+import inetsoft.uql.viewsheet.SpinnerVSAssembly;
+import inetsoft.uql.viewsheet.SubmitVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
+import inetsoft.uql.viewsheet.TextInputVSAssembly;
+import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -1248,6 +1259,70 @@ class AssemblyHyperlinkServiceTest {
    private record Harness(AssemblyHyperlinkService service, ViewsheetSessionService sessions,
                           HyperlinkDialogService links, AssetRepository repository,
                           RuntimeViewsheet rvs) {}
+
+   private static final List<Class<? extends VSAssembly>> NON_HYPERLINKABLE = List.of(
+      SliderVSAssembly.class, SpinnerVSAssembly.class, TextInputVSAssembly.class,
+      CheckBoxVSAssembly.class, RadioButtonVSAssembly.class, ComboBoxVSAssembly.class,
+      SubmitVSAssembly.class);
+
+   /** Bug #79246: a Form input or Submit cannot fire a link, so none is stored on it. */
+   @Test
+   void refusesAHyperlinkOnAFormInputOrSubmit() throws Exception {
+      for(Class<? extends VSAssembly> type : NON_HYPERLINKABLE) {
+         Harness h = harness(new HyperlinkDialogModel());
+         when(h.rvs.getViewsheet().getAssembly("Ctl1")).thenReturn(mock(type));
+
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> h.service.set("tok", principal(), "Ctl1", null,
+                                link("linkType", "web", "webLink", "https://example.com"), ""),
+            type.getSimpleName());
+
+         assertTrue(thrown.getMessage().contains("'Ctl1' is a "), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("cannot carry a hyperlink"),
+                    thrown.getMessage());
+         verify(h.links, never()).setHyperlinkDialogModel(anyString(), anyString(), any(),
+                                                          anyString(), any(Principal.class), any());
+      }
+   }
+
+   /** A stray link already stored on such an assembly can still be cleared. */
+   @Test
+   void clearingAHyperlinkOnAFormInputIsStillAllowed() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.rvs.getViewsheet().getAssembly("Slider1")).thenReturn(mock(SliderVSAssembly.class));
+
+      h.service.set("tok", principal(), "Slider1", null, link("linkType", "none"), "");
+
+      assertEquals(HyperlinkDialogService.NONE, capture(h.links).getLinkType());
+   }
+
+   @Test
+   void stillAcceptsAHyperlinkOnTheTypesTheComposerOffersItFor() throws Exception {
+      List<Class<? extends VSAssembly>> allowed = List.of(
+         TextVSAssembly.class, ImageVSAssembly.class, GaugeVSAssembly.class,
+         TableVSAssembly.class, CrosstabVSAssembly.class, CalcTableVSAssembly.class);
+
+      for(Class<? extends VSAssembly> type : allowed) {
+         Harness h = harness(new HyperlinkDialogModel());
+         wireRuntimeData(h, "Ctl1", mock(type));
+
+         h.service.set("tok", principal(), "Ctl1", null,
+                       link("linkType", "web", "webLink", "https://example.com"), "");
+
+         assertEquals("https://example.com", capture(h.links).getWebLink(), type.getSimpleName());
+      }
+   }
+
+   @Test
+   void aMissingAssemblyIsNotRefusedByTheTypeGate() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      h.service.set("tok", principal(), "Nope", null,
+                    link("linkType", "web", "webLink", "https://example.com"), "");
+
+      assertEquals("https://example.com", capture(h.links).getWebLink());
+   }
 
    private static HyperlinkDialogModel capture(HyperlinkDialogService links) throws Exception {
       ArgumentCaptor<HyperlinkDialogModel> captor =

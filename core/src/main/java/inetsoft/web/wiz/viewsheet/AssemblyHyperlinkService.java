@@ -39,8 +39,11 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
+import inetsoft.uql.viewsheet.ImageVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -48,6 +51,7 @@ import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.RecycleUtils;
@@ -211,6 +215,10 @@ public class AssemblyHyperlinkService {
 
       CellLinkScope[] scope = new CellLinkScope[1];
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         if(!"none".equals(type)) {
+            requireHyperlinkable(rvs, assemblyName);
+         }
+
          requireTableRendered(rvs, assemblyName);
          Region target = region == null ? Region.whole() : region;
          int col = resolveCol(rvs, assemblyName, target);
@@ -238,6 +246,42 @@ public class AssemblyHyperlinkService {
       }
 
       return out;
+   }
+
+   /**
+    * Refuses a hyperlink on an assembly type the Composer offers no Hyperlink action for (Form
+    * inputs, Submit, Shape, Cylinder, Thermometer, SlidingScale, selection and container types).
+    *
+    * <p>{@code HyperlinkDialogService} stores a link on the info of any assembly, but only
+    * Table/Crosstab/CalcTable, Chart, Text, Image and Gauge read one back when they render, so the
+    * write reported success and the link could never fire. An allow-list, so a future type is
+    * refused until it renders hyperlinks. Skipped when clearing ({@code none}), so a stray link
+    * already stored on such an assembly can still be removed; a missing assembly is left to the
+    * later steps to report.
+    */
+   private static void requireHyperlinkable(RuntimeViewsheet rvs, String assemblyName) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(assembly == null) {
+         return;
+      }
+
+      if(assembly instanceof TableDataVSAssembly || assembly instanceof ChartVSAssembly ||
+         assembly instanceof TextVSAssembly || assembly instanceof ImageVSAssembly ||
+         assembly instanceof GaugeVSAssembly)
+      {
+         return;
+      }
+
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+      String type = (info == null ? assembly : info).getClass().getSimpleName()
+         .replaceFirst("VSAssembly(Info)?$", "");
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' is a " + type + ", which cannot carry a hyperlink -- the " +
+         "Composer offers no Hyperlink for this type and nothing reads one when it is clicked. " +
+         "Set the link on a Text, Image, Gauge, Table, Crosstab or Chart instead.");
    }
 
    /**

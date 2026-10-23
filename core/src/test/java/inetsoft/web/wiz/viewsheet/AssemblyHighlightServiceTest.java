@@ -22,9 +22,16 @@ import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.filter.TextHighlight;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.CheckBoxVSAssembly;
+import inetsoft.uql.viewsheet.ComboBoxVSAssembly;
 import inetsoft.uql.viewsheet.CylinderVSAssembly;
 import inetsoft.uql.viewsheet.ImageVSAssembly;
+import inetsoft.uql.viewsheet.RadioButtonVSAssembly;
+import inetsoft.uql.viewsheet.SliderVSAssembly;
+import inetsoft.uql.viewsheet.SpinnerVSAssembly;
 import inetsoft.uql.viewsheet.SubmitVSAssembly;
+import inetsoft.uql.viewsheet.TextInputVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.asset.AggregateFormula;
@@ -33,9 +40,16 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CheckBoxVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.ComboBoxVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.CylinderVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.RadioButtonVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SliderVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SpinnerVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SubmitVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TextInputVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HighlightDialogModel;
@@ -51,6 +65,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -223,6 +238,42 @@ class AssemblyHighlightServiceTest {
       verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
                                                              anyString(), any(Principal.class),
                                                              any());
+   }
+
+   /** Bug #79246: a Form input is told its type renders no highlight, not to pick a DATA cell. */
+   @Test
+   void refusesAHighlightOnAFormInputByType() throws Exception {
+      Map<Class<? extends VSAssembly>, Class<? extends VSAssemblyInfo>> inputs =
+         new LinkedHashMap<>();
+      inputs.put(SliderVSAssembly.class, SliderVSAssemblyInfo.class);
+      inputs.put(SpinnerVSAssembly.class, SpinnerVSAssemblyInfo.class);
+      inputs.put(TextInputVSAssembly.class, TextInputVSAssemblyInfo.class);
+      inputs.put(CheckBoxVSAssembly.class, CheckBoxVSAssemblyInfo.class);
+      inputs.put(RadioButtonVSAssembly.class, RadioButtonVSAssemblyInfo.class);
+      inputs.put(ComboBoxVSAssembly.class, ComboBoxVSAssemblyInfo.class);
+
+      for(Map.Entry<Class<? extends VSAssembly>, Class<? extends VSAssemblyInfo>> e :
+         inputs.entrySet())
+      {
+         Harness h = harness(model());
+         VSAssembly input = mock(e.getKey());
+         when(input.getVSAssemblyInfo()).thenReturn(mock(e.getValue()));
+         when(h.rvs.getViewsheet().getAssembly("Input1")).thenReturn(input);
+
+         Exception thrown = assertThrows(
+            Exception.class,
+            () -> h.service.set("tok", principal(), "Input1", null, highlight("X"), false, ""),
+            e.getKey().getSimpleName());
+
+         assertTrue(thrown.getMessage().contains("'Input1' is a " +
+                    e.getKey().getSimpleName().replace("VSAssembly", "")), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("does not render highlights"),
+                    thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("for this type"), thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("DATA cell"), thrown.getMessage());
+         verify(h.highlights, never()).setHighlightDialogModel(
+            anyString(), anyString(), any(), anyString(), any(Principal.class), any());
+      }
    }
 
    @Test
