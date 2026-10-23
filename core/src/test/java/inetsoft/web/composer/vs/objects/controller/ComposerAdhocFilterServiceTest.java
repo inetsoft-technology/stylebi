@@ -28,6 +28,8 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.web.composer.vs.objects.event.FilterChartEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -245,6 +247,39 @@ class ComposerAdhocFilterServiceTest {
 
       service.addChartFilter("rid", event, principal, "", mock(CommandDispatcher.class));
       return cap;
+   }
+
+   @Test
+   void anAdhocSliderIsSquareUntilItReturns() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "Slider1");
+      vs.addAssembly(slider);
+      VSAssemblyInfo info = slider.getVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.initDefaultFormat();
+      VSCompositeFormat objFormat = info.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH);
+      assertEquals(6, objFormat.getDefaultFormat().getRoundCornerValue());
+
+      ComposerAdhocFilterService service = new ComposerAdhocFilterService(
+         mock(ViewsheetService.class), mock(CoreLifecycleService.class),
+         new VSTableService(null), mock(GroupingService.class));
+
+      invoke(service, "saveFormats", slider);
+      objFormat = info.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH);
+      assertEquals(0, objFormat.getDefaultFormat().getRoundCornerValue());
+
+      invoke(service, "restoreFormats", slider);
+      objFormat = info.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH);
+      assertEquals(6, objFormat.getDefaultFormat().getRoundCornerValue());
+   }
+
+   private static void invoke(ComposerAdhocFilterService service, String name, VSAssembly arg)
+      throws Exception
+   {
+      java.lang.reflect.Method method =
+         ComposerAdhocFilterService.class.getDeclaredMethod(name, VSAssembly.class);
+      method.setAccessible(true);
+      method.invoke(service, arg);
    }
 
    private static void addColumn(ColumnSelection cols, String name, String dtype) {

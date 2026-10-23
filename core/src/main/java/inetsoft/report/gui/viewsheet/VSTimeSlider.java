@@ -46,7 +46,9 @@ public class VSTimeSlider extends VSFloatable {
          boolean maxmin = info.isMinVisible() || info.isMaxVisible();
 
          if(maxmin) {
-            int h = (int) (getContentHeight() - getBW(TOP) - getBW(BOTTOM));
+            Insets inset = getBodyInset();
+            int h = (int) (getContentHeight() - getBW(TOP) - getBW(BOTTOM)) -
+               inset.top - inset.bottom;
             VSCompositeFormat format = info.getFormat();
             int lineY = maxmin ? (h / 2 - SLIDER_H / 2) : (h * 3 / 4 - SLIDER_H / 2);
             int fontH = 10;
@@ -57,7 +59,9 @@ public class VSTimeSlider extends VSFloatable {
 
             // on html, the labels can be drawn out of bounds (not clipped), so we enlarge
             // the image to accommodate the labels to mimic the same effect.
-            return new Dimension(size.width, Math.max(size.height, lineY + SLIDER_H + fontH));
+            int gap = info.takesLabelSpacing() ? getLabelGap() : 0;
+            return new Dimension(size.width, Math.max(size.height, inset.top + lineY +
+                                                      SLIDER_H + gap + fontH));
          }
       }
 
@@ -87,8 +91,12 @@ public class VSTimeSlider extends VSFloatable {
 
       VSCompositeFormat format = info.getFormat();
       TimeInfo tinfo = info.getTimeInfo();
-      int w = (int) (getContentWidth() - getBW(LEFT) - getBW(RIGHT));
-      int h = (int) (getContentHeight() - getBW(TOP) - getBW(BOTTOM));
+      Insets inset = getBodyInset();
+      int w = (int) (getContentWidth() - getBW(LEFT) - getBW(RIGHT)) -
+         inset.left - inset.right;
+      int h = (int) (getContentHeight() - getBW(TOP) - getBW(BOTTOM)) -
+         inset.top - inset.bottom;
+      int gap = getLabelGap();
       int buttonW = 9;
       int buttonH = 15;
       int lineX = (int) Math.ceil(buttonW / 2);
@@ -105,7 +113,7 @@ public class VSTimeSlider extends VSFloatable {
       int lineY = maxmin ? (h / 2 - SLIDER_H / 2) : (h * 3 / 4 - SLIDER_H / 2);
 
       g = (Graphics2D) g.create();
-      g.translate(getContentX(), getContentY());
+      g.translate(getContentX() + inset.left, getContentY() + inset.top);
 
       // draw slider line
       Image track = getTheme().getImage("widget|SliderBase", "sliderTrack", lineW, SLIDER_H);
@@ -169,7 +177,7 @@ public class VSTimeSlider extends VSFloatable {
          tx = Math.min(tx, w - sw);
          tx = Math.max(tx, 0);
 
-         Common.drawString(g, txt, tx, lineY - fm.getDescent() - 2);
+         Common.drawString(g, txt, tx, lineY - fm.getDescent() - gap);
       }
 
       SelectionList slist = info.getSelectionList();
@@ -180,7 +188,7 @@ public class VSTimeSlider extends VSFloatable {
          if(values != null && values.length > 0) {
             String label = values[0].getLabel();
             label = getShrinkString(buttonW, g, label);
-            Common.drawString(g, label, 0, lineY + fm.getAscent() + SLIDER_H + 2);
+            Common.drawString(g, label, 0, lineY + fm.getAscent() + SLIDER_H + gap);
          }
       }
 
@@ -191,7 +199,7 @@ public class VSTimeSlider extends VSFloatable {
             String label = values[values.length - 1].getLabel();
             label = getShrinkString(buttonW, g, label);
             Common.drawString(g, label, w - fm.stringWidth(label),
-                              lineY + fm.getAscent() + SLIDER_H + 2);
+                              lineY + fm.getAscent() + SLIDER_H + gap);
          }
       }
 
@@ -202,9 +210,10 @@ public class VSTimeSlider extends VSFloatable {
     * Get the curtate label for overlapping strings.
     */
    private String getShrinkString(int buttonW, Graphics2D g, String label) {
-      int w = getContentWidth();
-      int h = getContentHeight();
-      g = (Graphics2D) g.create(getContentX(), getContentY(), w, h);
+      Insets inset = getBodyInset();
+      int w = getContentWidth() - inset.left - inset.right;
+      int h = getContentHeight() - inset.top - inset.bottom;
+      g = (Graphics2D) g.create(getContentX() + inset.left, getContentY() + inset.top, w, h);
       FontMetrics fm = g.getFontMetrics();
       int lineX = (int) Math.ceil(buttonW / 2);
       int lineW = w - lineX * 2;
@@ -221,5 +230,25 @@ public class VSTimeSlider extends VSFloatable {
       return label;
    }
 
+   /**
+    * Set whether the body is inset by the card padding.
+    */
+   public void setInsetsCard(boolean insetsCard) {
+      this.insetsCard = insetsCard;
+   }
+
+   // padding around the track, none where the card is not inset
+   Insets getBodyInset() {
+      TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) getAssemblyInfo();
+      return insetsCard && info != null ? info.getBodyPadding() : new Insets(0, 0, 0, 0);
+   }
+
+   // space between the track and its labels
+   int getLabelGap() {
+      TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) getAssemblyInfo();
+      return info != null && info.takesLabelSpacing() ? 6 : 2;
+   }
+
+   private boolean insetsCard = true;
    private static final int SLIDER_H = 9;
 }

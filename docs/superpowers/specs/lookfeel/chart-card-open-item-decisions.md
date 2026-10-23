@@ -116,7 +116,8 @@ it, or the two renderers deliberately differ and the spec says so. That belongs 
 it opens, not in a parity pass afterwards."*
 
 **The decision. Redraw the painter with it.** The §05 ticket carries both renderers and the slider's
-share of the export parity pass.
+share of the export parity pass. The redraw keeps the density geometry from
+`2026-10-22-range-slider-density-design.md` (padding 16 / 12 / 8, 6px label gaps, 50px content).
 
 ### Why
 

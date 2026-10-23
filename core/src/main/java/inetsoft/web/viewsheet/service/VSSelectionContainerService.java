@@ -190,8 +190,11 @@ public class VSSelectionContainerService {
                targetAssemblyInfo.getLayoutSize() : viewsheet.getPixelSize(targetAssemblyInfo);
 
             if(((TimeSliderVSAssemblyInfo) targetAssemblyInfo).isCollapsedInContainer(sliderSize.height)) {
-               totalHeight += ((TimeSliderVSAssemblyInfo) targetAssemblyInfo)
-                  .getListHeight() * AssetUtil.defh;
+               TimeSliderVSAssemblyInfo targetSliderInfo =
+                  (TimeSliderVSAssemblyInfo) targetAssemblyInfo;
+               totalHeight += targetSliderInfo.getVizMark() != null ?
+                  targetSliderInfo.getSliderBodyHeight() :
+                  targetSliderInfo.getListHeight() * AssetUtil.defh;
             }
          }
 
@@ -229,7 +232,10 @@ public class VSSelectionContainerService {
             final Dimension size = service.getSize(timeSliderInfo);
 
             if(timeSliderInfo.isCollapsedInContainer(size.height)) {
-               size.height = timeSliderInfo.getListHeight() * AssetUtil.defh +
+               // a marked slider stores its body, the lane is added on top
+               size.height = timeSliderInfo.getVizMark() != null ?
+                  timeSliderInfo.getSliderBodyHeight() :
+                  timeSliderInfo.getListHeight() * AssetUtil.defh +
                   timeSliderInfo.getTitleHeight();
                timeSliderInfo.setHidden(false);
             }

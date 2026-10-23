@@ -72,6 +72,7 @@ public class VSRangeSliderModel extends VSObjectModel<TimeSliderVSAssembly> {
       composite = assemblyInfo.isComposite();
       adhocFilter = assemblyInfo.isAdhocFilter();
       submitOnChange = assemblyInfo.isSubmitOnChange();
+      padding = assemblyInfo.getBodyPadding();
 
       if(composite && !upperInclusive) {
          selectEnd = Math.min(labels.length - 1, selectEnd + 1);
@@ -146,6 +147,15 @@ public class VSRangeSliderModel extends VSObjectModel<TimeSliderVSAssembly> {
          float leftBorder = Common.getLineWidth(borders.left);
          float rightBorder = Common.getLineWidth(borders.right);
          this.maxRangeBarWidth -= (leftBorder + rightBorder);
+      }
+
+      this.maxRangeBarWidth -= padding.left + padding.right;
+
+      // a marked slider in a selection container gives up the list's two pixels
+      if(container instanceof CurrentSelectionVSAssembly && assemblyInfo.getVizMark() != null &&
+         !adhocFilter)
+      {
+         this.maxRangeBarWidth -= 2;
       }
    }
 
@@ -239,6 +249,10 @@ public class VSRangeSliderModel extends VSObjectModel<TimeSliderVSAssembly> {
       return maxRangeBarWidth;
    }
 
+   public Insets getPadding() {
+      return padding;
+   }
+
    public boolean isMaxMode() {
       return maxMode;
    }
@@ -283,6 +297,7 @@ public class VSRangeSliderModel extends VSObjectModel<TimeSliderVSAssembly> {
    private double titleRatio = 1;
    private VSFormatModel titleFormat;
    private float maxRangeBarWidth;
+   private Insets padding;
    private boolean maxMode;
 
    @Component

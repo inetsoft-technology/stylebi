@@ -124,6 +124,20 @@ public class RangeSliderPropertyDialogService {
          sizePositionPaneModel.setContainer(true);
       }
 
+      VSDialogService.readSizeFollowsDensity(
+         timeSliderAssemblyInfo, sizePositionPaneModel, !inSelectionContainer);
+
+      PaddingPaneModel paddingPaneModel = rangeSliderGeneralPane.getPaddingPaneModel();
+      Insets padding = timeSliderAssemblyInfo.getPadding();
+      paddingPaneModel.setTop(padding.top);
+      paddingPaneModel.setLeft(padding.left);
+      paddingPaneModel.setBottom(padding.bottom);
+      paddingPaneModel.setRight(padding.right);
+      // null hides the checkbox for an unmarked slider, which has no default to follow
+      paddingPaneModel.setFollowsDefault(
+         timeSliderAssemblyInfo.getVizMark() == null ? null :
+            !timeSliderAssemblyInfo.isUserPadding());
+
       sizePositionPaneModel.setPositions(pos, size);
       generalPropPaneModel.setShowEnabledGroup(true);
       generalPropPaneModel.setEnabled(timeSliderAssemblyInfo.getEnabledValue());
@@ -257,12 +271,38 @@ public class RangeSliderPropertyDialogService {
       info.setTitleVisibleValue(titlePropPaneModel.isVisible());
       info.setTitleValue(titlePropPaneModel.getTitle());
 
+      Dimension shownSize =
+         new Dimension(dialogService.getAssemblySize(info, viewsheet.getViewsheet()));
+      VSDialogService.applyDensitySize(info, sizePositionPaneModel);
       dialogService.setAssemblySize(info, sizePositionPaneModel);
+      VSDialogService.recordAuthorSize(info, sizePositionPaneModel, shownSize);
       dialogService.setAssemblyPosition(info, sizePositionPaneModel);
 
       // only a contained slider's dialog carries a title height
       if(sizePositionPaneModel.getTitleHeight() > 0) {
          applyTitleHeight(info, sizePositionPaneModel);
+      }
+
+      PaddingPaneModel paddingPaneModel = rangeSliderGeneralPane.getPaddingPaneModel();
+      Insets editedPadding = new Insets(
+         paddingPaneModel.getTop(), paddingPaneModel.getLeft(),
+         paddingPaneModel.getBottom(), paddingPaneModel.getRight());
+      Boolean paddingFollowsDefault = paddingPaneModel.getFollowsDefault();
+
+      if(paddingFollowsDefault == null) {
+         // no checkbox was shown, so the slider is unmarked; store only a real edit
+         if(!editedPadding.equals(info.getPadding())) {
+            info.setUserPadding(true);
+            info.setPadding(editedPadding);
+         }
+      }
+      else if(paddingFollowsDefault) {
+         info.setUserPadding(false);
+         info.resetPadding(VizContext.of(info));
+      }
+      else {
+         info.setUserPadding(true);
+         info.setPadding(editedPadding);
       }
 
       info.setEnabledValue(generalPropPaneModel.getEnabled());

@@ -755,6 +755,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          break;
       case AbstractSheet.TIME_SLIDER_ASSET:
          obj = new VSTimeSlider(vs);
+         ((VSTimeSlider) obj).setInsetsCard(insetsTableCard());
          break;
       case AbstractSheet.TAB_ASSET:
          while(vs.isEmbedded()) {

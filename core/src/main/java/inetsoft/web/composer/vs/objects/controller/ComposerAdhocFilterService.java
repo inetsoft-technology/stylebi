@@ -573,6 +573,10 @@ public class ComposerAdhocFilterService {
       titleFormat.getDefaultFormat().setBackgroundValue(Color.WHITE.getRGB() + "");
       objFormat.getDefaultFormat().setBackgroundValue(Color.WHITE.getRGB() + "");
 
+      if(moved instanceof TimeSliderVSAssembly) {
+         objFormat.getDefaultFormat().setRoundCornerValue(0);
+      }
+
       if(detailformat != null) {
          detailformat.getDefaultFormat().setBackgroundValue(Color.WHITE.getRGB() + "");
       }

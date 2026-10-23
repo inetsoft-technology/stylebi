@@ -72,6 +72,7 @@ class RangeSliderPropertyDialogServiceTest {
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(timeSliderAssembly);
       when(timeSliderAssembly.getVSAssemblyInfo()).thenReturn(timeSliderVSAssemblyInfoSpy);
+      when(dialogService.getAssemblySize(any(), any())).thenReturn(new java.awt.Dimension(200, 40));
    }
 
    @Test

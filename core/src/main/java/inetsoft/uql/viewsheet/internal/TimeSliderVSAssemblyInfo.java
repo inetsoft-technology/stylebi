@@ -35,6 +35,7 @@ import org.w3c.dom.Element;
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.io.PrintWriter;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -790,7 +791,105 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
          def.setForegroundValue(
             ctx.dark ? VSObjectChromeDefaults.darkForegroundValue() : "0", ctx.dark);
          def.setForeground(null, false);
+
+         // an ad hoc filter stays square under its white background
+         if(isAdhocFilter()) {
+            def.setRoundCornerValue(0);
+         }
       }
+
+      // the card inset, kept when the author or a format.css padding set one
+      if(!isUserPadding() && !isCssPaddingDefined()) {
+         setPadding(VSDensityDefaults.tablePadding(ctx));
+      }
+
+      // the container owns a child's width and height
+      if(!isInSelectionContainer() && (ctx.modern || ctx.transition) && followsDensitySize()) {
+         setPixelSize(defaultSize(ctx));
+      }
+   }
+
+   @Override
+   public boolean takesDensitySize() {
+      return true;
+   }
+
+   @Override
+   public boolean densitySizeIsHeightOnly() {
+      return true;
+   }
+
+   @Override
+   public boolean followsDensitySize() {
+      return !isUserSize() && VSDensityDefaults.isSeededRangeSliderHeight(getPixelSize().height);
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      Dimension size = getPixelSize();
+      Dimension tier = VSDensityDefaults.rangeSliderSize(ctx);
+      int width = VSDensityDefaults.isSeededRangeSliderWidth(size.width) ? tier.width : size.width;
+      return new Dimension(width, tier.height);
+   }
+
+   boolean isInSelectionContainer() {
+      Viewsheet vs = getViewsheet();
+
+      if(vs == null) {
+         return false;
+      }
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(assembly instanceof CurrentSelectionVSAssembly container) {
+            String[] children = container.getAssemblies();
+
+            if(children != null && Arrays.asList(children).contains(getName())) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   @Override
+   protected Insets defaultPadding(VizContext ctx) {
+      return VSDensityDefaults.tablePadding(ctx);
+   }
+
+   /**
+    * Get the padding the slider body reads, none for an ad hoc filter, and none for an unmarked
+    * slider unless its author set one.
+    */
+   public Insets getBodyPadding() {
+      Insets padding = getPadding();
+
+      // an unmarked slider's stored format.css padding was never drawn
+      if(isAdhocFilter() || padding == null || getVizMark() == null && !isUserPadding()) {
+         return new Insets(0, 0, 0, 0);
+      }
+
+      return (Insets) padding.clone();
+   }
+
+   /**
+    * Get the height of the slider body, track and labels plus the padding when marked.
+    */
+   public int getSliderBodyHeight() {
+      if(getVizMark() == null) {
+         return getListHeight() * AssetUtil.defh;
+      }
+
+      Insets padding = getPadding();
+      int pad = padding == null ? 0 : padding.top + padding.bottom;
+      return VSDensityDefaults.RANGE_SLIDER_CONTENT_HEIGHT + pad;
+   }
+
+   /**
+    * Whether the labels sit a fixed gap from the track.
+    */
+   public boolean takesLabelSpacing() {
+      return getVizMark() != null && !isAdhocFilter();
    }
 
    /**

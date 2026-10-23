@@ -27,6 +27,7 @@
 
 import { SimpleChange } from "@angular/core";
 import { GuiTool } from "../../../common/util/gui-tool";
+import { TestUtils } from "../../../common/test/test-utils";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { VSRangeSliderModel } from "../../model/vs-range-slider-model";
 import { NavigationKeys } from "../navigation-keys";
@@ -371,5 +372,119 @@ describe("VSRangeSlider – refresh while the range is being changed (Bug #77917
          expect(ctx.comp.leftHandlePosition).toBeCloseTo(2 * TICK);
          expect(ctx.comp.rightHandlePosition).toBeCloseTo(3 * TICK);
       });
+   });
+});
+
+describe("VSRangeSlider – density", () => {
+   const pad = { top: 16, left: 16, bottom: 16, right: 16 };
+
+   function format(width: number, height: number): any {
+      return { ...TestUtils.createMockVSFormatModel(), width, height, font: "12px Arial" };
+   }
+
+   beforeEach(() => {
+      vi.spyOn(GuiTool, "measureText").mockReturnValue(10);
+   });
+
+   afterEach(() => {
+      vi.restoreAllMocks();
+   });
+
+   it("keeps today's offsets when unmarked", () => {
+      const { comp } = createVSRangeSlider({ vizModern: false });
+      expect(comp.rangeValueOffset).toBe(10);
+      expect(comp.currentValueGap).toBe(0);
+   });
+
+   it("spaces the labels 6px from the track when marked", () => {
+      const { comp } = createVSRangeSlider({ vizModern: true });
+      expect(comp.rangeValueOffset).toBe(15);
+      expect(comp.currentValueGap).toBe(6);
+   });
+
+   it("keeps today's offsets on an ad hoc filter", () => {
+      const { comp } = createVSRangeSlider({ vizModern: true, adhocFilter: true });
+      expect(comp.rangeValueOffset).toBe(10);
+      expect(comp.currentValueGap).toBe(0);
+   });
+
+   it("has a zero inset without padding", () => {
+      const { comp } = createVSRangeSlider({ padding: undefined });
+      expect(comp.bodyInset).toEqual({ top: 0, left: 0, bottom: 0, right: 0 });
+   });
+
+   // the inset box binds these four edges and no width or height
+   it("anchors the inset box at zero unmarked and at the padding when marked", () => {
+      const unmarked = createVSRangeSlider({
+         vizModern: false, padding: { top: 0, left: 0, bottom: 0, right: 0 },
+      }).comp.bodyInset;
+      expect(unmarked).toStrictEqual({ top: 0, left: 0, bottom: 0, right: 0 });
+
+      const marked = createVSRangeSlider({ vizModern: true, padding: pad }).comp.bodyInset;
+      expect(marked).toStrictEqual({ top: 16, left: 16, bottom: 16, right: 16 });
+      expect(marked).not.toHaveProperty("width");
+      expect(marked).not.toHaveProperty("height");
+   });
+
+   it("uses the model padding as the inset", () => {
+      const { comp } = createVSRangeSlider({ vizModern: true, padding: pad });
+      expect(comp.bodyInset).toEqual(pad);
+   });
+
+   it("centres the track inside the padding", () => {
+      const { comp } = createVSRangeSlider({
+         vizModern: true, padding: pad, objectFormat: format(232, 82),
+      });
+      expect(comp.sliderTop).toBe(Math.ceil(50 / 2) - 4);
+   });
+
+   it("centres the current label against the inner width", () => {
+      const padded = createVSRangeSlider({
+         vizModern: true, padding: pad, objectFormat: format(232, 82),
+      }).comp;
+      const plain = createVSRangeSlider({ objectFormat: format(200, 82) }).comp;
+      expect(padded.getLabelPosition()).toBe(plain.getLabelPosition());
+   });
+});
+
+describe("VSRangeSlider – header corners", () => {
+   beforeEach(() => {
+      vi.spyOn(GuiTool, "measureText").mockReturnValue(10);
+   });
+
+   afterEach(() => {
+      vi.restoreAllMocks();
+   });
+
+   function corners(card: number, title: number,
+                    overrides: Partial<VSRangeSliderModel> = {}): string
+   {
+      const model = makeVSRangeSliderModel({
+         vizModern: true, container: "SelectionContainer1",
+         containerType: "VSSelectionContainer", ...overrides,
+      });
+      model.objectFormat.roundCorner = card;
+      model.titleFormat.roundCorner = title;
+      return createVSRangeSlider(model).comp.headerBorderRadius;
+   }
+
+   it("rounds the header's top corners with the card", () => {
+      expect(corners(6, 0)).toBe("6px 6px 0px 0px");
+   });
+
+   it("takes the card's radius over the title's at the card edge", () => {
+      expect(corners(6, 2)).toBe("6px 6px 2px 2px");
+   });
+
+   it("keeps the title's own radius on a square card", () => {
+      expect(corners(0, 4)).toBe("4px 4px 4px 4px");
+   });
+
+   it("rounds all four corners of a collapsed slider, which is all header", () => {
+      expect(corners(6, 0, { hidden: true })).toBe("6px 6px 6px 6px");
+   });
+
+   it("keeps the card's radius on all four corners when unmarked", () => {
+      expect(corners(6, 0, { vizModern: false })).toBe("6px");
    });
 });

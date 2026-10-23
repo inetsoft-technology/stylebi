@@ -151,6 +151,12 @@ public class GroupingService {
                objectInfo.setPixelSize(new Dimension(size.width,
                   ((TimeSliderVSAssemblyInfo) objectInfo).getTitleHeight()));
             }
+            else if(objectInfo instanceof TimeSliderVSAssemblyInfo &&
+               objectInfo.getVizMark() != null)
+            {
+               objSize.height = ((TimeSliderVSAssemblyInfo) objectInfo).getSliderBodyHeight();
+               objectInfo.setPixelSize(new Dimension(size.width, objSize.height));
+            }
             else {
                objectInfo.setPixelSize(new Dimension(size.width, objSize.height));
             }
