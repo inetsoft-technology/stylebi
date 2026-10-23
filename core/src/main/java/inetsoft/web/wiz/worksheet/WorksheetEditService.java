@@ -1071,17 +1071,23 @@ public class WorksheetEditService {
       // -----------------------------------------------------------------------
 
       /**
-       * Sets (or replaces) the sort direction on a column of the named table.
+       * Sets (or replaces) the sort direction on a column of the named table, or removes the
+       * column's sort when {@code direction} is {@code "NONE"} / {@code "clear"}.
        *
        * @param table     the assembly name
        * @param field     the column name to sort on
-       * @param direction {@code "ASC"} or {@code "DESC"} (case-insensitive)
+       * @param direction {@code "ASC"}, {@code "DESC"} or {@code "NONE"} / {@code "clear"}
+       *                  (case-insensitive)
+       * @return {@code false} only when a removal found no sort on the column, so the call
+       *         changed nothing
        * @throws PairingException if no {@link TableAssembly} with {@code table} exists
        */
-      public void setSort(String table, String field, String direction) throws PairingException {
+      public boolean setSort(String table, String field, String direction)
+         throws PairingException
+      {
          TableAssembly t = requireTable(table);
          requireColumn(t, field, false);
-         WorksheetMutationSupport.setSort(t, field, direction);
+         return WorksheetMutationSupport.setSort(t, field, direction);
       }
 
       // -----------------------------------------------------------------------

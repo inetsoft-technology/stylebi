@@ -4606,6 +4606,50 @@ class WorksheetAgentControllerTest {
       assertEquals(org.springframework.http.HttpStatus.NO_CONTENT, again.getStatusCode());
    }
 
+   private static EditRequest setSortRequest(String table, String field, String direction)
+      throws Exception
+   {
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(
+         mapper.writeValueAsString(Map.of("op", "set_sort", "table", table, "field", field,
+                                          "direction", direction)),
+         EditRequest.class);
+   }
+
+   /**
+    * Feature #79222: set_sort NONE removes the sort through the controller, and NONE on an
+    * unsorted column says so in a 200 body (a real removal keeps the 204 No Content).
+    *
+    * <p>The existing channel for "something noteworthy happened" is {@link EditResponse}'s 200
+    * body (see {@code setPrimaryAssemblyReportsMadeVisible...}); it has no warnings field today,
+    * so this test pins only that the no-op is NOT a silent 204 and that the body mentions "sort".
+    * The field name is the builder's choice.</p>
+    */
+   @Test
+   void setSortNoneRemovesSortAndReportsNoOpWhenColumnHadNone() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      WorksheetAgentController ctrl = setPrimaryController(ws);
+      ObjectMapper mapper = new WebConfig().objectMapper();
+
+      ctrl.edit("TOK-SP", setSortRequest("T", "a", "ASC"), agent);
+
+      ResponseEntity<EditResponse> removed =
+         ctrl.edit("TOK-SP", setSortRequest("T", "a", "NONE"), agent);
+      assertEquals(org.springframework.http.HttpStatus.NO_CONTENT, removed.getStatusCode());
+      assertEquals(0, t.getSortInfo().getSorts().length);
+
+      ResponseEntity<EditResponse> noOp =
+         ctrl.edit("TOK-SP", setSortRequest("T", "b", "NONE"), agent);
+      assertEquals(org.springframework.http.HttpStatus.OK, noOp.getStatusCode(),
+         "a no-op NONE must be reported, not a silent 204");
+      assertTrue(mapper.writeValueAsString(noOp.getBody()).toLowerCase().contains("sort"),
+         "the no-op report must say the column had no sort");
+      assertEquals(0, t.getSortInfo().getSorts().length);
+   }
+
    @Test
    void editAddMirrorWithSourceStillResolvesSameWorksheetAssembly() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");

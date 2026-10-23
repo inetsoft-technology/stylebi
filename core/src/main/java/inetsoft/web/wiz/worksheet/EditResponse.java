@@ -41,12 +41,16 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * <p>{@code set_primary_assembly} populates {@code madeVisible} ({@code true}) when it made a
  * hidden table visible to viewsheets, as the native primary-assembly action does; the key is
  * absent otherwise.</p>
+ *
+ * <p>{@code set_sort} populates {@code note} only when {@code direction} {@code NONE} found no
+ * sort on the column to remove (a successful removal stays an empty {@code 204}).</p>
  */
 public record EditResponse(@JsonInclude(JsonInclude.Include.NON_NULL) String assemblyName,
                            @JsonInclude(JsonInclude.Include.NON_NULL) String assemblyKind,
-                           @JsonInclude(JsonInclude.Include.NON_NULL) Boolean madeVisible)
+                           @JsonInclude(JsonInclude.Include.NON_NULL) Boolean madeVisible,
+                           @JsonInclude(JsonInclude.Include.NON_NULL) String note)
 {
    public EditResponse(String assemblyName, String assemblyKind) {
-      this(assemblyName, assemblyKind, null);
+      this(assemblyName, assemblyKind, null, null);
    }
 }

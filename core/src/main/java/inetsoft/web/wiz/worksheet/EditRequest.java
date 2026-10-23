@@ -47,7 +47,7 @@ import java.util.Map;
  *       the table silently reads back as a non-crosstab table on the next read, with no
  *       error from this call.</li>
  *   <li>{@code add_expression_column} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
- *   <li>{@code set_sort} — {@code table}, {@code field}, {@code direction} ("ASC" | "DESC")</li>
+ *   <li>{@code set_sort} — {@code table}, {@code field}, {@code direction} ("ASC" | "DESC" | "NONE" -- "NONE", or "clear", removes the column's sort)</li>
  *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys} instead of single key fields. For three or more tables joined in a single call, supply {@code joinPaths} instead (each a {leftTable, leftKey, rightTable, rightKey, joinType} edge) — {@code leftTable}/{@code leftKey}/{@code rightTable}/{@code rightKey}/{@code joinType}/{@code leftKeys}/{@code rightKeys} are ignored when {@code joinPaths} is present</li>
  *   <li>{@code remove_join} — {@code name}</li>
  *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource); optional {@code logicalModel} (when provided alongside datasource, {@code table} is an entity name within that logical model); optional {@code endpoint} (+ optional {@code parameters}/{@code lookup}/{@code lookupExpandArrays}/{@code lookupTopLevelOnly}) to bind a named REST/JSON connector's pre-built endpoint (and, optionally, one of its pre-built "Join With" lookup chains) instead of a physical table or logical model entity — {@code table} then names the NEW worksheet table rather than a physical path; optional {@code suffix} (+ optional {@code customLookups}) to bind a GENERIC/CUSTOM REST-JSON datasource's hand-authored URL suffix (and, optionally, up to 5 hand-authored custom lookup levels) instead — mutually exclusive with {@code endpoint}/{@code parameters}/{@code lookup}; or optional {@code queryParams} (a flat connector-property map) for a METADATA/FILE/Rest.XML datasource with no predefined endpoint catalogue and no simple URL-suffix shape — mutually exclusive with all of the above. {@code maxRows} (see its own doc below) also applies to all three forms above: when the resolved query paginates ({@code TabularEndpointBindingSupport.requireRowCapWhenPaged}), a positive {@code maxRows} is effectively required, since the call otherwise refuses to create the table.</li>
@@ -193,7 +193,10 @@ public record EditRequest(
    String operation,
    /** Literal values for add_filter / edit_condition. */
    List<String> values,
-   /** Sort direction — {@code "ASC"} or {@code "DESC"} — for set_sort. */
+   /**
+    * Sort direction for set_sort: {@code "ASC"} or {@code "DESC"}, or {@code "NONE"} (alias
+    * {@code "clear"}) to remove the column's sort.
+    */
    String direction,
    /**
     * Group-by column specs for set_group_aggregate. Each entry is either a bare column

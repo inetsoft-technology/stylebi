@@ -10820,6 +10820,138 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(ex.getMessage().contains("NoSuchColumn"));
    }
 
+   /** Feature #79222: NONE removes only the targeted SortRef; the other sorts keep their order. */
+   @Test
+   void setSortNoneRemovesOnlyTheTargetedSortAndKeepsOtherOrder() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b", "c");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setSort("T", "a", "ASC");
+         ed.setSort("T", "b", "DESC");
+         ed.setSort("T", "c", "ASC");
+      });
+      svc.apply("TOK", agent, ed -> ed.setSort("T", "b", "NONE"));
+
+      inetsoft.uql.asset.SortRef[] sorts = t.getSortInfo().getSorts();
+      assertEquals(2, sorts.length, "NONE must remove b's sort, leaving a and c");
+      assertEquals("a", sorts[0].getAttribute());
+      assertEquals(XConstants.SORT_ASC, sorts[0].getOrder());
+      assertEquals("c", sorts[1].getAttribute());
+      assertEquals(XConstants.SORT_ASC, sorts[1].getOrder());
+   }
+
+   /** Feature #79222: "none" and "clear" are aliases of NONE, case-insensitive. */
+   @ParameterizedTest
+   @ValueSource(strings = {"NONE", "none", "None", "clear", "CLEAR", "Clear"})
+   void setSortNoneAliasesRemoveTheSort(String direction) throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setSort("T", "a", "DESC");
+         ed.setSort("T", "b", "ASC");
+      });
+      svc.apply("TOK", agent, ed -> ed.setSort("T", "a", direction));
+
+      inetsoft.uql.asset.SortRef[] sorts = t.getSortInfo().getSorts();
+      assertEquals(1, sorts.length, direction + " must remove a's sort");
+      assertEquals("b", sorts[0].getAttribute());
+   }
+
+   /** Feature #79222: NONE on a column with no sort is a no-op: no throw, no sort created. */
+   @Test
+   void setSortNoneOnUnsortedColumnIsANoOp() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setSort("T", "a", "ASC"));
+      svc.apply("TOK", agent, ed -> ed.setSort("T", "b", "NONE"));
+
+      inetsoft.uql.asset.SortRef[] sorts = t.getSortInfo().getSorts();
+      assertEquals(1, sorts.length, "NONE on unsorted b must not add a sort");
+      assertEquals("a", sorts[0].getAttribute());
+   }
+
+   /** Feature #79222: NONE on a table that never had a SortInfo leaves it with no sorts. */
+   @Test
+   void setSortNoneOnTableWithNoSortsLeavesNoSorts() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setSort("T", "a", "NONE"));
+
+      assertTrue(t.getSortInfo() == null || t.getSortInfo().getSorts().length == 0,
+         "NONE must not create a sort on a never-sorted table");
+   }
+
+   /** Feature #79222: NONE still validates the column, so a typo is refused, not a silent no-op. */
+   @Test
+   void setSortNoneRejectsUnresolvableField() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setSort("T", "NoSuchColumn", "NONE")));
+
+      assertTrue(ex.getMessage().contains("NoSuchColumn"));
+   }
+
+   /** Feature #79222: after NONE, setting the column again appends it at the LAST priority. */
+   @Test
+   void setSortAfterNoneReAddsColumnAtLastPriority() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setSort("T", "a", "ASC");
+         ed.setSort("T", "b", "ASC");
+         ed.setSort("T", "a", "NONE");
+         ed.setSort("T", "a", "DESC");
+      });
+
+      inetsoft.uql.asset.SortRef[] sorts = t.getSortInfo().getSorts();
+      assertEquals(2, sorts.length);
+      assertEquals("b", sorts[0].getAttribute());
+      assertEquals("a", sorts[1].getAttribute());
+      assertEquals(XConstants.SORT_DESC, sorts[1].getOrder());
+   }
+
+   /**
+    * Characterization (Feature #79222 probe), not a requirement: the backend does no direction
+    * validation, so an unrecognized value is currently treated as ASC.
+    */
+   @Test
+   void setSortUnknownDirectionCurrentlyTreatedAsAsc() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setSort("T", "a", "sideways"));
+
+      assertEquals(XConstants.SORT_ASC, t.getSortInfo().getSort(0).getOrder());
+   }
+
    @Test
    void editCellRejectsUnparsableValueAndKeepsPriorValue() throws Exception {
       Worksheet ws = new Worksheet();
