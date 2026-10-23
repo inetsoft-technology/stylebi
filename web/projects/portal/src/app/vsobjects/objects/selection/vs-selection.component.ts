@@ -215,6 +215,8 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
 
    public static LIST_INDENT: number = 4;
    public static TREE_INDENT: number = 16;
+   // .selection-list-cell-container's margin-left
+   public static CELL_CONTAINER_MARGIN: number = 2;
 
    private _quickSwitchClickCallback: (() => void) | null = null;
    private _overlayMouseLeaveUnlisten: (() => void) | null = null;
@@ -968,6 +970,23 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    /** The body's left origin inside the card: exactly what getBodyWidth() takes off. */
    getContentLeft(): number {
       return this.getBodyInset().left;
+   }
+
+   /**
+    * The title text's left padding, over the first row's leading glyph: a multi-level tree's root
+    * toggle, else the checkbox. Null keeps today's title on a legacy list, a container child and
+    * a centered or right-aligned title.
+    */
+   getTitleTextLeft(): number {
+      const hAlign = this.model.titleFormat?.hAlign;
+
+      if(!this.model.vizModern || this.inContainer || hAlign === "center" || hAlign === "right") {
+         return null;
+      }
+
+      const indent = this.controller.indent === VSSelection.TREE_INDENT ?
+         0 : VSSelection.LIST_INDENT;
+      return this.getContentLeft() + VSSelection.CELL_CONTAINER_MARGIN + indent;
    }
 
    /** The body's top origin under the title: exactly what getBodyHeight() takes off. */
