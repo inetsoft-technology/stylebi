@@ -63,6 +63,9 @@ import java.util.*;
  */
 @Service
 public class InputValueService {
+   /** Fixed-length so the mask reveals nothing about the secret's length. */
+   static final String SECRET_MASK = "******";
+
    public InputValueService(ViewsheetSessionService sessions, VSInputService inputs) {
       this.sessions = sessions;
       this.inputs = inputs;
@@ -126,14 +129,49 @@ public class InputValueService {
 
          if(applied != null && applied.getVSAssemblyInfo() instanceof InputVSAssemblyInfo info) {
             Object[] stored = info.getSelectedObjects();
-            result.put("values", stored == null ? List.of() :
-               Arrays.stream(stored).filter(Objects::nonNull).toList());
+            List<Object> held = stored == null ? List.of() :
+               Arrays.stream(stored).filter(Objects::nonNull).toList();
+
+            if(isSecret(info)) {
+               // the write persisted; the secret itself must not travel back into the agent's
+               // transcript, so report how many values are held and whether they were adjusted
+               result.put("values", held.stream().map(v -> (Object) SECRET_MASK).toList());
+               result.put("masked", true);
+               result.put("adjusted", !sameValues(held, values));
+            }
+            else {
+               result.put("values", held);
+            }
          }
       });
       ViewsheetSessionService.relayWarnings(result, warnings);
 
       result.put("persistsOnSave", true);
       return result;
+   }
+
+   /**
+    * True for an input whose value must not be echoed: a text input whose Input Editor is a
+    * password. The option is read from the assembly info itself, the same field the viewer uses to
+    * render {@code type=password}.
+    */
+   static boolean isSecret(VSAssemblyInfo info) {
+      return info instanceof TextInputVSAssemblyInfo text &&
+         text.getColumnOption() instanceof PasswordColumnOption;
+   }
+
+   private static boolean sameValues(List<Object> held, List<Object> requested) {
+      if(held.size() != requested.size()) {
+         return false;
+      }
+
+      for(int i = 0; i < held.size(); i++) {
+         if(!Objects.equals(String.valueOf(held.get(i)), String.valueOf(requested.get(i)))) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**
