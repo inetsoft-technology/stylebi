@@ -2077,7 +2077,7 @@ public final class WorksheetMutationSupport {
             continue;
          }
 
-         String parsed = parsedTypes.get(((ColumnRef) columns.getAttribute(i)).getName());
+         String parsed = parsedTypes.get(((ColumnRef) columns.getAttribute(i)).getAttribute());
 
          if(parsed == null || parsed.isEmpty()) {
             untyped.add(i);
@@ -2110,7 +2110,8 @@ public final class WorksheetMutationSupport {
                String type = byIndex ? ((XTypeNode) meta.getChild(i)).getType() : null;
 
                if(type == null || type.isEmpty()) {
-                  type = cr.getName() == null ? null : byName.get(cr.getName().toLowerCase());
+                  type = cr.getAttribute() == null ? null :
+            byName.get(cr.getAttribute().toLowerCase());
                }
 
                if(type != null && !type.isEmpty()) {
@@ -2127,7 +2128,7 @@ public final class WorksheetMutationSupport {
       List<String> names = new ArrayList<>();
 
       for(int i : untyped) {
-         names.add(columns.getAttribute(i).getName());
+         names.add(columns.getAttribute(i).getAttribute());
       }
 
       return names;

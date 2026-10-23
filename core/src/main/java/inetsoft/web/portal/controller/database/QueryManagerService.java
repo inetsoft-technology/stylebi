@@ -2735,7 +2735,18 @@ public class QueryManagerService {
             ref.setQueryExpressionField(selection.isExpression(i));
             ref.setDataType(selection.getType(fullname));
             String oldAlias = getOriginalAlias(aliasMapping, alias);
-            DataRef oldRef = getOldAttributeRef(oldAlias, fullname, oldColumns, selection);
+            DataRef oldRef = null;
+
+            // Without an alias mapping (the worksheet edit path) the old column is named by its
+            // output name, so probe by that first. The tail of the full name below only matches
+            // a column that has no differing SQL alias (Bug #79176).
+            if(aliasMapping == null) {
+               oldRef = getOldAttributeRef(name, fullname, oldColumns, selection);
+            }
+
+            if(oldRef == null) {
+               oldRef = getOldAttributeRef(oldAlias, fullname, oldColumns, selection);
+            }
 
             if(oldRef instanceof ColumnRef) {
                ColumnRef oldCol = (ColumnRef) oldRef;
