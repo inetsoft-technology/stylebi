@@ -3457,10 +3457,36 @@ public final class WorksheetMutationSupport {
     *
     * @param t         the table assembly to mutate
     * @param field     the column name to sort on
-    * @param direction {@code "ASC"} or {@code "DESC"} (case-insensitive)
+    * <p>{@code "NONE"} (or {@code "clear"}) removes the column's {@link SortRef} instead, leaving
+    * the other sorts and their order unchanged. It does nothing, and returns {@code false}, when
+    * the column has no sort.</p>
+    *
+    * @param direction {@code "ASC"} or {@code "DESC"} to set the direction, or {@code "NONE"} /
+    *                  {@code "clear"} to remove the sort (all case-insensitive); any other value
+    *                  is treated as {@code "ASC"}
+    * @return {@code false} only when {@code direction} asks to remove a sort the column does not
+    *         have, {@code true} when the sort info was changed
     */
-   public static void setSort(TableAssembly t, String field, String direction) {
+   public static boolean setSort(TableAssembly t, String field, String direction) {
       SortInfo si = t.getSortInfo();
+
+      if("NONE".equalsIgnoreCase(direction) || "clear".equalsIgnoreCase(direction)) {
+         if(si == null) {
+            return false;
+         }
+
+         SortRef[] sorts = si.getSorts();
+
+         for(int i = 0; i < sorts.length; i++) {
+            if(field.equals(sorts[i].getName()) || field.equals(sorts[i].getAttribute())) {
+               si.removeSort(i);
+               t.setSortInfo(si);
+               return true;
+            }
+         }
+
+         return false;
+      }
 
       if(si == null) {
          si = new SortInfo();
@@ -3487,6 +3513,7 @@ public final class WorksheetMutationSupport {
       }
 
       t.setSortInfo(si);
+      return true;
    }
 
    // =========================================================================

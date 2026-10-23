@@ -382,14 +382,20 @@ public class WorksheetAgentController {
       requireWholeSheetSession(sessionToken, user);
       String[] resolvedNameHolder = new String[2];
       boolean[] madeVisibleHolder = new boolean[1];
-      editOp(sessionToken, req, user, resolvedNameHolder, madeVisibleHolder);
+      boolean[] sortNoOpHolder = new boolean[1];
+      editOp(sessionToken, req, user, resolvedNameHolder, madeVisibleHolder, sortNoOpHolder);
 
-      if(resolvedNameHolder[0] == null && !madeVisibleHolder[0]) {
+      if(resolvedNameHolder[0] == null && !madeVisibleHolder[0] && !sortNoOpHolder[0]) {
          return ResponseEntity.noContent().build();
       }
 
-      return ResponseEntity.ok(new EditResponse(resolvedNameHolder[0], resolvedNameHolder[1],
-                                                madeVisibleHolder[0] ? Boolean.TRUE : null));
+      return ResponseEntity.ok(new EditResponse(
+         resolvedNameHolder[0], resolvedNameHolder[1],
+         madeVisibleHolder[0] ? Boolean.TRUE : null,
+         sortNoOpHolder[0]
+            ? "Column '" + req.field() + "' has no sort on table '" + req.table()
+               + "'; nothing was removed."
+            : null));
    }
 
    /**
@@ -409,7 +415,7 @@ public class WorksheetAgentController {
    public void editOp(String sessionToken, EditRequest req, Principal user)
       throws Exception
    {
-      editOp(sessionToken, req, user, null, null);
+      editOp(sessionToken, req, user, null, null, null);
    }
 
    /**
@@ -420,10 +426,20 @@ public class WorksheetAgentController {
     * above passes {@code null} for its one in-process caller, which has no use for the name).
     */
    private void editOp(String sessionToken, EditRequest req, Principal user,
-                       String[] resolvedNameHolder, boolean[] madeVisibleHolder)
+                       String[] resolvedNameHolder, boolean[] madeVisibleHolder,
+                       boolean[] sortNoOpHolder)
       throws Exception
    {
       requireEnabled();
+
+      // set_sort NONE on a column with no sort changes nothing; the caller is told so (see
+      // EditResponse#note) rather than getting a 204 that reads as a removal.
+      if("set_sort".equals(req.op()) && sortNoOpHolder != null) {
+         editService.apply(sessionToken, user,
+                           editor -> sortNoOpHolder[0] =
+                              !editor.setSort(req.table(), req.field(), req.direction()));
+         return;
+      }
 
       // set_primary_assembly reports whether it made a hidden table visible to viewsheets, so the
       // caller can disclose the side effect (see EditResponse#madeVisible).
