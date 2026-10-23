@@ -31,10 +31,14 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.security.Principal;
 import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
  * REST controller for the repository asset import area (track-d-import-export/01-design.md
@@ -83,10 +87,13 @@ public class AdminAssetImportController {
          throw new IllegalArgumentException("file: required and must not be empty");
       }
 
+      byte[] bytes = file.getBytes();
+      requireExportPackage(bytes);
+
       String stagingToken = UUID.randomUUID().toString();
       FileData fileData = FileData.builder()
          .name(file.getOriginalFilename() == null ? "import.zip" : file.getOriginalFilename())
-         .content(Base64.getEncoder().encodeToString(file.getBytes()))
+         .content(Base64.getEncoder().encodeToString(bytes))
          .build();
       return importService.setJarFile(stagingToken, fileData, user);
    }
@@ -122,6 +129,26 @@ public class AdminAssetImportController {
    {
       requireSiteAdmin(user);
       return applyService.apply(req, user);
+   }
+
+   /**
+    * Refuses, as a client error, a file that is not a StyleBI export package. The wrapped import
+    * service reports a zip without a root {@code JarFileInfo.xml} as a bare {@code IOException},
+    * which would otherwise surface as an opaque HTTP 500.
+    */
+   static void requireExportPackage(byte[] bytes) throws IOException {
+      try(ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(bytes))) {
+         ZipEntry entry;
+
+         while((entry = zip.getNextEntry()) != null) {
+            if(!entry.isDirectory() && "JarFileInfo.xml".equals(entry.getName())) {
+               return;
+            }
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "file: is not a StyleBI export package (a zip containing JarFileInfo.xml)");
    }
 
    private void requireSiteAdmin(Principal user) {
