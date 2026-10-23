@@ -530,7 +530,62 @@ describe("MiniToolbar rendered - anchored hover persistence (compiled CSS only; 
       expect(styleText).toMatch(
          /\.mini-toolbar--anchored[^{}]*:not\(\.hidden-mini-toolbar\)[^{}]*:hover[^{}]*\.mini-toolbar-button-group[^{},]*:not\(\.mini-toolbar-kebab-group\)[^{}]*[,{]/);
       expect(styleText).toMatch(
-         /\.mini-toolbar--anchored[^{}]*:not\(\.hidden-mini-toolbar\)[^{}]*:focus-within[^{}]*\.mini-toolbar-button-group[^{},]*:not\(\.mini-toolbar-kebab-group\)[^{}]*\{[^}]*display:\s*inline-flex/);
+         /\.mini-toolbar--anchored[^{}]*:not\(\.hidden-mini-toolbar\)[^{}]*:has\([^)]*:focus-visible\)[^{}]*\.mini-toolbar-button-group[^{},]*:not\(\.mini-toolbar-kebab-group\)[^{}]*\{[^}]*display:\s*inline-flex/);
+   });
+});
+
+describe("MiniToolbar rendered - resting opacity (compiled CSS only)", () => {
+   async function compiledStyleText(): Promise<string> {
+      await renderToolbar([
+         new AssemblyActionGroup([makeAction("chart show-data")]),
+         new AssemblyActionGroup([makeAction("more actions")])
+      ], true);
+
+      return Array.from(document.querySelectorAll("style"))
+         .map(s => s.textContent)
+         .join("\n");
+   }
+
+   it("hides the anchored pill at rest only where the device can hover", async () => {
+      const styleText = await compiledStyleText();
+      const hoverBlock = /@media \(hover: ?hover\)\s*\{[^@]*\.mini-toolbar--anchored[^{}]*\.mini-toolbar-container[^{}]*\{[^}]*opacity:\s*0/;
+      expect(styleText).toMatch(hoverBlock);
+
+      const restRule = /\.mini-toolbar--anchored[^{}]*\.mini-toolbar-container[^{}]*\{[^}]*opacity:\s*0/g;
+      const hoverMedia = /@media \(hover: ?hover\)\s*\{/g;
+      const total = (styleText.match(restRule) || []).length;
+      let inside = 0;
+      let m: RegExpExecArray;
+
+      while((m = hoverMedia.exec(styleText)) != null) {
+         let depth = 1;
+         let i = m.index + m[0].length;
+         const start = i;
+
+         while(depth > 0 && i < styleText.length) {
+            depth += styleText[i] == "{" ? 1 : styleText[i] == "}" ? -1 : 0;
+            i++;
+         }
+
+         inside += (styleText.substring(start, i).match(restRule) || []).length;
+      }
+
+      expect(total).toBeGreaterThan(0);
+      expect(inside).toBe(total);
+   });
+
+   it("reveals the pill on strip hover and on keyboard focus, never on a dismissed strip", async () => {
+      const styleText = await compiledStyleText();
+      expect(styleText).toMatch(
+         /\.mini-toolbar--anchored[^{}]*:not\(\.hidden-mini-toolbar\)[^{}]*:has\([^)]*:focus-visible\)[^{}]*\.mini-toolbar-container[^{}]*\{[^}]*opacity:\s*1/);
+      expect(styleText).toMatch(
+         /\.mini-toolbar--anchored[^{}]*:not\(\.hidden-mini-toolbar\)[^{}]*:hover[^{}]*\.mini-toolbar-container[^{}]*[,{][^}]*opacity:\s*1/);
+   });
+
+   it("gives the corner pill the dark surface", async () => {
+      const styleText = await compiledStyleText();
+      expect(styleText).toMatch(
+         /\.mini-toolbar--corner[^{}]*\.mini-toolbar-container[^{}]*\{[^}]*background-color:\s*var\(--inet-viz-surface-dark\)/);
    });
 });
 

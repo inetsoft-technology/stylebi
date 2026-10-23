@@ -383,18 +383,15 @@ export class MiniToolbar implements OnChanges, OnDestroy {
          return;
       }
 
-      // Anchored strips are visibility: visible at rest (see mini-toolbar.component.scss), so the
-      // check above never trips for them and every Esc keyup — closing an unrelated dialog,
-      // leaving a selection — would otherwise silently dismiss this chart's strip regardless of
-      // whether it was ever actually shown to the user. What "revealed" means for an anchored strip
-      // is whether the action groups are in layout: they are display: none at rest and inline-flex
-      // on hover/focus-within. No action group at all (touch, or the kebab-only height band) counts
-      // as not revealed — there is nothing there for Esc to dismiss but the resting kebab.
+      // Anchored strips are visibility: visible at rest, so the check above never trips for them
+      // and any Esc keyup would dismiss a strip the user never saw. Revealed means the pill is
+      // opaque; on a device that cannot hover the resting kebab is the affordance, so never dismiss.
       if(this.kebabResident) {
-         const group = toolbar.querySelector(
-            ".mini-toolbar-button-group:not(.mini-toolbar-kebab-group)");
+         const container = toolbar.querySelector(".mini-toolbar-container");
 
-         if(!group || window.getComputedStyle(group).display == "none") {
+         if(window.matchMedia?.("(hover: none)")?.matches || !container ||
+            window.getComputedStyle(container).opacity === "0")
+         {
             return;
          }
       }
