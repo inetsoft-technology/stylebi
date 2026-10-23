@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.repository;
 
+import inetsoft.sree.internal.DeployManagerService;
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.content.repository.ImportAssetServiceProxy;
@@ -31,10 +32,13 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import javax.xml.stream.XMLStreamException;
+import java.io.EOFException;
 import java.security.Principal;
 import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
+import java.util.zip.ZipException;
 
 /**
  * REST controller for the repository asset import area (track-d-import-export/01-design.md
@@ -88,7 +92,24 @@ public class AdminAssetImportController {
          .name(file.getOriginalFilename() == null ? "import.zip" : file.getOriginalFilename())
          .content(Base64.getEncoder().encodeToString(file.getBytes()))
          .build();
-      return importService.setJarFile(stagingToken, fileData, user);
+      try {
+         return importService.setJarFile(stagingToken, fileData, user);
+      }
+      catch(ZipException | EOFException | DeployManagerService.JarFileInfoMissingException e) {
+         // a damaged zip or a zip without a manifest is a bad upload; any other IOException
+         // (temp file / cache folder write, repository read) is a server fault and stays a 500
+         throw new IllegalArgumentException(
+            "file: not a repository export (" + e.getMessage() + ")", e);
+      }
+      catch(RuntimeException e) {
+         if(e.getCause() instanceof XMLStreamException) {
+            throw new IllegalArgumentException(
+               "file: not a repository export (JarFileInfo.xml is not well-formed XML: " +
+               e.getCause().getMessage() + ")", e);
+         }
+
+         throw e;
+      }
    }
 
    /**
