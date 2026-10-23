@@ -230,13 +230,12 @@ public class OrganizationManager {
       User user = null;
 
       if(provider.getAuthenticationProvider() instanceof AuthenticationChain chain) {
-         for(AuthenticationProvider child : chain.getProviders()) {
-            user = child.getUser(userID);
+         // a provider that fails the lookup is not the owner (Bug #79268)
+         AuthenticationChain.UserOwner owner = chain.findUserOwner(userID);
 
-            if(user != null) {
-               userProvider = child;
-               break;
-            }
+         if(owner != null) {
+            user = owner.user();
+            userProvider = owner.provider();
          }
       }
 
