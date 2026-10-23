@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TitledVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.Catalog;
 import inetsoft.web.wiz.WizUtil;
@@ -104,8 +105,8 @@ public class ViewsheetEditService {
    static final List<String> OPS = List.of(
       "move", "resize", "resize_title", "add", "remove", "rename", "copy", "cut", "paste",
       "set_z_index", "set_lock", "set_title", "group", "group_as_tab",
-      "group_as_selection_container", "ungroup", "move_from_container", "align", "distribute",
-      "refresh", "refresh_viewsheet");
+      "group_as_selection_container", "ungroup", "move_from_container", "select_tab", "align",
+      "distribute", "refresh", "refresh_viewsheet");
 
    /**
     * What an edit produced.
@@ -150,6 +151,7 @@ public class ViewsheetEditService {
       case "group_as_selection_container" ->
          groupAsSelectionContainer(sessionToken, user, request, linkUri);
       case "ungroup" -> ungroup(sessionToken, user, request, linkUri);
+      case "select_tab" -> selectTab(sessionToken, user, request, linkUri);
       case "move_from_container" -> moveFromContainer(sessionToken, user, request, linkUri);
       case "align", "distribute" -> arrange(sessionToken, user, request, linkUri, op);
       case "refresh" -> refresh(sessionToken, user, request, linkUri);
@@ -702,6 +704,50 @@ public class ViewsheetEditService {
             VSAssembly next = requireVSAssembly(rvs, vs, names.get(i));
             grouping.groupComponents(rvs, first, next, false, linkUri, dispatcher);
          }
+      });
+   }
+
+   /**
+    * Chooses which member of a Tab is showing -- the state change the native Composer's click on
+    * a tab button makes ({@code VSTabService.changeTab}). {@code group_as_tab} leaves the
+    * last-added member selected, and nothing else reaches the Tab's selected page.
+    * {@code assembly} may name the Tab or any of its members, which resolves to the Tab holding
+    * it.
+    */
+   private List<String> selectTab(String sessionToken, Principal user, EditRequest request,
+                                  String linkUri) throws Exception
+   {
+      requireAssembly(request);
+      if(request.page() == null || request.page().isBlank()) {
+         throw new IllegalArgumentException(
+            "Edit op 'select_tab' requires 'page' — the Tab member to show.");
+      }
+
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         Viewsheet vs = rvs.getViewsheet();
+         VSAssembly assembly = requireVSAssembly(rvs, vs, request.assembly());
+         Assembly resolved = assembly instanceof TabVSAssembly ? assembly : assembly.getContainer();
+
+         if(!(resolved instanceof TabVSAssembly tab)) {
+            throw new IllegalArgumentException(
+               "'" + request.assembly() + "' is not a Tab, nor a member of one -- " +
+               "edit(op:'select_tab') takes a Tab (from group_as_tab) or one of its members.");
+         }
+
+         List<String> pages = tab.getAssemblies() == null
+            ? List.of() : List.of(tab.getAssemblies());
+
+         if(!pages.contains(request.page())) {
+            throw new IllegalArgumentException(
+               "'" + request.page() + "' is not a page of Tab '" + tab.getAbsoluteName() +
+               "' (pages: " + String.join(", ", pages) + ").");
+         }
+
+         TabVSAssemblyInfo info = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
+         info.setSelectedValue(request.page());
+         info.setSelected(null);
+         coreLifecycleService.execute(
+            rvs, tab.getAbsoluteName(), linkUri, VSAssembly.VIEW_CHANGED, dispatcher);
       });
    }
 

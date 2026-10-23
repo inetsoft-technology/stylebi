@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
@@ -97,7 +98,29 @@ public class ViewsheetReadService {
          container == null ? null : container.getName(),
          assembly.isVisible(),
          parts.isEmpty() ? null : parts,
-         AnnotationFamily.contentOf(vs, assembly));
+         AnnotationFamily.contentOf(vs, assembly),
+         assembly instanceof TabVSAssembly tab ? selectedPage(tab) : null);
+   }
+
+   /**
+    * The member a Tab is showing: the runtime selection, else the design-time one (a script or
+    * variable expression has no runtime value until evaluated), else the first member -- the page
+    * the viewer falls back to.
+    */
+   private static String selectedPage(TabVSAssembly tab) {
+      String selected = tab.getSelected();
+
+      if(selected == null || selected.isEmpty()) {
+         selected = tab.getSelectedValue();
+      }
+
+      String[] members = tab.getAssemblies();
+
+      if((selected == null || selected.isEmpty()) && members != null && members.length > 0) {
+         selected = members[0];
+      }
+
+      return selected;
    }
 
    /** "GaugeVSAssembly" reads as "Gauge" — the name the user sees in the Composer. */

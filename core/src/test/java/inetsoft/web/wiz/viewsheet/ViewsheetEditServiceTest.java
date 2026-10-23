@@ -52,6 +52,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
+import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -68,6 +69,7 @@ import org.mockito.MockedStatic;
 import java.awt.Dimension;
 import java.awt.Point;
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1544,6 +1546,205 @@ class ViewsheetEditServiceTest {
       verify(grouping).groupComponents(eq(rvs), eq(a), eq(b), eq(false), anyString(), any());
       verify(grouping).groupComponents(eq(rvs), eq(a), eq(c), eq(false), anyString(), any());
       verifyNoMoreInteractions(grouping);
+   }
+
+   /**
+    * A Tab over the given members, backed by a real info so the selected page is read back the
+    * way the renderer reads it. The member mocks point at the Tab through getContainer().
+    */
+   private static TabVSAssembly tabOf(String name, String selected, VSAssembly... members) {
+      TabVSAssembly tab = mock(TabVSAssembly.class);
+      TabVSAssemblyInfo info = selectionState(selected);
+      when(tab.getAbsoluteName()).thenReturn(name);
+      when(tab.getVSAssemblyInfo()).thenReturn(info);
+      when(tab.getSelected()).thenAnswer(invocation -> info.getSelected());
+      when(tab.getSelectedValue()).thenAnswer(invocation -> info.getSelectedValue());
+      String[] names = Arrays.stream(members).map(VSAssembly::getAbsoluteName)
+         .toArray(String[]::new);
+      when(tab.getAssemblies()).thenReturn(names);
+
+      for(VSAssembly member : members) {
+         when(member.getContainer()).thenReturn(tab);
+      }
+
+      return tab;
+   }
+
+   /**
+    * Stands in for a real info (whose constructor needs the server's Spring context): holds the
+    * design-time and runtime selected value the way DynamicValue does, the runtime one falling
+    * back to the design-time one while it is unset.
+    */
+   private static TabVSAssemblyInfo selectionState(String selected) {
+      String[] state = { selected, null };
+      TabVSAssemblyInfo info = mock(TabVSAssemblyInfo.class);
+      doAnswer(invocation -> state[0] = invocation.getArgument(0)).when(info).setSelectedValue(any());
+      doAnswer(invocation -> state[1] = invocation.getArgument(0)).when(info).setSelected(any());
+      when(info.getSelectedValue()).thenAnswer(invocation -> state[0]);
+      when(info.getSelected()).thenAnswer(invocation -> state[1] != null ? state[1] : state[0]);
+      return info;
+   }
+
+   private static VSAssembly member(String name) {
+      VSAssembly member = mock(ChartVSAssembly.class);
+      when(member.getAbsoluteName()).thenReturn(name);
+      return member;
+   }
+
+   private static EditRequest selectTab(String assembly, String page) {
+      return new EditRequest("select_tab", assembly, null, null, null, null, null, null, null,
+                             null, null, null, null, null, null, null, page);
+   }
+
+   private static RuntimeViewsheet runtimeWithAssemblies(VSAssembly... assemblies) {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      for(VSAssembly assembly : assemblies) {
+         when(vs.getAssembly(assembly.getAbsoluteName())).thenReturn(assembly);
+      }
+
+      when(vs.getAssemblies()).thenReturn(assemblies);
+      return rvs;
+   }
+
+   private static ViewsheetReadService readerOfNames(String... names) {
+      return readerReturning(Arrays.stream(names)
+         .map(n -> new AssemblyNode(n, "Chart", 0, 0, 100, 100, 0, null, true))
+         .toArray(AssemblyNode[]::new));
+   }
+
+   /**
+    * select_tab writes the design-time selected value, clears the runtime one so it re-derives,
+    * and notifies the client with VIEW_CHANGED -- the same three steps as a click on a tab
+    * button (VSTabService.changeTab). group_as_tab leaves the last-added member selected, so
+    * pick the first.
+    */
+   @Test
+   void selectTabSetsTheSelectedPageAndNotifiesTheClient() throws Exception {
+      VSAssembly a = member("A");
+      VSAssembly b = member("B");
+      TabVSAssembly tab = tabOf("Tab1", "B", a, b);
+      RuntimeViewsheet rvs = runtimeWithAssemblies(tab, a, b);
+      CoreLifecycleService lifecycle = mock(CoreLifecycleService.class);
+      ViewsheetEditService service = serviceWithRuntimeAndGrouping(
+         rvs, readerOfNames("Tab1", "A", "B"), mock(GroupingService.class), lifecycle);
+
+      service.apply("tok", principal(), selectTab("Tab1", "A"), "");
+
+      TabVSAssemblyInfo info = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
+      assertEquals("A", info.getSelectedValue());
+      assertEquals("A", info.getSelected());
+      verify(lifecycle).execute(eq(rvs), eq("Tab1"), anyString(),
+                                eq(VSAssembly.VIEW_CHANGED), any());
+   }
+
+   /** The Tab may be addressed by one of its members: the tab holding it is resolved. */
+   @Test
+   void selectTabResolvesAMemberNameToItsTab() throws Exception {
+      VSAssembly a = member("A");
+      VSAssembly b = member("B");
+      TabVSAssembly tab = tabOf("Tab1", "B", a, b);
+      RuntimeViewsheet rvs = runtimeWithAssemblies(tab, a, b);
+      CoreLifecycleService lifecycle = mock(CoreLifecycleService.class);
+      ViewsheetEditService service = serviceWithRuntimeAndGrouping(
+         rvs, readerOfNames("Tab1", "A", "B"), mock(GroupingService.class), lifecycle);
+
+      service.apply("tok", principal(), selectTab("B", "A"), "");
+
+      assertEquals("A", ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).getSelectedValue());
+      verify(lifecycle).execute(eq(rvs), eq("Tab1"), anyString(),
+                                eq(VSAssembly.VIEW_CHANGED), any());
+   }
+
+   @Test
+   void selectTabRejectsAnAssemblyThatIsNeitherATabNorAMember() {
+      VSAssembly lone = member("Chart1");
+      RuntimeViewsheet rvs = runtimeWithAssemblies(lone);
+      ViewsheetEditService service = serviceWithRuntimeAndGrouping(
+         rvs, readerOfNames("Chart1"), mock(GroupingService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), selectTab("Chart1", "A"), ""));
+
+      assertTrue(thrown.getMessage().contains("'Chart1' is not a Tab"));
+   }
+
+   @Test
+   void selectTabRejectsAPageThatIsNotAMemberNamingThePages() {
+      VSAssembly a = member("A");
+      VSAssembly b = member("B");
+      TabVSAssembly tab = tabOf("Tab1", "B", a, b);
+      CoreLifecycleService lifecycle = mock(CoreLifecycleService.class);
+      ViewsheetEditService service = serviceWithRuntimeAndGrouping(
+         runtimeWithAssemblies(tab, a, b), readerOfNames("Tab1", "A", "B"),
+         mock(GroupingService.class), lifecycle);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), selectTab("Tab1", "Z"), ""));
+
+      assertTrue(thrown.getMessage().contains("'Z' is not a page of Tab 'Tab1'"));
+      assertTrue(thrown.getMessage().contains("A, B"));
+      assertEquals("B", ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).getSelectedValue());
+      verifyNoInteractions(lifecycle);
+   }
+
+   @Test
+   void selectTabOnAnEmptyTabFailsLoud() {
+      TabVSAssembly tab = tabOf("Tab1", null);
+      ViewsheetEditService service = serviceWithRuntimeAndGrouping(
+         runtimeWithAssemblies(tab), readerOfNames("Tab1"), mock(GroupingService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), selectTab("Tab1", "A"), ""));
+
+      assertTrue(thrown.getMessage().contains("not a page of Tab 'Tab1'"));
+   }
+
+   @Test
+   void selectTabRejectsAnUnknownAssembly() {
+      TabVSAssembly tab = tabOf("Tab1", null);
+      ViewsheetEditService service = serviceWithRuntimeAndGrouping(
+         runtimeWithAssemblies(tab), readerOfNames("Tab1"), mock(GroupingService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), selectTab("Nope", "A"), ""));
+
+      assertTrue(thrown.getMessage().contains("Unknown assembly 'Nope'"));
+   }
+
+   @Test
+   void selectTabRequiresAssemblyAndPage() {
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
+
+      Exception noPage = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), selectTab("Tab1", null), ""));
+      assertTrue(noPage.getMessage().contains("'page'"));
+
+      Exception noAssembly = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), selectTab(null, "A"), ""));
+      assertTrue(noAssembly.getMessage().contains("'assembly'"));
+   }
+
+   /** The read model names the page a Tab shows; every other assembly carries no selectedPage. */
+   @Test
+   void readModelReportsTheTabsSelectedPageOnlyOnATab() {
+      VSAssembly a = member("A");
+      VSAssembly b = member("B");
+      TabVSAssembly tab = tabOf("Tab1", "A", a, b);
+      ViewsheetModel model = new ViewsheetReadService().read(runtimeWithAssemblies(tab, a, b));
+
+      assertEquals("A", model.assemblies().stream()
+         .filter(n -> n.name().equals("Tab1")).findFirst().orElseThrow().selectedPage());
+      assertNull(model.assemblies().stream()
+         .filter(n -> n.name().equals("A")).findFirst().orElseThrow().selectedPage());
    }
 
    @Test
