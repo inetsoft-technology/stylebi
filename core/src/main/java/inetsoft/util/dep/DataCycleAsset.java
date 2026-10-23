@@ -179,6 +179,8 @@ public class DataCycleAsset extends AbstractXAsset {
          if(Tool.equals("TimeCondition", cond.getAttribute("type"))) {
             TimeCondition tc = new TimeCondition();
             tc.parseXML(cond);
+            // Bug #79236, an hour or minute out of range can repeat a fire of the cycle
+            tc.validateRanges();
             conds.add(tc);
          }
          else {
