@@ -47,9 +47,12 @@ import inetsoft.web.composer.model.vs.ImageGeneralPaneModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.StaticImagePaneModel;
+import inetsoft.web.composer.model.vs.NumericRangePaneModel;
 import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.RangeSliderPropertyDialogModel;
+import inetsoft.web.composer.model.vs.SliderPropertyDialogModel;
+import inetsoft.web.composer.model.vs.SpinnerPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionContainerPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
@@ -2084,6 +2087,7 @@ class AssemblyPropertyServiceTest {
    private static SelectionTreePropertyDialogService lastSelectionTree;
    private static RangeSliderPropertyDialogService lastRangeSlider;
    private static CalendarPropertyDialogService lastCalendar;
+   private static inetsoft.web.viewsheet.service.VSInputService lastInput;
 
    private static void verifyNothingWritten() throws Exception {
       verify(lastSelectionList, never())
@@ -4958,6 +4962,18 @@ class AssemblyPropertyServiceTest {
                                                               any(Principal.class)))
                .thenReturn(comboboxModel);
          }
+         else if(inputModel instanceof SliderPropertyDialogModel sliderModel) {
+            when(inputService.getSliderPropertyDialogModel(anyString(), anyString(),
+                                                            any(Principal.class)))
+               .thenReturn(sliderModel);
+         }
+         else if(inputModel instanceof SpinnerPropertyDialogModel spinnerModel) {
+            when(inputService.getSpinnerPropertyDialogModel(anyString(), anyString(),
+                                                             any(Principal.class)))
+               .thenReturn(spinnerModel);
+         }
+
+         lastInput = inputService;
       }
       catch(Exception e) {
          throw new IllegalStateException(e);
@@ -5308,5 +5324,177 @@ class AssemblyPropertyServiceTest {
       service.set("tok", principal(), "Gauge1", Map.of("height", 1, "left", 0, "top", 0), "");
 
       assertEquals(1, model.getGaugeGeneralPaneModel().getSizePositionPaneModel().getHeight());
+   }
+
+   // ── Slider / Spinner number range (bug #79247) ──────────────────────────────
+
+   private static Object rangeModel(boolean slider, String min, String max, String increment) {
+      Object model = slider ? new SliderPropertyDialogModel() : new SpinnerPropertyDialogModel();
+      NumericRangePaneModel pane = rangePane(model);
+      pane.setMinimum(min);
+      pane.setMaximum(max);
+      pane.setIncrement(increment);
+      return model;
+   }
+
+   private static NumericRangePaneModel rangePane(Object model) {
+      return model instanceof SliderPropertyDialogModel slider
+         ? slider.getSliderGeneralPaneModel().getNumericRangePaneModel()
+         : ((SpinnerPropertyDialogModel) model).getSpinnerGeneralPaneModel()
+            .getNumericRangePaneModel();
+   }
+
+   private static void setRange(boolean slider, Object model, Map<String, Object> patch)
+      throws Exception
+   {
+      AssemblyPropertyService service = slider
+         ? serviceWith(mock(SliderVSAssembly.class), model, model, null)
+         : serviceWith(mock(SpinnerVSAssembly.class), model, model, null);
+      service.set("tok", principal(), slider ? "Slider1" : "Spinner1", patch, "");
+   }
+
+   private static void verifyRangeWritten(boolean slider, int times) throws Exception {
+      if(slider) {
+         verify(lastInput, times(times)).setSliderPropertyDialogModel(
+            anyString(), anyString(), any(), any(), any(), any());
+      }
+      else {
+         verify(lastInput, times(times)).setSpinnerPropertyDialogModel(
+            anyString(), anyString(), any(), any(), any(), any());
+      }
+   }
+
+   /** Refused, the message carries every expected fragment, and nothing reached the store. */
+   private static void assertRangeRefused(boolean slider, String min, String max, String inc,
+                                          Map<String, Object> patch, String... fragments)
+      throws Exception
+   {
+      Object model = rangeModel(slider, min, max, inc);
+      Exception e = assertThrows(IllegalArgumentException.class,
+                                 () -> setRange(slider, model, patch), patch.toString());
+
+      for(String fragment : fragments) {
+         assertTrue(e.getMessage().contains(fragment), fragment + " missing: " + e.getMessage());
+      }
+
+      verifyRangeWritten(slider, 0);
+   }
+
+   private static void assertRangeAccepted(boolean slider, String min, String max, String inc,
+                                           Map<String, Object> patch)
+      throws Exception
+   {
+      setRange(slider, rangeModel(slider, min, max, inc), patch);
+      verifyRangeWritten(slider, 1);
+   }
+
+   @Test
+   void refusesAnInvertedOrEmptyNumberRange() throws Exception {
+      for(boolean slider : new boolean[] { true, false }) {
+         Map<String, Object> inverted = new LinkedHashMap<>();
+         inverted.put("min", 10);
+         inverted.put("max", 5);
+         assertRangeRefused(slider, "0", "100", "10", inverted, "min", "max", "min=10", "max=5");
+
+         Map<String, Object> equal = new LinkedHashMap<>();
+         equal.put("min", 5);
+         equal.put("max", 5);
+         assertRangeRefused(slider, "0", "100", "10", equal, "min", "max");
+      }
+   }
+
+   @Test
+   void judgesASingleWrittenBoundAgainstTheStoredOne() throws Exception {
+      for(boolean slider : new boolean[] { true, false }) {
+         assertRangeRefused(slider, "10", "100", "10", Map.of("max", 5), "max", "min=10");
+         assertRangeRefused(slider, "0", "100", "10", Map.of("min", 150), "min", "max=100");
+      }
+   }
+
+   @Test
+   void refusesANonPositiveIncrement() throws Exception {
+      for(boolean slider : new boolean[] { true, false }) {
+         assertRangeRefused(slider, "0", "100", "10", Map.of("increment", 0), "increment");
+         assertRangeRefused(slider, "0", "100", "10", Map.of("increment", -1), "increment");
+         assertRangeRefused(slider, "0", "100", "10", Map.of("increment", "abc"), "increment");
+         assertRangeRefused(slider, "0", "100", "10", Map.of("increment", ""), "increment");
+      }
+   }
+
+   @Test
+   void refusesABoundThatIsNotAFiniteNumber() throws Exception {
+      for(boolean slider : new boolean[] { true, false }) {
+         for(String bad : new String[] { "abc", "", "NaN", "1e999", "Infinity", "1d", "0x1p3",
+                                         "$(X", "1,5" })
+         {
+            assertRangeRefused(slider, "0", "100", "10", Map.of("min", bad), "min");
+            assertRangeRefused(slider, "0", "100", "10", Map.of("max", bad), "max");
+         }
+      }
+   }
+
+   @Test
+   void refusesANullBound() throws Exception {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("min", null);
+      assertRangeRefused(true, "0", "100", "10", patch, "min");
+   }
+
+   @Test
+   void acceptsDynamicRangeValues() throws Exception {
+      for(boolean slider : new boolean[] { true, false }) {
+         assertRangeAccepted(slider, "0", "100", "10", Map.of("min", "$(Lo)"));
+         assertRangeAccepted(slider, "0", "100", "10", Map.of("max", "=Lo+10"));
+         assertRangeAccepted(slider, "0", "100", "10", Map.of("min", "="));
+         assertRangeAccepted(slider, "0", "100", "10", Map.of("increment", "=5"));
+         assertRangeAccepted(slider, "0", "100", "10", Map.of("increment", "$(Step)"));
+      }
+   }
+
+   @Test
+   void acceptsAValidRangeAndDecimalSpellings() throws Exception {
+      for(boolean slider : new boolean[] { true, false }) {
+         Map<String, Object> valid = new LinkedHashMap<>();
+         valid.put("min", 0);
+         valid.put("max", 100);
+         valid.put("increment", 10);
+         assertRangeAccepted(slider, "5", "50", "1", valid);
+      }
+
+      assertRangeAccepted(true, "0", "100", "10", Map.of("increment", 0.5));
+      assertRangeAccepted(false, "0", "100", "10", Map.of("min", "-2.5e1"));
+   }
+
+   @Test
+   void aRangeAlreadySavedInvalidDoesNotBlockAnUnrelatedWrite() throws Exception {
+      for(boolean slider : new boolean[] { true, false }) {
+         assertRangeAccepted(slider, "10", "5", "10", Map.of("increment", 20));
+         // min=1 is below the stored max of 5, so the written bound is itself fine.
+         assertRangeAccepted(slider, "10", "5", "10", Map.of("min", 1));
+         // The unwritten bound is dynamic or unreadable, so there is no order to judge.
+         assertRangeAccepted(slider, "0", "$(Hi)", "10", Map.of("min", 500));
+         assertRangeAccepted(slider, "0", "garbage", "10", Map.of("min", 500));
+      }
+   }
+
+   @Test
+   void namesTheRawPathLeafAndTheCallerAliasSpelling() {
+      String sliderMin = "sliderGeneralPaneModel.numericRangePaneModel.minimum";
+      Exception e = assertThrows(IllegalArgumentException.class, () -> setRange(
+         true, rangeModel(true, "0", "100", "10"), Map.of(sliderMin, "abc")));
+      assertTrue(e.getMessage().startsWith("minimum:"), e.getMessage());
+
+      String spinnerInc = "spinnerGeneralPaneModel.numericRangePaneModel.increment";
+      e = assertThrows(IllegalArgumentException.class, () -> setRange(
+         false, rangeModel(false, "0", "100", "10"), Map.of(spinnerInc, 0)));
+      assertTrue(e.getMessage().startsWith("increment:"), e.getMessage());
+
+      Map<String, Object> inverted = new LinkedHashMap<>();
+      inverted.put("sliderGeneralPaneModel.numericRangePaneModel.minimum", 10);
+      inverted.put("sliderGeneralPaneModel.numericRangePaneModel.maximum", 5);
+      e = assertThrows(IllegalArgumentException.class, () -> setRange(
+         true, rangeModel(true, "0", "100", "10"), inverted));
+      assertTrue(e.getMessage().contains("min") && e.getMessage().contains("max"),
+                 e.getMessage());
    }
 }

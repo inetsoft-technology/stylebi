@@ -45,6 +45,7 @@ import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
 import inetsoft.web.composer.model.vs.DataInputPaneModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
+import inetsoft.web.composer.model.vs.NumericRangePaneModel;
 import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RangePaneModel;
@@ -384,6 +385,12 @@ public class AssemblyPropertyService {
             requireNoInteriorGapInGaugeRangeValues(model);
          }
 
+         if(("slider".equals(type) || "spinner".equals(type)) && resolved.values().stream()
+            .anyMatch(path -> path.contains(NUMERIC_RANGE_PANE)))
+         {
+            requireValidNumericRange(model, resolved);
+         }
+
          if(PropertyAliases.derivesVariableFlagFromTable(type) &&
             resolved.containsValue("dataInputPaneModel.variable"))
          {
@@ -468,6 +475,126 @@ public class AssemblyPropertyService {
             }
          }
       });
+   }
+
+   private static final String NUMERIC_RANGE_PANE = ".numericRangePaneModel.";
+
+   private static final java.util.regex.Pattern DECIMAL_NUMBER =
+      java.util.regex.Pattern.compile("[+-]?(\\d+(\\.\\d*)?|\\.\\d+)([eE][+-]?\\d+)?");
+
+   /**
+    * The Composer's Number Range pane refuses a blank or non-numeric min/max, a min that is not
+    * below the max, and an increment that is not above 0, but a write through here skips the pane,
+    * so each of those reported success and read back as written, while StyleBI silently falls
+    * back to 0/100 for an unreadable bound and to its default for a 0 increment (bug-79247). A
+    * value of the {@code $(Name)} or {@code =expression} form resolves at run time and is exempt,
+    * as for the gauge's range values. Judged on the post-patch model and only for the fields the
+    * patch wrote, so a range already saved invalid never blocks an unrelated write; the min/max
+    * order is checked only when both bounds are then plain numbers.
+    */
+   static void requireValidNumericRange(Object model, Map<String, String> resolved) {
+      NumericRangePaneModel pane = null;
+      String minName = null;
+      String maxName = null;
+
+      for(Map.Entry<String, String> entry : resolved.entrySet()) {
+         String path = entry.getValue();
+         int dot = path.lastIndexOf('.');
+
+         if(dot < 0 || !path.substring(0, dot + 1).endsWith(NUMERIC_RANGE_PANE)) {
+            continue;
+         }
+
+         if(!(PropertyPath.get(model, path.substring(0, dot)) instanceof NumericRangePaneModel p)) {
+            continue;
+         }
+
+         pane = p;
+         String leaf = path.substring(dot + 1);
+         // The caller's own spelling for an alias; the leaf for a raw path, whose full form is
+         // not what anyone reads in an error.
+         String name = entry.getKey().equalsIgnoreCase(path) ? leaf : entry.getKey();
+
+         if("minimum".equalsIgnoreCase(leaf)) {
+            requireNumericBound(name, pane.getMinimum());
+            minName = name;
+         }
+         else if("maximum".equalsIgnoreCase(leaf)) {
+            requireNumericBound(name, pane.getMaximum());
+            maxName = name;
+         }
+         else if("increment".equalsIgnoreCase(leaf)) {
+            requirePositiveIncrement(name, pane.getIncrement());
+         }
+      }
+
+      if(pane == null || minName == null && maxName == null) {
+         return;
+      }
+
+      Double min = plainNumber(pane.getMinimum());
+      Double max = plainNumber(pane.getMaximum());
+
+      if(min != null && max != null && min >= max) {
+         throw new IllegalArgumentException(
+            (minName != null ? minName : maxName) + ": min must be less than max (got min=" +
+            pane.getMinimum() + ", max=" + pane.getMaximum() + "). The Composer refuses a " +
+            "range whose min is not below its max.");
+      }
+   }
+
+   private static void requireNumericBound(String name, String value) {
+      if(value == null || value.isBlank()) {
+         throw new IllegalArgumentException(
+            name + ": is required -- give a number, or \"$(Name)\" / \"=expression\".");
+      }
+
+      if(!VSUtil.isDynamicValue(value) && plainNumber(value) == null) {
+         throw new IllegalArgumentException(
+            name + ": must be a number (or \"$(Name)\" / \"=expression\"), got \"" + value +
+            "\". StyleBI falls back to its default for a value it cannot read.");
+      }
+   }
+
+   private static void requirePositiveIncrement(String name, String value) {
+      if(value == null || value.isBlank()) {
+         throw new IllegalArgumentException(
+            name + ": is required -- give a number above 0, or \"$(Name)\" / \"=expression\".");
+      }
+
+      if(VSUtil.isDynamicValue(value)) {
+         return;
+      }
+
+      Double number = plainNumber(value);
+
+      if(number == null) {
+         throw new IllegalArgumentException(
+            name + ": must be a number above 0 (or \"$(Name)\" / \"=expression\"), got \"" +
+            value + "\".");
+      }
+
+      if(number <= 0) {
+         throw new IllegalArgumentException(
+            name + ": must be greater than 0 (got " + value + "). StyleBI replaces a 0 " +
+            "increment with its default and the Composer refuses it.");
+      }
+   }
+
+   /**
+    * The finite decimal a value spells, or null for anything else, including the dynamic forms.
+    * A bare {@code Double.parseDouble} is not enough: it also accepts "NaN", "Infinity", "1d" and
+    * hex floats, none of which a slider can use.
+    */
+   private static Double plainNumber(String value) {
+      if(value == null || VSUtil.isDynamicValue(value) ||
+         !DECIMAL_NUMBER.matcher(value.trim()).matches())
+      {
+         return null;
+      }
+
+      double number = Double.parseDouble(value.trim());
+      return Double.isFinite(number) ? number : null;
    }
 
    private static final String RANGE_SIZE_PANE =
