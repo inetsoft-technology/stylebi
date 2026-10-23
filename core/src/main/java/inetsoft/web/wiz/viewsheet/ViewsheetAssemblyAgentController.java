@@ -132,6 +132,7 @@ public class ViewsheetAssemblyAgentController {
                                    CalendarDisplayService calendarService,
                                    InputValueService inputService,
                                    AssemblyMaxModeService maxModeService,
+                                   SelectionLayoutService selectionLayoutService,
                                    FormTableRowService formTableRowService,
                                    ColumnOptionService columnOptionService,
                                    ParameterCollectionService parameterCollectionService,
@@ -172,6 +173,7 @@ public class ViewsheetAssemblyAgentController {
       this.calendarService = calendarService;
       this.inputService = inputService;
       this.maxModeService = maxModeService;
+      this.selectionLayoutService = selectionLayoutService;
       this.formTableRowService = formTableRowService;
       this.columnOptionService = columnOptionService;
       this.parameterCollectionService = parameterCollectionService;
@@ -1741,6 +1743,32 @@ public class ViewsheetAssemblyAgentController {
                                        request.width(), request.height(), linkUri);
    }
 
+   /**
+    * {@code set_selection_layout}. A Selection List's column count and the measure text/bar widths
+    * -- the Composer sets these only by dragging, so they are in no property-dialog model.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/layout")
+   public Map<String, Object> setSelectionLayout(@PathVariable String sessionToken,
+                                                 @RequestBody SelectionLayoutRequest request,
+                                                 Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return selectionLayoutService.setLayout(sessionToken, user, request.assembly(),
+                                              request.columnCount(), request.measureTextWidth(),
+                                              request.measureBarWidth());
+   }
+
+   /** {@code get_selection_layout}. The stored layout; no checkpoint, no broadcast. */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/layout")
+   public Map<String, Object> getSelectionLayout(@PathVariable String sessionToken,
+                                                 @RequestParam String assembly, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return selectionLayoutService.getLayout(sessionToken, user, assembly);
+   }
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/insert-row")
    public Map<String, Object> formTableInsertRow(@PathVariable String sessionToken,
                                                  @RequestBody FormTableInsertRowRequest request,
@@ -1880,6 +1908,8 @@ public class ViewsheetAssemblyAgentController {
                                         Boolean rangeComparison) {}
    public record CalendarDatesRequest(String assembly, java.util.List<String> dates) {}
    public record InputValueRequest(String assembly, java.util.List<Object> value) {}
+   public record SelectionLayoutRequest(String assembly, Number columnCount,
+                                        Number measureTextWidth, Number measureBarWidth) {}
    public record MaxModeRequest(String assembly, boolean maximized, Integer width, Integer height) {}
 
    /** {@code mode}: "insert" (the default -- shifts {@code index} and after down one) or
@@ -3379,6 +3409,7 @@ public class ViewsheetAssemblyAgentController {
    private final CalendarDisplayService calendarService;
    private final InputValueService inputService;
    private final AssemblyMaxModeService maxModeService;
+   private final SelectionLayoutService selectionLayoutService;
    private final FormTableRowService formTableRowService;
    private final ColumnOptionService columnOptionService;
    private final ParameterCollectionService parameterCollectionService;
