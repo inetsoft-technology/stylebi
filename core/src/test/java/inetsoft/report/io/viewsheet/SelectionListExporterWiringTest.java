@@ -26,6 +26,7 @@ import inetsoft.test.SreeHome;
 import inetsoft.test.SwapperTestConfiguration;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
@@ -84,6 +85,20 @@ class SelectionListExporterWiringTest {
       exporter.writeSelectionList(list);
 
       verify(exporter, atLeastOnce()).getSelectionCardInset(list.getVSAssemblyInfo());
+   }
+
+   @Test
+   void pdfResolvesAListsTitleIndentThroughItself() {
+      AbstractVSExporter exporter =
+         spy(new PDFVSExporter(null, null, null, null, new ByteArrayOutputStream()));
+      SelectionListVSAssembly list = markedList();
+      SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) list.getVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+
+      exporter.prepareAssembly(list);
+      exporter.writeSelectionList(list);
+
+      verify(exporter, atLeastOnce()).getSelectionTitleIndent(info);
    }
 
    // a comfortable list after its seed: 132 x 202 with a 16px inset and five values

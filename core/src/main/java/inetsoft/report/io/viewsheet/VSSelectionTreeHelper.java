@@ -266,7 +266,7 @@ public class VSSelectionTreeHelper extends VSSelectionListHelper {
       VSCompositeFormat format = finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false);
       Rectangle2D bounds = (Rectangle2D) boundsList.get(0);
       writeText(bounds, format, Tool.localize(info.getTitle()), info.getFormat(),
-                info.getTitlePadding());
+                getTitlePadding(info, cHelper.getScale()));
    }
 
    /**

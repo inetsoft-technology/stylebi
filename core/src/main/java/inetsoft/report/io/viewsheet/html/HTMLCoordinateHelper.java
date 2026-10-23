@@ -1094,6 +1094,16 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
    public void appendContainerTitle(StringBuffer slist, SelectionVSAssemblyInfo info, int titleH,
       double titleRatio, String containerTitle)
    {
+      appendContainerTitle(slist, info, titleH, titleRatio, containerTitle,
+                           ((TitledVSAssemblyInfo) info).getTitlePadding());
+   }
+
+   /**
+    * Append the title with the text padding the caller resolved.
+    */
+   public void appendContainerTitle(StringBuffer slist, SelectionVSAssemblyInfo info, int titleH,
+      double titleRatio, String containerTitle, Insets padding)
+   {
       if(titleH == 0) {
          return;
       }
@@ -1105,7 +1115,6 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       String title = tinfo.getTitle();
       double labelW = titleRatio * 100;
       labelW = Double.isNaN(labelW) ? 50 : labelW;
-      Insets padding = tinfo.getTitlePadding();
 
       slist.append("<div style='width:100%;height:" + titleH + "px;");
       slist.append(getCSSStyles(null, titleFormat));

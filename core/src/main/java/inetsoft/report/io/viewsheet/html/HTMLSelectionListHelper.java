@@ -96,7 +96,8 @@ public class HTMLSelectionListHelper extends VSSelectionListHelper{
       slist.append("'>");
 
       if(titleH > 0) {
-         vHelper.appendContainerTitle(slist, info, titleH, titleRatio, containerTitle);
+         vHelper.appendContainerTitle(slist, info, titleH, titleRatio, containerTitle,
+                                      getTitlePadding(info));
       }
 
       appendSelections(slist, info, (int)bounds.getHeight() - titleH, bounds);
