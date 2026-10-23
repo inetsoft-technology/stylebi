@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -110,15 +111,25 @@ public final class DcDays {
       return days;
    }
 
-   /** The same days found by evaluating the condition list on every day, to check {@link #kept}. */
-   public static List<LocalDate> keptDayByDay(DateComparisonInfo dc, LocalDate from, LocalDate to) {
+   /**
+    * Whether the comparison keeps a value of the date column, evaluated on the real condition
+    * list. Unlike {@link #kept} the value can be any instant, as a date-time column holds.
+    */
+   public static Predicate<Date> keeps(DateComparisonInfo dc) {
       ColumnRef ref = new ColumnRef(new AttributeRef(null, "Order Date"));
       ref.setDataType(XSchema.DATE);
       ConditionGroup group = new ConditionGroup(dc.getDateComparisonConditions(ref));
+
+      return value -> group.evaluate(new Object[] { value });
+   }
+
+   /** The same days found by evaluating the condition list on every day, to check {@link #kept}. */
+   public static List<LocalDate> keptDayByDay(DateComparisonInfo dc, LocalDate from, LocalDate to) {
+      Predicate<Date> keeps = keeps(dc);
       List<LocalDate> days = new ArrayList<>();
 
       for(LocalDate day = from; !day.isAfter(to); day = day.plusDays(1)) {
-         if(group.evaluate(new Object[] { DcPeriods.toDate(day) })) {
+         if(keeps.test(DcPeriods.toDate(day))) {
             days.add(day);
          }
       }
