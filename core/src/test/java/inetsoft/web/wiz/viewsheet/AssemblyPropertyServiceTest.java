@@ -5272,4 +5272,41 @@ class AssemblyPropertyServiceTest {
             "tok", principal(), "Selection1",
             Map.of("SelectionGeneralPaneModel.sortType", 999), ""));
    }
+
+   // ── bug-79156: non-positive width/height silently ignored by the dialog services ──
+
+   @Test
+   void refusesNonPositiveWidthAndHeightWithoutWriting() throws Exception {
+      for(Map.Entry<String, Object> bad : List.<Map.Entry<String, Object>>of(
+         Map.entry("height", 0), Map.entry("width", 0), Map.entry("height", -3),
+         Map.entry("height", "0")))
+      {
+         GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+         GaugePropertyDialogService gauge = mock(GaugePropertyDialogService.class);
+         when(gauge.getGaugePropertyDialogModel(anyString(), anyString(), any(Principal.class)))
+            .thenReturn(model);
+         AssemblyPropertyService service = serviceWith(
+            mock(GaugeVSAssembly.class), model, null, null, mock(ImagePropertyDialogService.class),
+            gauge, mock(VSOutputService.class));
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Gauge1",
+                              Map.of(bad.getKey(), bad.getValue()), ""));
+
+         assertTrue(thrown.getMessage().startsWith(bad.getKey() + ": must be a positive"),
+                    thrown.getMessage());
+         verify(gauge, never()).setGaugePropertyDialogModel(
+            anyString(), anyString(), any(), anyString(), any(Principal.class), any());
+      }
+   }
+
+   @Test
+   void appliesPositiveHeightAndLeavesPositionOnlyPatchesAlone() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      service.set("tok", principal(), "Gauge1", Map.of("height", 1, "left", 0, "top", 0), "");
+
+      assertEquals(1, model.getGaugeGeneralPaneModel().getSizePositionPaneModel().getHeight());
+   }
 }

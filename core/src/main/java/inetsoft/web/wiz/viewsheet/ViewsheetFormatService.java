@@ -683,6 +683,10 @@ public class ViewsheetFormatService {
          return setFieldFormat(sessionToken, user, request);
       }
 
+      if("object".equals(target) || "title".equals(target)) {
+         requireKnownAssemblies(sessionToken, user, request.assemblies());
+      }
+
       // Binding-only refusals run against a read-only resolve, before mutate: a refused request
       // then leaves no empty undo step, no write-revision bump and no Composer refresh behind.
       // A missing or unsupported assembly is skipped here and left to the existing error paths.
@@ -2492,6 +2496,8 @@ public class ViewsheetFormatService {
             "set_calc_cell_format requires 'format' unless 'reset' is true.");
       }
 
+      requireKnownAssemblies(sessionToken, user, List.of(request.assembly()));
+
       refuseDateFormatOnNumericCell(sessionToken, user, request);
 
       List<String> borderWarnings = new ArrayList<>();
@@ -2632,6 +2638,36 @@ public class ViewsheetFormatService {
       out.put("roundCorner", model.getRoundCorner());
       out.put("wrapText", model.isWrapText());
       return out;
+   }
+
+   /**
+    * FormatPainterService dereferences the looked-up assembly without a null check, so an
+    * unknown name would surface as a generic 500 instead of a refusal naming it (bug-79156).
+    * Fails open only when the viewsheet itself cannot be resolved.
+    */
+   private void requireKnownAssemblies(String sessionToken, Principal user, List<String> names)
+      throws Exception
+   {
+      RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
+      Viewsheet viewsheet = resolved == null ? null : resolved.getViewsheet();
+
+      if(viewsheet == null) {
+         return;
+      }
+
+      List<String> missing = new ArrayList<>();
+
+      for(String name : names) {
+         if(viewsheet.getAssembly(name) == null) {
+            missing.add("'" + name + "'");
+         }
+      }
+
+      if(!missing.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_format: no assembly named " + String.join(", ", missing) +
+            " on this viewsheet.");
+      }
    }
 
    /** Bug 76325 item 3: distinguishes a chart's own title from its whole-object format. */
