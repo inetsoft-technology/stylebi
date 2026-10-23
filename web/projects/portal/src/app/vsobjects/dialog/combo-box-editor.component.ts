@@ -68,6 +68,22 @@ export class ComboBoxEditor implements OnInit, OnChanges {
    readonly DATETIME_PATTERN = /^([0-9]{4})-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])(\s+)([01]?[0-9]|2[0-3]):([0-5]?[0-9]):([0-5]?[0-9])$/;
    readonly TIME_PATTERN = /^([01]?[0-9]|2[0-3]):[0-5]?[0-9]:[0-5]?[0-9]$/;
    valueList: ComboBoxDefaultValueListModel[];
+
+   /**
+    * Text shown in the collapsed virtual-scroll default value box (more than 500 values):
+    * the displayed text of the entry matching the default value, else the raw value.
+    */
+   get defaultValueText(): string {
+      const value = this.model?.defaultValue;
+      const entry = this.valueList?.find(e => e.value === value);
+
+      if(entry) {
+         return entry.formatValue;
+      }
+
+      return value == null ? "" : String(value);
+   }
+
    get datePrompt(): string {
       if(this.model.dataType != XSchema.TIME) {
          return this.isDate ? "yyyy-mm-dd" : "yyyy-MM-dd HH:mm:ss";

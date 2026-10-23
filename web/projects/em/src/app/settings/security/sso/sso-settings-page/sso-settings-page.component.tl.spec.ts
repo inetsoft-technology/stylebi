@@ -422,6 +422,44 @@ describe("SsoSettingsPageComponent - bug #76526 save feedback", () => {
          type: MessageDialogType.ERROR,
       }));
    });
+
+   // Bug #79146: the server refuses an inline Groovy script that does not compile with a
+   // MessageException (HTTP 500 with a {message} body); the dialog must show that message.
+   it("should show the server message when the save is refused with a message", async () => {
+      server.use(
+         http.post("*/api/sso/settings", () => HttpResponse.json(
+            { message: "Script does not compile: unable to resolve class Foo" },
+            { status: 500 })),
+      );
+
+      const { comp, dialogSpy } = await renderComponent();
+      comp.selection = SSOType.CUSTOM;
+      comp.changed = true;
+
+      comp.submit();
+
+      await waitFor(() => expect(dialogSpy.open).toHaveBeenCalledTimes(1));
+      expect(dialogSpy.open.mock.calls[0][1].data).toEqual(expect.objectContaining({
+         content: "Script does not compile: unable to resolve class Foo",
+         type: MessageDialogType.ERROR,
+      }));
+   });
+
+   it("should fall back to the generic text when the error has no message", async () => {
+      server.use(
+         http.post("*/api/sso/settings", () => HttpResponse.json({}, { status: 500 })),
+      );
+
+      const { comp, dialogSpy } = await renderComponent();
+      comp.selection = SSOType.CUSTOM;
+      comp.changed = true;
+
+      comp.submit();
+
+      await waitFor(() => expect(dialogSpy.open).toHaveBeenCalledTimes(1));
+      const content = dialogSpy.open.mock.calls[0][1].data.content;
+      expect(content).toContain("saveFailed");
+   });
 });
 
 describe("SsoSettingsPageComponent - bug #76526 required-field gating", () => {

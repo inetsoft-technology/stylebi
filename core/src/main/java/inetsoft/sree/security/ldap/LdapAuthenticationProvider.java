@@ -538,6 +538,8 @@ public abstract class LdapAuthenticationProvider
          }
       }
       catch(CommunicationException exc) {
+         // every communication failure means the configuration cannot be used (Bug #79079);
+         // report it instead of silently passing the connection test
          Throwable rootEx = exc.getRootCause();
 
          if(rootEx == null) {
@@ -552,6 +554,15 @@ public abstract class LdapAuthenticationProvider
          else if(rootMessage.contains("java.net.UnknownHostException")) {
             throw new SRSecurityException("Invalid Host Name", exc);
          }
+         else if(hasCause(exc, javax.net.ssl.SSLException.class)) {
+            throw new SRSecurityException(
+               "Failed to establish a secure (TLS) connection to the LDAP server: " +
+               rootEx.getMessage(), exc);
+         }
+         else {
+            throw new SRSecurityException(
+               "Failed to connect to LDAP server: " + rootEx.getMessage(), exc);
+         }
       }
       catch(AuthenticationException exc) {
          throw new SRSecurityException("Invalid Administrator Credentials.", exc);
@@ -559,6 +570,19 @@ public abstract class LdapAuthenticationProvider
       catch(NamingException exc) {
          throw new SRSecurityException("Failed to connect to LDAP server", exc);
       }
+   }
+
+   private static boolean hasCause(Throwable exc, Class<? extends Throwable> type) {
+      for(int i = 0; exc != null && i < 20; i++) {
+         if(type.isInstance(exc)) {
+            return true;
+         }
+
+         exc = exc instanceof NamingException ne && ne.getRootCause() != null &&
+            ne.getRootCause() != exc ? ne.getRootCause() : exc.getCause();
+      }
+
+      return false;
    }
 
    @Override

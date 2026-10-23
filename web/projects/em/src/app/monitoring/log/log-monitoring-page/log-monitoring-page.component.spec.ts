@@ -18,6 +18,7 @@
 
 import { ScrollingModule } from "@angular/cdk/scrolling";
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
+import { ChangeDetectorRef } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCheckboxModule } from "@angular/material/checkbox";
@@ -94,5 +95,89 @@ describe("LogMonitoringPageComponent", () => {
       http.expectOne("../em/monitoring/logviewer/all-logs");
       expect(component.fluentdLogging).toBe(false);
       http.verify();
+   });
+
+   // Bug #78642: listing waits for every cluster node and can take ~10 s on a scaling cluster.
+   it("should show a loading indicator until the log files arrive", () => {
+      const http = TestBed.inject(HttpTestingController);
+      http.expectOne("../api/em/monitoring/log/links")
+         .flush({fluentdLogging: false, logViewUrl: null});
+      fixture.detectChanges();
+      expect(component.loadingLogFiles).toBe(true);
+      expect(fixture.nativeElement.querySelector(".log-files-loading")).not.toBeNull();
+
+      http.expectOne("../em/monitoring/logviewer/all-logs")
+         .flush({selectedLog: null, lines: 500, logFiles: [], autoRefresh: true, showRotate: true});
+      // the test environment does not run zone.js, so mark the view dirty as the zone would
+      fixture.componentRef.injector.get(ChangeDetectorRef).markForCheck();
+      fixture.detectChanges();
+      expect(component.loadingLogFiles).toBe(false);
+      expect(fixture.nativeElement.querySelector(".log-files-loading")).toBeNull();
+      component.ngOnDestroy();
+   });
+
+   it("should stop the loading indicator when the log file request fails", () => {
+      const http = TestBed.inject(HttpTestingController);
+      http.expectOne("../api/em/monitoring/log/links")
+         .flush({fluentdLogging: false, logViewUrl: null});
+      http.expectOne("../em/monitoring/logviewer/all-logs")
+         .flush("error", {status: 500, statusText: "Server Error"});
+      expect(component.loadingLogFiles).toBe(false);
+      component.ngOnDestroy();
+   });
+
+   it("should not show the loading indicator when fluentd logging is used", () => {
+      const http = TestBed.inject(HttpTestingController);
+      http.expectOne("../api/em/monitoring/log/links")
+         .flush({fluentdLogging: true, logViewUrl: null});
+      expect(component.loadingLogFiles).toBe(false);
+   });
+
+   it("should not request the log files again while a request is pending", () => {
+      vi.useFakeTimers();
+
+      try {
+         const http = TestBed.inject(HttpTestingController);
+         http.expectOne("../api/em/monitoring/log/links")
+            .flush({fluentdLogging: false, logViewUrl: null});
+         // first answer has no selected log, which schedules a reload in 5 s
+         http.expectOne("../em/monitoring/logviewer/all-logs")
+            .flush({selectedLog: null, lines: 500, logFiles: [], autoRefresh: true,
+                    showRotate: true});
+
+         vi.advanceTimersByTime(5000);
+         const reload = http.expectOne("../em/monitoring/logviewer/all-logs");
+
+         // a reload that fires while one is pending (e.g. from empty content) must be ignored
+         (component as any).loadingLogFiles = true;
+         (component as any).lastReloadTime = 0;
+         (component as any).reloadLogFiles();
+         http.expectNone("../em/monitoring/logviewer/all-logs");
+         reload.flush({selectedLog: null, lines: 500, logFiles: [], autoRefresh: true,
+                       showRotate: true});
+      }
+      finally {
+         component.ngOnDestroy();
+         vi.useRealTimers();
+      }
+   });
+
+   it("should cancel the scheduled reload when destroyed", () => {
+      vi.useFakeTimers();
+
+      try {
+         const http = TestBed.inject(HttpTestingController);
+         http.expectOne("../api/em/monitoring/log/links")
+            .flush({fluentdLogging: false, logViewUrl: null});
+         http.expectOne("../em/monitoring/logviewer/all-logs")
+            .flush({selectedLog: null, lines: 500, logFiles: [], autoRefresh: true,
+                    showRotate: true});
+         component.ngOnDestroy();
+         vi.advanceTimersByTime(6000);
+         http.expectNone("../em/monitoring/logviewer/all-logs");
+      }
+      finally {
+         vi.useRealTimers();
+      }
    });
 });

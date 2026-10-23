@@ -18,195 +18,165 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.TableLens;
-import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.TableVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
+import inetsoft.report.composition.execution.AssetDataCache;
+import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
+import inetsoft.util.ThreadContext;
+import inetsoft.util.script.graal.pool.PoolConfig;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.lang.reflect.Method;
 import java.sql.Date;
+import java.security.Principal;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #78123: {@code TableConditionUtil.createTableConditions}'s {@code WEEK_OF_YEAR_DATE_GROUP}
- * branch built a bare {@code new GregorianCalendar()} and read {@code Calendar.WEEK_OF_YEAR} off
- * it without ever forcing {@code minimalDaysInFirstWeek}/{@code firstDayOfWeek}, so the filter
- * condition built for the Flyover (hover tip) feature disagreed with the week number actually
- * shown in the UI whenever the server JVM's default locale used a {@code minimalDaysInFirstWeek}
- * other than 1 (en-GB/de-DE use 4; en-US/zh-CN use 1). This is the same convention bug #78112
- * fixed for {@code DateTimeProcessor}/{@code SortOrder}: force {@code minimalDaysInFirstWeek} to
- * 1 and {@code firstDayOfWeek} via {@code Tool.getFirstDayOfWeek()}, regardless of the JVM
- * default locale.
+ * Bug #78389: the conditions TableConditionUtil.createTableConditions builds for a flat table grouped by "Week of Year", fed
+ * with real worksheet aggregation output (a {@code DateRangeRef WEEK_OF_YEAR_PART} column plus
+ * {@code GroupRef}, as the Group and Aggregate dialog builds it). The group cell there is an
+ * Integer week number, so the builder takes its plain EQUAL_TO path (the former date-part
+ * branch, added by #78123 for Bug #78112's week numbering, was unreachable and was removed).
+ * The week numbering itself is locale independent and is covered by
+ * {@code DateRangeRefWeekOfYearLocaleTest}; this test checks it end to end through the builder.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
+                                  LibManagerTestConfiguration.class, PluginsTestConfiguration.class,
+                                  WeekOfYearGroupFixture.Config.class },
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
 class TableConditionUtilWeekOfYearLocaleTest {
-   /**
-    * 2025-12-28 is a Sunday. Under {@code minimalDaysInFirstWeek=1} (en-US/zh-CN) it starts a
-    * new week of year (week 1 of 2026); under {@code minimalDaysInFirstWeek=4} (en-GB/de-DE,
-    * the pre-fix bug's symptom) it is still inside week 52 of 2025. The fix must make all four
-    * locales agree.
-    */
+   private Principal oldPrincipal;
+
+   @BeforeEach
+   void setUp() {
+      AssetDataCache.getCache().clearCache();
+      SreeEnv.setProperty(PoolConfig.ENABLED, "false");
+      oldPrincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+   }
+
+   @AfterEach
+   void tearDown() {
+      ThreadContext.setPrincipal(oldPrincipal);
+      SreeEnv.remove(PoolConfig.ENABLED);
+      AssetDataCache.getCache().clearCache();
+   }
+
+   // 2025-12-28 is a Sunday; with minimalDaysInFirstWeek=1 and a Sunday week start it opens
+   // week 1 of 2026 (under en-GB's own minimalDaysInFirstWeek=4 it would be week 52).
+   private static final Date SUNDAY = Date.valueOf("2025-12-28");
+   private static final Date SAME_WEEK = Date.valueOf("2025-12-30");
+   private static final Date JAN_15 = Date.valueOf("2026-01-15");
+
    @Test
-   void weekOfYearConditionIgnoresTheDefaultLocale() throws Exception {
+   void weekOfYearConditionSelectsOnlyThatWeekUnderEnGb() throws Exception {
       Locale old = Locale.getDefault();
-      Date sunday = Date.valueOf("2025-12-28");
 
       try {
-         int underEnUS = weekOfYearCondition(sunday, Locale.US);
-         int underEnGB = weekOfYearCondition(sunday, Locale.UK);
-         int underDeDE = weekOfYearCondition(sunday, Locale.GERMANY);
-         int underZhCN = weekOfYearCondition(sunday, Locale.SIMPLIFIED_CHINESE);
-
-         assertEquals(underEnUS, underEnGB,
-                      "TableConditionUtil's week-of-year condition changed with the JVM " +
-                         "default locale (en-GB)");
-         assertEquals(underEnUS, underDeDE,
-                      "TableConditionUtil's week-of-year condition changed with the JVM " +
-                         "default locale (de-DE)");
-         assertEquals(underEnUS, underZhCN,
-                      "TableConditionUtil's week-of-year condition changed with the JVM " +
-                         "default locale (zh-CN)");
+         Locale.setDefault(Locale.UK);
+         assertConditionsSelectOwnRowOnly(Locale.UK, "sunday");
       }
       finally {
          Locale.setDefault(old);
       }
    }
 
-   /**
-    * The reporter's own convention check (matching #78112's {@code CALC.weeknum}/
-    * {@code DateTimeProcessor} convention): the week containing January 1st is week 1, under
-    * every locale, not just the ones whose default {@code minimalDaysInFirstWeek} happens to
-    * already be 1.
-    */
    @Test
-   void weekOfYearConditionJan1stIsWeekOneUnderAnyLocale() throws Exception {
+   void weekOfYearConditionSelectsOnlyThatWeekUnderEnUs() throws Exception {
       Locale old = Locale.getDefault();
-      Date jan1 = Date.valueOf("2026-01-01");
 
       try {
-         for(Locale locale : new Locale[] {
-            Locale.US, Locale.UK, Locale.GERMANY, Locale.SIMPLIFIED_CHINESE })
-         {
-            assertEquals(1, weekOfYearCondition(jan1, locale),
-                         "2026-01-01 should be week 1 under locale " + locale);
-         }
+         Locale.setDefault(Locale.US);
+         assertConditionsSelectOwnRowOnly(Locale.US, "sunday");
       }
       finally {
          Locale.setDefault(old);
       }
    }
 
-   /**
-    * The fix also forces {@code firstDayOfWeek} via {@code Tool.getFirstDayOfWeek()} (the
-    * product's locale-independent {@code week.start} setting), which the pre-fix code never
-    * set at all. 2026-01-04 is a Sunday: with a Sunday week start it is the first day of week 2
-    * of 2026 (week 1 = Dec 28-Jan 3); with a Monday week start it is the last day of week 1
-    * (week 1 = Dec 29-Jan 4). A fix that only forced {@code minimalDaysInFirstWeek} and ignored
-    * {@code week.start} would get this wrong.
-    */
    @Test
    void weekOfYearConditionHonorsConfiguredWeekStart() throws Exception {
-      Date sunday = Date.valueOf("2026-01-04");
+      Locale old = Locale.getDefault();
 
-      int underSundayStart = WeekStartUtil.withWeekStart("sunday",
-         () -> safeWeekOfYearCondition(sunday, Locale.US));
-      int underMondayStart = WeekStartUtil.withWeekStart("monday",
-         () -> safeWeekOfYearCondition(sunday, Locale.US));
-
-      assertEquals(2, underSundayStart, "Sunday week start: 2026-01-04 should start week 2");
-      assertEquals(1, underMondayStart, "Monday week start: 2026-01-04 should still be week 1");
+      try {
+         Locale.setDefault(Locale.US);
+         // 2026-01-04 is a Sunday: week 2 with a Sunday week start, week 1 with a Monday one
+         Date jan4 = Date.valueOf("2026-01-04");
+         assertEquals(2, WeekStartUtil.withWeekStart("sunday", () -> weekValue(jan4)));
+         assertEquals(1, WeekStartUtil.withWeekStart("monday", () -> weekValue(jan4)));
+      }
+      finally {
+         Locale.setDefault(old);
+      }
    }
 
-   /** Wraps {@link #weekOfYearCondition} for use inside {@link WeekStartUtil}'s supplier. */
-   private static int safeWeekOfYearCondition(Date date, Locale locale) {
+   private void assertConditionsSelectOwnRowOnly(Locale locale, String weekStart)
+      throws Exception
+   {
+      WeekOfYearGroupFixture fixture = WeekOfYearGroupFixture.create(SUNDAY, SAME_WEEK, JAN_15);
+      TableLens lens = fixture.lens;
+      int gcol = fixture.groupColumn();
+      // 3 dates in 2 weeks: the worksheet really grouped by the week part
+      assertEquals(2, fixture.dataRows(), "expected one row per week");
+      assertEquals(Integer.class, lens.getObject(1, gcol).getClass(),
+                   "the group cell must be the week number, not a Date");
+
+      for(int row = 1; row <= fixture.dataRows(); row++) {
+         ConditionList conds = create(fixture.table, lens, row, gcol);
+         ConditionItem item = firstItem(conds);
+         assertEquals(Condition.EQUAL_TO, item.getCondition().getOperation());
+         assertEquals(lens.getObject(row, gcol), item.getCondition().getValue(0));
+
+         for(int other = 1; other <= fixture.dataRows(); other++) {
+            assertEquals(other == row, item.getCondition().evaluate(lens.getObject(other, gcol)),
+                         "condition of row " + row + " vs row " + other + " under " + locale);
+         }
+      }
+
+      assertEquals(1, lens.getObject(1, gcol), "2025-12-28 week under " + locale);
+      assertEquals(3, lens.getObject(2, gcol), "2026-01-15 week under " + locale);
+   }
+
+   private int weekValue(Date date) {
       try {
-         return weekOfYearCondition(date, locale);
+         WeekOfYearGroupFixture fixture = WeekOfYearGroupFixture.create(date);
+         ConditionItem item = firstItem(create(fixture.table, fixture.lens, 1, fixture.groupColumn()));
+         return ((Number) item.getCondition().getValue(0)).intValue();
       }
       catch(Exception ex) {
          throw new RuntimeException(ex);
       }
    }
 
-   /**
-    * Builds a flat {@code TableVSAssembly} bound to a worksheet table whose {@code
-    * AggregateInfo} groups a DATE column {@code d} at {@code WEEK_OF_YEAR_DATE_GROUP}, then
-    * calls {@code TableConditionUtil.createTableConditions} the same way {@code
-    * BaseTableFlyoverService}/{@code VSUtil.sameCondition} do, and returns the single built
-    * condition's {@code Calendar.WEEK_OF_YEAR} value.
-    */
-   private static int weekOfYearCondition(Date date, Locale defaultLocale) throws Exception {
-      Locale.setDefault(defaultLocale);
-
-      Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "D");
-      table.setEmbeddedData(new XEmbeddedTable(
-         new String[] { XSchema.DATE }, new Object[][] { { "d" }, { date } }));
-      ws.addAssembly(table);
-
-      AggregateInfo ainfo = new AggregateInfo();
-      GroupRef grp = new GroupRef(new AttributeRef(null, "d"));
-      grp.setDateGroup(XConstants.WEEK_OF_YEAR_DATE_GROUP);
-      ainfo.addGroup(grp);
-      table.setAggregateInfo(ainfo);
-
-      Viewsheet vs = new Viewsheet();
-      Method setBase = Viewsheet.class.getDeclaredMethod("setBaseWorksheet", Worksheet.class);
-      setBase.setAccessible(true);
-      setBase.invoke(vs, ws);
-
-      TableVSAssembly tv = new TableVSAssembly(vs, "Table1");
-      tv.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "D"));
-      ColumnSelection columns = new ColumnSelection();
-      ColumnRef column = new ColumnRef(new AttributeRef(null, "d"));
-      column.setDataType(XSchema.DATE);
-      columns.addAttribute(column);
-      tv.setColumnSelection(columns);
-      vs.addAssembly(tv);
-
-      TableLens lens = new DefaultTableLens(new Object[][] { { "d" }, { date } });
-
-      ConditionList result =
-         TableConditionUtil.createTableConditions(tv, new ConditionList(), 1, 0, lens, false);
-
-      return soleWeekOfYearValue(result);
-   }
-
-   /**
-    * Pulls the single condition value out of the merged condition list, as an {@code int}. A
-    * {@link ClassCastException} here (rather than a passing-but-meaningless comparison) means
-    * the code fell through to a different branch than {@code WEEK_OF_YEAR_DATE_GROUP} - e.g.
-    * one that stores the raw {@code java.sql.Date} instead of the computed week number.
-    */
-   private static int soleWeekOfYearValue(ConditionList conds) {
+   private static ConditionItem firstItem(ConditionList conds) {
       for(int i = 0; i < conds.getSize(); i++) {
-         Object item = conds.getItem(i);
-
-         if(item instanceof ConditionItem citem) {
-            Object value = citem.getCondition().getValue(0);
-            assertInstanceOf(Number.class, value,
-                             "condition value is not a week number: " + value);
-            return ((Number) value).intValue();
+         if(conds.getItem(i) instanceof ConditionItem item) {
+            return item;
          }
       }
 
-      throw new AssertionError("no condition was built for the week-of-year group: " + conds);
+      throw new AssertionError("no condition was built: " + conds);
+   }
+
+   private static ConditionList create(TableVSAssembly tv, TableLens lens, int row, int col)
+      throws Exception
+   {
+      return TableConditionUtil.createTableConditions(tv, new ConditionList(), row, col, lens, false);
    }
 }

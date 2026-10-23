@@ -15,17 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient } from "@angular/common/http";
 import { inject } from "@angular/core";
 import { CanActivateFn, Routes, UrlTree } from "@angular/router";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 import { LogMonitoringPageComponent } from "./log-monitoring-page/log-monitoring-page.component";
-import { LogViewLinks } from "./log-view-links";
+import { LogViewLinksService } from "./log-view-links.service";
 
 export const canActivateLogViewer: CanActivateFn = (): Observable<boolean | UrlTree> => {
-   const http = inject(HttpClient);
-   return http.get<LogViewLinks>("../api/em/monitoring/log/links").pipe(
+   return inject(LogViewLinksService).fetchLinks().pipe(
       map(links => {
          if(!links.fluentdLogging || !links.logViewUrl) {
             return true;
