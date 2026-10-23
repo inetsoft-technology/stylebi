@@ -46,6 +46,7 @@ import inetsoft.web.composer.model.vs.ImageAdvancedPaneModel;
 import inetsoft.web.composer.model.vs.ImageGeneralPaneModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
+import inetsoft.web.composer.model.vs.ImageScalePaneModel;
 import inetsoft.web.composer.model.vs.StaticImagePaneModel;
 import inetsoft.web.composer.model.vs.NumericRangePaneModel;
 import inetsoft.web.composer.model.vs.OutputColumnRefModel;
@@ -5496,5 +5497,301 @@ class AssemblyPropertyServiceTest {
          true, rangeModel(true, "0", "100", "10"), inverted));
       assertTrue(e.getMessage().contains("min") && e.getMessage().contains("max"),
                  e.getMessage());
+   }
+
+   // ── #79259 / #79260: cross-field guards (PatchGuards) ──
+
+   private static final String SCALE_PANE = "imageAdvancedPaneModel.imageScalePaneModel.";
+
+   private static TextPropertyDialogModel textEmbedPop(boolean embed, String pop) {
+      TextPropertyDialogModel model = textWithPopComponent(pop);
+      model.getTextGeneralPaneModel().getTextPaneModel().setUrl(embed);
+      model.getTextGeneralPaneModel().setPopComponents(new String[] { "T1", "T2" });
+      return model;
+   }
+
+   private static void setText(TextPropertyDialogModel model, Map<String, Object> patch)
+      throws Exception
+   {
+      serviceWith(mock(TextVSAssembly.class), model)
+         .set("tok", principal(), "Text1", patch, "");
+   }
+
+   private static void assertRefusedTextPatch(boolean embed, String pop, Map<String, Object> patch) {
+      TextPropertyDialogModel model = textEmbedPop(embed, pop);
+      AssemblyPropertyService service = serviceWith(mock(TextVSAssembly.class), model);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Text1", patch, ""));
+
+      assertTrue(e.getMessage().contains("embedUrl"), e.getMessage());
+      assertTrue(e.getMessage().contains("popComponent"), e.getMessage());
+      assertNothingWrittenBy(lastDialogServices);
+   }
+
+   @Test
+   void refusesAPopComponentOnATextThatEmbedsAUrl() {
+      assertRefusedTextPatch(true, "", Map.of("popComponent", "T1"));
+   }
+
+   @Test
+   void refusesEmbeddingAUrlOnATextWithAPopComponent() {
+      assertRefusedTextPatch(false, "T1", Map.of("embedUrl", true));
+   }
+
+   @Test
+   void refusesEmbedAndPopComponentSetInOnePatch() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("embedUrl", true);
+      patch.put("popComponent", "T1");
+      assertRefusedTextPatch(false, "", patch);
+   }
+
+   @Test
+   void acceptsATextPatchThatClearsOneSideOfEmbedAndPop() throws Exception {
+      TextPropertyDialogModel model = textEmbedPop(false, "T1");
+      setText(model, Map.of("embedUrl", true, "popComponent", ""));
+      assertTrue(model.getTextGeneralPaneModel().getTextPaneModel().isUrl());
+      assertEquals("", model.getTextGeneralPaneModel().getPopComponent());
+
+      model = textEmbedPop(true, "");
+      setText(model, Map.of("embedUrl", false, "popComponent", "T1"));
+      assertFalse(model.getTextGeneralPaneModel().getTextPaneModel().isUrl());
+      assertEquals("T1", model.getTextGeneralPaneModel().getPopComponent());
+   }
+
+   @Test
+   void acceptsEachOfEmbedAndPopComponentAlone() throws Exception {
+      TextPropertyDialogModel model = textEmbedPop(false, "");
+      setText(model, Map.of("embedUrl", true));
+      assertTrue(model.getTextGeneralPaneModel().getTextPaneModel().isUrl());
+
+      model = textEmbedPop(false, "");
+      setText(model, Map.of("popComponent", "T1"));
+      assertEquals("T1", model.getTextGeneralPaneModel().getPopComponent());
+   }
+
+   /** Content that already has both (the native dialog stores it) stays editable. */
+   @Test
+   void keepsALegacyBothSetTextEditable() throws Exception {
+      TextPropertyDialogModel model = textEmbedPop(true, "T1");
+      assertDoesNotThrow(() -> setText(model, Map.of("embedUrl", true)));
+      assertDoesNotThrow(() -> setText(model, Map.of("popComponent", "T1")));
+      assertDoesNotThrow(() -> setText(model, Map.of("text", "x")));
+      // a patch that changes one side while both stay set is refused; clearing a side applies
+      assertRefusedTextPatch(true, "T1", Map.of("popComponent", "T2"));
+      setText(model, Map.of("popComponent", ""));
+      assertEquals("", model.getTextGeneralPaneModel().getPopComponent());
+   }
+
+   private static ImagePropertyDialogModel imageWithScale(boolean scale, boolean tile,
+                                                          boolean aspect, int top)
+   {
+      return ImagePropertyDialogModel.builder()
+         .imageAdvancedPaneModel(ImageAdvancedPaneModel.builder()
+            .popComponents(new String[] { "T1" })
+            .imageScalePaneModel(ImageScalePaneModel.builder()
+               .scaleImageChecked(scale).tile(tile).maintainAspectRatio(aspect).top(top)
+               .build())
+            .build())
+         .build();
+   }
+
+   private static ImageScalePaneModel setImageScale(ImagePropertyDialogModel model,
+                                                    Map<String, Object> patch)
+      throws Exception
+   {
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      serviceWithImage(mock(ImageVSAssembly.class), model, imageService)
+         .set("tok", principal(), "Image1", patch, "");
+      ArgumentCaptor<ImagePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ImagePropertyDialogModel.class);
+      verify(imageService).setImagePropertyDialogModel(anyString(), anyString(), captor.capture(),
+                                                       any(), any(), any());
+      return captor.getValue().imageAdvancedPaneModel().imageScalePaneModel();
+   }
+
+   private static String refuseImageScale(ImagePropertyDialogModel model,
+                                          Map<String, Object> patch)
+   {
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithImage(mock(ImageVSAssembly.class), model, imageService);
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Image1", patch, ""));
+      assertNothingWrittenBy(List.of(imageService));
+      return e.getMessage();
+   }
+
+   @Test
+   void refusesScaleAndTileTogetherOnAnImage() {
+      String msg = refuseImageScale(imageWithScale(true, false, true, 0),
+                                    Map.of(SCALE_PANE + "tile", true));
+      assertTrue(msg.contains("scaleImageChecked") && msg.contains("tile"), msg);
+
+      msg = refuseImageScale(imageWithScale(false, true, false, 0),
+                             Map.of(SCALE_PANE + "scaleImageChecked", true));
+      assertTrue(msg.contains("scaleImageChecked") && msg.contains("tile"), msg);
+
+      Map<String, Object> both = new LinkedHashMap<>();
+      both.put(SCALE_PANE + "scaleImageChecked", true);
+      both.put(SCALE_PANE + "tile", true);
+      refuseImageScale(imageWithScale(false, false, false, 0), both);
+   }
+
+   @Test
+   void acceptsSwitchingBetweenScaleAndTileInOnePatch() throws Exception {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(SCALE_PANE + "tile", true);
+      patch.put(SCALE_PANE + "scaleImageChecked", false);
+      ImageScalePaneModel pane = setImageScale(imageWithScale(true, false, true, 0), patch);
+      assertTrue(pane.tile());
+      assertFalse(pane.scaleImageChecked());
+
+      pane = setImageScale(imageWithScale(true, true, false, 0),
+                           Map.of(SCALE_PANE + "tile", false));
+      assertTrue(pane.scaleImageChecked());
+      assertFalse(pane.tile());
+   }
+
+   @Test
+   void keepsALegacyScaleAndTileImageEditable() throws Exception {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(SCALE_PANE + "scaleImageChecked", true);
+      patch.put(SCALE_PANE + "maintainAspectRatio", false);
+      patch.put(SCALE_PANE + "top", 10);
+      ImageScalePaneModel pane = setImageScale(imageWithScale(true, true, true, 0), patch);
+      assertEquals(10, pane.top());
+   }
+
+   /** A write that only echoes the stored scale and tile values of a legacy image is not refused. */
+   @Test
+   void acceptsABareEchoOfALegacyScaleAndTileImage() throws Exception {
+      Map<String, Object> echo = new LinkedHashMap<>();
+      echo.put(SCALE_PANE + "scaleImageChecked", true);
+      echo.put(SCALE_PANE + "tile", true);
+      ImageScalePaneModel pane = setImageScale(imageWithScale(true, true, true, 0), echo);
+      assertTrue(pane.scaleImageChecked() && pane.tile());
+
+      pane = setImageScale(imageWithScale(true, true, true, 0), Map.of(SCALE_PANE + "tile", true));
+      assertTrue(pane.scaleImageChecked() && pane.tile());
+   }
+
+   @Test
+   void refusesAnInsetWhileAspectRatioIsOnOrScaleIsOff() {
+      String msg = refuseImageScale(imageWithScale(true, false, true, 0),
+                                    Map.of(SCALE_PANE + "top", 10));
+      assertTrue(msg.contains("top") && msg.contains("maintainAspectRatio") &&
+                 msg.contains("scaleImageChecked"), msg);
+
+      for(String leaf : new String[] { "left", "bottom", "right" }) {
+         msg = refuseImageScale(imageWithScale(false, false, false, 0),
+                                Map.of(SCALE_PANE + leaf, 10));
+         assertTrue(msg.contains(leaf), msg);
+      }
+   }
+
+   /** The message reports the post-patch scale and aspect values, not the stored ones. */
+   @Test
+   void reportsThePostPatchScaleStateInTheInsetMessage() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(SCALE_PANE + "scaleImageChecked", false);
+      patch.put(SCALE_PANE + "top", 10);
+      String msg = refuseImageScale(imageWithScale(true, false, false, 0), patch);
+      assertTrue(msg.contains("scaleImageChecked would be false"), msg);
+   }
+
+   @Test
+   void acceptsInsetsTogetherWithScaleOnAndAspectOffInEitherKeyOrder() throws Exception {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(SCALE_PANE + "top", 10);
+      patch.put(SCALE_PANE + "maintainAspectRatio", false);
+      patch.put(SCALE_PANE + "scaleImageChecked", true);
+      assertEquals(10, setImageScale(imageWithScale(false, false, false, 0), patch).top());
+
+      patch = new LinkedHashMap<>();
+      patch.put(SCALE_PANE + "scaleImageChecked", true);
+      patch.put(SCALE_PANE + "maintainAspectRatio", false);
+      patch.put(SCALE_PANE + "top", 10);
+      assertEquals(10, setImageScale(imageWithScale(false, false, true, 0), patch).top());
+   }
+
+   @Test
+   void acceptsAnUnchangedInsetEcho() throws Exception {
+      ImageScalePaneModel pane = setImageScale(imageWithScale(true, false, true, 0),
+                                               Map.of(SCALE_PANE + "top", 0));
+      assertEquals(0, pane.top());
+   }
+
+   @Test
+   void refusesANegativeInsetOnEachLeaf() {
+      for(String leaf : new String[] { "top", "left", "bottom", "right" }) {
+         String msg = refuseImageScale(imageWithScale(true, false, false, 0),
+                                       Map.of(SCALE_PANE + leaf, -5));
+         assertTrue(msg.contains(SCALE_PANE + leaf) && msg.contains("negative"), msg);
+      }
+
+      // a bad value is reported first, even when the mode is also wrong
+      String msg = refuseImageScale(imageWithScale(false, false, false, 0),
+                                    Map.of(SCALE_PANE + "top", -5));
+      assertTrue(msg.contains("negative"), msg);
+   }
+
+   @Test
+   void leavesAStoredNegativeInsetAloneWhenTheWriteEchoesIt() throws Exception {
+      ImageScalePaneModel pane = setImageScale(
+         imageWithScale(true, false, false, -3),
+         Map.of(SCALE_PANE + "scaleImageChecked", true, SCALE_PANE + "top", -3));
+      assertEquals(-3, pane.top());
+   }
+
+   @Test
+   void doesNotEvaluateTheScaleRulesForAnUnrelatedImageWrite() {
+      assertDoesNotThrow(() -> setImageScale(imageWithScale(true, true, true, -3),
+                                             Map.of("imageAdvancedPaneModel.popComponent", "")));
+   }
+
+   private static GroupContainerPropertyDialogModel groupWithScale(boolean scale, boolean tile,
+                                                                   boolean aspect, int top)
+   {
+      // populated the way GroupContainerPropertyDialogService.read does; a bare model silently
+      // drops writes to imageScalePane.*
+      GroupContainerPropertyDialogModel model = new GroupContainerPropertyDialogModel();
+      model.setImageScalePane(ImageScalePaneModel.builder()
+         .scaleImageChecked(scale).tile(tile).maintainAspectRatio(aspect).top(top).build());
+      return model;
+   }
+
+   private static void assertGroupRefused(GroupContainerPropertyDialogModel model,
+                                          Map<String, Object> patch, String... names)
+   {
+      AssemblyPropertyService service = serviceWith(mock(GroupContainerVSAssembly.class), model);
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Group1", patch, ""));
+
+      for(String name : names) {
+         assertTrue(e.getMessage().contains(name), e.getMessage());
+      }
+
+      assertNothingWrittenBy(lastDialogServices);
+   }
+
+   @Test
+   void appliesTheScaleRulesToAGroupContainerImageScalePane() throws Exception {
+      assertGroupRefused(groupWithScale(true, false, false, 0),
+                         Map.of("imageScalePane.tile", true), "scaleImageChecked", "tile");
+      assertGroupRefused(groupWithScale(true, false, true, 0),
+                         Map.of("imageScalePane.top", 10), "top", "maintainAspectRatio");
+      assertGroupRefused(groupWithScale(true, false, false, 0),
+                         Map.of("imageScalePane.top", -5), "top", "negative");
+
+      GroupContainerPropertyDialogModel model = groupWithScale(false, false, true, 0);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("imageScalePane.scaleImageChecked", true);
+      patch.put("imageScalePane.maintainAspectRatio", false);
+      patch.put("imageScalePane.top", 10);
+      serviceWith(mock(GroupContainerVSAssembly.class), model)
+         .set("tok", principal(), "Group1", patch, "");
+      assertEquals(10, model.getImageScalePane().top());
    }
 }
