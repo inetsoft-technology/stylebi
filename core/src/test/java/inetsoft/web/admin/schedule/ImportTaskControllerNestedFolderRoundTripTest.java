@@ -158,6 +158,42 @@ class ImportTaskControllerNestedFolderRoundTripTest {
       verify(folderService, times(1)).moveScheduleItems(any(), any(), any(), any());
    }
 
+   // Bug #79236, a time condition whose hour is out of range can repeat a fire, so the upload of
+   // a task with one is refused, and a task with the same condition in range is accepted
+   @Test
+   void uploadedTaskWithAnHourOutOfRange_isRefused() throws Exception {
+      assertDoesNotThrow(() -> upload(exportedWithHourly("ok", 1, 30)));
+      assertDoesNotThrow(() -> upload(exportedWithHourly("start", 0, 0)));
+      assertThrows(IllegalArgumentException.class, () -> upload(exportedWithHourly("bad", -1, 30)));
+      assertThrows(IllegalArgumentException.class, () -> upload(exportedWithHourly("bad", 90, 0)));
+      assertThrows(IllegalArgumentException.class, () -> upload(exportedWithHourly("bad", 0, -30)));
+   }
+
+   private static String exportedWithHourly(String name, int hour, int minute) {
+      ScheduleTask task = new ScheduleTask(name);
+      task.setOwner(new IdentityID("admin", ORG));
+      task.setPath("/");
+      TimeCondition condition = new TimeCondition();
+      condition.setType(TimeCondition.EVERY_HOUR);
+      // writeXML wraps an hour out of range by 24, so the values are put into the XML below
+      condition.setHour(1);
+      condition.setMinute(2);
+      condition.setSecond(0);
+      condition.setHourlyInterval(0.5f);
+      condition.setHourEnd(-1);
+      condition.setMinuteEnd(-1);
+      condition.setSecondEnd(-1);
+      task.addCondition(condition);
+      StringWriter out = new StringWriter();
+      PrintWriter writer = new PrintWriter(out);
+      task.writeXML(writer);
+      writer.flush();
+      String xml = out.toString();
+      assertTrue(xml.contains(" hour=\"1\" minute=\"2\""), xml);
+      return xml.replace(" hour=\"1\" minute=\"2\"",
+                         " hour=\"" + hour + "\" minute=\"" + minute + "\"");
+   }
+
    private void verifyMovedTo(String path) throws Exception {
       verify(folderService).moveScheduleItems(
          any(), eq(new String[0]), argThat(e -> path.equals(e.getPath())), eq(principal));

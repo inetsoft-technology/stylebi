@@ -621,8 +621,11 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
             .toInstant().toEpochMilli();
 
          if(start >= end) {
-            // an empty window runs at its start on a later date, as it always did
-            if(i > 0) {
+            // An empty window runs at its start on a later date, as it always did, but never at
+            // an instant before curr (Bug #79236). The start of the next date is on the seed's
+            // own date, and is the fire that just happened, when the start is a negative offset
+            // from midnight (an hour or minute below 0).
+            if(i > 0 && start >= curr) {
                return start;
             }
 
@@ -1128,6 +1131,43 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
     */
    public void setAJAX(boolean ajax) {
       this.ajax = ajax;
+   }
+
+   /**
+    * Checks that the time of day of this condition is in range, for a condition that comes from
+    * outside the server (the REST API and an import). Not an AT condition, which has a date
+    * instead. The hour is 0-23 and the minute and second 0-59. For an hourly condition the end
+    * time is checked too, field by field: each is in range or -1, because the end time of a
+    * condition without one is stored as hour_end=23 minute_end=-1 second_end=-1.
+    * <p>
+    * This is not done by {@link #parseXML(Element)}: the scheduler loads every stored task
+    * through it and skips a task whose parse throws, so a stricter parse would make an existing
+    * task vanish.
+    *
+    * @throws IllegalArgumentException if a field is out of range.
+    */
+   public void validateRanges() {
+      if(type == AT) {
+         return;
+      }
+
+      checkRange("hour", hour, 23, false);
+      checkRange("minute", minute, 59, false);
+      checkRange("second", second, 59, false);
+
+      if(type == EVERY_HOUR) {
+         checkRange("end hour", hour_end, 23, true);
+         checkRange("end minute", minute_end, 59, true);
+         checkRange("end second", second_end, 59, true);
+      }
+   }
+
+   private static void checkRange(String name, int value, int max, boolean unsetAllowed) {
+      if((value < 0 || value > max) && !(unsetAllowed && value == -1)) {
+         throw new IllegalArgumentException(
+            "The " + name + " of a time condition must be between " +
+            (unsetAllowed ? "-1 and " : "0 and ") + max + ", but is " + value);
+      }
    }
 
    /**

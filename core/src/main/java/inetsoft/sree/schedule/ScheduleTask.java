@@ -396,6 +396,21 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
    }
 
    /**
+    * Checks the time of day of every time condition of this task, for a task that comes from
+    * outside the server (an import).
+    *
+    * @throws IllegalArgumentException if a time condition is out of range.
+    * @see TimeCondition#validateRanges()
+    */
+   public void validateTimeConditions() {
+      for(ScheduleCondition cond : conds) {
+         if(cond instanceof TimeCondition) {
+            ((TimeCondition) cond).validateRanges();
+         }
+      }
+   }
+
+   /**
     * Remove the specified condition from the task.
     */
    public void removeCondition(int idx) {
