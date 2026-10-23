@@ -815,8 +815,15 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
    }
 
    /**
-    * Check if the axis has fields and all of them are dynamic (variable) refs. Only then is an
-    * empty runtime result "nothing selected" rather than a missing column.
+    * Check if the ref is bound to a runtime value: a variable, $(...), or a script, =script.
+    */
+   private static boolean isDynamic(VSChartRef ref) {
+      return ref.isVariable() || ref.isScript();
+   }
+
+   /**
+    * Check if the axis has fields and all of them are dynamic (variable or script)
+    * refs. Only then is an empty runtime result "nothing selected" rather than a missing column.
     */
    private static boolean allVariable(ChartRef[] refs) {
       if(refs == null || refs.length == 0) {
@@ -824,7 +831,7 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
       }
 
       for(ChartRef ref : refs) {
-         if(!(ref instanceof VSChartRef) || !((VSChartRef) ref).isVariable()) {
+         if(!(ref instanceof VSChartRef) || !isDynamic((VSChartRef) ref)) {
             return false;
          }
       }
