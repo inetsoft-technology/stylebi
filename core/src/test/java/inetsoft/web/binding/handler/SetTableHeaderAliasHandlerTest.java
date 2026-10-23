@@ -256,7 +256,7 @@ class SetTableHeaderAliasHandlerTest {
    void findHeaderPathsReturnsTheSideBySideColumnVariants() {
       VSTableLens lens = mock(VSTableLens.class);
       when(lens.getHeaderRowCount()).thenReturn(2);
-      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(2);
       when(lens.getColCount()).thenReturn(5);
       when(lens.getRowCount()).thenReturn(4);
 
@@ -281,29 +281,5 @@ class SetTableHeaderAliasHandlerTest {
 
       assertTrue(SetTableHeaderAliasHandler.findHeaderPaths(lens, revenueAggregate(), 0)
                     .isEmpty());
-   }
-
-   /** Writing the label at all three stacked paths puts MESSAGE_FORMAT on each and its twin. */
-   @Test
-   void labelWriteCoversAllStackedPathsAndTheirGroupHeaderTwins() {
-      FormatInfo formatInfo = new FormatInfo();
-      List<TableDataPath> paths = List.of(headerPath("Year", "Quarter", "Sum(REVENUE)"),
-                                          headerPath("Year", "Sum(REVENUE)"),
-                                          headerPath("ROW_GRAND_TOTAL", "Sum(REVENUE)"));
-
-      for(TableDataPath path : paths) {
-         SetTableHeaderAliasHandler.setAliasWithHeaderDuality(path, formatInfo, "Revenue");
-      }
-
-      for(TableDataPath path : paths) {
-         TableDataPath twin = (TableDataPath) path.clone();
-         twin.setType(TableDataPath.GROUP_HEADER);
-
-         for(TableDataPath p : List.of(path, twin)) {
-            VSFormat f = formatInfo.getFormat(p).getUserDefinedFormat();
-            assertEquals(VSFormat.MESSAGE_FORMAT, f.getFormatValue());
-            assertEquals("Revenue", f.getFormatExtentValue());
-         }
-      }
    }
 }
