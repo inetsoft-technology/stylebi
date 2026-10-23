@@ -2039,6 +2039,7 @@ class SelectionRuntimeServiceTest {
       SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, true);
       when(assembly.getDataRefs()).thenReturn(
          new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
+      withLevels(assembly, List.of(), false);
       Harness h = harness(assembly);
 
       Exception e = assertThrows(IllegalArgumentException.class,
@@ -2055,6 +2056,7 @@ class SelectionRuntimeServiceTest {
       SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, true);
       when(assembly.getDataRefs()).thenReturn(
          new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
+      withLevels(assembly, List.of(), false);
       Harness h = harness(assembly);
 
       assertDoesNotThrow(() -> h.service.selectSubtree(
@@ -2147,25 +2149,112 @@ class SelectionRuntimeServiceTest {
       SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, true);
       when(assembly.getDataRefs()).thenReturn(
          new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
+      withLevels(assembly, List.of(), false);
       Harness h = harness(assembly);
 
       assertDoesNotThrow(() -> h.service.selectSubtree(
          "tok", principal(), "Tree1", List.of("USA East", "CT", "Hartford"), "select", ""));
    }
 
-   /** The testable core of the guard, isolated from the assembly -- see the two tests above. */
+   /** Region-only single-select: the single level is the Region, above both paths, so it selects. */
    @Test
-   void treeDepthGuardRefusesOnlyWhenShortOfALeaf() {
-      assertThrows(IllegalArgumentException.class,
+   void allowsAnAncestorPathWhenOnlyAnUpperLevelIsSingleSelect() throws Exception {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, true);
+      when(assembly.getDataRefs()).thenReturn(
+         new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
+      withLevels(assembly, List.of(0), true);
+      Harness h = harness(assembly);
+
+      assertDoesNotThrow(() -> h.service.selectSubtree(
+         "tok", principal(), "Tree1", List.of("USA East"), "select", ""));
+      assertDoesNotThrow(() -> h.service.selectSubtree(
+         "tok", principal(), "Tree1", List.of("USA East", "NY"), "select", ""));
+
+      verify(h.selections, times(2)).selectSubtree(anyString(), anyString(), any(),
+                                                   any(Principal.class), any(), anyString());
+   }
+
+   /** State-only single-select: a single level lies below {@code [USA East]}, so it is refused. */
+   @Test
+   void refusesAnAncestorPathAboveASingleSelectLevel() {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, true);
+      when(assembly.getDataRefs()).thenReturn(
+         new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
+      withLevels(assembly, List.of(1), true);
+      Harness h = harness(assembly);
+
+      Exception e = assertThrows(IllegalArgumentException.class, () -> h.service.selectSubtree(
+         "tok", principal(), "Tree1", List.of("USA East"), "select", ""));
+
+      assertTrue(e.getMessage().contains("State"), e.getMessage());
+      verifyNoInteractions(h.selections);
+   }
+
+   /**
+    * The testable core of the guard, isolated from the assembly: refuse iff some single level is
+    * at or below the path's length, i.e. strictly below the node the path names.
+    */
+   @Test
+   void levelGuardRefusesOnlyWhenASingleLevelLiesBelowThePathEnd() {
+      List<String> names = List.of("Region", "State", "City");
+      List<String> a = List.of("USA East");
+      List<String> ab = List.of("USA East", "NY");
+      List<String> abc = List.of("USA East", "NY", "Buffalo");
+
+      // levels, then the paths refused and the paths accepted
+      assertGuard(List.of(0, 1, 2), names, List.of(a, ab), List.of(abc));
+      assertGuard(List.of(0), names, List.of(), List.of(a, ab, abc));
+      assertGuard(List.of(1), names, List.of(a), List.of(ab, abc)); // single level == path end: ok
+      assertGuard(List.of(2), names, List.of(a, ab), List.of(abc));
+      assertGuard(List.of(0, 2), names, List.of(a, ab), List.of(abc));
+      assertGuard(List.of(), names, List.of(), List.of(a, ab, abc));
+
+      // A single, mixed tree with every single level removed has no level to protect; the native
+      // menu is disabled there, but nothing can collapse, so it is accepted.
+      assertGuard(SelectionRuntimeService.effectiveSingleLevels(List.of(), true, 3), names,
+                  List.of(), List.of(a, ab, abc));
+
+      // A stale stored level at or past the depth is dropped, so {0, 5} guards like {0}.
+      assertGuard(SelectionRuntimeService.effectiveSingleLevels(List.of(0, 5), true, 3), names,
+                  List.of(), List.of(a, ab, abc));
+   }
+
+   @Test
+   void levelGuardMessageNamesTheAssemblyPathAndBlockingLevel() {
+      Exception e = assertThrows(IllegalArgumentException.class,
          () -> SelectionRuntimeService.refuseAmbiguousSingleSelectSubtree(
-            3, "Tree1", List.of("USA East")));
-      assertThrows(IllegalArgumentException.class,
-         () -> SelectionRuntimeService.refuseAmbiguousSingleSelectSubtree(
-            3, "Tree1", List.of("USA East", "CT")));
-      assertDoesNotThrow(() -> SelectionRuntimeService.refuseAmbiguousSingleSelectSubtree(
-         3, "Tree1", List.of("USA East", "CT", "Hartford")));
-      assertDoesNotThrow(() -> SelectionRuntimeService.refuseAmbiguousSingleSelectSubtree(
-         1, "Tree1", List.of("USA East")));
+            List.of(0, 2), "Tree1", List.of("USA East"), List.of("Region", "State", "City")));
+
+      assertTrue(e.getMessage().contains("'Tree1'"), e.getMessage());
+      assertTrue(e.getMessage().contains("USA East"), e.getMessage());
+      assertTrue(e.getMessage().contains("(City)"),
+                 e.getMessage());
+      assertTrue(e.getMessage().contains("singleSelectionLevels"), e.getMessage());
+   }
+
+   private static void assertGuard(Collection<Integer> levels, List<String> names,
+                                   List<List<String>> refused, List<List<String>> accepted)
+   {
+      for(List<String> path : refused) {
+         assertThrows(IllegalArgumentException.class,
+            () -> SelectionRuntimeService.refuseAmbiguousSingleSelectSubtree(
+               levels, "Tree1", path, names), levels + " " + path);
+      }
+
+      for(List<String> path : accepted) {
+         assertDoesNotThrow(() -> SelectionRuntimeService.refuseAmbiguousSingleSelectSubtree(
+            levels, "Tree1", path, names), levels + " " + path);
+      }
+   }
+
+   /** Gives the mocked tree three levels and the stored single levels the guard reads. */
+   private static void withLevels(SelectionTreeVSAssembly assembly, List<Integer> stored,
+                                  boolean mixed)
+   {
+      SelectionTreeVSAssemblyInfo info = assembly.getSelectionTreeInfo();
+      when(info.getLevelNames()).thenReturn(List.of("Region", "State", "City"));
+      when(info.getStoredSingleSelectionLevels()).thenReturn(stored);
+      when(info.isMixedSingleSelection()).thenReturn(mixed);
    }
 
    // ── bug-76544 (P3): select_subtree domain-existence validation ─────────────
