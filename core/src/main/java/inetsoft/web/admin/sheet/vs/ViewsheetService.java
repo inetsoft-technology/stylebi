@@ -28,6 +28,7 @@ import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.VSSnapshot;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.MessageException;
@@ -169,6 +170,9 @@ public class ViewsheetService {
 
          //handle site admin in different organization, ensure same org for asset rename
          newEntry.setOrgID(oldEntry.getOrgID());
+         // Bug #79257: alias and the "description" property are not part of the entry path,
+         // so carry them over or the rename silently resets them.
+         AssetUtil.copyWSInfo(oldEntry, newEntry);
          record.setObjectName(oldEntry.getName());
          record.setActionError("Target Entry: " + newEntry.getDescription());
 
