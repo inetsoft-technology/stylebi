@@ -556,6 +556,54 @@ class ChartElementServiceTest {
                                   any(Principal.class), any());
    }
 
+   /**
+    * Bug #79256: a chart whose baseline is above 10 (a 1300x400 chart's width baseline is 13.51)
+    * has a legal range that lies entirely above the old fixed cap of 10, so no ratio could pass.
+    */
+   @Test
+   void acceptsARatioAboveTenWhenTheChartsOwnBaselineIsAboveTen() throws Exception {
+      Harness h = harness(resizableChart(13.5056, 30.5185));
+
+      h.service.resizePlot("tok", principal(), "Chart1", 13.51, false, false, "");
+      h.service.resizePlot("tok", principal(), "Chart1", 30.53, true, false, "");
+
+      verify(h.plot, times(2)).eventHandler(eq("rt1"), any(VSChartPlotResizeEvent.class),
+                                            anyString(), any(Principal.class), any());
+   }
+
+   /** Bug #79256: the refusal for a ratio past the sanity ceiling points at the real range. */
+   @Test
+   void theSanityCeilingRefusalNamesTheChartsOwnRange() {
+      Harness h = harness(resizableChart(1, 1));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.resizePlot("tok", principal(), "Chart1", 5000d, true, false, ""));
+
+      assertTrue(thrown.getMessage().contains("get_chart_plot_size"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("maxWidthRatio"), thrown.getMessage());
+   }
+
+   /**
+    * Bug #79256: an 800x400 chart's width range is [7.89, 15.78], which straddles 10 - values on
+    * both sides of 10 are legal and only the range itself bounds them, on either axis.
+    */
+   @Test
+   void theChartsOwnRangeIsTheOnlyBoundForARangeThatStraddlesTen() {
+      for(String direction : new String[] { "width", "height" }) {
+         assertDoesNotThrow(() -> ChartElementService.requireAtLeastInitial(
+            15.7, 7.8876, 15.7753, direction));
+         assertDoesNotThrow(() -> ChartElementService.requireAtMost(
+            15.7, 15.7753, 7.8876, direction));
+         assertDoesNotThrow(() -> ChartElementService.requireAtMost(
+            10, 15.7753, 7.8876, direction));
+         assertThrows(IllegalArgumentException.class, () -> ChartElementService.requireAtMost(
+            15.8, 15.7753, 7.8876, direction));
+         assertThrows(IllegalArgumentException.class,
+            () -> ChartElementService.requireAtLeastInitial(7.5, 7.8876, 15.7753, direction));
+      }
+   }
+
    @Test
    void refusesANonPositiveOrAbsurdRatio() {
       Harness h = harness(mock(ChartVSAssembly.class));
@@ -567,7 +615,8 @@ class ChartElementServiceTest {
       // An unbounded multiplier on the minimum plot size is an allocation risk for a tool driven
       // by a model, so absurd values are refused rather than attempted.
       assertThrows(Exception.class,
-                   () -> h.service.resizePlot("tok", principal(), "Chart1", 500d, true, false, ""));
+                   () -> h.service.resizePlot("tok", principal(), "Chart1", 5000d, true, false,
+                                              ""));
       assertThrows(Exception.class,
                    () -> h.service.resizePlot("tok", principal(), "Chart1", null, true, false,
                                               ""));

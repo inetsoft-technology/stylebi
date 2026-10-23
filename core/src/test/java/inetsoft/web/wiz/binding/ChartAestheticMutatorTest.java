@@ -219,6 +219,42 @@ class ChartAestheticMutatorTest {
       assertArrayEquals(new String[]{"#FF0000", "#00FF00"}, frame.getColors());
    }
 
+   /**
+    * Bug #79256: shareColors on its own, either way, flips just that checkbox - the palette, the
+    * bound field and the existing pins stay, and the pins move to the array the new flag selects.
+    */
+   @Test
+   void shareColorsAloneKeepsThePaletteFieldAndPins() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#FF0000", "#00FF00"),
+                              "mapping", Map.of("East", "#112233")));
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "shareColors", true));
+
+      CategoricalColorModel shared =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertTrue(shared.isShareColors());
+      assertTrue(shared.isUseGlobal());
+      assertArrayEquals(new String[]{"#FF0000", "#00FF00"}, shared.getColors());
+      assertEquals(1, shared.getGlobalColorMaps().length);
+      assertEquals(0, shared.getColorMaps().length);
+      assertNotNull(model.getColorField().getDataInfo(), "the field stays bound");
+
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "shareColors", false));
+
+      CategoricalColorModel unshared =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      assertFalse(unshared.isShareColors());
+      assertFalse(unshared.isUseGlobal());
+      assertArrayEquals(new String[]{"#FF0000", "#00FF00"}, unshared.getColors());
+      assertEquals(1, unshared.getColorMaps().length);
+      assertEquals(0, unshared.getGlobalColorMaps().length);
+   }
+
    private static CategoricalColorModel colorValueFrameOn(ChartBindingModel model) {
       ChartAestheticMutator.setField(model, "color", dimension("Region"));
       ChartAestheticMutator.setFrame(

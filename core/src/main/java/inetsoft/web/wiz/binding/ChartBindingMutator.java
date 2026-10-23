@@ -449,6 +449,26 @@ public final class ChartBindingMutator {
    }
 
    /**
+    * Carries a replaced Gantt start/milestone measure's aesthetic channel bindings
+    * ({@code colorField}/{@code shapeField}/{@code sizeField}/{@code textField}) onto its
+    * replacement (bug #79256). Since bug #78918 a Gantt chart's colour/size/text field lives on
+    * these shelves' own measures ({@code ChartAestheticMutator.ganttFieldTargets}), so a rewrite
+    * of the shelf dropped the binding even when the same measure was resent. Unlike {@link
+    * #preserveAggregateFrames} this is not gated on {@link #sameMeasure}: the channel is a
+    * property of the shelf, bound to a dimension independent of the measure, and carries its own
+    * frame with it, so a different measure or date column keeps it too. The carried
+    * {@code AestheticInfo} is shared with {@code previous}, which the shelf no longer holds.
+    */
+   private static void preserveAggregateAestheticFields(ChartAggregateRefModel previous,
+                                                         ChartAggregateRefModel aggregate)
+   {
+      aggregate.setColorField(previous.getColorField());
+      aggregate.setShapeField(previous.getShapeField());
+      aggregate.setSizeField(previous.getSizeField());
+      aggregate.setTextField(previous.getTextField());
+   }
+
+   /**
     * Carries a matched dimension's sort/ranking state across a shelf rewrite -- porting VTB-004
     * (Redmine #76574, {@code TableBindingMutator.dimensions()}'s own {@code matches()}/{@code
     * copyOf()}) to the chart x/y/group path, which never had it (bug #76881). {@code
@@ -545,6 +565,9 @@ public final class ChartBindingMutator {
       List.of("open", "high", "low", "close", "path", "source", "target",
               "start", "end", "milestone");
 
+   /** The Gantt shelves whose measure carries the chart's colour/shape/size/text fields. */
+   private static final List<String> GANTT_AESTHETIC_SHELVES = List.of("start", "milestone");
+
    /**
     * Sets one single-field shelf. A null {@code field} clears it.
     *
@@ -602,6 +625,12 @@ public final class ChartBindingMutator {
 
       ChartRefModel previous = readSingleShelf(model, name);
       carryForwardSameField(previous, ref, field);
+
+      if(GANTT_AESTHETIC_SHELVES.contains(name) && ref instanceof ChartAggregateRefModel aggregate &&
+         previous instanceof ChartAggregateRefModel previousAgg)
+      {
+         preserveAggregateAestheticFields(previousAgg, aggregate);
+      }
 
       assignSingleShelf(model, name, ref);
 

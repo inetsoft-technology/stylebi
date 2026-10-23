@@ -2938,6 +2938,51 @@ class TableBindingMutatorTest {
       return ((ColumnRefModel) model.getDetails().get(index)).getAlias();
    }
 
+   // ── dynamic column on details (#79256) ────────────────────────────────────
+
+   @Test
+   void detailsRefusesADynamicColumnOnSetAndAdd() {
+      for(String dynamic : List.of("=ColumnPicker.selectedObject", "$(ColumnPicker)")) {
+         TableBindingModel model = new TableBindingModel();
+         TableBindingMutator.setShelf(model, "details", List.of(dim("Category")));
+
+         IllegalArgumentException set = assertThrows(IllegalArgumentException.class,
+            () -> TableBindingMutator.setShelf(model, "details",
+                                               List.of(dim("Category"), dim(dynamic))));
+         IllegalArgumentException add = assertThrows(IllegalArgumentException.class,
+            () -> TableBindingMutator.addField(model, "details", dim(dynamic), null));
+
+         for(IllegalArgumentException e : List.of(set, add)) {
+            assertTrue(e.getMessage().contains("'" + dynamic + "'"), e.getMessage());
+            assertTrue(e.getMessage().contains("details"), e.getMessage());
+            assertTrue(e.getMessage().contains("literal columns only"), e.getMessage());
+         }
+
+         assertEquals(1, model.getDetails().size(), "a refused write leaves details untouched");
+      }
+   }
+
+   @Test
+   void detailsStillAcceptsALiteralColumn() {
+      TableBindingModel model = new TableBindingModel();
+
+      TableBindingMutator.setShelf(model, "details", List.of(dim("Category")));
+      TableBindingMutator.addField(model, "details", dim("Order:Discount"), null);
+
+      assertEquals(2, model.getDetails().size());
+   }
+
+   @Test
+   void aCrosstabAggregatesShelfStillAcceptsADynamicColumn() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("=ColumnPicker.selectedObject", "Sum")));
+      TableBindingMutator.addField(model, "aggregates", measure("$(ColumnPicker)", "Sum"), null);
+
+      assertEquals(2, model.getAggregates().size());
+   }
+
    @Test
    void detailsWritesKeepHeaderAliasesAndWidths() {
       TableBindingModel model = tableWithLabels();

@@ -222,8 +222,10 @@ public class ChartElementService {
       if(!reset && (ratio == null || ratio <= 0 || ratio > MAX_PLOT_RATIO)) {
          throw new IllegalArgumentException(
             "resize_plot needs a 'ratio' greater than 0 and at most " + (int) MAX_PLOT_RATIO +
-            " — it scales the plot's minimum size, so a value above 1 enlarges the plot and makes " +
-            "it scroll, while 1 or less usually changes nothing visible. Got " + ratio +
+            ", and within this chart's own range - its baseline (initialRatio) up to " +
+            "maxWidthRatio / maxHeightRatio, which get_chart_plot_size reports per direction. " +
+            "A ratio scales the plot's minimum size, so a value above the baseline enlarges the " +
+            "plot and makes it scroll. Got " + ratio +
             ". Pass reset:true to restore the default instead.");
       }
 
@@ -310,7 +312,6 @@ public class ChartElementService {
          result.put("height", ratios(info.getUnitHeightRatio(), info.getUnitHeightRatioPercent(),
                                      info.getInitialHeightRatio(),
                                      info.getEffectiveHeightRatio(), info.isHeightResized()));
-         result.put("toolMaxRatio", MAX_PLOT_RATIO);
 
          ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
 
@@ -363,7 +364,8 @@ public class ChartElementService {
    /**
     * How far the plot can legitimately be enlarged, by the same formula the Composer's own
     * chart-areas command sends to the browser - so a caller is not left guessing against this
-    * class' blunt {@link #MAX_PLOT_RATIO} cap, which is a typo guard rather than a real limit.
+    * class' {@link #MAX_PLOT_RATIO} sanity ceiling, which is a typo guard rather than a real
+    * limit.
     */
    static Map<String, Object> maxRatios(VGraph graph, VSChartInfo info) {
       Coordinate coord = graph.getCoordinate();
@@ -428,7 +430,7 @@ public class ChartElementService {
          VSChartInfo info = chart.getVSChartInfo();
 
          // No chart info means neither bound exists to check against - no baseline and no
-         // maximum - so the ratio falls through to the blunt 0 < ratio <= MAX_PLOT_RATIO guard
+         // maximum - so the ratio falls through to the 0 < ratio <= MAX_PLOT_RATIO sanity guard
          // rather than being refused for bounds that cannot be computed, the same stance this
          // method takes for a chart with no laid-out graph.
          if(info == null) {
@@ -931,11 +933,12 @@ public class ChartElementService {
    private final VSChartLegendsVisibilityService legendsService;
    private final VSChartTitlesVisibilityService titlesService;
    /**
-    * Upper bound on the plot scale. The underlying ratio multiplies the plot's minimum size with
-    * no ceiling of its own, so an absurd value would ask for an enormous graph — worth refusing
-    * outright in a tool a model drives, where a stray 500 is a plausible typo for 5.
+    * Sanity ceiling on the plot scale, for the case where no per-chart range is available. The
+    * underlying ratio multiplies the plot's minimum size with no ceiling of its own, so an absurd
+    * value would ask for an enormous graph. It is far above any real range (a chart's baseline
+    * alone can exceed 10), which {@link #requireRatioInRange} enforces whenever a graph exists.
     */
-   private static final double MAX_PLOT_RATIO = 10d;
+   private static final double MAX_PLOT_RATIO = 1000d;
 
    private final VSChartPlotResizeService plotResizeService;
 }

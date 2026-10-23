@@ -539,7 +539,7 @@ public final class BindableColumns {
       return text != null && text.startsWith("$(") && text.endsWith(")");
    }
 
-   private static boolean isDynamicColumn(String text) {
+   static boolean isDynamicColumn(String text) {
       return isDynamicVariableReference(text) || text != null && text.startsWith("=");
    }
 

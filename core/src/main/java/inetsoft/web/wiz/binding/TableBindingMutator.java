@@ -679,6 +679,17 @@ public final class TableBindingMutator {
             "Field '" + field.column() + "' carries an aggregate, and the details shelf holds " +
             "ungrouped columns. Put it on the aggregates shelf instead.");
       }
+
+      // A table's details are plain columns of the base table: the column is looked up by its
+      // literal name at execute time and removed when absent, so a dynamic reference ('=expr' or
+      // '$(X)') would be reported as set and then silently dropped (bug #79256), the same
+      // outcome refuseAggregateCalcFieldOnDetailShelf (#78530) refuses for an aggregate calc field.
+      if("details".equals(shelf) && BindableColumns.isDynamicColumn(field.column())) {
+         throw new IllegalArgumentException(
+            "Field '" + field.column() + "' is a dynamic column reference ('=...' or '$(...)'), " +
+            "and the details shelf binds literal columns only - it would be dropped from the " +
+            "table. Bind a column by its name instead.");
+      }
    }
 
    /**
