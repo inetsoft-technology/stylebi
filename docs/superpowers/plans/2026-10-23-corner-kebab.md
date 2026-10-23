@@ -475,3 +475,14 @@ For each of chart, table, crosstab, calc table, calendar, selection list, select
 
 - iPad Safari, default desktop user agent: the resting kebab is visible and tappable.
 - A phone user agent: no strip; `viewer-mobile-toolbar` works.
+
+- [ ] **Step 6: Final-review checks**
+
+- Overlap: place a control over an untitled chart's top-right corner, and expand a dropdown over it. Both take their clicks at rest; the hidden kebab takes none.
+- An embed-viewer page: no reserve gaps on untitled assemblies.
+- A double calendar, panels side by side: the second panel's next-year button sits left of the kebab, and the first panel's title is not padded.
+- An untitled selection container whose first child is a range slider: the header buttons sit left of the kebab and are clickable. Repeat with current selections, whose row mini-menus must clear it too.
+- A dense table with a two-row header.
+- A table whose last column is narrow (under about 68px).
+- Esc while the kebab's menu is open, by keyboard and by mouse, including Safari: by keyboard the strip stays and focus stays on the kebab; record the mouse result per browser.
+- An untitled selection list with its search bar shown: the search clear button under the corner kebab.

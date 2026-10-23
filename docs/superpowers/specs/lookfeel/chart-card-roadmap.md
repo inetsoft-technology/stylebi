@@ -1452,9 +1452,9 @@ now only because P4 supplied the read path — the same reason L' became startab
 
 ## Ready now
 
-Nothing below is blocked, with one exception kept in place rather than moved: **§10.1 is blocked on a
-decision**, recorded in its own row. It stays here because it was never blocked on sequencing and its
-note is where the reasoning lives; do not read the heading as clearing it.
+Nothing below is blocked. **§10.1 was blocked on a decision until 2026-10-23**, and its row records both
+the block and the decision that cleared it. It stays here because it was never blocked on sequencing
+and its note is where the reasoning lives.
 
 | Item | Source | Note |
 |---|---|---|

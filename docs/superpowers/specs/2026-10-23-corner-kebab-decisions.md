@@ -53,7 +53,7 @@ Affected controls:
 - **Table and crosstab:** the last column header's sort button (`.vs-header-cell-button-sort`,
   `right: 2px`, 20px wide, per slice 2 §4).
 - **Calendar:** the rightmost nav button, `calendar-nextYear` (`month-calendar.component.html:63-75`),
-  and the year calendar's equivalent.
+  and the year calendar's equivalent, on the panel at the card's right edge.
 - **Selection list and tree:** `.pending-alert.top` (`top: -1px; right: 5px`). The existing 48px offset
   at `vs-selection.component.scss:226` excludes `.top` on purpose, because there was no strip to clear.
   Under corner mode, `.top` takes the offset too.
@@ -61,20 +61,44 @@ Affected controls:
   (mini-menu plus collapse toggle, `position: absolute; right: 1px`, revealed on child hover). In an
   untitled container, the first child's buttons sit in the container's top-right corner. All children
   take the reserve, so the buttons stay in one column.
-- **Calendar target:** outside dropdown mode, a double calendar stacks vertically (`.month-calendar`
-  and `.year-calendar` are `width: 100%`), so the reserve goes on the first panel's
-  `.child-calendar-title` (`:not(.second-calendar)`).
+- **Selection container, range slider child (found in final review):** the child's
+  `.vs-range-slider-header__buttons` (collapse toggle plus mini-menu, `right: 0; top: 0`). All children
+  take the reserve, as for the lists.
+- **Selection container, current selections (found in final review):** each current-selection row's
+  `.mini-menu` (`right: 2px; top: 0`). The rows render before the children, so in an untitled
+  container the first row sits in the corner. Every row takes the reserve.
+- **Calendar target (corrected in final review):** `.calendar-body` is a flex row
+  (`vs-calendar.component.scss:59-62`), so a double calendar's two panels sit side by side, with
+  `.calendar-mode-btn` between them. The card's top-right belongs to the second panel. The reserve goes
+  on a single calendar's `.child-calendar-title` (`:not(.double-calendar)`) and on the second panel's
+  (`.double-calendar.second-calendar`), for both the month and the year calendar. The first version
+  reserved the first panel (`:not(.second-calendar)`), which sits on the left.
 - **Table limit:** the reserve targets the last header cell (`td:last-child`). When a table is scrolled
   horizontally and not all the way right, the cell at the right edge is a middle column. Its sort
   button is usually clipped off-screen, but a column whose right edge lands within the kebab's span
   stays covered. Accepted as a residual.
 - **Not reserved:** the calc table has no header sort control, and the chart can't take a reserve
   (see "Chart click cost" below).
+- **Accepted residuals (final review):**
+  - A titled calendar at dense keeps its pending icon under the corner kebab. Its `right: 3px` is an
+    inline style from `getPendingIconPosition` in `vs-calendar.component.ts`, which a
+    `:host-context` rule can't override without `!important`.
+  - A fully script-hidden inventory, and an assembly whose data tip is active, keep the reserve though
+    no kebab draws.
+  - A dense table with a two-row header, and a last column narrower than about 68px, clip the moved
+    sort button.
+  - A zero-width hidden last column takes the reserve, so the visible last column's sort button stays
+    under the kebab.
 
 The precedent is the titled selection list's permanent 48px pending-alert offset, derived from a pill
 of about 40px. The reserve width is pill plus corner inset, about 48px; measure it in a browser before
 fixing it. The mechanism is a class on `.vs-object-parent-container` in corner mode, read by each
 component through `:host-context(...)`.
+
+The class applies only where a kebab can draw. It is bound to `hasCornerReserve`, which adds the
+strip's own mount gates, `!hideMiniToolbar` and `enabled`, to `isCornerKebab`. So the embed viewer,
+which defaults `hideMiniToolbar` to true, and a disabled assembly open no gap. A strip dismissed with
+Hide MiniToolbar keeps its reserve, so the covered controls don't move when it is dismissed.
 
 **Not taken:**
 
@@ -128,9 +152,23 @@ keyboard users notice this mechanism; for a mouse user it looks identical to `vi
 - Group pointer events must be off at rest. `.mini-toolbar-button-group { pointer-events: all }` is
   unconditional, so an invisible strip with mouse focus inside it would otherwise keep clickable
   buttons over the title.
+- **Implemented in final review:** pointer events are now off at rest and restored on every reveal.
+  Inside `@media (hover: hover)`, the kebab group and the kebab are `pointer-events: none` at rest. The
+  kebab needs its own rule because it declares an explicit `pointer-events: auto`, which the group's
+  value can't reach. So a control placed over an untitled card's corner, or an expanded dropdown over
+  it, keeps its clicks. Strip `:hover`, `:has(:focus-visible)` and the global assembly-hover rule in
+  `_moving-resize.scss` restore `auto`, each scoped `:not(.hidden-mini-toolbar)`. The strip hover is
+  what keeps the kebab live once the pointer crosses from the assembly onto it. The global rule is
+  unencapsulated, so it is written to outrank the component's resting rule: its weakest selectors are
+  0,6,0 (group) and 0,7,0 (kebab), against 0,4,0 and 0,6,0 for the encapsulated resting rule.
 - The Esc check (`mini-toolbar.component.ts:372-397`) can no longer use the host's visibility, because
   the host stays visible. "Revealed" becomes "the container's computed opacity is not 0". That
   replaces both the design's proposal and today's no-action-group rule.
+- **Esc and the kebab's own menu (final review):** the menu closes on a `document` Esc keyup, and the
+  same keyup reaches the toolbar's `window` listener while the pill is still opaque. So the Esc check
+  also skips a resident strip while focus is inside it. Otherwise a keyboard user's focused kebab
+  would go `visibility: hidden` and focus would be lost. Residual: Safari doesn't focus a button on
+  mouse click, so a mouse user who opens the menu there and presses Esc still dismisses the strip.
 
 ## Corrections to the design, adopted without a ruling
 
@@ -154,7 +192,9 @@ These are invisible when they work and visible defects when they don't.
   the container's suppression check so the template keeps one gate, and leave the reserve class
   off on mobile.
 - **Corner styling.** The base pill already draws the background, border and radius
-  (`mini-toolbar.component.scss:25-34`). Only `margin-right: 4px` and the shadow are new.
+  (`mini-toolbar.component.scss:25-34`). Only the shadow is new. The 4px right inset is not a margin:
+  `getCornerToolbarWidth` is the anchored width less `CORNER_KEBAB_INSET` (4), and the pill
+  right-aligns inside that box with its auto left margin.
 - **Dark surface.** Extend both `:host-context(.viz-dark) .mini-toolbar:not(.mini-toolbar--anchored)`
   rules, the container and the group divider, to `.mini-toolbar--corner`.
 - **Glyph tone.** `getStripGlyphTone` needs no change. The template only calls it when the strip is
