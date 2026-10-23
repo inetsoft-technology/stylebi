@@ -1129,7 +1129,7 @@ public class SecurityService {
                                                           IdentityInfoRecord.ACTION_TYPE_CREATE, null, state);
          // the org's properties are stored in its own scope, so they are written once the org
          // exists; a failure is reported as a failed later step
-         applyOrganizationProperties(oid, request.getProperties());
+         applyOrganizationProperties(oid, request.getProperties(), false);
 
          if(currentTheme != null) {
             addOrganizationToTheme(currentTheme.getId(), oid);
@@ -1338,7 +1338,8 @@ public class SecurityService {
       // an organization ID change moves the organization's themes and theme selections in
       // setIdentity() (AbstractEditableAuthenticationProvider.copyThemes())
       identityService.setIdentity(oldOrganization, organizationModel, provider, principal);
-      applyOrganizationProperties(id, request.getProperties());
+      // setIdentity() has already moved the org's properties to the new id on a rename
+      applyOrganizationProperties(organizationModel.id(), request.getProperties(), true);
       // a request without adminIdentities keeps the existing admins
       setOrganizationPermissions(
          oldId, newId, securityProvider, principal,
@@ -1993,8 +1994,20 @@ public class SecurityService {
     * fire in practice: {@code IdentityMerge.mergeOrganization} always re-includes each quota key's
     * current value into the caller's list first, per this bug's own confirmed human decision to NOT
     * replicate that clear-on-omission behavior for that path.)
+    * <p>
+    * When {@code replace} is true (organization update), the list is the organization's complete
+    * property set: every stored {@code inetsoft.org.<orgId>.} key that is not in the list is also
+    * removed (Bug #79214). The removal scans the same key set {@link #readOrganizationProperties}
+    * reads, so a property the caller can see can always be removed, and it never touches another
+    * organization's keys. When {@code replace} is false (organization create) the list is only
+    * written; nothing is removed.
+    *
+    * @param orgId      the organization id.
+    * @param properties the properties, or {@code null} to leave the existing ones untouched.
+    * @param replace    true to remove stored properties that are not in the list.
     */
-   private void applyOrganizationProperties(String orgId, List<PropertyModel> properties)
+   private void applyOrganizationProperties(String orgId, List<PropertyModel> properties,
+                                            boolean replace)
       throws Exception
    {
       if(properties == null) {
@@ -2024,6 +2037,28 @@ public class SecurityService {
             if(SreeEnv.getProperty(key, false, true) != null && !deduped.containsKey(key)) {
                SreeEnv.setProperty(key, null, true);
                saveProperties = true;
+            }
+         }
+
+         if(replace) {
+            String orgPrefix = "inetsoft.org." + orgId.toLowerCase() + ".";
+            // stored names are case-normalized on write, so match the supplied names both as given
+            // and lowercased
+            Set<String> keep = new HashSet<>();
+
+            for(String name : deduped.keySet()) {
+               keep.add(name);
+               keep.add(name.toLowerCase());
+            }
+
+            // snapshot the keys first: SreeEnv.remove() mutates the live property set
+            for(String fullKey : new ArrayList<>(SreeEnv.getProperties().stringPropertyNames())) {
+               if(fullKey.startsWith(orgPrefix) &&
+                  !keep.contains(fullKey.substring(orgPrefix.length())))
+               {
+                  SreeEnv.remove(fullKey);
+                  saveProperties = true;
+               }
             }
          }
 

@@ -545,7 +545,12 @@ class IdentityChangesetApplyServiceTest {
    {
       SecurityOrganization before = existingOrganization("org1");
       before.setProperties(List.of(PropertyModel.builder().name("max.row.count").value("1000").build()));
-      when(securityService.getOrganization(eq("org1"), eq(user))).thenReturn(before);
+      SecurityOrganization after = existingOrganization("org1");
+      after.setProperties(List.of(PropertyModel.builder().name("max.row.count").value("1000").build(),
+                                  PropertyModel.builder().name("other").value("y").build()));
+      // reads return the pre-update state until updateOrganization runs, then the post-update state
+      // (Bug #79214)
+      returnAfterUpdateOrganization(before, after);
 
       IdentitySpec spec = new IdentitySpec();
       // Caller updates an unrelated property, never mentions max.row.count.
@@ -559,6 +564,64 @@ class IdentityChangesetApplyServiceTest {
          req.getProperties().stream().anyMatch(p -> "max.row.count".equals(p.name()) && "1000".equals(p.value())) &&
          req.getProperties().stream().anyMatch(p -> "other".equals(p.name()) && "y".equals(p.value()))
       ), eq(user));
+   }
+
+   // Bug #79214: the apply verifier compared existence only, so an update whose written properties
+   // differ from the merged ones (here a stale key that survived the write) was reported verified.
+   @Test void updateOrganizationWithSurvivingStalePropertyIsNotVerified() throws Exception {
+      SecurityOrganization before = existingOrganization("org1");
+      before.setProperties(List.of(PropertyModel.builder().name("qa.prop.old").value("old").build()));
+      SecurityOrganization after = existingOrganization("org1");
+      after.setProperties(List.of(PropertyModel.builder().name("qa.prop.old").value("old").build(),
+                                  PropertyModel.builder().name("qa.prop.new").value("new").build()));
+      returnAfterUpdateOrganization(before, after);
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setProperties(List.of(PropertyModel.builder().name("qa.prop.new").value("new").build()));
+
+      var result = service.apply(applyRequest("update org1", updateOrganization("org1", spec)), user);
+
+      assertEquals(AdminChangeRecordStatus.FAILED, statusOf(result.results().get(0).status()));
+      assertNotEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+   }
+
+   // Bug #79214: an id rename combined with a properties update is verified at the NEW id against
+   // the merged properties (SecurityService is mocked here; the writer's own prefix is covered by
+   // SecurityServiceTest.updateOrganization_idRenameWithProperties_replacesUnderTheNewId).
+   @Test void updateOrganizationRenameWithPropertiesVerifiesPropertiesAtTheNewId() throws Exception {
+      SecurityOrganization before = existingOrganization("org1");
+      before.setProperties(List.of(PropertyModel.builder().name("qa.prop.old").value("old").build()));
+      SecurityOrganization after = existingOrganization("org2");
+      after.setProperties(List.of(PropertyModel.builder().name("qa.prop.new").value("new").build()));
+      when(securityService.getOrganization(eq("org1"), eq(user))).thenReturn(before);
+      when(securityService.getOrganization(eq("org2"), eq(user))).thenReturn(after);
+      when(securityService.getOrganizations(eq(user))).thenReturn(organizationList("org1"));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setId("org2");
+      spec.setProperties(List.of(PropertyModel.builder().name("qa.prop.new").value("new").build()));
+
+      var result = service.apply(applyRequest("rename org1", updateOrganization("org1", spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(securityService).updateOrganization(eq("org1"), argThat(req ->
+         "org2".equals(req.getId()) && req.getProperties().size() == 1 &&
+         "qa.prop.new".equals(req.getProperties().get(0).name())), eq(user));
+   }
+
+   @Test void updateOrganizationReplacingPropertiesIsVerifiedWhenStoredSetMatches() throws Exception {
+      SecurityOrganization before = existingOrganization("org1");
+      before.setProperties(List.of(PropertyModel.builder().name("qa.prop.old").value("old").build()));
+      SecurityOrganization after = existingOrganization("org1");
+      after.setProperties(List.of(PropertyModel.builder().name("QA.prop.new").value("new").build()));
+      returnAfterUpdateOrganization(before, after);
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setProperties(List.of(PropertyModel.builder().name("qa.prop.new").value("new").build()));
+
+      var result = service.apply(applyRequest("update org1", updateOrganization("org1", spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
    }
 
    @Test void rollsBackAnEarlierUpdateRenameWhenALaterEntryFails() throws Exception {
@@ -1405,6 +1468,16 @@ class IdentityChangesetApplyServiceTest {
       r.setAssignedGroups(List.of());
       r.setInheritedRoles(List.of());
       return r;
+   }
+
+   private void returnAfterUpdateOrganization(SecurityOrganization before, SecurityOrganization after)
+      throws Exception
+   {
+      java.util.concurrent.atomic.AtomicBoolean updated = new java.util.concurrent.atomic.AtomicBoolean();
+      doAnswer(inv -> { updated.set(true); return null; })
+         .when(securityService).updateOrganization(anyString(), any(), any());
+      when(securityService.getOrganization(eq("org1"), eq(user)))
+         .thenAnswer(inv -> updated.get() ? after : before);
    }
 
    private static SecurityOrganization existingOrganization(String id) {
