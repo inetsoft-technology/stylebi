@@ -18,6 +18,7 @@
 package inetsoft.test.dc;
 
 import inetsoft.mv.MVManager;
+import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.*;
@@ -30,6 +31,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
@@ -37,6 +39,7 @@ import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.script.graal.pool.PoolConfig;
@@ -260,6 +263,54 @@ public final class DcInMemoryViewsheetFixture {
       vs.addAssembly(chart);
 
       return sheet.box().getVGraphPair(CHART);
+   }
+
+   /**
+    * The data of a crosstab with the date at {@code dateLevel} and the Sum of the value column,
+    * under a Date Comparison. With the date on the rows the first row is the header and each
+    * other row is a period and part: the period date, the part columns, the value; on the
+    * columns the same records run down the columns.
+    *
+    * @param name   the name of the assembly to add to the sheet.
+    * @param onRows whether the date is on the rows; on the columns otherwise.
+    * @param totals whether the date shows a subtotal of its parts and the totals are computed
+    *               with the Trend and Comparison (Compute Trend and Comparison for Totals).
+    */
+   public TableLens crosstab(Sheet sheet, String name, DateComparisonInfo dc, String dateColumn,
+                             String valueColumn, int dateLevel, boolean onRows, boolean totals)
+      throws Exception
+   {
+      Viewsheet vs = sheet.vs();
+      CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, name);
+      crosstab.setSourceInfo((SourceInfo) sheet.source().clone());
+      ColumnRef date = new ColumnRef(new AttributeRef(null, dateColumn));
+      date.setDataType(XSchema.DATE);
+      VSDimensionRef dim = new VSDimensionRef();
+      dim.setDataRef(date);
+      dim.setGroupColumnValue(dateColumn);
+      dim.setDataType(XSchema.DATE);
+      dim.setDateLevelValue(dateLevel + "");
+      VSAggregateRef agg = new VSAggregateRef();
+      agg.setColumnValue(valueColumn);
+      agg.setFormulaValue("Sum");
+
+      if(onRows) {
+         crosstab.getVSCrosstabInfo().setDesignRowHeaders(new DataRef[] { dim });
+      }
+      else {
+         crosstab.getVSCrosstabInfo().setDesignColHeaders(new DataRef[] { dim });
+      }
+
+      crosstab.getVSCrosstabInfo().setDesignAggregates(new DataRef[] { agg });
+      dim.setSubTotalVisibleValue(totals ? "true" : "false");
+      crosstab.getVSCrosstabInfo().setCalculateTotalValue(totals);
+      ((CrosstabVSAssemblyInfo) crosstab.getVSAssemblyInfo()).setDateComparisonInfo(dc);
+      vs.addAssembly(crosstab);
+      // the crosstab's data is a TableLens; it is read to its end, as the viewer scrolls
+      TableLens data = (TableLens) sheet.box().getData(name);
+      data.moreRows(Integer.MAX_VALUE);
+
+      return data;
    }
 
    /** The chart over one row per day with a Paid of 1, the date on X at year level. */

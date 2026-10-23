@@ -22,6 +22,7 @@ import inetsoft.report.composition.graph.calc.ValueOfCalc;
 import inetsoft.report.filter.ConditionGroup;
 import inetsoft.test.*;
 import inetsoft.test.dc.DcDays;
+import inetsoft.test.dc.DcKnownGaps;
 import inetsoft.test.dc.DcModel;
 import inetsoft.test.dc.DcPeriods;
 import inetsoft.test.dc.DcShape;
@@ -76,7 +77,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class DateComparisonRangeMatrixTest {
    private static final String SHAPES_SNAPSHOT = "inetsoft/uql/viewsheet/internal/dc-matrix/dc-shapes.txt";
    private static final String[] WEEK_STARTS = { "sunday", "monday" };
@@ -178,7 +179,7 @@ class DateComparisonRangeMatrixTest {
                         continue;
                      }
 
-                     if(knownGap(shape, weekStart, end, inclusive, change)) {
+                     if(DcKnownGaps.knownGap(shape, weekStart, end, inclusive, change)) {
                         continue;
                      }
 
@@ -198,16 +199,9 @@ class DateComparisonRangeMatrixTest {
                            return null;
                         }
 
-                        Set<LocalDate> missing = new TreeSet<>(model);
-                        missing.removeAll(kept);
-                        Set<LocalDate> extra = new TreeSet<>(kept);
-                        extra.removeAll(model);
-
-                        return shape + " " + weekStart + " end=" + end + (inclusive ? " incl" : "") +
-                           (change ? " change" : "") + ": missing " + missing.size() +
-                           (missing.isEmpty() ? "" : " from " + ((TreeSet<LocalDate>) missing).first()) +
-                           ", extra " + extra.size() +
-                           (extra.isEmpty() ? "" : " from " + ((TreeSet<LocalDate>) extra).first());
+                        return shape + " " + weekStart + " end=" + end +
+                           (inclusive ? " incl" : "") + (change ? " change" : "") + ": " +
+                           DcModel.difference(model, kept);
                      });
 
                      if(message == null) {
@@ -226,31 +220,6 @@ class DateComparisonRangeMatrixTest {
       assertTrue(mismatches.isEmpty(),
                  mismatches.size() + " of " + (checked + mismatches.size()) + " differ, first:\n" +
                  String.join("\n", mismatches.subList(0, Math.min(40, mismatches.size()))));
-   }
-
-   /**
-    * Combinations where the product differs from the wording of the dialog and the difference is
-    * a finding of Bug #79061, so the model test leaves them out until it is decided:
-    * <ul>
-    *   <li>finding 2: Same Day by Week, End Date Saturday 2021-01-02, current period included;</li>
-    *   <li>finding 7: a week that starts in a period and ends in the next one loses its days
-    *   there. Same Day by Week of a Year, Quarter or Month period drops the weekday when it
-    *   falls in the next period; Week to Date / Same Week of a quarter drops a whole week whose
-    *   to-date part crosses the quarter end (Change at 2021-01-02, Monday weeks).</li>
-    * </ul>
-    */
-   private static boolean knownGap(DcShape shape, String weekStart, String end, boolean inclusive,
-                                   boolean change)
-   {
-      boolean sameDayByWeek = shape.intervalUnit() == XConstants.DAY_DATE_GROUP &&
-         shape.contextLevel() == XConstants.WEEK_DATE_GROUP;
-
-      return sameDayByWeek && "2021-01-02".equals(end) && inclusive ||
-         sameDayByWeek && shape.periodLevel() != XConstants.WEEK_DATE_GROUP ||
-         shape.periodLevel() == XConstants.YEAR_DATE_GROUP &&
-            shape.intervalUnit() == XConstants.WEEK_DATE_GROUP &&
-            shape.contextLevel() == XConstants.QUARTER_DATE_GROUP &&
-            "monday".equals(weekStart) && "2021-01-02".equals(end) && change;
    }
 
    /**
