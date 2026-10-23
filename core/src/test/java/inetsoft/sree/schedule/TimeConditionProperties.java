@@ -119,9 +119,8 @@ public final class TimeConditionProperties {
 
    /**
     * An hour, minute or second outside its range, which no layer refuses: it can repeat a fire,
-    * and writing the XML changes it (see the note on Bug #79056, whose fix bounded the walks
-    * but kept these values). Skipped so that the fuzzer looks for other defects; remove this
-    * check when such values are refused.
+    * and writing the XML changes it (Bug #79236). Skipped so that the fuzzer looks for other
+    * defects; remove this check with the fix.
     */
    private static boolean isTimeOutOfRange(TimeCondition condition) {
       return condition.getType() != TimeCondition.AT &&
