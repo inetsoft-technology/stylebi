@@ -208,6 +208,134 @@ public class WorksheetExpressionTableReadTest {
    }
 
    /**
+    * Bug #79066: an unjoined lookup {@code CAT["CNAME? CID==field['CID']"]} correlates each row
+    * of the expression table to its own row of the looked-up table. The lookup read the outer
+    * scope's {@code rowValue} before the condition ran; a table row scope throws for an unknown
+    * name, RangeProcessor took the failed condition as a match, and every row came back.
+    */
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   public void lookupConditionCorrelatesToTheOuterRow(boolean pool) throws Exception {
+      open(pool);
+      Worksheet ws = new Worksheet();
+      lookupCategories(ws);
+      EmbeddedTableAssembly prod = embedded(ws, "PROD", "CID", 3, 1);
+      stringExpression(prod, "byField", "CAT[\"CNAME? CID==field['CID']\"]");
+      stringExpression(prod, "noMatch", "CAT[\"CNAME? CID==field['CID']+1\"]");
+      stringExpression(prod, "dotted", "CAT[\"CNAME? CID==field.CID\"]");
+      box = sandbox(ws, pool);
+
+      List<List<Object>> rows = harness.await(harness.start(() -> read(box, "PROD")).future,
+                                              KNOWN_CAP, "lookup on PROD");
+      assertEquals(4, rows.size());
+      assertEquals(List.of(1, "a", "b", "a"), rows.get(1));
+      assertEquals(List.of(2, "b", "c", "b"), rows.get(2));
+      // the last row matches nothing
+      assertEquals(3, rows.get(3).get(0));
+      assertEquals("c", rows.get(3).get(1));
+      assertNull(rows.get(3).get(2));
+      assertEquals("c", rows.get(3).get(3));
+   }
+
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   public void lookupMatchingSeveralRowsStillFails(boolean pool) throws Exception {
+      open(pool);
+      Worksheet ws = new Worksheet();
+      lookupCategories(ws);
+      stringExpression(embedded(ws, "PROD", "CID", 2, 1), "many",
+                       "CAT[\"CNAME? CID==field['CID'] || CID==3\"]");
+      box = sandbox(ws, pool);
+
+      Exception failure = assertThrows(Exception.class, () -> harness.await(harness.start(
+         () -> read(box, "PROD")).future, KNOWN_CAP, "multi-match lookup"));
+      assertTrue(String.valueOf(failure.getMessage()).contains(
+         "Expression column 'many' returned an array of 2 values"), failure.getMessage());
+   }
+
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   public void lookupWithRowValueAlreadyInTheOuterScope(boolean pool) throws Exception {
+      open(pool);
+      Worksheet ws = new Worksheet();
+      lookupCategories(ws);
+      stringExpression(embedded(ws, "PROD", "CID", 3, 1), "tagged",
+                       "var rowValue = 5; CAT[\"CNAME? CID==field['CID']\"] + rowValue");
+      box = sandbox(ws, pool);
+
+      List<List<Object>> rows = harness.await(harness.start(() -> read(box, "PROD")).future,
+                                              KNOWN_CAP, "lookup with outer rowValue");
+      assertEquals("a5", rows.get(1).get(1));
+      assertEquals("b5", rows.get(2).get(1));
+      assertEquals("c5", rows.get(3).get(1));
+   }
+
+   /**
+    * Bug #79226: a lookup condition whose evaluation genuinely throws -- not merely a
+    * reference to something undefined, which reads as a clean false/no-match (see
+    * {@link #lookupConditionWithNoMatchStillReadsNull}) -- must fail the column loud,
+    * naming the condition and the underlying error, instead of silently selecting every
+    * row of the looked-up table.
+    */
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   public void lookupConditionThatThrowsFailsLoud(boolean pool) throws Exception {
+      open(pool);
+      Worksheet ws = new Worksheet();
+      lookupCategories(ws);
+      stringExpression(embedded(ws, "PROD", "CID", 3, 1), "boom",
+                       "CAT[\"CNAME? CID==field['NOPE'].length\"]");
+      box = sandbox(ws, pool);
+
+      Exception failure = assertThrows(Exception.class, () -> harness.await(harness.start(
+         () -> read(box, "PROD")).future, KNOWN_CAP, "throwing lookup condition"));
+      String message = String.valueOf(failure.getMessage());
+      assertTrue(message.contains("CID==field['NOPE'].length"), message);
+      assertTrue(message.contains("failed to evaluate"), message);
+   }
+
+   /**
+    * Bug #79226: a condition that is well-formed and legitimately matches nothing must
+    * still read {@code null} for that row, with no exception -- strict evaluation only
+    * fails loud on a condition that actually throws, never on one that cleanly evaluates
+    * to false.
+    */
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   public void lookupConditionWithNoMatchStillReadsNull(boolean pool) throws Exception {
+      open(pool);
+      Worksheet ws = new Worksheet();
+      lookupCategories(ws);
+      stringExpression(embedded(ws, "PROD", "CID", 3, 1), "none", "CAT[\"CNAME? CID==999\"]");
+      box = sandbox(ws, pool);
+
+      List<List<Object>> rows = harness.await(harness.start(() -> read(box, "PROD")).future,
+                                              KNOWN_CAP, "legitimately non-matching lookup");
+      assertEquals(4, rows.size());
+      assertNull(rows.get(1).get(1));
+      assertNull(rows.get(2).get(1));
+      assertNull(rows.get(3).get(1));
+   }
+
+   private static void lookupCategories(Worksheet ws) {
+      EmbeddedTableAssembly cat = new EmbeddedTableAssembly(ws, "CAT");
+      Object[][] data = { { "CID", "CNAME" }, { 1, "a" }, { 2, "b" }, { 3, "c" } };
+      cat.setEmbeddedData(new XEmbeddedTable(
+         new String[] { XSchema.INTEGER, XSchema.STRING }, data));
+      ws.addAssembly(cat);
+   }
+
+   private static void stringExpression(EmbeddedTableAssembly table, String name, String script) {
+      ExpressionRef exp = new ExpressionRef(null, name);
+      exp.setExpression(script);
+      ColumnRef column = new ColumnRef(exp);
+      column.setDataType(XSchema.STRING);
+      ColumnSelection columns = table.getColumnSelection(false);
+      columns.addAttribute(column);
+      table.setColumnSelection(columns, false);
+   }
+
+   /**
     * Read {@code name} as the worksheet preview does: a failed query comes back as a design
     * lens carrying its cause, which {@code checkFailedQuery} throws.
     */

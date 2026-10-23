@@ -78,8 +78,11 @@ public class FormulaEvaluator {
          return exec(expr, execScope, strict);
       }
 
-      Object ofield = scope.getMember(subname);
+      // read the outer member only when present: a TableRow outer scope throws for an
+      // unknown id, which would make RangeProcessor treat the lookup condition as failed
+      // and select every row (Bug #79066)
       boolean hadField = scope.hasMember(subname);
+      Object ofield = hadField ? scope.getMember(subname) : null;
 
       try {
          scope.putMember(subname, subscope);

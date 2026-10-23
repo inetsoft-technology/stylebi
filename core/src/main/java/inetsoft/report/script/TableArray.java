@@ -209,6 +209,26 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
             ((NamedCellRange) range).setStrictMissing(true);
          }
 
+         // A lookup condition on a table referenced by name from a script (e.g.
+         // CAT["col? cond"], a worksheet or cube table reference) always evaluates
+         // strictly, independent of whether this table array itself is in
+         // strict-missing mode, so a condition that fails to evaluate fails the column
+         // loud instead of silently selecting every row of the looked-up table
+         // (#79226). A bare, condition-less reference is unaffected, and so is a
+         // condition on a self (non-by-name) array -- e.g. a calc-table data['col?cond']
+         // range, or FormulaFunctions.toArray() -- which keeps today's behavior (strict
+         // only when the owning table array is already a calc table, per the existing
+         // strictMissing check above); tests for that narrower scope already pin down
+         // its own, deliberately non-strict default (Bug #78685).
+         if(isBaseTableReference() && range instanceof NamedCellRange) {
+            NamedCellRange namedRange = (NamedCellRange) range;
+            String condition = namedRange.getCondition();
+
+            if(condition != null && !condition.isEmpty()) {
+               namedRange.setStrictMissing(true);
+            }
+         }
+
          boolean subtable = id.startsWith("*");
          Collection cells = range.getCells(getTable(), subtable);
 
@@ -267,9 +287,10 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
          }
       }
       catch(Exception ex) {
-         // a strict reference to a missing column is the error to report, not a value
-         if(ex instanceof NamedCellRange.MissingColumnException) {
-            throw (NamedCellRange.MissingColumnException) ex;
+         // a strict lookup failure -- a missing column, or a condition that failed to
+         // evaluate -- is the error to report, not a value (#79226)
+         if(ex instanceof NamedCellRange.StrictLookupException) {
+            throw (NamedCellRange.StrictLookupException) ex;
          }
 
          // a stalled table or one whose swap file is lost has no value to return, the failure
