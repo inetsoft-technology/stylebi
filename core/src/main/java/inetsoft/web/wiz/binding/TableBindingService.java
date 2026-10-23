@@ -1787,9 +1787,18 @@ public class TableBindingService {
                "its header cannot be resolved to a cell");
          }
 
-         TableDataPath path = SetTableHeaderAliasHandler.findHeaderPath(lens, ref, target.index());
+         List<TableDataPath> paths;
 
-         if(path == null) {
+         if("aggregates".equals(target.shelf())) {
+            paths = SetTableHeaderAliasHandler.findHeaderPaths(lens, ref, target.index());
+         }
+         else {
+            TableDataPath path =
+               SetTableHeaderAliasHandler.findHeaderPath(lens, ref, target.index());
+            paths = path == null ? List.of() : List.of(path);
+         }
+
+         if(paths.isEmpty()) {
             errors.add(
                "Could not find '" + target.shelf() + "[" + target.index() + "]' on the " +
                "rendered header of '" + crosstab.getAbsoluteName() + "' -- it may not currently " +
@@ -1797,8 +1806,10 @@ public class TableBindingService {
             continue;
          }
 
-         setPaths.add(path);
-         setLabels.add(target.label());
+         for(TableDataPath path : paths) {
+            setPaths.add(path);
+            setLabels.add(target.label());
+         }
       }
 
       if(!errors.isEmpty()) {

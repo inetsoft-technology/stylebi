@@ -28,6 +28,8 @@ import inetsoft.uql.viewsheet.VSFormat;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -212,5 +214,72 @@ class SetTableHeaderAliasHandlerTest {
       when(aggregate.getFullName()).thenReturn("Sum(PAID)");
 
       assertSame(aggHeader, SetTableHeaderAliasHandler.findHeaderPath(lens, aggregate, 0));
+   }
+
+   private static VSAggregateRef revenueAggregate() {
+      VSAggregateRef aggregate = mock(VSAggregateRef.class);
+      when(aggregate.getFullName()).thenReturn("Sum(REVENUE)");
+      return aggregate;
+   }
+
+   /**
+    * Bug #79249: a stacked crosstab (rows Year/Quarter, subtotal on) puts the measure-name cell
+    * of the detail rows, the Year subtotal rows and the grand-total row in the SAME lens column,
+    * each under a different path. A per-column de-duplication would return only the detail path.
+    */
+   @Test
+   void findHeaderPathsReturnsEveryStackedVariantEvenThoughTheyShareOneColumn() {
+      VSTableLens lens = mock(VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(3);
+      when(lens.getColCount()).thenReturn(4);
+      when(lens.getRowCount()).thenReturn(6);
+
+      TableDataPath detail = headerPath("Year", "Quarter", "Sum(REVENUE)");
+      TableDataPath subtotal = headerPath("Year", "Sum(REVENUE)");
+      TableDataPath grand = headerPath("ROW_GRAND_TOTAL", "Sum(REVENUE)");
+      when(lens.getTableDataPath(1, 2)).thenReturn(detail);
+      when(lens.getTableDataPath(2, 2)).thenReturn(detail);
+      when(lens.getTableDataPath(3, 2)).thenReturn(subtotal);
+      when(lens.getTableDataPath(4, 2)).thenReturn(headerPath("Year", "Quarter", "Sum(REVENUE)"));
+      when(lens.getTableDataPath(5, 2)).thenReturn(grand);
+
+      List<TableDataPath> paths =
+         SetTableHeaderAliasHandler.findHeaderPaths(lens, revenueAggregate(), 0);
+
+      assertEquals(List.of(detail, subtotal, grand), paths);
+      assertEquals(detail, SetTableHeaderAliasHandler.findHeaderPath(lens, revenueAggregate(), 0));
+   }
+
+   /** Side-by-side: the column-side variants (column dimension and column grand total). */
+   @Test
+   void findHeaderPathsReturnsTheSideBySideColumnVariants() {
+      VSTableLens lens = mock(VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(2);
+      when(lens.getHeaderColCount()).thenReturn(2);
+      when(lens.getColCount()).thenReturn(5);
+      when(lens.getRowCount()).thenReturn(4);
+
+      TableDataPath region = headerPath("Region", "Sum(REVENUE)");
+      TableDataPath grand = headerPath("COL_GRAND_TOTAL", "Sum(REVENUE)");
+      when(lens.getTableDataPath(1, 1)).thenReturn(region);
+      when(lens.getTableDataPath(1, 2)).thenReturn(headerPath("Region", "Sum(REVENUE)"));
+      when(lens.getTableDataPath(1, 3)).thenReturn(grand);
+
+      assertEquals(List.of(region, grand),
+                   SetTableHeaderAliasHandler.findHeaderPaths(lens, revenueAggregate(), 0));
+   }
+
+   @Test
+   void findHeaderPathsIsEmptyWhenTheMeasureDoesNotRender() {
+      VSTableLens lens = mock(VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(1);
+      when(lens.getRowCount()).thenReturn(1);
+      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Cell [0,0]"));
+
+      assertTrue(SetTableHeaderAliasHandler.findHeaderPaths(lens, revenueAggregate(), 0)
+                    .isEmpty());
    }
 }

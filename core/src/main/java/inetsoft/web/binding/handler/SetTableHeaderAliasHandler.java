@@ -208,6 +208,39 @@ public class SetTableHeaderAliasHandler {
       return distinct;
    }
 
+   /**
+    * Every distinct {@code TableDataPath} under which {@code dataRef}'s header renders, in scan
+    * order (element 0 is {@link #findHeaderPath}'s own result). De-duplicated by path equality,
+    * not by lens column: a stacked crosstab puts the detail, each subtotal level and the grand
+    * total measure-name cells in one column, each under a different path, and all of them must
+    * carry a rename.
+    */
+   public static List<TableDataPath> findHeaderPaths(VSTableLens lens, DataRef dataRef,
+                                                     int colIndex)
+   {
+      int headerRows = lens.getHeaderRowCount();
+      int headerCols = lens.getHeaderColCount();
+      int colCount = lens.getColCount();
+      int rowCount = lens.getRowCount();
+      List<HeaderCell> found = new ArrayList<>();
+
+      int rowArmColBound = colCount < 0 ? headerCols : colCount;
+      collectHeaderRegion(lens, dataRef, colIndex, 0, headerRows, 0, rowArmColBound, found);
+      int colArmRowBound = rowCount < 0 ? headerRows : rowCount;
+      collectHeaderRegion(lens, dataRef, colIndex, headerRows, colArmRowBound, 0, headerCols,
+                          found);
+
+      List<TableDataPath> paths = new ArrayList<>();
+
+      for(HeaderCell cell : found) {
+         if(!paths.contains(cell.path())) {
+            paths.add(cell.path());
+         }
+      }
+
+      return paths;
+   }
+
    private static void collectHeaderRegion(VSTableLens lens, DataRef dataRef, int colIndex,
                                            int rowStart, int rowEnd, int colStart, int colEnd,
                                            List<HeaderCell> out)
