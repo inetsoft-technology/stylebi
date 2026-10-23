@@ -2489,6 +2489,112 @@ class SecurityServiceTest {
       sreeEnvStatic.verify(() -> SreeEnv.setProperty("max.row.count", null, true));
    }
 
+   // ── updateOrganization properties replace semantics (Bug #79214) ────────
+
+   private void stubUpdatableOrganization(String orgId, String orgName) throws Exception {
+      FSOrganization oldOrganization = new FSOrganization(orgId);
+      oldOrganization.setName(orgName);
+      when(securityProvider.getOrganization(orgId)).thenReturn(oldOrganization);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+                                            orgId, ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getOrganization(orgId)).thenReturn(oldOrganization);
+      when(editableProvider.getOrgIdFromName(orgName)).thenReturn(orgId);
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+   }
+
+   @Test
+   void updateOrganization_removesStoredPropertiesNotInTheList() throws Exception {
+      String orgId = "Org-Xyz";
+      String orgName = "Xyz Organization";
+      stubUpdatableOrganization(orgId, orgName);
+      String prefix = "inetsoft.org." + orgId.toLowerCase() + ".";
+      Properties raw = new Properties();
+      raw.setProperty(prefix + "qa.prop.old", "old");
+      raw.setProperty(prefix + "max.user.count", "7");
+      raw.setProperty(prefix + "qa.prop.kept", "k");
+      raw.setProperty("inetsoft.org.other-org.qa.prop.old", "theirs");
+      raw.setProperty("global.key", "g");
+      sreeEnvStatic.when(SreeEnv::getProperties).thenReturn(raw);
+
+      SecurityOrganization request = new SecurityOrganization();
+      request.setId(orgId);
+      request.setName(orgName);
+      request.setProperties(List.of(
+         PropertyModel.builder().name("qa.prop.new").value("new").build(),
+         PropertyModel.builder().name("max.user.count").value("7").build(),
+         PropertyModel.builder().name("QA.Prop.Kept").value("k2").build()));
+
+      service.updateOrganization(orgId, request, principal);
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("qa.prop.new", "new", true));
+      sreeEnvStatic.verify(() -> SreeEnv.remove(prefix + "qa.prop.old"));
+      // listed keys (including a case variant of a stored one) and quota keys in the list stay
+      sreeEnvStatic.verify(() -> SreeEnv.remove(prefix + "max.user.count"), never());
+      sreeEnvStatic.verify(() -> SreeEnv.remove(prefix + "qa.prop.kept"), never());
+      // another organization's keys and global keys are never touched
+      sreeEnvStatic.verify(() -> SreeEnv.remove("inetsoft.org.other-org.qa.prop.old"), never());
+      sreeEnvStatic.verify(() -> SreeEnv.remove("global.key"), never());
+      sreeEnvStatic.verify(SreeEnv::save);
+   }
+
+   @Test
+   void updateOrganization_emptyListRemovesEveryStoredOrganizationProperty() throws Exception {
+      String orgId = "org-xyz";
+      String orgName = "Xyz Organization";
+      stubUpdatableOrganization(orgId, orgName);
+      String prefix = "inetsoft.org." + orgId + ".";
+      Properties raw = new Properties();
+      raw.setProperty(prefix + "qa.prop.old", "old");
+      raw.setProperty(prefix + "max.user.count", "7");
+      sreeEnvStatic.when(SreeEnv::getProperties).thenReturn(raw);
+
+      SecurityOrganization request = new SecurityOrganization();
+      request.setId(orgId);
+      request.setName(orgName);
+      request.setProperties(new ArrayList<>());
+
+      service.updateOrganization(orgId, request, principal);
+
+      sreeEnvStatic.verify(() -> SreeEnv.remove(prefix + "qa.prop.old"));
+      sreeEnvStatic.verify(() -> SreeEnv.remove(prefix + "max.user.count"));
+   }
+
+   @Test
+   void updateOrganization_nullPropertiesLeavesStoredPropertiesUntouched() throws Exception {
+      String orgId = "org-xyz";
+      String orgName = "Xyz Organization";
+      stubUpdatableOrganization(orgId, orgName);
+      Properties raw = new Properties();
+      raw.setProperty("inetsoft.org." + orgId + ".qa.prop.old", "old");
+      sreeEnvStatic.when(SreeEnv::getProperties).thenReturn(raw);
+
+      SecurityOrganization request = new SecurityOrganization();
+      request.setId(orgId);
+      request.setName(orgName);
+
+      service.updateOrganization(orgId, request, principal);
+
+      sreeEnvStatic.verify(() -> SreeEnv.remove(anyString()), never());
+   }
+
+   @Test
+   void createOrganization_doesNotRemoveStoredProperties() throws Exception {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      Properties raw = new Properties();
+      raw.setProperty("inetsoft.org.neworg-id.leftover", "x");
+      sreeEnvStatic.when(SreeEnv::getProperties).thenReturn(raw);
+
+      SecurityOrganization request = new SecurityOrganization();
+      request.setId("neworg-id");
+      request.setName("New Organization");
+      request.setProperties(List.of(PropertyModel.builder().name("custom.key").value("v").build()));
+
+      service.createOrganization(request, null, principal);
+
+      sreeEnvStatic.verify(() -> SreeEnv.remove(anyString()), never());
+   }
+
    @Test
    void getOrganization_readsPropertiesBackFromSreeEnv() throws Exception {
       String orgId = "org-xyz";

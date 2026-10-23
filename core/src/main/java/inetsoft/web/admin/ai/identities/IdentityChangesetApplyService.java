@@ -858,19 +858,52 @@ public class IdentityChangesetApplyService {
 
       String afterId = merged.getId();
       SecurityOrganization after = tryGet(() -> securityService.getOrganization(afterId, user));
-      boolean verified = after != null;
+      boolean found = after != null;
+      // the written properties must equal the merged (expected) ones, not merely exist (Bug #79214)
+      boolean propertiesMatch = found && organizationPropertiesMatch(merged, after);
+      boolean verified = found && propertiesMatch;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       String afterProjection =
-         verified ? IdentityProjection.projectOrganization(after, afterId) : null;
-      results.add(new IdentityApplyOutcome(key, beforeProjection, afterProjection, status,
-                                           verified ? null : "organization not found after update",
+         found ? IdentityProjection.projectOrganization(after, afterId) : null;
+      String error = verified ? null :
+         found ? "organization properties do not match the requested properties after update" :
+         "organization not found after update";
+      results.add(new IdentityApplyOutcome(key, beforeProjection, afterProjection, status, error,
                                            null));
       writeAudit(txId, task, key, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
                 beforeProjection, afterProjection, status, backupRef, reviewOutcome, user);
 
-      if(verified) {
+      // the organization was changed even when its properties did not match, so it stays undoable
+      if(found) {
          undoable.add(Undo.updatedOrganization(key, organizationId, afterId, before));
       }
+   }
+
+   /**
+    * True if the organization's stored properties equal the expected (merged) ones as a
+    * name -> value map. A {@code null} expected list means "not specified" and always matches.
+    * Names compare case-insensitively because the property store normalizes names on write.
+    */
+   static boolean organizationPropertiesMatch(SecurityOrganization expected,
+                                              SecurityOrganization actual)
+   {
+      if(expected.getProperties() == null) {
+         return true;
+      }
+
+      return propertyMap(expected.getProperties()).equals(propertyMap(actual.getProperties()));
+   }
+
+   private static Map<String, String> propertyMap(List<PropertyModel> properties) {
+      Map<String, String> map = new HashMap<>();
+
+      if(properties != null) {
+         for(PropertyModel property : properties) {
+            map.put(property.name().toLowerCase(), property.value());
+         }
+      }
+
+      return map;
    }
 
    // ---------------------------------------------------------------- rollback
