@@ -65,9 +65,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Supplier;
 
 /**
@@ -2858,8 +2861,11 @@ public class WorksheetEditService {
        * {@code EquiJoinService.setEquiJoin}, so non-equi operators (&gt;, &lt;, !=) of the pair
        * are preserved. A pair holding only non-equi operators is refused. New keys replace the
        * WHOLE key list of the pair: {@code leftKey}/{@code rightKey} with a selector leave one
-       * key; {@code leftKeys}/{@code rightKeys} set the list. Key changes also replace the
-       * pair's non-equi operators. Other pairs are never rewritten.</p>
+       * key; {@code leftKeys}/{@code rightKeys} set the list (both given, same length; a
+       * half-supplied key is refused). A key change also DROPS the pair's non-equi operators.
+       * With a selector and no {@code joinType} the edge keeps its stored type; without a
+       * selector (one-edge join) a missing {@code joinType} means INNER. Other pairs are never
+       * rewritten. {@code joinType} MERGE is refused.</p>
        *
        * <p>A CROSS pair can only be re-keyed (new keys, which turn it into a keyed join);
        * without keys it is refused, so this op never yields a key-less INNER. {@code CROSS} on a
@@ -2907,6 +2913,23 @@ public class WorksheetEditService {
             throw new PairingException("Join assembly has no operators: " + name);
          }
 
+         // A half-supplied key must not be ignored, and mismatched lists must not store a pair
+         // with fewer keys (or none) than the caller meant; both end in a wrong row set.
+         boolean leftList = leftKeys != null && !leftKeys.isEmpty();
+         boolean rightList = rightKeys != null && !rightKeys.isEmpty();
+
+         if(leftList != rightList || (leftList && leftKeys.size() != rightKeys.size())) {
+            throw new PairingException(
+               "leftKeys and rightKeys must both be given, non-empty and the same length (got " +
+               (leftKeys == null ? 0 : leftKeys.size()) + " and " +
+               (rightKeys == null ? 0 : rightKeys.size()) + ").");
+         }
+
+         if(!leftList && (leftKey == null) != (rightKey == null)) {
+            throw new PairingException(
+               "Pass both leftKey and rightKey to set a key, or neither to keep the keys.");
+         }
+
          boolean selector = edgeLeft != null || edgeRight != null;
          JoinEdge edge;
 
@@ -2930,6 +2953,22 @@ public class WorksheetEditService {
          }
 
          int operation = parseJoinType(joinType);
+
+         if(selector && (joinType == null || joinType.isBlank())) {
+            // an edit of a named edge that does not mention the type keeps the stored one
+            // (stored orientation, so mirror it back into the caller's terms)
+            int keep = TableAssemblyOperator.INNER_JOIN;
+
+            for(TableAssemblyOperator.Operator op : stored.getOperators()) {
+               if(op.isEqualJoin()) {
+                  keep = op.getOperation();
+                  break;
+               }
+            }
+
+            operation = edge.reversed() ? mirrorJoinOperation(keep) : keep;
+         }
+
          boolean cross = operation == TableAssemblyOperator.CROSS_JOIN;
          String label = edge.label();
 
@@ -2954,7 +2993,7 @@ public class WorksheetEditService {
          }
 
          boolean storedCross = stored.getOperator(0).isCrossJoin();
-         boolean listKeys = leftKeys != null && rightKeys != null && !leftKeys.isEmpty();
+         boolean listKeys = leftList;
          boolean newKeys = listKeys || (leftKey != null && rightKey != null);
 
          // The pair is stored as (edge.left, edge.right); the caller's join type and key sides are
@@ -3424,7 +3463,7 @@ public class WorksheetEditService {
 
       /** Connected components of {@code tables} linked by {@code edges}, each sorted. */
       private static List<List<String>> joinComponents(String[] tables, List<String[]> edges) {
-         java.util.Map<String, String> parent = new java.util.HashMap<>();
+         Map<String, String> parent = new HashMap<>();
 
          for(String t : tables) {
             parent.put(t, t);
@@ -3436,7 +3475,7 @@ public class WorksheetEditService {
             parent.put(rootOf(parent, e[0]), rootOf(parent, e[1]));
          }
 
-         java.util.Map<String, List<String>> groups = new java.util.TreeMap<>();
+         Map<String, List<String>> groups = new TreeMap<>();
 
          for(String t : parent.keySet()) {
             groups.computeIfAbsent(rootOf(parent, t), k -> new ArrayList<>()).add(t);
@@ -3447,7 +3486,7 @@ public class WorksheetEditService {
          return result;
       }
 
-      private static String rootOf(java.util.Map<String, String> parent, String t) {
+      private static String rootOf(Map<String, String> parent, String t) {
          while(!parent.get(t).equals(t)) {
             t = parent.get(t);
          }

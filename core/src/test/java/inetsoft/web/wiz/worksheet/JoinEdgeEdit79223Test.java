@@ -35,7 +35,10 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -353,6 +356,163 @@ class JoinEdgeEdit79223Test {
 
    @Test
    void aJoinHoldingACrossPairStillAllowsAnUnrelatedEdgeRemoval() throws Exception {
+      Worksheet ws = crossHeldJoin();
+      List<String> before = readback(ws, "J");
+      assertTrue(before.contains("B->C [" + TableAssemblyOperator.CROSS_JOIN + ":null=null]"),
+                 before.toString());
+
+      edit(ws, ed -> ed.removeJoinEdge("J", "B", "D", null, null));
+
+      List<String> after = readback(ws, "J");
+      assertTrue(after.contains("A->B [3:a1=b1]"), after.toString());
+      assertTrue(after.contains("A->D [3:a2=d2]"), after.toString());
+      assertTrue(after.stream().anyMatch(s -> s.startsWith("B->C [" +
+                                                           TableAssemblyOperator.CROSS_JOIN)),
+                 after.toString());
+      assertTrue(after.stream().noneMatch(s -> s.startsWith("B->D")), after.toString());
+
+      // dropping A-D as well would strand D: three components instead of the two it has now
+      PairingException ex = assertThrows(PairingException.class, () -> edit(ws,
+         ed -> ed.removeJoinEdge("J", "A", "D", null, null)));
+      assertTrue(ex.getMessage().contains("disconnect"), ex.getMessage());
+   }
+
+   @Test
+   void removingAnEdgeOfAMissingJoinIsRefused() throws Exception {
+      Worksheet ws = new Worksheet();
+
+      assertThrows(PairingException.class, () -> edit(ws,
+         ed -> ed.removeJoinEdge("NOPE", "A", "B", null, null)));
+   }
+
+   @Test
+   void aMergeJoinHasNoEdgesToRemoveOrEdit() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "A", "a1"));
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "B", "b1"));
+      edit(ws, ed -> ed.addMergeJoin("MJ", new String[] { "A", "B" }));
+
+      PairingException remove = assertThrows(PairingException.class, () -> edit(ws,
+         ed -> ed.removeJoinEdge("MJ", "A", "B", null, null)));
+      assertTrue(remove.getMessage().contains("MERGE"), remove.getMessage());
+      assertThrows(PairingException.class, () -> edit(ws,
+         ed -> ed.editJoin("MJ", null, null, "LEFT", null, null, "A", "B")));
+   }
+
+   @Test
+   void joinTypeMergeIsRefusedOnARelationalJoin() throws Exception {
+      Worksheet ws = chainWithMirror();
+
+      PairingException ex = assertThrows(PairingException.class, () -> edit(ws,
+         ed -> ed.editJoin("J", null, null, "MERGE", null, null, "A", "B")));
+
+      assertTrue(ex.getMessage().contains("MERGE"), ex.getMessage());
+      assertEquals(List.of("A->B [3:a1=b1, 3:a2=b2]", "B->C [3:bc=c1]"), readback(ws, "J"));
+   }
+
+   // ------------------------------------------------------------------ key arguments, kept type
+
+   @Test
+   void emptyUnequalOrHalfSuppliedKeysAreRefusedAndChangeNothing() throws Exception {
+      Worksheet ws = chainWithMirror();
+      List<String> before = readback(ws, "J");
+
+      assertThrows(PairingException.class, () -> edit(ws, ed -> ed.editJoin(
+         "J", null, null, "INNER", List.of("a1"), List.of(), "A", "B")));
+      assertThrows(PairingException.class, () -> edit(ws, ed -> ed.editJoin(
+         "J", null, null, "INNER", List.of(), List.of("b1"), "A", "B")));
+      assertThrows(PairingException.class, () -> edit(ws, ed -> ed.editJoin(
+         "J", null, null, "INNER", List.of("a1", "a2"), List.of("b1"), "A", "B")));
+      assertThrows(PairingException.class, () -> edit(ws, ed -> ed.editJoin(
+         "J", "a1", null, "LEFT", null, null, "A", "B")));
+      assertThrows(PairingException.class, () -> edit(ws, ed -> ed.editJoin(
+         "J", null, "b1", "LEFT", null, null, "A", "B")));
+
+      assertEquals(before, readback(ws, "J"));
+      assertMirrorAttached(ws, "J");
+   }
+
+   @Test
+   void aKeysOnlyEditWithASelectorKeepsTheEdgesType() throws Exception {
+      Worksheet ws = chainWithMirror();
+      edit(ws, ed -> ed.editJoin("J", null, null, "LEFT", null, null, "B", "C"));
+      assertEquals("B->C [7:bc=c1]", readback(ws, "J").get(1));
+
+      // forward: no joinType, the LEFT edge stays LEFT
+      edit(ws, ed -> ed.editJoin("J", "bc", "c2", null, null, null, "B", "C"));
+      assertEquals(List.of("A->B [3:a1=b1, 3:a2=b2]", "B->C [7:bc=c2]"), readback(ws, "J"));
+
+      // reversed: the caller names (C, B); the stored B LEFT C stays LEFT
+      edit(ws, ed -> ed.editJoin("J", "c1", "bc", "  ", null, null, "C", "B"));
+      assertEquals(List.of("A->B [3:a1=b1, 3:a2=b2]", "B->C [7:bc=c1]"), readback(ws, "J"));
+
+      // no joinType and no keys: nothing to change
+      PairingException ex = assertThrows(PairingException.class, () -> edit(ws,
+         ed -> ed.editJoin("J", null, null, null, null, null, "B", "C")));
+      assertTrue(ex.getMessage().contains("nothing to change"), ex.getMessage());
+      assertMirrorAttached(ws, "J");
+   }
+
+   @Test
+   void reversedOuterTypeWithKeysIsMirroredInBothKeyForms() throws Exception {
+      Worksheet ws = chainWithMirror();
+
+      // "B LEFT JOIN A" with the list form is stored as A RIGHT B
+      edit(ws, ed -> ed.editJoin("J", null, null, "LEFT", List.of("b1", "b2"),
+                                 List.of("a1", "a2"), "B", "A"));
+      assertEquals("A->B [11:a1=b1, 11:a2=b2]", readback(ws, "J").get(0));
+
+      // single-key form
+      edit(ws, ed -> ed.editJoin("J", "b2", "a2", "LEFT", null, null, "B", "A"));
+      assertEquals(List.of("A->B [11:a2=b2]", "B->C [3:bc=c1]"), readback(ws, "J"));
+   }
+
+   // ------------------------------------------------------------------ failed rewrite
+
+   /**
+    * editExistingJoinTable validates the whole list before it clears the pairs, so no input the
+    * tool accepts reaches a post-clear failure. The failure is injected instead, after the same
+    * clear (every pair removed, which leaves the CROSS the join writes when it empties), to prove
+    * the operators and the CROSS pairs come back as they were.
+    */
+   @Test
+   void aRewriteThatFailsAfterClearingRestoresEveryPairAndTheCrossPairs() throws Exception {
+      Worksheet ws = crossHeldJoin();
+      List<String> before = readback(ws, "J");
+      InnerJoinService failing = spy(new InnerJoinService(null, null));
+      doAnswer(inv -> {
+         RelationalJoinTableAssembly j = inv.getArgument(1);
+         List<String[]> pairs = new ArrayList<>();
+
+         for(Enumeration<?> e = j.getOperatorTables(); e.hasMoreElements(); ) {
+            pairs.add((String[]) e.nextElement());
+         }
+
+         for(String[] p : pairs) {
+            j.removeOperator(p[0], p[1]);
+         }
+
+         throw new inetsoft.util.MessageException("injected failure");
+      }).when(failing).editExistingJoinTable(any(), any(), any(), anyBoolean());
+
+      PairingException ex = assertThrows(PairingException.class, () -> edit(ws, failing,
+         ed -> ed.removeJoinEdge("J", "B", "D", null, null)));
+
+      assertTrue(ex.getMessage().contains("injected failure"), ex.getMessage());
+      assertEquals(before, readback(ws, "J"));
+      assertMirrorAttached(ws, "J");
+   }
+
+   // ------------------------------------------------------------------ fixtures
+
+   private static WorksheetMutationSupport.JoinPathSpec path(String l, String lk, String r,
+                                                              String rk)
+   {
+      return new WorksheetMutationSupport.JoinPathSpec(l, lk, r, rk, "INNER");
+   }
+
+   /** J = triangle A-B, B-D, A-D (all INNER) with C attached to B by a CROSS pair; mirror M. */
+   private Worksheet crossHeldJoin() throws Exception {
       Worksheet ws = new Worksheet();
       for(String[] t : new String[][] {
          { "A", "a1", "a2" }, { "B", "b1", "b2" }, { "C", "c1" }, { "D", "d1", "d2" } })
@@ -375,40 +535,8 @@ class JoinEdgeEdit79223Test {
          (TableAssembly) ws.getAssembly("A"), (TableAssembly) ws.getAssembly("B"),
          (TableAssembly) ws.getAssembly("C"), (TableAssembly) ws.getAssembly("D") });
       j.setOperator("B", "C", cross);
-      List<String> before = readback(ws, "J");
-      assertTrue(before.contains("B->C [" + TableAssemblyOperator.CROSS_JOIN + ":null=null]"),
-                 before.toString());
-
-      edit(ws, ed -> ed.removeJoinEdge("J", "B", "D", null, null));
-
-      List<String> after = readback(ws, "J");
-      assertTrue(after.contains("A->B [3:a1=b1]"), after.toString());
-      assertTrue(after.contains("A->D [3:a2=d2]"), after.toString());
-      assertTrue(after.stream().anyMatch(s -> s.startsWith("B->C [" +
-                                                           TableAssemblyOperator.CROSS_JOIN)),
-                 after.toString());
-      assertTrue(after.stream().noneMatch(s -> s.startsWith("B->D")), after.toString());
-
-      // dropping A-D as well would strand D: three components instead of the two it has now
-      PairingException ex = assertThrows(PairingException.class, () -> edit(ws,
-         ed -> ed.removeJoinEdge("J", "A", "D", null, null)));
-      assertTrue(ex.getMessage().contains("disconnect"), ex.getMessage());
-   }
-
-   @Test
-   void editingAMissingOrMergeJoinIsRefused() throws Exception {
-      Worksheet ws = new Worksheet();
-
-      assertThrows(PairingException.class, () -> edit(ws,
-         ed -> ed.removeJoinEdge("NOPE", "A", "B", null, null)));
-   }
-
-   // ------------------------------------------------------------------ fixtures
-
-   private static WorksheetMutationSupport.JoinPathSpec path(String l, String lk, String r,
-                                                              String rk)
-   {
-      return new WorksheetMutationSupport.JoinPathSpec(l, lk, r, rk, "INNER");
+      edit(ws, ed -> ed.addMirror("M", "J"));
+      return ws;
    }
 
    /** A(a1,a2,ac), B(b1,b2,bc), C(c1,c2); J = A-B on two keys, B-C on one; mirror M of J. */
@@ -455,7 +583,20 @@ class JoinEdgeEdit79223Test {
       service(ws).apply("TOK", agent, body);
    }
 
+   private void edit(Worksheet ws, InnerJoinService innerJoinService,
+                     ThrowingConsumer<WorksheetEditService.Editor> body)
+      throws Exception
+   {
+      service(ws, innerJoinService).apply("TOK", agent, body);
+   }
+
    private WorksheetEditService service(Worksheet ws) throws Exception {
+      return service(ws, new InnerJoinService(null, null));
+   }
+
+   private WorksheetEditService service(Worksheet ws, InnerJoinService innerJoinService)
+      throws Exception
+   {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(
          any(), any(ResourceType.class), any(String.class), any(ResourceAction.class)))
@@ -474,7 +615,7 @@ class JoinEdgeEdit79223Test {
 
       return new WorksheetEditService(sessions, runtimeAccess,
                                       mock(SheetAgentBroadcastService.class), securityEngine,
-                                      new InnerJoinService(null, null));
+                                      innerJoinService);
    }
 
    private static RelationalJoinTableAssembly join(Worksheet ws, String name) {
