@@ -27,6 +27,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.*;
@@ -271,7 +273,10 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
 
                            // the first load on this node replaces nothing, so it is not a reload
                            boolean initial = timestamp == 0L;
-                           timestamp = dataSpace.getLastModified(null, configFile);
+                           // the watermark is the mtime read BEFORE the content, never a later one: a
+                           // second edit that lands while the providers are being created must still
+                           // satisfy timestamp < now on the next dataChanged() (Bug #79267)
+                           timestamp = now;
                            Map<String, String> before =
                               initial ? null : describeProviders(getProviderList());
                            clear();
@@ -410,12 +415,61 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
             providerArray.add(wrapperNode);
          }
 
+         // serialize once, so the digest of the stored blob (MD5 of the bytes written) can be
+         // compared with the digest of exactly the content this node holds
+         byte[] bytes = mapper.writeValueAsBytes(root);
+         String own = toDigestString(bytes);
          DataSpace dataSpace = DataSpace.getDataSpace();
-         dataSpace.withOutputStream(null, configFile, out -> mapper.writeValue(out, root));
-         timestamp = dataSpace.getLastModified(null, configFile);
+         dataSpace.withOutputStream(null, configFile, out -> out.write(bytes));
+
+         // The watermark may only describe content this node holds. Read the mtime FIRST and
+         // the digest SECOND: a remote commit landing before the digest read makes the digest
+         // differ, and one landing after it has a later mtime than the one read here. Reading
+         // the digest first would let a remote commit slip between the two reads and be
+         // skipped for good. If the store holds other content, do not advance: this node's own
+         // event and the remote one reload (an idempotent over-reload, never a skipped commit).
+         long modified = readLastModified(dataSpace, configFile);
+         String stored = readDigest(dataSpace, configFile);
+
+         if(own.equals(stored)) {
+            timestamp = modified;
+         }
       }
       finally {
          lock.unlock();
+      }
+   }
+
+   /**
+    * Reads the modification time of the configuration file. Called before
+    * {@link #readDigest(DataSpace, String)} in {@link #saveConfiguration()}.
+    */
+   long readLastModified(DataSpace dataSpace, String configFile) {
+      return dataSpace.getLastModified(null, configFile);
+   }
+
+   /**
+    * Reads the digest of the configuration file. Called after
+    * {@link #readLastModified(DataSpace, String)} in {@link #saveConfiguration()}.
+    */
+   String readDigest(DataSpace dataSpace, String configFile) {
+      return dataSpace.getDigest(null, configFile);
+   }
+
+   /** Lower-case hex MD5, the encoding of the digest the blob storage keeps. */
+   private static String toDigestString(byte[] bytes) {
+      try {
+         byte[] digest = MessageDigest.getInstance("MD5").digest(bytes);
+         StringBuilder buf = new StringBuilder();
+
+         for(byte b : digest) {
+            buf.append(String.format("%02x", ((int) b) & 0xff));
+         }
+
+         return buf.toString();
+      }
+      catch(NoSuchAlgorithmException e) {
+         throw new IllegalStateException(e);
       }
    }
 
