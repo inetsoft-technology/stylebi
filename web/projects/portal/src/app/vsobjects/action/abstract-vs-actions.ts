@@ -243,8 +243,9 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       // No chrome at all below the control floor — a 24px control with 4px clearance does not fit,
       // and right-click becomes the only route. This is the one rung that removes the kebab.
       //
-      // The lane's own version of this rung — a lane too short to host the strip draws nothing —
-      // is the anchoring mount site's, not this list's: see isAnchoredChromeSuppressed.
+      // A lane too short to host the strip moves the kebab to the corner rather than drawing
+      // nothing; that call is the anchoring mount site's, not this list's: see isCornerKebab and
+      // isAnchoredChromeSuppressed.
       if(modern && this.model.objectFormat.height < ACTION_FLOOR) {
          ToolbarActionsHandler.copyActions([], this.showing);
          return this.showing;
@@ -356,10 +357,10 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    private flattenedMoreActions(): AssemblyActionGroup[] {
       // Seeded with what the strip is already rendering, so the kebab does not repeat buttons
       // sitting an inch from it. The menu carries copies of the toolbar actions by design — that is
-      // what keeps them reachable once a lane too short for the strip suppresses it — but a copy
-      // whose original is on screen is noise. Where no action button renders at all (touch, and the
-      // kebab-only band) showing holds none, nothing is excluded, and the kebab stays the whole
-      // inventory.
+      // what keeps them reachable on a card too short for any chrome, where right-click is the
+      // only route — but a copy whose original is on screen is noise. Where no action button
+      // renders at all (touch, the kebab-only band and the corner kebab) showing holds none,
+      // nothing is excluded, and the kebab stays the whole inventory.
       const seen = new Set<string>(
          this.showing.reduce(
             (ids, group) => ids.concat(group.actions.map(action => action.id())), [] as string[]));
