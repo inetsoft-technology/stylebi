@@ -23,6 +23,8 @@ import inetsoft.sree.schedule.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.MessageException;
+import inetsoft.util.log.LogLevel;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
 import inetsoft.web.viewsheet.model.dialog.schedule.TimeConditionModel;
@@ -174,6 +176,14 @@ public class ScheduleConditionService {
          }
 
          if(timeCondition != null) {
+            // Bug #79236, an hour or minute out of range can repeat a fire of the task
+            try {
+               timeCondition.validateRanges();
+            }
+            catch(IllegalArgumentException e) {
+               throw new MessageException(e.getMessage(), LogLevel.WARN, false);
+            }
+
             timeCondition.setTimeRange(timeRange);
 
             if(timeConditionModel.timeZone() != null) {
