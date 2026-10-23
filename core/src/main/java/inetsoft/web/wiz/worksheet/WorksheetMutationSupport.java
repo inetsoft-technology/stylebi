@@ -41,6 +41,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.PairingException;
+import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -3557,11 +3558,20 @@ public final class WorksheetMutationSupport {
     * a {@code ONE_OF} list combining a literal with a computed expression), the same way the
     * native dialog's multi-value editor allows.
     *
-    * <p>SUBQUERY is intentionally not covered here: it requires resolving a whole second
-    * {@link TableAssembly} as the subquery source, a materially larger mechanism than a single
-    * value conversion -- left for separate work.
+    * <p>Bug #79224: {@code "subquery"} pulls the value(s) from a column of ANOTHER table already
+    * in this worksheet (StyleBI's native "Use a Subquery in a Condition" feature,
+    * {@code SubqueryDialog}/{@link SubQueryValue}) -- a fixed single value or an
+    * {@code ONE_OF}/{@code NOT_ONE_OF} list of every value in {@code table}.
+    * {@code subqueryColumn}/{@code currentColumn} (both-or-neither) additionally correlate the
+    * subquery per current-table row, matching the native dialog's "Subquery column"/"Current
+    * table column" pair. {@code table}/{@code column}/{@code subqueryColumn}/
+    * {@code currentColumn} are Jackson-deserialized directly from the wire request body (see
+    * {@link EditRequest}), so these names are the actual wire contract, not an internal
+    * convenience -- they must stay in sync with {@code worksheetTools.ts}'s own schema and with
+    * {@code WorksheetModel.ValueSpecModel}'s matching fields on the read side.
     *
-    * @param valueType      {@code "field"} or {@code "expression"} (case-insensitive)
+    * @param valueType      {@code "field"}, {@code "expression"}, or {@code "subquery"}
+    *                       (case-insensitive)
     * @param field          the column name to compare against; required when {@code valueType}
     *                       is {@code "field"}, resolved the same way {@code ConditionSpec.field}
     *                       itself is (private selection for pre-aggregate conditions, or
@@ -3571,6 +3581,23 @@ public final class WorksheetMutationSupport {
     * @param expressionType {@code "sql"} or {@code "js"}/{@code "javascript"} (case-insensitive);
     *                       defaults to {@code "sql"} when {@code null}, matching
     *                       {@link ExpressionValue}'s own SQL/JavaScript duality
+    * @param subQueryName   required when {@code valueType} is {@code "subquery"}: the name of
+    *                       another table already in this worksheet to draw the value from. Must
+    *                       not be the table this condition is being set on. Matches
+    *                       {@code WorksheetModel.ValueSpecModel}'s own field of the same name on
+    *                       the read side, so a readback round-trips verbatim.
+    * @param inSubQueryColumn required when {@code valueType} is {@code "subquery"}: the column on
+    *                       {@code subQueryName} whose value(s) become the operand -- the native
+    *                       dialog's "In column".
+    * @param where          row-correlated subquery only -- the native dialog's "Subquery column"
+    *                       (on {@code subQueryName}) and "Current table column" (on THIS
+    *                       condition's own table), matched per current-row against each other.
+    *                       Give both of {@code where}'s fields for a row-correlated subquery, or
+    *                       omit {@code where} entirely for a fixed single value / an
+    *                       {@code ONE_OF}/{@code NOT_ONE_OF} list of every value in
+    *                       {@code inSubQueryColumn}. Reuses {@code WorksheetModel}'s own
+    *                       {@code SubQueryWhereModel} shape so a readback's {@code where} object
+    *                       deserializes straight back into this record.
     * @param index          0-based position within the condition's own {@code values()} list this
     *                       valueSpec REPLACES, mirroring {@code WorksheetModel.ValueSpecModel}'s
     *                       own {@code index} field so a {@code read_worksheet_model}/
@@ -3580,21 +3607,38 @@ public final class WorksheetMutationSupport {
     *                       readback's own lossy {@code values[index]} placeholder text (Bug
     *                       #77003 WSC-002/003) -- see {@link #buildConditionList}'s replace-not-
     *                       append handling. {@code null} (the pre-#77003 default, via the compact
-    *                       constructor below) keeps the original append-only behavior for a
+    *                       constructors below) keeps the original append-only behavior for a
     *                       caller not resubmitting a readback.
     */
    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
    public record ConditionValueSpec(String valueType, String field, String expression,
-                                    String expressionType, Integer index) {
+                                    String expressionType, String subQueryName,
+                                    String inSubQueryColumn,
+                                    WorksheetModel.SubQueryWhereModel where, Integer index) {
       /**
        * Compact form for a caller that isn't resubmitting a {@code values[index]}-indexed
-       * readback -- every pre-#77003 call site (this valueSpec is simply appended, matching the
-       * behavior before {@code index} existed).
+       * readback and isn't using {@code "subquery"} -- every pre-#77003 call site (this
+       * valueSpec is simply appended, matching the behavior before {@code index}/the subquery
+       * fields existed).
        */
       public ConditionValueSpec(String valueType, String field, String expression,
                                 String expressionType)
       {
-         this(valueType, field, expression, expressionType, null);
+         this(valueType, field, expression, expressionType, null, null, null, null);
+      }
+
+      /**
+       * Compatibility form for every pre-#79224 call site that resubmits a {@code values[index]}
+       * readback but predates the subquery fields -- the former 5-component canonical
+       * constructor's own shape ({@code valueType, field, expression, expressionType, index}),
+       * kept as an overload so those call sites (in {@code core} and in {@code
+       * WorksheetReadServiceTest}'s own {@code toConditionNodes} round-trip helper) keep
+       * compiling unchanged.
+       */
+      public ConditionValueSpec(String valueType, String field, String expression,
+                                String expressionType, Integer index)
+      {
+         this(valueType, field, expression, expressionType, null, null, null, index);
       }
    }
 
@@ -3641,14 +3685,105 @@ public final class WorksheetMutationSupport {
             });
             yield expr;
          }
-         case "subquery" -> throw new IllegalArgumentException(
-            "A 'subquery' valueSpec is a read-only marker from read_worksheet_model: a sub " +
-            "query condition value cannot be created or carried by this tool. Remove the " +
-            "valueSpec and its values[] entry from the condition, or recreate the sub query " +
-            "condition in the Composer.");
+         case "subquery" -> {
+            if(spec.subQueryName() == null || spec.subQueryName().isBlank()) {
+               throw new IllegalArgumentException(
+                  "A 'subquery' valueSpec needs a non-blank subQueryName naming another table " +
+                  "in this worksheet.");
+            }
+            if(spec.inSubQueryColumn() == null || spec.inSubQueryColumn().isBlank()) {
+               throw new IllegalArgumentException(
+                  "A 'subquery' valueSpec needs a non-blank inSubQueryColumn naming a column on " +
+                  "that table.");
+            }
+
+            String subCol = spec.where() == null ? null : spec.where().subQueryColumn();
+            String mainCol = spec.where() == null ? null : spec.where().currentTableColumn();
+
+            if((subCol == null) != (mainCol == null)) {
+               throw new IllegalArgumentException(
+                  "A 'subquery' valueSpec's where.subQueryColumn/where.currentTableColumn must " +
+                  "both be given (for a row-correlated subquery) or both omitted (for a fixed " +
+                  "value / In-column list) -- got only one.");
+            }
+            if(t.getName() != null && t.getName().equals(spec.subQueryName())) {
+               throw new IllegalArgumentException(
+                  "A 'subquery' valueSpec's subQueryName cannot be the same table this " +
+                  "condition is set on.");
+            }
+
+            Worksheet ws = t.getWorksheet();
+            Assembly sqAssembly = ws == null ? null : ws.getAssembly(spec.subQueryName());
+
+            if(!(sqAssembly instanceof TableAssembly subqueryTable)) {
+               throw new IllegalArgumentException(
+                  "A 'subquery' valueSpec's subQueryName \"" + spec.subQueryName() +
+                  "\" does not exist as a table in this worksheet.");
+            }
+
+            // resolveFieldOrNull (not a bare ColumnSelection.getAttribute() call) so a
+            // display-aliased target column resolves the same way the "field" valueSpec
+            // precedent already does; it is a pure function of its own (table, field, post)
+            // arguments, so it applies to a foreign table exactly as well as it does to t's own
+            // (an already-shipped precedent for this exact usage exists a few hundred lines
+            // below, in looksLikeUnresolvedFieldReference).
+            DataRef attrRef = resolveFieldOrNull(subqueryTable, spec.inSubQueryColumn(), true);
+
+            if(attrRef == null) {
+               throw new IllegalArgumentException(
+                  "A 'subquery' valueSpec's inSubQueryColumn \"" + spec.inSubQueryColumn() +
+                  "\" does not exist on table \"" + spec.subQueryName() + "\".");
+            }
+
+            SubQueryValue sv = new SubQueryValue();
+            sv.setQuery(spec.subQueryName());
+            sv.setAttribute(attrRef);
+
+            if(subCol != null) {
+               DataRef subAttrRef = resolveFieldOrNull(subqueryTable, subCol, true);
+
+               if(subAttrRef == null) {
+                  throw new IllegalArgumentException(
+                     "A 'subquery' valueSpec's where.subQueryColumn \"" + subCol +
+                     "\" does not exist on table \"" + spec.subQueryName() + "\".");
+               }
+
+               DataRef mainAttrRef = resolveFieldOrNull(t, mainCol, post);
+
+               if(mainAttrRef == null) {
+                  throw new IllegalArgumentException(
+                     "A 'subquery' valueSpec's where.currentTableColumn \"" + mainCol +
+                     "\" does not exist on this condition's own table.");
+               }
+
+               sv.setSubAttribute(subAttrRef);
+               sv.setMainAttribute(mainAttrRef);
+            }
+
+            // SubQueryValue.getTable() -- what AssetConditionGroup's constructor unconditionally
+            // dereferences the moment this condition is evaluated -- is populated ONLY by
+            // update(Worksheet); the setters above never touch it (it backs a transient
+            // TableAssembly field with no public setter). Nothing on the plugin's own live
+            // set_conditions -> preview_worksheet_data path calls update() on this table/
+            // worksheet (that only happens on a genuine load-from-storage cycle), so it must be
+            // called here -- mirroring the GroupRef/named-group precedent above in this same
+            // method (gr.update(t.getWorksheet()); re-check after update() below).
+            if(!sv.update(ws) || sv.getTable() == null) {
+               // update() itself fails silently (returns false, logs, no exception) if the
+               // resolved assembly turns out not to be a WSAssembly/table -- already excluded by
+               // the "subqueryTable instanceof TableAssembly" check above, so this should be
+               // unreachable in practice, but refuse loud rather than hand back a SubQueryValue
+               // that NPEs the first time AssetConditionGroup evaluates it.
+               throw new IllegalArgumentException(
+                  "A 'subquery' valueSpec's subQueryName \"" + spec.subQueryName() +
+                  "\" could not be resolved for querying (internal update() failure).");
+            }
+
+            yield sv;
+         }
          default -> throw new IllegalArgumentException(
             "'" + spec.valueType() + "' is not a condition value type. Accepted: field, " +
-            "expression.");
+            "expression, subquery.");
       };
    }
 

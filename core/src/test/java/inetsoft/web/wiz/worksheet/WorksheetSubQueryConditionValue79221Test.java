@@ -240,20 +240,29 @@ class WorksheetSubQueryConditionValue79221Test {
 
    // ----- write side: a resubmitted subquery valueSpec
 
+   // Bug #79224 upgraded "subquery" from a read-only marker to a real, writable valueSpec (see
+   // WorksheetEditServiceMutatorsTest's own "Bug #79224" section for the full write-side coverage
+   // -- construction, correlation, alias resolution, and the sv.update(ws)-dependent evaluation
+   // test in WorksheetMutationSupportSubqueryEvaluationTest). The two tests below, originally
+   // written for the pre-#79224 read-only design, are kept here (not deleted) because they still
+   // exercise a real, still-correct boundary: an INCOMPLETE "subquery" valueSpec (missing the
+   // table/column identity #79224 actually requires) is refused, just with a different, more
+   // specific message than the old blanket "read-only marker" refusal.
+
    @Test
-   void subqueryValueSpecResubmitIsRefusedAsReadOnlyOnStringAndIntegerColumns() {
+   void incompleteSubqueryValueSpecMissingSubQueryNameIsRefused() {
       fixture("SUP");
       ConditionValueSpec spec = new ConditionValueSpec("subquery", null, null, null, 0);
 
       for(String field : List.of("STATE", "N")) {
          String message = refusal(() -> set(field, List.of("Query[SUP]"), spec));
-         assertTrue(message.contains("'subquery' valueSpec is a read-only marker") &&
-                    message.contains("Composer"), message);
+         assertTrue(message.contains("'subquery' valueSpec needs a non-blank subQueryName"),
+                    message);
       }
    }
 
    @Test
-   void conditionValueSpecDeserializationIgnoresSubQueryIdentityFields() throws Exception {
+   void conditionValueSpecDeserializationCapturesSubQueryIdentityFields() throws Exception {
       ConditionValueSpec spec = new ObjectMapper().readValue(
          "{\"index\":0,\"valueType\":\"subquery\",\"subQueryName\":\"SUP\"," +
          "\"inSubQueryColumn\":\"STATE\",\"where\":{\"subQueryColumn\":\"CODE\"}}",
@@ -261,5 +270,12 @@ class WorksheetSubQueryConditionValue79221Test {
 
       assertEquals("subquery", spec.valueType());
       assertEquals(0, spec.index());
+      // Bug #79224: these identity fields used to be ignored (@JsonIgnoreProperties) because the
+      // write side only ever refused "subquery" outright; now that it actually resolves and
+      // constructs a SubQueryValue from them, they must deserialize for real.
+      assertEquals("SUP", spec.subQueryName());
+      assertEquals("STATE", spec.inSubQueryColumn());
+      assertEquals("CODE", spec.where().subQueryColumn());
+      assertNull(spec.where().currentTableColumn());
    }
 }

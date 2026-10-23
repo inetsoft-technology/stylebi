@@ -10202,6 +10202,241 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    // =========================================================================
+   // Bug #79224: "subquery" valueSpec -- pulls the condition value from a column of ANOTHER
+   // table already in the worksheet (StyleBI's native "Use a Subquery in a Condition" feature).
+   // =========================================================================
+
+   private static WorksheetMutationSupport.ConditionValueSpec subquerySpec79224(
+      String table, String column, String subqueryColumn, String currentColumn)
+   {
+      inetsoft.web.wiz.worksheet.model.WorksheetModel.SubQueryWhereModel where =
+         subqueryColumn == null && currentColumn == null ? null :
+         new inetsoft.web.wiz.worksheet.model.WorksheetModel.SubQueryWhereModel(
+            subqueryColumn, currentColumn);
+      return new WorksheetMutationSupport.ConditionValueSpec(
+         "subquery", null, null, null, table, column, where, null);
+   }
+
+   @Test
+   void setConditionsSubqueryValueSpecBuildsSubQueryValue() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      TableAssembly s = TestWorksheets.nonEmbeddedTableWithColumns(ws, "S", "v");
+      ws.addAssembly(t);
+      ws.addAssembly(s);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("a", "one_of", null, false, null,
+               List.of(subquerySpec79224("S", "v", null, null))),
+            null, 0))));
+
+      Condition c = firstCondition(t);
+      assertEquals(1, c.getValueCount());
+      assertInstanceOf(SubQueryValue.class, c.getValue(0));
+      SubQueryValue sv = (SubQueryValue) c.getValue(0);
+      assertEquals("S", sv.getQuery());
+      assertEquals("v", sv.getAttribute().getName());
+      assertNull(sv.getSubAttribute());
+      assertNull(sv.getMainAttribute());
+      assertNotNull(sv.getTable(), "SubQueryValue.getTable() must be populated by update()");
+   }
+
+   @Test
+   void setConditionsSubqueryValueSpecBuildsCorrelatedSubQueryValue() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      TableAssembly s = TestWorksheets.nonEmbeddedTableWithColumns(ws, "S", "v", "k");
+      ws.addAssembly(t);
+      ws.addAssembly(s);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("a", "one_of", null, false, null,
+               List.of(subquerySpec79224("S", "v", "k", "b"))),
+            null, 0))));
+
+      Condition c = firstCondition(t);
+      assertEquals(1, c.getValueCount());
+      SubQueryValue sv = (SubQueryValue) c.getValue(0);
+      assertEquals("S", sv.getQuery());
+      assertEquals("v", sv.getAttribute().getName());
+      assertEquals("k", sv.getSubAttribute().getName());
+      assertEquals("b", sv.getMainAttribute().getName());
+      assertNotNull(sv.getTable());
+   }
+
+   /**
+    * Bug #79224 (gap 4): the subquery table's column lookups go through {@code
+    * resolveFieldOrNull}, not a bare {@code ColumnSelection.getAttribute()} call, so a
+    * display-aliased target column resolves the same way the "field" valueSpec precedent does.
+    */
+   @Test
+   void setConditionsSubqueryValueSpecResolvesAliasedSubqueryColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      TableAssembly s = TestWorksheets.nonEmbeddedTableWithColumns(ws, "S", "v");
+
+      // The subquery branch resolves subqueryColumn/subqueryCorrelationColumn against the
+      // subquery table's PUBLIC selection (resolveFieldOrNull(subqueryTable, ..., true)), so the
+      // alias must be set there -- AbstractTableAssembly#setColumnSelection(cs, false) already
+      // eagerly clones the private selection's columns into a separate public ColumnRef the
+      // moment the table is constructed, so aliasing the private ColumnRef afterward does not
+      // retroactively alias the public one.
+      ((ColumnRef) s.getColumnSelection(true).getAttribute("v")).setAlias("vAlias");
+      ws.addAssembly(t);
+      ws.addAssembly(s);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("a", "one_of", null, false, null,
+               List.of(subquerySpec79224("S", "vAlias", null, null))),
+            null, 0))));
+
+      SubQueryValue sv = (SubQueryValue) firstCondition(t).getValue(0);
+      assertEquals("vAlias", sv.getAttribute().getName());
+   }
+
+   @Test
+   void setConditionsRejectsUnknownSubqueryTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+            new WorksheetMutationSupport.ConditionNode(
+               new WorksheetMutationSupport.ConditionSpec("a", "one_of", null, false, null,
+                  List.of(subquerySpec79224("NoSuchTable", "v", null, null))),
+               null, 0)))));
+
+      assertTrue(ex.getMessage().contains("NoSuchTable"), ex.getMessage());
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
+   }
+
+   @Test
+   void setConditionsRejectsUnknownSubqueryColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      TableAssembly s = TestWorksheets.nonEmbeddedTableWithColumns(ws, "S", "v");
+      ws.addAssembly(t);
+      ws.addAssembly(s);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+            new WorksheetMutationSupport.ConditionNode(
+               new WorksheetMutationSupport.ConditionSpec("a", "one_of", null, false, null,
+                  List.of(subquerySpec79224("S", "nosuch", null, null))),
+               null, 0)))));
+
+      assertTrue(ex.getMessage().contains("nosuch"), ex.getMessage());
+   }
+
+   @Test
+   void setConditionsRejectsUnknownSubqueryCorrelationColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      TableAssembly s = TestWorksheets.nonEmbeddedTableWithColumns(ws, "S", "v");
+      ws.addAssembly(t);
+      ws.addAssembly(s);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+            new WorksheetMutationSupport.ConditionNode(
+               new WorksheetMutationSupport.ConditionSpec("a", "one_of", null, false, null,
+                  List.of(subquerySpec79224("S", "v", "nosuch", "b"))),
+               null, 0)))));
+
+      assertTrue(ex.getMessage().contains("nosuch"), ex.getMessage());
+   }
+
+   @Test
+   void setConditionsRejectsUnknownCurrentColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      TableAssembly s = TestWorksheets.nonEmbeddedTableWithColumns(ws, "S", "v", "k");
+      ws.addAssembly(t);
+      ws.addAssembly(s);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+            new WorksheetMutationSupport.ConditionNode(
+               new WorksheetMutationSupport.ConditionSpec("a", "one_of", null, false, null,
+                  List.of(subquerySpec79224("S", "v", "k", "nosuch"))),
+               null, 0)))));
+
+      assertTrue(ex.getMessage().contains("nosuch"), ex.getMessage());
+   }
+
+   @Test
+   void setConditionsRejectsSubqueryWithOnlySubqueryCorrelationColumnGiven() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      TableAssembly s = TestWorksheets.nonEmbeddedTableWithColumns(ws, "S", "v", "k");
+      ws.addAssembly(t);
+      ws.addAssembly(s);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+            new WorksheetMutationSupport.ConditionNode(
+               new WorksheetMutationSupport.ConditionSpec("a", "one_of", null, false, null,
+                  List.of(subquerySpec79224("S", "v", "k", null))),
+               null, 0)))));
+   }
+
+   @Test
+   void setConditionsRejectsSubqueryWithOnlyCurrentColumnGiven() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      TableAssembly s = TestWorksheets.nonEmbeddedTableWithColumns(ws, "S", "v", "k");
+      ws.addAssembly(t);
+      ws.addAssembly(s);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+            new WorksheetMutationSupport.ConditionNode(
+               new WorksheetMutationSupport.ConditionSpec("a", "one_of", null, false, null,
+                  List.of(subquerySpec79224("S", "v", null, "b"))),
+               null, 0)))));
+   }
+
+   @Test
+   void setConditionsRejectsSubqueryTableEqualToOwnTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+            new WorksheetMutationSupport.ConditionNode(
+               new WorksheetMutationSupport.ConditionSpec("a", "one_of", null, false, null,
+                  List.of(subquerySpec79224("T", "b", null, null))),
+               null, 0)))));
+
+      assertTrue(ex.getMessage().contains("same table"), ex.getMessage());
+   }
+
+   // =========================================================================
    // Bug #77003 (WSC-002/003): valueSpecs index-based replace + unreplaced-field-reference
    // loud-fail heuristic. "condition (1)" from the lead's convergence call: a unit test on the
    // exact reported fixture -- a table T (columns A, B; the RED regression case's CSV import)
