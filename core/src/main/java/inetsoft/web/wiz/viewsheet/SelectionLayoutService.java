@@ -91,18 +91,18 @@ public class SelectionLayoutService {
             "'columnCount' must be an integer >= 1, got " + requestedCols + ".");
       }
 
+      // Refuse before mutate(): a refused call inside it still costs an undo step and a revision.
+      sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireWritable(assemblyName, resolve(rvs, assemblyName), requestedCols);
+         return null;
+      });
+
       final Map<String, Object> result = new LinkedHashMap<>();
       final List<String> own = new ArrayList<>();
 
       List<String> captured = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          VSAssembly assembly = resolve(rvs, assemblyName);
-         boolean list = assembly instanceof SelectionListVSAssembly;
-
-         if(requestedCols != null && !list) {
-            throw new IllegalArgumentException(
-               "'columnCount' applies to a Selection List only; '" + assemblyName + "' is a " +
-               "Selection Tree, which has a single column. The measure widths can be set on it.");
-         }
+         requireWritable(assemblyName, assembly, requestedCols);
 
          SelectionBaseVSAssemblyInfo info =
             (SelectionBaseVSAssemblyInfo) assembly.getVSAssemblyInfo();
@@ -221,6 +221,22 @@ public class SelectionLayoutService {
       }
 
       return assembly;
+   }
+
+   private static void requireWritable(String assemblyName, VSAssembly assembly,
+                                       Integer requestedCols)
+   {
+      if(assembly.getVSAssemblyInfo().isEmbedded()) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is embedded from another viewsheet and its layout cannot be " +
+            "changed here. The change would not be saved; set it in the viewsheet that owns it.");
+      }
+
+      if(requestedCols != null && !(assembly instanceof SelectionListVSAssembly)) {
+         throw new IllegalArgumentException(
+            "'columnCount' applies to a Selection List only; '" + assemblyName + "' is a " +
+            "Selection Tree, which has a single column. The measure widths can be set on it.");
+      }
    }
 
    private static void requireName(String assemblyName) {

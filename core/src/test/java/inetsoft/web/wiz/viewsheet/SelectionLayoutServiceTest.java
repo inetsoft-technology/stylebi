@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.web.composer.vs.objects.controller.ComposerVSSelectionListService;
 import inetsoft.web.composer.vs.objects.event.VSObjectEvent;
@@ -101,6 +102,30 @@ class SelectionLayoutServiceTest {
          () -> h.service.setLayout("tok", user(), "Filter1", 2, null, null));
       assertTrue(e.getMessage().contains("not a Selection List or Selection Tree"), e.getMessage());
       verifyNoInteractions(h.composer);
+   }
+
+   // embedded
+
+   @Test
+   void refusesAWriteOnAnEmbeddedAssemblyBeforeMutating() throws Exception {
+      Harness h = list(3, -1, -1, "Sum(Total)", true, true);
+      doReturn(embeddedInfo()).when(h.assembly()).getVSAssemblyInfo();
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setLayout("tok", user(), "EV.List1", 2, null, null));
+      assertTrue(e.getMessage().contains("EV.List1") && e.getMessage().contains("embedded") &&
+                 e.getMessage().contains("viewsheet that owns it"), e.getMessage());
+      verify(h.sessions, never()).mutate(anyString(), any(), any());
+      verifyNoInteractions(h.composer);
+   }
+
+   @Test
+   void refusesAColumnCountOnATreeBeforeMutating() throws Exception {
+      Harness h = tree("Sum(Total)", true, true);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> h.service.setLayout("tok", user(), "Tree1", 3, null, null));
+      verify(h.sessions, never()).mutate(anyString(), any(), any());
    }
 
    // column count
@@ -271,6 +296,16 @@ class SelectionLayoutServiceTest {
          throw new IllegalStateException(e);
       }
 
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Read<?> read = invocation.getArgument(2);
+            return read.run(rvs, "rt1", null);
+         }).when(sessions).read(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
       ComposerVSSelectionListService composer = mock(ComposerVSSelectionListService.class);
       return new Harness(new SelectionLayoutService(sessions, composer) {
          @Override
@@ -279,6 +314,12 @@ class SelectionLayoutServiceTest {
          }
       }, sessions, composer,
                          assembly);
+   }
+
+   private static VSAssemblyInfo embeddedInfo() {
+      VSAssemblyInfo info = mock(VSAssemblyInfo.class);
+      when(info.isEmbedded()).thenReturn(true);
+      return info;
    }
 
    private static Principal user() {
