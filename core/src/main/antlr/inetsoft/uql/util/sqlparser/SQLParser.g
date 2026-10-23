@@ -3710,7 +3710,11 @@ scale returns [String sca = ""]
 datetime_type returns [String datetype = ""]
         {String tmp; {checkStatus();}}
         :
-        a:IDENT {datetype = a.getText();}
+        // DATE and TIME lex as keyword tokens (T_DATE/T_TIME), not IDENT; keep the user's text
+        // verbatim so the type is not quoted as if it were a keyword-named identifier.
+        (a:IDENT {datetype = a.getText();}
+        | b:T_DATE {datetype = b.getText();}
+        | f:T_TIME {datetype = f.getText();})
         ( OPEN_PAREN tmp = time_precision CLOSE_PAREN {datetype += "(" + tmp + ")";})?
         ( c:IDENT d:IDENT e:IDENT {datetype += c.getText() + d.getText() + e.getText();})?
         ;

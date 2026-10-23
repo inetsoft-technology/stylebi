@@ -770,4 +770,88 @@ class BindableColumnsTest {
       assertEquals("Total", BindableColumns.canonicalize(
          listed, "Crosstab1", null, List.of(dim("total"))).get(0).column());
    }
+
+   // Bug #79192: worksheet tables Customers and CUSTOMERS are two tables. An exact name selects
+   // its own table whatever the listing order, a case-only match is refused naming both, and
+   // naming the other-case table while bound to one is a different table, not "the same".
+
+   private static List<BindableTable> caseVariants(boolean upperFirst, Boolean customersCurrent,
+                                                   Boolean upperCurrent)
+   {
+      BindableTable mixed = new BindableTable("Customers", customersCurrent,
+         List.of(new BindableField("REGION", null, null), new BindableField("ID", null, null)));
+      BindableTable upper = new BindableTable("CUSTOMERS", upperCurrent,
+         List.of(new BindableField("ID", null, null)));
+      return upperFirst ? List.of(upper, mixed) : List.of(mixed, upper);
+   }
+
+   @Test
+   void anExactTableNameWinsOverACaseVariantListedFirst() {
+      for(boolean upperFirst : new boolean[] {true, false}) {
+         List<BindableTable> listed = caseVariants(upperFirst, false, false);
+
+         // REGION lives only on Customers, so the write must resolve to that table
+         assertEquals("Customers", BindableColumns.requireSource(
+            listed, "Table1", "Customers", List.of(dim("REGION"), dim("ID"))));
+         assertEquals("CUSTOMERS", BindableColumns.requireSource(
+            listed, "Table1", "CUSTOMERS", List.of(dim("ID"))));
+      }
+   }
+
+   @Test
+   void aTableNameMatchingSeveralTablesOnlyByCaseIsRefusedNamingThem() {
+      for(boolean upperFirst : new boolean[] {true, false}) {
+         List<BindableTable> listed = caseVariants(upperFirst, false, false);
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> BindableColumns.requireSource(listed, "Table1", "customers", List.of(dim("ID"))));
+
+         assertTrue(thrown.getMessage().contains("Customers") &&
+                    thrown.getMessage().contains("CUSTOMERS"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void aUniqueCaseOnlyMatchIsStillAcceptedAndCanonicalized() {
+      assertEquals("Query1", BindableColumns.requireSource(
+         NO_SOURCE, "Table1", "query1", List.of(dim("PRICE"))));
+   }
+
+   @Test
+   void aTableTheAssemblyIsBoundToDoesNotAbsorbItsCaseVariant() {
+      // bound to CUSTOMERS; "Customers" is a different table, not the bound one
+      for(boolean upperFirst : new boolean[] {true, false}) {
+         List<BindableTable> listed = caseVariants(upperFirst, false, true);
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> BindableColumns.requireSource(listed, "Table1", "Customers",
+                                                List.of(dim("ID"))));
+         assertTrue(thrown.getMessage().contains("is a different table"), thrown.getMessage());
+
+         assertNull(BindableColumns.requireSource(
+            listed, "Table1", "CUSTOMERS", List.of(dim("ID"))));
+      }
+   }
+
+   @Test
+   void columnsAreScopedToTheExactTableNotMergedAcrossCaseVariants() {
+      List<BindableTable> listed = caseVariants(true, false, false);
+
+      // CUSTOMERS has no REGION; the Customers table having one must not satisfy it
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> BindableColumns.requireSource(listed, "Table1", "CUSTOMERS",
+                                             List.of(dim("REGION"))));
+      assertTrue(thrown.getMessage().contains("'REGION' is not a column of 'CUSTOMERS'"),
+                 thrown.getMessage());
+   }
+
+   @Test
+   void requireNarrowsToTheExactCurrentTableOfTwoCaseVariants() {
+      List<BindableTable> listed = caseVariants(true, true, false);
+
+      assertDoesNotThrow(() -> BindableColumns.require(listed, "Table1", dim("REGION")));
+
+      List<BindableTable> other = caseVariants(true, false, true);
+      assertThrows(IllegalArgumentException.class,
+                   () -> BindableColumns.require(other, "Table1", dim("REGION")));
+   }
 }

@@ -388,6 +388,76 @@ class SelectionBindingServiceTest {
          eq("rt1"), eq("List1"), any(), eq(""), any(), any());
    }
 
+   // ── tables differing only by case (Bug #79192) ──────────────────────────────
+
+   /** CUSTOMERS is listed first; REGION lives only on the mixed-case Customers table. */
+   private static SelectionBindingService caseVariantHarness(
+      VSAssembly assembly, SelectionListPropertyDialogService listService) throws Exception
+   {
+      BindableTable upper = new BindableTable("CUSTOMERS", null, List.of(
+         new BindableField("NAME", "string", "dimension")));
+      BindableTable mixed = new BindableTable("Customers", null, List.of(
+         new BindableField("NAME", "string", "dimension"),
+         new BindableField("REGION", "string", "dimension")));
+      BindableFieldsService fieldsService = mock(BindableFieldsService.class);
+      when(fieldsService.list(eq("rt1"), isNull(), any())).thenReturn(List.of(upper, mixed));
+
+      return new SelectionBindingService(
+         sessionsFor(assembly), fieldsService, listService,
+         mock(SelectionTreePropertyDialogService.class),
+         mock(RangeSliderPropertyDialogService.class), mock(CalendarPropertyDialogService.class),
+         mock(DataOutputService.class));
+   }
+
+   @Test
+   void bindsTheExactCaseTableNotTheFirstCaseVariantListed() throws Exception {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(new SelectionListPropertyDialogModel());
+
+      Map<String, Object> result = caseVariantHarness(assembly, listService)
+         .setSource("tok", principal(), "List1", "Customers", List.of("REGION"), null, null, null,
+                   null, null, false, "");
+
+      assertEquals("Customers", result.get("table"));
+      ArgumentCaptor<SelectionListPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(SelectionListPropertyDialogModel.class);
+      verify(listService).setSelectionListPropertyModel(
+         eq("rt1"), eq("List1"), captor.capture(), eq(""), any(), any());
+      assertEquals("Customers", captor.getValue().getSelectionListPaneModel().getSelectedTable());
+   }
+
+   @Test
+   void refusesACaseOnlyAmbiguousTableNamingBothCandidates() throws Exception {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         caseVariantHarness(assembly, mock(SelectionListPropertyDialogService.class))
+            .setSource("tok", principal(), "List1", "customers", List.of("NAME"), null, null,
+                      null, null, null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("CUSTOMERS") &&
+                 thrown.getMessage().contains("Customers"), thrown.getMessage());
+   }
+
+   @Test
+   void treatsACaseVariantOfTheBoundTableAsARepointNeedingForce() throws Exception {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      SelectionListPropertyDialogModel bound = new SelectionListPropertyDialogModel();
+      bound.getSelectionListPaneModel().setSelectedTable("CUSTOMERS");
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(bound);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         caseVariantHarness(assembly, listService)
+            .setSource("tok", principal(), "List1", "Customers", List.of("NAME"), null, null,
+                      null, null, null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("force"), thrown.getMessage());
+   }
+
    // ── additionalTables resolution (regression for Bug #76747) ─────────────────
 
    @Test

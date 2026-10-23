@@ -321,6 +321,8 @@ public class AssemblyPropertyService {
          for(Map.Entry<String, String> entry : resolved.entrySet()) {
             Object value = canonicalIntEnum(type, entry.getValue(), patch.get(entry.getKey()));
 
+            requirePositiveSize(entry.getKey(), entry.getValue(), value);
+
             if(entry.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
                value = requireKnownTableStyle(model, entry.getValue(), value);
             }
@@ -470,6 +472,41 @@ public class AssemblyPropertyService {
 
    private static final String RANGE_SIZE_PANE =
       "rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.";
+
+   /**
+    * {@code VSDialogService.setAssemblySize} and {@code LinePropertyDialogService} apply a size
+    * only when width and height are both positive and skip the whole block otherwise, so a
+    * written 0 or negative width/height reports success and changes nothing (bug-79156). Judged
+    * on the fields the patch wrote only.
+    */
+   static void requirePositiveSize(String key, String path, Object value) {
+      if(!path.endsWith(".sizePositionPaneModel.width") &&
+         !path.endsWith(".sizePositionPaneModel.height"))
+      {
+         return;
+      }
+
+      Double number = null;
+
+      if(value instanceof Number n) {
+         number = n.doubleValue();
+      }
+      else if(value instanceof String str) {
+         try {
+            number = Double.parseDouble(str.trim());
+         }
+         catch(NumberFormatException ignore) {
+            // not numeric, left to the model's own type handling
+         }
+      }
+
+      if(number != null && number <= 0) {
+         throw new IllegalArgumentException(
+            key + ": must be a positive number of pixels (got " + value + "). StyleBI ignores " +
+            "a non-positive size, so this write would report success and change nothing. " +
+            "(A horizontal line is 1px tall.)");
+      }
+   }
 
    /**
     * {@code RangeSliderPropertyDialogService.setTimeInfo} rebuilds the TimeInfo on every write and

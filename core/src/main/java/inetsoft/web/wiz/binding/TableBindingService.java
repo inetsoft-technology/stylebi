@@ -326,11 +326,15 @@ public class TableBindingService {
                if(!BindingSources.isComponent(candidate.getName())) {
                   names.add(candidate.getName());
                }
-
-               if(candidate.getName().equalsIgnoreCase(table)) {
-                  return candidate.getName();
-               }
             }
+         }
+
+         // Exact match first, then a unique case-only match; Customers and CUSTOMERS are two
+         // tables, so a name matching several only by case is refused (bug #79192).
+         String resolved = TableNames.resolve(names, table);
+
+         if(resolved != null) {
+            return resolved;
          }
       }
 
@@ -355,7 +359,7 @@ public class TableBindingService {
    private static void requireNoBoundFields(BaseTableBindingModel model, String assemblyName,
                                             String table)
    {
-      if(BindingSources.alreadyPointedAt(model.getSource(), table)) {
+      if(BindingSources.alreadyPointedAt(model, table)) {
          return;
       }
 
@@ -406,7 +410,7 @@ public class TableBindingService {
    private static void discardBoundFields(RuntimeViewsheet rvs, BaseTableBindingModel model,
                                          String table)
    {
-      if(BindingSources.alreadyPointedAt(model.getSource(), table)) {
+      if(BindingSources.alreadyPointedAt(model, table)) {
          return;
       }
 
@@ -496,7 +500,7 @@ public class TableBindingService {
 
       if(tables != null) {
          for(BindingModel.SourceTable candidate : tables) {
-            if(table.equalsIgnoreCase(candidate.getName()) && candidate.getColumns() != null) {
+            if(table.equals(candidate.getName()) && candidate.getColumns() != null) {
                for(BindingModel.SourceTableColumn column : candidate.getColumns()) {
                   if(column.getName() == null) {
                      continue;

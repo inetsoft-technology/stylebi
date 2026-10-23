@@ -270,8 +270,12 @@ class ViewsheetFormatServiceTypeCheckTest {
    }
 
    @Test
-   void titleCheckFailsOpenOnAMissingAssemblyANullInfoAndANullViewsheet() throws Exception {
-      assertNull(refusal(rvsOfAssemblies("A1", null), "title", false, null, "A1"));
+   void titleCheckFailsOpenOnANullInfoAndANullViewsheetButRefusesAMissingAssembly()
+      throws Exception
+   {
+      String missing = refusal(rvsOfAssemblies("A1", null), "title", false, null, "A1");
+      assertNotNull(missing);
+      assertTrue(missing.contains("no assembly named 'A1'"), missing);
 
       VSAssembly noInfo = mock(GaugeVSAssembly.class);
       assertNull(titleRefusal(noInfo, false));

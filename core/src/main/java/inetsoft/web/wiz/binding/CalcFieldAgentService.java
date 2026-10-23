@@ -557,7 +557,7 @@ public class CalcFieldAgentService {
     * silently, visible in no field listing, matching how {@code BindableColumns} guards a similar
     * unchecked-name gap on the column side.
     *
-    * <p>Matched case-insensitively, like {@code SelectionBindingService}/{@code TableBindingService}'s
+    * <p>Matched exact-first, then case-insensitively when unique, like {@code SelectionBindingService}/{@code TableBindingService}'s
     * own {@code resolveTable} helpers -- and, like both of those, this returns the LISTING's own
     * canonically-cased name rather than the caller's raw string. {@code Viewsheet.calcmap} is a
     * plain, case-sensitive {@code Map<String, List<CalculateRef>>}: storing under the caller's
@@ -578,10 +578,12 @@ public class CalcFieldAgentService {
    {
       List<BindableTable> tables = fieldsService.list(runtimeId, null, agent);
 
-      for(BindableTable candidate : tables) {
-         if(table.equalsIgnoreCase(candidate.name())) {
-            return candidate;
-         }
+      // Exact name first, then a unique case-only match; a name matching several tables only by
+      // case is refused, naming them (bug #79192).
+      BindableTable resolved = TableNames.resolveTable(tables, table);
+
+      if(resolved != null) {
+         return resolved;
       }
 
       throw new IllegalArgumentException(

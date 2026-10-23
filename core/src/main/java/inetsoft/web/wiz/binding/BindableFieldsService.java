@@ -153,8 +153,9 @@ public class BindableFieldsService {
    private static void withoutComponents(List<BindableTable> tables, String source,
                                          boolean sourceIsComponent)
    {
+      String live = sourceIsComponent ? liveName(tables, source, true) : null;
       tables.removeIf(table -> table.isComponent() &&
-         !(sourceIsComponent && table.name().equalsIgnoreCase(source)));
+         !(sourceIsComponent && table.name().equals(live)));
    }
 
    /**
@@ -163,7 +164,7 @@ public class BindableFieldsService {
     */
    private static void addSkipped(List<BindableTable> tables, Map<String, String> skipped) {
       skipped.forEach((name, reason) -> {
-         if(tables.stream().noneMatch(t -> name.equalsIgnoreCase(t.name()))) {
+         if(tables.stream().noneMatch(t -> name.equals(t.name()))) {
             tables.add(new BindableTable(name, null, List.of(), List.of(name + ": " + reason),
                                          BindableTable.VIEWSHEET));
          }
@@ -241,7 +242,7 @@ public class BindableFieldsService {
       for(int i = 0; i < tables.size(); i++) {
          BindableTable seen = tables.get(i);
 
-         if(model.equalsIgnoreCase(seen.name())) {
+         if(model.equals(seen.name())) {
             List<BindableField> all = new ArrayList<>(seen.fields());
             all.addAll(fields);
             tables.set(i, new BindableTable(seen.name(), seen.current(), all, seen.warnings(),
@@ -267,18 +268,42 @@ public class BindableFieldsService {
                                              boolean sourceIsComponent)
    {
       List<BindableTable> out = new ArrayList<>(tables.size());
+      String live = liveName(tables, source, sourceIsComponent);
 
       for(BindableTable table : tables) {
-         // equalsIgnoreCase is null-safe on its argument, so a sourceless assembly yields false.
-         // A component and a worksheet table may share a name; only the one of the stored kind is
-         // the live source.
+         // A sourceless assembly has no live name, so nothing is flagged. A component and a
+         // worksheet table may share a name; only the one of the stored kind is the live source.
          out.add(new BindableTable(table.name(),
-                                   table.name().equalsIgnoreCase(source) &&
+                                   table.name().equals(live) &&
                                       table.isComponent() == sourceIsComponent,
                                    table.fields(), table.warnings(), table.sourceType()));
       }
 
       return out;
+   }
+
+   /**
+    * The listed name of the assembly's source, or {@code null} when it has none or names no single
+    * table. Resolved exactly first so that worksheet tables differing only by case (Customers and
+    * CUSTOMERS) are not both flagged live (bug #79192); a stored spelling that drifted in case
+    * still finds its one table, and an ambiguous one flags none rather than guessing.
+    */
+   private static String liveName(List<BindableTable> tables, String source,
+                                  boolean sourceIsComponent)
+   {
+      if(source == null) {
+         return null;
+      }
+
+      List<String> names = new ArrayList<>();
+
+      for(BindableTable table : tables) {
+         if(table.isComponent() == sourceIsComponent) {
+            names.add(table.name());
+         }
+      }
+
+      return TableNames.resolveStored(names, source);
    }
 
    /**
