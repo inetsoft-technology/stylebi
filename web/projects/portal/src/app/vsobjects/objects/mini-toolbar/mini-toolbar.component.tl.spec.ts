@@ -71,7 +71,7 @@ function makeAction(id: string, overrides: Partial<AssemblyAction> = {}): Assemb
 }
 
 async function renderWithActions(actions: any, anchorInTitleLane: boolean,
-                                forceHide: boolean = false)
+                                forceHide: boolean = false, cornerKebab: boolean = false)
 {
    const miniToolbarService = new MiniToolbarService(
       { runOutsideAngular: (fn: () => any) => fn() } as any);
@@ -89,15 +89,17 @@ async function renderWithActions(actions: any, anchorInTitleLane: boolean,
          width: 100,
          assembly: "Chart1",
          anchorInTitleLane,
+         cornerKebab,
          forceHide
       }
    });
 }
 
 async function renderToolbar(groups: AssemblyActionGroup[], anchorInTitleLane: boolean,
-                             forceHide: boolean = false)
+                             forceHide: boolean = false, cornerKebab: boolean = false)
 {
-   return renderWithActions({ showingActions: groups } as any, anchorInTitleLane, forceHide);
+   return renderWithActions({ showingActions: groups } as any, anchorInTitleLane, forceHide,
+                            cornerKebab);
 }
 
 /**
@@ -693,5 +695,49 @@ describe("MiniToolbar rendered - the floating strip ignores the title lane", () 
 
       expect(root.querySelector(".mini-toolbar-container")).not.toBeNull();
       expect(buttonIcons(root).length).toBe(4);
+   });
+});
+
+describe("MiniToolbar rendered - corner kebab", () => {
+   const kebabGroups = () => [
+      new AssemblyActionGroup([]), new AssemblyActionGroup([makeAction("more actions")])];
+
+   it("renders the kebab alone, on the anchored and corner host classes", async () => {
+      const { fixture } = await renderToolbar(kebabGroups(), false, false, true);
+      const host = fixture.nativeElement.querySelector(".mini-toolbar");
+
+      expect(host.classList).toContain("mini-toolbar--corner");
+      expect(host.classList).toContain("mini-toolbar--anchored");
+      expect(host.querySelectorAll(".mini-toolbar-kebab").length).toBe(1);
+      expect(host.querySelectorAll(
+         ".mini-toolbar-button-group:not(.mini-toolbar-kebab-group)").length).toBe(0);
+   });
+
+   it("spans the bound width so the pill can right-align", async () => {
+      const { fixture } = await renderToolbar(kebabGroups(), false, false, true);
+      const host = fixture.nativeElement.querySelector(".mini-toolbar");
+
+      expect(host.style.width).toBe("100px");
+   });
+
+   it("keeps the host's resolved top", async () => {
+      const { fixture } = await renderToolbar(kebabGroups(), false, false, true);
+      const host = fixture.nativeElement.querySelector(".mini-toolbar");
+
+      expect(host.style.top).toBe("10px");
+   });
+
+   it("draws no container when every group is empty", async () => {
+      const { fixture } = await renderToolbar(
+         [new AssemblyActionGroup([]), new AssemblyActionGroup([])], false, false, true);
+
+      expect(fixture.nativeElement.querySelector(".mini-toolbar-container")).toBeNull();
+   });
+
+   it("draws no container for an empty floating strip either", async () => {
+      const { fixture } = await renderToolbar(
+         [new AssemblyActionGroup([]), new AssemblyActionGroup([])], false);
+
+      expect(fixture.nativeElement.querySelector(".mini-toolbar-container")).toBeNull();
    });
 });

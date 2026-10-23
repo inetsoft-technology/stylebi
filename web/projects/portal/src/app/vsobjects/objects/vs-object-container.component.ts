@@ -54,7 +54,8 @@ import { AdhocFilterService } from "./data-tip/adhoc-filter.service";
 import { DataTipService } from "./data-tip/data-tip.service";
 import { DateTipHelper } from "./data-tip/date-tip-helper";
 import { PopComponentService } from "./data-tip/pop-component.service";
-import { anchoredLaneHeight, isAnchoredChromeSuppressed, isAnchoredResident, isCornerKebab, MiniToolbarService }
+import { anchoredLaneHeight, CORNER_KEBAB_INSET, isAnchoredChromeSuppressed, isAnchoredResident,
+         isCornerKebab, MiniToolbarService }
    from "./mini-toolbar/mini-toolbar.service";
 import { StripGlyphTone, stripGlyphTone } from "./mini-toolbar/strip-glyph-tone";
 import { NavigationKeys } from "./navigation-keys";
@@ -483,18 +484,33 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
     * whether it can currently be geometrically anchored to a title lane (isToolbarAnchored above).
     * Touch has no hover, so a kebab that is resident only while anchored would be unreachable in
     * max mode, where anchoring is off — there is no lane — but the type still carries the design.
-    * A lane too short to hold the strip opts out entirely, measured by anchoredLaneHeight against
-    * ANCHORED_LANE_MIN — see isChromeSuppressed below, which is what stops such an assembly
-    * falling back to the floating strip.
+    * A lane too short to hold the strip opts out of the strip, measured by anchoredLaneHeight
+    * against ANCHORED_LANE_MIN: it gets the corner kebab (isCornerKebab above) or, on a card
+    * under ACTION_FLOOR, nothing — see isChromeSuppressed below. Neither falls back to the
+    * floating strip.
     */
    public isKebabResident(object: VSObjectModel): boolean {
       return isAnchoredResident(object.objectType, object.vizModern, anchoredLaneHeight(object));
    }
 
    /**
-    * Whether an anchored type's lane is too short to hold the strip, in which case the assembly
-    * draws no chrome at all — no strip, no kebab, right-click only — rather than falling back to
-    * the floating placement.
+    * Whether the kebab sits inside the card's top-right corner because the assembly has no usable
+    * title lane: a hidden title or a lane under ANCHORED_LANE_MIN, on a card tall enough to hold
+    * a control. Touch gets no corner kebab, and a max-mode selection list or tree keeps its
+    * floating strip.
+    */
+   public isCornerKebab(object: VSObjectModel): boolean {
+      return !this.mobile && this.isMiniToolbarVisible(object) &&
+         !VSObjectContainer.isMaxModeSelection(object) &&
+         isCornerKebab(object.objectType, object.vizModern, anchoredLaneHeight(object),
+                       object.objectFormat.height);
+   }
+
+   /**
+    * Whether an anchored type draws no chrome at all — no strip, no kebab, right-click only —
+    * rather than falling back to the floating placement. That is a card too short to hold a
+    * control (below ACTION_FLOOR) with no usable lane, and, on touch, a laneless card that would
+    * otherwise carry the corner kebab: touch has no hover and takes the page-level mobile toolbar.
     *
     * Asked here rather than in the action layer because this is the only mount site that puts the
     * strip in a lane: the composer, the binding pane, both wizard panes and the embedded chart
@@ -505,7 +521,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       const height = object.objectFormat.height;
 
       return isAnchoredChromeSuppressed(object.objectType, object.vizModern, lane, height) ||
-         isCornerKebab(object.objectType, object.vizModern, lane, height);
+         this.mobile && isCornerKebab(object.objectType, object.vizModern, lane, height);
    }
 
    /**
@@ -556,6 +572,11 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    }
 
    public getToolbarTop(object: VSObjectModel, i: number): number {
+      if(this.isCornerKebab(object)) {
+         return object.objectFormat.top + VSObjectContainer.getCardTopShift(object) +
+            VSObjectContainer.getLaneInset(object).top + CORNER_KEBAB_INSET;
+      }
+
       if(this.isToolbarAnchored(object)) {
          // Inside the assembly, at the lane's top inset. The inset is the assembly's own card
          // inset — what vs-title already positions against. Centre the fixed-height strip in
@@ -593,7 +614,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          return left;
       }
 
-      if(this.isToolbarAnchored(object)) {
+      if(this.isToolbarAnchored(object) || this.isCornerKebab(object)) {
          // The lane's left inset. The strip's own box spans the whole lane (see
          // getAnchoredToolbarWidth) and the pill right-aligns itself inside it with margin-left:
          // auto, so the right inset is reached by layout rather than by subtracting an estimated
@@ -629,6 +650,14 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    public getAnchoredToolbarWidth(object: VSObjectModel): number {
       const inset = VSObjectContainer.getLaneInset(object);
       return (object.realWidth || object.objectFormat.width) - inset.left - inset.right;
+   }
+
+   /**
+    * The corner kebab's positioning box: the card's width inside its insets, less the corner
+    * offset so the pill clears the card's right edge by as much as it clears the top.
+    */
+   public getCornerToolbarWidth(object: VSObjectModel): number {
+      return this.getAnchoredToolbarWidth(object) - CORNER_KEBAB_INSET;
    }
 
    public getToolbarWidth(object: VSObjectModel): number {

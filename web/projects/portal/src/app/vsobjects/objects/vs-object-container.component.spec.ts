@@ -168,8 +168,10 @@ describe("VSObjectContainer anchored-lane chrome suppression", () => {
    it("suppresses the strip when the lane cannot hold it", () => {
       const { comp } = makeComponent();
 
-      expect(comp.isChromeSuppressed(anchored(20))).toBe(true);
-      expect(comp.isChromeSuppressed(anchored(23))).toBe(true);
+      expect(comp.isChromeSuppressed(anchored(20))).toBe(false);
+      expect(comp.isCornerKebab(anchored(20))).toBe(true);
+      expect(comp.isChromeSuppressed(anchored(23))).toBe(false);
+      expect(comp.isCornerKebab(anchored(23))).toBe(true);
    });
 
    it("draws the strip once the lane holds it, and anchors it", () => {
@@ -180,13 +182,25 @@ describe("VSObjectContainer anchored-lane chrome suppression", () => {
       expect(comp.isKebabResident(anchored(30))).toBe(true);
    });
 
-   it("suppresses a hidden title, which resolves to a zero lane", () => {
+   it("moves a hidden title, which resolves to a zero lane, to the corner", () => {
       const { comp } = makeComponent();
       const titleHidden = makeVSObject({
          ...({ vizModern: true, titleVisible: false, titleFormat: { height: 30 } } as any),
       });
 
-      expect(comp.isChromeSuppressed(titleHidden)).toBe(true);
+      expect(comp.isChromeSuppressed(titleHidden)).toBe(false);
+      expect(comp.isCornerKebab(titleHidden)).toBe(true);
+   });
+
+   it("still suppresses a card under the action floor", () => {
+      const { comp } = makeComponent();
+      const short = makeVSObject({
+         objectFormat: makeObjectFormat({ height: 31 }),
+         ...({ vizModern: true, titleVisible: false, titleFormat: { height: 30 } } as any),
+      });
+
+      expect(comp.isChromeSuppressed(short)).toBe(true);
+      expect(comp.isCornerKebab(short)).toBe(false);
    });
 
    it("leaves a short lane alone when the gate is off", () => {
@@ -282,11 +296,12 @@ describe("VSObjectContainer chrome on a shifted table card", () => {
       expect(comp.getVsObjectPosition(obj, 0, true) + comp.getVsObjectHeight(obj)).toBe(40 + 300);
    });
 
-   it("still moves the outline at dense, where the lane holds no strip", () => {
+   it("still moves the outline at dense, where the lane holds only the corner kebab", () => {
       const obj = shiftedTable({ titleFormat: { height: 20 } });
       const comp = viewerComponent(obj);
 
-      expect(comp.isChromeSuppressed(obj)).toBe(true);
+      expect(comp.isChromeSuppressed(obj)).toBe(false);
+      expect(comp.isCornerKebab(obj)).toBe(true);
       expect(comp.getVsObjectPosition(obj, 0, true)).toBe(40 + 120);
    });
 
@@ -316,5 +331,92 @@ describe("VSObjectContainer chrome on a shifted table card", () => {
       expect(comp.getVsObjectHeight(list)).toBe(30);
       expect(comp.getVsObjectHeight(chart)).toBe(100);
       expect(comp.getVsObjectHeight(shiftedTable({ cardTopShift: undefined }))).toBe(180);
+   });
+});
+
+describe("VSObjectContainer corner kebab", () => {
+   const scrollless = { scrollHeight: 600, clientHeight: 600 } as any;
+
+   const cornerObject = (overrides: any = {}): any => Object.assign(makeVSObject({
+      absoluteName: "Chart1",
+      objectType: "VSChart",
+      objectFormat: makeObjectFormat({ top: 40, left: 250, width: 400, height: 300 }),
+   }), {
+      vizModern: true,
+      titleVisible: false,
+      titleFormat: { height: 30 },
+      padding: { top: 12, left: 10, bottom: 12, right: 6 },
+   }, overrides);
+
+   const viewerComponent = (obj: any) => {
+      const { comp } = makeComponent({
+         context: { viewer: true, preview: false, binding: false } as any,
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      comp.vsInfo = makeVsInfo([obj]);
+      return comp;
+   };
+
+   it("places an untitled chart's kebab in the corner", () => {
+      const obj = cornerObject();
+      const comp = viewerComponent(obj);
+
+      expect(comp.isChromeSuppressed(obj)).toBe(false);
+      expect(comp.isCornerKebab(obj)).toBe(true);
+      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 12 + 4);
+      expect(comp.getToolbarLeft(obj, 0)).toBe(250 + 10);
+      expect(comp.getCornerToolbarWidth(obj)).toBe(400 - 10 - 6 - 4);
+   });
+
+   it("uses the corner for a visible lane under 24px", () => {
+      const obj = cornerObject({ titleVisible: true, titleFormat: { height: 20 } });
+      const comp = viewerComponent(obj);
+
+      expect(comp.isCornerKebab(obj)).toBe(true);
+      expect(comp.isChromeSuppressed(obj)).toBe(false);
+   });
+
+   it("draws nothing for an untitled chart under 32px", () => {
+      const obj = cornerObject({ objectFormat: makeObjectFormat({ height: 30 }) });
+      const comp = viewerComponent(obj);
+
+      expect(comp.isChromeSuppressed(obj)).toBe(true);
+      expect(comp.isCornerKebab(obj)).toBe(false);
+   });
+
+   it("drops a shifted card's corner by its card shift", () => {
+      const obj = cornerObject({ absoluteName: "Table1", objectType: "VSTable", cardTopShift: 120 });
+      const comp = viewerComponent(obj);
+
+      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 120 + 12 + 4);
+   });
+
+   it("leaves an untitled max-mode selection list on the floating strip", () => {
+      const obj = cornerObject({
+         absoluteName: "SelectionList1", objectType: "VSSelectionList", maxMode: true,
+      });
+      const comp = viewerComponent(obj);
+
+      expect(comp.isCornerKebab(obj)).toBe(false);
+      expect(comp.isChromeSuppressed(obj)).toBe(false);
+      expect(comp.isToolbarAnchored(obj)).toBe(false);
+   });
+
+   it("suppresses the corner on mobile", () => {
+      const obj = cornerObject();
+      const comp = viewerComponent(obj);
+      comp.mobile = true;
+
+      expect(comp.isChromeSuppressed(obj)).toBe(true);
+      expect(comp.isCornerKebab(obj)).toBe(false);
+   });
+
+   it("leaves gate-off assemblies alone", () => {
+      const obj = cornerObject({ vizModern: false });
+      const comp = viewerComponent(obj);
+
+      expect(comp.isChromeSuppressed(obj)).toBe(false);
+      expect(comp.isCornerKebab(obj)).toBe(false);
    });
 });
