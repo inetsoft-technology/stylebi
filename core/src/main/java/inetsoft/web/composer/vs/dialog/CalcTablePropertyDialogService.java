@@ -359,6 +359,9 @@ public class CalcTablePropertyDialogService {
       CalcTableAdvancedPaneModel advPane = value.getCalcTableAdvancedPaneModel();
       TipPaneModel tipPaneModel = advPane.getTipPaneModel();
       VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
+      // snapshot both counts before they are overwritten; the old row type of a cell is
+      // derived from the old header AND old trailer counts
+      int oldHeaderRows = calcTableAssemblyInfo.getHeaderRowCount();
       int oldTrailerRows = calcTableAssemblyInfo.getTrailerRowCount();
 
       calcTableAssemblyInfo.setTitleVisibleValue(titlePropPaneModel.isVisible());
@@ -437,7 +440,7 @@ public class CalcTablePropertyDialogService {
 
          int r = loc.y;
          int type = getRowType(r, rowCnt, headerRows, trailerRows);
-         int oldType = getRowType(r, rowCnt, headerRows, oldTrailerRows);
+         int oldType = getRowType(r, rowCnt, oldHeaderRows, oldTrailerRows);
 
          if(type != path.getType() && path.getType() == oldType) {
             VSCompositeFormat fmt = calcTableAssemblyInfo.getFormatInfo().getFormat(path);

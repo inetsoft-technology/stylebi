@@ -182,6 +182,89 @@ class VSChartInfoEmptyDynamicRefTest {
       assertEquals(1, info.getRTXFields().length);
    }
 
+   // Bug #79264: =script refs must behave like $(...) refs when they resolve to nothing
+
+   @Test
+   void emptyScriptYStaysEmptyAfterUpdate() {
+      for(Object value : new Object[] { null, "", new Object[0] }) {
+         DefaultVSChartInfo info = new DefaultVSChartInfo();
+         info.addYField(scriptMeasure(value));
+         info.update(null, columns(), false, null, null, null);
+
+         assertEquals(0, info.getRTYFields().length, "y =script " + value);
+      }
+   }
+
+   @Test
+   void emptyScriptXDimensionStaysEmptyAfterUpdate() {
+      for(Object value : new Object[] { null, "", new Object[0] }) {
+         DefaultVSChartInfo info = new DefaultVSChartInfo();
+         info.addXField(scriptDimension(value));
+         info.addYField(plainMeasure());
+         info.update(null, columns(), false, null, null, null);
+
+         assertEquals(0, info.getRTXFields().length, "x =script " + value);
+         assertEquals(1, info.getRTYFields().length);
+      }
+   }
+
+   @Test
+   void emptyScriptGroupStaysEmptyAfterUpdate() {
+      for(Object value : new Object[] { null, "", new Object[0] }) {
+         DefaultVSChartInfo info = new DefaultVSChartInfo();
+         info.addGroupField(scriptDimension(value));
+         info.update(null, columns(), false, null, null, null);
+
+         assertEquals(0, info.getRTGroupFields().length, "group =script " + value);
+      }
+   }
+
+   @Test
+   void resolvedScriptStillResolves() {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.addXField(scriptDimension(REGION));
+      info.addYField(scriptMeasure(TOTAL));
+      info.update(null, columns(), false, null, null, null);
+
+      assertEquals(1, info.getRTXFields().length);
+      assertEquals(1, info.getRTYFields().length);
+      assertTrue(info.getRTYFields()[0].getName().contains(TOTAL));
+   }
+
+   @Test
+   void scriptAxisMixedWithStaticFieldKeepsStaticField() {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.addYField(plainMeasure());
+      info.addYField(scriptMeasure(null));
+      info.update(null, columns(), false, null, null, null);
+
+      assertEquals(1, info.getRTYFields().length);
+   }
+
+   @Test
+   void scriptDesignFallbackBeforeUpdate() {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.addYField(scriptMeasure(null));
+
+      assertEquals(1, info.getRTYFields().length);
+   }
+
+   private static VSChartAggregateRef scriptMeasure(Object value) {
+      VSChartAggregateRef ref = new VSChartAggregateRef();
+      ref.setColumnValue("=script");
+      ref.setFormulaValue("Sum");
+      ref.setRefType(DataRef.MEASURE);
+      ref.getDynamicValues().get(0).setRValue(value);
+      return ref;
+   }
+
+   private static VSChartDimensionRef scriptDimension(Object value) {
+      VSChartDimensionRef ref = new VSChartDimensionRef();
+      ref.setGroupColumnValue("=script");
+      ref.getDynamicValues().get(0).setRValue(value);
+      return ref;
+   }
+
    private static VSChartDimensionRef dimension(String column) {
       VSChartDimensionRef ref = new VSChartDimensionRef();
       ref.setGroupColumnValue(column);
