@@ -27,6 +27,7 @@ import inetsoft.web.composer.vs.dialog.DataOutputService;
 import inetsoft.web.composer.vs.dialog.RangeSliderPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.SelectionListPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.SelectionTreePropertyDialogService;
+import inetsoft.web.wiz.binding.BindableFieldsService.AggregateSource;
 import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.viewsheet.SelectionRuntimeService;
@@ -174,11 +175,26 @@ public class SelectionBindingService {
          // types. The unscoped call reads the same worksheet-wide tree that any fresh, unbound
          // table or crosstab would also see before it has a source of its own.
          List<BindableTable> tables = fieldsService.list(runtimeId, null, user);
-         String resolvedTable = resolveTable(tables, assemblyName, table);
-         List<BindableField> resolvedColumns =
-            resolveColumns(tables, assemblyName, resolvedTable, columnsOrEmpty);
-         List<String> resolvedAdditional = resolveAdditionalTables(tables, assemblyName, additional);
-         refuseOverlap(assemblyName, resolvedTable, resolvedAdditional);
+         // A range slider alone can also filter on a chart/crosstab's aggregated values.
+         AggregateSource component = resolveComponent(
+            runtimeId, user, tables, assembly, assemblyName, table);
+         String resolvedTable;
+         List<BindableField> resolvedColumns;
+         List<String> resolvedAdditional;
+
+         if(component != null) {
+            resolvedTable = component.name();
+            resolvedColumns = resolveColumns(
+               List.of(component.asTable()), assemblyName, resolvedTable, columnsOrEmpty);
+            requireNoComponentAdditional(assemblyName, resolvedTable, additional);
+            resolvedAdditional = List.of();
+         }
+         else {
+            resolvedTable = resolveTable(tables, List.of(), assemblyName, table);
+            resolvedColumns = resolveColumns(tables, assemblyName, resolvedTable, columnsOrEmpty);
+            resolvedAdditional = resolveAdditionalTables(tables, assemblyName, additional);
+            refuseOverlap(assemblyName, resolvedTable, resolvedAdditional);
+         }
 
          if(assembly instanceof SelectionListVSAssembly) {
             requireArity(assemblyName, "a selection list", resolvedColumns, 1, 1);
@@ -296,20 +312,37 @@ public class SelectionBindingService {
             RangeSliderDataPaneModel pane = model.getRangeSliderDataPaneModel();
             requireRepoint(assemblyName, tables, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
+            pane.setAssemblySource(component != null);
 
-            List<String> finalAdditional = finalAdditional(
-               tables, assemblyName, resolvedTable, resolvedColumns, false, replaceAdditional,
-               resolvedAdditional, pane.getAdditionalTables(), result);
+            if(component != null) {
+               // The union with additional tables is built from worksheet tables only.
+               List<String> inherited = additionalOrEmpty(pane.getAdditionalTables());
 
-            if(finalAdditional != null) {
-               pane.setAdditionalTables(finalAdditional);
+               if(!inherited.isEmpty()) {
+                  result.put("droppedAdditionalTables", new ArrayList<>(inherited));
+               }
+
+               pane.setAdditionalTables(new ArrayList<>());
+               result.put("sourceType", BindableTable.VIEWSHEET_AGGREGATE);
+            }
+            else {
+               List<String> finalAdditional = finalAdditional(
+                  tables, assemblyName, resolvedTable, resolvedColumns, false, replaceAdditional,
+                  resolvedAdditional, pane.getAdditionalTables(), result);
+
+               if(finalAdditional != null) {
+                  pane.setAdditionalTables(finalAdditional);
+               }
             }
 
             result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
 
             boolean composite = resolvedColumns.size() > 1;
             pane.setComposite(composite);
-            pane.setSelectedColumns(columnRefs(resolvedTable, resolvedColumns));
+            // A component's column nodes carry the source type and assembly the dialog stores.
+            pane.setSelectedColumns(component != null
+               ? componentColumnRefs(component, resolvedColumns)
+               : columnRefs(resolvedTable, resolvedColumns));
 
             if(!composite) {
                // A composite range's per-column type is read straight off each OutputColumnRefModel
@@ -482,8 +515,14 @@ public class SelectionBindingService {
          "instead. The slider's existing binding was not changed.");
    }
 
-   /** Matches a requested table against what this viewsheet's worksheet actually offers. */
-   private static String resolveTable(List<BindableTable> tables, String assemblyName,
+   /**
+    * Matches a requested table against what this viewsheet's worksheet actually offers.
+    *
+    * @param components chart/crosstab aggregate sources the assembly could also bind, named in the
+    *                   refusal only
+    */
+   private static String resolveTable(List<BindableTable> tables,
+                                      List<AggregateSource> components, String assemblyName,
                                       String table)
    {
       String resolved = findByName(tables, table);
@@ -492,10 +531,108 @@ public class SelectionBindingService {
          return resolved;
       }
 
+      List<String> available = availableNames(tables);
+
+      for(AggregateSource component : components) {
+         available.add(component.name());
+      }
+
       throw new IllegalArgumentException(
-         "'" + assemblyName + "' cannot bind to '" + table + "'. Available: " +
-         availableNames(tables) + ". A source the assembly cannot see binds nothing and " +
-         "renders an empty assembly.");
+         "'" + assemblyName + "' cannot bind to '" + table + "'. Available: " + available +
+         ". A source the assembly cannot see binds nothing and renders an empty assembly.");
+   }
+
+   /**
+    * The chart/crosstab aggregate source {@code table} names, or {@code null} when it names a
+    * worksheet table or nothing.
+    *
+    * <p>A selection list, tree or calendar has no such source (the Composer's dialogs for them
+    * have no Components node), so naming one is refused rather than reported as an unknown table.
+    * A name carried by both a worksheet table and a chart/crosstab is refused as well: the two are
+    * stored as different kinds of source, and picking one would bind the other's name silently.
+    */
+   private AggregateSource resolveComponent(String runtimeId, Principal user,
+                                            List<BindableTable> tables,
+                                            SelectionVSAssembly assembly, String assemblyName,
+                                            String table)
+      throws Exception
+   {
+      boolean rangeSlider = assembly instanceof TimeSliderVSAssembly;
+      String worksheet = findByName(tables, table);
+
+      // Not asked for, so the components' tree is not built for it.
+      if(worksheet != null && !rangeSlider) {
+         return null;
+      }
+
+      List<AggregateSource> components = fieldsService.aggregateSources(runtimeId, user);
+      AggregateSource match = TableNames.resolve(components, AggregateSource::name, table);
+
+      if(match == null) {
+         if(rangeSlider && worksheet == null) {
+            // Name the chart/crosstab sources too, which the caller could have meant.
+            resolveTable(tables, components, assemblyName, table);
+         }
+
+         return null;
+      }
+
+      if(!rangeSlider) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is " + describe(assembly) + "; only a range slider can bind " +
+            "to the chart or crosstab '" + match.name() + "'. Bind a worksheet column instead: " +
+            availableNames(tables) + ".");
+      }
+
+      if(worksheet != null) {
+         throw new IllegalArgumentException(
+            "'" + table + "' names both a worksheet table and the chart/crosstab '" + match.name() +
+            "', so '" + assemblyName + "' cannot tell which to bind. Rename the chart/crosstab " +
+            "(or the table) so the names differ.");
+      }
+
+      return match;
+   }
+
+   private static String describe(SelectionVSAssembly assembly) {
+      return assembly instanceof SelectionListVSAssembly ? "a selection list" :
+         assembly instanceof SelectionTreeVSAssembly ? "a selection tree" :
+         assembly instanceof CalendarVSAssembly ? "a calendar" :
+         "a " + assembly.getClass().getSimpleName();
+   }
+
+   /**
+    * A chart/crosstab aggregate is filtered on its own aggregated rows, with no worksheet table
+    * to union with ({@code TimeSliderVSAQuery.createAssemblyTable}), so a non-empty
+    * {@code additionalTables} cannot be honored.
+    */
+   private static void requireNoComponentAdditional(String assemblyName, String component,
+                                                    List<String> additional)
+   {
+      if(!additional.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' cannot use 'additionalTables' with the chart/crosstab '" +
+            component + "': it filters that component's own aggregated rows, with no other " +
+            "table to share the filter. Omit it or pass [].");
+      }
+   }
+
+   /** The component's own column nodes for the resolved columns, as its tree emitted them. */
+   private static OutputColumnRefModel[] componentColumnRefs(AggregateSource component,
+                                                            List<BindableField> fields)
+   {
+      OutputColumnRefModel[] refs = new OutputColumnRefModel[fields.size()];
+
+      for(int i = 0; i < refs.length; i++) {
+         for(OutputColumnRefModel column : component.columns()) {
+            if(fields.get(i).column().equals(column.getAttribute())) {
+               refs[i] = column;
+               break;
+            }
+         }
+      }
+
+      return refs;
    }
 
    /**

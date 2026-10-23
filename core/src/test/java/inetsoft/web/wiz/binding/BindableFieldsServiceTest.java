@@ -35,6 +35,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.viewsheet.service.VSOutputService;
 import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import org.junit.jupiter.api.Tag;
@@ -502,7 +503,7 @@ class BindableFieldsServiceTest {
       when(tree.getBinding(eq("rt1"), isNull(), anyBoolean(), any(Principal.class), any()))
          .thenReturn(unscopedRoot);
 
-      return new BindableFieldsService(tree, engine);
+      return new BindableFieldsService(tree, engine, mock(VSOutputService.class));
    }
 
    @Test
@@ -618,7 +619,7 @@ class BindableFieldsServiceTest {
       when(tree.getBinding(eq("rt1"), eq("Chart1"), anyBoolean(), any(Principal.class), any()))
          .thenReturn(root);
 
-      List<BindableTable> tables = new BindableFieldsService(tree, engine)
+      List<BindableTable> tables = new BindableFieldsService(tree, engine, mock(VSOutputService.class))
          .list("rt1", "Chart1", principal());
 
       verify(tree).getBinding(eq("rt1"), eq("Chart1"), eq(false), any(Principal.class), any());
@@ -712,7 +713,7 @@ class BindableFieldsServiceTest {
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
       when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class), any())).thenReturn(root);
 
-      return new BindableFieldsService(tree, engine);
+      return new BindableFieldsService(tree, engine, mock(VSOutputService.class));
    }
 
    // ── unknown assembly name (the D4 regression) ────────────────────────────
@@ -734,7 +735,7 @@ class BindableFieldsServiceTest {
       when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
       when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class), any())).thenReturn(root);
-      BindableFieldsService service = new BindableFieldsService(tree, engine);
+      BindableFieldsService service = new BindableFieldsService(tree, engine, mock(VSOutputService.class));
 
       Exception thrown = assertThrows(IllegalArgumentException.class,
                                       () -> service.list("rt1", "Nope", principal()));
@@ -756,7 +757,7 @@ class BindableFieldsServiceTest {
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
       when(tree.getBinding(eq("rt1"), eq("Table1"), anyBoolean(), any(Principal.class), any()))
          .thenReturn(null);
-      BindableFieldsService service = new BindableFieldsService(tree, engine);
+      BindableFieldsService service = new BindableFieldsService(tree, engine, mock(VSOutputService.class));
 
       assertTrue(service.list("rt1", "Table1", principal()).isEmpty());
    }
@@ -781,7 +782,7 @@ class BindableFieldsServiceTest {
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
       when(tree.getBinding(eq("rt1"), any(), anyBoolean(), any(Principal.class), any()))
          .thenReturn(root);
-      return new BindableFieldsService(tree, engine);
+      return new BindableFieldsService(tree, engine, mock(VSOutputService.class));
    }
 
    // -- logical models: the entities are groups, the model is the source ------
@@ -906,7 +907,7 @@ class BindableFieldsServiceTest {
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
       when(tree.getBinding(eq("rt1"), eq("Chart1"), anyBoolean(), any(Principal.class), any()))
          .thenReturn(root);
-      BindableFieldsService service = new BindableFieldsService(tree, engine);
+      BindableFieldsService service = new BindableFieldsService(tree, engine, mock(VSOutputService.class));
 
       List<BindableTable> tables = service.list("rt1", "Chart1", principal());
 
@@ -958,7 +959,7 @@ class BindableFieldsServiceTest {
       VSBindingTreeService tree = mock(VSBindingTreeService.class);
       when(tree.getBinding(eq("rt1"), eq("Chart1"), anyBoolean(), any(Principal.class), any()))
          .thenReturn(root);
-      BindableFieldsService service = new BindableFieldsService(tree, engine);
+      BindableFieldsService service = new BindableFieldsService(tree, engine, mock(VSOutputService.class));
 
       List<BindableTable> tables = service.list("rt1", "Chart1", principal());
 
@@ -1052,7 +1053,7 @@ class BindableFieldsServiceTest {
                return root;
             });
 
-         List<BindableTable> tables = new BindableFieldsService(tree, engine)
+         List<BindableTable> tables = new BindableFieldsService(tree, engine, mock(VSOutputService.class))
             .list("rt1", "Chart1", principal());
 
          BindableTable bad = byName(tables, "Bad");
