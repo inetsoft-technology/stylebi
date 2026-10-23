@@ -156,4 +156,31 @@ class ScheduleTaskServiceRangeOrderTest {
       TimeCondition condition = (TimeCondition) conditions.getConditionFromModel(stored, false);
       assertEquals(-1, condition.getHour());
    }
+
+   // Bug #79236, a task stored with a time out of range (saved before the check) is refused when
+   // it is saved back unchanged, with the message naming the field, and is saved once the time is
+   // edited into range
+   @Test
+   void saveTask_storedOutOfRangeTime_isRefusedUntilItIsEdited() throws Exception {
+      ScheduleTaskEditorModel unchanged = ScheduleTaskEditorModel.builder()
+         .from(model(-30)).taskName("Nightly").build();
+      Exception refused = assertThrows(Exception.class,
+         () -> service.saveTask(unchanged, "", principal, true));
+      assertInstanceOf(MessageException.class, refused);
+      assertTrue(refused.getMessage().contains("hour"), refused.getMessage());
+      verify(scheduleService, never()).saveTask(any(), any(), any());
+
+      ScheduleTaskEditorModel edited = ScheduleTaskEditorModel.builder()
+         .from(model(3)).taskName("Nightly").build();
+
+      try {
+         service.saveTask(edited, "", principal, true);
+      }
+      catch(MessageException e) {
+         fail("unexpected refusal: " + e.getMessage());
+      }
+      catch(Exception ignore) {
+         // the rest of the save is not wired
+      }
+   }
 }
