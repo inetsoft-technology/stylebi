@@ -587,12 +587,40 @@ public class NamedCellRange extends CellRange {
    }
 
    /**
+    * A common marker for a strict-lookup failure, so a caller that otherwise swallows
+    * script errors (e.g. {@link inetsoft.report.script.TableArray#getMember}) can rethrow
+    * any one of them instead of silently eating it (#79226).
+    */
+   public static abstract class StrictLookupException extends ScriptException {
+      protected StrictLookupException(String msg) {
+         super(msg);
+      }
+
+      protected StrictLookupException(String msg, Throwable cause) {
+         super(msg, cause);
+      }
+   }
+
+   /**
     * Thrown for a strict reference to a column that is not in the table. A distinct
     * type so callers that swallow script errors can rethrow just this one.
     */
-   public static class MissingColumnException extends ScriptException {
+   public static class MissingColumnException extends StrictLookupException {
       public MissingColumnException(String msg) {
          super(msg);
+      }
+   }
+
+   /**
+    * Thrown for a strict lookup condition that fails to evaluate for a reason other than a
+    * missing name -- a TypeError, NPE, or any other script error. A distinct type (sibling
+    * of {@link MissingColumnException}) so the message does not misleadingly claim a missing
+    * name, while still being a {@link StrictLookupException} a swallow-everything caller
+    * recognizes (#79226).
+    */
+   public static class ConditionEvaluationException extends StrictLookupException {
+      public ConditionEvaluationException(String msg, Throwable cause) {
+         super(msg, cause);
       }
    }
 
