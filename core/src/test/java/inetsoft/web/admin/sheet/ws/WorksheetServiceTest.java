@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.sheet.ws;
 
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -26,6 +27,7 @@ import inetsoft.web.admin.content.repository.RepletRegistryService;
 import inetsoft.web.admin.sheet.SheetList;
 import inetsoft.web.security.auth.MissingResourceException;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.context.support.StaticApplicationContext;
 
@@ -55,7 +57,13 @@ class WorksheetServiceTest {
       xSessionServiceStatic = mockStatic(XSessionService.class);
       xSessionServiceStatic.when(XSessionService::getService).thenReturn(mock(XSessionService.class));
 
+      // ActionRecord (renameWorksheet) resolves the host name and security state through
+      // Spring, which otherwise requires a real application context.
       context = new StaticApplicationContext();
+      context.getBeanFactory().registerSingleton("propertiesEngine", mock(PropertiesEngine.class));
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.getSecurityProvider()).thenReturn(mock(SecurityProvider.class));
+      context.getBeanFactory().registerSingleton("securityEngine", securityEngine);
       context.refresh();
       ConfigurationContext.getContext().setApplicationContext(context);
 
@@ -96,6 +104,67 @@ class WorksheetServiceTest {
 
       assertThrows(MissingResourceException.class, () ->
          service.getWorksheetSettingsMetadata(identifier, principal));
+   }
+
+   // Bug #79257: renaming through the service built a bare target entry, so the alias and the
+   // "description" property of the sheet were silently reset.
+   @Test
+   void renameWorksheetKeepsAliasAndDescription() throws Exception {
+      SRPrincipal principal = createPrincipal("user1", "host-org");
+      AssetEntry oldEntry = stubStoredEntry("AliasX", "DescX", "original");
+
+      service.renameWorksheet(oldEntry.toIdentifier(), "renamed", true, null, principal);
+
+      AssetEntry newEntry = captureRenamedEntry();
+      assertEquals("AliasX", newEntry.getAlias());
+      assertEquals("DescX", newEntry.getProperty("description"));
+   }
+
+   @Test
+   void renameWorksheetWithBlankAliasLeavesAliasEmpty() throws Exception {
+      SRPrincipal principal = createPrincipal("user1", "host-org");
+      AssetEntry oldEntry = stubStoredEntry("  ", "DescX", "original");
+
+      service.renameWorksheet(oldEntry.toIdentifier(), "renamed", true, null, principal);
+
+      AssetEntry newEntry = captureRenamedEntry();
+      assertNull(newEntry.getAlias());
+      assertEquals("DescX", newEntry.getProperty("description"));
+   }
+
+   // The rename rollback calls renameWorksheet again with the original path, so it restores
+   // alias and description through the same carry-over.
+   @Test
+   void renameWorksheetBackKeepsAliasAndDescription() throws Exception {
+      SRPrincipal principal = createPrincipal("user1", "host-org");
+      AssetEntry renamed = stubStoredEntry("AliasX", "DescX", "renamed");
+
+      service.renameWorksheet(renamed.toIdentifier(), "original", true, null, principal);
+
+      AssetEntry back = captureRenamedEntry();
+      assertEquals("original", back.getPath());
+      assertEquals("AliasX", back.getAlias());
+      assertEquals("DescX", back.getProperty("description"));
+   }
+
+   private AssetEntry stubStoredEntry(String alias, String description, String path)
+      throws Exception
+   {
+      AssetEntry requested = AssetEntry.createAssetEntry(
+         "1^2^__NULL__^" + path + "^host-org");
+      AssetEntry stored = AssetEntry.createAssetEntry(requested.toIdentifier());
+      stored.setAlias(alias);
+      stored.setProperty("description", description);
+      when(assetRepository.getAssetEntry(any(AssetEntry.class))).thenReturn(stored);
+      return requested;
+   }
+
+   private AssetEntry captureRenamedEntry() throws Exception {
+      ArgumentCaptor<AssetEntry> captor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(assetRepository).changeSheet(
+         any(AssetEntry.class), captor.capture(), any(Principal.class), eq(true), eq(true),
+         eq(false));
+      return captor.getValue();
    }
 
    private static SRPrincipal createPrincipal(String name, String orgId) {

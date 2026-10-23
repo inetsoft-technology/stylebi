@@ -30,6 +30,7 @@ import inetsoft.web.admin.sheet.Sheet;
 import inetsoft.web.admin.sheet.SheetList;
 import inetsoft.web.security.auth.UnauthorizedAccessException;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.support.StaticApplicationContext;
@@ -120,6 +121,67 @@ class ViewsheetServiceTest {
 
       assertThrows(IllegalArgumentException.class, () ->
          service.removeFolder("/", null, principal));
+   }
+
+   // Bug #79257: renaming through the service built a bare target entry, so the alias and the
+   // "description" property of the sheet were silently reset.
+   @Test
+   void renameViewsheetKeepsAliasAndDescription() throws Exception {
+      SRPrincipal principal = createPrincipal("user1", "host-org");
+      AssetEntry oldEntry = stubStoredEntry("AliasX", "DescX", "original");
+
+      service.renameViewsheet(oldEntry.toIdentifier(), "renamed", true, null, principal);
+
+      AssetEntry newEntry = captureRenamedEntry();
+      assertEquals("AliasX", newEntry.getAlias());
+      assertEquals("DescX", newEntry.getProperty("description"));
+   }
+
+   @Test
+   void renameViewsheetWithBlankAliasLeavesAliasEmpty() throws Exception {
+      SRPrincipal principal = createPrincipal("user1", "host-org");
+      AssetEntry oldEntry = stubStoredEntry("  ", "DescX", "original");
+
+      service.renameViewsheet(oldEntry.toIdentifier(), "renamed", true, null, principal);
+
+      AssetEntry newEntry = captureRenamedEntry();
+      assertNull(newEntry.getAlias());
+      assertEquals("DescX", newEntry.getProperty("description"));
+   }
+
+   // The rename rollback calls renameViewsheet again with the original path, so it restores
+   // alias and description through the same carry-over.
+   @Test
+   void renameViewsheetBackKeepsAliasAndDescription() throws Exception {
+      SRPrincipal principal = createPrincipal("user1", "host-org");
+      AssetEntry renamed = stubStoredEntry("AliasX", "DescX", "renamed");
+
+      service.renameViewsheet(renamed.toIdentifier(), "original", true, null, principal);
+
+      AssetEntry back = captureRenamedEntry();
+      assertEquals("original", back.getPath());
+      assertEquals("AliasX", back.getAlias());
+      assertEquals("DescX", back.getProperty("description"));
+   }
+
+   private AssetEntry stubStoredEntry(String alias, String description, String path)
+      throws Exception
+   {
+      AssetEntry requested = AssetEntry.createAssetEntry(
+         "1^128^__NULL__^" + path + "^host-org");
+      AssetEntry stored = AssetEntry.createAssetEntry(requested.toIdentifier());
+      stored.setAlias(alias);
+      stored.setProperty("description", description);
+      when(assetRepository.getAssetEntry(any(AssetEntry.class))).thenReturn(stored);
+      return requested;
+   }
+
+   private AssetEntry captureRenamedEntry() throws Exception {
+      ArgumentCaptor<AssetEntry> captor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(assetRepository).changeSheet(
+         any(AssetEntry.class), captor.capture(), any(Principal.class), eq(true), eq(true),
+         eq(false));
+      return captor.getValue();
    }
 
    private static SRPrincipal createPrincipal(String name, String orgId) {
