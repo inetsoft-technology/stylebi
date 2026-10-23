@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
@@ -28,12 +29,15 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.DataVSAssembly;
 import inetsoft.uql.viewsheet.ListInputVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
+import inetsoft.web.viewsheet.service.VSOutputService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -42,6 +46,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Projects the Composer's binding tree into a flat table/column list.
@@ -53,9 +58,12 @@ import java.util.Map;
 @Service
 public class BindableFieldsService {
    @Autowired
-   public BindableFieldsService(VSBindingTreeService tree, ViewsheetService viewsheetService) {
+   public BindableFieldsService(VSBindingTreeService tree, ViewsheetService viewsheetService,
+                                VSOutputService outputService)
+   {
       this.tree = tree;
       this.viewsheetService = viewsheetService;
+      this.outputService = outputService;
    }
 
    /**
@@ -76,6 +84,7 @@ public class BindableFieldsService {
       String source = null;
       boolean sourceIsComponent = false;
       boolean chart = false;
+      boolean rangeSlider = false;
       String modelName = null;
       String treeScope = assembly;
 
@@ -93,6 +102,7 @@ public class BindableFieldsService {
 
          source = sourceNameOf(target);
          chart = target instanceof ChartVSAssembly;
+         rangeSlider = target instanceof TimeSliderVSAssembly;
          sourceIsComponent = target instanceof DataVSAssembly data && data.getSourceInfo() != null &&
             data.getSourceInfo().getType() == SourceInfo.VS_ASSEMBLY;
 
@@ -136,11 +146,101 @@ public class BindableFieldsService {
 
       addSkipped(tables, skipped);
 
+      // Only a range slider can filter on a chart/crosstab's aggregated rows; for every other
+      // caller these would be tables it can never bind.
+      if(rangeSlider) {
+         for(AggregateSource aggregate : aggregateSources(runtimeId, user)) {
+            tables.add(aggregate.asTable());
+         }
+      }
+
       if(chart) {
          withoutComponents(tables, source, sourceIsComponent);
       }
 
       return assembly == null ? tables : marked(tables, source, sourceIsComponent);
+   }
+
+   /**
+    * A Chart or Crosstab of the viewsheet and its aggregate columns, as a range slider's
+    * "Components" node offers them.
+    *
+    * @param columns the tree's own nodes, unchanged: the range slider's property dialog stores
+    *                what these carry ({@code properties["type"]}, {@code assembly}, the attribute
+    *                spelling), so a hand-built copy could drift from what it expects.
+    */
+   public record AggregateSource(String name, List<OutputColumnRefModel> columns) {
+      public BindableTable asTable() {
+         List<BindableField> fields = new ArrayList<>();
+
+         for(OutputColumnRefModel column : columns) {
+            fields.add(new BindableField(column.getAttribute(), column.getDataType(), MEASURE));
+         }
+
+         return new BindableTable(name, null, fields, List.of(),
+                                  BindableTable.VIEWSHEET_AGGREGATE);
+      }
+   }
+
+   /**
+    * The Charts and Crosstabs a range slider can filter on their aggregated values, read from
+    * {@code VSOutputService.getRangeSliderTablesTree} -- the tree the range slider's own dialog
+    * offers -- so the listing is by construction what the dialog offers, with the dialog's own
+    * exclusions (a component bound to another component, a crosstab with no aggregates yet).
+    */
+   public List<AggregateSource> aggregateSources(String runtimeId, Principal user)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+      Optional<ViewsheetSandbox> box = rvs == null ? Optional.empty() : rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return List.of();
+      }
+
+      TreeNodeModel root;
+
+      // The tree reads the components' runtime info, as VSBindingTreeService does.
+      box.get().lockRead();
+
+      try {
+         root = outputService.getRangeSliderTablesTree(rvs, user, true);
+      }
+      finally {
+         box.get().unlockRead();
+      }
+
+      List<AggregateSource> sources = new ArrayList<>();
+      collectAggregateSources(root, sources);
+      return sources;
+   }
+
+   /**
+    * The component tables are found by their entry path ({@code VSEventUtil.appendVSAssemblyTree}
+    * puts each under {@code /assemblies/}), not by the localized "Components" folder label.
+    */
+   private static void collectAggregateSources(TreeNodeModel node, List<AggregateSource> out) {
+      if(node.data() instanceof AssetEntry entry && entry.getType() == AssetEntry.Type.TABLE &&
+         entry.getPath() != null && entry.getPath().startsWith("/assemblies/"))
+      {
+         List<OutputColumnRefModel> columns = new ArrayList<>();
+
+         for(TreeNodeModel child : node.children()) {
+            if(child.data() instanceof OutputColumnRefModel column) {
+               columns.add(column);
+            }
+         }
+
+         if(!columns.isEmpty()) {
+            out.add(new AggregateSource(node.label(), columns));
+         }
+
+         return;
+      }
+
+      for(TreeNodeModel child : node.children()) {
+         collectAggregateSources(child, out);
+      }
    }
 
    /**
@@ -571,4 +671,5 @@ public class BindableFieldsService {
 
    private final VSBindingTreeService tree;
    private final ViewsheetService viewsheetService;
+   private final VSOutputService outputService;
 }

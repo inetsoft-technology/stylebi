@@ -41,12 +41,17 @@ import java.util.List;
  *                   source, the Composer's "Components" folder), and omitted for a worksheet table
  *                   or model entity. The name alone cannot say which: a component and a worksheet
  *                   table may share one, and each is stored as a different kind of source.
+ *                   {@code "viewsheet_aggregate"} when it is a Chart or Crosstab whose aggregated
+ *                   rows a range slider filters on (the range slider's "Components" node); listed
+ *                   only for a range slider, and its columns are aggregate names such as
+ *                   {@code Sum(Product:Total)}.
  */
 public record BindableTable(String name, Boolean current, List<BindableField> fields,
                             @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> warnings,
                             @JsonInclude(JsonInclude.Include.NON_NULL) String sourceType)
 {
    public static final String VIEWSHEET = "viewsheet";
+   public static final String VIEWSHEET_AGGREGATE = "viewsheet_aggregate";
 
    public BindableTable {
       warnings = warnings == null ? List.of() : List.copyOf(warnings);
@@ -65,6 +70,11 @@ public record BindableTable(String name, Boolean current, List<BindableField> fi
    /** Whether this table is another component of the viewsheet rather than a worksheet table. */
    public boolean isComponent() {
       return VIEWSHEET.equals(sourceType);
+   }
+
+   /** Whether this table is a Chart/Crosstab's aggregated output, a range slider source. */
+   public boolean isAggregate() {
+      return VIEWSHEET_AGGREGATE.equals(sourceType);
    }
 
    /** Whether this table's column list is known to be incomplete. */
