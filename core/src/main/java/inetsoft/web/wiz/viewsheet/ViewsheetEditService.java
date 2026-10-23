@@ -105,8 +105,9 @@ public class ViewsheetEditService {
    static final List<String> OPS = List.of(
       "move", "resize", "resize_title", "add", "remove", "rename", "copy", "cut", "paste",
       "set_z_index", "set_lock", "set_title", "group", "group_as_tab",
-      "group_as_selection_container", "ungroup", "move_from_container", "select_tab", "align",
-      "distribute", "refresh", "refresh_viewsheet");
+      "group_as_selection_container", "add_to_selection_container", "reorder_container_children",
+      "ungroup", "move_from_container", "select_tab", "align", "distribute", "refresh",
+      "refresh_viewsheet");
 
    /**
     * What an edit produced.
@@ -150,6 +151,10 @@ public class ViewsheetEditService {
       case "group_as_tab" -> groupAsTab(sessionToken, user, request, linkUri);
       case "group_as_selection_container" ->
          groupAsSelectionContainer(sessionToken, user, request, linkUri);
+      case "add_to_selection_container" ->
+         addToSelectionContainer(sessionToken, user, request, linkUri);
+      case "reorder_container_children" ->
+         reorderContainerChildren(sessionToken, user, request, linkUri);
       case "ungroup" -> ungroup(sessionToken, user, request, linkUri);
       case "select_tab" -> selectTab(sessionToken, user, request, linkUri);
       case "move_from_container" -> moveFromContainer(sessionToken, user, request, linkUri);
@@ -804,6 +809,223 @@ public class ViewsheetEditService {
       });
    }
 
+   /**
+    * Adds existing selection filters to an EXISTING Selection Container, optionally at a position
+    * -- the native Composer's "drag a filter onto a container" gesture
+    * ({@code LayoutOptionDialogService}), with the container itself left alone: title, Show
+    * Current Selections, adhoc flag and every child's selected values are untouched, because
+    * {@code GroupingService.groupComponents(selection=true)} writes only the filter's own layout
+    * and the container's child list. {@code index} is the 0-based slot of the first added filter
+    * (omitted: append); the k-th added filter lands at {@code index + k}, the same move
+    * {@code VSBindingService.insertChild} makes.
+    *
+    * <p>Every check runs before the first mutation, so a bad later name never leaves the earlier
+    * ones already moved. {@code groupComponents} is deliberately never handed a filter that is
+    * already a child of this container: it would re-append it and drop the first occurrence,
+    * silently moving it to the end.
+    */
+   private List<String> addToSelectionContainer(String sessionToken, Principal user,
+                                                EditRequest request, String linkUri)
+      throws Exception
+   {
+      String containerName = containerName(request);
+      List<String> names = request.assemblies();
+
+      if(names == null || names.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Edit op 'add_to_selection_container' requires 'assemblies' with at least one " +
+            "selection filter name to add.");
+      }
+
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         Viewsheet vs = rvs.getViewsheet();
+         CurrentSelectionVSAssembly container = requireSelectionContainer(
+            rvs, vs, containerName, request.op());
+         List<String> current = childrenOf(container);
+         int size = current.size();
+         int index = request.index() == null ? size : request.index();
+
+         if(index < 0 || index > size) {
+            throw new IllegalArgumentException(
+               "'index' " + index + " is out of range for Selection Container '" + containerName +
+               "', which has " + size + " child" + (size == 1 ? "" : "ren") +
+               " -- use 0.." + size + " (" + size + " appends).");
+         }
+
+         List<VSAssembly> filters = new ArrayList<>();
+         Set<String> seen = new HashSet<>();
+
+         for(String name : names) {
+            if(name == null || name.isBlank()) {
+               throw new IllegalArgumentException(
+                  "Edit op 'add_to_selection_container' 'assemblies' contains a blank name.");
+            }
+
+            if(name.equals(container.getAbsoluteName())) {
+               throw new IllegalArgumentException(
+                  "Selection Container '" + name + "' cannot be added to itself -- 'assemblies' " +
+                  "lists the filters to add, 'assembly' names the container.");
+            }
+
+            if(!seen.add(name)) {
+               throw new IllegalArgumentException(
+                  "'" + name + "' is listed more than once in 'assemblies'.");
+            }
+
+            VSAssembly filter = requireVSAssembly(rvs, vs, name);
+
+            if(!(filter instanceof AbstractSelectionVSAssembly)) {
+               throw new IllegalArgumentException(
+                  "'" + name + "' is a " + filter.getClass().getSimpleName() + ", not a " +
+                  "selection filter -- edit(op:'add_to_selection_container') only adds " +
+                  "Selection List, Selection Tree, Time Slider or Calendar assemblies.");
+            }
+
+            if(current.contains(name) || current.contains(filter.getName())) {
+               throw new IllegalArgumentException(
+                  "'" + name + "' is already a child of Selection Container '" + containerName +
+                  "' -- to change its position use edit(op:'reorder_container_children').");
+            }
+
+            VSAssembly parent = filter.getContainer();
+
+            if(parent != null && !(parent instanceof CurrentSelectionVSAssembly)) {
+               throw new IllegalArgumentException(
+                  "'" + name + "' is inside " + parent.getClass().getSimpleName()
+                     .replace("VSAssembly", "") + " '" + parent.getAbsoluteName() + "' -- take " +
+                  "it out first with edit(op:'move_from_container'), then add it to the " +
+                  "Selection Container.");
+            }
+
+            filters.add(filter);
+         }
+
+         for(int k = 0; k < filters.size(); k++) {
+            grouping.groupComponents(rvs, container, filters.get(k), true, linkUri, dispatcher);
+
+            // groupComponents appends; move the filter from its appended slot to the requested
+            // one. A plain append needs no move.
+            if(index != size) {
+               container.update(size + k, index + k, false);
+            }
+         }
+
+         // The append path places a child at the container's bottom edge, the indexed path
+         // re-flows every child from the title rows; reflow on both so the result does not depend
+         // on whether an index was given.
+         container.layout();
+         coreLifecycleService.refreshVSAssembly(rvs, container, dispatcher);
+      });
+   }
+
+   /**
+    * Reorders the children of a Selection Container to the given complete order -- the native
+    * Composer's drag-reorder ({@code VSSelectionContainerService.applySelection} for a
+    * {@code MoveSelectionChildEvent}), applied as
+    * {@code CurrentSelectionVSAssembly.update(from, to, false)} moves. Declarative:
+    * {@code assemblies} must be a permutation of the current children, so a stale or partial list
+    * fails with the current order instead of guessing. Already in that order is a no-op.
+    */
+   private List<String> reorderContainerChildren(String sessionToken, Principal user,
+                                                 EditRequest request, String linkUri)
+      throws Exception
+   {
+      String containerName = containerName(request);
+      List<String> desired = request.assemblies();
+
+      if(desired == null || desired.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Edit op 'reorder_container_children' requires 'assemblies' -- the container's " +
+            "complete children in the new order.");
+      }
+
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         Viewsheet vs = rvs.getViewsheet();
+         CurrentSelectionVSAssembly container = requireSelectionContainer(
+            rvs, vs, containerName, request.op());
+         List<String> order = new ArrayList<>(childrenOf(container));
+
+         if(new HashSet<>(desired).size() != desired.size() || desired.size() != order.size() ||
+            !new HashSet<>(order).equals(new HashSet<>(desired)))
+         {
+            throw new IllegalArgumentException(
+               "'assemblies' must list every child of Selection Container '" + containerName +
+               "' exactly once, in the new order. Current children, in order: " + order + ".");
+         }
+
+         if(order.equals(desired)) {
+            return;
+         }
+
+         for(int p = 0; p < desired.size(); p++) {
+            int from = order.indexOf(desired.get(p));
+
+            if(from != p) {
+               container.update(from, p, false);
+               order.add(p, order.remove(from));
+            }
+         }
+
+         container.layout();
+         coreLifecycleService.refreshVSAssembly(rvs, container, dispatcher);
+      });
+   }
+
+   /** The container name: {@code assembly}, or its alias {@code container}; a conflict is loud. */
+   private static String containerName(EditRequest request) {
+      String assembly = request.assembly() == null || request.assembly().isBlank()
+         ? null : request.assembly();
+      String container = request.container() == null || request.container().isBlank()
+         ? null : request.container();
+
+      if(assembly != null && container != null && !assembly.equals(container)) {
+         throw new IllegalArgumentException(
+            "Edit op '" + request.op() + "' got 'assembly' '" + assembly + "' and 'container' '" +
+            container + "' -- they name the same thing (the Selection Container); pass one.");
+      }
+
+      if(assembly == null && container == null) {
+         throw new IllegalArgumentException(
+            "Edit op '" + request.op() + "' requires 'assembly' -- the Selection Container name.");
+      }
+
+      return assembly != null ? assembly : container;
+   }
+
+   private CurrentSelectionVSAssembly requireSelectionContainer(RuntimeViewsheet rvs, Viewsheet vs,
+                                                                String name, String op)
+   {
+      VSAssembly assembly = requireVSAssembly(rvs, vs, name);
+
+      if(!(assembly instanceof CurrentSelectionVSAssembly container)) {
+         VSAssembly parent = assembly.getContainer();
+         throw new IllegalArgumentException(
+            "'" + name + "' is a " + assembly.getClass().getSimpleName().replace("VSAssembly", "") +
+            ", not a Selection Container" +
+            (parent instanceof CurrentSelectionVSAssembly
+               ? " -- it is a child of Selection Container '" + parent.getAbsoluteName() +
+                  "', pass that name as 'assembly'"
+               : "") + ". edit(op:'" + op + "') works on a container made by " +
+            "group_as_selection_container.");
+      }
+
+      // groupComponents sends the filter to the GROUP when its target sits in one; a Tab is fine.
+      VSAssembly parent = container.getContainer();
+
+      if(parent != null && !(parent instanceof TabVSAssembly)) {
+         throw new IllegalArgumentException(
+            "Selection Container '" + name + "' is inside Group '" + parent.getAbsoluteName() +
+            "' -- take it out first with edit(op:'move_from_container'), then edit its children.");
+      }
+
+      return container;
+   }
+
+   private static List<String> childrenOf(CurrentSelectionVSAssembly container) {
+      String[] children = container.getAssemblies();
+      return children == null ? List.of() : List.of(children);
+   }
+
    private VSAssembly requireVSAssembly(RuntimeViewsheet rvs, Viewsheet vs, String name) {
       requireExisting(rvs, name);
       VSAssembly assembly = vs == null ? null : (VSAssembly) vs.getAssembly(name);
@@ -845,7 +1067,9 @@ public class ViewsheetEditService {
                "'" + request.assembly() + "' is a Selection Container, not a Group -- " +
                "edit(op:'ungroup') only reverses the GroupContainer that group creates; it does " +
                "not undo a Selection Container created by group_as_selection_container. To take " +
-               "an assembly out of it, use edit(op:'move_from_container') on it instead -- " +
+               "an assembly out of it, use edit(op:'move_from_container') on it instead (to add " +
+               "one, edit(op:'add_to_selection_container'); to reorder, " +
+               "edit(op:'reorder_container_children')) -- " +
                "unlike a Tab or Group, the container is NOT removed automatically when it is " +
                "down to one member; remove it explicitly with edit(op:'remove') once empty.");
          }

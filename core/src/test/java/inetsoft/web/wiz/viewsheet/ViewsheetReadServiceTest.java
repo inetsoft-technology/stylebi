@@ -23,7 +23,9 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.GaugeVSAssembly;
+import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
@@ -36,6 +38,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Point;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -124,5 +127,27 @@ class ViewsheetReadServiceTest {
       when(rvs.getEntry()).thenReturn(null);
 
       assertNull(new ViewsheetReadService().read(rvs).name());
+   }
+
+   /** A Selection Container reports its children in display order; other assemblies report none. */
+   @Test
+   void selectionContainerReportsItsChildrenInOrder() {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new SelectionListVSAssembly(vs, "ListA"));
+      vs.addAssembly(new SelectionListVSAssembly(vs, "ListB"));
+      CurrentSelectionVSAssembly box = new CurrentSelectionVSAssembly(vs, "Box");
+      vs.addAssembly(box);
+      box.setAssemblies(new String[] { "ListB", "ListA" });
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      ViewsheetModel model = new ViewsheetReadService().read(rvs);
+
+      AssemblyNode node = model.assemblies().stream()
+         .filter(a -> "Box".equals(a.name())).findFirst().orElseThrow();
+      assertEquals(List.of("ListB", "ListA"), node.children());
+      assertNull(model.assemblies().stream()
+                    .filter(a -> "ListA".equals(a.name())).findFirst().orElseThrow().children());
    }
 }

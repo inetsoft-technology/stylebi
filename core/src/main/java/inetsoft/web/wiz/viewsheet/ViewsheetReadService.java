@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -99,7 +100,14 @@ public class ViewsheetReadService {
          assembly.isVisible(),
          parts.isEmpty() ? null : parts,
          AnnotationFamily.contentOf(vs, assembly),
-         assembly instanceof TabVSAssembly tab ? selectedPage(tab) : null);
+         assembly instanceof TabVSAssembly tab ? selectedPage(tab) : null,
+         assembly instanceof CurrentSelectionVSAssembly selection ? childrenOf(selection) : null);
+   }
+
+   /** A Selection Container's children in display order. */
+   private static List<String> childrenOf(CurrentSelectionVSAssembly container) {
+      String[] children = container.getAssemblies();
+      return children == null ? List.of() : List.of(children);
    }
 
    /**
