@@ -139,6 +139,24 @@ class ConcatAggregateType79176Test {
    }
 
    @Test
+   void fractionalPostConditionOnUnaliasedMaxIsAccepted() throws Exception {
+      Worksheet ws = worksheet("integer", "double");
+      concat(ws, u, a, b);
+      aggregate(ws, new WorksheetMutationSupport.AggregateSpec("V", "Max", null, null));
+      service(ws).apply("TOK", agent, ed -> ed.setPostConditions(u, greaterEqual("V", "30.2")));
+      assertNotNull(((TableAssembly) ws.getAssembly(u)).getPostConditionList());
+   }
+
+   @Test
+   void fractionalPostConditionOnUnaliasedAllIntegerMaxIsStillRefused() throws Exception {
+      Worksheet ws = worksheet("integer", "integer");
+      concat(ws, u, a, b);
+      aggregate(ws, new WorksheetMutationSupport.AggregateSpec("V", "Max", null, null));
+      assertThrows(Exception.class, () -> service(ws).apply(
+         "TOK", agent, ed -> ed.setPostConditions(u, greaterEqual("V", "30.2"))));
+   }
+
+   @Test
    void fractionalPostConditionOnAllIntegerMaxIsStillRefused() throws Exception {
       Worksheet ws = worksheet("integer", "integer");
       concat(ws, u, a, b);

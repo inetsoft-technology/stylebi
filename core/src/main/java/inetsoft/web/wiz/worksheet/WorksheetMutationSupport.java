@@ -4703,6 +4703,11 @@ public final class WorksheetMutationSupport {
             ? effectiveType(merged, gcol) : stored;
       }
 
+      // a post-aggregate condition on an unaliased aggregate resolves to the AggregateRef itself
+      if(ref instanceof AggregateRef aref) {
+         return t.isAggregate() && !isCrosstab(t) ? followInputType(aref, merged, stored) : stored;
+      }
+
       if(!(ref instanceof ColumnRef cr)) {
          return stored;
       }
@@ -4742,9 +4747,19 @@ public final class WorksheetMutationSupport {
                                              ColumnSelection merged, String stored)
    {
       AggregateRef aref = ainfo.getAggregate(out);
-      AggregateFormula formula = aref == null ? null : aref.getFormula();
+      return aref == null ? stored : followInputType(aref, merged, stored);
+   }
 
-      if(aref == null || formula == null || AggregateFormula.NONE.equals(formula) ||
+   private static boolean isCrosstab(TableAssembly t) {
+      AggregateInfo ainfo = t.getAggregateInfo();
+      return ainfo != null && ainfo.isCrosstab();
+   }
+
+   /** The merged type of {@code aref}'s source column when its formula follows its input. */
+   private static String followInputType(AggregateRef aref, ColumnSelection merged, String stored) {
+      AggregateFormula formula = aref.getFormula();
+
+      if(formula == null || AggregateFormula.NONE.equals(formula) ||
          formula.getDataType() != null || !(aref.getDataRef() instanceof ColumnRef src))
       {
          return stored;
