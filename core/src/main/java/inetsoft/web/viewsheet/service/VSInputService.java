@@ -250,6 +250,7 @@ public class VSInputService {
          assembly = vs.getAssembly(objectId);
          assemblyInfo = (ListInputVSAssemblyInfo) assembly.getVSAssemblyInfo();
          assemblyInfo.setCellHeight((int) height);
+         assemblyInfo.setUserCellHeight(true);
       }
       catch(Exception e) {
          throw e;
@@ -451,11 +452,9 @@ public class VSInputService {
       Dimension size = dialogService.getAssemblySize(checkBoxAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(checkBoxAssemblyInfo.getTitleHeightValue());
+      VSDialogService.readOptionHeights(checkBoxAssemblyInfo, sizePositionPaneModel);
+      VSDialogService.readSizeFollowsDensity(checkBoxAssemblyInfo, sizePositionPaneModel, true);
       sizePositionPaneModel.setContainer(checkBoxAssembly.getContainer() != null);
-
-      int cellHeight = checkBoxAssemblyInfo.getCellHeight();
-      sizePositionPaneModel.setCellHeight(cellHeight <= 0 ? AssetUtil.defh : cellHeight);
 
       ListData listData = checkBoxAssemblyInfo.getListData() == null ?
          new ListData() : checkBoxAssemblyInfo.getListData();
@@ -563,14 +562,9 @@ public class VSInputService {
       checkBoxAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
       checkBoxAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
 
-      dialogService.setAssemblySize(checkBoxAssemblyInfo, sizePositionPaneModel);
+      dialogService.applyOptionListSize(
+         checkBoxAssemblyInfo, sizePositionPaneModel, viewsheet.getViewsheet());
       dialogService.setAssemblyPosition(checkBoxAssemblyInfo, sizePositionPaneModel);
-
-      if(sizePositionPaneModel.getTitleHeight() != checkBoxAssemblyInfo.getTitleHeightValue()) {
-         checkBoxAssemblyInfo.setUserTitleHeight(true);
-         checkBoxAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
-      }
-      checkBoxAssemblyInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
 
       setListValues(checkBoxAssemblyInfo, value, viewsheet, principal);
 
@@ -748,6 +742,7 @@ public class VSInputService {
       Dimension size = dialogService.getAssemblySize(textInputAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
+      VSDialogService.readSizeFollowsDensity(textInputAssemblyInfo, sizePositionPaneModel, true);
       sizePositionPaneModel.setContainer(textInputAssembly.getContainer() != null);
 
       basicGeneralPaneModel.setName(textInputAssemblyInfo.getAbsoluteName());
@@ -869,7 +864,8 @@ public class VSInputService {
       textInputAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
       textInputAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
 
-      dialogService.setAssemblySize(textInputAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblySizeFollowingDensity(
+         textInputAssemblyInfo, sizePositionPaneModel, viewsheet.getViewsheet());
       dialogService.setAssemblyPosition(textInputAssemblyInfo, sizePositionPaneModel);
 
       textInputAssemblyInfo.setToolTipValue(textInputGeneralPaneModel.getToolTip());
@@ -1197,9 +1193,8 @@ public class VSInputService {
       Dimension size = dialogService.getAssemblySize(radioButtonAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(radioButtonAssemblyInfo.getTitleHeightValue());
-      int cellHeight = radioButtonAssemblyInfo.getCellHeight();
-      sizePositionPaneModel.setCellHeight(cellHeight <= 0 ? AssetUtil.defh : cellHeight);
+      VSDialogService.readOptionHeights(radioButtonAssemblyInfo, sizePositionPaneModel);
+      VSDialogService.readSizeFollowsDensity(radioButtonAssemblyInfo, sizePositionPaneModel, true);
 
       ListData listData = radioButtonAssemblyInfo.getListData() == null ?
          new ListData() : radioButtonAssemblyInfo.getListData();
@@ -1315,14 +1310,9 @@ public class VSInputService {
       radioButtonAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
       radioButtonAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
 
-      dialogService.setAssemblySize(radioButtonAssemblyInfo, sizePositionPaneModel);
+      dialogService.applyOptionListSize(
+         radioButtonAssemblyInfo, sizePositionPaneModel, viewsheet.getViewsheet());
       dialogService.setAssemblyPosition(radioButtonAssemblyInfo, sizePositionPaneModel);
-
-      if(sizePositionPaneModel.getTitleHeight() != radioButtonAssemblyInfo.getTitleHeightValue()) {
-         radioButtonAssemblyInfo.setUserTitleHeight(true);
-         radioButtonAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
-      }
-      radioButtonAssemblyInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
 
       setListValues(radioButtonAssemblyInfo, value, viewsheet, principal);
 
@@ -1830,6 +1820,7 @@ public class VSInputService {
       Dimension size = dialogService.getAssemblySize(comboBoxAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
+      VSDialogService.readSizeFollowsDensity(comboBoxAssemblyInfo, sizePositionPaneModel, true);
       sizePositionPaneModel.setContainer(comboBoxAssembly.getContainer() != null);
 
       String minDate = comboBoxAssemblyInfo.getMinDateValue();
@@ -2010,7 +2001,8 @@ public class VSInputService {
       int width = getWidth(comboBoxEditorModel.getDataType(), sizePositionPaneModel.getWidth(),
                            comboBoxAssemblyInfo.getDataType());
       sizePositionPaneModel.setWidth(width);
-      dialogService.setAssemblySize(comboBoxAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblySizeFollowingDensity(
+         comboBoxAssemblyInfo, sizePositionPaneModel, viewsheet.getViewsheet());
       dialogService.setAssemblyPosition(comboBoxAssemblyInfo, sizePositionPaneModel);
 
       setListValues(comboBoxAssemblyInfo, value, viewsheet, principal);
@@ -2226,6 +2218,7 @@ public class VSInputService {
       Dimension size = dialogService.getAssemblySize(spinnerAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
+      VSDialogService.readSizeFollowsDensity(spinnerAssemblyInfo, sizePositionPaneModel, true);
       sizePositionPaneModel.setContainer(spinnerAssembly.getContainer() != null);
 
       basicGeneralPaneModel.setName(spinnerAssemblyInfo.getAbsoluteName());
@@ -2288,7 +2281,8 @@ public class VSInputService {
       spinnerAssemblyInfo.setSubmitOnChangeValue(generalPropPaneModel.isSubmitOnChange() + "");
       spinnerAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
 
-      dialogService.setAssemblySize(spinnerAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblySizeFollowingDensity(
+         spinnerAssemblyInfo, sizePositionPaneModel, viewsheet.getViewsheet());
       dialogService.setAssemblyPosition(spinnerAssemblyInfo, sizePositionPaneModel);
 
       spinnerAssemblyInfo.setMinValue(numericRangePaneModel.getMinimum());

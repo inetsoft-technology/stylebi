@@ -41,10 +41,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * later mark stamp) call it again after construction - see VSAssemblyInfo.seedChromeDefaults()'s
  * own Javadoc.
  *
- * CheckBox and RadioButton additionally verify cellHeight/titleHeight step up together with the
- * doubled container height, so a marked-modern instance's row count stays 1 instead of the
- * container's new headroom being recomputed into a second row.
- *
  * Also verifies the reverse direction: VizModernizeUtil.revert() clears the mark and calls
  * seedChromeDefaults() again with ctx.modern == false, so height must go back to the legacy
  * default too, the same way round corner already does - see VSDensityDefaults.isControlHeight().
@@ -99,8 +95,8 @@ class ControlHeightFollowDensityTest {
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
       assertEquals(30, info.getPixelSize().height, "modernized before revert");
 
-      // VizModernizeUtil.revert() clears the mark and re-seeds with a non-modern context
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      // a Revert runs with an unmarked transition context
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(AssetUtil.defh, info.getPixelSize().height, "reverted back to legacy");
    }
@@ -110,7 +106,7 @@ class ControlHeightFollowDensityTest {
       SpinnerVSAssemblyInfo info = new SpinnerVSAssemblyInfo();
       info.setPixelSize(new Dimension(info.getPixelSize().width, 40));
 
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(40, info.getPixelSize().height, "a genuinely custom height is never reverted");
    }
@@ -135,163 +131,9 @@ class ControlHeightFollowDensityTest {
       assertEquals(28, info.getPixelSize().height);
    }
 
-   @Test
-   void checkBoxHeightScalesByItsLegacyTwoRowRatio() {
-      SreeEnv.setProperty("viewsheet.density", "compact");
-      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
-      assertEquals(2 * AssetUtil.defh, info.getPixelSize().height, "legacy default before marking");
-
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-
-      assertEquals(2 * 28, info.getPixelSize().height, "both rows step up together");
-   }
-
-   @Test
-   void checkBoxTitleHeightStaysFixedWhileCellHeightAbsorbsTheContainerGrowth() {
-      // reproduces VSCheckBoxModel.updateDataRowCol()'s own formula: dataRowCount must stay 1
-      // across every density tier, not just legacy. Title height must NOT move - CheckBox is one
-      // of the types TitleLaneHeightRowTest.excludedTypesNeverTakeTheDensityRow pins to never
-      // follow the density row - so cellHeight alone absorbs the container's growth, or a
-      // container that grows without something absorbing it would recompute a phantom second row
-      // out of the new headroom.
-      for(String density : new String[] {"dense", "compact", "comfortable"}) {
-         SreeEnv.setProperty("viewsheet.density", density);
-         CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
-         info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-
-         assertEquals(AssetUtil.defh, info.getTitleHeight(), density + ": titleHeight never moves");
-         assertEquals(info.getPixelSize().height - AssetUtil.defh, info.getCellHeight(),
-                      density + ": cellHeight absorbs the growth");
-
-         int contentHeight = info.getPixelSize().height - info.getTitleHeight();
-         int dataRowCount = Math.max(1, contentHeight / info.getCellHeight());
-         assertEquals(1, dataRowCount, density + ": dataRowCount");
-      }
-   }
-
-   @Test
-   void checkBoxCellHeightRestoresLegacyOnRevert() {
-      SreeEnv.setProperty("viewsheet.density", "comfortable");
-      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-      assertEquals(40, info.getCellHeight(), "modernized before revert: 2*30 - defh(20)");
-      assertEquals(AssetUtil.defh, info.getTitleHeight(), "title height never moved");
-
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
-
-      assertEquals(AssetUtil.defh, info.getCellHeight(), "cellHeight reverted");
-      assertEquals(AssetUtil.defh, info.getTitleHeight(), "title height still untouched");
-   }
-
-   @Test
-   void checkBoxCellHeightIsLeftAloneWhenAlreadyResized() {
-      SreeEnv.setProperty("viewsheet.density", "comfortable");
-      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
-      info.setCellHeight(35);
-
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-
-      assertEquals(35, info.getCellHeight(), "an author-resized cell height is never substituted");
-   }
-
-   @Test
-   void checkBoxHeightIsLeftAloneWhenAlreadyResized() {
-      SreeEnv.setProperty("viewsheet.density", "compact");
-      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
-      info.setPixelSize(new Dimension(info.getPixelSize().width, 64));
-
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-
-      assertEquals(64, info.getPixelSize().height, "an author-resized checkbox is never substituted");
-   }
-
-   @Test
-   void checkBoxHeightRestoresLegacyTwoRowRatioOnRevert() {
-      SreeEnv.setProperty("viewsheet.density", "compact");
-      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-      assertEquals(2 * 28, info.getPixelSize().height, "modernized before revert");
-
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
-
-      assertEquals(2 * AssetUtil.defh, info.getPixelSize().height, "reverted back to legacy 2x ratio");
-   }
-
-   @Test
-   void checkBoxHeightAtAnOddValueIsUnaffectedByRevert() {
-      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
-      // odd height can never be 2 * a control height, so the %2==0 guard must reject it outright
-      info.setPixelSize(new Dimension(info.getPixelSize().width, 61));
-
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
-
-      assertEquals(61, info.getPixelSize().height, "an odd custom height is never reverted");
-   }
-
-   // RadioButtonVSAssemblyInfo shares CheckBoxVSAssemblyInfo's exact shape (same base class,
-   // same 2 * defw x 2 * defh legacy default, same titleInfo-backed title height) - one
-   // representative test per behavior already covered above for checkbox.
-
-   @Test
-   void radioButtonHeightScalesByItsLegacyTwoRowRatio() {
-      SreeEnv.setProperty("viewsheet.density", "compact");
-      RadioButtonVSAssemblyInfo info = new RadioButtonVSAssemblyInfo();
-      assertEquals(2 * AssetUtil.defh, info.getPixelSize().height, "legacy default before marking");
-
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-
-      assertEquals(2 * 28, info.getPixelSize().height, "both rows step up together");
-   }
-
-   @Test
-   void radioButtonTitleHeightStaysFixedWhileCellHeightAbsorbsTheContainerGrowth() {
-      // title height must NOT move - RadioButton is one of the types
-      // TitleLaneHeightRowTest.excludedTypesNeverTakeTheDensityRow pins to never follow the
-      // density row - so cellHeight alone absorbs the container's growth.
-      for(String density : new String[] {"dense", "compact", "comfortable"}) {
-         SreeEnv.setProperty("viewsheet.density", density);
-         RadioButtonVSAssemblyInfo info = new RadioButtonVSAssemblyInfo();
-         info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-
-         assertEquals(AssetUtil.defh, info.getTitleHeight(), density + ": titleHeight never moves");
-         assertEquals(info.getPixelSize().height - AssetUtil.defh, info.getCellHeight(),
-                      density + ": cellHeight absorbs the growth");
-
-         int contentHeight = info.getPixelSize().height - info.getTitleHeight();
-         int dataRowCount = Math.max(1, contentHeight / info.getCellHeight());
-         assertEquals(1, dataRowCount, density + ": dataRowCount");
-      }
-   }
-
-   @Test
-   void radioButtonHeightRestoresLegacyTwoRowRatioOnRevert() {
-      SreeEnv.setProperty("viewsheet.density", "compact");
-      RadioButtonVSAssemblyInfo info = new RadioButtonVSAssemblyInfo();
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-      assertEquals(2 * 28, info.getPixelSize().height, "modernized before revert");
-      assertEquals(36, info.getCellHeight(), "modernized before revert: 2*28 - defh(20)");
-
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
-
-      assertEquals(2 * AssetUtil.defh, info.getPixelSize().height, "reverted back to legacy 2x ratio");
-      assertEquals(AssetUtil.defh, info.getCellHeight(), "cellHeight reverted");
-      assertEquals(AssetUtil.defh, info.getTitleHeight(), "title height still untouched");
-   }
-
-   @Test
-   void radioButtonHeightIsLeftAloneWhenAlreadyResized() {
-      SreeEnv.setProperty("viewsheet.density", "compact");
-      RadioButtonVSAssemblyInfo info = new RadioButtonVSAssemblyInfo();
-      info.setPixelSize(new Dimension(info.getPixelSize().width, 64));
-
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-
-      assertEquals(64, info.getPixelSize().height, "an author-resized radio button is never substituted");
-   }
-
    // SubmitVSAssemblyInfo has no title lane or data rows - its legacy default is a single
    // AssetUtil.defh (never calls setPixelSize itself, so it inherits AssemblyInfo's constructor
-   // default), matching Spinner's shape rather than CheckBox's doubled one.
+   // default), matching Spinner's shape.
 
    @Test
    void submitHeightFollowsDensityWhenMarkedModern() {
@@ -311,7 +153,7 @@ class ControlHeightFollowDensityTest {
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
       assertEquals(30, info.getPixelSize().height, "modernized before revert");
 
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(AssetUtil.defh, info.getPixelSize().height, "reverted back to legacy");
    }
@@ -379,58 +221,25 @@ class ControlHeightFollowDensityTest {
    }
 
    @Test
-   void checkBoxHeightFollowsALaterDensityChange() {
-      SreeEnv.setProperty("viewsheet.density", "comfortable");
-      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-      assertEquals(60, info.getPixelSize().height, "the doubled comfortable tier");
-      assertEquals(60 - info.getTitleHeight(), info.getCellHeight());
-
-      SreeEnv.setProperty("viewsheet.density", "dense");
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-
-      assertEquals(48, info.getPixelSize().height, "the doubled dense tier");
-      assertEquals(48 - info.getTitleHeight(), info.getCellHeight(),
-                   "a stranded cell height overflows the container's new content height");
-   }
-
-   @Test
-   void radioButtonHeightFollowsALaterDensityChange() {
-      SreeEnv.setProperty("viewsheet.density", "comfortable");
-      RadioButtonVSAssemblyInfo info = new RadioButtonVSAssemblyInfo();
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-
-      SreeEnv.setProperty("viewsheet.density", "dense");
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
-
-      assertEquals(48, info.getPixelSize().height);
-      assertEquals(48 - info.getTitleHeight(), info.getCellHeight(),
-                   "a stranded cell height overflows the container's new content height");
-   }
-
-   @Test
-   void aControlHandSizedToATierValueIsAlsoMoved() {
+   void anUnflaggedControlAtATierValueIsMoved() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       SpinnerVSAssemblyInfo info = new SpinnerVSAssemblyInfo();
       info.setPixelSize(new Dimension(info.getPixelSize().width, 28));
 
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
-      assertEquals(30, info.getPixelSize().height,
-                   "the accepted false positive: a hand-sized control matching a tier is moved, "
-                      + "the same rule isControlHeight already applies on Revert");
+      assertEquals(30, info.getPixelSize().height, "content saved before the flag reads as seeded");
    }
 
    @Test
-   void aDoubledControlHandSizedToATierValueIsAlsoMoved() {
-      SreeEnv.setProperty("viewsheet.density", "compact");
-      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
-      info.setPixelSize(new Dimension(info.getPixelSize().width, 60));
+   void aFlaggedControlAtATierValueIsKept() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SpinnerVSAssemblyInfo info = new SpinnerVSAssemblyInfo();
+      info.setPixelSize(new Dimension(info.getPixelSize().width, 28));
+      info.setUserSize(true);
 
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
-      assertEquals(56, info.getPixelSize().height,
-                   "60 is comfortable's doubled tier, so it reads as seeded rather than hand-sized - "
-                      + "the same accepted false positive the single-height types take");
+      assertEquals(28, info.getPixelSize().height);
    }
 }

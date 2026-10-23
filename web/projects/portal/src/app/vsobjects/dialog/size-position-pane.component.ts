@@ -72,7 +72,7 @@ export class SizePositionPane implements OnInit {
       ]));
       this.form.addControl("width", new UntypedFormControl({value: this.model.width,
          disabled: (!this.layoutEnabled || this.model.locked ||
-                    this.model.sizeFollowsDensity === true)},
+                    this.model.sizeFollowsDensity === true && !this.model.densityHeightOnly)},
          [Validators.required,
          FormValidators.isInteger(),
          FormValidators.positiveNonZeroIntegerInRange
@@ -123,9 +123,9 @@ export class SizePositionPane implements OnInit {
 
    sizeFollowChanged(follows: boolean): void {
       this.model.sizeFollowsDensity = follows;
-      const enabled = !follows && this.layoutEnabled && !this.model.locked;
-      this.setEnabled("width", enabled);
-      this.setEnabled("height", enabled);
+      const enabled = this.layoutEnabled && !this.model.locked;
+      this.setEnabled("width", enabled && (!follows || !!this.model.densityHeightOnly));
+      this.setEnabled("height", enabled && !follows);
    }
 
    private setEnabled(name: string, enabled: boolean): void {

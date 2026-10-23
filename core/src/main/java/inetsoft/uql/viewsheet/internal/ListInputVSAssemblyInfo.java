@@ -161,10 +161,42 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
    }
 
    /**
-    * Get the checkbox/radiobutton height.
+    * The option row height to draw: the tier row for a marked type that takes one, while its
+    * author has not set the row and it is stored at the legacy height; the stored row otherwise.
     */
    public int getCellHeight() {
-      return this.cellHeight;
+      if(!takesDensityRow() || userCellHeight || cellHeight != AssetUtil.defh ||
+         getVizMark() == null)
+      {
+         return cellHeight;
+      }
+
+      return VSDensityDefaults.cellHeight(VizContext.of(this));
+   }
+
+   /**
+    * The stored option row height.
+    */
+   public int getCellHeightValue() {
+      return cellHeight;
+   }
+
+   /**
+    * Whether the author set the option row height.
+    */
+   public boolean isUserCellHeight() {
+      return userCellHeight;
+   }
+
+   public void setUserCellHeight(boolean userCellHeight) {
+      this.userCellHeight = userCellHeight;
+   }
+
+   /**
+    * Whether this type's option row follows density. Overridden by the titled option lists.
+    */
+   protected boolean takesDensityRow() {
+      return false;
    }
 
    /**
@@ -365,6 +397,11 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
 
       writer.print(" sourceType=\"" + stype + "\"");
       writer.print(" cellHeight=\"" + cellHeight + "\"");
+
+      if(userCellHeight) {
+         writer.print(" userCellHeight=\"true\"");
+      }
+
       writer.print(" form=\"" + form + "\"");
       writer.print(" sortType=\"" + getSortType() + "\"");
       writer.print(" sortTypeValue=\"" + sortTypeValue.getDValue() + "\"");
@@ -394,6 +431,8 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
       if(str != null) {
          this.cellHeight = Integer.parseInt(str);
       }
+
+      userCellHeight = "true".equals(Tool.getAttribute(elem, "userCellHeight"));
    }
 
    /**
@@ -671,6 +710,11 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
          result = true;
       }
 
+      if(userCellHeight != cinfo.userCellHeight) {
+         userCellHeight = cinfo.userCellHeight;
+         result = true;
+      }
+
       return result;
    }
 
@@ -868,6 +912,7 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
    private ListBindingInfo binding;
    private boolean form = false;
    private int cellHeight = AssetUtil.defh;
+   private boolean userCellHeight = false;
    // runtime
    private ListData rdata;
    private String defaultValue;

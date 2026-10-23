@@ -45,7 +45,7 @@
             <label class="form-label">_#(Width)</label>
             <number-stepper formControlName="width"
                             (valueChange)="model.width = $event"
-                            [disabled]="!layoutEnabled || model.locked || model.sizeFollowsDensity === true"
+                            [disabled]="!layoutEnabled || model.locked || model.sizeFollowsDensity === true && !model.densityHeightOnly"
                             [invalid]="layoutEnabled && !!form.controls['width'].errors">
             </number-stepper>
           </div>

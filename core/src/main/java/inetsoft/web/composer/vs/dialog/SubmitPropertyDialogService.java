@@ -84,6 +84,7 @@ public class SubmitPropertyDialogService {
       Dimension size = dialogService.getAssemblySize(submitAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
+      VSDialogService.readSizeFollowsDensity(submitAssemblyInfo, sizePositionPaneModel, true);
       sizePositionPaneModel.setContainer(submitAssembly.getContainer() != null);
 
       basicGeneralPaneModel.setName(submitAssemblyInfo.getAbsoluteName());
@@ -133,7 +134,8 @@ public class SubmitPropertyDialogService {
 
       submitAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
 
-      dialogService.setAssemblySize(submitAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblySizeFollowingDensity(
+         submitAssemblyInfo, sizePositionPaneModel, viewsheet.getViewsheet());
       dialogService.setAssemblyPosition(submitAssemblyInfo, sizePositionPaneModel);
 
       submitAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
