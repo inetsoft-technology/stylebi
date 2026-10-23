@@ -1024,10 +1024,15 @@ public class SelectionRuntimeService {
                "several.");
          }
 
-         // A multi-select ID-mode tree needs no depth guard: path.size() does not track levels
+         // A multi-select ID-mode tree needs no level guard: path.size() does not track levels
          // there, and a subtree select selects every descendant.
+         SelectionVSAssemblyInfo treeInfo = (SelectionVSAssemblyInfo) tree.getInfo();
+         List<Integer> singleLevels = select && !tree.isIDMode() ?
+            singleLevelsOf(tree, treeInfo, treeInfo.isSingleSelection(), false) : List.of();
+
          if(select && !tree.isIDMode()) {
-            refuseAmbiguousSingleSelectSubtree(tree, assemblyName, path);
+            refuseAmbiguousSingleSelectSubtree(singleLevels, assemblyName, path,
+                                               treeInfo.getLevelNames());
          }
 
          result.put("assembly", assemblyName);
@@ -1042,10 +1047,6 @@ public class SelectionRuntimeService {
          event.setValues(List.of(value));
 
          if(select && !tree.isIDMode()) {
-            SelectionVSAssemblyInfo info = (SelectionVSAssemblyInfo) tree.getInfo();
-            List<Integer> singleLevels =
-               singleLevelsOf(tree, info, info.isSingleSelection(), false);
-
             if(!singleLevels.isEmpty()) {
                // A leaf select on a single-select level is a replace on that level, like
                // setSelection's: the apply below clears only what the tree itself shows selected,
@@ -1355,8 +1356,8 @@ public class SelectionRuntimeService {
    }
 
    /**
-    * Refuses {@code select_subtree(mode:"select")} on a whole-tree single-selection tree when the
-    * named path is not already a leaf -- see bug-76758 (VFL-004).
+    * Refuses {@code select_subtree(mode:"select")} when a single-select level lies strictly below
+    * the node the path names -- see bug-76758 (VFL-004).
     *
     * <p>{@code VSSelectionService.setSubtree}'s own recursive walk has an early return —
     * {@code if(selected && treeInfo.isSingleSelection() && treeInfo.containsLevel(level) &&
@@ -1371,52 +1372,41 @@ public class SelectionRuntimeService {
     * evidence the collapse is new there rather than long-standing. Refusing here only narrows this
     * agent-only entry point.
     *
-    * <p><b>Deliberately conservative, not an exact leaf count.</b> Telling whether {@code path}
-    * names exactly one leaf would mean walking the assembly's actual {@code SelectionList} --
-    * which cannot be constructed or mocked in a plain unit test (confirmed by
-    * {@code aSelectedCompositeWithNoSelectedChildrenStillProducesASelfOnlyPath}'s own note; Mockito
-    * throws instrumenting it). Comparing {@code path}'s length against the tree's own level count
-    * needs no such walk, and is exactly right for this bug's repro (and the overwhelmingly common
-    * case): a path shorter than the tree's depth names an ancestor, which the recursive collapse
-    * above always mishandles once it has more than one descendant. The one case this over-refuses
-    * -- an ancestor whose every level below happens to hold exactly one value, so it is not
-    * actually ambiguous -- is rare enough, and cheap enough to work around (name the leaf path
-    * directly), to accept for a low-priority guard.
+    * <p><b>Per-level, like the native widget.</b> The early return fires only on a level in
+    * {@code getSingleSelectionLevels()}, and the walk starts at the node {@code path} names, whose
+    * own branch is already selected. So the collapse can only happen at a single-select level
+    * strictly below that node, i.e. a level {@code l >= path.size()}; single-select levels at or
+    * above the node are never revisited. That matches the native Select Subtree enablement
+    * ({@code containSingleSelectionLevel}) for a fixed hierarchy, except that a tree with no
+    * single level left (single and mixed with every level removed) is accepted here where the
+    * native menu is disabled, and a stored level at or past the tree's depth is dropped by
+    * {@link #effectiveSingleLevels} instead of disabling the action. Both are safe for the engine:
+    * neither leaves a single level for the early return to fire on. A whole-tree single-select
+    * tree has every level, so any non-leaf path is still refused (bug-76758).
     *
     * <p><b>Not called at all for an ID-mode tree</b> -- an ID-mode single-select tree is refused
-    * outright by the caller, and a multi-select one needs no depth guard.
+    * outright by the caller, and a multi-select one needs no level guard.
     */
-   private static void refuseAmbiguousSingleSelectSubtree(SelectionTreeVSAssembly tree,
-                                                          String assemblyName, List<String> path)
+   static void refuseAmbiguousSingleSelectSubtree(Collection<Integer> singleLevels,
+                                                  String assemblyName, List<String> path,
+                                                  List<String> levelNames)
    {
-      SelectionTreeVSAssemblyInfo info = tree.getSelectionTreeInfo();
+      Integer blocking = singleLevels.stream().filter(l -> l >= path.size()).sorted().findFirst()
+         .orElse(null);
 
-      if(!info.isSingleSelection()) {
-         return;
+      if(blocking == null) {
+         return; // every single level is at or above the node; selectSubtree replaces there.
       }
 
-      DataRef[] refs = tree.getDataRefs();
-      refuseAmbiguousSingleSelectSubtree(refs == null ? 0 : refs.length, assemblyName, path);
-   }
-
-   /**
-    * Split out from {@link #refuseAmbiguousSingleSelectSubtree(SelectionTreeVSAssembly, String,
-    * List)} so it is testable without a real assembly -- only called once the caller already knows
-    * {@code info.isSingleSelection()} is true.
-    */
-   static void refuseAmbiguousSingleSelectSubtree(int treeDepth, String assemblyName,
-                                                   List<String> path)
-   {
-      if(path.size() >= treeDepth) {
-         return; // a leaf path names one node; selectSubtree deselects its single-level rivals.
-      }
+      String levelName = blocking < levelNames.size() ? levelNames.get(blocking) :
+         "level " + (blocking + 1);
 
       throw new IllegalArgumentException(
-         "'" + assemblyName + "' is single-select, so selecting the whole subtree at " +
-         String.join(" > ", path) + " -- " + (treeDepth - path.size()) + " level(s) short of a " +
-         "leaf -- could silently collapse to just one descendant instead of the whole branch. " +
-         "Name a full path down to a leaf instead, or pass singleSelect:false on set_selection " +
-         "first to widen it.");
+         "'" + assemblyName + "' has a single-select level (" + levelName + ") below " +
+         String.join(" > ", path) + ", so selecting the whole subtree there could silently " +
+         "collapse to just one descendant instead of the whole branch. Name a path down to " +
+         levelName + " or deeper instead, remove that level from singleSelectionLevels, or pass " +
+         "singleSelect:false on set_selection first to widen it.");
    }
 
    /**
