@@ -37,10 +37,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import javax.xml.stream.XMLStreamException;
+import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
+import java.util.zip.ZipOutputStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
@@ -86,6 +90,22 @@ class AdminAssetImportControllerStageTest {
       orgManagerStatic.close();
    }
 
+   /**
+    * A minimal zip with a root {@code JarFileInfo.xml}, so the upload passes the controller's
+    * own export-package pre-check and reaches the (mocked) import service.
+    */
+   private static byte[] exportZip() throws IOException {
+      ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+      try(ZipOutputStream out = new ZipOutputStream(bytes)) {
+         out.putNextEntry(new ZipEntry("JarFileInfo.xml"));
+         out.write("x".getBytes(StandardCharsets.UTF_8));
+         out.closeEntry();
+      }
+
+      return bytes.toByteArray();
+   }
+
    private ResultActions stage(byte[] content) throws Exception {
       return mvc.perform(multipart("/api/wiz/v1/admin/repository/import/stage")
             .file(new MockMultipartFile("file", "export.zip", "application/zip", content))
@@ -112,46 +132,46 @@ class AdminAssetImportControllerStageTest {
    @Test void zipWithoutManifestAnswers400NamingTheManifest() throws Exception {
       stubSetJarFileThrows(new DeployManagerService.JarFileInfoMissingException());
 
-      assertRejectedAs400(stage(new byte[] { 1 }), "JarFileInfo.xml missing");
+      assertRejectedAs400(stage(exportZip()), "JarFileInfo.xml missing");
    }
 
    @Test void truncatedZipAnswers400() throws Exception {
       stubSetJarFileThrows(new ZipException("unexpected EOF"));
 
-      assertRejectedAs400(stage(new byte[] { 1 }), "unexpected EOF");
+      assertRejectedAs400(stage(exportZip()), "unexpected EOF");
    }
 
    @Test void corruptZipStreamAnswers400() throws Exception {
       stubSetJarFileThrows(new EOFException("Unexpected end of ZLIB input stream"));
 
-      assertRejectedAs400(stage(new byte[] { 1 }), "Unexpected end of ZLIB input stream");
+      assertRejectedAs400(stage(exportZip()), "Unexpected end of ZLIB input stream");
    }
 
    @Test void malformedManifestXmlAnswers400() throws Exception {
       // CoreTool.parseXML wraps the StAX failure in a RuntimeException
       stubSetJarFileThrows(new RuntimeException(new XMLStreamException("Unexpected EOF in prolog")));
 
-      assertRejectedAs400(stage(new byte[] { 1 }), "JarFileInfo.xml is not well-formed XML",
+      assertRejectedAs400(stage(exportZip()), "JarFileInfo.xml is not well-formed XML",
                           "Unexpected EOF in prolog");
    }
 
    @Test void serverIoFaultStays500() throws Exception {
       stubSetJarFileThrows(new IOException("No space left on device"));
 
-      stage(new byte[] { 1 }).andExpect(status().isInternalServerError());
+      stage(exportZip()).andExpect(status().isInternalServerError());
    }
 
    @Test void messageExceptionStays500() throws Exception {
       stubSetJarFileThrows(new MessageException("autosave entries present"));
 
-      stage(new byte[] { 1 }).andExpect(status().isInternalServerError());
+      stage(exportZip()).andExpect(status().isInternalServerError());
    }
 
    @Test void unrelatedRuntimeExceptionStays500() throws Exception {
       stubSetJarFileThrows(new IllegalStateException(
          "Current session is missing the imported jar info."));
 
-      stage(new byte[] { 1 }).andExpect(status().isInternalServerError());
+      stage(exportZip()).andExpect(status().isInternalServerError());
    }
 
    @Test void emptyFileAnswers400WithoutCallingTheService() throws Exception {
@@ -168,7 +188,7 @@ class AdminAssetImportControllerStageTest {
          ExportedAssetsModel.builder().importId("imp-1").name("exp").build();
       when(importService.setJarFile(anyString(), any(FileData.class), any())).thenReturn(model);
 
-      stage(new byte[] { 1 })
+      stage(exportZip())
          .andExpect(status().isOk())
          .andExpect(jsonPath("$.name").value("exp"));
    }
