@@ -64,11 +64,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @ContextConfiguration(classes = BaseTestConfiguration.class,
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class ThrowingProviderDatabaseLoginTest {
    @BeforeEach
    void savePrincipal() {
-      threadPrincipal = ThreadContext.getContextPrincipal();
+      threadPrincipal = ThreadContext.getPrincipal();
+      contextPrincipal = ThreadContext.getContextPrincipal();
    }
 
    @AfterEach
@@ -78,7 +79,8 @@ class ThrowingProviderDatabaseLoginTest {
          sutil = null;
       }
 
-      ThreadContext.setContextPrincipal(threadPrincipal);
+      ThreadContext.setPrincipal(threadPrincipal);
+      ThreadContext.setContextPrincipal(contextPrincipal);
       SreeEnv.remove("security.enabled");
       SreeEnv.remove("security.users.multiTenant");
       SreeEnv.remove("security.cache");
@@ -262,4 +264,5 @@ class ThrowingProviderDatabaseLoginTest {
    private static final String HOST_ORG = Organization.getDefaultOrganizationID();
    private MockedStatic<SUtil> sutil;
    private Principal threadPrincipal;
+   private Principal contextPrincipal;
 }
