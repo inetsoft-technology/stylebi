@@ -720,7 +720,7 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
       if(val instanceof java.util.Date) {
          val = Condition.getDateObject(type, val);
       }
-      else if(val != null) {
+      else if(val != null && !AbstractCondition.isFractionalIntegralValue(type, val)) {
          val = Condition.getObject(type, val.toString());
       }
 

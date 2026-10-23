@@ -26,6 +26,7 @@ import inetsoft.util.Queue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.sql.Time;
 import java.sql.Types;
 import java.util.*;
@@ -303,6 +304,13 @@ public class ConditionListHandler {
    protected XExpression getExpression(Condition con, Object val,
       VariableTable vars, boolean forCondition)
    {
+      // a bound fractional value is narrowed to the column type by some drivers (e.g. Derby),
+      // so compare against it as a numeric literal
+      if(con != null && AbstractCondition.isFractionalIntegralValue(con.getType(), val)) {
+         return new XExpression(new BigDecimal(val.toString()).toPlainString(),
+                                XExpression.EXPRESSION);
+      }
+
       return getExpression(val, vars, forCondition);
    }
 
@@ -506,6 +514,12 @@ public class ConditionListHandler {
 
       if(sql_type == Types.BOOLEAN || sql_type == Types.VARCHAR || sql_type == Types.INTEGER) {
          String sqlType = SQLTypes.getSQLTypes(null).convertToXType(sql_type);
+
+         // do not truncate a fractional value to the integer column type
+         if(AbstractCondition.isFractionalIntegralValue(sqlType, condValue)) {
+            return condValue;
+         }
+
          return CoreTool.getData(sqlType, condValue);
       }
 

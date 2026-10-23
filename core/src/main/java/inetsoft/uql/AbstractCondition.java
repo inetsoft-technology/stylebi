@@ -29,6 +29,7 @@ import org.springframework.util.StringUtils;
 import org.w3c.dom.Element;
 
 import java.io.*;
+import java.math.BigDecimal;
 import java.sql.Time;
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -312,6 +313,60 @@ public abstract class AbstractCondition implements XCondition {
       else {
          return getObject(type, value);
       }
+   }
+
+   /**
+    * Check if the value is a finite number with a fractional part compared against an
+    * integral data type. Casting such a value to the type (or binding it to a query
+    * against an integer column) silently truncates it, e.g. {@code >= 4.5} acts as
+    * {@code >= 4}, so callers keep the value as is.
+    * @param type the data type of the condition.
+    * @param value the condition value.
+    * @return <tt>true</tt> if the type is byte/short/integer/long and the value is a
+    * finite non-integral number.
+    */
+   public static boolean isFractionalIntegralValue(String type, Object value) {
+      if(!isIntegralType(type)) {
+         return false;
+      }
+
+      if(value instanceof Double || value instanceof Float) {
+         double dval = ((Number) value).doubleValue();
+         return !Double.isNaN(dval) && !Double.isInfinite(dval) && dval != Math.rint(dval);
+      }
+
+      return value instanceof BigDecimal && ((BigDecimal) value).signum() != 0 &&
+         ((BigDecimal) value).stripTrailingZeros().scale() > 0;
+   }
+
+   private static boolean isIntegralType(String type) {
+      return XSchema.BYTE.equals(type) || XSchema.SHORT.equals(type) ||
+         XSchema.INTEGER.equals(type) || XSchema.LONG.equals(type);
+   }
+
+   /**
+    * Get the typed value of a stored condition value. Same as {@link #getObject(String, String)}
+    * except that a fractional number is kept for an integral type instead of being truncated, so
+    * a saved condition such as {@code >= 4.5} on an integer column reads back as 4.5.
+    * @param type the data type of the condition.
+    * @param value a String containing the value.
+    * @return the typed value.
+    */
+   public static Object getConditionObject(String type, String value) {
+      if(value != null && isIntegralType(type)) {
+         try {
+            Double dval = Double.valueOf(value);
+
+            if(isFractionalIntegralValue(type, dval)) {
+               return dval;
+            }
+         }
+         catch(NumberFormatException ex) {
+            // not a number, parse as the type
+         }
+      }
+
+      return getObject(type, value);
    }
 
    /**
