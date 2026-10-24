@@ -72,6 +72,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Dimension;
+import java.awt.Font;
 import java.security.Principal;
 import java.util.*;
 
@@ -2238,5 +2239,160 @@ class CalcTableServiceTest {
                               typedColumn("Order Date", XSchema.DATE)));
       assertNull(outputTypeOf(summary("Total", "NoSuchFormula"),
                               typedColumn("Total", XSchema.DOUBLE)));
+   }
+
+   // ── date format cleared when a rebind makes the cell numeric (bug 79297) ──────
+
+   private static final TableDataPath CELL_01 =
+      new TableDataPath(-1, TableDataPath.DETAIL, XSchema.STRING, new String[]{ "Cell [0,1]" });
+
+   private static VSCompositeFormat dateFormat() {
+      VSCompositeFormat format = new VSCompositeFormat();
+      format.getUserDefinedFormat().setFormatValue(XConstants.DATE_FORMAT);
+      format.getUserDefinedFormat().setFormatExtentValue("MEDIUM");
+      return format;
+   }
+
+   /**
+    * Rebinds [0,1], whose layout cell becomes {@code rebound} (the layout service is a mock, so
+    * the test installs the post-write cell itself), after seeding {@code existing} as the
+    * cell's own format. Returns the response body.
+    */
+   private static Map<String, Object> rebind(Harness h, VSCompositeFormat existing,
+                                             TableCellBinding rebound, DataRef... columns)
+      throws Exception
+   {
+      FormatInfo formatInfo = new FormatInfo();
+
+      if(existing != null) {
+         formatInfo.setFormat(CELL_01, existing);
+      }
+
+      when(h.assemblyInfo().getFormatInfo()).thenReturn(formatInfo);
+      when(h.assemblyInfo().getCellDataPath(0, 1)).thenReturn(CELL_01);
+      ColumnSelection cols = new ColumnSelection();
+
+      for(DataRef column : columns) {
+         cols.addAttribute(column);
+      }
+
+      when(h.columnsHandler().getColumnSelection(any(), any(), any(), any(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean())).thenReturn(cols);
+      when(h.assemblyInfo().getTableLayout().getCellBinding(0, 1)).thenReturn(rebound);
+
+      return h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+         spec("content", "column", "grouping", "summary",
+              "field", spec("column", "PAID", "type", "measure"), "formula", "Sum"));
+   }
+
+   @SuppressWarnings("unchecked")
+   private static List<String> formatNotes(Map<String, Object> body) {
+      return body == null ? null : (List<String>) body.get("formatNotes");
+   }
+
+   @Test
+   void rebindingADateFormattedCellToSumClearsTheDateFormatAndSaysSo() throws Exception {
+      VSCompositeFormat format = dateFormat();
+      Map<String, Object> body = rebind(harness(2, 2), format, summary("Product:Total", "Sum"));
+
+      assertNull(format.getUserDefinedFormat().getFormat());
+      assertNull(format.getUserDefinedFormat().getFormatExtent());
+      List<String> notes = formatNotes(body);
+      assertEquals(1, notes.size());
+      assertTrue(notes.get(0).contains("DateFormat was cleared"), notes.get(0));
+      assertTrue(notes.get(0).contains("Sum(Product:Total)"), notes.get(0));
+      assertNull(body.get("warnings"));
+   }
+
+   @Test
+   void rebindingToMaxOfADateKeepsTheDateFormat() throws Exception {
+      VSCompositeFormat format = dateFormat();
+      Map<String, Object> body = rebind(harness(2, 2), format, summary("Order Date", "Max"),
+                                        typedColumn("Order Date", XSchema.DATE));
+
+      assertEquals(XConstants.DATE_FORMAT, format.getUserDefinedFormat().getFormat());
+      assertEquals("MEDIUM", format.getUserDefinedFormat().getFormatExtent());
+      assertNull(formatNotes(body));
+   }
+
+   @Test
+   void rebindingToCountOverADateSourceClearsTheDateFormat() throws Exception {
+      VSCompositeFormat format = dateFormat();
+      Map<String, Object> body = rebind(harness(2, 2), format, summary("Order Date", "Count"),
+                                        typedColumn("Order Date", XSchema.DATE));
+
+      assertNull(format.getUserDefinedFormat().getFormat());
+      assertEquals(1, formatNotes(body).size());
+   }
+
+   @Test
+   void rebindingToAverageClearsTheDateFormat() throws Exception {
+      VSCompositeFormat format = dateFormat();
+      Map<String, Object> body = rebind(harness(2, 2), format, summary("Total", "Average"),
+                                        typedColumn("Total", XSchema.DOUBLE));
+
+      assertNull(format.getUserDefinedFormat().getFormat());
+      assertEquals(1, formatNotes(body).size());
+   }
+
+   @Test
+   void rebindingToAGroupOverANumericColumnClearsTheDateFormat() throws Exception {
+      VSCompositeFormat format = dateFormat();
+      Map<String, Object> body = rebind(harness(2, 2), format,
+                                        TableCellBinding.getGroupBinding("Total"),
+                                        typedColumn("Total", XSchema.DOUBLE));
+
+      assertNull(format.getUserDefinedFormat().getFormat());
+      assertEquals(1, formatNotes(body).size());
+   }
+
+   @Test
+   void rebindingToAPartLevelDateGroupClearsTheDateFormat() throws Exception {
+      VSCompositeFormat format = dateFormat();
+      TableCellBinding part = TableCellBinding.getGroupBinding("Order Date");
+      part.setDateOption(XConstants.MONTH_OF_YEAR_DATE_GROUP);
+      Map<String, Object> body = rebind(harness(2, 2), format, part,
+                                        typedColumn("Order Date", XSchema.DATE));
+
+      assertNull(format.getUserDefinedFormat().getFormat());
+      assertEquals(1, formatNotes(body).size());
+   }
+
+   @Test
+   void rebindingToTextOrFormulaOrUnknownTypeKeepsTheDateFormat() throws Exception {
+      for(TableCellBinding cell : List.of(
+         new TableCellBinding(CellBinding.BIND_TEXT, "Total"),
+         new TableCellBinding(CellBinding.BIND_FORMULA, "1 + 1"),
+         summary("Total", "NoSuchFormula")))
+      {
+         VSCompositeFormat format = dateFormat();
+         Map<String, Object> body = rebind(harness(2, 2), format, cell,
+                                           typedColumn("Total", XSchema.DOUBLE));
+
+         assertEquals(XConstants.DATE_FORMAT, format.getUserDefinedFormat().getFormat());
+         assertNull(formatNotes(body));
+      }
+   }
+
+   @Test
+   void clearingTheDateFormatKeepsTheCellsOtherFormatting() throws Exception {
+      VSCompositeFormat format = dateFormat();
+      Font bold = new Font("Dialog", Font.BOLD, 14);
+      format.getUserDefinedFormat().setFontValue(bold);
+      rebind(harness(2, 2), format, summary("Product:Total", "Sum"));
+
+      assertNull(format.getUserDefinedFormat().getFormat());
+      assertEquals(bold, format.getUserDefinedFormat().getFont());
+   }
+
+   @Test
+   void rebindingACellWithNoFormatOrANonDateFormatAddsNoNote() throws Exception {
+      assertNull(formatNotes(rebind(harness(2, 2), null, summary("Product:Total", "Sum"))));
+
+      VSCompositeFormat decimal = new VSCompositeFormat();
+      decimal.getUserDefinedFormat().setFormatValue(XConstants.DECIMAL_FORMAT);
+      assertNull(formatNotes(rebind(harness(2, 2), decimal, summary("Product:Total", "Sum"))));
+      assertEquals(XConstants.DECIMAL_FORMAT, decimal.getUserDefinedFormat().getFormat());
    }
 }
