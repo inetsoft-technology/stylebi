@@ -1257,6 +1257,8 @@ class CalcFieldAgentServiceTest {
       aggr.setFormulaValue("None");
       VSCrosstabInfo cinfo = new VSCrosstabInfo();
       cinfo.setDesignAggregates(new DataRef[] { aggr });
+      // an executed crosstab also carries runtime refs, which a design-time removal leaves alone
+      cinfo.setRuntimeAggregates(new DataRef[] { (DataRef) aggr.clone() });
       cinfo.setAggregateInfo(new AggregateInfo());
       cross.setVSCrosstabInfo(cinfo);
       vs.addAssembly(cross);
@@ -1269,12 +1271,16 @@ class CalcFieldAgentServiceTest {
       CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
          "field['Total']", "double", false, true, false, false);
 
+      Viewsheet vs = vsWithBoundAggregateCalc();
       IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
-         () -> serviceOver(vsWithBoundAggregateCalc(), proxy).modify("tok", principal(), req, ""));
+         () -> serviceOver(vs, proxy).modify("tok", principal(), req, ""));
 
       assertTrue(thrown.getMessage().contains("'Avg Order Value'") &&
                  thrown.getMessage().contains("'AovCat'"), thrown.getMessage());
       verifyNoInteractions(proxy);
+      // the dry run must not have touched the real binding
+      assertEquals(1, ((CrosstabVSAssembly) vs.getAssembly("AovCat")).getVSCrosstabInfo()
+         .getDesignAggregates().length);
    }
 
    @Test

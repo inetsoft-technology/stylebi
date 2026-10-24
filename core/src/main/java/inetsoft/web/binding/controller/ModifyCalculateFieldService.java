@@ -61,6 +61,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.security.Principal;
 import java.util.*;
 
@@ -723,9 +725,13 @@ public class ModifyCalculateFieldService {
     * {@code refname} if it were changed to {@code newRef}. A calc type flip (detail to aggregate or
     * back) removes the field from every binding that cannot carry it over -- a crosstab or table
     * simply drops it, a chart keeps it when its style supports both -- and the native Formula
-    * Editor tells the user so first. The change is tried on a copy of each assembly that uses the
-    * field, exactly as {@link #syncAssemblies} will apply it, so the answer is what would really
-    * happen rather than a guess by assembly type.
+    * Editor tells the user so first. The change is tried on a copy of each assembly, exactly as
+    * {@link #syncAssemblies} will apply it, so the answer is what would really happen rather than
+    * a guess by assembly type.
+    *
+    * <p>What the copy lost is read from its persisted (design) form: the binding refs the assembly
+    * reports ({@code getAllBindingRefs}) are its runtime ones, which a design-time removal does
+    * not touch, so counting them would see nothing lost for a crosstab that was executed.
     */
    public static List<String> findBindingsLostOnCalcTypeChange(Viewsheet vs, String tname,
                                                                String refname, CalculateRef newRef)
@@ -733,17 +739,17 @@ public class ModifyCalculateFieldService {
       List<String> lost = new ArrayList<>();
 
       for(BindableVSAssembly bind : getBoundAssemblies(vs, tname)) {
-         int before = countBindingRefsUsing(bind, refname);
-
-         if(before == 0) {
-            continue;
-         }
-
          try {
+            int before = countMentions(bind, refname);
+
+            if(before == 0) {
+               continue;
+            }
+
             BindableVSAssembly copy = (BindableVSAssembly) bind.clone();
             copy.changeCalcType(refname, newRef);
 
-            if(countBindingRefsUsing(copy, refname) >= before) {
+            if(countMentions(copy, refname) >= before) {
                continue;
             }
          }
@@ -759,19 +765,21 @@ public class ModifyCalculateFieldService {
       return lost;
    }
 
-   private static int countBindingRefsUsing(BindableVSAssembly bind, String refname) {
-      DataRef[] refs = bind.getAllBindingRefs();
+   /** How often {@code name} occurs in the persisted form of the assembly. */
+   private static int countMentions(BindableVSAssembly bind, String name) {
+      StringWriter buffer = new StringWriter();
+      PrintWriter writer = new PrintWriter(buffer);
+      bind.writeXML(writer);
+      writer.flush();
+      String xml = buffer.toString();
       int count = 0;
 
-      for(DataRef ref : refs) {
-         if(isUsed(ref, refname)) {
-            count++;
-         }
+      for(int i = xml.indexOf(name); i >= 0; i = xml.indexOf(name, i + name.length())) {
+         count++;
       }
 
       return count;
    }
-
    private List<String> getUsingAssemblies(BindableVSAssembly bind, String refname) {
       DataRef[] refs = bind.getAllBindingRefs();
       List<String> usingAssemblies = new ArrayList<>();
