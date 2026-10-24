@@ -1007,8 +1007,8 @@ public class WorksheetReadService {
     * an ordinary literal-only condition's JSON is unaffected -- matching
     * {@link #extractChoiceQuery}'s own null-for-absent convention. Not applicable to
     * {@code RankingCondition}/{@code DateCondition}, same reasoning as
-    * {@link #extractChoiceQuery}. A {@link SubQueryValue} (native UI only -- set_conditions
-    * cannot write one) is reported as a read-only {@code "subquery"} entry naming its table,
+    * {@link #extractChoiceQuery}. A {@link SubQueryValue} (set_conditions writes it from a
+    * {@code "subquery"} valueSpec) is reported as a {@code "subquery"} entry naming its table,
     * column and correlation, so a caller can tell it apart from the {@code "Query[name]"} text
     * in {@code values}.
     */

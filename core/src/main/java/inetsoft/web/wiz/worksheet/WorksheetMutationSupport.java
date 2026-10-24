@@ -701,7 +701,7 @@ public final class WorksheetMutationSupport {
             // applies here (numeric and date/time types); a string literal naming a column stays
             // accepted, as it does on set_conditions.
             if(value instanceof String s) {
-               requireNotSubQueryDisplayText(t, field, s, i);
+               requireNotSubQueryDisplayText(t, field, s, i, false);
             }
 
             if(value instanceof String s && looksLikeUnresolvedFieldReference(t, post, dtype, s)) {
@@ -4175,7 +4175,7 @@ public final class WorksheetMutationSupport {
                   Object value = resolvedValues.get(i);
 
                   if(value instanceof String s) {
-                     requireNotSubQueryDisplayText(t, spec.field(), s, i);
+                     requireNotSubQueryDisplayText(t, spec.field(), s, i, true);
                   }
 
                   if(value instanceof String s && looksLikeUnresolvedFieldReference(t, post, dtype, s))
@@ -5264,21 +5264,31 @@ public final class WorksheetMutationSupport {
     * {@link #looksLikeUnresolvedFieldReference}, and runs before the numeric/date parsers so a
     * numeric or date column gets this message instead of a parse error. A literal that merely
     * looks like the token on a worksheet without that table stays accepted.
+    *
+    * @param specsAvailable whether the calling tool takes valueSpecs (the condition-tree tools)
+    *                       or not (add_filter/edit_condition)
     */
    private static void requireNotSubQueryDisplayText(TableAssembly t, String field, String value,
-                                                     int i)
+                                                     int i, boolean specsAvailable)
    {
       java.util.regex.Matcher m = SUBQUERY_DISPLAY_TEXT.matcher(value);
 
       if(m.matches() && t.getWorksheet() != null &&
          t.getWorksheet().getAssembly(m.group(1)) instanceof TableAssembly)
       {
+         String spec = "{index: " + i + ", valueType: \"subquery\", subQueryName: \"" +
+            m.group(1) + "\", inSubQueryColumn: \"<column on " + m.group(1) + ">\", where?}";
+         String remedy = specsAvailable
+            ? " To filter by a sub query, carry it as a valueSpecs entry " + spec +
+              " instead of leaving the text in values (index " + i + " replaces values[" + i +
+              "])."
+            : " add_filter/edit_condition take literal values only -- use set_conditions with a " +
+              "valueSpecs entry " + spec + ".";
+
          throw new IllegalArgumentException(
             "Condition value \"" + value + "\" at values[" + i + "] on \"" + field + "\" is the " +
             "display text of a sub query value on table \"" + m.group(1) + "\" read back from " +
-            "the worksheet, not a literal. A sub query condition value cannot be created or " +
-            "carried by this tool: remove it from values, or recreate the sub query condition " +
-            "in the Composer.");
+            "the worksheet, not a literal." + remedy);
       }
    }
 
