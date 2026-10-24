@@ -147,6 +147,16 @@ class NamedGroupSource79137Test {
    @Test
    void joinDerivedTableApplies() {
       Worksheet ws = new Worksheet();
+      RelationalJoinTableAssembly join = customersOrdersJoin(ws);
+      NamedGroupAssembly group = physicalGroup(ws, "SalesRegion", "SA.CUSTOMERS", "STATE");
+
+      assertTrue(applies(join, "CUSTOMERS.STATE", group));
+      // a column of the other source of the same join is still refused
+      assertFalse(applies(join, "ORDERS.AMOUNT",
+                          physicalGroup(ws, "AmountGroup", "SA.CUSTOMERS", "AMOUNT")));
+   }
+
+   private static RelationalJoinTableAssembly customersOrdersJoin(Worksheet ws) {
       PhysicalBoundTableAssembly left = physical(ws, "CUSTOMERS", "SA.CUSTOMERS", "ID", "STATE");
       PhysicalBoundTableAssembly right = physical(ws, "ORDERS", "SA.ORDERS", "CID", "AMOUNT");
       TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
@@ -174,12 +184,7 @@ class NamedGroupSource79137Test {
       }
 
       join.setColumnSelection(joined, false);
-      NamedGroupAssembly group = physicalGroup(ws, "SalesRegion", "SA.CUSTOMERS", "STATE");
-
-      assertTrue(applies(join, "CUSTOMERS.STATE", group));
-      // a column of the other source of the same join is still refused
-      assertFalse(applies(join, "ORDERS.AMOUNT",
-                          physicalGroup(ws, "AmountGroup", "SA.CUSTOMERS", "AMOUNT")));
+      return join;
    }
 
    @Test
@@ -224,7 +229,121 @@ class NamedGroupSource79137Test {
       assertTrue(applies(t, "STATE", group));
    }
 
+   // ------------------------------------------------------------------------ retarget
+
+   /**
+    * Retargeting a group to a source a referencing table does not resolve to is refused, as
+    * set_group_aggregate refuses the same binding.
+    */
+   @Test
+   void retargetToASourceTheEmbeddedTableIsNotBoundToIsConflict() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embedded(ws, "Other");
+      physicalGroup(ws, "SalesRegion", "SA.REGIONS", "STATE");
+      groupBy(t, "STATE", "SalesRegion");
+
+      WorksheetMutationSupport.NamedGroupRetargetConflict conflict = retarget(
+         ws, "SalesRegion", "SA.CUSTOMERS", "STATE");
+
+      assertNotNull(conflict);
+      assertEquals("Other", conflict.table());
+      assertEquals("STATE", conflict.column());
+   }
+
+   @Test
+   void retargetToAnotherColumnNameIsStillConflict() {
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly t = physical(ws, "CUSTOMERS", "SA.CUSTOMERS", "STATE", "CITY");
+      physicalGroup(ws, "SalesRegion", "SA.CUSTOMERS", "STATE");
+      groupBy(t, "STATE", "SalesRegion");
+
+      WorksheetMutationSupport.NamedGroupRetargetConflict conflict = retarget(
+         ws, "SalesRegion", "SA.CUSTOMERS", "CITY");
+
+      assertNotNull(conflict);
+      assertEquals("CUSTOMERS", conflict.table());
+   }
+
+   @Test
+   void retargetToTheSourceTheTableIsBoundToPasses() {
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly t = physical(ws, "CUSTOMERS", "SA.CUSTOMERS", "STATE");
+      physicalGroup(ws, "SalesRegion", "SA.REGIONS", "STATE");
+      groupBy(t, "STATE", "SalesRegion");
+
+      assertNull(retarget(ws, "SalesRegion", "SA.CUSTOMERS", "STATE"));
+   }
+
+   @Test
+   void retargetToTheSourceAMirrorTracesToPasses() {
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly t = physical(ws, "CUSTOMERS", "SA.CUSTOMERS", "STATE");
+      MirrorTableAssembly m = mirror(ws, "CustMirror", t);
+      physicalGroup(ws, "SalesRegion", "SA.REGIONS", "STATE");
+      groupBy(m, "CUSTOMERS.STATE", "SalesRegion");
+
+      assertNull(retarget(ws, "SalesRegion", "SA.CUSTOMERS", "STATE"));
+      assertNotNull(retarget(ws, "SalesRegion", "SA.SUPPLIERS", "STATE"));
+   }
+
+   @Test
+   void retargetToTheSourceAJoinTracesToPasses() {
+      Worksheet ws = new Worksheet();
+      RelationalJoinTableAssembly join = customersOrdersJoin(ws);
+      physicalGroup(ws, "SalesRegion", "SA.REGIONS", "STATE");
+      groupBy(join, "CUSTOMERS.STATE", "SalesRegion");
+
+      assertNull(retarget(ws, "SalesRegion", "SA.CUSTOMERS", "STATE"));
+      assertNotNull(retarget(ws, "SalesRegion", "SA.ORDERS", "STATE"));
+   }
+
+   /**
+    * A group attached to the embedded table's own column cannot move to a datasource column while
+    * that table still groups by it.
+    */
+   @Test
+   void assetGroupOnTheTablesOwnColumnRetargetedToADatasourceIsConflict() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embedded(ws, "T");
+      assetGroup(ws, "G", "T", "STATE");
+      groupBy(t, "STATE", "G");
+
+      WorksheetMutationSupport.NamedGroupRetargetConflict conflict = retarget(
+         ws, "G", "SA.CUSTOMERS", "STATE");
+
+      assertNotNull(conflict);
+      assertEquals("T", conflict.table());
+   }
+
+   @Test
+   void typeRetargetIgnoresTheSource() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embedded(ws, "T");
+      physicalGroup(ws, "G", "SA.CUSTOMERS", "STATE");
+      groupBy(t, "STATE", "G");
+
+      assertNull(WorksheetMutationSupport.findNamedGroupRetargetConflict(
+         ws, "G", AttachedAssembly.DATA_TYPE_ATTACHED, null, null, XSchema.STRING));
+   }
+
    // ------------------------------------------------------------------------ helpers
+
+   private static WorksheetMutationSupport.NamedGroupRetargetConflict retarget(
+      Worksheet ws, String group, String source, String attribute)
+   {
+      return WorksheetMutationSupport.findNamedGroupRetargetConflict(
+         ws, group, AttachedAssembly.COLUMN_ATTACHED,
+         new SourceInfo(SourceInfo.PHYSICAL_TABLE, DS, source),
+         new ColumnRef(new AttributeRef(null, attribute)), null);
+   }
+
+   private static void groupBy(TableAssembly t, String column, String namedGroup) {
+      GroupRef group = new GroupRef(t.getColumnSelection(false).getAttribute(column));
+      group.setNamedGroupAssembly(namedGroup);
+      AggregateInfo ainfo = new AggregateInfo();
+      ainfo.addGroup(group);
+      t.setAggregateInfo(ainfo);
+   }
 
    private static boolean applies(TableAssembly t, String column, NamedGroupAssembly group) {
       ColumnSelection cs = t.getColumnSelection(false);

@@ -4787,13 +4787,14 @@ public class WorksheetEditService {
                   "char, date, time, timeInstant.");
             }
 
-            String conflictTable = WorksheetMutationSupport.findNamedGroupRetargetConflict(
-               ws, name, AttachedAssembly.DATA_TYPE_ATTACHED, null, type);
+            WorksheetMutationSupport.NamedGroupRetargetConflict conflict =
+               WorksheetMutationSupport.findNamedGroupRetargetConflict(
+                  ws, name, AttachedAssembly.DATA_TYPE_ATTACHED, null, null, type);
 
-            if(conflictTable != null) {
+            if(conflict != null) {
                throw new PairingException(
                   "Cannot retarget \"" + name + "\" to type \"" + type + "\": table \"" +
-                  conflictTable + "\" still groups by it via set_group_aggregate's namedGroup. " +
+                  conflict.table() + "\" still groups by it via set_group_aggregate's namedGroup. " +
                   "Retargeting would silently drop that grouping with no error. Remove or update " +
                   "that group-by first, or use delete_named_group if nothing should reference it " +
                   "after this change.");
