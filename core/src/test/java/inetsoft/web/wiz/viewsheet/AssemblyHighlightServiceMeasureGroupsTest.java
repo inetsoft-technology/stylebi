@@ -99,6 +99,41 @@ class AssemblyHighlightServiceMeasureGroupsTest {
       return withRuntime(info);
    }
 
+   /** A radar whose category is a group field, so its measure count decides RadarOne. */
+   static VSChartInfo groupedRadar(String... measures) {
+      VSChartInfo info = new RadarVSChartInfo();
+      info.setChartDescriptor(new ChartDescriptor());
+      info.setChartType(GraphTypes.CHART_RADAR);
+      info.addGroupField(dimension("REGION"));
+
+      for(String m : measures) {
+         info.addYField(sum(m));
+      }
+
+      return withRuntime(info);
+   }
+
+   /** Highlights the measure's own group holds, as left behind by a chart type change. */
+   static void hold(VSChartInfo info, String colName, String... names) {
+      for(inetsoft.uql.viewsheet.VSDataRef r : info.getYFields()) {
+         if(((ChartRef) r).getFullName().equals(colName)) {
+            ((HighlightRef) r).setHighlightGroup(group(names));
+         }
+      }
+   }
+
+   static HighlightGroup group(String... names) {
+      HighlightGroup g = new HighlightGroup();
+
+      for(String n : names) {
+         TextHighlight t = new TextHighlight();
+         t.setName(n);
+         g.addHighlight(n, t);
+      }
+
+      return g;
+   }
+
    static class Env {
       final AssemblyHighlightService service;
       final HighlightDialogService hds;
@@ -331,5 +366,146 @@ class AssemblyHighlightServiceMeasureGroupsTest {
       assertFalse(e.list(NOCOL).containsKey("otherGroups"));
       assertEquals("THREW: 'Chart1' has no highlight named 'X'. It has: (none).",
                    e.tryDelete(NOCOL, "X"));
+   }
+
+   // ── bug #79296: highlights left on the measures of a chart that now reads one group ─────────
+
+   private static final String REV = "Sum(REVENUE)";
+   private static final String QTY = "Sum(QUANTITY)";
+
+   private static Env orphanedRadar() {
+      VSChartInfo info = groupedRadar("REVENUE", "QUANTITY");
+      hold(info, REV, "HR");
+      hold(info, QTY, "HQ");
+      return new Env(info);
+   }
+
+   @Test
+   void aColNameLessDeleteRemovesTheOneOrphanHoldingTheNameAndWarnsWhichMeasure()
+      throws Exception
+   {
+      Env e = orphanedRadar();
+
+      List<String> warnings = e.service.delete("tok", ADMIN, "Chart1", NOCOL, "HR", "");
+
+      assertEquals("whole=[] Sum(REVENUE)=[] Sum(QUANTITY)=[HQ]", e.groups());
+      assertEquals(1, warnings.size());
+      assertTrue(warnings.get(0).contains("'HR'") && warnings.get(0).contains(REV), warnings.get(0));
+   }
+
+   @Test
+   void aColNameDeleteOnlySearchesThatMeasuresOwnGroupAndNamesTheRealHolder() throws Exception {
+      Env e = orphanedRadar();
+
+      String message = e.tryDelete(col(QTY), "HR");
+
+      assertTrue(message.startsWith("THREW"), message);
+      assertTrue(message.contains(REV), message);
+      assertEquals("whole=[] Sum(REVENUE)=[HR] Sum(QUANTITY)=[HQ]", e.groups());
+
+      assertEquals("OK", e.tryDelete(col(REV), "HR"));
+      assertEquals("whole=[] Sum(REVENUE)=[] Sum(QUANTITY)=[HQ]", e.groups());
+   }
+
+   @Test
+   void aNameHeldByTwoMeasuresIsRefusedWithoutColNameAndRemovedOnlyFromTheNamedOne()
+      throws Exception
+   {
+      VSChartInfo info = groupedRadar("REVENUE", "QUANTITY");
+      hold(info, REV, "HR", "HX");
+      hold(info, QTY, "HR");
+      Env e = new Env(info);
+
+      String message = e.tryDelete(NOCOL, "HR");
+
+      assertTrue(message.contains(REV) && message.contains(QTY), message);
+      assertEquals("whole=[] Sum(REVENUE)=[HR, HX] Sum(QUANTITY)=[HR]", e.groups());
+
+      assertEquals("OK", e.tryDelete(col(QTY), "HR"));
+      assertEquals("whole=[] Sum(REVENUE)=[HR, HX] Sum(QUANTITY)=[]", e.groups());
+   }
+
+   @Test
+   void theRefusalOnAChartThatReadsOneGroupNeverAdvisesColNameAndSaysSo() throws Exception {
+      Env e = orphanedRadar();
+
+      for(AssemblyHighlightService.Region r : new AssemblyHighlightService.Region[]{ NOCOL, null }) {
+         String message = e.tryDelete(r, "Typo");
+         assertTrue(message.startsWith("THREW"), message);
+         assertFalse(message.contains("pass colName"), message);
+         assertFalse(message.contains("not rendered"), message);
+         assertTrue(message.contains("Sum(REVENUE) (HR); Sum(QUANTITY) (HQ)"), message);
+         assertTrue(message.contains("cannot be addressed by colName on this chart type"),
+                    message);
+      }
+
+      Map<?, ?> other = (Map<?, ?>) ((List<?>) e.list(NOCOL).get("otherGroups")).get(0);
+      assertEquals(REV, other.get("colName"));
+      assertEquals("cannot be addressed by colName on this chart type", other.get("note"));
+   }
+
+   @Test
+   void aBarStillGetsThePassColNameHint() throws Exception {
+      Env e = new Env(bar("REVENUE", "QUANTITY"));
+      e.seed(REV, "HR");
+
+      String message = e.tryDelete(NOCOL, "HR");
+
+      assertTrue(message.contains("so pass colName"), message);
+      assertFalse(message.contains("cannot be addressed"), message);
+      assertFalse(((Map<?, ?>) ((List<?>) e.list(NOCOL).get("otherGroups")).get(0))
+                     .containsKey("note"));
+   }
+
+   @Test
+   void aSingleMeasureRadarKeepsItsOwnGroupAddressableByColName() throws Exception {
+      VSChartInfo info = groupedRadar("REVENUE");
+      assertTrue(GraphTypes.isRadarOne(info));
+      hold(info, REV, "HR");
+      Env e = new Env(info);
+
+      String message = e.tryDelete(NOCOL, "HR");
+      assertTrue(message.contains("so pass colName"), message);
+      assertFalse(message.contains("cannot be addressed"), message);
+      assertEquals("OK", e.tryDelete(col(REV), "HR"));
+      assertEquals("whole=[] Sum(REVENUE)=[]", e.groups());
+   }
+
+   @Test
+   void theOrphanWriteReachesTheDesignRefWhenADateComparisonCloneIsActive() throws Exception {
+      VSChartInfo info = groupedRadar("REVENUE", "QUANTITY");
+      hold(info, REV, "HR", "HX");
+      hold(info, QTY, "HQ");
+      ChartRef design = (ChartRef) info.getYFields()[0];
+      ChartRef clone = (ChartRef) design.clone();
+      assertNotSame(design, clone);
+      info.setRuntimeDateComparisonRefs(new ChartRef[]{ clone });
+      Env e = new Env(info);
+
+      assertEquals("OK", e.tryDelete(col(REV), "HR"));
+
+      assertEquals("whole=[] Sum(REVENUE)=[HX] Sum(QUANTITY)=[HQ]", e.groups());
+   }
+
+   @Test
+   void theRefLevelSwitchIsIgnoredWithoutAResolvedMeasureAndNeverSerialized() throws Exception {
+      Env e = new Env(groupedRadar("REVENUE", "QUANTITY"));
+      HighlightDialogModel model = new HighlightDialogModel();
+      model.setRefLevelGroup(true);
+      HighlightModel hl = new HighlightModel();
+      hl.setName("Whole");
+      model.setHighlights(new HighlightModel[]{ hl });
+
+      e.hds.setHighlightDialogModel("rt1", "Chart1", model, "", ADMIN, null);
+
+      assertEquals("whole=[Whole] Sum(REVENUE)=[] Sum(QUANTITY)=[]", e.groups());
+
+      com.fasterxml.jackson.databind.ObjectMapper mapper =
+         new com.fasterxml.jackson.databind.ObjectMapper()
+            .configure(com.fasterxml.jackson.databind.DeserializationFeature
+                          .FAIL_ON_UNKNOWN_PROPERTIES, false);
+      assertFalse(mapper.writeValueAsString(model).contains("refLevelGroup"));
+      assertFalse(mapper.readValue("{\"refLevelGroup\":true}", HighlightDialogModel.class)
+                     .isRefLevelGroup());
    }
 }

@@ -46,6 +46,7 @@ import inetsoft.web.composer.model.vs.HighlightModel;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
 import inetsoft.web.composer.vs.dialog.HighlightDialogService;
 import inetsoft.web.service.HighlightService;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -163,22 +164,33 @@ public class AssemblyHighlightService {
 
       // Additive (bug #79114): a colName-less read of a chart sees only the whole-chart group,
       // so say which measures hold highlights of their own rather than looking empty.
-      Map<String, List<String>> otherGroups = measureGroups(rvs, assemblyName, region);
+      // Highlights a chart type change left on a measure's own group are listed too, marked as
+      // not addressable by colName.
+      MeasureGroups groups = measureGroups(rvs, assemblyName, region);
+      List<Map<String, Object>> others = new ArrayList<>();
 
-      if(!otherGroups.isEmpty()) {
-         List<Map<String, Object>> others = new ArrayList<>();
+      for(Map.Entry<String, List<String>> entry : groups.reachable().entrySet()) {
+         others.add(otherGroup(entry));
+      }
 
-         for(Map.Entry<String, List<String>> entry : otherGroups.entrySet()) {
-            Map<String, Object> group = new LinkedHashMap<>();
-            group.put("colName", entry.getKey());
-            group.put("names", entry.getValue());
-            others.add(group);
-         }
+      for(Map.Entry<String, List<String>> entry : groups.orphaned().entrySet()) {
+         Map<String, Object> group = otherGroup(entry);
+         group.put("note", ORPHANED_NOTE);
+         others.add(group);
+      }
 
+      if(!others.isEmpty()) {
          out.put("otherGroups", others);
       }
 
       return out;
+   }
+
+   private static Map<String, Object> otherGroup(Map.Entry<String, List<String>> entry) {
+      Map<String, Object> group = new LinkedHashMap<>();
+      group.put("colName", entry.getKey());
+      group.put("names", entry.getValue());
+      return group;
    }
 
    /**
@@ -337,6 +349,7 @@ public class AssemblyHighlightService {
          throw new IllegalArgumentException("delete_highlight needs the highlight's 'name'.");
       }
 
+      List<String> orphanWarnings = new ArrayList<>();
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          HighlightDialogModel model = read(rvs, assemblyName, region, user);
          HighlightModel[] existing = model == null || model.getHighlights() == null
@@ -357,9 +370,19 @@ public class AssemblyHighlightService {
          }
 
          if(kept.size() == existing.length) {
-            throw new IllegalArgumentException(
-               "'" + assemblyName + "' has no highlight named '" + name + "'. " +
-               existingNames(names, rvs, assemblyName, region, name));
+            String holder = orphanHolder(rvs, assemblyName, region, name);
+
+            if(holder == null) {
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' has no highlight named '" + name + "'. " +
+                  existingNames(names, rvs, assemblyName, region, name));
+            }
+
+            deleteOrphan(rvs, runtimeId, dispatcher, assemblyName, holder, name, linkUri, user);
+            orphanWarnings.add(
+               "Removed '" + name + "' from " + holder + "'s own highlight group, which " +
+               ORPHANED_NOTE + ".");
+            return;
          }
 
          model.setHighlights(kept.toArray(new HighlightModel[0]));
@@ -368,19 +391,121 @@ public class AssemblyHighlightService {
                                                      user, dispatcher));
       });
 
-      return warnings == null ? List.of() : warnings;
+      List<String> out = new ArrayList<>(warnings == null ? List.of() : warnings);
+      out.addAll(orphanWarnings);
+      return out;
+   }
+
+   /**
+    * The measure whose own group holds {@code name} when the whole-chart lookup missed it, for a
+    * chart type that reads one chart-wide group (highlights set while the chart was another type
+    * stay on the measures). Null when no such highlight exists; throws when it cannot be told
+    * which measure is meant.
+    *
+    * <p>With a colName only that measure's own group is searched, so a colName never removes
+    * another measure's highlight; without one, exactly one holder is removed and several are
+    * refused.
+    */
+   private static String orphanHolder(RuntimeViewsheet rvs, String assemblyName, Region region,
+                                      String name)
+   {
+      Map<String, List<String>> orphaned = measureGroups(rvs, assemblyName, region).orphaned();
+      List<String> holders = new ArrayList<>();
+
+      for(Map.Entry<String, List<String>> entry : orphaned.entrySet()) {
+         if(entry.getValue().stream().anyMatch(name::equalsIgnoreCase)) {
+            holders.add(entry.getKey());
+         }
+      }
+
+      if(holders.isEmpty()) {
+         return null;
+      }
+
+      if(hasColName(region)) {
+         String own = resolveMeasureName(rvs, assemblyName, region.colName());
+
+         if(own != null && holders.contains(own)) {
+            return own;
+         }
+
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' has no highlight named '" + name + "' on '" +
+            region.colName() + "'. '" + name + "' is held by " + String.join(", ", holders) +
+            "; pass that measure as colName to remove it.");
+      }
+
+      if(holders.size() > 1) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' has a highlight named '" + name + "' on more than one " +
+            "measure: " + String.join(", ", holders) + ". Pass the measure as colName to say " +
+            "which one to remove.");
+      }
+
+      return holders.get(0);
+   }
+
+   /**
+    * Removes {@code name} from {@code measure}'s own group, reading and writing that group rather
+    * than the chart-wide one so the other highlights on the measure are written back unchanged.
+    */
+   private void deleteOrphan(RuntimeViewsheet rvs, String runtimeId,
+                             CapturingCommandDispatcher dispatcher,
+                             String assemblyName, String measure, String name, String linkUri,
+                             Principal user) throws Exception
+   {
+      HighlightDialogModel own = highlightService.getRefLevelHighlightDialogModel(
+         runtimeId, assemblyName, null, null, measure, false, false, user);
+      List<HighlightModel> kept = new ArrayList<>();
+
+      for(HighlightModel highlight : own.getHighlights()) {
+         if(highlight != null && !name.equalsIgnoreCase(highlight.getName())) {
+            kept.add(highlight);
+         }
+      }
+
+      own.setHighlights(kept.toArray(new HighlightModel[0]));
+      own.setRefLevelGroup(true);
+      ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
+         highlightService.setHighlightDialogModel(runtimeId, assemblyName, own, linkUri, user,
+                                                  dispatcher));
+   }
+
+   /** The full name of the measure a colName addresses, resolved as the read and write do. */
+   private static String resolveMeasureName(RuntimeViewsheet rvs, String assemblyName,
+                                            String colName)
+   {
+      ChartVSAssemblyInfo info = chartInfo(rvs, assemblyName);
+      VSChartInfo chartInfo = info == null ? null : info.getVSChartInfo();
+      ChartRef ref = chartInfo == null ? null :
+         HighlightDialogService.resolveChartHighlightRef(chartInfo, colName, false, false);
+      return ref == null ? null : ref.getFullName();
+   }
+
+   private static ChartVSAssemblyInfo chartInfo(RuntimeViewsheet rvs, String assemblyName) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+      return assembly != null && assembly.getVSAssemblyInfo() instanceof ChartVSAssemblyInfo info
+         ? info : null;
+   }
+
+   private static boolean hasColName(Region region) {
+      return region != null && region.colName() != null && !region.colName().isBlank();
    }
 
    /**
     * The "It has: ..." half of a name-not-found refusal. On a chart addressed without a colName
     * the lookup sees only the whole-chart group, while a highlight set with a colName lives on
     * that measure's own group (bug #79114); when such a group holds highlights, say so and name
-    * the colName to pass, and do not claim "(none)" about a chart that has highlights.
+    * the colName to pass, and do not claim "(none)" about a chart that has highlights. On a chart
+    * type that reads one chart-wide group, colName cannot reach a measure's own group, so those
+    * highlights are listed without that advice.
     */
    private static String existingNames(List<String> names, RuntimeViewsheet rvs,
                                        String assemblyName, Region region, String missing)
    {
-      Map<String, List<String>> groups = measureGroups(rvs, assemblyName, region);
+      MeasureGroups all = measureGroups(rvs, assemblyName, region);
+      Map<String, List<String>> groups = all.reachable();
       boolean holdsName = false;
 
       for(List<String> group : groups.values()) {
@@ -389,16 +514,32 @@ public class AssemblyHighlightService {
          }
       }
 
+      StringBuilder out = new StringBuilder();
+
       // A non-empty whole-chart group that merely lacks the name only gets the hint when another
       // group holds that name; an empty one gets it whenever any group has highlights.
       if(groups.isEmpty() || !names.isEmpty() && !holdsName) {
-         return "It has: " + (names.isEmpty() ? "(none)" : String.join(", ", names)) + ".";
+         out.append("It has: ").append(names.isEmpty() ? "(none)" : String.join(", ", names))
+            .append(".");
+      }
+      else {
+         out.append(names.isEmpty() ? "The whole-chart group (no colName) has no highlights."
+                                    : "It has: " + String.join(", ", names) + ".");
+         out.append(" The chart has highlights on measures: ").append(describe(groups));
+         out.append(". A highlight set with a colName lives on that measure's group, so pass " +
+                    "colName; a call without colName reads only the whole-chart group.");
       }
 
+      if(!all.orphaned().isEmpty()) {
+         out.append(" The chart also has highlights on measures that ").append(ORPHANED_NOTE)
+            .append(": ").append(describe(all.orphaned())).append(".");
+      }
+
+      return out.toString();
+   }
+
+   private static String describe(Map<String, List<String>> groups) {
       StringBuilder out = new StringBuilder();
-      out.append(names.isEmpty() ? "The whole-chart group (no colName) has no highlights."
-                                 : "It has: " + String.join(", ", names) + ".");
-      out.append(" The chart has highlights on measures: ");
       boolean first = true;
 
       for(Map.Entry<String, List<String>> entry : groups.entrySet()) {
@@ -407,41 +548,44 @@ public class AssemblyHighlightService {
          first = false;
       }
 
-      out.append(". A highlight set with a colName lives on that measure's group, so pass " +
-                 "colName; a call without colName reads only the whole-chart group.");
       return out.toString();
    }
 
+   static final String ORPHANED_NOTE = "cannot be addressed by colName on this chart type";
+
    /**
-    * The highlights held by each x/y measure of a chart, keyed by the exact colName that
-    * addresses that measure's group, for a call that names no colName (the whole-chart group).
-    * Empty for anything else: a non-chart, an axis or text region, a named colName, or a chart
-    * whose measures hold no highlights. Read-only.
+    * The highlights held by each x/y measure's own group, keyed by the exact colName that names
+    * the measure. {@code reachable} are the groups a colName reads on this chart type (listed for
+    * a call that names no colName, which reads the whole-chart group); {@code orphaned} are those
+    * on a chart type that reads one chart-wide group instead, e.g. highlights set while the chart
+    * was a bar and left behind by a change to a multi-measure radar.
     */
-   private static Map<String, List<String>> measureGroups(RuntimeViewsheet rvs,
-                                                          String assemblyName, Region region)
+   private record MeasureGroups(Map<String, List<String>> reachable,
+                                Map<String, List<String>> orphaned)
    {
-      Map<String, List<String>> groups = new LinkedHashMap<>();
+      static final MeasureGroups NONE = new MeasureGroups(Map.of(), Map.of());
+   }
 
-      if(region != null && (region.axis() || region.text() ||
-         region.colName() != null && !region.colName().isBlank()))
-      {
-         return groups;
+   /**
+    * Empty for anything but a mark region of a chart whose measures hold highlights of their own;
+    * {@code reachable} is also empty for a call that names a colName. Read-only.
+    */
+   private static MeasureGroups measureGroups(RuntimeViewsheet rvs, String assemblyName,
+                                              Region region)
+   {
+      if(region != null && (region.axis() || region.text())) {
+         return MeasureGroups.NONE;
       }
 
-      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
-      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
-
-      if(assembly == null || !(assembly.getVSAssemblyInfo() instanceof ChartVSAssemblyInfo info)) {
-         return groups;
-      }
-
-      VSChartInfo chartInfo = info.getVSChartInfo();
+      ChartVSAssemblyInfo info = chartInfo(rvs, assemblyName);
+      VSChartInfo chartInfo = info == null ? null : info.getVSChartInfo();
 
       if(chartInfo == null) {
-         return groups;
+         return MeasureGroups.NONE;
       }
 
+      Map<String, List<String>> reachable = new LinkedHashMap<>();
+      Map<String, List<String>> orphaned = new LinkedHashMap<>();
       List<VSDataRef> refs = new ArrayList<>(Arrays.asList(chartInfo.getXFields()));
       refs.addAll(Arrays.asList(chartInfo.getYFields()));
 
@@ -455,11 +599,15 @@ public class AssemblyHighlightService {
          String[] held = highlightRef.getHighlightGroup().getNames();
 
          if(held != null && held.length > 0) {
-            groups.putIfAbsent(chartRef.getFullName(), Arrays.asList(held));
+            // evaluated per measure, as the read and write of a chart highlight do
+            Map<String, List<String>> target =
+               HighlightDialogService.readsChartLevelGroup(chartInfo, chartRef, false)
+               ? orphaned : reachable;
+            target.putIfAbsent(chartRef.getFullName(), Arrays.asList(held));
          }
       }
 
-      return groups;
+      return new MeasureGroups(hasColName(region) ? Map.of() : reachable, orphaned);
    }
 
    // ── conversions ───────────────────────────────────────────────────────────

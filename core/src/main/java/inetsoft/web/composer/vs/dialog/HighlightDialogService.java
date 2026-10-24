@@ -82,6 +82,30 @@ public class HighlightDialogService {
    public HighlightDialogModel getHighlightDialogModel(@ClusterProxyKey String runtimeId, String objectId, Integer row, Integer col, String colName, boolean isAxis, boolean isText, Principal principal)
       throws Exception
    {
+      return readHighlightDialogModel(runtimeId, objectId, row, col, colName, isAxis, isText,
+                                      false, principal);
+   }
+
+   /**
+    * Same read as {@link #getHighlightDialogModel}, but a chart mark highlight for a named
+    * measure is read from that measure's own group even where the chart type reads one chart-wide
+    * group. That is where highlights set while the chart was another type stay behind; the model
+    * returned holds them, so a write-back with {@link HighlightDialogModel#setRefLevelGroup}
+    * set replaces the same group it read.
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public HighlightDialogModel getRefLevelHighlightDialogModel(
+      @ClusterProxyKey String runtimeId, String objectId, Integer row, Integer col,
+      String colName, boolean isAxis, boolean isText, Principal principal) throws Exception
+   {
+      return readHighlightDialogModel(runtimeId, objectId, row, col, colName, isAxis, isText,
+                                      true, principal);
+   }
+
+   private HighlightDialogModel readHighlightDialogModel(
+      String runtimeId, String objectId, Integer row, Integer col, String colName,
+      boolean isAxis, boolean isText, boolean refLevelGroup, Principal principal) throws Exception
+   {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet viewsheet = rvs.getViewsheet();
@@ -268,7 +292,6 @@ public class HighlightDialogService {
                (HighlightRef) getMeasure(chartInfo, colName, true, isAxis, isText);
             boolean wordCloud = GraphTypeUtil.isWordCloud(chartInfo);
             boolean boxplot = colName != null && colName.startsWith(BoxDataSet.MAX_PREFIX);
-            boolean geo = GraphTypes.isGeo(chartInfo.getChartType());
 
             if(highlightRef instanceof VSChartDimensionRef ||
                highlightRef instanceof VSChartAggregateRef &&
@@ -280,11 +303,8 @@ public class HighlightDialogService {
             if(isText && highlightRef != null) {
                highlightGroup = GraphUtil.getTextHighlightGroup(highlightRef, chartInfo);
             }
-            else if(highlightRef == null ||
-               (chartInfo instanceof MergedVSChartInfo &&
-                  !GraphTypes.isRadarOne(chartInfo)) &&
-                  !GraphTypes.isGantt(chartInfo.getChartType()) &&
-                  (((ChartRef) highlightRef).isMeasure() || geo))
+            else if(readsChartLevelGroup(chartInfo, (ChartRef) highlightRef,
+                                         refLevelGroup && !isAxis))
             {
                if(isText) {
                   highlightGroup = chartInfo.getTextHighlightGroup();
@@ -735,6 +755,26 @@ public class HighlightDialogService {
    }
 
    /**
+    * True when a chart highlight for {@code ref} lives in the chart-wide group rather than in the
+    * ref's own group. That is the case for no ref at all, and for a measure (or any ref of a geo
+    * chart) on a merged chart that is not a single-measure radar or a gantt.
+    *
+    * @param refLevelGroup true to address a resolved {@code ref}'s own group regardless; ignored
+    *                      when {@code ref} is null, as there is no group of its own to address.
+    */
+   public static boolean readsChartLevelGroup(ChartInfo chartInfo, ChartRef ref,
+                                              boolean refLevelGroup)
+   {
+      if(ref == null) {
+         return true;
+      }
+
+      return !refLevelGroup && chartInfo instanceof MergedVSChartInfo &&
+         !GraphTypes.isRadarOne(chartInfo) && !GraphTypes.isGantt(chartInfo.getChartType()) &&
+         (ref.isMeasure() || GraphTypes.isGeo(chartInfo.getChartType()));
+   }
+
+   /**
     * Writes the dialog's highlights onto the chart. While a date comparison is active the measure
     * resolves to a runtime clone, which is dropped whenever the runtime refs are replaced
     * (clear / option switch), so the design-time ref is written too (set and delete both flow
@@ -753,12 +793,9 @@ public class HighlightDialogService {
       HighlightRef persistedRef = highlightRef == null ? null :
          (HighlightRef) getMeasure(chartInfo, model.getMeasure(), false,
                                    model.isAxis(), model.isText(), false);
-      boolean geo = GraphTypes.isGeo(chartInfo.getChartType());
       // true to use highlight in chartInfo.
-      boolean infoHL = highlightRef == null || (chartInfo instanceof MergedVSChartInfo &&
-         !GraphTypes.isRadarOne(chartInfo) &&
-         !GraphTypes.isGantt(chartInfo.getChartType())) &&
-         (((ChartRef) highlightRef).isMeasure() || geo);
+      boolean infoHL = readsChartLevelGroup(chartInfo, (ChartRef) highlightRef,
+                                            model.isRefLevelGroup() && !model.isAxis());
 
       // A measure the date comparison derives (e.g. "Change from previous year of ...: Sum(X)")
       // is a runtime aggregate carrying a calculator with no design-time field behind it, so a
