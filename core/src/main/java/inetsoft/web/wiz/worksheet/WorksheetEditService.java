@@ -2624,6 +2624,19 @@ public class WorksheetEditService {
 
          requireNoJoinKeyTypeBreak(table, t, col, oldType, type, false);
 
+         // Resolved before the declared type is written so a refusal below changes nothing.
+         XEmbeddedTable data = t instanceof EmbeddedTableAssembly embedded ?
+            embedded.getEmbeddedData() : null;
+         int index = data != null ? AssetUtil.findColumn(data, cr2 != null ? cr2 : cr) : -1;
+
+         if(pattern != null && data != null && index < 0) {
+            throw new PairingException(
+               "format cannot be applied to \"" + col + "\" on table \"" + table +
+               "\": it is not a stored data column (an expression column's values are computed " +
+               "by its expression). Omit format, or make the expression produce the target type " +
+               "with edit_expression.");
+         }
+
          if(cr2 != null) {
             cr2.setDataType(type);
          }
@@ -2635,14 +2648,10 @@ public class WorksheetEditService {
          // Without this, refreshColumnSelection rebuilds the column selection from
          // the data and resets the type back to the original.
          if(t instanceof EmbeddedTableAssembly embedded) {
-            XEmbeddedTable data = embedded.getEmbeddedData();
-
             if(data != null) {
-               int index = AssetUtil.findColumn(data, cr2 != null ? cr2 : cr);
-
                if(index >= 0) {
                   try {
-                     data.setDataType(index, type, parseFormat, null, force);
+                     data.setDataType(index, type, parseFormat, null, force, pattern != null);
                   }
                   catch(Exception ex) {
                      // force=false means setDataType throws rather than nulling the values it
