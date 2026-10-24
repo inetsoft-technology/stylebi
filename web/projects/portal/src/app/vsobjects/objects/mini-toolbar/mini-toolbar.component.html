@@ -18,10 +18,11 @@
 <div class="mini-toolbar"
   [class.hidden-mini-toolbar]="forceHide"
   [class.mini-toolbar--anchored]="kebabResident"
+  [class.mini-toolbar--corner]="cornerKebab"
   [style.top.px]="topY"
   [style.left.px]="leftPx"
   [style.z-index]="zIndex"
-  [style.width.px]="anchorInTitleLane ? width : null">
+  [style.width.px]="anchorInTitleLane || cornerKebab ? width : null">
   @if (showToolbarContainer) {
     <div
       class="mini-toolbar-container btn-toolbar" role="toolbar"

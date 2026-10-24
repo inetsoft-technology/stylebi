@@ -544,3 +544,22 @@ describe("MonthCalendar – display", () => {
       });
    });
 });
+
+describe("MonthCalendar corner kebab reserve (compiled CSS)", () => {
+   // A double calendar's panels sit side by side, so only the right-edge panel is reserved
+   it("moves its top-right control left of the corner kebab", () => {
+      const { comp } = createMonthCalendar();
+      const styleText = ((comp.constructor as any).ɵcmp.styles as string[]).join("\n");
+
+      for(const panel of ["month-calendar", "year-calendar"]) {
+         expect(styleText).toMatch(new RegExp(
+            `\\.viz-corner-kebab[^{},]*\\.${panel}[^{},]*:not\\(\\.double-calendar\\)` +
+            "[^{},]*child-calendar-title[^{}]*\\{[^}]*padding-right:\\s*var\\(--viz-corner-kebab-reserve\\)"));
+         expect(styleText).toMatch(new RegExp(
+            `\\.viz-corner-kebab[^{},]*\\.${panel}\\.double-calendar\\.second-calendar` +
+            "[^{},]*child-calendar-title[^{}]*\\{[^}]*padding-right:\\s*var\\(--viz-corner-kebab-reserve\\)"));
+      }
+
+      expect(styleText).not.toMatch(/:not\(\.second-calendar\)[^{},]*child-calendar-title/);
+   });
+});

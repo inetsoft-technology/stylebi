@@ -53,6 +53,7 @@
         [class.viz-density-compact]="vsObject.vizDensity === 'compact'"
         [class.viz-density-comfortable]="vsObject.vizDensity === 'comfortable'"
         [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
+        [class.viz-corner-kebab]="hasCornerReserve(vsObject)"
         [style.z-index]="getContainerZIndex(vsObject)"
         (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)"
         (mouseleave)="onMouseLeave(vsObject)">
@@ -351,6 +352,7 @@
       @if (!hideMiniToolbar && isMiniToolbarVisible(vsObject) && vsObject.enabled
            && !isChromeSuppressed(vsObject)) {
         @let anchored = isToolbarAnchored(vsObject);
+        @let corner = isCornerKebab(vsObject);
         @let glyphTone = anchored ? getStripGlyphTone(vsObject) : null;
         <mini-toolbar
           VSDataTip [dataTipName]="vsObject.absoluteName" [miniToolbar]="true"
@@ -370,8 +372,9 @@
           [actions]="vsObjectActions[i]"
           [top]="getToolbarTop(vsObject, i)"
           [left]="getToolbarLeft(vsObject, i)"
-          [width]="anchored ? getAnchoredToolbarWidth(vsObject) : getToolbarWidth(vsObject)"
+          [width]="anchored ? getAnchoredToolbarWidth(vsObject) : corner ? getCornerToolbarWidth(vsObject) : getToolbarWidth(vsObject)"
           [anchorInTitleLane]="anchored"
+          [cornerKebab]="corner"
           [zIndex]="getMiniToolbarZIndex(vsObject)"
           [maxMode]="vsObject.maxMode"
           [style.display]="isAssemblyVisible(vsObject) ? 'block' : 'none'"

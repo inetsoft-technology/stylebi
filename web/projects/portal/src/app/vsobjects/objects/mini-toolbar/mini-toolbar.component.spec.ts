@@ -500,9 +500,7 @@ describe("MiniToolbar.onKeyUp", () => {
    // Mirrors the actual DOM shape onKeyUp queries: element.nativeElement is the <mini-toolbar>
    // host tag, a *container* of the .mini-toolbar div (its template's root), which may itself
    // contain a .mini-toolbar-container holding the action-button groups. The reveal signal is the
-   // action groups' display (none at rest, inline-flex on reveal), not the container's opacity —
-   // the container is opaque in both states now that the kebab lives inside it, since opacity is
-   // not escapable by a descendant.
+   // container's opacity (0 at rest on a device that can hover, 1 on reveal).
    function makeElement(hostVisibility: string, groupDisplay?: string): { nativeElement: HTMLElement } {
       const hostTag = document.createElement("div");
       const toolbar = document.createElement("div");
@@ -514,12 +512,15 @@ describe("MiniToolbar.onKeyUp", () => {
       container.className = "mini-toolbar-container";
       toolbar.appendChild(container);
 
-      // The kebab's own group is always present and is never the reveal signal — onKeyUp must skip
-      // it via :not(.mini-toolbar-kebab-group) or it would read "inline-flex" and always dismiss.
+      // The kebab's own group is always in layout, so its display is not the reveal signal.
       const kebabGroup = document.createElement("div");
       kebabGroup.className = "mini-toolbar-button-group mini-toolbar-kebab-group";
       kebabGroup.style.display = "inline-flex";
       container.appendChild(kebabGroup);
+
+      const kebab = document.createElement("button");
+      kebab.className = "mini-toolbar-kebab";
+      kebabGroup.appendChild(kebab);
 
       if(groupDisplay !== undefined) {
          const group = document.createElement("div");
@@ -557,35 +558,85 @@ describe("MiniToolbar.onKeyUp", () => {
       expect(hideMiniToolbar).toHaveBeenCalledWith("Chart1", true);
    });
 
-   it("does not dismiss an anchored strip at rest, even though its host is visibility: visible", () => {
+   function setOpacity(element: { nativeElement: HTMLElement }, opacity: string): void {
+      (element.nativeElement.querySelector(".mini-toolbar-container") as HTMLElement)
+         .style.opacity = opacity;
+   }
+
+   it("does not dismiss an anchored strip whose pill is transparent", () => {
       const comp = makeToolbar();
       comp.anchorInTitleLane = true;
-      const hideMiniToolbar = wire(comp, makeElement("visible", "none"));
+      const element = makeElement("visible", "inline-flex");
+      setOpacity(element, "0");
+      const hideMiniToolbar = wire(comp, element);
 
       comp.onKeyUp();
 
       expect(hideMiniToolbar).not.toHaveBeenCalled();
    });
 
-   it("dismisses an anchored strip once its action buttons are actually revealed", () => {
+   it("dismisses a revealed kebab-only strip", () => {
       const comp = makeToolbar();
       comp.anchorInTitleLane = true;
-      const hideMiniToolbar = wire(comp, makeElement("visible", "inline-flex"));
+      const element = makeElement("visible");
+      setOpacity(element, "1");
+      const hideMiniToolbar = wire(comp, element);
+      const outside = document.createElement("button");
+      document.body.appendChild(outside);
+      outside.focus();
+
+      comp.onKeyUp();
+
+      expect(element.nativeElement.contains(document.activeElement)).toBe(false);
+      expect(hideMiniToolbar).toHaveBeenCalledWith("Chart1", true);
+   });
+
+   // Esc that closes the kebab's own menu must not dismiss the strip under the focused kebab
+   it("does not dismiss a revealed kebab-only strip whose kebab has focus", () => {
+      const comp = makeToolbar();
+      comp.anchorInTitleLane = true;
+      const element = makeElement("visible");
+      setOpacity(element, "1");
+      const hideMiniToolbar = wire(comp, element);
+      const kebab = element.nativeElement.querySelector(".mini-toolbar-kebab") as HTMLElement;
+      kebab.focus();
+
+      comp.onKeyUp();
+
+      expect(document.activeElement).toBe(kebab);
+      expect(hideMiniToolbar).not.toHaveBeenCalled();
+   });
+
+   it("still dismisses a focused non-anchored strip", () => {
+      const comp = makeToolbar();
+      const element = makeElement("visible");
+      const hideMiniToolbar = wire(comp, element);
+      (element.nativeElement.querySelector(".mini-toolbar-kebab") as HTMLElement).focus();
 
       comp.onKeyUp();
 
       expect(hideMiniToolbar).toHaveBeenCalledWith("Chart1", true);
    });
 
-   // Touch, and the kebab-only height band: no action group renders, so there is nothing revealed
-   // for Esc to dismiss. The kebab's own group must not be mistaken for one.
-   it("does not dismiss an anchored strip that has only the kebab group", () => {
-      const comp = makeToolbar();
-      comp.anchorInTitleLane = true;
-      const hideMiniToolbar = wire(comp, makeElement("visible"));
+   it("never dismisses an anchored strip on a device that cannot hover", () => {
+      const original = window.matchMedia;
+      window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as any;
 
-      expect(() => comp.onKeyUp()).not.toThrow();
-      expect(hideMiniToolbar).not.toHaveBeenCalled();
+      try {
+         const comp = makeToolbar();
+         comp.anchorInTitleLane = true;
+         const element = makeElement("visible");
+         setOpacity(element, "1");
+         const hideMiniToolbar = wire(comp, element);
+
+         comp.onKeyUp();
+
+         expect(window.matchMedia).toHaveBeenCalledWith("(hover: none)");
+         expect(hideMiniToolbar).not.toHaveBeenCalled();
+      }
+      finally {
+         window.matchMedia = original;
+      }
    });
 });
 

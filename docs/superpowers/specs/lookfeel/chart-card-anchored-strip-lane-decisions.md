@@ -152,6 +152,10 @@ saved content is not an edge case.
 
 ## Decision 4 — a lane that cannot contain the strip draws no chrome, and a hidden title is one such lane
 
+**Superseded 2026-10-23** by the [corner kebab decisions](../2026-10-23-corner-kebab-decisions.md). A hidden
+or short lane now draws a corner kebab when the assembly is at least 32px tall, and nothing below that.
+The text below is kept as the record of the earlier ruling.
+
 **Decided.** The strip is drawn when, and only when, the title is visible and its lane is at least 26px.
 Otherwise the assembly draws no chrome at all — no strip, no kebab, right-click only — which is the
 existing behaviour below the 32px card floor and the behaviour decision 4 of

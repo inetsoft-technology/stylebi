@@ -897,3 +897,15 @@ describe("VSSelection �?Pass 3: Display", () => {
    });
 });
 
+
+describe("VSSelection corner kebab reserve (compiled CSS)", () => {
+   it("moves its top-right control left of the corner kebab", async () => {
+      const { comp } = await renderComponent();
+      const styleText = ((comp.constructor as any).ɵcmp.styles as string[]).join("\n");
+
+      expect(styleText).toMatch(
+         /\.viz-corner-kebab[^{},]*pending-alert\.top[^{},]*:not\(\.left\)[^{},]*\{[^}]*right:\s*var\(--viz-corner-kebab-reserve\)/);
+      expect(styleText).toMatch(
+         /\.viz-corner-kebab[^{},]*selection-list__header-buttons[^{},]*\{[^}]*right:\s*var\(--viz-corner-kebab-reserve\)/);
+   });
+});

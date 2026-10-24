@@ -593,3 +593,12 @@ describe("VSRangeSlider – display / rendering (P3)", () => {
       });
    });
 });
+
+describe("VSRangeSlider corner kebab reserve (compiled CSS)", () => {
+   it("moves its container-child header buttons left of the corner kebab", () => {
+      const styleText = ((VSRangeSlider as any).ɵcmp.styles as string[]).join("\n");
+
+      expect(styleText).toMatch(
+         /\.viz-corner-kebab[^{},]*vs-range-slider-header__buttons[^{},]*\{[^}]*right:\s*var\(--viz-corner-kebab-reserve\)/);
+   });
+});

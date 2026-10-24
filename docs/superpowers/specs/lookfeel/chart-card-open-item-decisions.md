@@ -189,6 +189,11 @@ dependency is real and someone should confirm the seed mark's status before sche
 
 ## 4. Dense draws no chrome at all — the v3 reversal is accepted
 
+**Superseded 2026-10-23** by the [corner kebab decisions](../2026-10-23-corner-kebab-decisions.md). A hidden
+or short lane now draws a corner kebab when the assembly is at least 32px tall, and nothing below that.
+The dense-plus-touch question below is answered: touch detected as mobile uses `viewer-mobile-toolbar`,
+and devices that can't hover keep a resting kebab.
+
 **Decided 2026-08-12.** The `chart-card-design3` sync reversed widget spec §05. Both readings agree that a
 24px strip cannot anchor into dense's 20px lane; they disagree about what dense gets instead.
 
@@ -237,7 +242,9 @@ affordance, and the sibling project should confirm that is intended.** One predi
   release condition, still absent from code, still gating decision 3 and §04's density heights, but no
   longer an open question owned elsewhere. Note it departs from §03: persisted wholesale revert rather than
   recompute-onto-a-clone, no automatic forward re-seed, and no stored `gate-off` state.
-- **Whether dense-plus-touch is meant to have no affordance** — decision 4 above.
+- ~~**Whether dense-plus-touch is meant to have no affordance** — decision 4 above.~~ **Closed 2026-10-23.**
+  Touch detected as mobile uses `viewer-mobile-toolbar`, and devices that can't hover keep a resting kebab;
+  see the [corner kebab decisions](../2026-10-23-corner-kebab-decisions.md).
 - **The card radius 12→6 and retiring `resolveSeededCorner()`** (corrections doc §3.3) — decided,
   sequenced behind the seed mark, and see decision 1 above for what just happened to half its rationale.
 - **Four cheap verifications** carried over: the 9pt→9px measurement gating the type scale, the nav bar's

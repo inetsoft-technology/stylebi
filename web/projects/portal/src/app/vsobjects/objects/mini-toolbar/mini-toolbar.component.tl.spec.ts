@@ -46,6 +46,9 @@
  */
 
 import { render } from "@testing-library/angular";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 
 import { AssemblyAction } from "../../../common/action/assembly-action";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
@@ -71,7 +74,7 @@ function makeAction(id: string, overrides: Partial<AssemblyAction> = {}): Assemb
 }
 
 async function renderWithActions(actions: any, anchorInTitleLane: boolean,
-                                forceHide: boolean = false)
+                                forceHide: boolean = false, cornerKebab: boolean = false)
 {
    const miniToolbarService = new MiniToolbarService(
       { runOutsideAngular: (fn: () => any) => fn() } as any);
@@ -89,15 +92,17 @@ async function renderWithActions(actions: any, anchorInTitleLane: boolean,
          width: 100,
          assembly: "Chart1",
          anchorInTitleLane,
+         cornerKebab,
          forceHide
       }
    });
 }
 
 async function renderToolbar(groups: AssemblyActionGroup[], anchorInTitleLane: boolean,
-                             forceHide: boolean = false)
+                             forceHide: boolean = false, cornerKebab: boolean = false)
 {
-   return renderWithActions({ showingActions: groups } as any, anchorInTitleLane, forceHide);
+   return renderWithActions({ showingActions: groups } as any, anchorInTitleLane, forceHide,
+                            cornerKebab);
 }
 
 /**
@@ -526,9 +531,153 @@ describe("MiniToolbar rendered - anchored hover persistence (compiled CSS only; 
       // literal string. ":not(.hidden-mini-toolbar)" before ":hover" is the load-bearing part: an
       // unscoped rule would resurrect a strip dismissed via Hide MiniToolbar.
       expect(styleText).toMatch(
-         /\.mini-toolbar--anchored[^{}]*:not\(\.hidden-mini-toolbar\)[^{}]*:hover[^{}]*\.mini-toolbar-button-group[^{},]*:not\(\.mini-toolbar-kebab-group\)[^{}]*[,{]/);
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:hover[^{},]*\.mini-toolbar-button-group[^{},]*:not\(\.mini-toolbar-kebab-group\)[^{},]*[,{]/);
       expect(styleText).toMatch(
-         /\.mini-toolbar--anchored[^{}]*:not\(\.hidden-mini-toolbar\)[^{}]*:focus-within[^{}]*\.mini-toolbar-button-group[^{},]*:not\(\.mini-toolbar-kebab-group\)[^{}]*\{[^}]*display:\s*inline-flex/);
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:has\([^)]*:focus-visible\)[^{},]*\.mini-toolbar-button-group[^{},]*:not\(\.mini-toolbar-kebab-group\)[^{},]*\{[^}]*display:\s*inline-flex/);
+   });
+});
+
+describe("MiniToolbar rendered - resting opacity (compiled CSS only)", () => {
+   async function compiledStyleText(): Promise<string> {
+      await renderToolbar([
+         new AssemblyActionGroup([makeAction("chart show-data")]),
+         new AssemblyActionGroup([makeAction("more actions")])
+      ], true);
+
+      return Array.from(document.querySelectorAll("style"))
+         .map(s => s.textContent)
+         .join("\n");
+   }
+
+   it("hides the anchored pill at rest only where the device can hover", async () => {
+      const styleText = await compiledStyleText();
+      const hoverBlock = /@media \(hover: ?hover\)\s*\{[^@]*\.mini-toolbar--anchored[^{}]*\.mini-toolbar-container[^{}]*\{[^}]*opacity:\s*0/;
+      expect(styleText).toMatch(hoverBlock);
+
+      const restRule = /\.mini-toolbar--anchored[^{}]*\.mini-toolbar-container[^{}]*\{[^}]*opacity:\s*0/g;
+      const hoverMedia = /@media \(hover: ?hover\)\s*\{/g;
+      const total = (styleText.match(restRule) || []).length;
+      let inside = 0;
+      let m: RegExpExecArray;
+
+      while((m = hoverMedia.exec(styleText)) != null) {
+         let depth = 1;
+         let i = m.index + m[0].length;
+         const start = i;
+
+         while(depth > 0 && i < styleText.length) {
+            depth += styleText[i] == "{" ? 1 : styleText[i] == "}" ? -1 : 0;
+            i++;
+         }
+
+         inside += (styleText.substring(start, i).match(restRule) || []).length;
+      }
+
+      expect(total).toBeGreaterThan(0);
+      expect(inside).toBe(total);
+   });
+
+   it("reveals the pill on strip hover and on keyboard focus, never on a dismissed strip", async () => {
+      const styleText = await compiledStyleText();
+      expect(styleText).toMatch(
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:has\([^)]*:focus-visible\)[^{},]*\.mini-toolbar-container[^{},]*\{[^}]*opacity:\s*1/);
+      expect(styleText).toMatch(
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:hover[^{},]*\.mini-toolbar-container[^{},]*[,{][^}]*opacity:\s*1/);
+   });
+
+   it("gives the corner pill the dark surface", async () => {
+      const styleText = await compiledStyleText();
+      expect(styleText).toMatch(
+         /\.mini-toolbar--corner[^{}]*\.mini-toolbar-container[^{}]*\{[^}]*background-color:\s*var\(--inet-viz-surface-dark\)/);
+   });
+
+   // Bodies of every @media (hover: hover) block.
+   function hoverMediaBlocks(styleText: string): string[] {
+      const hoverMedia = /@media \(hover: ?hover\)\s*\{/g;
+      const blocks: string[] = [];
+      let m: RegExpExecArray;
+
+      while((m = hoverMedia.exec(styleText)) != null) {
+         let depth = 1;
+         let i = m.index + m[0].length;
+         const start = i;
+
+         while(depth > 0 && i < styleText.length) {
+            depth += styleText[i] == "{" ? 1 : styleText[i] == "}" ? -1 : 0;
+            i++;
+         }
+
+         blocks.push(styleText.substring(start, i));
+      }
+
+      return blocks;
+   }
+
+   // No pseudo-class anywhere in the selector, so a reveal cannot satisfy these.
+   const restGroup =
+      /\.mini-toolbar--anchored[^{},:]*\.mini-toolbar-kebab-group[^{},:]*[,{][^}]*pointer-events:\s*none/g;
+   const restKebab =
+      /\.mini-toolbar--anchored[^{},:]*\.mini-toolbar-kebab(?![-\w])[^{},:]*[,{][^}]*pointer-events:\s*none/g;
+
+   it("takes the transparent kebab out of hit-testing at rest only where the device can hover", async () => {
+      const styleText = await compiledStyleText();
+      const blocks = hoverMediaBlocks(styleText);
+      const count = (text: string, re: RegExp) => (text.match(re) || []).length;
+
+      for(const rest of [restGroup, restKebab]) {
+         const inside = blocks.reduce((sum, block) => sum + count(block, rest), 0);
+
+         expect(inside).toBeGreaterThan(0);
+         // a device that cannot hover draws the kebab at rest and must keep it clickable
+         expect(count(styleText, rest)).toBe(inside);
+      }
+   });
+
+   it("puts the kebab back in hit-testing on strip hover and keyboard focus, never on a dismissed strip", async () => {
+      const hoverText = hoverMediaBlocks(await compiledStyleText()).join("\n");
+
+      expect(hoverText).toMatch(
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:hover[^{},]*\.mini-toolbar-kebab-group[^{},]*[,{][^}]*pointer-events:\s*auto/);
+      expect(hoverText).toMatch(
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:hover[^{},]*\.mini-toolbar-kebab(?![-\w])[^{},]*[,{][^}]*pointer-events:\s*auto/);
+      expect(hoverText).toMatch(
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:has\([^)]*:focus-visible\)[^{},]*\.mini-toolbar-kebab-group[^{},]*[,{][^}]*pointer-events:\s*auto/);
+      expect(hoverText).toMatch(
+         /\.mini-toolbar--anchored[^{},]*:not\(\.hidden-mini-toolbar\)[^{},]*:has\([^)]*:focus-visible\)[^{},]*\.mini-toolbar-kebab(?![-\w])[^{},]*[,{][^}]*pointer-events:\s*auto/);
+   });
+
+   // The TL render injects only component styles, so the global rule is read as source.
+   it("puts the kebab back in hit-testing on assembly hover too, from the global stylesheet", () => {
+      const source = readFileSync(
+         join(dirname(fileURLToPath(import.meta.url)), "../../../../scss/internal/_moving-resize.scss"),
+         "utf-8").replace(/\r\n/g, "\n");
+      const reveals = new RegExp([
+         ".vs-object-parent-container:not(.popup-showing):hover + mini-toolbar > ",
+         ".object-editor:not(.moving-resizing):hover + mini-toolbar > ",
+         ".vs-object-container:hover ",
+         ".force-show-toolbar.vs-object-parent-container + mini-toolbar > "
+      ].map(prefix => (prefix + ".mini-toolbar--anchored:not(.hidden-mini-toolbar)")
+         .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(",\\s*") + "\\s*\\{", "g");
+      const bodies: string[] = [];
+      let m: RegExpExecArray;
+
+      while((m = reveals.exec(source)) != null) {
+         let depth = 1;
+         let i = m.index + m[0].length;
+
+         while(depth > 0 && i < source.length) {
+            depth += source[i] == "{" ? 1 : source[i] == "}" ? -1 : 0;
+            i++;
+         }
+
+         bodies.push(source.substring(m.index + m[0].length, i));
+      }
+
+      expect(bodies.length).toBe(1);
+      expect(bodies[0]).toMatch(
+         /(^|\n)\s*\.mini-toolbar-container\s*\{[^}]*opacity:\s*1;[^}]*pointer-events:\s*auto;/);
+      expect(bodies[0]).toMatch(
+         /\.mini-toolbar-container \.mini-toolbar-button-group,\s*\.mini-toolbar-container \.mini-toolbar-button-group \.mini-toolbar-kebab\s*\{\s*pointer-events:\s*auto;/);
    });
 });
 
@@ -693,5 +842,49 @@ describe("MiniToolbar rendered - the floating strip ignores the title lane", () 
 
       expect(root.querySelector(".mini-toolbar-container")).not.toBeNull();
       expect(buttonIcons(root).length).toBe(4);
+   });
+});
+
+describe("MiniToolbar rendered - corner kebab", () => {
+   const kebabGroups = () => [
+      new AssemblyActionGroup([]), new AssemblyActionGroup([makeAction("more actions")])];
+
+   it("renders the kebab alone, on the anchored and corner host classes", async () => {
+      const { fixture } = await renderToolbar(kebabGroups(), false, false, true);
+      const host = fixture.nativeElement.querySelector(".mini-toolbar");
+
+      expect(host.classList).toContain("mini-toolbar--corner");
+      expect(host.classList).toContain("mini-toolbar--anchored");
+      expect(host.querySelectorAll(".mini-toolbar-kebab").length).toBe(1);
+      expect(host.querySelectorAll(
+         ".mini-toolbar-button-group:not(.mini-toolbar-kebab-group)").length).toBe(0);
+   });
+
+   it("spans the bound width so the pill can right-align", async () => {
+      const { fixture } = await renderToolbar(kebabGroups(), false, false, true);
+      const host = fixture.nativeElement.querySelector(".mini-toolbar");
+
+      expect(host.style.width).toBe("100px");
+   });
+
+   it("keeps the host's resolved top", async () => {
+      const { fixture } = await renderToolbar(kebabGroups(), false, false, true);
+      const host = fixture.nativeElement.querySelector(".mini-toolbar");
+
+      expect(host.style.top).toBe("10px");
+   });
+
+   it("draws no container when every group is empty", async () => {
+      const { fixture } = await renderToolbar(
+         [new AssemblyActionGroup([]), new AssemblyActionGroup([])], false, false, true);
+
+      expect(fixture.nativeElement.querySelector(".mini-toolbar-container")).toBeNull();
+   });
+
+   it("draws no container for an empty floating strip either", async () => {
+      const { fixture } = await renderToolbar(
+         [new AssemblyActionGroup([]), new AssemblyActionGroup([])], false);
+
+      expect(fixture.nativeElement.querySelector(".mini-toolbar-container")).toBeNull();
    });
 });

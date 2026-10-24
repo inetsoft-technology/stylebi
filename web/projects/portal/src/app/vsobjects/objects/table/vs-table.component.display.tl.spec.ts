@@ -771,3 +771,13 @@ describe("VSTable — Pass 3: Display", () => {
       });
    });
 });
+
+describe("VSTable corner kebab reserve (compiled CSS)", () => {
+   it("moves its top-right control left of the corner kebab", () => {
+      const { comp } = createTableComponent();
+      const styleText = ((comp.constructor as any).ɵcmp.styles as string[]).join("\n");
+
+      expect(styleText).toMatch(
+         /\.viz-corner-kebab[^{},]*vs-header-cell-button-sort[^{},]*\{[^}]*right:\s*var\(--viz-corner-kebab-reserve\)/);
+   });
+});

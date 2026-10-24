@@ -68,3 +68,13 @@
 .max-mode-view-filter {
   position: fixed;
 }
+
+.viz-corner-kebab {
+  --viz-corner-kebab-reserve: 48px;
+}
+
+@media (pointer: coarse) {
+  .viz-corner-kebab {
+    --viz-corner-kebab-reserve: 54px;
+  }
+}

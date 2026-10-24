@@ -24,7 +24,7 @@ import { AssemblyActions } from "./assembly-actions";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
 import { GuiTool } from "../../common/util/gui-tool";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
-import { anchoredLaneHeight, isAnchoredChromeSuppressed, isAnchoredDesign, MiniToolbarService }
+import { ACTION_FLOOR, anchoredLaneHeight, isAnchoredChromeSuppressed, isAnchoredDesign, isCornerKebab, MiniToolbarService }
    from "../objects/mini-toolbar/mini-toolbar.service";
 import { ToolbarActionsHandler } from "../toolbar-actions-handler";
 
@@ -51,7 +51,6 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    // the height at which a strip stops feeling like it owns the card — and is the number in this
    // ladder most likely to be wrong. Validate against real dashboards before trusting it; a 56px card
    // is common in a KPI row.
-   private static readonly ACTION_FLOOR = 32;
    private static readonly ACTIONS_MIN = 56;
    // Action buttons, kebab excluded. allowedActionsNum() returns slots, not actions — see there.
    private static readonly MAX_TOOLBAR_ACTIONS = 3;
@@ -144,16 +143,30 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       return isAnchoredDesign(this.model.objectType, this.model.vizModern);
    }
 
-   // True only in the host that anchors the strip into a lane, where a lane under the minimum
-   // draws no strip and no kebab — so the dismissal would name a control that does not exist. The
-   // five floating hosts overlay the strip and are unaffected by lane height. Two of them set
-   // viewer while floating, and are excluded by name: the embedded chart, and the binding pane
-   // opened from the viewer rather than the composer.
-   private get laneSuppressed(): boolean {
+   // True only in the host that anchors the strip into a lane. The five floating hosts overlay the
+   // strip and are unaffected by lane height. Two of them set viewer while floating, and are
+   // excluded by name: the embedded chart, and the binding pane opened from the viewer rather
+   // than the composer.
+   private get anchoringHost(): boolean {
       return (this.viewer || this.preview) && !this.binding &&
-         !this.contextProvider.embedAssembly &&
+         !this.contextProvider.embedAssembly;
+   }
+
+   // A short or hidden lane in the anchoring host: the kebab sits in the card's corner and opens
+   // the whole inventory, so the toolbar gets no slots.
+   private get cornerKebab(): boolean {
+      return this.anchoringHost &&
+         isCornerKebab(this.model.objectType, this.model.vizModern,
+                       anchoredLaneHeight(this.model), this.model.objectFormat.height);
+   }
+
+   // Below the height floor in the anchoring host nothing is drawn, so the dismissal would name a
+   // control that does not exist.
+   private get chromeSuppressed(): boolean {
+      return this.anchoringHost &&
          isAnchoredChromeSuppressed(this.model.objectType, this.model.vizModern,
-                                    anchoredLaneHeight(this.model));
+                                    anchoredLaneHeight(this.model),
+                                    this.model.objectFormat.height);
    }
 
    /**
@@ -182,9 +195,10 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       }
 
       // Kebab-only types never get an action button, so neither the height bands nor the cap
-      // arithmetic below apply. Placed after the resident guard on purpose: keyed on kebabOnly
-      // alone this would also fire gate-off, stripping a floating toolbar users already have.
-      if(this.kebabOnly) {
+      // arithmetic below apply; the corner kebab is the same case. Placed after the resident guard
+      // on purpose: keyed on kebabOnly alone this would also fire gate-off, stripping a floating
+      // toolbar users already have.
+      if(this.kebabOnly || this.cornerKebab) {
          return 0;
       }
 
@@ -229,9 +243,10 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       // No chrome at all below the control floor — a 24px control with 4px clearance does not fit,
       // and right-click becomes the only route. This is the one rung that removes the kebab.
       //
-      // The lane's own version of this rung — a lane too short to host the strip draws nothing —
-      // is the anchoring mount site's, not this list's: see isAnchoredChromeSuppressed.
-      if(modern && this.model.objectFormat.height < AbstractVSActions.ACTION_FLOOR) {
+      // A lane too short to host the strip moves the kebab to the corner rather than drawing
+      // nothing; that call is the anchoring mount site's, not this list's: see isCornerKebab and
+      // isAnchoredChromeSuppressed.
+      if(modern && this.model.objectFormat.height < ACTION_FLOOR) {
          ToolbarActionsHandler.copyActions([], this.showing);
          return this.showing;
       }
@@ -342,10 +357,10 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    private flattenedMoreActions(): AssemblyActionGroup[] {
       // Seeded with what the strip is already rendering, so the kebab does not repeat buttons
       // sitting an inch from it. The menu carries copies of the toolbar actions by design — that is
-      // what keeps them reachable once a lane too short for the strip suppresses it — but a copy
-      // whose original is on screen is noise. Where no action button renders at all (touch, and the
-      // kebab-only band) showing holds none, nothing is excluded, and the kebab stays the whole
-      // inventory.
+      // what keeps them reachable on a card too short for any chrome, where right-click is the
+      // only route — but a copy whose original is on screen is noise. Where no action button
+      // renders at all (touch, the kebab-only band and the corner kebab) showing holds none,
+      // nothing is excluded, and the kebab stays the whole inventory.
       const seen = new Set<string>(
          this.showing.reduce(
             (ids, group) => ids.concat(group.actions.map(action => action.id())), [] as string[]));
@@ -474,7 +489,7 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
             label: () => "_#(js:Hide MiniToolbar)",
             icon: () => "close-icon",
             enabled: () => true,
-            visible: () => this.isActionVisible("Hide MiniToolbar") && !this.laneSuppressed &&
+            visible: () => this.isActionVisible("Hide MiniToolbar") && !this.chromeSuppressed &&
                othersGroups && othersGroups.length > 0 &&
                othersGroups.some(group => group.actions.some(action => action.visible())),
             action: () => this.hideMiniToolbar(),

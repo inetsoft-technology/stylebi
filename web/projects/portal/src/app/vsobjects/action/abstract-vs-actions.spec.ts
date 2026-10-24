@@ -254,18 +254,35 @@ describe("AbstractVSActions", () => {
       expect(ids).not.toContain("vs-assembly hide-mini-toolbar");
    });
 
-   // A lane under ANCHORED_LANE_MIN draws no strip and no kebab in the anchoring host, so the
-   // dismissal there names a control that does not exist.
-   describe("dismissal against the lane", () => {
-      it("hides the dismissal in the viewer when the lane cannot hold the strip", () => {
-         expect(visibleMenuIds(viewerActionsFor(400, 200, true, 20)))
-            .not.toContain("vs-assembly hide-mini-toolbar");
-      });
+   // A lane under ANCHORED_LANE_MIN puts the kebab in the corner; below the height floor nothing
+   // is drawn, so the dismissal there names a control that does not exist.
+   describe("corner budget", () => {
+      const ids = (groups: any[]) =>
+         groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
-      it("hides the dismissal in the viewer when the title is hidden", () => {
-         expect(visibleMenuIds(viewerActionsFor(400, 200, true, 0)))
-            .not.toContain("vs-assembly hide-mini-toolbar");
+      it("gives the corner no toolbar slots", () =>
+         expect(viewerActionsFor(400, 200, true, 0).allowedActionsNum()).toBe(0));
+      it("keeps the floating hosts' slots whatever the lane", () =>
+         expect(actionsFor(400, 200, true, 0).allowedActionsNum()).toBeGreaterThan(0));
+      it("opens the whole inventory from the corner kebab, flattened and deduplicated", () => {
+         const more = ids(viewerActionsFor(400, 200, true, 0).getMoreActions());
+         expect(more).toContain("chart show-data");
+         expect(more).toContain("chart open-max-mode");
+         expect(more).not.toContain("menu actions");
+         expect(new Set(more).size).toBe(more.length);
       });
+   });
+
+   describe("dismissal against the corner and the floor", () => {
+      it("offers the dismissal in the viewer when a short lane puts the kebab in the corner", () =>
+         expect(visibleMenuIds(viewerActionsFor(400, 200, true, 20)))
+            .toContain("vs-assembly hide-mini-toolbar"));
+      it("offers the dismissal in the viewer when the title is hidden", () =>
+         expect(visibleMenuIds(viewerActionsFor(400, 200, true, 0)))
+            .toContain("vs-assembly hide-mini-toolbar"));
+      it("hides the dismissal below the height floor, where nothing is drawn", () =>
+         expect(visibleMenuIds(viewerActionsFor(400, 30, true, 0)))
+            .not.toContain("vs-assembly hide-mini-toolbar"));
 
       it("keeps the dismissal in the viewer when the lane can hold the strip", () => {
          expect(visibleMenuIds(viewerActionsFor(400, 200, true, 26)))

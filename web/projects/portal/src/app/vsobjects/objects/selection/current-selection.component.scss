@@ -39,6 +39,11 @@
   visibility: hidden;
 }
 
+// clear of an untitled container's corner kebab
+:host-context(.viz-corner-kebab) .mini-menu {
+  right: var(--viz-corner-kebab-reserve);
+}
+
 .vs-object:hover .mini-menu {
   visibility: visible;
   z-index: 9999;

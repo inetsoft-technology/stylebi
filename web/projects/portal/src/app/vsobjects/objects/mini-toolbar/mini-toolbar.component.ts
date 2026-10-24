@@ -72,6 +72,9 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    // Set by the host when the strip is positioned inside the assembly rather than floating above it.
    // The host has already resolved the anchored top/left, so this component must not adjust them.
    @Input() anchorInTitleLane: boolean = false;
+   // Set by the host when the assembly has no usable lane, so the kebab sits inside its top-right
+   // corner. Positioned like an anchored strip, but not in a lane.
+   @Input() cornerKebab: boolean = false;
    @Input() visible: boolean = true;
    @Input() forceHide: boolean = false;
    @Input() set forceShow(value: boolean) {
@@ -185,6 +188,9 @@ export class MiniToolbar implements OnChanges, OnDestroy {
     * .showingActions empties the list below the 32px control floor, and per-action suppression via
     * model.actionNames can empty it at any size.
     *
+    * Visible content is what is tested, not the number of groups: a group with nothing to show
+    * draws no button but would still open an empty pill.
+    *
     * The content test is unconditional rather than conditioned on being resident: the non-resident
     * branch used to render regardless of content and drew a sliver above the card. Residency
     * decides only whether mobile suppresses the container, not whether its content is checked.
@@ -194,7 +200,7 @@ export class MiniToolbar implements OnChanges, OnDestroy {
          return false;
       }
 
-      return (this.actionButtonGroups && this.actionButtonGroups.length > 0) || !!this.kebabAction;
+      return !!this.actionButtonGroups?.some(g => g.visible) || !!this.kebabAction;
    }
 
    /**
@@ -206,7 +212,7 @@ export class MiniToolbar implements OnChanges, OnDestroy {
     * (viewer-app's viewer-mobile-toolbar) instead, so it never gets a resident kebab here.
     */
    get kebabResident(): boolean {
-      return this.anchorInTitleLane && !this.mobileDevice;
+      return (this.anchorInTitleLane || this.cornerKebab) && !this.mobileDevice;
    }
 
    private get kebabSplit(): { groups: AssemblyActionGroup[], kebab: AssemblyAction } {
@@ -377,18 +383,17 @@ export class MiniToolbar implements OnChanges, OnDestroy {
          return;
       }
 
-      // Anchored strips are visibility: visible at rest (see mini-toolbar.component.scss), so the
-      // check above never trips for them and every Esc keyup — closing an unrelated dialog,
-      // leaving a selection — would otherwise silently dismiss this chart's strip regardless of
-      // whether it was ever actually shown to the user. What "revealed" means for an anchored strip
-      // is whether the action groups are in layout: they are display: none at rest and inline-flex
-      // on hover/focus-within. No action group at all (touch, or the kebab-only height band) counts
-      // as not revealed — there is nothing there for Esc to dismiss but the resting kebab.
+      // Anchored strips are visibility: visible at rest, so the check above never trips for them
+      // and any Esc keyup would dismiss a strip the user never saw. Revealed means the pill is
+      // opaque; on a device that cannot hover the resting kebab is the affordance, so never dismiss.
+      // Focus inside means the Esc closed the kebab's own menu.
       if(this.kebabResident) {
-         const group = toolbar.querySelector(
-            ".mini-toolbar-button-group:not(.mini-toolbar-kebab-group)");
+         const container = toolbar.querySelector(".mini-toolbar-container");
 
-         if(!group || window.getComputedStyle(group).display == "none") {
+         if(window.matchMedia?.("(hover: none)")?.matches || !container ||
+            window.getComputedStyle(container).opacity === "0" ||
+            this.element.nativeElement.contains(document.activeElement))
+         {
             return;
          }
       }
@@ -413,7 +418,7 @@ export class MiniToolbar implements OnChanges, OnDestroy {
 
       // Anchored: the host placed us inside the assembly's title lane, so there is no height to
       // subtract and no viewport clamping to do — an anchored strip cannot leave the assembly.
-      if(this.anchorInTitleLane) {
+      if(this.anchorInTitleLane || this.cornerKebab) {
          return this.top;
       }
 
