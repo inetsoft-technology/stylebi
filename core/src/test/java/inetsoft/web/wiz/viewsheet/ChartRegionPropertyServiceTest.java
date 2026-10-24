@@ -1683,6 +1683,17 @@ class ChartRegionPropertyServiceTest {
       return h;
    }
 
+   /** A measure legend whose Scale tab hides Reverse, as a treemap Size legend does. */
+   private Harness reverseHiddenLegendHarness() throws Exception {
+      Harness h = harness();
+      LegendFormatDialogModel model = legendModel();
+      model.getLegendScalePaneModel().setReverseVisible(false);
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(model);
+      return h;
+   }
+
    private static void verifyNoLegendWrite(Harness h) throws Exception {
       verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
                                                             any(), anyString(),
@@ -2463,6 +2474,145 @@ class ChartRegionPropertyServiceTest {
                                                    any(Principal.class), any());
    }
 
+   /**
+    * Bug #79294: a non-numeric value on an axis that refuses the key gets the axis-kind reason,
+    * not a "finite number" message that steers the caller into that refusal.
+    */
+   @Test
+   void aNonNumericValueOnADimensionAxisGetsTheLinearAxisReason() {
+      Harness h = harness();
+      Map<String, Object> patch = new java.util.LinkedHashMap<>();
+      patch.put("minimum", "2025-01-01");
+      patch.put("maximum", "x");
+      patch.put("minorIncrement", "abc");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null, patch, ""));
+
+      assertTrue(thrown.getMessage().contains("only apply to a linear (measure) axis"),
+                 thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("finite number"), thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void aNonNumericValueOnALinearAxisStillGetsTheFiniteNumberReason() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("minimum", "abc"), ""));
+
+      assertTrue(thrown.getMessage().contains("finite number"), thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void listFlagsTheLinearOnlyKeysOnADimensionAxis() throws Exception {
+      Harness h = harness();
+      stubAxisModel(h);
+
+      Map<String, Object> flagged = flaggedKeys(
+         h.service.list("tok", principal(), "Chart1", "axis", "x", null));
+
+      assertEquals(java.util.Set.of("minimum", "maximum", "reverse", "logarithmicScale", "shared",
+                                    "minorIncrement"), flagged.keySet());
+      assertTrue(flagged.get("minimum").toString().contains("whatever the value"));
+   }
+
+   @Test
+   void listFlagsTheNonLinearOnlyKeysOnAMeasureAxis() throws Exception {
+      Harness h = harness();
+      stubAxisModel(h);
+
+      Map<String, Object> flagged = flaggedKeys(
+         h.service.list("tok", principal(), "Chart1", "axis", "y", null));
+
+      assertEquals(java.util.Set.of("ignoreNull", "truncate"), flagged.keySet());
+   }
+
+   @Test
+   void listFlagsTheIgnoredKeysOnATimeAxis() throws Exception {
+      VSChartAggregateRef date = mock(VSChartAggregateRef.class);
+      when(date.isDiscrete()).thenReturn(false);
+      when(date.getFullName()).thenReturn("Max(ORDER_DATE)");
+      when(date.getName()).thenReturn("ORDER_DATE");
+      when(date.getDataType()).thenReturn(XSchema.DATE);
+      Harness h = harness(withShelves(viewsheet(false), new ChartRef[0], new ChartRef[] { date }));
+      stubAxisModel(h);
+
+      Map<String, Object> flagged = flaggedKeys(
+         h.service.list("tok", principal(), "Chart1", "axis", "y", null));
+
+      assertEquals(java.util.Set.of("logarithmicScale", "reverse", "shared", "minorIncrement",
+                                    "ignoreNull", "truncate"), flagged.keySet());
+   }
+
+   /** The names listed with {@code applies:false}, mapped to their reasons. */
+   private static Map<String, Object> flaggedKeys(Map<String, Object> listed) {
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      Map<String, Object> flagged = new java.util.LinkedHashMap<>();
+
+      for(Map<String, Object> p : props) {
+         if(Boolean.FALSE.equals(p.get("applies"))) {
+            assertNotNull(p.get("reason"), (String) p.get("name"));
+            flagged.put((String) p.get("name"), p.get("reason"));
+         }
+      }
+
+      return flagged;
+   }
+
+   /** Bug #79294: a treemap Size legend has no reverse; the engine ignores it there. */
+   @Test
+   void refusesReverseOnALegendWhoseScalePaneHidesIt() throws Exception {
+      Harness h = reverseHiddenLegendHarness();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("reverse", true), ""));
+
+      assertTrue(thrown.getMessage().contains("'reverse'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("treemap Size legend"), thrown.getMessage());
+      verifyNoLegendWrite(h);
+   }
+
+   @Test
+   void acceptsFalseReverseOnALegendWhoseScalePaneHidesIt() throws Exception {
+      Harness h = reverseHiddenLegendHarness();
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("reverse", false, "logarithmicScale", true), "");
+
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
+                                                   anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void listFlagsReverseOnALegendWhoseScalePaneHidesIt() throws Exception {
+      Harness h = reverseHiddenLegendHarness();
+
+      Map<String, Object> flagged = flaggedKeys(
+         h.service.list("tok", principal(), "Chart1", "legend", "0", null));
+
+      assertEquals(java.util.Set.of("reverse"), flagged.keySet());
+      assertTrue(flagged.get("reverse").toString().contains("treemap Size legend"));
+   }
+
+   @Test
+   void aLegendWhoseScalePaneShowsReverseIsUnaffected() throws Exception {
+      Harness h = legendHarness(false, false);
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("reverse", true), "");
+
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
+                                                   anyString(), any(Principal.class), any());
+      assertTrue(flaggedKeys(h.service.list("tok", principal(), "Chart1", "legend", "0", null))
+                    .isEmpty());
+   }
+
    private static AxisPropertyDialogModel axisModel() {
       AxisPropertyDialogModel model = new AxisPropertyDialogModel();
       model.setAxisLinePaneModel(new AxisLinePaneModel());
@@ -2476,7 +2626,10 @@ class ChartRegionPropertyServiceTest {
    private static LegendFormatDialogModel legendModel() {
       LegendFormatDialogModel model = new LegendFormatDialogModel();
       model.setLegendFormatGeneralPaneModel(new LegendFormatGeneralPaneModel());
-      model.setLegendScalePaneModel(new LegendScalePaneModel());
+      LegendScalePaneModel scale = new LegendScalePaneModel();
+      // A measure legend shows Reverse in the Scale tab; a treemap Size legend hides it.
+      scale.setReverseVisible(true);
+      model.setLegendScalePaneModel(scale);
       model.setAliasPaneModel(new AliasPaneModel());
       return model;
    }
