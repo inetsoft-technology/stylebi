@@ -247,8 +247,8 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                       {@code "MixedValuesProbe.B"} for a field reference), left there
     *                       unchanged for backward compatibility.
     * @param valueType      {@code "field"}, {@code "expression"} or {@code "subquery"}. A
-    *                       {@code "subquery"} entry is a read-only marker: the write tools
-    *                       cannot create or carry a sub query value.
+    *                       {@code "subquery"} entry is written back by the condition-tree
+    *                       tools, not by add_filter/edit_condition.
     * @param field          the referenced column's qualified name (or bare alias, when the
     *                       column has a display alias); set only when valueType is
     *                       {@code "field"}

@@ -109,9 +109,18 @@ class WorksheetSubQueryConditionValue79221Test {
       return assertThrows(IllegalArgumentException.class, call::run).getMessage();
    }
 
-   private static void assertSubQueryRefusal(String message, String field, String table) {
+   private static void assertSubQueryRefusal(String message, String field, String table,
+                                             boolean specsAvailable)
+   {
+      String spec = "valueSpecs entry {index: ";
+      String remedy = specsAvailable
+         ? "carry it as a " + spec
+         : "take literal values only -- use set_conditions with a " + spec;
+
       assertTrue(message.contains("\"" + field + "\"") && message.contains("sub query value") &&
-                 message.contains("\"" + table + "\"") && message.contains("recreate"),
+                 message.contains("\"" + table + "\"") && message.contains(remedy) &&
+                 message.contains("valueType: \"subquery\", subQueryName: \"" + table + "\"") &&
+                 !message.contains("recreate") && !message.contains("cannot be created"),
                  message);
    }
 
@@ -183,7 +192,7 @@ class WorksheetSubQueryConditionValue79221Test {
 
       for(String field : List.of("STATE", "N", "D")) {
          assertSubQueryRefusal(
-            refusal(() -> set(field, List.of("Query[SUP]"))), field, "SUP");
+            refusal(() -> set(field, List.of("Query[SUP]"))), field, "SUP", true);
       }
 
       assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
@@ -194,7 +203,7 @@ class WorksheetSubQueryConditionValue79221Test {
       fixture("SUP");
 
       assertSubQueryRefusal(
-         refusal(() -> set("STATE", List.of("CA", "Query[SUP]"))), "STATE", "SUP");
+         refusal(() -> set("STATE", List.of("CA", "Query[SUP]"))), "STATE", "SUP", true);
    }
 
    @Test
@@ -204,10 +213,10 @@ class WorksheetSubQueryConditionValue79221Test {
       for(String field : List.of("STATE", "N", "D")) {
          assertSubQueryRefusal(
             refusal(() -> WorksheetMutationSupport.addFilter(t, field, "=", "Query[SUP]")),
-            field, "SUP");
+            field, "SUP", false);
          assertSubQueryRefusal(
             refusal(() -> WorksheetMutationSupport.replaceFilter(t, field, "=", "Query[SUP]")),
-            field, "SUP");
+            field, "SUP", false);
       }
    }
 
@@ -216,7 +225,7 @@ class WorksheetSubQueryConditionValue79221Test {
       fixture("S[1]");
 
       assertSubQueryRefusal(
-         refusal(() -> set("STATE", List.of("Query[S[1]]"))), "STATE", "S[1]");
+         refusal(() -> set("STATE", List.of("Query[S[1]]"))), "STATE", "S[1]", true);
    }
 
    @Test
