@@ -1565,6 +1565,11 @@ public class CalcTableService {
       if(type == CellBinding.BIND_COLUMN) {
          applyDateGroup(info, asMap(binding.get("field")));
       }
+      else if(type == CellBinding.BIND_FORMULA) {
+         // Same default the native TableCellBinding uses; without it OrderModel's raw
+         // YEAR_DATE_GROUP leaked into the read-back as dateLevel "year" (bug #79251).
+         info.getOrder().setOption(XConstants.NONE_DATE_GROUP);
+      }
 
       return info;
    }
