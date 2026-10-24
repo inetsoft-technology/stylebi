@@ -211,6 +211,33 @@ class DateConditionLiteralTest {
          XSchema.DATE, "2000-02-29", true).toString());
    }
 
+   // Bug #79287: a plain literal with second 60 on a Jun/Dec 30th or 31st at 23:59 was accepted
+   // and rolled over to the next day
+   @Test
+   void canonicalizeRefusesPlainLeapSecondLiteral() {
+      String[] bad = {
+         "2024-06-30 23:59:60", "2024-12-30 23:59:60", "2024-12-31 23:59:60",
+         "2024-12-31T23:59:60", "2024-12-31 23:59:60.5", "31-Dec-2024 23:59:60",
+         "2024-12-31 23:59:60 AM",
+      };
+
+      for(String value : bad) {
+         assertNull(AbstractCondition.parseDateConditionValue(XSchema.TIME_INSTANT, value, true),
+                    value);
+         assertNull(DateConditionLiteral.canonicalize(XSchema.TIME_INSTANT, value), value);
+         assertNull(AbstractCondition.parseDateConditionValue(XSchema.DATE, value, true), value);
+         assertNull(DateConditionLiteral.canonicalize(XSchema.DATE, value), value);
+      }
+
+      for(String ok : new String[] { "2024-06-30 23:59:59", "2024-12-31 23:59:59" }) {
+         assertEquals(ok, DateConditionLiteral.canonicalize(XSchema.TIME_INSTANT, ok), ok);
+      }
+
+      // the lenient runtime parse keeps the leap second allowance
+      assertNotNull(AbstractCondition.parseDateConditionValue(
+         XSchema.TIME_INSTANT, "2024-12-31 23:59:60"));
+   }
+
    @Test
    void nonDateTypesPassThrough() {
       assertEquals("abc", DateConditionLiteral.canonicalize(XSchema.STRING, "abc"));

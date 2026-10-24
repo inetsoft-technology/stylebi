@@ -513,7 +513,8 @@ public abstract class AbstractCondition implements XCondition {
     * Same as {@link #parseDateConditionValue(String, String)}, optionally refusing an impossible
     * calendar/clock value (e.g. {@code {d '2024-02-30'}}) instead of rolling it over.
     *
-    * @param strict true to parse the braced and {@code HH:mm:ss} forms non-leniently.
+    * @param strict true to parse the braced, {@code HH:mm:ss} and plain date/time forms
+    *               non-leniently (a plain second of 60 is refused).
     */
    public static Object parseDateConditionValue(String type, String value, boolean strict) {
       if(value == null || type == null) {
@@ -547,7 +548,7 @@ public abstract class AbstractCondition implements XCondition {
 
          if(CoreTool.isDate(value) || value.startsWith("{d")) {
             try {
-               return DateTime.parse(value, CoreTool.getDateTimeConfig()).toTimestamp();
+               return DateTime.parse(value, CoreTool.getDateTimeConfig(), strict).toTimestamp();
             }
             catch(Exception e) {
                // ignore
@@ -607,7 +608,7 @@ public abstract class AbstractCondition implements XCondition {
 
             if(CoreTool.isDate(value)) {
                return new java.sql.Date(
-                  DateTime.parse(value, CoreTool.getDateTimeConfig()).toMillis());
+                  DateTime.parse(value, CoreTool.getDateTimeConfig(), strict).toMillis());
             }
          }
          catch(Exception e) {

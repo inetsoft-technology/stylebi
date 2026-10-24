@@ -678,6 +678,8 @@ public class DateTime implements Serializable, Comparable<DateTime> {
         String[] parts;
         boolean[] integers;
         boolean[] usedint;
+        // true to refuse the leap second allowance (second == 60)
+        boolean strict;
     }
 
     public static void assignIntegersToRemainingSlots(IDateTimeConfig config, HasDatepart hasDatepart,
@@ -762,7 +764,7 @@ public class DateTime implements Serializable, Comparable<DateTime> {
                     part = parseIntFragment(dateState.parts[i]);
                 }
                 if (!hasDatepart.second) {
-                    if (part < 60 || part == 60 && dateState.minute == 59 && dateState.hour == 23 && dateState.day >= 30
+                    if (part < 60 || !dateState.strict && part == 60 && dateState.minute == 59 && dateState.hour == 23 && dateState.day >= 30
                             && (dateState.month == 11 || dateState.month == 5)) {
                         dateState.second = part;
                         hasDatepart.second = true;
@@ -898,9 +900,23 @@ public class DateTime implements Serializable, Comparable<DateTime> {
      * @return New DateTime interpreted from string according to alternate rules.
      */
     public static DateTime parse(String str, IDateTimeConfig config) {
+        return parse(str, config, false);
+    }
+
+    /**
+     * Interpret a DateTime from a String.
+     *
+     * @param str    Date/Time string to be parsed.
+     * @param config Configuration parameters governing parsing and presentation.
+     * @param strict true to refuse a second of 60 (the leap second allowance), which would
+     *               otherwise roll over to the next minute.
+     * @return New DateTime interpreted from string according to alternate rules.
+     */
+    public static DateTime parse(String str, IDateTimeConfig config, boolean strict) {
 
         HasDatepart hasDatepart = new HasDatepart();
         DateState dateState = new DateState();
+        dateState.strict = strict;
 
         if (config == null) {
             config = DateTimeConfig.getGlobalDefault();
