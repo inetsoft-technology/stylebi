@@ -99,6 +99,69 @@ class WorksheetRenameEntityCollisionTest {
       assertEquals("Product", ginfo.getGroup(0).getDataRef().getEntity());
    }
 
+   /**
+    * Bug #79285: a leaf table's script expression that reads a worksheet table by name
+    * ({@code Cats[...]}, {@code Cats.length}, {@code Cats['c'][row - 1]}, {@code worksheet['Cats']})
+    * names a worksheet assembly, not an entity, so it must follow the rename on leaf tables.
+    */
+   @Test
+   void renamingTableRewritesLeafTableScriptReads() {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly cats = boundTable(ws, "Cats");
+      BoundTableAssembly leaf = boundTable(ws, "Leaf");
+      ExpressionRef lookup =
+         addExpression(leaf, "Lookup", "Cats[\"Category? Total==field['Total']\"]");
+      ExpressionRef length = addExpression(leaf, "Len", "Cats.length");
+      ExpressionRef indexed = addExpression(leaf, "Idx", "Cats['Category'][row - 1]");
+      ExpressionRef viaWorksheet = addExpression(leaf, "Via", "worksheet['Cats']['c'][row - 1]");
+      ws.addAssembly(cats);
+      ws.addAssembly(leaf);
+
+      assertTrue(ws.renameAssembly("Cats", "Cats2", true));
+
+      assertEquals("Cats2[\"Category? Total==field['Total']\"]", lookup.getExpression());
+      assertEquals("Cats2.length", length.getExpression());
+      assertEquals("Cats2['Category'][row - 1]", indexed.getExpression());
+      assertEquals("worksheet['Cats2']['c'][row - 1]", viaWorksheet.getExpression());
+   }
+
+   @Test
+   void renamingTableLeavesLeafTableNonTableReadsUntouched() {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly cats = boundTable(ws, "Cats");
+      BoundTableAssembly leaf = boundTable(ws, "Leaf");
+      ExpressionRef sameNamedColumn = addExpression(leaf, "Col", "Leaf['Cats']");
+      ExpressionRef entity = addExpression(leaf, "Ent", "field['Cats.Total']");
+      ExpressionRef fieldColumn = addExpression(leaf, "Fld", "field['Cats']");
+      ExpressionRef sql = addExpression(leaf, "Sql", "Cats.length", true);
+      ws.addAssembly(cats);
+      ws.addAssembly(leaf);
+
+      assertTrue(ws.renameAssembly("Cats", "Cats2", true));
+
+      assertEquals("Leaf['Cats']", sameNamedColumn.getExpression());
+      assertEquals("field['Cats.Total']", entity.getExpression());
+      assertEquals("field['Cats']", fieldColumn.getExpression());
+      assertEquals("Cats.length", sql.getExpression());
+   }
+
+   @Test
+   void renamingVariableRewritesLeafTableParameterRead() {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly leaf = boundTable(ws, "Leaf");
+      ExpressionRef exp = addExpression(leaf, "Param", "parameter['V']");
+      ExpressionRef column = addExpression(leaf, "Col", "Leaf['V']");
+      ws.addAssembly(leaf);
+      DefaultVariableAssembly variable = new DefaultVariableAssembly(ws, "V");
+      variable.setVariable(new AssetVariable("V"));
+      ws.addAssembly(variable);
+
+      assertTrue(ws.renameAssembly("V", "V2", true));
+
+      assertEquals("parameter['V2']", exp.getExpression());
+      assertEquals("Leaf['V']", column.getExpression());
+   }
+
    private static BoundTableAssembly boundTable(Worksheet ws, String name) {
       BoundTableAssembly table = new BoundTableAssembly(ws, name);
       ColumnSelection columns = new ColumnSelection();
@@ -109,9 +172,17 @@ class WorksheetRenameEntityCollisionTest {
    }
 
    private static ExpressionRef addExpression(TableAssembly table, String name, String script) {
+      return addExpression(table, name, script, false);
+   }
+
+   private static ExpressionRef addExpression(TableAssembly table, String name, String script,
+                                              boolean sql)
+   {
       ExpressionRef exp = new ExpressionRef(null, name);
       exp.setExpression(script);
-      table.getColumnSelection().addAttribute(new ColumnRef(exp));
+      ColumnRef column = new ColumnRef(exp);
+      column.setSQL(sql);
+      table.getColumnSelection().addAttribute(column);
       return exp;
    }
 

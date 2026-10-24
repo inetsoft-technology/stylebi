@@ -1639,8 +1639,10 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
     * Rename the expression assemblies depended on.
     * @param oname the specified old name.
     * @param nname the specified new name.
+    * @param tableReadsOnly true to rewrite only the references that name a worksheet assembly
+    *                       (see {@link #renameExpression}) and to skip SQL expression columns.
     */
-   private void renameExpressionDependeds(String oname, String nname) {
+   private void renameExpressionDependeds(String oname, String nname, boolean tableReadsOnly) {
       ColumnSelection columns = getColumnSelection();
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
@@ -1649,9 +1651,14 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
          if(column.isExpression()) {
             ExpressionRef exp = (ExpressionRef) column.getDataRef();
 
+            // SQL text names physical tables, not worksheet assemblies
+            if(tableReadsOnly && (column.isSQL() || exp.isSQL())) {
+               continue;
+            }
+
             if(exp.isExpressionEditable()) {
                String val = exp.getExpression();
-               val = renameExpression(val, oname, nname);
+               val = renameExpression(val, oname, nname, tableReadsOnly);
                exp.setExpression(val);
             }
          }
@@ -1663,8 +1670,14 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
     * @param exp the specified expression.
     * @param oname the specified old name.
     * @param nname the specified new name.
+    * @param tableReadsOnly true to match only the references that name a worksheet assembly: a
+    *                       bare identifier, or the quoted key of worksheet[...] / parameter[...].
+    *                       Entity-qualified field['Entity.col'] and any other quoted key (which
+    *                       may be a column that merely shares the name) are left untouched.
     */
-   private String renameExpression(String exp, final String oname, final String nname) {
+   private String renameExpression(String exp, final String oname, final String nname,
+                                   final boolean tableReadsOnly)
+   {
       ScriptIterator iterator = new ScriptIterator(exp);
       final StringBuilder sb = new StringBuilder();
 
@@ -1675,7 +1688,13 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
             boolean entityMatch = false;
             int idx = token.val != null ? token.val.lastIndexOf(".") : -1;
 
-            if(pref != null && FIELD.equals(pref.val) && idx != -1) {
+            if(tableReadsOnly) {
+               boolean assemblyKey = token.type != Token.NORMAL_REF && pref != null &&
+                  pref.type == Token.NORMAL_REF &&
+                  ("worksheet".equals(pref.val) || "parameter".equals(pref.val));
+               fullMatch = fullMatch && (token.type == Token.NORMAL_REF || assemblyKey);
+            }
+            else if(pref != null && FIELD.equals(pref.val) && idx != -1) {
                entityMatch = Tool.equals(oname, token.val.substring(0, idx));
             }
 
@@ -1718,10 +1737,14 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       // physical entity that merely may coincide with the renamed assembly's name; rewriting it
       // corrupts the table. Only composed tables qualify refs by their source assembly name.
       if(this instanceof ComposedTableAssembly) {
-         renameExpressionDependeds(oname, nname);
+         renameExpressionDependeds(oname, nname, false);
          renameAggregateInfo(oname, nname);
       }
       else {
+         // a script expression reads a worksheet table or variable by name, which is not an
+         // entity qualifier, so it must follow the rename on leaf tables too
+         renameExpressionDependeds(oname, nname, true);
+
          // a named-group reference is keyed by the group assembly's name, not by an entity, so it
          // must follow the rename on leaf tables too
          for(GroupRef group : ginfo.getGroups()) {
