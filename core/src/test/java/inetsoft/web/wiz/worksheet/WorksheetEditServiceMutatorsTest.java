@@ -7826,6 +7826,117 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(1, ((Number) t.getEmbeddedData().getObject(1, 1)).intValue());
    }
 
+   // ---- change_column_type: Bug #79305 ----
+
+   private EmbeddedTableAssembly embeddedTextColumn(Worksheet ws, String... values) {
+      Object[][] rows = new Object[values.length + 1][];
+      rows[0] = new Object[] { "n" };
+
+      for(int i = 0; i < values.length; i++) {
+         rows[i + 1] = new Object[] { values[i] };
+      }
+
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
+      t.setEmbeddedData(new XEmbeddedTable(new String[] { XSchema.STRING }, rows));
+      return t;
+   }
+
+   @Test
+   void changeColumnTypeHonoursANumericFormatOnAPlainColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedTextColumn(ws, "(1234)", "500", "(7)");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.changeColumnType("T", "n", "integer", false, "#,##0;(#,##0)"));
+
+      assertEquals(-1234, ((Number) t.getEmbeddedData().getObject(1, 0)).intValue());
+      assertEquals(500, ((Number) t.getEmbeddedData().getObject(2, 0)).intValue());
+      assertEquals(-7, ((Number) t.getEmbeddedData().getObject(3, 0)).intValue());
+   }
+
+   @Test
+   void changeColumnTypeRefusesTextThatDoesNotMatchANumericFormat() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedTextColumn(ws, "1,234.50", "2,000.00");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.changeColumnType("T", "n", "double", false, "'EUR'0.00")));
+
+      assertTrue(ex.getMessage().contains("'EUR'0.00"), ex.getMessage());
+      assertEquals(XSchema.STRING, t.getEmbeddedData().getDataType(0));
+      assertEquals("1,234.50", t.getEmbeddedData().getObject(1, 0));
+      assertEquals(XSchema.STRING,
+         ((ColumnRef) t.getColumnSelection(false).getAttribute("n")).getDataType());
+   }
+
+   @Test
+   void changeColumnTypeWithoutFormatRefusesUnparseableDateText() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedTextColumn(ws, "2024-07-03", "not a date");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.changeColumnType("T", "n", "date", false)));
+
+      assertTrue(ex.getMessage().contains("Nothing was changed"), ex.getMessage());
+      assertEquals(XSchema.STRING, t.getEmbeddedData().getDataType(0));
+      assertEquals("not a date", t.getEmbeddedData().getObject(2, 0));
+
+      svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "n", "date", true));
+      assertEquals(XSchema.DATE, t.getEmbeddedData().getDataType(0));
+      assertNull(t.getEmbeddedData().getObject(2, 0));
+   }
+
+   @Test
+   void changeColumnTypeRefusesAFormatOnAnExpressionColumnOfAnEmbeddedTable() throws Exception {
+      for(String[] target : new String[][] {
+         { "date", "dd|MM|yyyy" }, { "time", "HH|mm" }, { "timeInstant", "dd|MM|yyyy HH:mm" },
+         { "double", "#,##0.00" }, { "integer", "#,##0" } })
+      {
+         Worksheet ws = new Worksheet();
+         EmbeddedTableAssembly t = embeddedWithData(ws, "T");
+         ws.addAssembly(t);
+         Principal agent = TestPrincipals.user("alice", "host-org");
+         WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+         svc.apply("TOK", agent,
+            ed -> ed.addExpressionColumn("T", "px", "field['a']", "string", false));
+
+         PairingException ex = assertThrows(PairingException.class, () -> svc.apply(
+            "TOK", agent, ed -> ed.changeColumnType("T", "px", target[0], false, target[1])),
+            target[0]);
+
+         assertTrue(ex.getMessage().contains("format"), ex.getMessage());
+         assertTrue(ex.getMessage().contains("px"), ex.getMessage());
+         assertEquals(XSchema.STRING,
+            ((ColumnRef) t.getColumnSelection(false).getAttribute("px")).getDataType(),
+            "a refused format must leave the declared type unchanged: " + target[0]);
+      }
+   }
+
+   @Test
+   void changeColumnTypeOnAnExpressionColumnWithoutFormatIsUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedWithData(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("T", "px", "field['a']", "string", false));
+
+      svc.apply("TOK", agent, ed -> ed.changeColumnType("T", "px", "date", false));
+
+      assertEquals(XSchema.DATE,
+         ((ColumnRef) t.getColumnSelection(false).getAttribute("px")).getDataType());
+   }
+
    @Test
    void changeColumnTypeRejectsAnInvalidFormatPatternBeforeChangingAnything() throws Exception {
       Worksheet ws = new Worksheet();

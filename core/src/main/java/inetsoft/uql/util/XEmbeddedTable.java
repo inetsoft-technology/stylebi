@@ -33,6 +33,9 @@ import org.w3c.dom.*;
 import java.awt.event.ActionListener;
 import java.io.*;
 import java.text.Format;
+import java.text.NumberFormat;
+import java.text.ParseException;
+import java.text.ParsePosition;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.*;
@@ -794,6 +797,22 @@ public class XEmbeddedTable
                                         XSwappableTable originalTable, boolean force)
       throws Exception
    {
+      setDataType(col, type, format, originalTable, force, false);
+   }
+
+   /**
+    * Set the data type.
+    * @param explicitFormat true if the format was built from a pattern the caller typed, rather
+    *                       than a dialog default. A numeric format is then applied to the text
+    *                       exactly as written: it must match the whole value, otherwise the value
+    *                       counts as unparseable.
+    * @see #setDataType(int, String, Format, XSwappableTable, boolean)
+    */
+   public synchronized void setDataType(int col, String type, Format format,
+                                        XSwappableTable originalTable, boolean force,
+                                        boolean explicitFormat)
+      throws Exception
+   {
       if(getRowCount() < 0) {
          throw new RuntimeException(tableNotReady);
       }
@@ -847,8 +866,22 @@ public class XEmbeddedTable
             }
             else {
                try {
-                  arr[col] = Tool.transform(oval, type, format, true);
-                  arr[col] = Tool.getData(type, arr[col]);
+                  if(explicitFormat && format instanceof NumberFormat &&
+                     XSchema.isNumericType(type) && oval instanceof String)
+                  {
+                     arr[col] = parseExplicitNumber((String) oval, type, (NumberFormat) format);
+                  }
+                  else {
+                     arr[col] = Tool.transform(oval, type, format, true);
+                     arr[col] = Tool.getData(type, arr[col]);
+                  }
+
+                  // a value that silently became null is data loss; refuse it unless the
+                  // caller asked to force the conversion
+                  if(!force && oval != null && arr[col] == null && !isBlankOrNullText(oval)) {
+                     throw new ParseException(
+                        "Cannot convert value \"" + oval + "\" to " + type, 0);
+                  }
                }
                catch(Exception ex) {
                   if(force || XSchema.isNumericType(type) && Util.isNotApplicableValue(arr[col])) {
@@ -872,6 +905,45 @@ public class XEmbeddedTable
          types[col] = oldType;
          throw ex;
       }
+   }
+
+   /**
+    * Parse text written in an explicit numeric pattern. Surrounding whitespace is ignored and the
+    * whole text must be consumed by the pattern; suffixed text such as "5k" is not accepted.
+    * Blank text, "N/A", "NA" and "null" are not numbers and convert to null.
+    * @throws ParseException if the text does not match the pattern.
+    */
+   private static Object parseExplicitNumber(String text, String type, NumberFormat format)
+      throws ParseException
+   {
+      if(isBlankOrNullText(text)) {
+         return null;
+      }
+
+      String trimmed = text.trim();
+      ParsePosition pos = new ParsePosition(0);
+      Number number = format.parse(trimmed, pos);
+
+      if(number == null || pos.getErrorIndex() >= 0 || pos.getIndex() != trimmed.length()) {
+         throw new ParseException(
+            "Cannot parse \"" + text + "\" as " + type + " with the given format",
+            Math.max(pos.getErrorIndex(), pos.getIndex()));
+      }
+
+      return Tool.getData(type, number);
+   }
+
+   /**
+    * Whether the value is text that stands for "no value" (blank, N/A, NA or "null"), which
+    * converts to null without counting as a failed conversion.
+    */
+   private static boolean isBlankOrNullText(Object value) {
+      if(!(value instanceof String)) {
+         return false;
+      }
+
+      String str = ((String) value).trim();
+      return str.isEmpty() || Util.isNotApplicableValue(str) || "null".equals(str);
    }
 
    /**
