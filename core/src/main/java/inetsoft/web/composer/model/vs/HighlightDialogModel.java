@@ -151,6 +151,20 @@ public class HighlightDialogModel implements Serializable {
       this.rejectDerivedMeasure = rejectDerivedMeasure;
    }
 
+   /**
+    * True to read and write a chart mark highlight in the measure's own group even where the chart
+    * type reads one chart-wide group (the wiz agent path removing a highlight left behind by a
+    * chart type change). Ignored when no measure resolves, and for axis and text regions.
+    */
+   @JsonIgnore
+   public boolean isRefLevelGroup() {
+      return refLevelGroup;
+   }
+
+   public void setRefLevelGroup(boolean refLevelGroup) {
+      this.refLevelGroup = refLevelGroup;
+   }
+
    public boolean isAxis() {
       return axis;
    }
@@ -196,6 +210,7 @@ public class HighlightDialogModel implements Serializable {
     private List<String> nonsupportBrowseFields;
     private boolean axis;
    private boolean rejectDerivedMeasure;
+   private boolean refLevelGroup;
     private boolean text;
     private Integer revision;
 }
