@@ -1954,7 +1954,7 @@ public class ViewsheetFormatService {
     */
    private static boolean needsNumericCellCheck(FormatRequest request, String target) {
       if(request.reset() || request.format() == null || request.format().getFormat() == null ||
-         !DATE_LIKE_FORMATS.contains(request.format().getFormat()))
+         !CalcTableService.isDateLikeFormat(request.format().getFormat()))
       {
          return false;
       }
@@ -2218,9 +2218,6 @@ public class ViewsheetFormatService {
       return String.join(", ", distinct.subList(0, 5)) + " and " + (distinct.size() - 5) +
          " more";
    }
-
-   private static final Set<String> DATE_LIKE_FORMATS = Set.of(
-      XConstants.DATE_FORMAT, XConstants.TIME_FORMAT, XConstants.TIMEINSTANT_FORMAT);
 
    /**
     * Computes the {@code TableDataPath[]} for a Crosstab/Table's data (body) region -- one
@@ -2611,7 +2608,7 @@ public class ViewsheetFormatService {
    {
       if(request.reset() || request.format() == null ||
          request.format().getFormat() == null ||
-         !DATE_LIKE_FORMATS.contains(request.format().getFormat()))
+         !CalcTableService.isDateLikeFormat(request.format().getFormat()))
       {
          return;
       }
@@ -2627,7 +2624,7 @@ public class ViewsheetFormatService {
       String type = calcService.cellOutputType(rvs, request.assembly(), request.row(),
                                                request.col());
 
-      if(!XSchema.isNumericType(type) && !XSchema.DECIMAL.equals(type)) {
+      if(!CalcTableService.isDateFormatOnNumericOutput(request.format().getFormat(), type)) {
          return;
       }
 

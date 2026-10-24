@@ -42,7 +42,10 @@ import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.DataVSAssembly;
+import inetsoft.uql.viewsheet.FormatInfo;
 import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
+import inetsoft.uql.viewsheet.VSFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
@@ -363,8 +366,9 @@ public class CalcTableService {
    /**
     * Binds one cell. One {@code sessions.mutate}, so one undo checkpoint.
     *
-    * @return {@code warnings} and {@code rankingNotes} (a group cell's summary ranking this write
-    *         reset), or null when there is neither
+    * @return {@code warnings}, {@code rankingNotes} (a group cell's summary ranking this write
+    *         reset) and {@code formatNotes} (a date format this write cleared because the cell
+    *         is now numeric), or null when there is none of them
     */
    public Map<String, Object> setCellBinding(String sessionToken, Principal user, String assemblyName,
                               int row, int col, Map<String, Object> binding)
@@ -375,6 +379,7 @@ public class CalcTableService {
       CalcCellVocabulary.validate(binding);
 
       List<String> rankWarnings = new ArrayList<>();
+      List<String> formatNotes = new ArrayList<>();
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          requireInGrid(layoutOf(assembly), row, col);
@@ -444,11 +449,17 @@ public class CalcTableService {
          List<RankTarget> rankings = snapshotRankings(rvs, assembly);
          layoutService.setCellBinding(runtimeId, event, user, dispatcher);
          remapRankings(rvs, assembly, rankings, rankWarnings);
+         clearDateFormatOnNumericCell(rvs, assemblyName, row, col, formatNotes);
       });
 
       Map<String, Object> body = new LinkedHashMap<>();
       ViewsheetSessionService.relayWarnings(body, warnings);
       relayRankingNotes(body, rankWarnings);
+
+      if(!formatNotes.isEmpty()) {
+         body.put("formatNotes", formatNotes);
+      }
+
       return body.isEmpty() ? null : body;
    }
 
@@ -1263,6 +1274,39 @@ public class CalcTableService {
    }
 
    /**
+    * A cell's format is keyed by its position, not its binding, so a date format outlives a
+    * rebind to a numeric result and would render the number as an epoch-millisecond date
+    * (1970-01-01). Clears just that format type and spec, leaving font, colour, alignment and
+    * border; the same judgement {@code set_calc_cell_format} refuses a date format on.
+    * Notes go under their own key, not {@code warnings}, which callers report as a failed
+    * assembly script.
+    */
+   private void clearDateFormatOnNumericCell(RuntimeViewsheet rvs, String assemblyName, int row,
+                                             int col, List<String> notes)
+   {
+      CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
+      CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getInfo();
+      FormatInfo formatInfo = info.getFormatInfo();
+      VSCompositeFormat own =
+         formatInfo == null ? null : formatInfo.getFormat(info.getCellDataPath(row, col));
+      VSFormat user = own == null ? null : own.getUserDefinedFormat();
+      String format = user == null ? null : user.getFormat();
+
+      if(!isDateFormatOnNumericOutput(format, cellOutputType(rvs, assemblyName, row, col))) {
+         return;
+      }
+
+      user.setFormatValue(null, false);
+      user.setFormatExtentValue(null, false);
+      String bound = describeCellBinding(rvs, assemblyName, row, col);
+      notes.add("Cell [" + row + "," + col + "] had a " + format + " that would render its " +
+                "numeric value" + (bound == null ? "" : " (" + bound + ")") + " as a 1970-01-01 " +
+                "date, so the " + format + " was cleared. Other formatting (font, colour, " +
+                "alignment, border) was kept. Set a numeric format such as DecimalFormat or " +
+                "CurrencyFormat with set_calc_cell_format if the cell needs one.");
+   }
+
+   /**
     * Ranking resets are not script failures, so they travel under their own key rather than in
     * {@code warnings}, which callers report as a failed assembly script.
     */
@@ -1877,6 +1921,24 @@ public class CalcTableService {
       }
 
       return type;
+   }
+
+   /**
+    * Whether {@code format} is a date/time format.
+    */
+   public static boolean isDateLikeFormat(String format) {
+      return XConstants.DATE_FORMAT.equals(format) || XConstants.TIME_FORMAT.equals(format) ||
+         XConstants.TIMEINSTANT_FORMAT.equals(format);
+   }
+
+   /**
+    * Whether {@code format} is a date/time format on a cell whose output type is KNOWN to be
+    * numeric ({@link #cellOutputType}). A date format reads a number as epoch milliseconds, so
+    * such a cell renders as 1970-01-01. An unknown ({@code null}) type is never reported.
+    */
+   public static boolean isDateFormatOnNumericOutput(String format, String outputType) {
+      return isDateLikeFormat(format) &&
+         (XSchema.isNumericType(outputType) || XSchema.DECIMAL.equals(outputType));
    }
 
    /**
