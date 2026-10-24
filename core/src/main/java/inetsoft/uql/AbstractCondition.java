@@ -547,7 +547,7 @@ public abstract class AbstractCondition implements XCondition {
 
          if(CoreTool.isDate(value) || value.startsWith("{d")) {
             try {
-               return DateTime.parse(value, CoreTool.getDateTimeConfig()).toTimestamp();
+               return DateTime.parse(value, CoreTool.getDateTimeConfig(), strict).toTimestamp();
             }
             catch(Exception e) {
                // ignore
@@ -607,7 +607,7 @@ public abstract class AbstractCondition implements XCondition {
 
             if(CoreTool.isDate(value)) {
                return new java.sql.Date(
-                  DateTime.parse(value, CoreTool.getDateTimeConfig()).toMillis());
+                  DateTime.parse(value, CoreTool.getDateTimeConfig(), strict).toMillis());
             }
          }
          catch(Exception e) {
