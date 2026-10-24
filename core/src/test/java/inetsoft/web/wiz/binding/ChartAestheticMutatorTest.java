@@ -1591,6 +1591,67 @@ class ChartAestheticMutatorTest {
                  "the refusal has to name the way forward, not just the rule");
    }
 
+   // Bug #79006: shape IS bound but carries the OTHER family's frame, so the old "bind a dimension
+   // to the shape channel first" refusal was circular.
+
+   @Test
+   void textureCategoricalWithShapeBoundToALineFrameNamesTheLinePickerNotACircularHint() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "shape", dimension("Region"));
+      model.getShapeField().setFrame(new CategoricalLineModel());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "texture", spec("type", "categorical", "textures", List.of(19, 12))));
+
+      String msg = thrown.getMessage();
+      assertTrue(msg.contains("'Region'"), "names the bound shape field: " + msg);
+      assertTrue(msg.contains("line picker"), msg);
+      assertTrue(msg.contains("channel: \"line\""), "points at the other channel: " + msg);
+      assertTrue(msg.contains("set_chart_type"), msg);
+      assertTrue(msg.contains("{type: \"static\", texture: ...}"), msg);
+      assertFalse(msg.contains("bind a dimension to the shape channel first"), msg);
+   }
+
+   @Test
+   void lineCategoricalWithShapeBoundToATextureFrameNamesTheTexturePickerNotACircularHint() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "shape", dimension("Region"));
+      model.getShapeField().setFrame(new CategoricalTextureModel());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "line", spec("type", "categorical", "lines", List.of(4097, 4113))));
+
+      String msg = thrown.getMessage();
+      assertTrue(msg.contains("'Region'"), "names the bound shape field: " + msg);
+      assertTrue(msg.contains("texture picker"), msg);
+      assertTrue(msg.contains("channel: \"texture\""), "points at the other channel: " + msg);
+      assertTrue(msg.contains("set_chart_type"), msg);
+      assertTrue(msg.contains("{type: \"static\", line: ...}"), msg);
+      assertFalse(msg.contains("bind a dimension to the shape channel first"), msg);
+   }
+
+   @Test
+   void theUnboundShapeRefusalKeepsItsOriginalBindShapeFirstMessage() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "texture", spec("type", "categorical", "textures", List.of(19, 12))));
+
+      assertTrue(thrown.getMessage().contains("bind a dimension to the shape channel first"),
+                 thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("cannot vary by category on this chart"),
+                  thrown.getMessage());
+   }
+
    /** The one frame the measures can actually carry, for both channels. */
    @Test
    void acceptsAStaticLineOrTextureFrameOnMeasuresWithNoShapeField() {
