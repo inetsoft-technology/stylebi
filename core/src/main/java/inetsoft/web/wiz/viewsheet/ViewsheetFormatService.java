@@ -48,6 +48,7 @@ import inetsoft.uql.viewsheet.FormatInfo;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
+import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
@@ -597,6 +598,37 @@ public class ViewsheetFormatService {
       }
    }
 
+   /**
+    * Bug #79229: {@code activeTab} addresses the selected-tab format a Tab keeps under
+    * {@link TabVSAssemblyInfo#ACTIVE_TAB_PATH}, which the whole-object target never reaches (and a
+    * write to {@code object} recolors every tab). Only a Tab has that path, so on any other
+    * assembly the write would be inert and the request is refused. Fails open only when the
+    * viewsheet cannot be resolved.
+    */
+   private static void refuseActiveTabOnNonTab(Viewsheet viewsheet, List<String> names) {
+      if(viewsheet == null) {
+         return;
+      }
+
+      List<String> offenders = new ArrayList<>();
+
+      for(String name : names) {
+         VSAssembly assembly = viewsheet.getAssembly(name);
+
+         if(!(assembly instanceof TabVSAssembly)) {
+            offenders.add("'" + name + "' is " +
+                          (assembly == null ? "not found" : assembly.getClass().getSimpleName()));
+         }
+      }
+
+      if(!offenders.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_format: target 'activeTab' only applies to a Tab; " +
+            String.join("; ", offenders) + ". The request was not applied. Use target 'object' " +
+            "for the whole assembly.");
+      }
+   }
+
    private static boolean isCalendarTarget(String target) {
       return CALENDAR_HEADER.equals(target) || CALENDAR_GRID.equals(target);
    }
@@ -719,6 +751,8 @@ public class ViewsheetFormatService {
    private static final String CALENDAR_HEADER = "calendarheader";
    /** Normalized (lower-cased) form of target {@code calendarGrid}, see requireTarget. */
    private static final String CALENDAR_GRID = "calendargrid";
+   /** Normalized (lower-cased) form of target {@code activeTab}, see requireTarget. */
+   private static final String ACTIVE_TAB = "activetab";
 
    /**
     * What a {@code set_format} call reports back.
@@ -767,9 +801,15 @@ public class ViewsheetFormatService {
       }
 
       if("object".equals(target) || "title".equals(target) || isCalendarTarget(target) ||
-         isSelectionRegionTarget(target))
+         isSelectionRegionTarget(target) || ACTIVE_TAB.equals(target))
       {
          requireKnownAssemblies(sessionToken, user, request.assemblies());
+      }
+
+      if(ACTIVE_TAB.equals(target)) {
+         RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
+         refuseActiveTabOnNonTab(resolved == null ? null : resolved.getViewsheet(),
+                                 request.assemblies());
       }
 
       if(isCalendarTarget(target)) {
@@ -885,6 +925,18 @@ public class ViewsheetFormatService {
                for(String name : request.assemblies()) {
                   data.add(requirePaths(computeHeaderRegionPaths(rvs, name, request.field()),
                                         name, "header"));
+               }
+
+               event.setData(data);
+            }
+            else if(ACTIVE_TAB.equals(target)) {
+               // Same event.getData() per-path mechanism as "title" above. A Tab keeps the format
+               // of its selected tab under ACTIVE_TAB_PATH (the one the Composer's Format pane
+               // writes for a selected "Active Tab" region), not under the object path.
+               ArrayList<TableDataPath[]> data = new ArrayList<>();
+
+               for(int i = 0; i < request.assemblies().size(); i++) {
+                  data.add(new TableDataPath[]{ TabVSAssemblyInfo.ACTIVE_TAB_PATH });
                }
 
                event.setData(data);
@@ -2060,6 +2112,7 @@ public class ViewsheetFormatService {
          "measurebar".equals(target) ? "measure bar" :
          CALENDAR_HEADER.equals(target) ? "calendar header" :
          CALENDAR_GRID.equals(target) ? "calendar grid" :
+         ACTIVE_TAB.equals(target) ? "active tab" :
          "title".equals(target) ? "title" : "whole assembly";
    }
 
@@ -2910,16 +2963,19 @@ public class ViewsheetFormatService {
 
       if(!"object".equals(name) && !"title".equals(name) && !"text".equals(name) &&
          !"data".equals(name) && !"header".equals(name) && !"field".equals(name) &&
-         !isCalendarTarget(name) && !isSelectionRegionTarget(name))
+         !isCalendarTarget(name) && !isSelectionRegionTarget(name) && !ACTIVE_TAB.equals(name))
       {
          throw new IllegalArgumentException(
             "set_format 'target' must be 'object', 'title', 'text', 'data', 'header', 'field', " +
-            "'cell', 'measureText', 'measureBar', 'calendarHeader' or 'calendarGrid', got '" +
+            "'cell', 'measureText', 'measureBar', 'calendarHeader', 'calendarGrid' or 'activeTab', " +
+            "got '" +
             target + "'. 'cell', 'measureText' " +
             "and 'measureBar' format a Selection List/Tree's item labels, measure numbers and " +
             "measure bar separately (optional 'level' picks one tree level). 'calendarHeader' " +
             "formats a Calendar's month/year header text; 'calendarGrid' formats its date grid " +
-            "(month grid in month view, year grid in year view). 'object' (the " +
+            "(month grid in month view, year grid in year view). 'activeTab' formats only a " +
+            "Tab's currently selected tab (Tab only; 'object' on a Tab recolors every tab). " +
+            "'object' (the " +
             "default) formats the whole " +
             "assembly, including — for a chart — the font and colour that unstyled axis " +
             "titles and tick labels fall back to (not their number/date format: use 'field' " +
