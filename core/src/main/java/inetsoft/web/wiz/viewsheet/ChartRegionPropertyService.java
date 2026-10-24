@@ -113,6 +113,7 @@ public class ChartRegionPropertyService {
       AxisKind kind = "axis".equals(name)
          ? computeTrueAxisKind(sessionToken, user, assembly, key, field) : null;
       boolean time = kind != null && kind.time();
+      Map<String, String> inapplicable = kind != null ? inapplicableAxisKeys(kind) : Map.of();
       String primary = time ? otherPrimaryGanttField(sessionToken, user, assembly, kind) : null;
       Map<String, String> aliases = aliasesFor(name);
       List<Map<String, Object>> properties = new ArrayList<>();
@@ -137,6 +138,18 @@ public class ChartRegionPropertyService {
             one.put("applies", false);
             one.put("reason", "Only applies to a legend bound to a measure; refused on a " +
                "dimension/date legend (false is accepted to clear a stale value).");
+         }
+         else if("legend".equals(name) && "reverse".equals(alias.getKey()) &&
+                 isReverseHidden((LegendFormatDialogModel) model))
+         {
+            one.put("applies", false);
+            one.put("reason", REVERSE_HIDDEN_REASON +
+               " (false is accepted to clear a stale value).");
+         }
+
+         if(inapplicable.containsKey(alias.getKey())) {
+            one.put("applies", false);
+            one.put("reason", inapplicable.get(alias.getKey()));
          }
 
          properties.add(one);
@@ -224,15 +237,19 @@ public class ChartRegionPropertyService {
             requireNumericAxisValues(properties, List.of("increment"));
             timeRange = TimeRange.parse(properties);
          }
-         else {
-            requireNumericAxisValues(properties, NUMERIC_AXIS_KEYS);
-         }
 
+         // Whether the axis takes the key at all comes before whether its value parses, so a
+         // non-numeric value on an axis that refuses the key gets that reason rather than a
+         // "must be a number" that steers the caller into the refusal (bug #79294).
          requireLinearAxisForLinearOnlyKeys(sessionToken, user, assembly, key, field, properties);
          requireNonLinearAxisForNonLinearOnlyKeys(
             sessionToken, user, assembly, key, field, properties);
          requireLinearOrTimeSeriesAxisForIncrement(
             sessionToken, user, assembly, key, field, properties);
+
+         if(!kind.time()) {
+            requireNumericAxisValues(properties, NUMERIC_AXIS_KEYS);
+         }
       }
 
       if("legend".equals(name)) {
@@ -428,6 +445,38 @@ public class ChartRegionPropertyService {
 
    /** Axis properties that only mean something on a non-linear (dimension) axis. */
    private static final Set<String> NON_LINEAR_ONLY_AXIS_KEYS = Set.of("ignoreNull", "truncate");
+
+   /**
+    * The axis keys the given kind of axis refuses, each with the reason, built from the same key
+    * sets the {@code require*} gates refuse on so {@link #list} and {@link #set} cannot disagree.
+    * {@code increment} is not here: whether it applies needs the time-series and outer-axis
+    * derivation in {@link #requireLinearOrTimeSeriesAxisForIncrement}.
+    */
+   private static Map<String, String> inapplicableAxisKeys(AxisKind kind) {
+      Map<String, String> keys = new HashMap<>();
+
+      if(kind.time()) {
+         for(String key : TIME_AXIS_IGNORED_KEYS) {
+            keys.put(key, "No effect on a time (date) axis; refused when set to anything but " +
+               "false or empty.");
+         }
+      }
+      else if(!kind.linear()) {
+         for(String key : LINEAR_ONLY_AXIS_KEYS) {
+            keys.put(key, "Only applies to a linear (measure) axis; this axis is bound to a " +
+               "dimension or discrete measure, so it is refused whatever the value.");
+         }
+      }
+
+      if(kind.linear()) {
+         for(String key : NON_LINEAR_ONLY_AXIS_KEYS) {
+            keys.put(key, "Only applies to a non-linear (dimension) axis; refused whatever the " +
+               "value on " + (kind.time() ? "a time (date)" : "a linear (measure)") + " axis.");
+         }
+      }
+
+      return keys;
+   }
 
    /**
     * Refuses {@code ignoreNull}/{@code truncate} on a linear (measure) axis (bug #78187).
@@ -1310,6 +1359,14 @@ public class ChartRegionPropertyService {
    private static void requireMeasureLegendForScaleKeys(
       LegendFormatDialogModel model, Map<String, Object> properties)
    {
+      if(isReverseHidden(model) && properties.containsKey("reverse") &&
+         isTruthy(properties.get("reverse")))
+      {
+         throw new IllegalArgumentException(
+            "'reverse' " + REVERSE_HIDDEN_REASON + ", so it would be ignored. Omit it or send " +
+            "false to clear a stale value.");
+      }
+
       if(!isCategoricalLegend(model)) {
          return;
       }
@@ -1329,6 +1386,19 @@ public class ChartRegionPropertyService {
             (model.isTime() ? "date/time" : "dimension") + ", so it would be ignored. Omit it, " +
             "send false to clear a stale value, or bind a measure to this channel.");
       }
+   }
+
+   private static final String REVERSE_HIDDEN_REASON =
+      "does not apply to this legend: a treemap Size legend has no reverse";
+
+   /**
+    * Whether the legend's Scale tab hides Reverse for a measure legend (a treemap Size legend):
+    * the engine skips the setting there ({@code GraphGenerator.setLegendProperties}).
+    */
+   private static boolean isReverseHidden(LegendFormatDialogModel model) {
+      return model != null && !isCategoricalLegend(model) &&
+         model.getLegendScalePaneModel() != null &&
+         !model.getLegendScalePaneModel().isReverseVisible();
    }
 
    private static boolean isCategoricalLegend(LegendFormatDialogModel model) {
