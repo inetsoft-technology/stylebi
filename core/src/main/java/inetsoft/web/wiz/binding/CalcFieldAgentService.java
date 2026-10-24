@@ -27,6 +27,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.web.binding.controller.ModifyCalculateFieldService;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
 import inetsoft.web.binding.drm.CalculateRefModel;
 import inetsoft.web.binding.event.ImmutableModifyCalculateFieldEvent;
@@ -256,6 +257,27 @@ public class CalcFieldAgentService {
             model.setSql(sql);
             model.setDataType(dataType);
 
+            // Bug #79289 (VCF-037): flipping a calc field between per-row and aggregate makes
+            // ModifyCalculateFieldService drop it from every binding that cannot carry it over.
+            // The native Formula Editor tells the user and waits for a confirmation; the
+            // confirmation flag set below is not read by that service, so nothing here would ever
+            // say it, and a valid flip used to report ok with the bound column silently gone.
+            // The flip itself stays allowed (re-binding afterwards is the normal way to convert a
+            // field), so name what it removes in the result instead.
+            if(existing != null && existing.isBaseOnDetail() != baseOnDetail) {
+               List<String> lost = ModifyCalculateFieldService.findBindingsLostOnCalcTypeChange(
+                  rvs.getViewsheet(), tableName, req.name(), (CalculateRef) model.createDataRef());
+
+               if(!lost.isEmpty()) {
+                  String to = baseOnDetail ? "per-row (baseOnDetail:true)"
+                     : "aggregate (baseOnDetail:false)";
+                  aggregateWarnings.add(
+                     "Calc field '" + req.name() + "' was changed to " + to + ", and a bound " +
+                     "field cannot change between per-row and aggregate, so it was REMOVED from " +
+                     "the binding of " + quoteAll(lost) + ". Bind '" + newName + "' again there " +
+                     "if you still want it (set_table_fields / set_chart_shelf).");
+               }
+            }
             if(existing != null && !newName.equals(req.name())) {
                rewrittenDependents.addAll(
                   findDependents(rvs.getViewsheet(), tableName, req.name(), newName, bindable));

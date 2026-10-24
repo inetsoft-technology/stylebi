@@ -19,6 +19,7 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.filter.*;
+import inetsoft.report.internal.table.TableFormat;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -83,6 +84,77 @@ public class AssetQueryTest {
                                        null, new String[]{ "col2" });
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
       Assertions.assertEquals(AssetQuery.SummaryFilter2.class, deserializedTable.getClass());
+   }
+
+   private static ExpressionRef script(String expression) {
+      ExpressionRef exp = new ExpressionRef(null, "Calc");
+      exp.setExpression(expression);
+      return exp;
+   }
+
+   private static XFormatInfo format(String format) {
+      return new XFormatInfo(format, "spec");
+   }
+
+   private static boolean inherits(String expression, String refName, XFormatInfo refFormat,
+                                   String calcType)
+   {
+      return AssetQuery.inheritsReferencedFormat(
+         script(expression), new AttributeRef(null, refName), refFormat, calcType);
+   }
+
+   /**
+    * Bug #79289 (VCF-035): an integer calc field computed from a percent or currency column took
+    * that column's format (Math.round(field['Discount'] * 100) rendered 500%). #78971 only stopped
+    * it for a date format.
+    */
+   @Test
+   public void testCalcFieldDoesNotInheritPercentOrCurrencyOfAComputedValue() {
+      XFormatInfo percent = format(TableFormat.PERCENT_FORMAT);
+      XFormatInfo currency = format(TableFormat.CURRENCY_FORMAT);
+      XFormatInfo decimal = format(TableFormat.DECIMAL_FORMAT);
+
+      for(XFormatInfo ref : new XFormatInfo[] { percent, currency, decimal }) {
+         Assertions.assertFalse(
+            inherits("Math.round(field['Discount'] * 100)", "Discount", ref, XSchema.INTEGER));
+         Assertions.assertFalse(
+            inherits("field['Discount'] * 100", "Discount", ref, XSchema.DOUBLE));
+         Assertions.assertFalse(
+            inherits("field['Total'] + field['Tax']", "Total", ref, XSchema.DOUBLE));
+         Assertions.assertFalse(
+            inherits("field['Total'] > 10 ? field['Total'] : 0", "Total", ref, XSchema.DOUBLE));
+      }
+   }
+
+   @Test
+   public void testCalcFieldInheritsTheFormatOfAColumnItPassesThroughUnchanged() {
+      XFormatInfo percent = format(TableFormat.PERCENT_FORMAT);
+      XFormatInfo currency = format(TableFormat.CURRENCY_FORMAT);
+
+      Assertions.assertTrue(inherits("field['Discount']", "Discount", percent, XSchema.DOUBLE));
+      Assertions.assertTrue(inherits("  field['Total'] ;", "Total", currency, XSchema.DOUBLE));
+      Assertions.assertTrue(inherits("field[\"Total\"]", "Total", currency, XSchema.DOUBLE));
+      Assertions.assertTrue(inherits("field['Discount']", "Discount", null, XSchema.DOUBLE),
+                            "no format on the column: nothing to leak, nothing changes");
+      Assertions.assertFalse(inherits("field['Other']", "Discount", percent, XSchema.DOUBLE),
+                             "a read of a different column is not a pass-through of this one");
+   }
+
+   /** The #78971 behavior stays: a date format follows date calc fields only. */
+   @Test
+   public void testDateFormatStillFollowsOnlyDateCalcFields() {
+      XFormatInfo date = format(TableFormat.DATE_FORMAT);
+
+      Assertions.assertFalse(inherits("field['Order:Date']", "Order:Date", date, XSchema.INTEGER));
+      Assertions.assertFalse(
+         inherits("field['Order:Date'].getMonth()", "Order:Date", date, XSchema.INTEGER));
+      Assertions.assertTrue(inherits("field['Order:Date']", "Order:Date", date, XSchema.DATE));
+      Assertions.assertTrue(
+         inherits("new Date(field['Order:Date'].getTime() + 86400000)", "Order:Date", date,
+                  XSchema.DATE));
+      Assertions.assertTrue(
+         inherits("new Date(field['Order:Date'].getTime())", "Order:Date", date,
+                  XSchema.TIME_INSTANT));
    }
 
    @Test

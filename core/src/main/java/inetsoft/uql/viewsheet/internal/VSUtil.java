@@ -5270,18 +5270,66 @@ public final class VSUtil {
                item.setAttribute(renameConditionAttribute(cref, nname));
             }
 
-            Condition cond = item.getCondition();
+            renameConditionValueRefs(item, oname, nname);
+         }
+      }
+   }
 
-            if(cond != null) {
-               DataRef[] drefs = cond.getDataRefValues();
+   /**
+    * Renames every field a condition compares against: each field-typed value operand
+    * ({@code {type:"field"}}, a {@link DataRef} stored among the condition's values, including one
+    * inside a multi-value array) and the group-by field of a top/bottom-N ranking condition.
+    *
+    * <p>A bare {@code AttributeRef}/{@code BaseField} operand (the real runtime type of an
+    * aggregate operand such as {@code Sum(Net Revenue)}) has no settable name, so
+    * {@link #renameDataRef} cannot change it in place; the renamed copy must be written back
+    * into the condition. {@code Condition.getDataRefValues()} returns a detached array, so
+    * writing to its elements would never reach the condition.
+    */
+   private static void renameConditionValueRefs(ConditionItem item, String oname, String nname) {
+      XCondition xcond = item.getXCondition();
 
-               if(drefs != null) {
-                  for(int j = 0; j < drefs.length; j++) {
-                     if(VSUtil.matchRef(drefs[j], oname)) {
-                        VSUtil.renameDataRef(drefs[j], nname);
-                     }
-                  }
+      if(xcond instanceof RankingCondition) {
+         RankingCondition ranking = (RankingCondition) xcond;
+         DataRef group = ranking.getDataRef();
+
+         if(group != null && VSUtil.matchRef(group, oname)) {
+            ranking.setDataRef(renameConditionAttribute(group, nname));
+         }
+
+         return;
+      }
+
+      // ConditionItem.getCondition() hands back a throw-away Condition for any other XCondition
+      Condition cond = xcond instanceof Condition ? (Condition) xcond : null;
+
+      if(cond == null) {
+         return;
+      }
+
+      for(int j = 0; j < cond.getValueCount(); j++) {
+         Object value = cond.getValue(j);
+
+         if(value instanceof DataRef) {
+            DataRef ref = (DataRef) value;
+
+            if(VSUtil.matchRef(ref, oname)) {
+               cond.setValue(j, renameConditionAttribute(ref, nname));
+            }
+         }
+         else if(value instanceof Object[]) {
+            Object[] values = ((Object[]) value).clone();
+            boolean changed = false;
+
+            for(int k = 0; k < values.length; k++) {
+               if(values[k] instanceof DataRef && VSUtil.matchRef((DataRef) values[k], oname)) {
+                  values[k] = renameConditionAttribute((DataRef) values[k], nname);
+                  changed = true;
                }
+            }
+
+            if(changed) {
+               cond.setValue(j, values);
             }
          }
       }

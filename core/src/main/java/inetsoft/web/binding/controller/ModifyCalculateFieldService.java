@@ -659,25 +659,7 @@ public class ModifyCalculateFieldService {
                                String linkUri)
       throws Exception
    {
-      Assembly[] assembies = vs.getAssemblies();
-      List<BindableVSAssembly> binds = new ArrayList<>();
-
-      for(int i = 0; i < assembies.length; i++) {
-         if(!(assembies[i] instanceof BindableVSAssembly) ||
-            assembies[i] instanceof InputVSAssembly)
-         {
-            continue;
-         }
-
-         BindableVSAssembly bind = ((BindableVSAssembly) assembies[i]);
-         String vtable = bind.getTableName();
-
-         if(!Tool.equals(tname, vtable) || isWizardProbe(bind)) {
-            continue;
-         }
-
-         binds.add(bind);
-      }
+      List<BindableVSAssembly> binds = getBoundAssemblies(vs, tname);
 
       // pass 1: update every binding first. Applying an assembly re-executes the assemblies it
       // affects (e.g. a selection list re-executes the tables it filters); an assembly not yet
@@ -708,6 +690,112 @@ public class ModifyCalculateFieldService {
       }
    }
 
+   /**
+    * The binding assemblies (inputs and wizard probes excluded) that read from table
+    * {@code tname}, i.e. the ones a calc field change on that table is synced into.
+    */
+   private static List<BindableVSAssembly> getBoundAssemblies(Viewsheet vs, String tname) {
+      Assembly[] assembies = vs.getAssemblies();
+      List<BindableVSAssembly> binds = new ArrayList<>();
+
+      for(int i = 0; i < assembies.length; i++) {
+         if(!(assembies[i] instanceof BindableVSAssembly) ||
+            assembies[i] instanceof InputVSAssembly)
+         {
+            continue;
+         }
+
+         BindableVSAssembly bind = ((BindableVSAssembly) assembies[i]);
+         String vtable = bind.getTableName();
+
+         if(!Tool.equals(tname, vtable) || isWizardProbe(bind)) {
+            continue;
+         }
+
+         binds.add(bind);
+      }
+
+      return binds;
+   }
+
+   /**
+    * The names of the assemblies on {@code tname} that would lose a binding of calc field
+    * {@code refname} if it were changed to {@code newRef}. A calc type flip (detail to aggregate or
+    * back) removes the field from every binding that cannot carry it over -- a crosstab or table
+    * simply drops it, a chart keeps it when its style supports both -- and the native Formula
+    * Editor tells the user so first. The change is tried on a copy of each assembly, exactly as
+    * {@link #syncAssemblies} will apply it, so the answer is what would really happen rather than
+    * a guess by assembly type.
+    */
+   public static List<String> findBindingsLostOnCalcTypeChange(Viewsheet vs, String tname,
+                                                               String refname, CalculateRef newRef)
+   {
+      List<String> lost = new ArrayList<>();
+
+      for(BindableVSAssembly bind : getBoundAssemblies(vs, tname)) {
+         try {
+            int before = countBindings(bind, refname);
+
+            if(before == 0) {
+               continue;
+            }
+
+            BindableVSAssembly copy = (BindableVSAssembly) bind.clone();
+            copy.changeCalcType(refname, newRef);
+
+            if(countBindings(copy, refname) >= before) {
+               continue;
+            }
+         }
+         catch(Exception e) {
+            // could not simulate it: report the assembly rather than let it be changed unseen
+            LOG.warn("Could not simulate the calc type change of \"{}\" on assembly \"{}\"",
+                     refname, bind.getName(), e);
+         }
+
+         lost.add(bind.getName());
+      }
+
+      return lost;
+   }
+
+   /**
+    * How many of the assembly's bound refs use {@code name}, counted where a calc type change
+    * removes them: a crosstab's and a chart's design-time shelves. The refs
+    * {@code getAllBindingRefs} reports for those are their runtime ones, which a design-time
+    * removal does not touch, so counting them would see nothing lost for an executed assembly.
+    */
+   private static int countBindings(BindableVSAssembly bind, String name) {
+      List<DataRef> refs = new ArrayList<>();
+
+      if(bind instanceof CrosstabVSAssembly) {
+         VSCrosstabInfo info = ((CrosstabVSAssembly) bind).getVSCrosstabInfo();
+
+         if(info != null) {
+            for(DataRef[] shelf : new DataRef[][] { info.getDesignAggregates(),
+                                                    info.getDesignColHeaders(),
+                                                    info.getDesignRowHeaders() })
+            {
+               if(shelf != null) {
+                  refs.addAll(Arrays.asList(shelf));
+               }
+            }
+         }
+      }
+      else if(bind instanceof ChartVSAssembly) {
+         VSChartInfo info = ((ChartVSAssembly) bind).getVSChartInfo();
+         DataRef[] fields = info == null ? null : info.getFields();
+
+         if(fields != null) {
+            refs.addAll(Arrays.asList(fields));
+         }
+      }
+      else {
+         refs.addAll(Arrays.asList(bind.getAllBindingRefs()));
+      }
+
+      return (int) refs.stream().filter(ref -> ref != null && isUsed(ref, name)).count();
+   }
    private List<String> getUsingAssemblies(BindableVSAssembly bind, String refname) {
       DataRef[] refs = bind.getAllBindingRefs();
       List<String> usingAssemblies = new ArrayList<>();
@@ -730,7 +818,7 @@ public class ModifyCalculateFieldService {
    /**
     * Check the ref used the oldname represent dataref.
     */
-   private boolean isUsed(DataRef ref, String oldname){
+   private static boolean isUsed(DataRef ref, String oldname){
       if(Tool.equals(ref.getName(), oldname)) {
          return true;
       }

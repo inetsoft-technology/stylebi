@@ -24,10 +24,17 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.AggregateInfo;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AggregateRef;
+import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalculateRef;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.VSAggregateRef;
+import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
 import inetsoft.web.binding.drm.CalculateRefModel;
@@ -93,6 +100,8 @@ class CalcFieldAgentServiceTest {
       when(netTotal.getName()).thenReturn("NetTotal");
       when(vs.getCalcField(eq("ORDERS"), eq("NetTotal"))).thenReturn(netTotal);
       when(vs.getCalcFields(eq("ORDERS"))).thenReturn(new CalculateRef[] { netTotal });
+      // a mode flip looks for the assemblies bound to the field; none here
+      when(vs.getAssemblies()).thenReturn(new Assembly[0]);
       return sessionsRunningAgainstRt1(vs);
    }
 
@@ -1227,6 +1236,127 @@ class CalcFieldAgentServiceTest {
          assertTrue(thrown.getMessage().contains("not: " + expressionAndBad[1] + "."),
             thrown.getMessage());
       }
+   }
+
+   // =========================================================================
+   // Bug #79289 (VCF-037): a valid per-row <-> aggregate flip of a BOUND calc field made
+   // ModifyCalculateFieldService drop it from the crosstab/table binding, and the agent got
+   // ok:true with no word of it. The flip stays allowed; the result must name what it removed.
+   // =========================================================================
+
+   /** A crosstab "AovCat" on ORDERS whose aggregates shelf holds the calc field "Avg Order Value". */
+   private static Viewsheet vsWithBoundAggregateCalc() {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("Avg Order Value",
+         "field['Sum(Total)'] / field['Sum(Discount)']", false));
+
+      CrosstabVSAssembly cross = new CrosstabVSAssembly(vs, "AovCat");
+      cross.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      VSAggregateRef aggr = new VSAggregateRef();
+      aggr.setColumnValue("Avg Order Value");
+      aggr.setFormulaValue("None");
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      cinfo.setDesignAggregates(new DataRef[] { aggr });
+      // an executed crosstab also carries runtime refs, which a design-time removal leaves alone
+      cinfo.setRuntimeAggregates(new DataRef[] { (DataRef) aggr.clone() });
+      cinfo.setAggregateInfo(new AggregateInfo());
+      cross.setVSCrosstabInfo(cinfo);
+      vs.addAssembly(cross);
+      return vs;
+   }
+
+   /** The flip still goes through, but the result names the binding it removes. */
+   @Test
+   void reportsTheBindingAFlipRemovesFromACrosstab() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
+         "field['Total']", "double", false, true, false, false);
+
+      Viewsheet vs = vsWithBoundAggregateCalc();
+      List<String> warnings = serviceOver(vs, proxy).modify("tok", principal(), req, "").warnings();
+
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).contains("'Avg Order Value'") &&
+                 warnings.get(0).contains("'AovCat'") && warnings.get(0).contains("REMOVED"),
+                 warnings.get(0));
+      // the dry run must not have touched the real binding (the proxy here is a mock)
+      assertEquals(1, ((CrosstabVSAssembly) vs.getAssembly("AovCat")).getVSCrosstabInfo()
+         .getDesignAggregates().length);
+   }
+
+   @Test
+   void reportsTheBindingTheFlipInTheOtherDirectionRemoves() throws Exception {
+      Viewsheet vs = vsWithBoundAggregateCalc();
+      vs.addCalcField("ORDERS", scriptCalc("Avg Order Value", "field['Total']", true));
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
+         "field['Sum(Total)'] / field['Sum(Discount)']", "double", false, false, false, false);
+
+      List<String> warnings = serviceOver(vs, proxy).modify("tok", principal(), req, "").warnings();
+
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'AovCat'") && w.contains("REMOVED")),
+                 warnings.toString());
+   }
+   /** A flip is only a problem for a field something is bound to. */
+   @Test
+   void allowsTheFlipOfAFieldNothingIsBoundTo() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("Avg Order Value",
+         "field['Sum(Total)'] / field['Sum(Discount)']", false));
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
+         "field['Total']", "double", false, true, false, false);
+
+      List<String> warnings = serviceOver(vs, proxy).modify("tok", principal(), req, "").warnings();
+
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("REMOVED")), warnings.toString());
+   }
+
+   /**
+    * A crosstab's AggregateInfo lists every column of its table, not just the bound ones, so a
+    * field that is only listed there is not bound and its flip must not be reported as a loss.
+    */
+   @Test
+   void allowsTheFlipOfAFieldThatIsOnlyListedInACrosstabsAggregateInfo() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("Avg Order Value",
+         "field['Sum(Total)'] / field['Sum(Discount)']", false));
+      CrosstabVSAssembly cross = new CrosstabVSAssembly(vs, "Other");
+      cross.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      cinfo.setDesignAggregates(new DataRef[0]);
+      AggregateInfo ainfo = new AggregateInfo();
+      ainfo.addAggregate(new AggregateRef(
+         new AttributeRef(null, "Avg Order Value"), AggregateFormula.SUM));
+      cinfo.setAggregateInfo(ainfo);
+      cross.setVSCrosstabInfo(cinfo);
+      vs.addAssembly(cross);
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
+         "field['Total']", "double", false, true, false, false);
+
+      List<String> warnings = serviceOver(vs, proxy).modify("tok", principal(), req, "").warnings();
+
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("REMOVED")), warnings.toString());
+   }
+
+   /** Editing the expression or renaming a bound field, without flipping its mode, is untouched. */
+   @Test
+   void allowsAnEditOfABoundFieldThatKeepsItsMode() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value",
+         "Avg Order Value 2", "field['Sum(Total)'] / field['Sum(Discount)'] * 2", "double", false,
+         null, false, false);
+
+      List<String> warnings = serviceOver(vsWithBoundAggregateCalc(), proxy)
+         .modify("tok", principal(), req, "").warnings();
+
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("REMOVED")), warnings.toString());
    }
 
    /** A word boundary: an identifier that merely ends in "field" is not a field access. */

@@ -1974,10 +1974,9 @@ public abstract class AssetQuery extends PreAssetQuery {
          // column ("Fiscal Month") is independently declared dataType:"integer", and that
          // FormulaHeaderInfo.merge() later applies it unconditionally to the rendered cell.
          XFormatInfo finfo = meta == null ? null : meta.getXFormatInfo();
-         boolean refIsDateFormat = finfo != null && TableFormat.DATE_FORMAT.equals(finfo.getFormat());
 
          if(meta != null && needKeepMetaInfo(column) &&
-            (!refIsDateFormat || XSchema.isDateType(column.getDataType())))
+            inheritsReferencedFormat(exp, ref, finfo, column.getDataType()))
          {
             hinfos.add(new FormulaHeaderInfo(column.getName(), ref.getName(),
                                                        true, meta));
@@ -2183,6 +2182,52 @@ public abstract class AssetQuery extends PreAssetQuery {
       XMetaInfo info = new XMetaInfo();
       info = fixMetaInfo(info, ref, column);
       return info;
+   }
+
+   /**
+    * Whether a calc field takes over the display format of an attribute its expression reads.
+    *
+    * <p>Redmine #79289 (after #78971, which did this for date formats only): any referenced format
+    * leaks the same way -- a percent column read by {@code Math.round(field['Discount'] * 100)}
+    * rendered 500%, a currency column read by {@code Math.round(field['Total'])} rendered $29. A
+    * format describes the scale and unit of the value it was set on, so it only survives when the
+    * calc field hands that value on unchanged, i.e. its expression is exactly
+    * {@code field['<ref>']} -- the one shape {@code PreAssetQuery.getRefForXMetaInfo} borrows a
+    * format for when the calc field is pushed to SQL, which this path is meant to match. A date
+    * calc field keeps the date format of a date column it derives from, as before.
+    *
+    * @param refFormat the referenced attribute's format, or null if it has none.
+    * @param calcType  the calc field's own declared data type.
+    */
+   static boolean inheritsReferencedFormat(ExpressionRef exp, DataRef ref, XFormatInfo refFormat,
+                                           String calcType)
+   {
+      boolean refIsDateFormat =
+         refFormat != null && TableFormat.DATE_FORMAT.equals(refFormat.getFormat());
+      boolean dateCalc = XSchema.isDateType(calcType);
+
+      return isPassThroughOf(exp, ref) ? !refIsDateFormat || dateCalc : refIsDateFormat && dateCalc;
+   }
+
+   /**
+    * Whether the expression is nothing but a read of {@code ref}, i.e. {@code field['<ref>']}
+    * (single or double quotes, optional surrounding space and trailing semicolon).
+    */
+   static boolean isPassThroughOf(ExpressionRef exp, DataRef ref) {
+      String text = exp.getExpression();
+
+      if(text == null || ref == null || ref.getName() == null) {
+         return false;
+      }
+
+      text = text.trim();
+
+      if(text.endsWith(";")) {
+         text = text.substring(0, text.length() - 1).trim();
+      }
+
+      String name = ref.getName();
+      return text.equals("field['" + name + "']") || text.equals("field[\"" + name + "\"]");
    }
 
    private boolean needKeepMetaInfo(ColumnRef column) {
