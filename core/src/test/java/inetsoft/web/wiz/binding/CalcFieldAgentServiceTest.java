@@ -1241,7 +1241,7 @@ class CalcFieldAgentServiceTest {
    // =========================================================================
    // Bug #79289 (VCF-037): a valid per-row <-> aggregate flip of a BOUND calc field made
    // ModifyCalculateFieldService drop it from the crosstab/table binding, and the agent got
-   // ok:true with no word of it.
+   // ok:true with no word of it. The flip stays allowed; the result must name what it removed.
    // =========================================================================
 
    /** A crosstab "AovCat" on ORDERS whose aggregates shelf holds the calc field "Avg Order Value". */
@@ -1265,39 +1265,40 @@ class CalcFieldAgentServiceTest {
       return vs;
    }
 
+   /** The flip still goes through, but the result names the binding it removes. */
    @Test
-   void refusesAFlipThatWouldDropTheFieldFromABoundCrosstab() throws Exception {
+   void reportsTheBindingAFlipRemovesFromACrosstab() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
          "field['Total']", "double", false, true, false, false);
 
       Viewsheet vs = vsWithBoundAggregateCalc();
-      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
-         () -> serviceOver(vs, proxy).modify("tok", principal(), req, ""));
+      List<String> warnings = serviceOver(vs, proxy).modify("tok", principal(), req, "").warnings();
 
-      assertTrue(thrown.getMessage().contains("'Avg Order Value'") &&
-                 thrown.getMessage().contains("'AovCat'"), thrown.getMessage());
-      verifyNoInteractions(proxy);
-      // the dry run must not have touched the real binding
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).contains("'Avg Order Value'") &&
+                 warnings.get(0).contains("'AovCat'") && warnings.get(0).contains("REMOVED"),
+                 warnings.get(0));
+      // the dry run must not have touched the real binding (the proxy here is a mock)
       assertEquals(1, ((CrosstabVSAssembly) vs.getAssembly("AovCat")).getVSCrosstabInfo()
          .getDesignAggregates().length);
    }
 
    @Test
-   void refusesTheFlipInTheOtherDirectionToo() throws Exception {
+   void reportsTheBindingTheFlipInTheOtherDirectionRemoves() throws Exception {
       Viewsheet vs = vsWithBoundAggregateCalc();
       vs.addCalcField("ORDERS", scriptCalc("Avg Order Value", "field['Total']", true));
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
          "field['Sum(Total)'] / field['Sum(Discount)']", "double", false, false, false, false);
 
-      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
-         () -> serviceOver(vs, proxy).modify("tok", principal(), req, ""));
+      List<String> warnings = serviceOver(vs, proxy).modify("tok", principal(), req, "").warnings();
 
-      assertTrue(thrown.getMessage().contains("'AovCat'"), thrown.getMessage());
-      verifyNoInteractions(proxy);
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'AovCat'") && w.contains("REMOVED")),
+                 warnings.toString());
    }
-
    /** A flip is only a problem for a field something is bound to. */
    @Test
    void allowsTheFlipOfAFieldNothingIsBoundTo() throws Exception {
@@ -1308,14 +1309,15 @@ class CalcFieldAgentServiceTest {
       CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
          "field['Total']", "double", false, true, false, false);
 
-      serviceOver(vs, proxy).modify("tok", principal(), req, "");
+      List<String> warnings = serviceOver(vs, proxy).modify("tok", principal(), req, "").warnings();
 
       verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("REMOVED")), warnings.toString());
    }
 
    /**
     * A crosstab's AggregateInfo lists every column of its table, not just the bound ones, so a
-    * field that is only listed there is not bound and its flip must not be refused.
+    * field that is only listed there is not bound and its flip must not be reported as a loss.
     */
    @Test
    void allowsTheFlipOfAFieldThatIsOnlyListedInACrosstabsAggregateInfo() throws Exception {
@@ -1336,9 +1338,10 @@ class CalcFieldAgentServiceTest {
       CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
          "field['Total']", "double", false, true, false, false);
 
-      serviceOver(vs, proxy).modify("tok", principal(), req, "");
+      List<String> warnings = serviceOver(vs, proxy).modify("tok", principal(), req, "").warnings();
 
       verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("REMOVED")), warnings.toString());
    }
 
    /** Editing the expression or renaming a bound field, without flipping its mode, is untouched. */
@@ -1349,9 +1352,11 @@ class CalcFieldAgentServiceTest {
          "Avg Order Value 2", "field['Sum(Total)'] / field['Sum(Discount)'] * 2", "double", false,
          null, false, false);
 
-      serviceOver(vsWithBoundAggregateCalc(), proxy).modify("tok", principal(), req, "");
+      List<String> warnings = serviceOver(vsWithBoundAggregateCalc(), proxy)
+         .modify("tok", principal(), req, "").warnings();
 
       verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("REMOVED")), warnings.toString());
    }
 
    /** A word boundary: an identifier that merely ends in "field" is not a field access. */

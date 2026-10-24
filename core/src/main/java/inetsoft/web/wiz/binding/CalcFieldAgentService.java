@@ -259,30 +259,25 @@ public class CalcFieldAgentService {
 
             // Bug #79289 (VCF-037): flipping a calc field between per-row and aggregate makes
             // ModifyCalculateFieldService drop it from every binding that cannot carry it over.
-            // The native Formula Editor warns the user and waits for a confirmation; the
-            // confirmation flag set below is not read by that service, so nothing here would
-            // ever ask, and a valid flip used to report ok with the bound column silently gone.
-            // An agent cannot confirm, so refuse before anything mutates and name the bindings.
+            // The native Formula Editor tells the user and waits for a confirmation; the
+            // confirmation flag set below is not read by that service, so nothing here would ever
+            // say it, and a valid flip used to report ok with the bound column silently gone.
+            // The flip itself stays allowed (re-binding afterwards is the normal way to convert a
+            // field), so name what it removes in the result instead.
             if(existing != null && existing.isBaseOnDetail() != baseOnDetail) {
                List<String> lost = ModifyCalculateFieldService.findBindingsLostOnCalcTypeChange(
                   rvs.getViewsheet(), tableName, req.name(), (CalculateRef) model.createDataRef());
 
                if(!lost.isEmpty()) {
-                  String from = existing.isBaseOnDetail() ? "per-row (baseOnDetail:true)"
-                     : "aggregate (baseOnDetail:false)";
                   String to = baseOnDetail ? "per-row (baseOnDetail:true)"
                      : "aggregate (baseOnDetail:false)";
-                  throw new IllegalArgumentException(
-                     "Calc field '" + req.name() + "' on '" + tableName + "' is " + from +
-                     " and bound in " + quoteAll(lost) + ". Changing it to " + to +
-                     " would remove it from " + (lost.size() == 1 ? "that binding" :
-                     "those bindings") + ", because a bound field cannot change between per-row " +
-                     "and aggregate. Remove '" + req.name() + "' from the binding of " +
-                     quoteAll(lost) + " first (and bind it again afterwards if you still want " +
-                     "it there), or keep baseOnDetail as it is and edit only the expression.");
+                  aggregateWarnings.add(
+                     "Calc field '" + req.name() + "' was changed to " + to + ", and a bound " +
+                     "field cannot change between per-row and aggregate, so it was REMOVED from " +
+                     "the binding of " + quoteAll(lost) + ". Bind '" + newName + "' again there " +
+                     "if you still want it (set_table_fields / set_chart_shelf).");
                }
             }
-
             if(existing != null && !newName.equals(req.name())) {
                rewrittenDependents.addAll(
                   findDependents(rvs.getViewsheet(), tableName, req.name(), newName, bindable));
