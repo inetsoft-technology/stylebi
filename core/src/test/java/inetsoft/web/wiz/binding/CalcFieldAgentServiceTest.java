@@ -1313,6 +1313,34 @@ class CalcFieldAgentServiceTest {
       verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
    }
 
+   /**
+    * A crosstab's AggregateInfo lists every column of its table, not just the bound ones, so a
+    * field that is only listed there is not bound and its flip must not be refused.
+    */
+   @Test
+   void allowsTheFlipOfAFieldThatIsOnlyListedInACrosstabsAggregateInfo() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("Avg Order Value",
+         "field['Sum(Total)'] / field['Sum(Discount)']", false));
+      CrosstabVSAssembly cross = new CrosstabVSAssembly(vs, "Other");
+      cross.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      cinfo.setDesignAggregates(new DataRef[0]);
+      AggregateInfo ainfo = new AggregateInfo();
+      ainfo.addAggregate(new AggregateRef(
+         new AttributeRef(null, "Avg Order Value"), AggregateFormula.SUM));
+      cinfo.setAggregateInfo(ainfo);
+      cross.setVSCrosstabInfo(cinfo);
+      vs.addAssembly(cross);
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
+         "field['Total']", "double", false, true, false, false);
+
+      serviceOver(vs, proxy).modify("tok", principal(), req, "");
+
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+   }
+
    /** Editing the expression or renaming a bound field, without flipping its mode, is untouched. */
    @Test
    void allowsAnEditOfABoundFieldThatKeepsItsMode() throws Exception {

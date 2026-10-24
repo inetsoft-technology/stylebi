@@ -61,8 +61,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.security.Principal;
 import java.util.*;
 
@@ -728,10 +726,6 @@ public class ModifyCalculateFieldService {
     * Editor tells the user so first. The change is tried on a copy of each assembly, exactly as
     * {@link #syncAssemblies} will apply it, so the answer is what would really happen rather than
     * a guess by assembly type.
-    *
-    * <p>What the copy lost is read from its persisted (design) form: the binding refs the assembly
-    * reports ({@code getAllBindingRefs}) are its runtime ones, which a design-time removal does
-    * not touch, so counting them would see nothing lost for a crosstab that was executed.
     */
    public static List<String> findBindingsLostOnCalcTypeChange(Viewsheet vs, String tname,
                                                                String refname, CalculateRef newRef)
@@ -740,7 +734,7 @@ public class ModifyCalculateFieldService {
 
       for(BindableVSAssembly bind : getBoundAssemblies(vs, tname)) {
          try {
-            int before = countMentions(bind, refname);
+            int before = countBindings(bind, refname);
 
             if(before == 0) {
                continue;
@@ -749,7 +743,7 @@ public class ModifyCalculateFieldService {
             BindableVSAssembly copy = (BindableVSAssembly) bind.clone();
             copy.changeCalcType(refname, newRef);
 
-            if(countMentions(copy, refname) >= before) {
+            if(countBindings(copy, refname) >= before) {
                continue;
             }
          }
@@ -765,20 +759,42 @@ public class ModifyCalculateFieldService {
       return lost;
    }
 
-   /** How often {@code name} occurs in the persisted form of the assembly. */
-   private static int countMentions(BindableVSAssembly bind, String name) {
-      StringWriter buffer = new StringWriter();
-      PrintWriter writer = new PrintWriter(buffer);
-      bind.writeXML(writer);
-      writer.flush();
-      String xml = buffer.toString();
-      int count = 0;
+   /**
+    * How many of the assembly's bound refs use {@code name}, counted where a calc type change
+    * removes them: a crosstab's and a chart's design-time shelves. The refs
+    * {@code getAllBindingRefs} reports for those are their runtime ones, which a design-time
+    * removal does not touch, so counting them would see nothing lost for an executed assembly.
+    */
+   private static int countBindings(BindableVSAssembly bind, String name) {
+      List<DataRef> refs = new ArrayList<>();
 
-      for(int i = xml.indexOf(name); i >= 0; i = xml.indexOf(name, i + name.length())) {
-         count++;
+      if(bind instanceof CrosstabVSAssembly) {
+         VSCrosstabInfo info = ((CrosstabVSAssembly) bind).getVSCrosstabInfo();
+
+         if(info != null) {
+            for(DataRef[] shelf : new DataRef[][] { info.getDesignAggregates(),
+                                                    info.getDesignColHeaders(),
+                                                    info.getDesignRowHeaders() })
+            {
+               if(shelf != null) {
+                  refs.addAll(Arrays.asList(shelf));
+               }
+            }
+         }
+      }
+      else if(bind instanceof ChartVSAssembly) {
+         VSChartInfo info = ((ChartVSAssembly) bind).getVSChartInfo();
+         DataRef[] fields = info == null ? null : info.getFields();
+
+         if(fields != null) {
+            refs.addAll(Arrays.asList(fields));
+         }
+      }
+      else {
+         refs.addAll(Arrays.asList(bind.getAllBindingRefs()));
       }
 
-      return count;
+      return (int) refs.stream().filter(ref -> ref != null && isUsed(ref, name)).count();
    }
    private List<String> getUsingAssemblies(BindableVSAssembly bind, String refname) {
       DataRef[] refs = bind.getAllBindingRefs();
