@@ -2095,10 +2095,81 @@ public final class VSUtil {
       }
 
       // prepare vs columns and hidden columns
-      arr = vs.getAssemblies();
       Set bset = new HashSet(); // bound columns
       Set hset = new HashSet(); // hidden columns
       ColumnSelection cols = btable.getColumnSelection(false);
+      collectShrinkRefs(vs, cols, bset, hset);
+
+      DataRef[] vsrefs = new DataRef[bset.size()];
+      ColumnRef[] hrefs = new ColumnRef[hset.size()];
+      bset.toArray(vsrefs);
+      hset.toArray(hrefs);
+      arr = ws.getAssemblies();
+
+      if(vsrefs.length == 0) {
+         return;
+      }
+
+      String modelName = vs.getBaseEntry().getName();
+      CalculateRef[] calcs = vs.getCalcFields(modelName);
+      boolean keepAllCols = Drivers.getInstance().isDataCached();
+
+      // shrink bound table one by one
+      for(int i = 0; i < arr.length; i++) {
+         if(arr[i] instanceof BoundTableAssembly) {
+            TableAssembly table = (TableAssembly) arr[i];
+            String name = table.getName();
+            filterBoundTableColumns((BoundTableAssembly) table, ws,
+                                    vsrefs, hrefs, calcs, keepAllCols);
+            ColumnSelection tcolumns = table.getColumnSelection(true);
+            ColumnSelection columns = new ColumnSelection();
+
+            for(int j = 0; j < tcolumns.getAttributeCount(); j++) {
+               ColumnRef tcolumn = (ColumnRef) tcolumns.getAttribute(j);
+               DataRef attr = AssetUtil.getOuterAttribute(name, tcolumn);
+               String dtype = tcolumn.getDataType();
+               ColumnRef column = new ColumnRef(attr);
+               column.setDataType(dtype);
+               columns.addAttribute(column);
+            }
+
+            if(name.endsWith("_O")) {
+               name = stripOuter(name);
+               table = (TableAssembly) ws.getAssembly(name);
+
+               if(table != null) {
+                  ColumnSelection ncolumns = (ColumnSelection) columns.clone();
+                  ColumnSelection old = table.getColumnSelection();
+                  keepCalcField(old, ncolumns, calcs);
+                  table.setColumnSelection(ncolumns, false);
+                  table.resetColumnSelection();
+               }
+
+               name = Assembly.SELECTION + name;
+               table = (TableAssembly) ws.getAssembly(name);
+
+               if(table != null) {
+                  ColumnSelection old = table.getColumnSelection();
+                  ColumnSelection ncolumns = (ColumnSelection) columns.clone();
+                  keepCalcField(old, ncolumns, calcs);
+                  table.setColumnSelection(ncolumns, false);
+               }
+            }
+         }
+      }
+   }
+
+   /**
+    * Collect the columns shrinkTable keeps on the shared bound table: the union of the
+    * columns bound by every assembly of the viewsheet, plus the hidden columns.
+    *
+    * @param vs   the viewsheet.
+    * @param cols the column selection of the bound table (may be null).
+    * @param bset the set to receive the bound columns.
+    * @param hset the set to receive the hidden columns.
+    */
+   private static void collectShrinkRefs(Viewsheet vs, ColumnSelection cols, Set bset, Set hset) {
+      Assembly[] arr = vs.getAssemblies();
 
       for(int i = 0; i < arr.length; i++) {
          VSAssembly vassembly = (VSAssembly) arr[i];
@@ -2262,64 +2333,51 @@ public final class VSUtil {
             }
          }
       }
+   }
 
-      DataRef[] vsrefs = new DataRef[bset.size()];
-      ColumnRef[] hrefs = new ColumnRef[hset.size()];
-      bset.toArray(vsrefs);
-      hset.toArray(hrefs);
-      arr = ws.getAssemblies();
-
-      if(vsrefs.length == 0) {
-         return;
+   /**
+    * Get a fingerprint of the union of columns {@link #shrinkTable} keeps on the shared bound
+    * table of a logical model viewsheet. Data cached by an assembly is only valid for the
+    * union it was computed with: the join path of the bound table (and so the grain of a
+    * plain Count) follows which entities' columns are selected, and that selection depends
+    * on every assembly in the viewsheet, not only on the assembly that owns the data.
+    *
+    * @return the fingerprint, or null if the viewsheet is not bound to a logical model.
+    */
+   public static String getShrinkUnionKey(Viewsheet vs) {
+      if(vs == null || !vs.isLMSource()) {
+         return null;
       }
 
-      String modelName = vs.getBaseEntry().getName();
-      CalculateRef[] calcs = vs.getCalcFields(modelName);
-      boolean keepAllCols = Drivers.getInstance().isDataCached();
+      Worksheet base = vs.getBaseWorksheet();
+      ColumnSelection cols = null;
 
-      // shrink bound table one by one
-      for(int i = 0; i < arr.length; i++) {
-         if(arr[i] instanceof BoundTableAssembly) {
-            TableAssembly table = (TableAssembly) arr[i];
-            String name = table.getName();
-            filterBoundTableColumns((BoundTableAssembly) table, ws,
-                                    vsrefs, hrefs, calcs, keepAllCols);
-            ColumnSelection tcolumns = table.getColumnSelection(true);
-            ColumnSelection columns = new ColumnSelection();
-
-            for(int j = 0; j < tcolumns.getAttributeCount(); j++) {
-               ColumnRef tcolumn = (ColumnRef) tcolumns.getAttribute(j);
-               DataRef attr = AssetUtil.getOuterAttribute(name, tcolumn);
-               String dtype = tcolumn.getDataType();
-               ColumnRef column = new ColumnRef(attr);
-               column.setDataType(dtype);
-               columns.addAttribute(column);
-            }
-
-            if(name.endsWith("_O")) {
-               name = stripOuter(name);
-               table = (TableAssembly) ws.getAssembly(name);
-
-               if(table != null) {
-                  ColumnSelection ncolumns = (ColumnSelection) columns.clone();
-                  ColumnSelection old = table.getColumnSelection();
-                  keepCalcField(old, ncolumns, calcs);
-                  table.setColumnSelection(ncolumns, false);
-                  table.resetColumnSelection();
-               }
-
-               name = Assembly.SELECTION + name;
-               table = (TableAssembly) ws.getAssembly(name);
-
-               if(table != null) {
-                  ColumnSelection old = table.getColumnSelection();
-                  ColumnSelection ncolumns = (ColumnSelection) columns.clone();
-                  keepCalcField(old, ncolumns, calcs);
-                  table.setColumnSelection(ncolumns, false);
-               }
+      if(base != null) {
+         for(Assembly assembly : base.getAssemblies()) {
+            if(assembly instanceof BoundTableAssembly) {
+               cols = ((BoundTableAssembly) assembly).getColumnSelection(false);
+               break;
             }
          }
       }
+
+      Set bset = new HashSet();
+      Set hset = new HashSet();
+      collectShrinkRefs(vs, cols, bset, hset);
+      DataRef[] vsrefs = decomposeAggregates((DataRef[]) bset.toArray(new DataRef[0]));
+      Set<String> names = new TreeSet<>();
+
+      for(DataRef ref : vsrefs) {
+         if(ref != null) {
+            names.add("b:" + ref.getName());
+         }
+      }
+
+      for(Object ref : hset) {
+         names.add("h:" + ((DataRef) ref).getName());
+      }
+
+      return String.join(",", names);
    }
 
    /**
