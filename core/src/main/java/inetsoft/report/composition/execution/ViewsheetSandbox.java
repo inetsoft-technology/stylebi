@@ -5936,8 +5936,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       final VSAssembly assembly = vs.getAssembly(name);
 
       // a view table whose formula a script timeout stopped is built again (bug #77949)
-      if(AssetDataCache.isDebugData() || obj instanceof TableLens lens &&
-         AssetDataCache.isStopped(lens))
+      if(AssetDataCache.isDebugData() || isDataExpired(name, DataMap.VSTABLE) ||
+         obj instanceof TableLens lens && AssetDataCache.isStopped(lens))
       {
          obj = null;
       }
@@ -5949,8 +5949,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          try {
             obj = dmap.get(name, DataMap.VSTABLE);
 
-            if(AssetDataCache.isDebugData() || obj instanceof TableLens lens &&
-               AssetDataCache.isStopped(lens))
+            if(AssetDataCache.isDebugData() || isDataExpired(name, DataMap.VSTABLE) ||
+               obj instanceof TableLens lens && AssetDataCache.isStopped(lens))
             {
                obj = null;
             }
@@ -6739,12 +6739,21 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @param type     the data type.
     */
    private void addDataKey(String name, VSAssembly assembly, int type) {
-      if(!(assembly instanceof ChartVSAssembly) || type != DataMap.NORMAL) {
+      VSChartInfo cinfo = null;
+
+      if(assembly instanceof ChartVSAssembly && type == DataMap.NORMAL) {
+         cinfo = ((ChartVSAssembly) assembly).getVSChartInfo();
+      }
+
+      // the data of any assembly bound to a logical model depends on the union of the columns
+      // bound by all assemblies, see VSUtil.shrinkTable (bug #79000)
+      String unionKey = VSUtil.getShrinkUnionKey(getViewsheet());
+
+      if(cinfo == null && unionKey == null) {
          return;
       }
 
-      VSChartInfo cinfo = ((ChartVSAssembly) assembly).getVSChartInfo();
-      dKeyMap.put(name, cinfo, type);
+      dKeyMap.put(name, new DataKey(cinfo, unionKey), type);
    }
 
    /**
@@ -6762,15 +6771,38 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @return
     */
    private boolean isDataExpired(String name, int type) {
-      VSAssembly assembly = getViewsheet().getAssembly(name);
-
-      if(!(assembly instanceof ChartVSAssembly) || dKeyMap.get(name, type) == null) {
+      if(!(dKeyMap.get(name, type) instanceof DataKey key)) {
          return false;
       }
 
-      VSChartInfo ninfo = ((ChartVSAssembly) assembly).getVSChartInfo();
+      VSAssembly assembly = getViewsheet().getAssembly(name);
 
-      return !Tool.equalsContent(ninfo, dKeyMap.get(name, type));
+      if(key.chartInfo != null && assembly instanceof ChartVSAssembly &&
+         !Tool.equalsContent(((ChartVSAssembly) assembly).getVSChartInfo(), key.chartInfo))
+      {
+         return true;
+      }
+
+      // The data was computed over the union of the columns bound by all assemblies. If another
+      // assembly changed that union (grew or shrunk it) the shared bound table joins different
+      // entities now, so this data must be computed again, not stay stale until something else
+      // happens to execute this assembly. Changes that keep the union (formats, titles) keep
+      // the data. (bug #79000)
+      return key.unionKey != null && !key.unionKey.equals(VSUtil.getShrinkUnionKey(getViewsheet()));
+   }
+
+   /**
+    * What the data of an assembly was computed for: the chart info (charts) and the union of
+    * the columns bound in the viewsheet (logical model viewsheets).
+    */
+   private static final class DataKey {
+      DataKey(VSChartInfo chartInfo, String unionKey) {
+         this.chartInfo = chartInfo;
+         this.unionKey = unionKey;
+      }
+
+      private final VSChartInfo chartInfo;
+      private final String unionKey;
    }
 
    /**
