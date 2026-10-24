@@ -18,6 +18,7 @@
 package inetsoft.web.binding.service;
 
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.SortInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
@@ -95,6 +96,13 @@ public class VSTableBindingFactory extends VSBindingFactory<TableVSAssembly, Tab
 
       for(DataRef ref : refs) {
          hidden.removeAttribute(ref);
+      }
+
+      // a column that left the binding must not keep a sort
+      SortInfo sortInfo = info.getSortInfo();
+
+      if(sortInfo != null) {
+         sortInfo.removeUnboundSorts(cols, hidden);
       }
 
       return assembly;

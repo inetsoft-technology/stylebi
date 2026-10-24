@@ -24,6 +24,7 @@ import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SortInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
@@ -237,6 +238,12 @@ public class TableViewPropertyDialogService {
 
       if(tableAssemblyInfo.isForm() && !tableAdvancedPaneModel.isForm()) {
          tableAssemblyInfo.getHiddenColumns().removeAllAttributes();
+         SortInfo sortInfo = tableAssemblyInfo.getSortInfo();
+
+         if(sortInfo != null) {
+            sortInfo.removeUnboundSorts(
+               tableAssemblyInfo.getColumnSelection(), tableAssemblyInfo.getHiddenColumns());
+         }
       }
 
       tableAssemblyInfo.setShrinkValue(tableAdvancedPaneModel.isShrink());

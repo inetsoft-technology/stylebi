@@ -307,6 +307,88 @@ class SortInfoTest {
 
    // ---- helper ----
 
+   // ---- removeUnboundSorts ----
+
+   private static ColumnSelection selectionOf(DataRef... refs) {
+      ColumnSelection selection = new ColumnSelection();
+
+      for(DataRef ref : refs) {
+         selection.addAttribute(ref);
+      }
+
+      return selection;
+   }
+
+   private static ColumnRef columnOf(String name) {
+      return new ColumnRef(new AttributeRef(null, name));
+   }
+
+   @Test
+   void removeUnboundSortsDropsSortOnColumnInNeitherSelection() {
+      sortInfo.addSort(makeSort("Company", XConstants.SORT_ASC));
+      sortInfo.addSort(makeSort("Category", XConstants.SORT_DESC));
+
+      sortInfo.removeUnboundSorts(selectionOf(columnOf("Category")), selectionOf());
+
+      assertEquals(1, sortInfo.getSortCount());
+      assertEquals("Category", sortInfo.getSort(0).getName());
+   }
+
+   @Test
+   void removeUnboundSortsKeepsSortOnHiddenColumn() {
+      sortInfo.addSort(makeSort("Company", XConstants.SORT_ASC));
+
+      sortInfo.removeUnboundSorts(selectionOf(columnOf("Category")),
+                                  selectionOf(columnOf("Company")));
+
+      assertEquals(1, sortInfo.getSortCount());
+   }
+
+   @Test
+   void removeUnboundSortsKeepsSortOnShownColumnAfterUnrelatedRemoval() {
+      sortInfo.addSort(makeSort("Category", XConstants.SORT_DESC));
+
+      sortInfo.removeUnboundSorts(selectionOf(columnOf("Category"), columnOf("Region")),
+                                  selectionOf());
+
+      assertEquals(1, sortInfo.getSortCount());
+   }
+
+   @Test
+   void removeUnboundSortsKeepsSortOnAliasedColumn() {
+      ColumnRef aliased = columnOf("Company");
+      aliased.setAlias("Firm");
+      sortInfo.addSort(makeSort("Company", XConstants.SORT_ASC));
+
+      sortInfo.removeUnboundSorts(selectionOf(aliased, columnOf("Region")), selectionOf());
+
+      assertEquals(1, sortInfo.getSortCount());
+   }
+
+   @Test
+   void removeUnboundSortsClearsSortsWhenNothingIsBound() {
+      sortInfo.addSort(makeSort("Company", XConstants.SORT_ASC));
+      sortInfo.addSort(makeSort("Category", XConstants.SORT_DESC));
+
+      sortInfo.removeUnboundSorts(selectionOf(), selectionOf());
+
+      assertTrue(sortInfo.isEmpty());
+   }
+
+   @Test
+   void removeUnboundSortsLeavesKeptRefsUntouched() {
+      SortRef kept = makeSort("Company", XConstants.SORT_ASC);
+      DataRef original = kept.getDataRef();
+      ColumnRef aliased = columnOf("Company");
+      aliased.setAlias("Firm");
+      sortInfo.addSort(kept);
+
+      sortInfo.removeUnboundSorts(selectionOf(aliased), selectionOf());
+
+      assertSame(kept, sortInfo.getSort(0));
+      assertSame(original, sortInfo.getSort(0).getDataRef());
+   }
+
    private SortRef makeSort(String name, int order) {
       SortRef ref = new SortRef(new AttributeRef(name));
       ref.setOrder(order);
