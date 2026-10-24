@@ -507,7 +507,7 @@ public final class ChartAestheticMutator {
 
       if(!aggregates.isEmpty()) {
          requireStaticColorOnMeasures(name, frame);
-         requireStaticLineOrTextureOnMeasures(name, frame);
+         requireStaticLineOrTextureOnMeasures(name, frame, read(model, "shape"));
          requireStaticShapeOrSizeOnMeasures(name, frame);
 
          if(measure != null) {
@@ -1352,7 +1352,9 @@ public final class ChartAestheticMutator {
     * cannot take a field of their own at all) and a different reason the value must be fixed (shape/
     * line/texture share one frame family; colour does not).
     */
-   private static void requireStaticLineOrTextureOnMeasures(String channel, VisualFrameModel frame) {
+   private static void requireStaticLineOrTextureOnMeasures(String channel, VisualFrameModel frame,
+                                                            AestheticInfo shapeField)
+   {
       boolean isLine = "line".equals(channel);
       boolean isTexture = "texture".equals(channel);
 
@@ -1362,6 +1364,29 @@ public final class ChartAestheticMutator {
 
       if(isLine ? frame instanceof StaticLineModel : frame instanceof StaticTextureModel) {
          return;
+      }
+
+      // Bug #79006: shape IS bound, but its frame belongs to the OTHER family (area/line charts
+      // carry a line frame in the shape slot, bar/pie a texture frame), so this channel has no
+      // field of its own to vary over. Telling the caller to bind shape first would be circular.
+      VisualFrameModel shapeFrame = shapeField == null ? null : shapeField.getFrame();
+      boolean otherFamily = isTexture
+         ? shapeFrame instanceof LineFrameModel : shapeFrame instanceof TextureFrameModel;
+
+      if(otherFamily) {
+         String other = isTexture ? "line" : "texture";
+         String otherPicker = isTexture ? "line picker" : "texture picker";
+         String thisPicker = isTexture ? "texture picker" : "line picker";
+
+         throw new IllegalArgumentException(
+            "The " + channel + " channel cannot vary by category on this chart: its shape field '" +
+            fieldNameOf(shapeField) + "' is bound, but this chart type's shape slot uses the " +
+            otherPicker + " (area/line charts use the line picker, bar/pie charts the texture " +
+            "picker), not the " + thisPicker + ", so the " + channel + " channel has no field of " +
+            "its own to vary over. To vary by category, call set_visual_frame with channel: \"" +
+            other + "\" and {type: \"categorical\"}; for one fixed " + channel + " value use " +
+            "{type: \"static\", " + channel + ": ...}; or use set_chart_type to switch to a chart " +
+            "type whose shape slot uses the " + thisPicker + ".");
       }
 
       throw new IllegalArgumentException(
@@ -1560,7 +1585,7 @@ public final class ChartAestheticMutator {
          if(field == null) {
             try {
                requireStaticColorOnMeasures(name, frame);
-               requireStaticLineOrTextureOnMeasures(name, frame);
+               requireStaticLineOrTextureOnMeasures(name, frame, aggregate.getShapeField());
                requireStaticShapeOrSizeOnMeasures(name, frame);
             }
             catch(IllegalArgumentException e) {
