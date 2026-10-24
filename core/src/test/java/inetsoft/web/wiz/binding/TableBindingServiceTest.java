@@ -18,7 +18,11 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.TableDataPath;
+import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.binding.controller.VSBindingModelService;
@@ -613,6 +617,135 @@ class TableBindingServiceTest {
 
    // ── set_column_widths ────────────────────────────────────────────────────
 
+   /**
+    * Bug #79249: a stacked-measure crosstab (rows Year > Quarter, two aggregates) renders each
+    * measure name under one TableDataPath per nesting level -- {@code [Year, Quarter, agg]} on a
+    * detail row, {@code [Year, agg]} on the year subtotal row, {@code [ROW_GRAND_TOTAL, agg]} on
+    * the grand-total row -- and a format only reaches cells whose path is equal. The label must
+    * be written at every one of them, and must leave the other aggregate's paths alone.
+    */
+   @Test
+   void setColumnLabelsAliasesACrosstabAggregateAtEveryRenderedNestingLevel() throws Exception {
+      FormatInfo formatInfo = new FormatInfo();
+      List<TableDataPath> rendered = List.of(
+         measurePath("Year", "Quarter", "Sum(REV)"), measurePath("Year", "Quarter", "Count(ID)"),
+         measurePath("Year", "Sum(REV)"), measurePath("Year", "Count(ID)"),
+         measurePath("ROW_GRAND_TOTAL", "Sum(REV)"), measurePath("ROW_GRAND_TOTAL", "Count(ID)"));
+
+      labelStackedCrosstab(formatInfo, rendered);
+
+      for(TableDataPath path : rendered) {
+         String[] segs = path.getPath();
+         String agg = segs[segs.length - 1];
+
+         if(agg.equals("Sum(REV)")) {
+            assertEquals("Revenue", aliasAt(formatInfo, path), "alias missing at " + path);
+         }
+         else {
+            assertNull(aliasAt(formatInfo, path), "control aggregate must be untouched: " + path);
+         }
+      }
+   }
+
+   /**
+    * Bug #79249 (refuter A2): only the detail level renders when the label is written (row
+    * totals off); turning subtotals/grand total on afterwards must still show the alias, so the
+    * unrendered nesting levels are written too.
+    */
+   @Test
+   void setColumnLabelsAliasesCrosstabAggregateLevelsThatRenderOnlyAfterTotalsAreTurnedOn()
+      throws Exception
+   {
+      FormatInfo formatInfo = new FormatInfo();
+
+      labelStackedCrosstab(formatInfo, List.of(measurePath("Year", "Quarter", "Sum(REV)"),
+                                               measurePath("Year", "Quarter", "Count(ID)")));
+
+      assertEquals("Revenue", aliasAt(formatInfo, measurePath("Year", "Quarter", "Sum(REV)")));
+      assertEquals("Revenue", aliasAt(formatInfo, measurePath("Year", "Sum(REV)")),
+                   "year subtotal row, turned on later");
+      assertEquals("Revenue", aliasAt(formatInfo, measurePath("ROW_GRAND_TOTAL", "Sum(REV)")),
+                   "grand-total row, turned on later");
+      assertNull(aliasAt(formatInfo, measurePath("Year", "Count(ID)")));
+      assertNull(aliasAt(formatInfo, measurePath("ROW_GRAND_TOTAL", "Count(ID)")));
+   }
+
+   private static TableDataPath measurePath(String... segments) {
+      return new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING, segments);
+   }
+
+   private static String aliasAt(FormatInfo formatInfo, TableDataPath path) {
+      VSCompositeFormat format = formatInfo.getFormat(path);
+      VSFormat ufmt = format == null ? null : format.getUserDefinedFormat();
+
+      return ufmt != null && VSFormat.MESSAGE_FORMAT.equals(ufmt.getFormatValue())
+         ? ufmt.getFormatExtentValue() : null;
+   }
+
+   /**
+    * Runs {@code set_column_labels(CT1, {"Revenue" -> aggregates[0]})} against a stacked-measure
+    * crosstab (rows Year, Quarter; aggregates Sum(REV), Count(ID)) whose measure-name column
+    * (lens column 2) renders the given paths, one per lens row below the single header row.
+    */
+   private void labelStackedCrosstab(FormatInfo formatInfo, List<TableDataPath> rendered)
+      throws Exception
+   {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Year"), dim("Quarter")));
+      TableBindingMutator.setShelf(existing, "aggregates", List.of(
+         new FieldRef("REV", "measure", "Sum", null, null),
+         new FieldRef("ID", "measure", "Count", null, null)));
+
+      VSDimensionRef year = new VSDimensionRef();
+      year.setGroupColumnValue("Year");
+      VSDimensionRef quarter = new VSDimensionRef();
+      quarter.setGroupColumnValue("Quarter");
+      // Mocks, not real VSAggregateRefs: see SetTableHeaderAliasHandlerTest (no Spring context).
+      VSAggregateRef sum = mock(VSAggregateRef.class);
+      when(sum.getFullName()).thenReturn("Sum(REV)");
+      VSAggregateRef count = mock(VSAggregateRef.class);
+      when(count.getFullName()).thenReturn("Count(ID)");
+
+      VSCrosstabInfo crossInfo = new VSCrosstabInfo();
+      crossInfo.setDesignRowHeaders(new DataRef[] { year, quarter });
+      crossInfo.setDesignAggregates(new DataRef[] { sum, count });
+
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crossInfo);
+      when(assembly.getAbsoluteName()).thenReturn("CT1");
+      when(assembly.getFormatInfo()).thenReturn(formatInfo);
+
+      VSTableLens lens = mock(VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(3);
+      when(lens.getColCount()).thenReturn(4);
+      when(lens.getRowCount()).thenReturn(1 + rendered.size());
+
+      for(int i = 0; i < rendered.size(); i++) {
+         when(lens.getTableDataPath(i + 1, 2)).thenReturn(rendered.get(i));
+      }
+
+      ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+      when(sandbox.getVSTableLens("CT1", false)).thenReturn(lens);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      List<String> applied = serviceWith(sessions, existing, mock(VSBindingModelService.class))
+         .setColumnLabels("tok", principal(), "CT1", Map.of("REV", "Revenue"), null).applied();
+
+      assertEquals(List.of("aggregates[0] -> Revenue"), applied);
+   }
    @Test
    void setColumnWidthsAppliesAPositiveWidthToTheMatchedColumn() throws Exception {
       TableBindingModel existing = new TableBindingModel();

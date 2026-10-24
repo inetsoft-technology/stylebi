@@ -1787,9 +1787,27 @@ public class TableBindingService {
                "its header cannot be resolved to a cell");
          }
 
-         TableDataPath path = SetTableHeaderAliasHandler.findHeaderPath(lens, ref, target.index());
+         // Bug #79249: an aggregate's header renders under one TableDataPath per row/column
+         // nesting level (detail, each subtotal, grand total), and a format only reaches cells
+         // whose path is equal, so the label must be written at every one of them. Dimension
+         // headers are a single positional "Cell [r,c]" path.
+         List<TableDataPath> paths;
 
-         if(path == null) {
+         if("aggregates".equals(target.shelf())) {
+            paths = SetTableHeaderAliasHandler.findHeaderPaths(lens, ref, target.index());
+
+            if(!paths.isEmpty()) {
+               paths = SetTableHeaderAliasHandler.withUnrenderedLevels(
+                  paths, crossInfo.isSummarySideBySide());
+            }
+         }
+         else {
+            TableDataPath path =
+               SetTableHeaderAliasHandler.findHeaderPath(lens, ref, target.index());
+            paths = path == null ? List.of() : List.of(path);
+         }
+
+         if(paths.isEmpty()) {
             errors.add(
                "Could not find '" + target.shelf() + "[" + target.index() + "]' on the " +
                "rendered header of '" + crosstab.getAbsoluteName() + "' -- it may not currently " +
@@ -1797,8 +1815,10 @@ public class TableBindingService {
             continue;
          }
 
-         setPaths.add(path);
-         setLabels.add(target.label());
+         for(TableDataPath path : paths) {
+            setPaths.add(path);
+            setLabels.add(target.label());
+         }
       }
 
       if(!errors.isEmpty()) {
