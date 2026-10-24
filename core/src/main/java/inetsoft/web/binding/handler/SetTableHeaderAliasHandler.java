@@ -19,13 +19,16 @@ package inetsoft.web.binding.handler;
 
 import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.filter.CrossFilter;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.FormatInfo;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.VSFormat;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -206,6 +209,102 @@ public class SetTableHeaderAliasHandler {
       }
 
       return distinct;
+   }
+
+   /**
+    * Every distinct {@code TableDataPath} under which {@code dataRef}'s header renders, in scan
+    * order (so element 0 is {@link #findHeaderPath}'s own result). A crosstab aggregate's header
+    * is not one path: {@code CrossFilterDataDescriptor.getCellDataPath} embeds the row/column
+    * tuple nesting level in it, so a stacked-measure crosstab renders "Sum(X)" under a different
+    * path on every detail row, on each subtotal row and on the grand-total row, and a
+    * side-by-side one does the same across its header-row cells. {@code VSFormatTableLens} looks
+    * a format up by strict path equality, so a rename written at only one of them never reaches
+    * the others. De-duplicated by path equality, not by lens column ({@link #findHeaderCells}
+    * keys on the column, which collapses the stacked subtotal and detail rows that share one).
+    */
+   public static List<TableDataPath> findHeaderPaths(VSTableLens lens, DataRef dataRef,
+                                                     int colIndex)
+   {
+      int headerRows = lens.getHeaderRowCount();
+      int headerCols = lens.getHeaderColCount();
+      int colCount = lens.getColCount();
+      int rowCount = lens.getRowCount();
+      List<HeaderCell> found = new ArrayList<>();
+
+      int rowArmColBound = colCount < 0 ? headerCols : colCount;
+      collectHeaderRegion(lens, dataRef, colIndex, 0, headerRows, 0, rowArmColBound, found);
+      int colArmRowBound = rowCount < 0 ? headerRows : rowCount;
+      collectHeaderRegion(lens, dataRef, colIndex, headerRows, colArmRowBound, 0, headerCols,
+                          found);
+
+      Set<TableDataPath> distinct = new LinkedHashSet<>();
+
+      for(HeaderCell cell : found) {
+         distinct.add(cell.path());
+      }
+
+      return new ArrayList<>(distinct);
+   }
+
+   /**
+    * {@code rendered} (an aggregate's paths from {@link #findHeaderPaths}) plus the nesting
+    * levels the lens does not render right now -- a subtotal level or grand total that is turned
+    * on later, or a level collapsed by a drill -- so a rename written now still covers them.
+    *
+    * <p>An aggregate header path is {@code [optional grand-total marker][one dimension header
+    * name per nesting level...][aggregate header]}. From the deepest rendered chain this adds
+    * every shorter prefix (each subtotal level) and the grand-total variant, for the axis the
+    * measure names run along ({@code sideBySide}: column tuples, otherwise row tuples). It can
+    * only extend a chain it has seen: a level deeper than any rendered cell is unknown, and a
+    * row/column dimension the lens skips (an unresolved header index) is not tracked.
+    */
+   public static List<TableDataPath> withUnrenderedLevels(List<TableDataPath> rendered,
+                                                          boolean sideBySide)
+   {
+      Set<TableDataPath> all = new LinkedHashSet<>(rendered);
+      TableDataPath deepest = null;
+
+      for(TableDataPath path : rendered) {
+         String[] segs = path.getPath();
+
+         if(segs == null || segs.length < 2 || isGrandTotalMarker(segs[0]) ||
+            path.getType() != TableDataPath.HEADER &&
+            path.getType() != TableDataPath.GROUP_HEADER)
+         {
+            continue;
+         }
+
+         if(deepest == null || segs.length > deepest.getPath().length) {
+            deepest = path;
+         }
+      }
+
+      if(deepest == null) {
+         return new ArrayList<>(all);
+      }
+
+      String[] segs = deepest.getPath();
+      String agg = segs[segs.length - 1];
+
+      for(int levels = 1; levels < segs.length - 1; levels++) {
+         String[] shorter = Arrays.copyOf(segs, levels + 1);
+         shorter[levels] = agg;
+         all.add(variant(deepest, shorter));
+      }
+
+      String marker = sideBySide ? CrossFilter.COL_GRAND_TOTAL_HEADER
+         : CrossFilter.ROW_GRAND_TOTAL_HEADER;
+      all.add(variant(deepest, new String[] { marker, agg }));
+      return new ArrayList<>(all);
+   }
+
+   private static boolean isGrandTotalMarker(String segment) {
+      return CrossFilter.ROW_GRAND_TOTAL_HEADER.equals(segment) ||
+         CrossFilter.COL_GRAND_TOTAL_HEADER.equals(segment);
+   }
+
+   private static TableDataPath variant(TableDataPath base, String[] segments) {
+      return new TableDataPath(base.getLevel(), base.getType(), base.getDataType(), segments);
    }
 
    private static void collectHeaderRegion(VSTableLens lens, DataRef dataRef, int colIndex,

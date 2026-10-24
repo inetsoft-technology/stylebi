@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.VSFormat;
+import java.util.List;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -213,4 +214,84 @@ class SetTableHeaderAliasHandlerTest {
 
       assertSame(aggHeader, SetTableHeaderAliasHandler.findHeaderPath(lens, aggregate, 0));
    }
-}
+
+   /**
+    * Bug #79249: a stacked-measure crosstab renders one aggregate header under a different
+    * TableDataPath per nesting level; {@code findHeaderPaths} returns each distinct one (not
+    * just the first), in scan order, and skips the other aggregate's.
+    */
+   @Test
+   void findHeaderPathsReturnsEveryNestingLevelOfAStackedAggregate() {
+      VSTableLens lens = stackedLens(
+         headerPath("Year", "Quarter", "Sum(REV)"), headerPath("Year", "Quarter", "Count(ID)"),
+         headerPath("Year", "Quarter", "Sum(REV)"), headerPath("Year", "Sum(REV)"),
+         headerPath("ROW_GRAND_TOTAL", "Sum(REV)"));
+
+      List<TableDataPath> paths = SetTableHeaderAliasHandler.findHeaderPaths(
+         lens, aggregate("Sum(REV)"), 0);
+
+      assertEquals(List.of(headerPath("Year", "Quarter", "Sum(REV)"),
+                           headerPath("Year", "Sum(REV)"),
+                           headerPath("ROW_GRAND_TOTAL", "Sum(REV)")), paths);
+      assertEquals(SetTableHeaderAliasHandler.findHeaderPath(lens, aggregate("Sum(REV)"), 0),
+                   paths.get(0), "element 0 is findHeaderPath's own result");
+   }
+
+   @Test
+   void findHeaderPathsIsEmptyWhenTheAggregateDoesNotRender() {
+      VSTableLens lens = stackedLens(headerPath("Year", "Count(ID)"));
+
+      assertTrue(SetTableHeaderAliasHandler.findHeaderPaths(
+         lens, aggregate("Sum(REV)"), 0).isEmpty());
+   }
+
+   /** Only the detail level renders: the subtotal and grand-total levels are synthesized. */
+   @Test
+   void withUnrenderedLevelsAddsSubtotalAndGrandTotalPathsForStackedMeasures() {
+      List<TableDataPath> all = SetTableHeaderAliasHandler.withUnrenderedLevels(
+         List.of(headerPath("Year", "Quarter", "Sum(REV)")), false);
+
+      assertEquals(List.of(headerPath("Year", "Quarter", "Sum(REV)"),
+                           headerPath("Year", "Sum(REV)"),
+                           headerPath("ROW_GRAND_TOTAL", "Sum(REV)")), all);
+   }
+
+   @Test
+   void withUnrenderedLevelsUsesTheColumnGrandTotalMarkerForSideBySideMeasures() {
+      List<TableDataPath> all = SetTableHeaderAliasHandler.withUnrenderedLevels(
+         List.of(headerPath("Region", "Sum(REV)")), true);
+
+      assertEquals(List.of(headerPath("Region", "Sum(REV)"),
+                           headerPath("COL_GRAND_TOTAL", "Sum(REV)")), all);
+   }
+
+   @Test
+   void withUnrenderedLevelsLeavesAnAggregateWithNoDimensionChainAlone() {
+      List<TableDataPath> only = List.of(headerPath("Sum(REV)"));
+
+      assertEquals(only, SetTableHeaderAliasHandler.withUnrenderedLevels(only, false));
+      assertEquals(List.of(), SetTableHeaderAliasHandler.withUnrenderedLevels(List.of(), false));
+   }
+
+   private static VSAggregateRef aggregate(String fullName) {
+      // A mock for the same reason as above: a real VSAggregateRef needs a Spring context.
+      VSAggregateRef aggregate = mock(VSAggregateRef.class);
+      when(aggregate.getFullName()).thenReturn(fullName);
+      return aggregate;
+   }
+
+   /** One header row, three header columns; the measure-name column (2) holds {@code cells}. */
+   private static VSTableLens stackedLens(TableDataPath... cells) {
+      VSTableLens lens = mock(VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(3);
+      when(lens.getColCount()).thenReturn(4);
+      when(lens.getRowCount()).thenReturn(1 + cells.length);
+
+      for(int i = 0; i < cells.length; i++) {
+         when(lens.getTableDataPath(i + 1, 2)).thenReturn(cells[i]);
+      }
+
+      return lens;
+   }
+}
