@@ -1844,15 +1844,17 @@ public class WorksheetAgentController {
             throw new PairingException("Named group assembly not found: " + name);
          }
 
-         String conflictTable = WorksheetMutationSupport.findNamedGroupRetargetConflict(
-            ws, name, AttachedAssembly.COLUMN_ATTACHED, ref, null);
+         WorksheetMutationSupport.NamedGroupRetargetConflict conflict =
+            WorksheetMutationSupport.findNamedGroupRetargetConflict(
+               ws, name, AttachedAssembly.COLUMN_ATTACHED, sinfo, ref, null);
 
-         if(conflictTable != null) {
+         if(conflict != null) {
             throw new PairingException(
-               "Cannot retarget \"" + name + "\" to \"" + ref.getAttribute() + "\": table \"" +
-               conflictTable + "\" still groups by its current attachment via \"" + name +
-               "\" (set_group_aggregate's namedGroup). Retargeting would silently drop that " +
-               "grouping with no error. Remove or update that group-by first, or use " +
+               "Cannot retarget \"" + name + "\" to " + sinfo.getSource() + "." +
+               ref.getAttribute() + ": column \"" + conflict.column() + "\" of table \"" +
+               conflict.table() + "\" groups by \"" + name + "\" (set_group_aggregate's " +
+               "namedGroup) and does not resolve to that source. Retargeting would silently drop " +
+               "that grouping with no error. Remove or update that group-by first, or use " +
                "delete_named_group if nothing should reference it after this change.");
          }
 

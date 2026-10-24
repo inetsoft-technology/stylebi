@@ -455,16 +455,31 @@ public final class WorksheetMutationSupport {
     *                           {@link AttachedAssembly#DATA_TYPE_ATTACHED}
     * @param newAttachedAttribute the proposed attached column, for {@code COLUMN_ATTACHED}
     *                             (ignored otherwise)
+    * @param newAttachedSource    the proposed attached source, for {@code COLUMN_ATTACHED}
+    *                             (ignored otherwise); a referencing column must also resolve to
+    *                             it, as {@link #namedGroupAppliesToColumn} requires of
+    *                             {@code set_group_aggregate}
     * @param newAttachedDataType  the proposed attached data type, for {@code DATA_TYPE_ATTACHED}
     *                             (ignored otherwise)
-    * @return the name of the first referencing table assembly whose {@link GroupRef} would
+    * @return the first referencing table assembly and group column whose {@link GroupRef} would
     *         mismatch the proposed attachment, or {@code null} if every existing reference (if
     *         any) would still resolve
     */
-   static String findNamedGroupRetargetConflict(
-      Worksheet ws, String groupName, int newAttachedType, DataRef newAttachedAttribute,
-      String newAttachedDataType)
+   static NamedGroupRetargetConflict findNamedGroupRetargetConflict(
+      Worksheet ws, String groupName, int newAttachedType, SourceInfo newAttachedSource,
+      DataRef newAttachedAttribute, String newAttachedDataType)
    {
+      DefaultNamedGroupAssembly candidate = null;
+
+      if(newAttachedType == AttachedAssembly.COLUMN_ATTACHED) {
+         // exactly what the retarget will store, so AttachedAssemblyImpl.equals can match a
+         // table that really is bound to the new source
+         candidate = new DefaultNamedGroupAssembly(ws, groupName);
+         candidate.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+         candidate.setAttachedSource(newAttachedSource);
+         candidate.setAttachedAttribute(newAttachedAttribute);
+      }
+
       for(Assembly a : ws.getAssemblies()) {
          if(!(a instanceof TableAssembly table)) {
             continue;
@@ -485,14 +500,23 @@ public final class WorksheetMutationSupport {
 
             if(newAttachedType == AttachedAssembly.DATA_TYPE_ATTACHED) {
                if(!AssetUtil.isCompatible(newAttachedDataType, ref.getDataType())) {
-                  return table.getName();
+                  return new NamedGroupRetargetConflict(table.getName(), ref.getAttribute());
                }
             }
             else if(newAttachedType == AttachedAssembly.COLUMN_ATTACHED) {
                String attr = newAttachedAttribute == null ? null : newAttachedAttribute.getAttribute();
 
                if(!Tool.equals(ref.getAttribute(), attr)) {
-                  return table.getName();
+                  return new NamedGroupRetargetConflict(table.getName(), ref.getAttribute());
+               }
+
+               ColumnSelection cs = table.getColumnSelection(true);
+               DataRef column = cs == null ? null : cs.getAttribute(ref.getName());
+
+               if(column instanceof ColumnRef columnRef &&
+                  !namedGroupAppliesToColumn(table, columnRef, candidate))
+               {
+                  return new NamedGroupRetargetConflict(table.getName(), ref.getAttribute());
                }
             }
          }
@@ -500,6 +524,11 @@ public final class WorksheetMutationSupport {
 
       return null;
    }
+
+   /**
+    * A table and group column that a proposed named-group retarget would leave unmapped.
+    */
+   record NamedGroupRetargetConflict(String table, String column) {}
 
    // =========================================================================
    // Filter helpers
@@ -637,6 +666,7 @@ public final class WorksheetMutationSupport {
       // Infer type from the resolved column so numeric comparisons work correctly.
       String refType = columnType(t, ref, false);
       String dtype = refType != null && !refType.isBlank() ? refType : XSchema.STRING;
+      requireNoNumericTextMatch(field, dtype, op);
 
       ConditionItem item;
       // Bug #78394: add_filter/edit_condition had no value-count check at all.
@@ -3965,6 +3995,7 @@ public final class WorksheetMutationSupport {
             int op = parseOperation(spec.operation());
             boolean negate = spec.negated() || isNegatedOperation(spec.operation());
             String dtype = conditionType(t, spec, post);
+            requireNoNumericTextMatch(spec.field(), dtype, op);
 
             if((spec.type() == null || spec.type().isBlank()) && op != XCondition.DATE_IN) {
                // A value an indexed valueSpec replaces is a field/expression/variable reference
@@ -5066,6 +5097,31 @@ public final class WorksheetMutationSupport {
       }
 
       return false;
+   }
+
+   /**
+    * Bug #79286: refuses STARTING_WITH / CONTAINS / LIKE on a numeric column. The literal is
+    * re-parsed to a number on read ({@code "1"} becomes {@code 1.0}) and the generated SQL has no
+    * string cast, so the table then fails to preview.
+    *
+    * @param field the field as the caller spelled it
+    * @param dtype the resolved column type
+    */
+   private static void requireNoNumericTextMatch(String field, String dtype, int op) {
+      if(!isNumericConditionType(dtype) ||
+         op != XCondition.STARTING_WITH && op != XCondition.CONTAINS && op != XCondition.LIKE)
+      {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "The condition on \"" + field + "\" uses a text match (STARTING_WITH, CONTAINS or " +
+         "LIKE), but the column's type is " + dtype + ". Text matching on a numeric column is " +
+         "not supported: the literal is rewritten to a number (e.g. \"1\" becomes \"1.0\") and " +
+         "the generated SQL then fails. Add a string expression column (add_expression_column " +
+         "with sql:false, e.g. String(field['" + field + "'])) on a mirror and apply the text " +
+         "match to that column, or use =, ONE_OF, BETWEEN, <, > on the numeric column. Nothing " +
+         "was changed.");
    }
 
    private static boolean isNumericConditionType(String dtype) {
