@@ -27,6 +27,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.web.binding.controller.ModifyCalculateFieldService;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
 import inetsoft.web.binding.drm.CalculateRefModel;
 import inetsoft.web.binding.event.ImmutableModifyCalculateFieldEvent;
@@ -255,6 +256,32 @@ public class CalcFieldAgentService {
             model.setBaseOnDetail(baseOnDetail);
             model.setSql(sql);
             model.setDataType(dataType);
+
+            // Bug #79289 (VCF-037): flipping a calc field between per-row and aggregate makes
+            // ModifyCalculateFieldService drop it from every binding that cannot carry it over.
+            // The native Formula Editor warns the user and waits for a confirmation; the
+            // confirmation flag set below is not read by that service, so nothing here would
+            // ever ask, and a valid flip used to report ok with the bound column silently gone.
+            // An agent cannot confirm, so refuse before anything mutates and name the bindings.
+            if(existing != null && existing.isBaseOnDetail() != baseOnDetail) {
+               List<String> lost = ModifyCalculateFieldService.findBindingsLostOnCalcTypeChange(
+                  rvs.getViewsheet(), tableName, req.name(), (CalculateRef) model.createDataRef());
+
+               if(!lost.isEmpty()) {
+                  String from = existing.isBaseOnDetail() ? "per-row (baseOnDetail:true)"
+                     : "aggregate (baseOnDetail:false)";
+                  String to = baseOnDetail ? "per-row (baseOnDetail:true)"
+                     : "aggregate (baseOnDetail:false)";
+                  throw new IllegalArgumentException(
+                     "Calc field '" + req.name() + "' on '" + tableName + "' is " + from +
+                     " and bound in " + quoteAll(lost) + ". Changing it to " + to +
+                     " would remove it from " + (lost.size() == 1 ? "that binding" :
+                     "those bindings") + ", because a bound field cannot change between per-row " +
+                     "and aggregate. Remove '" + req.name() + "' from the binding of " +
+                     quoteAll(lost) + " first (and bind it again afterwards if you still want " +
+                     "it there), or keep baseOnDetail as it is and edit only the expression.");
+               }
+            }
 
             if(existing != null && !newName.equals(req.name())) {
                rewrittenDependents.addAll(

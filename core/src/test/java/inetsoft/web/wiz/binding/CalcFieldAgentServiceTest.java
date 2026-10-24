@@ -24,10 +24,17 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.AggregateInfo;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AggregateRef;
+import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalculateRef;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.VSAggregateRef;
+import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
 import inetsoft.web.binding.drm.CalculateRefModel;
@@ -93,6 +100,8 @@ class CalcFieldAgentServiceTest {
       when(netTotal.getName()).thenReturn("NetTotal");
       when(vs.getCalcField(eq("ORDERS"), eq("NetTotal"))).thenReturn(netTotal);
       when(vs.getCalcFields(eq("ORDERS"))).thenReturn(new CalculateRef[] { netTotal });
+      // a mode flip looks for the assemblies bound to the field; none here
+      when(vs.getAssemblies()).thenReturn(new Assembly[0]);
       return sessionsRunningAgainstRt1(vs);
    }
 
@@ -1227,6 +1236,88 @@ class CalcFieldAgentServiceTest {
          assertTrue(thrown.getMessage().contains("not: " + expressionAndBad[1] + "."),
             thrown.getMessage());
       }
+   }
+
+   // =========================================================================
+   // Bug #79289 (VCF-037): a valid per-row <-> aggregate flip of a BOUND calc field made
+   // ModifyCalculateFieldService drop it from the crosstab/table binding, and the agent got
+   // ok:true with no word of it.
+   // =========================================================================
+
+   /** A crosstab "AovCat" on ORDERS whose aggregates shelf holds the calc field "Avg Order Value". */
+   private static Viewsheet vsWithBoundAggregateCalc() {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("Avg Order Value",
+         "field['Sum(Total)'] / field['Sum(Discount)']", false));
+
+      CrosstabVSAssembly cross = new CrosstabVSAssembly(vs, "AovCat");
+      cross.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      VSAggregateRef aggr = new VSAggregateRef();
+      aggr.setColumnValue("Avg Order Value");
+      aggr.setFormulaValue("None");
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      cinfo.setDesignAggregates(new DataRef[] { aggr });
+      cinfo.setAggregateInfo(new AggregateInfo());
+      cross.setVSCrosstabInfo(cinfo);
+      vs.addAssembly(cross);
+      return vs;
+   }
+
+   @Test
+   void refusesAFlipThatWouldDropTheFieldFromABoundCrosstab() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
+         "field['Total']", "double", false, true, false, false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> serviceOver(vsWithBoundAggregateCalc(), proxy).modify("tok", principal(), req, ""));
+
+      assertTrue(thrown.getMessage().contains("'Avg Order Value'") &&
+                 thrown.getMessage().contains("'AovCat'"), thrown.getMessage());
+      verifyNoInteractions(proxy);
+   }
+
+   @Test
+   void refusesTheFlipInTheOtherDirectionToo() throws Exception {
+      Viewsheet vs = vsWithBoundAggregateCalc();
+      vs.addCalcField("ORDERS", scriptCalc("Avg Order Value", "field['Total']", true));
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
+         "field['Sum(Total)'] / field['Sum(Discount)']", "double", false, false, false, false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> serviceOver(vs, proxy).modify("tok", principal(), req, ""));
+
+      assertTrue(thrown.getMessage().contains("'AovCat'"), thrown.getMessage());
+      verifyNoInteractions(proxy);
+   }
+
+   /** A flip is only a problem for a field something is bound to. */
+   @Test
+   void allowsTheFlipOfAFieldNothingIsBoundTo() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("Avg Order Value",
+         "field['Sum(Total)'] / field['Sum(Discount)']", false));
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value", null,
+         "field['Total']", "double", false, true, false, false);
+
+      serviceOver(vs, proxy).modify("tok", principal(), req, "");
+
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+   }
+
+   /** Editing the expression or renaming a bound field, without flipping its mode, is untouched. */
+   @Test
+   void allowsAnEditOfABoundFieldThatKeepsItsMode() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Avg Order Value",
+         "Avg Order Value 2", "field['Sum(Total)'] / field['Sum(Discount)'] * 2", "double", false,
+         null, false, false);
+
+      serviceOver(vsWithBoundAggregateCalc(), proxy).modify("tok", principal(), req, "");
+
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
    }
 
    /** A word boundary: an identifier that merely ends in "field" is not a field access. */
