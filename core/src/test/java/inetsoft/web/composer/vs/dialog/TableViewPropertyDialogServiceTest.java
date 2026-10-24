@@ -22,6 +22,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SortRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
@@ -196,6 +197,21 @@ class TableViewPropertyDialogServiceTest {
       assertEquals(1, written.getHiddenColumns().getAttributeCount());
    }
 
+   @Test
+   void formToNonFormWriteDropsSortOnClearedHiddenColumnOnly() throws Exception {
+      TableVSAssemblyInfo written = writeWith(true, false);
+
+      assertEquals(1, written.getSortInfo().getSortCount());
+      assertEquals("Category", written.getSortInfo().getSort(0).getName());
+   }
+
+   @Test
+   void nonFormWriteKeepsSortOnHiddenColumn() throws Exception {
+      TableVSAssemblyInfo written = writeWith(false, false);
+
+      assertEquals(2, written.getSortInfo().getSortCount());
+   }
+
    private TableVSAssemblyInfo writeWith(boolean oldForm, boolean newForm) throws Exception {
       TableVSAssemblyInfo info = new TableVSAssemblyInfo();
       info.setFormValue(oldForm);
@@ -205,6 +221,8 @@ class TableViewPropertyDialogServiceTest {
       ColumnSelection hidden = new ColumnSelection();
       hidden.addAttribute(new ColumnRef(new AttributeRef(null, "Company")));
       info.setHiddenColumns(hidden);
+      info.getSortInfo().addSort(new SortRef(new AttributeRef(null, "Company")));
+      info.getSortInfo().addSort(new SortRef(new AttributeRef(null, "Category")));
 
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);

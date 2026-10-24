@@ -187,6 +187,29 @@ public class SortInfo implements AssetObject, ContentObject {
    }
 
    /**
+    * Remove the sorts whose column resolves in none of the specified column selections.
+    * Unlike {@link #validate(ColumnSelection)}, the sorts that are kept are left untouched.
+    * @param columns the column selections a sort column may be bound in.
+    */
+   public synchronized void removeUnboundSorts(ColumnSelection... columns) {
+      for(int i = sorts.size() - 1; i >= 0; i--) {
+         String name = sorts.get(i).getName();
+         boolean bound = false;
+
+         for(ColumnSelection selection : columns) {
+            if(selection != null && selection.getAttribute(name) != null) {
+               bound = true;
+               break;
+            }
+         }
+
+         if(!bound) {
+            sorts.remove(i);
+         }
+      }
+   }
+
+   /**
     * Write the xml segment to print writer.
     * @param writer the destination print writer.
     */
