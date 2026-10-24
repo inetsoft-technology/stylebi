@@ -103,13 +103,13 @@ Border colours are stored and emitted as opaque RGB (`BorderColors.java:81`,
   - Add a modern card tint constant (`#AAAAAA`) and its alpha (15).
   - Do **not** change `CARD_BG`. It is documented as white in legacy and is read by the chart
     unconditionally (below).
-- `VSAssemblyInfo.seedChromeDefaults` (around lines 1289–1322):
-  - The base hook writes `objectBorderColor` to every modern assembly.
-  - Stop seeding border widths for cards in modern. The colour can stay, since it is latent without
-    a width.
-  - Seed the tint plus its alpha per D4.
-- Per-type seeds currently installing the 1px frame (`setDefaultFormat(true)` / `THIN_LINE`).
-  Modern branch only:
+- `VSAssemblyInfo.seedChromeDefaults` (around lines 1289–1324):
+  - The base hook writes `objectBorderColor` and the corner radius to every modern assembly. It
+    does not write border widths today; those are set once at creation (see 3.5).
+  - Add the border width and the tint (with its alpha, per D4) to this hook, following the rules
+    in 3.5. The border colour can stay, since it is latent without a width.
+- Types whose creation installs the 1px frame (`setDefaultFormat(true)` / `THIN_LINE`). Their
+  legacy width becomes the legacy value 3.5 writes back:
   - `TableVSAssemblyInfo` (≈75)
   - `CalcTableVSAssemblyInfo` (≈66)
   - `CrosstabVSAssemblyInfo` (≈60) / `CrossBaseVSAssemblyInfo` (≈57)
@@ -250,6 +250,66 @@ returns ARGB, and PDF writes an ExtGState `/ca`. No change is needed there. Exce
   - `PPTValueHelper` (≈272, ≈390) has the same white assumption; fix it the same way.
 - Scheduled email attachments go through the same exporters and need no separate change.
 
+### 3.5 Modernize and Revert
+
+Modernize, Revert and the per-dashboard mark switch (`VizModernizeUtil.applyMark`) all set or clear
+the mark and then rerun `seedChromeDefaults(ctx)`. Revert has no undo logic of its own: it clears
+the mark and relies on the legacy branch of each ternary in the hook to write the old values back
+(`VizModernizeUtil` 85–92). Every default this spec changes must therefore be written in
+`seedChromeDefaults` with both a modern and a legacy value. Three rules follow.
+
+**R1 — Border widths move into the hook.** Today the 1px width is written only at creation
+(`setDefaultFormat(border = true)`, `VSAssemblyInfo` 1217–1227), and the hook writes colour and
+radius only. If the spec only stopped setting the width at creation:
+
+- Modernize would leave an existing legacy table's 1px frame in place while a new modern table has
+  none, so a modernized dashboard would not match a freshly built one.
+- Revert of a table created in modern would have no width to restore, so it would come back
+  without the legacy frame.
+
+The hook writes the object border width: none in modern, and in legacy the width the type's
+creation installs (`THIN_LINE` on four sides for table, calc table, crosstab, chart and selection
+container; none for selection list, tree, slider, gauge, image, text and the others that call
+`setDefaultFormat(false)`). Title border widths are unchanged.
+
+**R2 — Background and alpha are written together.** The legacy branch writes the legacy background
+*and* resets the default-tier alpha to opaque. If it restored white but kept the 15%, a reverted
+chart or table would be white at 15%, which is effectively transparent. Same for the dark branch
+of `applyMark`: light to dark and back must leave the tint and alpha exactly as seeded.
+
+**R3 — The legacy width is written only on a transition.** `reseedAfterRestore` reruns the hook on
+every state and bookmark restore, legacy assemblies included (`VizModernizeUtil` 237–240). Writing a
+legacy width there would overwrite whatever an old asset's stored default holds and break D6's
+"legacy renders pixel-identical". So:
+
+| Context | Border width written |
+|---|---|
+| `ctx.modern` | none |
+| legacy, `ctx.transition` (Revert, `applyMark` to no mark) | the type's legacy width |
+| legacy, not a transition (restore, density reseed) | nothing; the stored value stays |
+
+`VizContext.transition` is already set by `VizContext.ofTransition`, which `seedAll` uses only
+when a mark moves. A new legacy assembly keeps getting its width from `setDefaultFormat` at
+creation, as now.
+
+The legacy background and alpha (R2) do not need this guard. The hook already writes the legacy
+background on every pass for table and chart, so restoring the opaque alpha there is the same
+value an old asset already holds.
+
+**Calendar (D8).** It skips the base hook today (`bypassesBaseChrome()`, `VSAssemblyInfo` ≈1371). Once
+it joins, its legacy branch writes back the `#DADADA` 1px border and radius 10 (R1 and R3 apply).
+
+**Unaffected:**
+
+- Author-set (user-tier) borders and backgrounds: the hook writes the DEFAULT tier only.
+- Client-side parts (group container border, overlay backdrops, `--inet-viz-assembly-outline`):
+  they key off `.viz-modern` / `.viz-dark`, which come from the same mark, so they switch with it.
+
+**Layout.** Dropping the 1px border gives the content 2px more width and height, so content sizes
+change on Modernize and back on Revert. Sliders in a selection container and children of a
+bottom-tabs strip are already re-laid out after a mark change (`restoreContainedSliders`,
+`keepOnBottomTabs`). Covered by the round-trip test in §4.
+
 ## 4. Testing
 
 - **Server unit tests:**
@@ -262,6 +322,18 @@ returns ARGB, and PDF writes an ExtGState `/ca`. No change is needed there. Exce
   - A group container seeds no fill and no border. Its children keep their tint.
   - A modern calendar seeds the tint, no border and radius 6. A legacy calendar keeps `#DADADA`,
     radius 10.
+- **Modernize and Revert (3.5):**
+  - Round trip: for each card type, a legacy assembly taken through Modernize then Revert ends with
+    the same DEFAULT-tier borders, border colours, radius, background and alpha it started with,
+    and the same pixel size and body size.
+  - An assembly created in modern, then reverted, matches a freshly created legacy assembly of the
+    same type, including its border width (R1) and an opaque alpha (R2).
+  - Light to dark to light via `applyMark` leaves tint and alpha as seeded.
+  - Restoring a legacy assembly whose stored default has a non-standard border width leaves that
+    width untouched (R3).
+  - A user-set border and background survive Modernize and Revert unchanged.
+  - A selection container with an expanded slider, and a bottom-tabs strip with children, keep
+    their layout across the round trip.
 - **Client:**
   - `vs-selection` and `vs-selection-container` specs: the container background is bound once, and
     there are no hard-coded white backgrounds in modern.
