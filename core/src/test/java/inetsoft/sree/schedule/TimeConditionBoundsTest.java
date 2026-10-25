@@ -160,6 +160,19 @@ class TimeConditionBoundsTest {
    }
 
    @Test
+   void weeklyHugeIntervalDoesNotDependOnTheDayTheWalkStarts() {
+      // The days left in the seed's week are tried before the interval is skipped, so a Monday
+      // rule fires in the current week when the walk starts on the Sunday before it (the day
+      // the build failed on, 2026-10-25) and is never only once Monday has passed.
+      long sunday = ms("2026-10-25T10:00:00");
+      assertEquals(ms("2026-10-26T09:00:00"),
+                   call(weekly(Integer.MAX_VALUE, new int[] { 2 }), sunday, 0, sunday));
+
+      long tuesday = ms("2026-10-27T10:00:00");
+      assertEquals(-1, call(weekly(Integer.MAX_VALUE, new int[] { 2 }), tuesday, 0, tuesday));
+   }
+
+   @Test
    void weeklyEveryDaySelectedWithAnOutOfRangeFirstDayStillReturns() {
       // the "skip to days_of_week[0]" loop never ended when all of 1-7 were selected and
       // days_of_week[0] was not one of them; every day matches, so the next day is the answer
@@ -202,9 +215,9 @@ class TimeConditionBoundsTest {
       assertTrue(mixed >= CURR);
       assertEquals(4, dayOfWeek(mixed));
 
-      // interval 1 reads the clock: the next Monday is 1-7 days after "now" in real time
+      // interval 1 starts from the clock: the next Monday is 1-7 days after "now"
       long now = System.currentTimeMillis();
-      long monday = call(weekly(1, new int[] { 2 }), now, now);
+      long monday = call(weekly(1, new int[] { 2 }), now, now, now);
       assertTrue(monday >= now);
       assertEquals(DayOfWeek.MONDAY, Instant.ofEpochMilli(monday).atZone(UTC).getDayOfWeek());
       assertTrue(monday - now <= 8 * 86400000L);
@@ -418,15 +431,21 @@ class TimeConditionBoundsTest {
    }
 
    private static void assertNever(TimeCondition condition) {
-      assertEquals(-1, call(condition, System.currentTimeMillis(), 0));
+      assertEquals(-1, call(condition, CURR, 0));
+   }
+
+   private static long call(TimeCondition condition, long curr, long lastRun) {
+      return call(condition, curr, lastRun, CURR);
    }
 
    /**
     * Calls the real getRetryTime on a daemon thread and fails if it does not return, instead of
-    * hanging the test run.
+    * hanging the test run. The walk starts from {@code now}, never from the system clock, so the
+    * result does not depend on the day the test runs.
     */
-   private static long call(TimeCondition condition, long curr, long lastRun) {
-      FutureTask<Long> task = new FutureTask<>(() -> condition.getRetryTime(curr, lastRun));
+   private static long call(TimeCondition condition, long curr, long lastRun, long now) {
+      FutureTask<Long> task =
+         new FutureTask<>(() -> condition.getRetryTime(curr, lastRun, null, now));
       Thread thread = new Thread(task, "getRetryTime-79056");
       thread.setDaemon(true);
       thread.start();
