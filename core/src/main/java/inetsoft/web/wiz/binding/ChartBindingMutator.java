@@ -484,12 +484,17 @@ public final class ChartBindingMutator {
     * secondaryY} (bug #77021; an unconditional copy here previously clobbered an explicit
     * {@code timeSeries} on every rebind).
     *
-    * <p>{@code order} is copied forward too, but only when the incoming field does not itself
-    * carry a named group -- an incoming {@code namedGroupValues}/{@code namedGroup} already won
-    * that field via {@code toChartRef}'s own forced {@code SORT_SPECIFIC}, and copying over it
-    * here would silently discard what the caller just asked for. When {@code order} IS copied
-    * forward, it can carry a stray {@code SORT_SPECIFIC} bit from a matched previous ref whose
-    * named group this incoming field no longer supplies -- stripped by the same self-heal
+    * <p>{@code order} is copied forward too, with one exception: an incoming field that
+    * carries a named group ({@code namedGroupValues}/{@code namedGroup}) was given {@code
+    * toChartRef}'s forced {@code SORT_SPECIFIC}, and that stands when the group is new -- the
+    * matched previous ref had no real named group, so the caller just turned grouping on and
+    * the dimension reads manual. When the previous ref already had a real named group, the
+    * group is being re-sent (a read-then-write echo, or a changed member list), not added, so
+    * the previous {@code order} is copied back and the user's {@code asc}/{@code desc} survives
+    * (bug #79314); this mirrors {@code TableBindingMutator.dimensions()}'s {@code hadGroup}
+    * rule from stylebi#7101 (bug #78937). When the incoming field supplies no group, {@code
+    * order} is copied forward and can carry a stray {@code SORT_SPECIFIC} bit from a previous
+    * ref whose named group this incoming field no longer supplies -- stripped by the same self-heal
     * {@code TableBindingMutator.dimensions()} applies, mirroring {@code
     * BDimensionRefModel.createDataRef()}'s own conversion-time self-heal.
     */
@@ -512,7 +517,13 @@ public final class ChartBindingMutator {
       boolean incomingSuppliesGroup =
          field.namedGroupValues() != null || field.namedGroup() != null;
 
-      if(!incomingSuppliesGroup) {
+      boolean hadGroup = previous.getNamedGroupInfo() != null &&
+         previous.getNamedGroupInfo().getType() != 0;
+
+      if(incomingSuppliesGroup && hadGroup) {
+         dimension.setOrder(previous.getOrder());
+      }
+      else if(!incomingSuppliesGroup) {
          dimension.setOrder(previous.getOrder());
 
          if((dimension.getOrder() & XConstants.SORT_SPECIFIC) != 0 &&
