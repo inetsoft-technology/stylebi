@@ -17,6 +17,20 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.AttachedAssembly;
+import inetsoft.uql.asset.DefaultNamedGroupAssembly;
+import inetsoft.uql.asset.NamedGroupInfo;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
@@ -51,6 +65,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @WizAgentTestSupport
 @Tag("core")
@@ -592,6 +609,162 @@ class ChartBindingMutatorTest {
       assertNull(dimension.getNamedGroupInfo());
    }
 
+   // -- bug #79314: re-sending an already-grouped dimension keeps its sort direction ----------
+   //
+   // toChartRef forces SORT_SPECIFIC on every freshly built ref that carries a group, and
+   // preserveDimensionState used to skip the order copy whenever the incoming field carried a
+   // group, so a read-then-write echo of {State, group, desc} read back "manual". The rule now
+   // mirrors TableBindingMutator.dimensions() (stylebi#7101, bug #78937): a previous ref that
+   // already had a real group keeps its order; a first-time group stays SORT_SPECIFIC.
+
+   private static FieldRef.NamedGroupValues westGroup(String... members) {
+      return new FieldRef.NamedGroupValues(
+         List.of(new FieldRef.NamedGroupValues.Clause("West", List.of(members))), null);
+   }
+
+   private static FieldRef groupedRegion(FieldRef.NamedGroupValues group) {
+      return new FieldRef("Region", "dimension", null, null, null, null, null, group);
+   }
+
+   private static ChartDimensionRefModel xDimension(ChartBindingModel model) {
+      return (ChartDimensionRefModel) model.getXFields().get(0);
+   }
+
+   @Test
+   void resendingTheSameGroupedDimensionKeepsItsDescSort() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+      ChartBindingMutator.setSort(model, "x", "Region", null, sortOf("desc"));
+      assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
+
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+
+      assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
+      assertEquals("desc",
+         ((Map<?, ?>) ChartBindingMutator.describeSorts(model, "x").get("Region"))
+            .get("direction"));
+      assertNotNull(xDimension(model).getNamedGroupInfo());
+   }
+
+   @Test
+   void resendingAGroupedDimensionWithChangedMembersKeepsItsDescSort() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+      ChartBindingMutator.setSort(model, "x", "Region", null, sortOf("desc"));
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(groupedRegion(westGroup("CA", "OR", "WA"))));
+
+      assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
+      assertNotNull(xDimension(model).getNamedGroupInfo());
+   }
+
+   @Test
+   void resendingAGroupedDimensionKeepsAnExplicitAscSort() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+      ChartBindingMutator.setSort(model, "x", "Region", null, sortOf("asc"));
+      assertEquals(XConstants.SORT_ASC, xDimension(model).getOrder());
+
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+
+      assertEquals(XConstants.SORT_ASC, xDimension(model).getOrder());
+   }
+
+   @Test
+   void addingAGroupToAnUngroupedDimensionStillReadsManual() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setSort(model, "x", "Region", null, sortOf("desc"));
+      assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
+
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+
+      assertEquals(XConstants.SORT_SPECIFIC, xDimension(model).getOrder());
+      assertEquals("manual",
+         ((Map<?, ?>) ChartBindingMutator.describeSorts(model, "x").get("Region"))
+            .get("direction"));
+   }
+
+   @Test
+   void aFirstTimeGroupOnAFreshShelfStillReadsManual() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+
+      assertEquals(XConstants.SORT_SPECIFIC, xDimension(model).getOrder());
+   }
+
+   @Test
+   void resendingAManualGroupedDimensionKeepsItsManualOrder() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+      ChartBindingMutator.setSort(model, "x", "Region", null,
+         new DimensionSortRanking.Sort("manual", null, List.of("West", "Other")));
+      List<String> manualOrder = new ArrayList<>(xDimension(model).getManualOrder());
+      assertFalse(manualOrder.isEmpty());
+
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+
+      assertEquals(XConstants.SORT_SPECIFIC, xDimension(model).getOrder());
+      assertEquals(manualOrder, xDimension(model).getManualOrder());
+   }
+
+   @Test
+   void resendingAGroupedDimensionOnTheYAndGroupShelvesKeepsItsDescSort() {
+      for(String shelf : List.of("y", "group")) {
+         ChartBindingModel model = new ChartBindingModel();
+         ChartBindingMutator.setShelf(model, shelf, List.of(groupedRegion(westGroup("CA", "OR"))));
+         ChartBindingMutator.setSort(model, shelf, "Region", null, sortOf("desc"));
+
+         ChartBindingMutator.setShelf(model, shelf, List.of(groupedRegion(westGroup("CA", "OR"))));
+
+         List<?> fields = "y".equals(shelf) ? model.getYFields() : model.getGroupFields();
+         assertEquals(XConstants.SORT_DESC, ((ChartDimensionRefModel) fields.get(0)).getOrder(),
+                      shelf);
+      }
+   }
+
+   @Test
+   void resendingAGroupedDimensionByWorksheetLocalNameKeepsItsDescSort() throws Exception {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(Condition.EQUAL_TO);
+      when(condition.getValues()).thenReturn(List.of("CA"));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "Region"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("West", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Coastal");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(source);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "Region"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new Assembly[]{ ngAssembly });
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseWorksheet()).thenReturn(ws);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      DataRefModelFactoryService refModelService = mock(DataRefModelFactoryService.class);
+      when(refModelService.createDataRefModel(any())).thenReturn(mock(DataRefModel.class));
+
+      FieldRef byName = new FieldRef("Region", "dimension", null, null, "Coastal");
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(byName), rvs, source, refModelService);
+      assertEquals(XConstants.SORT_SPECIFIC, xDimension(model).getOrder());
+      ChartBindingMutator.setSort(model, "x", "Region", null, sortOf("desc"));
+      assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
+
+      ChartBindingMutator.setShelf(model, "x", List.of(byName), rvs, source, refModelService);
+
+      assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
+      assertNotNull(xDimension(model).getNamedGroupInfo());
+   }
    // ── measure calculateInfo/secondaryY survive a shelf rewrite (bug #76896) ────────────────
    //
    // toChartRef's MEASURE branch builds a fresh ChartAggregateRefModel on every setShelf call:
