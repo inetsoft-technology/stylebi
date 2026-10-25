@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.graph;
 
+import inetsoft.graph.EGraph;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphtDataSelector;
 import inetsoft.report.composition.graph.VGraphPair;
@@ -72,7 +73,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * <p>Combinations: every shape at the datatest End Date; the shapes that use weeks also at
  * 2021-01-02 and with Monday weeks; one shape of each kind with toDate + inclusive and Percent;
  * the Week-period shapes at the two daylight saving End Dates (they need the surefire zone
- * America/New_York).</p>
+ * America/New_York); the SAMPLE shapes also with Change + Value and Percent + Value, which plot
+ * the value as well as the Change from the same data set.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
@@ -80,18 +82,13 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
                                   DcInMemoryViewsheetFixture.Config.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class DateComparisonChangeMatrixTest {
    private static final String[] DST_END_DAYS = { "2021-03-14", "2021-11-07" };
    /** The largest share of rows whose part the previous period lacks (small charts have a few). */
    private static final double MAX_UNJUDGED = 0.5;
    private static final LocalDate FROM = LocalDate.of(2017, 1, 1);
    private static final LocalDate TO = LocalDate.of(2022, 1, 1);
-
-   /** One shape of each kind of period / interval / context, for the toDate + inclusive and Percent runs. */
-   private static final Set<String> SAMPLE = Set.of(
-      "Y-all-gM", "Y-ytd-gW-cY", "Y-sameW-gD-cQ", "Y-sameD-gD-cM", "Q-qtd-gM-cQ", "Q-mtd-gW-cM",
-      "M-wtd-gW-cM", "M-all-gD", "W-wtd-gD-cW", "D-all-gD");
 
    private record Case(DcShape shape, String weekStart, String endDay, boolean toDate,
                        boolean inclusive, int option)
@@ -100,7 +97,17 @@ class DateComparisonChangeMatrixTest {
       public String toString() {
          return shape.id() + " " + weekStart + " end=" + endDay +
             (toDate ? " toDate" : "") + (inclusive ? " incl" : "") +
-            (option == DateComparisonInfo.PERCENT ? " percent" : " change");
+            (percent() ? " percent" : " change") + (valuePlus() ? "+value" : "");
+      }
+
+      boolean percent() {
+         return option == DateComparisonInfo.PERCENT || option == DateComparisonInfo.PERCENT_VALUE;
+      }
+
+      /** Change and value together: the value is plotted too, the Change on top of it. */
+      boolean valuePlus() {
+         return option == DateComparisonInfo.CHANGE_VALUE ||
+            option == DateComparisonInfo.PERCENT_VALUE;
       }
 
       /** Bug #79061 finding 5: these give a chart without a row. */
@@ -148,11 +155,17 @@ class DateComparisonChangeMatrixTest {
             }
          }
 
-         if(SAMPLE.contains(shape.id())) {
+         if(DcShape.SAMPLE.contains(shape.id())) {
             cases.add(new Case(shape, "sunday", "2021-11-10", true, true,
                                DateComparisonInfo.CHANGE));
             cases.add(new Case(shape, "sunday", "2021-11-10", false, false,
                                DateComparisonInfo.PERCENT));
+
+            // Change and Percent together with the value
+            cases.add(new Case(shape, "sunday", "2021-11-10", false, false,
+                               DateComparisonInfo.CHANGE_VALUE));
+            cases.add(new Case(shape, "sunday", "2021-11-10", false, false,
+                               DateComparisonInfo.PERCENT_VALUE));
          }
       }
 
@@ -249,6 +262,19 @@ class DateComparisonChangeMatrixTest {
                            DcInMemoryViewsheetFixture::dayValue);
    }
 
+   /** The variables the graph plots, element by element, in order. */
+   private static List<String> plottedVars(EGraph graph) {
+      List<String> vars = new ArrayList<>();
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         for(int v = 0; v < graph.getElement(i).getVarCount(); v++) {
+            vars.add(graph.getElement(i).getVar(v));
+         }
+      }
+
+      return vars;
+   }
+
    /** What is wrong with the chart of a case; empty when it is as expected. */
    private List<String> judge(Case c) throws Exception {
       DcShape shape = c.shape();
@@ -293,6 +319,19 @@ class DateComparisonChangeMatrixTest {
       Map<String, Integer> rows = new HashMap<>();
       TreeMap<Long, Double> totals = new TreeMap<>();
       List<String> problems = new ArrayList<>();
+
+      // Change alone plots the Change; with the value, the value is plotted too and the Change
+      // on top of it, from the same data set
+      List<String> plotted = plottedVars(pair.getEGraph());
+      List<String> expectedPlotted = c.valuePlus() ?
+         List.of(data.getHeader(valueCol), data.getHeader(changeCol)) :
+         List.of(data.getHeader(changeCol));
+
+      if(!plotted.equals(expectedPlotted)) {
+         problems.add("plots " + plotted + ", expected " + expectedPlotted +
+                      " (the order matters: the value, then the Change)");
+      }
+
       long[] periodOf = new long[data.getRowCount()];
       String[] partOf = new String[data.getRowCount()];
 
@@ -343,7 +382,7 @@ class DateComparisonChangeMatrixTest {
          }
       }
 
-      boolean percent = c.option() == DateComparisonInfo.PERCENT;
+      boolean percent = c.percent();
       int judged = 0;
       int unjudged = 0;
 
