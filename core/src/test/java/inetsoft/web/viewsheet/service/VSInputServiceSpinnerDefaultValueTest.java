@@ -47,6 +47,12 @@ package inetsoft.web.viewsheet.service;
  * [G2] A non-numeric defaultValue never calls setValue at all (the spinner's current value is
  *      left alone, not zeroed).
  * [G3] No defaultValue at all (null) never calls setValue either, as before.
+ *
+ * Regression for Bug #79309: the raw defaultValue was stored unclamped (500, -5, 99 with max 50)
+ * or non-finite (NaN, Infinity) although the min/max clamp of the selected object had just run.
+ *
+ * [G4] A finite defaultValue is clamped into [min, max] before it is stored.
+ * [G5] A non-finite defaultValue (NaN, Infinity) is ignored exactly like unparsable text.
  */
 
 import inetsoft.analytic.composition.ViewsheetService;
@@ -92,6 +98,41 @@ class VSInputServiceSpinnerDefaultValueTest {
       verify(info, never()).setValue(any());
    }
 
+   // [G4]
+   @Test
+   void aDefaultValueAboveMaxIsClampedToMax() throws Exception {
+      verify(writeDefaultValue("500", 0, 100)).setValue(100.0);
+   }
+
+   // [G4]
+   @Test
+   void aDefaultValueBelowMinIsClampedToMin() throws Exception {
+      verify(writeDefaultValue("-5", 0, 100)).setValue(0.0);
+   }
+
+   // [G4]
+   @Test
+   void aDefaultValueAboveACustomMaxIsClampedToThatMax() throws Exception {
+      verify(writeDefaultValue("99", 0, 50)).setValue(50.0);
+   }
+
+   // [G4]
+   @Test
+   void anInRangeDefaultValueIsStoredUnchanged() throws Exception {
+      verify(writeDefaultValue("99", 0, 100)).setValue(99.0);
+   }
+
+   // [G5]
+   @Test
+   void nanAndInfiniteDefaultValuesAreIgnored() throws Exception {
+      for(String text : new String[] { "NaN", "Infinity", "-Infinity" }) {
+         verify(writeDefaultValue(text, 0, 100), never()).setValue(any());
+      }
+   }
+
+   private static SpinnerVSAssemblyInfo writeDefaultValue(String defaultValue) throws Exception {
+      return writeDefaultValue(defaultValue, 0, 100);
+   }
    /**
     * Drives the real {@code setSpinnerPropertyDialogModel} with a raw
     * {@code dataInputPaneModel.defaultValue} of {@code defaultValue}, and returns the mocked
@@ -102,8 +143,13 @@ class VSInputServiceSpinnerDefaultValueTest {
     * {@code SreeEnv.getProperty(...)}), matching the existing {@code VSInputServiceSliderSnapTest}
     * / {@code VSInputServiceTextInputValidationTest} convention of mocking the assembly info.
     */
-   private static SpinnerVSAssemblyInfo writeDefaultValue(String defaultValue) throws Exception {
+   private static SpinnerVSAssemblyInfo writeDefaultValue(String defaultValue, double min,
+                                                          double max)
+      throws Exception
+   {
       SpinnerVSAssemblyInfo assemblyInfo = mock(SpinnerVSAssemblyInfo.class);
+      when(assemblyInfo.getMin()).thenReturn(min);
+      when(assemblyInfo.getMax()).thenReturn(max);
       when(assemblyInfo.clone()).thenReturn(assemblyInfo);
       when(assemblyInfo.getLabelInfo()).thenReturn(new LabelInfo());
 
