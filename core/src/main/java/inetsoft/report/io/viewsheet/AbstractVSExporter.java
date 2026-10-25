@@ -2031,6 +2031,16 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * The card inset plus the browser row's leading offset, one value for lists and trees, since no
+    * format here draws a tree's expand toggle. Zero where the format insets no card.
+    */
+   @Override
+   public int getSelectionTitleIndent(SelectionBaseVSAssemblyInfo info) {
+      return insetsTableCard() && info != null && info.isTitleOverRows() ?
+         getSelectionCardInset(info).left + SELECTION_TITLE_ROW_OFFSET : 0;
+   }
+
+   /**
     * Put the legacy near-black back on a dark-marked format's DEFAULT tier, in place. The export
     * copy is cloned upstream, so this mutates nothing persisted. A USER or CSS colour outranks the
     * DEFAULT tier and is therefore untouched by construction.
@@ -4659,6 +4669,8 @@ public abstract class AbstractVSExporter implements VSExporter {
    // expanded charts whose expanded size is capped (10000px) in the current sheet
    private final Set<String> cappedCharts = new HashSet<>();
    private static int fileType = -1;
+   // a browser selection row's 2px cell margin plus its 4px list indent
+   private static final int SELECTION_TITLE_ROW_OFFSET = 6;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(AbstractVSExporter.class);

@@ -17,6 +17,7 @@
  */
 package inetsoft.report.io.viewsheet;
 
+import inetsoft.uql.viewsheet.internal.SelectionBaseVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 
 import java.awt.Insets;
@@ -74,6 +75,23 @@ public class ExporterHelper {
     */
    protected Insets getCardInset(VSAssemblyInfo info) {
       return exporter == null ? new Insets(0, 0, 0, 0) : exporter.getSelectionCardInset(info);
+   }
+
+   /**
+    * The padding a selection's title text takes, in pixels.
+    */
+   protected Insets getTitlePadding(SelectionBaseVSAssemblyInfo info) {
+      return getTitlePadding(info, 1);
+   }
+
+   /**
+    * The padding a selection's title text takes, in an output unit: the exporter's indent, scaled
+    * like the card inset, else the title's own padding as set.
+    */
+   protected Insets getTitlePadding(SelectionBaseVSAssemblyInfo info, double scale) {
+      int indent = exporter == null ? 0 : exporter.getSelectionTitleIndent(info);
+      return indent > 0 ? new Insets(0, (int) Math.round(indent * scale), 0, 0) :
+         info.getTitlePadding();
    }
 
    private VSExporter exporter;

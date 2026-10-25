@@ -47,7 +47,7 @@
       [style.text-decoration]="titleFormat.decoration"
       [style.padding-top.px]="titleFormat?.padding?.top"
       [style.padding-bottom.px]="titleFormat?.padding?.bottom"
-      [style.padding-left.px]="titleFormat?.padding?.left"
+      [style.padding-left.px]="getTextPaddingLeft()"
       [style.padding-right.px]="titleFormat?.padding?.right"
       [style.vertical-align]="titleFormat.vAlign"
       [style.text-align]="titleFormat.hAlign"
@@ -74,7 +74,8 @@
       [style.white-space]="titleFormat.wrapping.whiteSpace"
       [style.wordWrap]="titleFormat.wrapping.wordWrap"
       [style.overflow]="titleFormat.wrapping.overflow"
-      [style.text-decoration]="titleFormat.decoration"/>
+      [style.text-decoration]="titleFormat.decoration"
+      [style.padding-left.px]="getEditPaddingLeft()"/>
   }
   @if (rowResizeLabel) {
     <div class="row-resize-label">{{rowResizeLabel}}</div>
