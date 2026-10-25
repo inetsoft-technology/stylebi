@@ -47,6 +47,8 @@ import java.io.StringWriter;
 import java.security.Principal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.Enumeration;
 import java.util.HashSet;
@@ -123,9 +125,18 @@ public class ScriptExecuteService {
    // Bug #78998: a library entry can also expose functions only as members of a top-level object
    // (var Ns = {f: function(){}}, Ns.f = ..., A.B.f = ..., IIFE/factory results, Object.assign).
    // The call site Ns.f() drops the member token, so the entry's top-level ROOT identifiers
-   // (Ns, A) are indexed as well. Only brace-depth-0 targets count, never function-local vars.
+   // (Ns, A) are indexed as well. Only assignments that bind the global scope count (see
+   // topLevelRoots), never function-local vars.
    private static final Pattern ROOT_ASSIGNMENT = Pattern.compile(
       "(?<![\\p{L}\\p{M}\\p{N}_$.])(" + ID + ")((?:\\s*\\.\\s*" + ID + ")*)\\s*=(?![=>])");
+   // Bug #79322: the global-binding scope of an assignment is decided by what opens each brace.
+   // Plain blocks do not open a scope; an IIFE is a function expression called where it is written.
+   private static final Set<String> PLAIN_BLOCK_HEADS =
+      Set.of("if", "for", "while", "switch", "catch", "with");
+   private static final Set<String> PLAIN_BLOCK_KEYWORDS = Set.of("else", "do", "try", "finally");
+   private static final int MAX_SCOPED_SOURCE = 100_000;
+   private static final int MAX_SCOPE_DEPTH = 64;
+   private static final Pattern CALL_SUFFIX = Pattern.compile("\\.\\s*(call|apply)\\s*\\(");
    private static final Pattern OBJECT_ASSIGN = Pattern.compile(
       "(?<![\\p{L}\\p{M}\\p{N}_$.])Object\\s*\\.\\s*assign\\s*\\(\\s*(" + ID + ")");
 
@@ -650,8 +661,29 @@ public class ScriptExecuteService {
     * this lightweight, non-parser-based scan.</p>
     */
    private static Set<String> declaredLocals(String scriptText) {
-      String stripped = stripCommentsAndStrings(scriptText);
       Set<String> names = new HashSet<>();
+      forEachDeclared(stripCommentsAndStrings(scriptText), (pos, name) -> names.add(name));
+      return names;
+   }
+
+   private record Declared(int pos, String name) {
+   }
+
+   /** Every var/let/const declarator and function declaration, in source order. */
+   private static List<Declared> declarations(String stripped) {
+      List<Declared> found = new ArrayList<>();
+      forEachDeclared(stripped, (pos, name) -> found.add(new Declared(pos, name)));
+      Matcher function = FUNCTION_DECLARATIONS.get(0).matcher(stripped);
+
+      while(function.find()) {
+         found.add(new Declared(function.start(1), function.group(1)));
+      }
+
+      found.sort(Comparator.comparingInt(Declared::pos));
+      return found;
+   }
+
+   private static void forEachDeclared(String stripped, BiConsumer<Integer, String> sink) {
       Matcher keyword = DECLARATION_KEYWORD.matcher(stripped);
 
       while(keyword.find()) {
@@ -677,7 +709,7 @@ public class ScriptExecuteService {
                   break;
                }
 
-               names.add(id.group());
+               sink.accept(id.start(), id.group());
                pos = id.end();
                atDeclaratorStart = false;
                continue;
@@ -704,7 +736,6 @@ public class ScriptExecuteService {
          }
       }
 
-      return names;
    }
 
    /**
@@ -909,43 +940,59 @@ public class ScriptExecuteService {
    }
 
    /**
-    * Bug #78998: root identifiers a library entry assigns at brace/paren/bracket depth 0, i.e. the
-    * globals it exposes as objects/namespaces. {@code var Ns = ...}, {@code Ns = ...},
-    * {@code A.B.f = ...} (root A) and {@code Object.assign(Ns, ...)} yield the root; for
-    * {@code window.Ns = ...}/{@code this.Ns = ...} the global qualifier is skipped and
-    * {@code Ns} is the root. Function-local declarations are never indexed (a common local name
-    * such as {@code result} must not gate every script that uses it).
+    * Bug #78998 / #79322: root identifiers a library entry binds in the GLOBAL scope while it
+    * loads, i.e. the globals it exposes as objects/namespaces. The axis is which scope an
+    * assignment binds to (global vs function-local), not how deeply it is nested:
+    * <ul>
+    * <li>top level, including inside plain blocks (if/else/for/while/try/switch/bare {}), which
+    * do not open a scope: {@code var Ns = ...}, {@code Ns = ...}, {@code A.B.f = ...} (root A),
+    * {@code Object.assign(Ns, ...)}; for {@code window.Ns = ...}/{@code this.Ns = ...} the global
+    * qualifier is skipped and {@code Ns} is the root.</li>
+    * <li>inside an IIFE (it runs at load time): a qualifier that is a global object, an IIFE
+    * parameter bound to one ({@code (function(g){ g.Ns = ... })(this)}), or {@code this} when the
+    * IIFE runs with the global {@code this}; and an undeclared bare {@code Ns = ...} (leaks to the
+    * global scope) unless the IIFE declares {@code Ns} itself.</li>
+    * </ul>
+    * Anything inside an ordinary function body, an object literal or parentheses is never
+    * indexed (a common local name such as {@code result} must not gate every script that uses it).
     */
    private static Set<String> topLevelRoots(String source) {
       Set<String> roots = new LinkedHashSet<>();
-      String text = stripCommentsAndStrings(source, false);
-      int[] depth = new int[text.length()];
-      StringBuilder top = new StringBuilder(text.length());
-      int d = 0;
 
-      for(int i = 0; i < text.length(); i++) {
-         char c = text.charAt(i);
-
-         if(c == '}' || c == ')' || c == ']') {
-            d = Math.max(0, d - 1);
-         }
-
-         depth[i] = d;
-         top.append(d == 0 ? c : ' ');
-
-         if(c == '{' || c == '(' || c == '[') {
-            d++;
-         }
+      try {
+         collectRoots(source, roots);
+      }
+      catch(RuntimeException ex) {
+         // a scan defect must never fail execute_script; keep whatever was found so far
+         LOG.warn("Could not fully scan a Script Library entry for exposed globals", ex);
       }
 
-      Matcher m = ROOT_ASSIGNMENT.matcher(top);
+      return roots;
+   }
+
+   private static void collectRoots(String source, Set<String> roots) {
+      String text = stripCommentsAndStrings(source, false);
+      ScopeFrame[] owners = scopeOwners(text);
+      Matcher m = ROOT_ASSIGNMENT.matcher(text);
 
       while(m.find()) {
-         String root = m.group(1);
+         ScopeFrame owner = owners[m.start()];
 
-         if(GLOBAL_OBJECTS.contains(root)) {
-            Matcher member = IDENTIFIER.matcher(m.group(2));
-            root = member.find() ? member.group() : null;
+         if(owner == null) {
+            continue;
+         }
+
+         String first = m.group(1);
+         String root = null;
+
+         if(GLOBAL_OBJECTS.contains(first) || owner.aliases.contains(first)) {
+            if(owner.qualifiesAsGlobal(first)) {
+               Matcher member = IDENTIFIER.matcher(m.group(2));
+               root = member.find() ? member.group() : null;
+            }
+         }
+         else if(owner.bindsBareGlobal(first)) {
+            root = first;
          }
 
          if(root != null && !GLOBAL_OBJECTS.contains(root)) {
@@ -956,12 +1003,381 @@ public class ScriptExecuteService {
       m = OBJECT_ASSIGN.matcher(text);
 
       while(m.find()) {
-         if(depth[m.start()] == 0 && !GLOBAL_OBJECTS.contains(m.group(1))) {
+         ScopeFrame owner = owners[m.start()];
+
+         if(owner != null && owner.bindsBareGlobal(m.group(1)) &&
+            !GLOBAL_OBJECTS.contains(m.group(1)))
+         {
             roots.add(m.group(1));
          }
       }
+   }
 
-      return roots;
+   /**
+    * For every character of {@code text} (comments/strings already stripped), the function-level
+    * frame that an assignment written there binds in, or null when it binds nowhere indexable (an
+    * ordinary function body, an object literal, parentheses/brackets). Plain blocks resolve to the
+    * frame of their enclosing scope.
+    */
+   private static ScopeFrame[] scopeOwners(String text) {
+      int n = text.length();
+      int[] match = new int[n];
+      Arrays.fill(match, -1);
+      Deque<Integer> opens = new ArrayDeque<>();
+
+      for(int i = 0; i < n; i++) {
+         char c = text.charAt(i);
+
+         if(c == '{' || c == '(' || c == '[') {
+            opens.push(i);
+         }
+         else if((c == '}' || c == ')' || c == ']') && !opens.isEmpty()) {
+            int open = opens.pop();
+            match[open] = i;
+            match[i] = open;
+         }
+      }
+
+      // beyond this size the IIFE analysis is skipped (only the top level and plain blocks bind
+      // globals), which bounds the cost of a pathological entry
+      boolean scoped = n <= MAX_SCOPED_SOURCE;
+      List<Declared> declared = scoped ? declarations(text) : List.of();
+      int nextDeclared = 0;
+      ScopeFrame top = new ScopeFrame();
+      top.function = true;
+      top.thisGlobal = true;
+      top.owner = top;
+      top.fnFrame = top;
+      Deque<ScopeFrame> stack = new ArrayDeque<>();
+      stack.push(top);
+      ScopeFrame[] owners = new ScopeFrame[n];
+
+      for(int i = 0; i < n; i++) {
+         char c = text.charAt(i);
+
+         if((c == '}' || c == ')' || c == ']') && stack.size() > 1) {
+            stack.pop();
+         }
+
+         owners[i] = stack.peek().owner;
+
+         // a declaration belongs to the innermost function-level frame (var/let/const are
+         // treated as function-scoped, which only ever errs towards "local")
+         while(nextDeclared < declared.size() && declared.get(nextDeclared).pos() <= i) {
+            ScopeFrame fn = stack.peek().fnFrame;
+
+            if(fn.iife) {
+               fn.locals.add(declared.get(nextDeclared).name());
+            }
+
+            nextDeclared++;
+         }
+
+         if(c == '{' || c == '(' || c == '[') {
+            stack.push(openFrame(text, i, match, stack, scoped));
+         }
+      }
+
+      return owners;
+   }
+
+   private static ScopeFrame openFrame(String text, int open, int[] match,
+                                       Deque<ScopeFrame> stack, boolean scoped)
+   {
+      ScopeFrame parent = stack.peek();
+      ScopeFrame frame = new ScopeFrame();
+      frame.fnFrame = parent.fnFrame;
+
+      if(text.charAt(open) != '{') {
+         return frame;
+      }
+
+      int p = skipWhitespaceBack(text, open - 1);
+      int paramsStart = -1;
+      int paramsEnd = -1;
+      int funcStart = -1;
+      boolean function = false;
+      boolean arrow = false;
+
+      if(p < 0) {
+         frame.owner = parent.owner;
+         return frame;
+      }
+
+      char c = text.charAt(p);
+
+      if(c == '>' && p > 0 && text.charAt(p - 1) == '=') {
+         int q = skipWhitespaceBack(text, p - 2);
+         function = true;
+         arrow = true;
+
+         if(q >= 0 && text.charAt(q) == ')' && match[q] >= 0) {
+            paramsStart = match[q] + 1;
+            paramsEnd = q;
+            funcStart = match[q];
+         }
+         else if(q >= 0 && isIdentifierPart(text.charAt(q))) {
+            funcStart = q;
+
+            while(funcStart > 0 && isIdentifierPart(text.charAt(funcStart - 1))) {
+               funcStart--;
+            }
+
+            paramsStart = funcStart;
+            paramsEnd = q + 1;
+         }
+      }
+      else if(c == ')' && match[p] >= 0) {
+         int q = skipWhitespaceBack(text, match[p] - 1);
+         String word = wordEndingAt(text, q);
+
+         if(word != null && PLAIN_BLOCK_HEADS.contains(word)) {
+            frame.owner = parent.owner;
+            return frame;
+         }
+
+         if(word != null) {
+            function = true;
+            paramsStart = match[p] + 1;
+            paramsEnd = p;
+
+            if(word.equals("function")) {
+               funcStart = q + 1 - word.length();
+            }
+            else {
+               // named function expression; anything else is a method shorthand, which is an
+               // ordinary function
+               int r = skipWhitespaceBack(text, q - word.length());
+
+               if(r >= 0 && text.charAt(r) == '*') {
+                  r = skipWhitespaceBack(text, r - 1);
+               }
+
+               if("function".equals(wordEndingAt(text, r))) {
+                  funcStart = r + 1 - "function".length();
+               }
+            }
+         }
+      }
+      else if(c == ';' || c == '{' || c == '}') {
+         frame.owner = parent.owner;
+         return frame;
+      }
+      else if(isIdentifierPart(c) && PLAIN_BLOCK_KEYWORDS.contains(wordEndingAt(text, p))) {
+         frame.owner = parent.owner;
+         return frame;
+      }
+
+      if(!function) {
+         return frame;
+      }
+
+      ScopeFrame enclosing = parent.fnFrame;
+
+      List<String> params = paramsStart >= 0 ?
+         splitTopLevel(text, paramsStart, paramsEnd).stream()
+            .map(ScriptExecuteService::parameterName).toList() :
+         List.of();
+      frame.function = true;
+      frame.fnFrame = frame;
+      frame.depth = enclosing.depth + 1;
+      frame.aliases = new HashSet<>(enclosing.aliases);
+      frame.aliases.removeAll(params);
+      frame.thisGlobal = arrow && enclosing.thisGlobal;
+      int close = match[open];
+
+      // only code that runs while the entry loads can bind a global: an IIFE nested in an
+      // ordinary function body (or in an unscanned/too deep scope) is just another function
+      if(funcStart < 0 || close < 0 || !scoped || enclosing.owner == null ||
+         enclosing.depth >= MAX_SCOPE_DEPTH)
+      {
+         return frame;
+      }
+
+      // IIFE: a function expression that is called where it is written
+      int before = skipWhitespaceBack(text, funcStart - 1);
+
+      if(before < 0 || "(!+-~".indexOf(text.charAt(before)) < 0) {
+         return frame;
+      }
+
+      int after = skipWhitespaceForward(text, close + 1);
+
+      if(after < text.length() && text.charAt(after) == ')') {
+         after = skipWhitespaceForward(text, after + 1);
+      }
+
+      int argsOpen = -1;
+      boolean viaCall = false;
+      boolean viaApply = false;
+
+      if(after < text.length() && text.charAt(after) == '(') {
+         argsOpen = after;
+      }
+      else {
+         Matcher call = CALL_SUFFIX.matcher(text);
+         call.region(Math.min(after, text.length()), text.length());
+
+         if(call.lookingAt()) {
+            argsOpen = call.end() - 1;
+            viaCall = call.group(1).equals("call");
+            viaApply = !viaCall;
+         }
+      }
+
+      if(argsOpen < 0 || match[argsOpen] < 0) {
+         return frame;
+      }
+
+      List<String> args = splitTopLevel(text, argsOpen + 1, match[argsOpen]);
+      int firstParamArg = 0;
+      frame.iife = true;
+      frame.owner = frame;
+
+      if(arrow) {
+         frame.thisGlobal = enclosing.thisGlobal;
+      }
+      else if(viaCall || viaApply) {
+         frame.thisGlobal = !args.isEmpty() && enclosing.isGlobalReference(args.get(0));
+      }
+      else {
+         // a sloppy-mode function called plainly gets the global object as this
+         frame.thisGlobal = true;
+      }
+
+      if(viaApply) {
+         args = List.of();
+      }
+      else if(viaCall) {
+         firstParamArg = 1;
+      }
+
+      frame.outer = enclosing;
+      frame.locals = new HashSet<>();
+
+      for(int i = 0; i < params.size(); i++) {
+         String param = params.get(i);
+
+         if(param == null) {
+            continue;
+         }
+
+         frame.locals.add(param);
+
+         if(firstParamArg + i < args.size() &&
+            enclosing.isGlobalReference(args.get(firstParamArg + i)))
+         {
+            frame.aliases.add(param);
+         }
+      }
+
+      return frame;
+   }
+
+   /** Name of one declared parameter ({@code a}, {@code a = 1}, {@code ...a}), else null. */
+   private static String parameterName(String param) {
+      String text = param.trim();
+
+      if(text.startsWith("...")) {
+         text = text.substring(3).trim();
+      }
+
+      Matcher id = IDENTIFIER.matcher(text);
+      return id.lookingAt() ? id.group() : null;
+   }
+
+   /** Splits {@code text[from, to)} at commas that are not inside brackets. */
+   private static List<String> splitTopLevel(String text, int from, int to) {
+      List<String> parts = new ArrayList<>();
+      int depth = 0;
+      int start = from;
+
+      for(int i = from; i < to; i++) {
+         char c = text.charAt(i);
+
+         if(c == '(' || c == '[' || c == '{') {
+            depth++;
+         }
+         else if(c == ')' || c == ']' || c == '}') {
+            depth--;
+         }
+         else if(c == ',' && depth == 0) {
+            parts.add(text.substring(start, i));
+            start = i + 1;
+         }
+      }
+
+      String last = text.substring(start, to);
+
+      if(!last.isBlank() || !parts.isEmpty()) {
+         parts.add(last);
+      }
+
+      return parts;
+   }
+
+   private static String wordEndingAt(String text, int end) {
+      if(end < 0 || !isIdentifierPart(text.charAt(end))) {
+         return null;
+      }
+
+      int start = end;
+
+      while(start > 0 && isIdentifierPart(text.charAt(start - 1))) {
+         start--;
+      }
+
+      return text.substring(start, end + 1);
+   }
+
+   private static int skipWhitespaceForward(String text, int p) {
+      while(p < text.length() && Character.isWhitespace(text.charAt(p))) {
+         p++;
+      }
+
+      return p;
+   }
+
+   /** One brace/paren/bracket level seen by {@link #scopeOwners}. */
+   private static final class ScopeFrame {
+      /** The function-level frame assignments written in this frame bind in; null if none. */
+      ScopeFrame owner;
+      /** True for the script top level and for function bodies. */
+      boolean function;
+      /** True for a function expression called where it is written. */
+      boolean iife;
+      /** True when {@code this} is the global object here. */
+      boolean thisGlobal;
+      /** Names (IIFE parameters) known to hold the global object. */
+      Set<String> aliases = Set.of();
+      /** Names an IIFE declares itself (var/let/const/function/parameters). */
+      Set<String> locals = Set.of();
+      /** Nearest function-level frame, this frame included. */
+      ScopeFrame fnFrame;
+      /** For an IIFE, the load-time frame it is nested in. */
+      ScopeFrame outer;
+      /** Function nesting depth, the top level being 0. */
+      int depth;
+
+      boolean qualifiesAsGlobal(String qualifier) {
+         return qualifier.equals("this") ? thisGlobal :
+            GLOBAL_OBJECTS.contains(qualifier) || aliases.contains(qualifier);
+      }
+
+      boolean isGlobalReference(String arg) {
+         return qualifiesAsGlobal(arg.trim());
+      }
+
+      /** True when a bare {@code name = ...} here creates/updates a global. */
+      boolean bindsBareGlobal(String name) {
+         for(ScopeFrame f = this; f != null && f.iife; f = f.outer) {
+            if(f.locals.contains(name)) {
+               return false;
+            }
+         }
+
+         return true;
+      }
    }
 
    private static List<String> identifiers(String text, boolean skipMembers) {

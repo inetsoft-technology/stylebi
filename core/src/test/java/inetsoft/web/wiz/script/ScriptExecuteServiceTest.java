@@ -644,6 +644,121 @@ class ScriptExecuteServiceTest {
       assertFalse(result.requiresConfirmation());
    }
 
+   /** Bug #79322: runs {@code script} against a one-entry library and expects NO confirmation. */
+   private void assertNotGated(String libSource, String script) throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+
+      ScriptExecResult result = runLiveWithLibrary(script, Map.of("lib", libSource), false, scope);
+
+      assertTrue(result.ok(), libSource);
+      assertFalse(result.requiresConfirmation(), libSource);
+   }
+
+   @Test
+   void namespaceExportedThroughAnIifeGlobalAliasIsGated() throws Exception {
+      String member = "{ count: function() { return runQuery('q').length; } }";
+
+      assertGatedViaNamespace("(function(g){ g.Ns = " + member + "; })(this);", "Ns.count()");
+      assertGatedViaNamespace("(function(g){ g.Ns = " + member + "; }(this));", "Ns.count()");
+      assertGatedViaNamespace("(function(g){ g.Ns = " + member + "; })(globalThis);", "Ns.count()");
+      assertGatedViaNamespace("((g) => { g.Ns = " + member + "; })(this);", "Ns.count()");
+      assertGatedViaNamespace("(function(a, g){ g.Ns = " + member + "; })(1, this);",
+                              "Ns.count()");
+      assertGatedViaNamespace("(function(g){ if(g) { g.Ns = " + member + "; } })(this);",
+                              "Ns.count()");
+   }
+
+   @Test
+   void namespaceExportedThroughAnIifeThisOrGlobalQualifierIsGated() throws Exception {
+      String member = "{ count: function() { return runQuery('q').length; } }";
+
+      assertGatedViaNamespace("(function(){ this.Ns = " + member + "; })();", "Ns.count()");
+      assertGatedViaNamespace("(function(){ this.Ns = " + member + "; }).call(this);",
+                              "Ns.count()");
+      assertGatedViaNamespace("(function(){ window.Ns = " + member + "; })();", "Ns.count()");
+      assertGatedViaNamespace("(function(g){ g.Ns = {}; g.Ns.count = function() { return runQuery('q'); }; })(this);",
+                              "Ns.count()");
+   }
+
+   @Test
+   void undeclaredNamespaceLeakedFromAnIifeIsGated() throws Exception {
+      assertGatedViaNamespace("(function(){ Ns = { count: function() { return runQuery('q'); } }; })();",
+                              "Ns.count()");
+      // declared inside the IIFE and re-exported through the alias
+      assertGatedViaNamespace(
+         "(function(g){ var impl = { count: function() { return runQuery('q'); } }; g.Ns = impl; })(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void namespaceAssignedInsideAPlainBlockIsGated() throws Exception {
+      String member = "{ count: function() { return runQuery('q').length; } }";
+
+      assertGatedViaNamespace("var Ns; if (true) { Ns = " + member + "; }", "Ns.count()");
+      assertGatedViaNamespace("var Ns; if (false) { } else { Ns = " + member + "; }", "Ns.count()");
+      assertGatedViaNamespace("var Ns; try { Ns = " + member + "; } catch(e) { }", "Ns.count()");
+      assertGatedViaNamespace("var Ns = {}; for(var i = 0; i < 1; i++) { Ns.count = function() { return runQuery('q'); }; }",
+                              "Ns.count()");
+      assertGatedViaNamespace("var Ns; { Ns = " + member + "; }", "Ns.count()");
+   }
+
+   @Test
+   void localsOfAnIifeOrAFunctionBlockAreNotIndexedAsRoots() throws Exception {
+      // a local of the IIFE is not a global, even though the IIFE runs at load time
+      assertNotGated("(function(g){ var result = runQuery('q'); g.Ns = { a: 1 }; })(this);",
+                     "var result = 2; result");
+      assertNotGated("(function(g){ var Ns = { count: function() { return runQuery('q'); } }; })(this);",
+                     "Ns.count()");
+      assertNotGated("(function(g, Ns){ Ns = { count: function() { return runQuery('q'); } }; })(this, 1);",
+                     "Ns.count()");
+      // a block inside an ordinary function body does not make its assignments global
+      assertNotGated("var Ns = { count: function() { if(true) { result = runQuery('q'); } return result; } };",
+                     "var result = 2; result");
+      assertNotGated("(function(g){ g.Ns = { count: function() { if(true) { var result = runQuery('q'); } } }; })(this);",
+                     "var result = 2; result");
+   }
+
+   @Test
+   void iifeNestedInAnOrdinaryFunctionOrCapturingAnOuterLocalIsNotIndexed() throws Exception {
+      // the nested IIFE is not load-time code (or only reassigns a captured local)
+      assertNotGated("function f(){ var result; (function(){ result = runQuery('q'); })(); }",
+                     "var result = 2; result");
+      assertNotGated("var Ns = { count: function(){ (function(){ result = runQuery('q'); })(); } };",
+                     "var result = 2; result");
+      assertNotGated("(function(g){ var result; (function(){ result = runQuery('q'); })(); g.Ns = {}; })(this);",
+                     "var result = 2; result");
+      // but the exported namespace of a nested load-time IIFE is still followed
+      assertGatedViaNamespace(
+         "(function(g){ (function(){ g.Ns = { count: function() { return runQuery('q'); } }; })(); })(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void deeplyNestedIifesAreScannedInBoundedTime() {
+      for(int depth : new int[] { 2000, 8000 }) {
+         StringBuilder src = new StringBuilder("var Ns = { count: function() { return runQuery('q'); } };\n");
+         src.append("(function(){".repeat(depth)).append(" var x = 1; ").append("})();".repeat(depth));
+         String lib = src.toString();
+
+         assertTimeoutPreemptively(java.time.Duration.ofSeconds(30), () -> {
+            // the top-level namespace is still followed whatever the nesting below it
+            assertGatedViaNamespace(lib, "Ns.count()");
+            assertNotGated(lib.replace("var Ns =", "var Other ="), "Ns.count()");
+         });
+      }
+   }
+   @Test
+   void iifeParameterNotBoundToAGlobalObjectIsNotAnAlias() throws Exception {
+      assertNotGated("(function(g){ g.Ns = { count: function() { return runQuery('q'); } }; })(other);",
+                     "Ns.count()");
+      // an ordinary (non-IIFE) function is not run at load, so its parameter is no alias
+      assertNotGated("function install(g) { g.Ns = { count: function() { return runQuery('q'); } }; }",
+                     "Ns.count()");
+      assertNotGated("var f = function(g){ g.Ns = { count: function() { return runQuery('q'); } }; };",
+                     "Ns.count()");
+   }
+
    @Test
    void nonDestructiveNamespaceIsNotGated() throws Exception {
       ViewsheetScope scope = mock(ViewsheetScope.class);
