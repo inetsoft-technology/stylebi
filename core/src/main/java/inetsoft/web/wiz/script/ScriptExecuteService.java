@@ -48,6 +48,7 @@ import java.security.Principal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.Enumeration;
 import java.util.HashSet;
@@ -133,6 +134,8 @@ public class ScriptExecuteService {
    private static final Set<String> PLAIN_BLOCK_HEADS =
       Set.of("if", "for", "while", "switch", "catch", "with");
    private static final Set<String> PLAIN_BLOCK_KEYWORDS = Set.of("else", "do", "try", "finally");
+   private static final int MAX_SCOPED_SOURCE = 100_000;
+   private static final int MAX_SCOPE_DEPTH = 64;
    private static final Pattern CALL_SUFFIX = Pattern.compile("\\.\\s*(call|apply)\\s*\\(");
    private static final Pattern OBJECT_ASSIGN = Pattern.compile(
       "(?<![\\p{L}\\p{M}\\p{N}_$.])Object\\s*\\.\\s*assign\\s*\\(\\s*(" + ID + ")");
@@ -658,8 +661,29 @@ public class ScriptExecuteService {
     * this lightweight, non-parser-based scan.</p>
     */
    private static Set<String> declaredLocals(String scriptText) {
-      String stripped = stripCommentsAndStrings(scriptText);
       Set<String> names = new HashSet<>();
+      forEachDeclared(stripCommentsAndStrings(scriptText), (pos, name) -> names.add(name));
+      return names;
+   }
+
+   private record Declared(int pos, String name) {
+   }
+
+   /** Every var/let/const declarator and function declaration, in source order. */
+   private static List<Declared> declarations(String stripped) {
+      List<Declared> found = new ArrayList<>();
+      forEachDeclared(stripped, (pos, name) -> found.add(new Declared(pos, name)));
+      Matcher function = FUNCTION_DECLARATIONS.get(0).matcher(stripped);
+
+      while(function.find()) {
+         found.add(new Declared(function.start(1), function.group(1)));
+      }
+
+      found.sort(Comparator.comparingInt(Declared::pos));
+      return found;
+   }
+
+   private static void forEachDeclared(String stripped, BiConsumer<Integer, String> sink) {
       Matcher keyword = DECLARATION_KEYWORD.matcher(stripped);
 
       while(keyword.find()) {
@@ -685,7 +709,7 @@ public class ScriptExecuteService {
                   break;
                }
 
-               names.add(id.group());
+               sink.accept(id.start(), id.group());
                pos = id.end();
                atDeclaratorStart = false;
                continue;
@@ -712,7 +736,6 @@ public class ScriptExecuteService {
          }
       }
 
-      return names;
    }
 
    /**
@@ -935,6 +958,19 @@ public class ScriptExecuteService {
     */
    private static Set<String> topLevelRoots(String source) {
       Set<String> roots = new LinkedHashSet<>();
+
+      try {
+         collectRoots(source, roots);
+      }
+      catch(RuntimeException ex) {
+         // a scan defect must never fail execute_script; keep whatever was found so far
+         LOG.warn("Could not fully scan a Script Library entry for exposed globals", ex);
+      }
+
+      return roots;
+   }
+
+   private static void collectRoots(String source, Set<String> roots) {
       String text = stripCommentsAndStrings(source, false);
       ScopeFrame[] owners = scopeOwners(text);
       Matcher m = ROOT_ASSIGNMENT.matcher(text);
@@ -975,8 +1011,6 @@ public class ScriptExecuteService {
             roots.add(m.group(1));
          }
       }
-
-      return roots;
    }
 
    /**
@@ -1004,10 +1038,16 @@ public class ScriptExecuteService {
          }
       }
 
+      // beyond this size the IIFE analysis is skipped (only the top level and plain blocks bind
+      // globals), which bounds the cost of a pathological entry
+      boolean scoped = n <= MAX_SCOPED_SOURCE;
+      List<Declared> declared = scoped ? declarations(text) : List.of();
+      int nextDeclared = 0;
       ScopeFrame top = new ScopeFrame();
       top.function = true;
       top.thisGlobal = true;
       top.owner = top;
+      top.fnFrame = top;
       Deque<ScopeFrame> stack = new ArrayDeque<>();
       stack.push(top);
       ScopeFrame[] owners = new ScopeFrame[n];
@@ -1021,8 +1061,20 @@ public class ScriptExecuteService {
 
          owners[i] = stack.peek().owner;
 
+         // a declaration belongs to the innermost function-level frame (var/let/const are
+         // treated as function-scoped, which only ever errs towards "local")
+         while(nextDeclared < declared.size() && declared.get(nextDeclared).pos() <= i) {
+            ScopeFrame fn = stack.peek().fnFrame;
+
+            if(fn.iife) {
+               fn.locals.add(declared.get(nextDeclared).name());
+            }
+
+            nextDeclared++;
+         }
+
          if(c == '{' || c == '(' || c == '[') {
-            stack.push(openFrame(text, i, match, stack));
+            stack.push(openFrame(text, i, match, stack, scoped));
          }
       }
 
@@ -1030,10 +1082,11 @@ public class ScriptExecuteService {
    }
 
    private static ScopeFrame openFrame(String text, int open, int[] match,
-                                       Deque<ScopeFrame> stack)
+                                       Deque<ScopeFrame> stack, boolean scoped)
    {
       ScopeFrame parent = stack.peek();
       ScopeFrame frame = new ScopeFrame();
+      frame.fnFrame = parent.fnFrame;
 
       if(text.charAt(open) != '{') {
          return frame;
@@ -1119,26 +1172,25 @@ public class ScriptExecuteService {
          return frame;
       }
 
-      ScopeFrame enclosing = null;
-
-      for(ScopeFrame f : stack) {
-         if(f.function) {
-            enclosing = f;
-            break;
-         }
-      }
+      ScopeFrame enclosing = parent.fnFrame;
 
       List<String> params = paramsStart >= 0 ?
          splitTopLevel(text, paramsStart, paramsEnd).stream()
             .map(ScriptExecuteService::parameterName).toList() :
          List.of();
       frame.function = true;
+      frame.fnFrame = frame;
+      frame.depth = enclosing.depth + 1;
       frame.aliases = new HashSet<>(enclosing.aliases);
       frame.aliases.removeAll(params);
       frame.thisGlobal = arrow && enclosing.thisGlobal;
       int close = match[open];
 
-      if(funcStart < 0 || close < 0) {
+      // only code that runs while the entry loads can bind a global: an IIFE nested in an
+      // ordinary function body (or in an unscanned/too deep scope) is just another function
+      if(funcStart < 0 || close < 0 || !scoped || enclosing.owner == null ||
+         enclosing.depth >= MAX_SCOPE_DEPTH)
+      {
          return frame;
       }
 
@@ -1200,12 +1252,8 @@ public class ScriptExecuteService {
          firstParamArg = 1;
       }
 
-      Set<String> locals = new HashSet<>(declaredLocals(text.substring(open + 1, close)));
-      Matcher declared = FUNCTION_DECLARATIONS.get(0).matcher(text.substring(open + 1, close));
-
-      while(declared.find()) {
-         locals.add(declared.group(1));
-      }
+      frame.outer = enclosing;
+      frame.locals = new HashSet<>();
 
       for(int i = 0; i < params.size(); i++) {
          String param = params.get(i);
@@ -1214,7 +1262,7 @@ public class ScriptExecuteService {
             continue;
          }
 
-         locals.add(param);
+         frame.locals.add(param);
 
          if(firstParamArg + i < args.size() &&
             enclosing.isGlobalReference(args.get(firstParamArg + i)))
@@ -1223,7 +1271,6 @@ public class ScriptExecuteService {
          }
       }
 
-      frame.locals = locals;
       return frame;
    }
 
@@ -1305,6 +1352,12 @@ public class ScriptExecuteService {
       Set<String> aliases = Set.of();
       /** Names an IIFE declares itself (var/let/const/function/parameters). */
       Set<String> locals = Set.of();
+      /** Nearest function-level frame, this frame included. */
+      ScopeFrame fnFrame;
+      /** For an IIFE, the load-time frame it is nested in. */
+      ScopeFrame outer;
+      /** Function nesting depth, the top level being 0. */
+      int depth;
 
       boolean qualifiesAsGlobal(String qualifier) {
          return qualifier.equals("this") ? thisGlobal :
@@ -1317,7 +1370,13 @@ public class ScriptExecuteService {
 
       /** True when a bare {@code name = ...} here creates/updates a global. */
       boolean bindsBareGlobal(String name) {
-         return !iife || !locals.contains(name);
+         for(ScopeFrame f = this; f != null && f.iife; f = f.outer) {
+            if(f.locals.contains(name)) {
+               return false;
+            }
+         }
+
+         return true;
       }
    }
 

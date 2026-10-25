@@ -720,6 +720,35 @@ class ScriptExecuteServiceTest {
    }
 
    @Test
+   void iifeNestedInAnOrdinaryFunctionOrCapturingAnOuterLocalIsNotIndexed() throws Exception {
+      // the nested IIFE is not load-time code (or only reassigns a captured local)
+      assertNotGated("function f(){ var result; (function(){ result = runQuery('q'); })(); }",
+                     "var result = 2; result");
+      assertNotGated("var Ns = { count: function(){ (function(){ result = runQuery('q'); })(); } };",
+                     "var result = 2; result");
+      assertNotGated("(function(g){ var result; (function(){ result = runQuery('q'); })(); g.Ns = {}; })(this);",
+                     "var result = 2; result");
+      // but the exported namespace of a nested load-time IIFE is still followed
+      assertGatedViaNamespace(
+         "(function(g){ (function(){ g.Ns = { count: function() { return runQuery('q'); } }; })(); })(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void deeplyNestedIifesAreScannedInBoundedTime() {
+      for(int depth : new int[] { 2000, 8000 }) {
+         StringBuilder src = new StringBuilder("var Ns = { count: function() { return runQuery('q'); } };\n");
+         src.append("(function(){".repeat(depth)).append(" var x = 1; ").append("})();".repeat(depth));
+         String lib = src.toString();
+
+         assertTimeoutPreemptively(java.time.Duration.ofSeconds(30), () -> {
+            // the top-level namespace is still followed whatever the nesting below it
+            assertGatedViaNamespace(lib, "Ns.count()");
+            assertNotGated(lib.replace("var Ns =", "var Other ="), "Ns.count()");
+         });
+      }
+   }
+   @Test
    void iifeParameterNotBoundToAGlobalObjectIsNotAnAlias() throws Exception {
       assertNotGated("(function(g){ g.Ns = { count: function() { return runQuery('q'); } }; })(other);",
                      "Ns.count()");
