@@ -2406,7 +2406,12 @@ public class VSInputService {
       if(dataInputPaneModel.getDefaultValue() != null) {
          try {
             double dvalue = Double.valueOf(dataInputPaneModel.getDefaultValue());
-            spinnerAssemblyInfo.setValue(dvalue);
+            // a non-finite value is ignored like unparsable text; a finite one is clamped to
+            // the range just applied above, matching the selected-object clamp
+            if(Double.isFinite(dvalue)) {
+               spinnerAssemblyInfo.setValue(Math.min(Math.max(dvalue, spinnerAssemblyInfo.getMin()),
+                                                     spinnerAssemblyInfo.getMax()));
+            }
          }
          catch(Exception e) {
             //ignore it.
