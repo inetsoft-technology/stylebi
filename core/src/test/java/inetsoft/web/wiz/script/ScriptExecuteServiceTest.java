@@ -851,6 +851,20 @@ class ScriptExecuteServiceTest {
          "Ns.count()");
    }
 
+   /**
+    * Review bot hand-off round, non-blocking note: gap E's recognition of a {@code :}-preceded
+    * {@code {} also matches an object-literal value's own {@code :} (here {@code Ns: { ... }}),
+    * not only a statement label/switch case -- confirming this does not change whether the
+    * namespace is recognized (the root {@code x} is matched textually before any of these braces
+    * even open, so how the nested braces are classified is immaterial here either way).
+    */
+   @Test
+   void objectLiteralValueColonDoesNotAffectNamespaceDetection() throws Exception {
+      assertGatedViaNamespace(
+         "var x = { Ns: { count: function() { return runQuery('q'); } } };",
+         "x.Ns.count()");
+   }
+
    // Bug #79346 (SSL-015, Problem 2): a let/const or a catch parameter declared inside a plain
    // block must stay excluded from the gate -- a viewsheet script's own unrelated local of the
    // same name must run normally, not be wrongly reported as calling the library entry.
@@ -972,6 +986,49 @@ class ScriptExecuteServiceTest {
       assertNotGated(
          "function foo(x = window.Ns = { count: function() { return runQuery('q'); } }) {}",
          "Ns");
+   }
+
+   // --- Review bot hand-off round (05-review-community-bot-r1.md) follow-up tests -- B1 ---
+   // A let/const written directly at the Script Library entry's OWN top level -- zero enclosing
+   // { } of any kind -- must stay gated exactly like `var Ns`/a bare `Ns = ...` already are: a
+   // top-level let/const name is visible to every later script in the entry too, it is not a
+   // transient block-local. Only a let/const written inside a REAL nested block (SSL-015's own
+   // target, see the bare-block control below) is genuinely invisible outside its own braces.
+
+   @Test
+   void topLevelLetDeclarationWithObjectInitializerIsGated() throws Exception {
+      assertGatedViaNamespace("let Ns = { count: function() { return runQuery('q'); } };",
+                              "Ns.count()");
+   }
+
+   @Test
+   void topLevelConstDeclarationWithObjectInitializerIsGated() throws Exception {
+      assertGatedViaNamespace("const Ns = { count: function() { return runQuery('q'); } };",
+                              "Ns.count()");
+   }
+
+   @Test
+   void topLevelLetDeclarationThenAssignedMemberIsGated() throws Exception {
+      assertGatedViaNamespace(
+         "let Ns = {};\nNs.count = function() { return runQuery('q'); };", "Ns.count()");
+   }
+
+   @Test
+   void topLevelConstDeclarationThenAssignedMemberIsGated() throws Exception {
+      assertGatedViaNamespace(
+         "const Ns = {};\nNs.count = function() { return runQuery('q'); };", "Ns.count()");
+   }
+
+   /**
+    * Control for the four tests above: SSL-015's actual target, a let/const declared inside a
+    * genuine nested block (here a bare {@code { }} with no {@code if}/{@code for}/{@code switch}
+    * wrapping it at all) must stay correctly excluded -- this is what must NOT be reopened by the
+    * B1 fix above.
+    */
+   @Test
+   void letDeclaredInsideABareBlockIsNotIndexedAsARoot() throws Exception {
+      assertNotGated(
+         "{ let Ns = {}; Ns.count = function() { return runQuery('q'); }; }", "Ns");
    }
 
    @Test

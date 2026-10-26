@@ -1230,16 +1230,22 @@ public class ScriptExecuteService {
          // (pre-existing, unchanged), and only counts there when that function is itself an IIFE.
          while(nextDeclared < declared.size() && declared.get(nextDeclared).pos() <= i) {
             Declared d = declared.get(nextDeclared);
+            ScopeFrame frame = stack.peek();
 
             if(d.blockScoped()) {
-               stack.peek().locals.add(d.name());
-            }
-            else {
-               ScopeFrame fn = stack.peek().fnFrame;
-
-               if(fn.iife) {
-                  fn.locals.add(d.name());
+               // Bug #79346 (review round 1, B1): a let/const written directly at a FUNCTION-level
+               // frame -- the top level, an ordinary function body, or an IIFE's own body, with no
+               // enclosing { } of its own -- is visible for the rest of that frame exactly like a
+               // var/function declaration is, so it needs the SAME gate: only locally bound when
+               // that frame is itself an IIFE (never true for the top level). A genuine nested
+               // block (if/for/switch/catch/a bare {}) still always binds the name to itself,
+               // unconditionally -- that is what keeps it truly invisible outside its own braces.
+               if(frame != frame.fnFrame || frame.iife) {
+                  frame.locals.add(d.name());
                }
+            }
+            else if(frame.fnFrame.iife) {
+               frame.fnFrame.locals.add(d.name());
             }
 
             nextDeclared++;
