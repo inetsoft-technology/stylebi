@@ -19,6 +19,7 @@ package inetsoft.web;
 
 import inetsoft.mv.SharedMVUtil;
 import inetsoft.sree.*;
+import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -34,6 +35,8 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -65,7 +68,9 @@ import static org.mockito.Mockito.*;
  * [Op: trash viewsheet][Private]    -> no permission captured, bin key not written
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class,
+                                  RecycleUtilsPermissionScopeTest.ScheduleManagerConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
@@ -76,6 +81,15 @@ class RecycleUtilsPermissionScopeTest {
    @Mock private AssetRepository assetRepository;
    @Mock private RecycleBin recycleBin;
    @Mock private Principal principal;
+
+   // moveSheetToRecycleBin now checks the scheduled tasks (Bug #77599), no task uses these sheets
+   @Configuration
+   static class ScheduleManagerConfiguration {
+      @Bean
+      ScheduleManager scheduleManager() {
+         return mock(ScheduleManager.class);
+      }
+   }
 
    private final IdentityID alice = new IdentityID("alice", "host");
    private static final String BIN_PATH = "Recycle Bin/abc";

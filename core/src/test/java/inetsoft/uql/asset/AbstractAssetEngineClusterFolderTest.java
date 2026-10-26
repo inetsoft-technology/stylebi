@@ -21,6 +21,7 @@ import inetsoft.mv.MVDef;
 import inetsoft.mv.MVManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.test.*;
@@ -272,9 +273,15 @@ class AbstractAssetEngineClusterFolderTest {
       private volatile CountDownLatch pauseAfterRead;
    }
 
-   // the recycle bin delete removes the materialized views of the sheet
+   // the recycle bin delete removes the materialized views of the sheet and checks the scheduled
+   // tasks (Bug #77599), none of which uses these sheets
    @Configuration
    static class Beans {
+      @Bean
+      ScheduleManager scheduleManager() {
+         return mock(ScheduleManager.class);
+      }
+
       @Bean
       MVManager mvManager() {
          MVManager manager = mock(MVManager.class);
