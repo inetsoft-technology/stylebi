@@ -60,6 +60,11 @@ class AuthenticationProviderServiceLdapMultiTenantTest {
       providers = new ArrayList<>();
       when(securityEngine.getAuthenticationChain()).thenReturn(java.util.Optional.of(chain));
       when(chain.getProviders()).thenReturn(providers);
+      // the chain is a mock: run the edit the way SecurityChain.editProviders() does (Bug #79127)
+      doAnswer(invocation -> {
+         invocation.<SecurityChain.ChainEdit<?>>getArgument(0).run();
+         return null;
+      }).when(chain).editProviders(any());
 
       service = spy(new AuthenticationProviderService(securityEngine, null, null, null));
       service.setMultiTenantSupplier(() -> true);

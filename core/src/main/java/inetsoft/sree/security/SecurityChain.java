@@ -21,12 +21,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
@@ -167,7 +169,61 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
    }
 
    /**
-    * Loads the configuration from file.
+    * Runs an edit of the providers that reads the list, changes it and saves it, so that it cannot
+    * overwrite a change saved by another node (Bug #79127). The edit runs under a cluster lock
+    * (held by one node at a time), then this chain's write lock, and the configuration file is
+    * reloaded after the locks are taken and before the edit runs, so the edit starts from what the
+    * file holds and not from what this node last happened to process. The cluster lock is the
+    * outermost lock: it is taken before {@link #writeLock()} and the reload lock, and nothing that
+    * holds those waits for it.
+    * <p>
+    * The edit must read the providers ({@link #getProviders()}) inside this call, not before it,
+    * and validate against that list.
+    *
+    * @param edit the edit.
+    * @param <E>  the type of exception the edit throws.
+    *
+    * @throws E if the edit fails.
+    */
+   public <E extends Exception> void editProviders(ChainEdit<E> edit) throws E {
+      Lock clusterLock = Cluster.getInstance().getLock(getClusterLockName());
+      clusterLock.lock();
+
+      try {
+         writeLock();
+
+         try {
+            try {
+               loadConfiguration();
+            }
+            catch(IOException e) {
+               throw new UncheckedIOException("Failed to load security chain configuration", e);
+            }
+
+            edit.run();
+         }
+         finally {
+            writeUnlock();
+         }
+      }
+      finally {
+         clusterLock.unlock();
+      }
+   }
+
+   /**
+    * Gets the name of the cluster lock of the edits of this chain's configuration file.
+    */
+   private String getClusterLockName() {
+      return "inetsoft.security.chain.editLock." + getConfigFile();
+   }
+
+   /**
+    * Loads the configuration from file when it differs from the content this node last loaded or
+    * saved. Whether the file changed is decided by the digest of its content, never by its
+    * modification time: the time is stamped by the writing node before its write lands, so it is
+    * neither unique nor ordered across nodes, and a later write with an equal or earlier time was
+    * skipped for good (Bug #79127).
     *
     * @throws IOException if an I/O error occurs.
     */
@@ -175,120 +231,131 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
       DataSpace dataSpace = DataSpace.getDataSpace();
       String configFile = getConfigFile();
       boolean exists = dataSpace.exists(null, configFile);
-      long now = exists ? dataSpace.getLastModified(null, configFile) : 1;
       Map<String, String> reloadedFrom = null;
       List<T> reloaded = null;
 
-      if(timestamp < now) {
+      // the digest is read BEFORE the content, so a write that lands in between is seen as a
+      // change by the next event and never recorded as loaded
+      if(exists && !isLoaded(readDigest(dataSpace, configFile))) {
          lock.lock();
 
          try {
-            if(timestamp < now) {
-               if(dataSpace.exists(null, configFile)) {
-                  ObjectMapper mapper = new ObjectMapper();
-                  ObjectNode root = null;
+            // a reload by another thread may have loaded it while this one waited for the lock
+            if(dataSpace.exists(null, configFile) &&
+               !isLoaded(readDigest(dataSpace, configFile)))
+            {
+               ObjectMapper mapper = new ObjectMapper();
+               ObjectNode root = null;
+               String contentDigest = null;
 
-                  // exists() and getInputStream() are not atomic: the config file can be
-                  // removed or replaced (e.g. by a concurrent rewrite) between the check above
-                  // and opening the stream here. When that happens, getInputStream() returns
-                  // null rather than throwing (see DataSpace.getInputStream()'s
-                  // FileNotFoundException/NoSuchFileException handling) -- Jackson's readTree()
-                  // rejects a null stream outright, so guard against it explicitly instead of
-                  // assuming the two calls observe a consistent file state. See bug #76431.
-                  try(InputStream input = dataSpace.getInputStream(null, configFile)) {
-                     if(input != null) {
-                        root = (ObjectNode) mapper.readTree(input);
-                     }
+               // exists() and getInputStream() are not atomic: the config file can be
+               // removed or replaced (e.g. by a concurrent rewrite) between the check above
+               // and opening the stream here. When that happens, getInputStream() returns
+               // null rather than throwing (see DataSpace.getInputStream()'s
+               // FileNotFoundException/NoSuchFileException handling) -- Jackson's readTree()
+               // rejects a null stream outright, so guard against it explicitly instead of
+               // assuming the two calls observe a consistent file state. See bug #76431.
+               try(InputStream input = dataSpace.getInputStream(null, configFile)) {
+                  if(input != null) {
+                     byte[] bytes = input.readAllBytes();
+                     // the digest of exactly the bytes loaded, whatever lands later
+                     contentDigest = toDigestString(bytes);
+                     root = (ObjectNode) mapper.readTree(bytes);
                   }
+               }
 
-                  if(root == null) {
-                     // Same treatment as the "all providers failed to load" case below: retain
-                     // the existing runtime providers and don't advance timestamp, so the next
-                     // dataChanged() retries once the transient condition (the file coming back,
-                     // or the concurrent rewrite finishing) clears.
+               if(root == null) {
+                  // Same treatment as the "all providers failed to load" case below: retain
+                  // the existing runtime providers and don't record the digest, so the next
+                  // dataChanged() retries once the transient condition (the file coming back,
+                  // or the concurrent rewrite finishing) clears.
+                  LOG.warn(
+                     "Security provider configuration file '{}' could not be read " +
+                     "(reported present but its content was unavailable, likely a " +
+                     "concurrent rewrite); retaining existing providers", configFile);
+               }
+               else {
+                  JsonNode providersNode = root.get("providers");
+
+                  if(!(providersNode instanceof ArrayNode)) {
+                     // Same treatment as the null-stream case above: a malformed config
+                     // (missing or non-array "providers" field) must not crash
+                     // initialize() -- retain the existing providers and don't record
+                     // the digest, so the next dataChanged() retries once the config is
+                     // fixed. See bug #76431.
                      LOG.warn(
-                        "Security provider configuration file '{}' could not be read " +
-                        "(reported present but its content was unavailable, likely a " +
-                        "concurrent rewrite); retaining existing providers", configFile);
+                        "Security provider configuration file '{}' is missing a valid " +
+                        "\"providers\" array; retaining existing providers", configFile);
                   }
                   else {
-                     JsonNode providersNode = root.get("providers");
+                     ArrayNode providersArray = (ArrayNode) providersNode;
+                     List<T> list = new ArrayList<>();
+                     int failureCount = 0;
 
-                     if(!(providersNode instanceof ArrayNode)) {
-                        // Same treatment as the null-stream case above: a malformed config
-                        // (missing or non-array "providers" field) must not crash
-                        // initialize() -- retain the existing providers and don't advance
-                        // timestamp, so the next dataChanged() retries once the config is
-                        // fixed. See bug #76431.
-                        LOG.warn(
-                           "Security provider configuration file '{}' is missing a valid " +
-                           "\"providers\" array; retaining existing providers", configFile);
+                     for(int i = 0; i < providersArray.size(); i++) {
+                        ObjectNode wrapperNode = (ObjectNode) providersArray.get(i);
+                        String name = wrapperNode.get("name").asText();
+                        String providerClass = wrapperNode.get("providerClass").asText();
+                        JsonNode config = wrapperNode.get("configuration");
+
+                        try {
+                           @SuppressWarnings("unchecked")
+                           T provider =
+                              (T) Class.forName(providerClass).getConstructor().newInstance();
+                           provider.readConfiguration(config);
+                           provider.setProviderName(name);
+                           list.add(provider);
+                        }
+                        catch(Exception e) {
+                           failureCount++;
+                           LOG.error(
+                              "Failed to create instance of security provider: {}", providerClass, e);
+                        }
+                     }
+
+                     // If the config file specified providers but ALL of them failed to instantiate,
+                     // retain the existing runtime providers rather than wiping them. This prevents a
+                     // corrupted or temporarily unreadable config (e.g. after a GKE node restart) from
+                     // clearing all security providers and locking out every user.
+                     // Do NOT record the digest on total failure – allow the next dataChanged() to retry
+                     // when the transient condition clears, without requiring a manual config edit.
+                     if(list.isEmpty() && failureCount > 0) {
+                        LOG.error(
+                           "All {} security provider(s) failed to load from '{}'; retaining " +
+                           "existing providers to prevent loss of security configuration",
+                           failureCount, configFile);
                      }
                      else {
-                        ArrayNode providersArray = (ArrayNode) providersNode;
-                        List<T> list = new ArrayList<>();
-                        int failureCount = 0;
-
-                        for(int i = 0; i < providersArray.size(); i++) {
-                           ObjectNode wrapperNode = (ObjectNode) providersArray.get(i);
-                           String name = wrapperNode.get("name").asText();
-                           String providerClass = wrapperNode.get("providerClass").asText();
-                           JsonNode config = wrapperNode.get("configuration");
-
-                           try {
-                              @SuppressWarnings("unchecked")
-                              T provider =
-                                 (T) Class.forName(providerClass).getConstructor().newInstance();
-                              provider.readConfiguration(config);
-                              provider.setProviderName(name);
-                              list.add(provider);
-                           }
-                           catch(Exception e) {
-                              failureCount++;
-                              LOG.error(
-                                 "Failed to create instance of security provider: {}", providerClass, e);
-                           }
+                        if(failureCount > 0) {
+                           LOG.warn(
+                              "{} of {} security provider(s) failed to load from '{}'; " +
+                              "the remaining providers have been applied but security " +
+                              "configuration may be incomplete",
+                              failureCount, list.size() + failureCount, configFile);
                         }
 
-                        // If the config file specified providers but ALL of them failed to instantiate,
-                        // retain the existing runtime providers rather than wiping them. This prevents a
-                        // corrupted or temporarily unreadable config (e.g. after a GKE node restart) from
-                        // clearing all security providers and locking out every user.
-                        // Do NOT update timestamp on total failure – allow the next dataChanged() to retry
-                        // when the transient condition clears, without requiring a manual config edit.
-                        if(list.isEmpty() && failureCount > 0) {
-                           LOG.error(
-                              "All {} security provider(s) failed to load from '{}'; retaining " +
-                              "existing providers to prevent loss of security configuration",
-                              failureCount, configFile);
-                        }
-                        else {
-                           if(failureCount > 0) {
-                              LOG.warn(
-                                 "{} of {} security provider(s) failed to load from '{}'; " +
-                                 "the remaining providers have been applied but security " +
-                                 "configuration may be incomplete",
-                                 failureCount, list.size() + failureCount, configFile);
-                           }
+                        // the first load on this node replaces nothing, so it is not a reload
+                        boolean initial = !loaded;
+                        List<T> old = getProviderList();
+                        Map<String, String> before =
+                           initial ? null : describeProviders(old);
+                        // publish the new list in one step, so a reader never sees an empty
+                        // chain while the old providers are torn down (Bug #79355)
+                        setProviderList(list);
+                        // What is recorded is the digest of the bytes loaded: a second edit that
+                        // lands while the providers are being created has another digest, so
+                        // the next dataChanged() reloads it (Bug #79267). It is recorded only
+                        // after the new list is published: the check that decides whether to
+                        // reload runs outside the reload lock, so a thread (an EM edit that
+                        // reloads first) that sees the digest as loaded would otherwise read the
+                        // empty or the old list and overwrite the file (Bug #79127). Until then it
+                        // waits for the reload lock and re-checks.
+                        markLoaded(contentDigest);
+                        disposeAll(old);
 
-                           // the first load on this node replaces nothing, so it is not a reload
-                           boolean initial = timestamp == 0L;
-                           // the watermark is the mtime read BEFORE the content, never a later one: a
-                           // second edit that lands while the providers are being created must still
-                           // satisfy timestamp < now on the next dataChanged() (Bug #79267)
-                           timestamp = now;
-                           List<T> old = getProviderList();
-                           Map<String, String> before =
-                              initial ? null : describeProviders(old);
-                           // publish the new list in one step, so a reader never sees an empty
-                           // chain while the old providers are torn down (Bug #79355)
-                           setProviderList(list);
-                           disposeAll(old);
-
-                           if(!initial) {
-                              reloadedFrom = before;
-                              reloaded = list;
-                           }
+                        if(!initial) {
+                           reloadedFrom = before;
+                           reloaded = list;
                         }
                      }
                   }
@@ -418,25 +485,18 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
             providerArray.add(wrapperNode);
          }
 
-         // serialize once, so the digest of the stored blob (MD5 of the bytes written) can be
-         // compared with the digest of exactly the content this node holds
+         // serialize once, so the digest recorded is that of exactly the bytes written
          byte[] bytes = mapper.writeValueAsBytes(root);
          String own = toDigestString(bytes);
          DataSpace dataSpace = DataSpace.getDataSpace();
          dataSpace.withOutputStream(null, configFile, out -> out.write(bytes));
 
-         // The watermark may only describe content this node holds. Read the mtime FIRST and
-         // the digest SECOND: a remote commit landing before the digest read makes the digest
-         // differ, and one landing after it has a later mtime than the one read here. Reading
-         // the digest first would let a remote commit slip between the two reads and be
-         // skipped for good. If the store holds other content, do not advance: this node's own
-         // event and the remote one reload (an idempotent over-reload, never a skipped commit).
-         long modified = readLastModified(dataSpace, configFile);
-         String stored = readDigest(dataSpace, configFile);
-
-         if(own.equals(stored)) {
-            timestamp = modified;
-         }
+         // What is recorded is the content the runtime chain holds, which is what was just
+         // serialized, whatever the store holds now. If the store holds the same content (the
+         // normal case) this node's own event finds nothing to reload. If another node's write
+         // replaced it, or replaces it later, its digest differs and the event reloads it, even
+         // when that content is what this node held before (no ABA skip).
+         markLoaded(own);
       }
       finally {
          lock.unlock();
@@ -444,19 +504,30 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
    }
 
    /**
-    * Reads the modification time of the configuration file. Called before
-    * {@link #readDigest(DataSpace, String)} in {@link #saveConfiguration()}.
-    */
-   long readLastModified(DataSpace dataSpace, String configFile) {
-      return dataSpace.getLastModified(null, configFile);
-   }
-
-   /**
-    * Reads the digest of the configuration file. Called after
-    * {@link #readLastModified(DataSpace, String)} in {@link #saveConfiguration()}.
+    * Reads the digest of the configuration file, the lower-case hex MD5 of its content. Called
+    * by {@link #loadConfiguration()} before the content is read.
+    *
+    * @return the digest, or {@code null} if it is unavailable, in which case the file is always
+    *         reloaded.
     */
    String readDigest(DataSpace dataSpace, String configFile) {
       return dataSpace.getDigest(null, configFile);
+   }
+
+   /**
+    * Checks if the content with a digest is what this node last loaded or saved. An unavailable
+    * digest never matches, so it is reloaded rather than skipped.
+    */
+   private boolean isLoaded(String digest) {
+      return loaded && digest != null && digest.equals(loadedDigest);
+   }
+
+   /**
+    * Records the content this node holds. Called under the reload lock.
+    */
+   private void markLoaded(String digest) {
+      loadedDigest = digest;
+      loaded = true;
    }
 
    /** Lower-case hex MD5, the encoding of the digest the blob storage keeps. */
@@ -555,10 +626,22 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
 
    private final boolean readOnly;
    private volatile List<T> providers = new ArrayList<>();
-   private volatile long timestamp = 0L;
+   // the digest of the content this node last loaded or saved, and whether it has loaded any
+   private volatile String loadedDigest = null;
+   private volatile boolean loaded = false;
    private final Lock lock = new ReentrantLock();
    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
    private static final long RELOAD_WAIT_SECONDS = 10L;
+
+   /**
+    * An edit of the providers, run by {@link #editProviders(ChainEdit)}.
+    *
+    * @param <E> the type of exception the edit throws.
+    */
+   @FunctionalInterface
+   public interface ChainEdit<E extends Exception> {
+      void run() throws E;
+   }
 
    private static final Logger LOG = LoggerFactory.getLogger(SecurityChain.class);
 }
