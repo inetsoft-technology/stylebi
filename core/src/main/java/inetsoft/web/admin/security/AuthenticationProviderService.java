@@ -164,9 +164,19 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       AuthenticationProvider newProvider = getProviderFromModel(model)
          .orElseThrow(() -> new MessageException("Failed to create new authentication provider"));
 
-      List<AuthenticationProvider> providerList = chain.getProviders();
-      providerList.add(newProvider);
-      chain.setProviders(providerList);
+      // Read, add and save under the cluster lock, after reloading the file: another node's
+      // concurrent edit would otherwise be overwritten by this node's stale list (Bug #79127)
+      chain.editProviders(() -> {
+         // checked again, another node may have added the name since the check above
+         if(getProviderByName(model.providerName()) != null) {
+            throw new MessageException(
+               Catalog.getCatalog().getString("security.authentication.exists"));
+         }
+
+         List<AuthenticationProvider> providerList = chain.getProviders();
+         providerList.add(newProvider);
+         chain.setProviders(providerList);
+      });
 
       // The cluster cache of a removed Database provider outlives it for a grace period, and a
       // provider added under the same name would serve the removed configuration's data, so
@@ -202,24 +212,33 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
          }
       }
 
-      try {
-         chain.writeLock();
+      // The cluster lock and the reload of the file come first, before the list is read and before
+      // the replaced provider is torn down (Bug #79127). editProviders() takes the write lock.
+      AuthenticationProvider[] refresh = new AuthenticationProvider[1];
+
+      chain.editProviders(() -> {
+         // checked again, another node may have added the name since the check above
+         if(!model.providerName().equals(name) &&
+            getProviderByName(model.providerName()) != null)
+         {
+            throw new MessageException(
+               Catalog.getCatalog().getString("security.authentication.exists"));
+         }
+
          List<AuthenticationProvider> providerList = chain.getProviders();
          boolean found = false;
-         boolean refreshCache = false;
-         AuthenticationProvider newProvider = null;
 
          for(int i = 0; i < providerList.size(); i++) {
             AuthenticationProvider provider = providerList.get(i);
 
             if(Objects.equals(name, provider.getProviderName())) {
                found = true;
-               newProvider = getProviderFromModel(model).orElseThrow(
+               AuthenticationProvider newProvider = getProviderFromModel(model).orElseThrow(
                   () -> new MessageException("Failed to edit authentication provider"));
                providerList.set(i, newProvider);
 
                if(Objects.equals(name, newProvider.getProviderName())) {
-                  refreshCache = true;
+                  refresh[0] = newProvider;
                }
                // Note: If provider was renamed, the old service will be cleaned up by lazy cleanup
                // after no clients have connected for the grace period.
@@ -235,13 +254,11 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
          }
 
          chain.setProviders(providerList);
+      });
 
-         if(refreshCache) {
-            newProvider.clearCache();
-         }
-      }
-      finally {
-         chain.writeUnlock();
+      // outside the locks: loading the cache can be slow
+      if(refresh[0] != null) {
+         refresh[0].clearCache();
       }
    }
 
@@ -289,26 +306,28 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       AuthenticationChain chain = getAuthenticationChain()
          .orElseThrow(() -> new Exception("The authentication chain has not been initialized."));
 
-      List<AuthenticationProvider> providerList = chain.getProviders();
+      chain.editProviders(() -> {
+         List<AuthenticationProvider> providerList = chain.getProviders();
 
-      if(index >= 0 && index < providerList.size()) {
-         AuthenticationProvider removedProvider = providerList.remove(index);
-         providerList.stream()
-            .filter(this::providerHasSysAdmins)
-            .findFirst()
-            .orElseThrow(() -> new MessageException(
-               Catalog.getCatalog(principal).getString("em.security.noSystemAdminProvider")));
+         if(index >= 0 && index < providerList.size()) {
+            AuthenticationProvider removedProvider = providerList.remove(index);
+            providerList.stream()
+               .filter(this::providerHasSysAdmins)
+               .findFirst()
+               .orElseThrow(() -> new MessageException(
+                  Catalog.getCatalog(principal).getString("em.security.noSystemAdminProvider")));
 
-         // Note: If this is a database provider, its service will be cleaned up by lazy cleanup
-         // after no clients have connected for the grace period. Eager teardown is intentionally
-         // avoided here: the removal needs time to propagate across cluster nodes, and destroying
-         // the service immediately would cause errors on nodes that haven't yet received the update.
-         removedProvider.tearDown();
-         chain.setProviders(providerList);
-      }
-      else {
-         throw new IndexOutOfBoundsException("Provider index out of bounds");
-      }
+            // Note: If this is a database provider, its service will be cleaned up by lazy cleanup
+            // after no clients have connected for the grace period. Eager teardown is intentionally
+            // avoided here: the removal needs time to propagate across cluster nodes, and destroying
+            // the service immediately would cause errors on nodes that haven't yet received the update.
+            removedProvider.tearDown();
+            chain.setProviders(providerList);
+         }
+         else {
+            throw new IndexOutOfBoundsException("Provider index out of bounds");
+         }
+      });
    }
 
    private boolean providerHasSysAdmins(AuthenticationProvider provider) {
@@ -322,25 +341,28 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
 
       int source = reorderModel.source();
       int destination = reorderModel.destination();
-      List<AuthenticationProvider> providers = providerChain.getProviders();
 
-      //Check if the destination index is in bounds
-      if(source >= 0 && source < providers.size() &&
-         destination >= 0 && destination < providers.size()) {
+      providerChain.editProviders(() -> {
+         List<AuthenticationProvider> providers = providerChain.getProviders();
 
-         //Rotate is used to preserve the order of everything but the source
-         if(source > destination) { //Moving "up" the list
-            Collections.rotate(providers.subList(destination, source + 1), +1);
-            providerChain.setProviders(providers);
+         //Check if the destination index is in bounds
+         if(source >= 0 && source < providers.size() &&
+            destination >= 0 && destination < providers.size()) {
+
+            //Rotate is used to preserve the order of everything but the source
+            if(source > destination) { //Moving "up" the list
+               Collections.rotate(providers.subList(destination, source + 1), +1);
+               providerChain.setProviders(providers);
+            }
+            else { //Moving "down" the list
+               Collections.rotate(providers.subList(source, destination + 1), -1);
+               providerChain.setProviders(providers);
+            }
          }
-         else { //Moving "down" the list
-            Collections.rotate(providers.subList(source, destination + 1), -1);
-            providerChain.setProviders(providers);
+         else {
+            throw new IndexOutOfBoundsException("Source and/or Destination index out of bounds");
          }
-      }
-      else {
-         throw new IndexOutOfBoundsException("Source and/or Destination index out of bounds");
-      }
+      });
    }
 
    public SecurityProviderStatus clearAuthenticationProviderCache(int index) throws Exception {
