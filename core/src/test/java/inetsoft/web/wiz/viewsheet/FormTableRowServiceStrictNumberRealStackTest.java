@@ -229,6 +229,7 @@ class FormTableRowServiceStrictNumberRealStackTest {
          try {
             when(box.getFormTableLens(anyString())).thenReturn(lens);
             when(viewsheets.getViewsheet(anyString(), any())).thenReturn(rvs);
+            when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
 
             // CoreLifecycleService.sendMessage's own body
             doAnswer(inv -> {

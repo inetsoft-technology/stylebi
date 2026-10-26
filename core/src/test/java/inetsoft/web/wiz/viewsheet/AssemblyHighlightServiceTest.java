@@ -240,6 +240,67 @@ class AssemblyHighlightServiceTest {
                                                              any());
    }
 
+   private static final List<Class<? extends VSAssembly>> NON_HIGHLIGHTABLE = List.of(
+      inetsoft.uql.viewsheet.LineVSAssembly.class, inetsoft.uql.viewsheet.RectangleVSAssembly.class,
+      inetsoft.uql.viewsheet.OvalVSAssembly.class, inetsoft.uql.viewsheet.CalendarVSAssembly.class,
+      inetsoft.uql.viewsheet.SelectionListVSAssembly.class,
+      inetsoft.uql.viewsheet.SelectionTreeVSAssembly.class,
+      inetsoft.uql.viewsheet.TimeSliderVSAssembly.class, inetsoft.uql.viewsheet.TabVSAssembly.class,
+      inetsoft.uql.viewsheet.GroupContainerVSAssembly.class,
+      inetsoft.uql.viewsheet.CurrentSelectionVSAssembly.class, SliderVSAssembly.class,
+      CylinderVSAssembly.class, SubmitVSAssembly.class);
+
+   /**
+    * Bug #79324: every assembly that is not a Table/Crosstab/CalcTable, Chart, Text or Image is
+    * refused by type -- with no info at all on the mock, as an allow-list on the assembly class
+    * must -- and the refusal opens no undo checkpoint, because it runs before {@code mutate}.
+    */
+   @Test
+   void refusesAHighlightOnAnyAssemblyThatCannotRenderOneBeforeMutating() throws Exception {
+      for(Class<? extends VSAssembly> type : NON_HIGHLIGHTABLE) {
+         Harness h = harness(model());
+         when(h.rvs.getViewsheet().getAssembly("Ctl1")).thenReturn(mock(type));
+
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> h.service.set("tok", principal(), "Ctl1", null, highlight("X"), false, ""),
+            type.getSimpleName());
+
+         assertTrue(thrown.getMessage().contains("'Ctl1' is a "), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("does not render highlights"),
+                    thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("DATA cell"), thrown.getMessage());
+         verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+         verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
+                                                                anyString(), any(Principal.class),
+                                                                any());
+      }
+   }
+
+   /** The carriers are still accepted, and the write goes through {@code mutate}. */
+   @Test
+   void stillAcceptsAHighlightOnATextImageTableAndChart() throws Exception {
+      for(Class<? extends VSAssembly> type : List.of(
+         TextVSAssembly.class, ImageVSAssembly.class, inetsoft.uql.viewsheet.TableVSAssembly.class,
+         inetsoft.uql.viewsheet.CrosstabVSAssembly.class,
+         inetsoft.uql.viewsheet.CalcTableVSAssembly.class, ChartVSAssembly.class))
+      {
+         Harness h = harness(model());
+         when(h.rvs.getViewsheet().getAssembly("Ctl1")).thenReturn(mock(type));
+
+         try {
+            h.service.set("tok", principal(), "Ctl1", null, highlight("X"), false, "");
+         }
+         catch(Exception ex) {
+            // later steps of the mocked write may refuse; only the type gate matters here
+            assertFalse(String.valueOf(ex.getMessage()).contains("does not render highlights"),
+                        type.getSimpleName() + ": " + ex.getMessage());
+         }
+
+         verify(h.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
+      }
+   }
+
    /** Bug #79246: a Form input is told its type renders no highlight, not to pick a DATA cell. */
    @Test
    void refusesAHighlightOnAFormInputByType() throws Exception {
