@@ -759,6 +759,278 @@ class ScriptExecuteServiceTest {
                      "Ns.count()");
    }
 
+   // Bug #79346 (SSL-014, Problem 1): 10 further ways a Script Library entry can expose a
+   // namespace that the pre-fix scanner does not recognize as binding the global scope.
+   @Test
+   void topLevelAliasOfGlobalExposesItsNamespace() throws Exception {
+      // shape 1: var root = this; root.Ns = {...};
+      assertGatedViaNamespace(
+         "var root = this;\nroot.Ns = { count: function() { return runQuery('q'); } };",
+         "Ns.count()");
+   }
+
+   @Test
+   void aliasDeclaredInsideAnIifeExposesItsNamespace() throws Exception {
+      // shape 2: (function(){ var g = this; g.Ns = {...}; })();
+      assertGatedViaNamespace(
+         "(function() { var g = this; g.Ns = { count: function() { return runQuery('q'); } }; })();",
+         "Ns.count()");
+   }
+
+   @Test
+   void namespaceCreatedInTheIifeCallArgumentIsGated() throws Exception {
+      // shape 3: (function(ns){ ns.count = ...; })(this.Ns = this.Ns || {});
+      assertGatedViaNamespace(
+         "(function(ns) { ns.count = function() { return runQuery('q'); }; })" +
+         "(this.Ns = this.Ns || {});",
+         "Ns.count()");
+   }
+
+   @Test
+   void installerFunctionCalledAtLoadExposesItsNamespace() throws Exception {
+      // shape 4: function install(g){ g.Ns = {...}; } install(this);
+      assertGatedViaNamespace(
+         "function install(g) { g.Ns = { count: function() { return runQuery('q'); } }; }\n" +
+         "install(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void iifeAssignedToAVarIsGated() throws Exception {
+      // shape 5: var _ = function(g){ g.Ns = {...}; }(this);
+      assertGatedViaNamespace(
+         "var _ = function(g) { g.Ns = { count: function() { return runQuery('q'); } }; }(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void voidOperatorIifeIsGated() throws Exception {
+      // shape 6: void function(g){ g.Ns = {...}; }(this);
+      assertGatedViaNamespace(
+         "void function(g) { g.Ns = { count: function() { return runQuery('q'); } }; }(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void bracketAssignmentInsideAnIifeIsGated() throws Exception {
+      // shape 7: (function(g){ g["Ns"] = {...}; })(this);
+      assertGatedViaNamespace(
+         "(function(g) { g[\"Ns\"] = { count: function() { return runQuery('q'); } }; })(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void topLevelBracketAssignmentIsGated() throws Exception {
+      // shape 8: this["Ns"] = {...};
+      assertGatedViaNamespace(
+         "this[\"Ns\"] = { count: function() { return runQuery('q'); } };",
+         "Ns.count()");
+   }
+
+   @Test
+   void labeledBlockAssignmentIsGated() throws Exception {
+      // shape 9: lbl: { Ns = {...}; }
+      assertGatedViaNamespace(
+         "lbl: { Ns = { count: function() { return runQuery('q'); } }; }",
+         "Ns.count()");
+   }
+
+   @Test
+   void bracedSwitchCaseAssignmentIsGated() throws Exception {
+      // shape 10: switch (1) { case 1: { Ns = {...}; } }
+      assertGatedViaNamespace(
+         "switch (1) { case 1: { Ns = { count: function() { return runQuery('q'); } }; } }",
+         "Ns.count()");
+   }
+
+   @Test
+   void unbracedSwitchCaseAssignmentIsGated() throws Exception {
+      // control for shape 10: switch (1) { case 1: Ns = {...}; } (no extra { to misclassify)
+      assertGatedViaNamespace(
+         "switch (1) { case 1: Ns = { count: function() { return runQuery('q'); } }; }",
+         "Ns.count()");
+   }
+
+   /**
+    * Review bot hand-off round, non-blocking note: gap E's recognition of a {@code :}-preceded
+    * {@code {} also matches an object-literal value's own {@code :} (here {@code Ns: { ... }}),
+    * not only a statement label/switch case -- confirming this does not change whether the
+    * namespace is recognized (the root {@code x} is matched textually before any of these braces
+    * even open, so how the nested braces are classified is immaterial here either way).
+    */
+   @Test
+   void objectLiteralValueColonDoesNotAffectNamespaceDetection() throws Exception {
+      assertGatedViaNamespace(
+         "var x = { Ns: { count: function() { return runQuery('q'); } } };",
+         "x.Ns.count()");
+   }
+
+   // Bug #79346 (SSL-015, Problem 2): a let/const or a catch parameter declared inside a plain
+   // block must stay excluded from the gate -- a viewsheet script's own unrelated local of the
+   // same name must run normally, not be wrongly reported as calling the library entry.
+   @Test
+   void letDeclaredInsideAnIfBlockIsNotIndexedAsARoot() throws Exception {
+      assertNotGated("if (true) { let C1 = runQuery('q'); }", "var C1 = 2; C1");
+   }
+
+   @Test
+   void catchParameterReassignedInTheCatchBodyIsNotIndexedAsARoot() throws Exception {
+      assertNotGated("try { foo(); } catch (C2) { C2 = runQuery('q'); }", "var C2 = 2; C2");
+   }
+
+   /** Refutation correction: a catch parameter must be excluded in EVERY frame kind, IIFE too. */
+   @Test
+   void catchParameterInsideAnIifeIsNotIndexedAsARoot() throws Exception {
+      assertNotGated(
+         "(function(){ try { foo(); } catch (C3) { C3 = runQuery('q'); } })();",
+         "var C3 = 2; C3");
+   }
+
+   @Test
+   void iifeParameterReusedAsABareAssignmentTargetIsNotIndexedAsARoot() throws Exception {
+      // control: an IIFE's own parameter already correctly excludes a reused bare name
+      assertNotGated("(function(C4) { C4 = runQuery('q'); })(1);", "var C4 = 2; C4");
+   }
+
+   @Test
+   void bareUndeclaredAssignmentInsideAnIfBlockIsGated() throws Exception {
+      // control: a genuine bare (undeclared) assignment is real sloppy-mode implicit global --
+      // the one case in the matrix that is NOT a false positive and must keep gating.
+      assertGatedViaNamespace(
+         "if (true) { Ns = { count: function() { return runQuery('q'); } }; }",
+         "Ns.count()");
+   }
+
+   // --- Adversarial tests added during independent re-verification (Bug #79346 / 04-verify.md) ---
+   // None of these shapes are covered by the 16 tests above: they either combine two gaps at once
+   // (A+D) or are the refuter's own live-tried stress shapes (for/switch-case let|const
+   // declarations) that were never turned into a JUnit case.
+
+   @Test
+   void aliasThenBracketAssignmentExposesItsNamespace() throws Exception {
+      // combines gap A (var g = this; registers g as an alias) with gap D (g["Ns"] = ... is a
+      // BRACKET_ASSIGNMENT, resolved via owner.aliases.contains(first) -- neither the 16 new tests
+      // nor the pre-existing suite exercise an alias created by gap A being read by gap D's own
+      // separate matcher loop).
+      assertGatedViaNamespace(
+         "var g = this;\ng[\"Ns\"] = { count: function() { return runQuery('q'); } };",
+         "Ns.count()");
+   }
+
+   @Test
+   void constDeclaredInsideAForLoopBodyIsNotIndexedAsARoot() throws Exception {
+      // the refuter's own live-tried stress shape (02-refute-ssl015.md section 3):
+      // for (var i = 0; i < 1; i++) { const X = runQuery(...); }
+      assertNotGated(
+         "for (var i = 0; i < 1; i++) { const C5 = runQuery('q'); }",
+         "var C5 = 2; C5");
+   }
+
+   @Test
+   void letDeclaredInUnbracedSwitchCaseIsNotIndexedAsARoot() throws Exception {
+      // the refuter's own live-tried stress shape (02-refute-ssl015.md section 3):
+      // switch (1) { case 1: let X = runQuery(...); break; } -- a DECLARATION (not an assignment,
+      // unlike unbracedSwitchCaseAssignmentIsGated above) directly inside an unbraced case.
+      assertNotGated(
+         "switch (1) { case 1: let C6 = runQuery('q'); break; }",
+         "var C6 = 2; C6");
+   }
+
+   // --- Review round 1 (05-review-community-r1.md) follow-up tests ---
+
+   @Test
+   void bracketKeyStringContainingALiteralCloseBracketDoesNotCorruptLaterScanning() throws Exception {
+      // Blocker 1: a bracket-key string's own content that itself contains a literal ] must not be
+      // spliced back raw into the stripped text -- doing so (the pre-fix behavior) produces an
+      // extra bracket character scopeOwners's own bracket-matching pass cannot tell apart from a
+      // real one, desyncing the frame stack for everything scanned afterward in the same entry.
+      // Here it prematurely pops "unrelated"'s own (never-reachable) function-body frame one
+      // statement early, which would wrongly make the following Ns assignment -- still textually
+      // inside that same dead function -- look load-time-reachable.
+      assertNotGated(
+         "function unrelated() {\n" +
+         "   Q[\"a]b\"] = 1;\n" +
+         "   Ns = { count: function() { return runQuery('q'); } };\n" +
+         "}",
+         "Ns");
+   }
+
+   @Test
+   void catchParameterInsideAGapFPromotedInstallerFunctionIsNotIndexedAsARoot() throws Exception {
+      // Blocker 2: gap F's post-hoc promotion of an installer function's body used to flatten
+      // every previously-unowned position straight to one brand-new synthetic frame, discarding a
+      // nested catch (X) { ... } block's own frame -- the one openFrame already populated with X in
+      // its own locals, independent of reachability -- reopening exactly the catch-parameter
+      // over-gating bug Problem 2's fix closed, but through gap F's own promotion path.
+      String lib =
+         "function install(g) {\n" +
+         "   try { foo(); } catch (X) { X = runQuery('q'); }\n" +
+         "   g.Ns = { count: function() { return runQuery('q'); } };\n" +
+         "}\n" +
+         "install(this);";
+
+      // the installer's own body is still correctly promoted/gated -- confirms this exercises gap
+      // F's promotion at all, rather than an installer that was never recognized in the first place
+      assertGatedViaNamespace(lib, "Ns.count()");
+      // ... but the catch parameter nested inside it must stay excluded
+      assertNotGated(lib, "var X = 2; X");
+   }
+
+   @Test
+   void destructiveDefaultParameterExpressionOnANeverCalledFunctionIsNotIndexedAsARoot() throws Exception {
+      // Important finding: gap C's blanket "a ( or [ does not open a new scope" fix also applied
+      // to a function/arrow's OWN parameter-list parens, not just an IIFE's call-argument parens --
+      // so a destructive default-parameter expression was wrongly treated as load-time-reachable
+      // merely because the function declaration itself sits in reachable code, even though it only
+      // executes if the function is actually called AND that argument is omitted.
+      assertNotGated(
+         "function foo(x = window.Ns = { count: function() { return runQuery('q'); } }) {}",
+         "Ns");
+   }
+
+   // --- Review bot hand-off round (05-review-community-bot-r1.md) follow-up tests -- B1 ---
+   // A let/const written directly at the Script Library entry's OWN top level -- zero enclosing
+   // { } of any kind -- must stay gated exactly like `var Ns`/a bare `Ns = ...` already are: a
+   // top-level let/const name is visible to every later script in the entry too, it is not a
+   // transient block-local. Only a let/const written inside a REAL nested block (SSL-015's own
+   // target, see the bare-block control below) is genuinely invisible outside its own braces.
+
+   @Test
+   void topLevelLetDeclarationWithObjectInitializerIsGated() throws Exception {
+      assertGatedViaNamespace("let Ns = { count: function() { return runQuery('q'); } };",
+                              "Ns.count()");
+   }
+
+   @Test
+   void topLevelConstDeclarationWithObjectInitializerIsGated() throws Exception {
+      assertGatedViaNamespace("const Ns = { count: function() { return runQuery('q'); } };",
+                              "Ns.count()");
+   }
+
+   @Test
+   void topLevelLetDeclarationThenAssignedMemberIsGated() throws Exception {
+      assertGatedViaNamespace(
+         "let Ns = {};\nNs.count = function() { return runQuery('q'); };", "Ns.count()");
+   }
+
+   @Test
+   void topLevelConstDeclarationThenAssignedMemberIsGated() throws Exception {
+      assertGatedViaNamespace(
+         "const Ns = {};\nNs.count = function() { return runQuery('q'); };", "Ns.count()");
+   }
+
+   /**
+    * Control for the four tests above: SSL-015's actual target, a let/const declared inside a
+    * genuine nested block (here a bare {@code { }} with no {@code if}/{@code for}/{@code switch}
+    * wrapping it at all) must stay correctly excluded -- this is what must NOT be reopened by the
+    * B1 fix above.
+    */
+   @Test
+   void letDeclaredInsideABareBlockIsNotIndexedAsARoot() throws Exception {
+      assertNotGated(
+         "{ let Ns = {}; Ns.count = function() { return runQuery('q'); }; }", "Ns");
+   }
+
    @Test
    void nonDestructiveNamespaceIsNotGated() throws Exception {
       ViewsheetScope scope = mock(ViewsheetScope.class);

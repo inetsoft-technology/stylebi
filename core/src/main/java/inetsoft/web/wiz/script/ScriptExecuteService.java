@@ -139,6 +139,16 @@ public class ScriptExecuteService {
    private static final Pattern CALL_SUFFIX = Pattern.compile("\\.\\s*(call|apply)\\s*\\(");
    private static final Pattern OBJECT_ASSIGN = Pattern.compile(
       "(?<![\\p{L}\\p{M}\\p{N}_$.])Object\\s*\\.\\s*assign\\s*\\(\\s*(" + ID + ")");
+   // Bug #79346 (SSL-014 gap D): a computed-member assignment, e.g. Q["M"] = ... or Q[M] = ...
+   // Only matches once stripCommentsAndStrings has preserved a bracket-key string's own content
+   // (see its own bracket-key handling) -- a non-key string stays fully stripped as before.
+   private static final Pattern BRACKET_ASSIGNMENT = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$.])(" + ID + ")\\s*\\[\\s*(" + ID + ")\\s*\\]\\s*=(?![=>])");
+   // Bug #79346 (SSL-014 gap F): a bare call passing a global-object reference as its one and only
+   // argument, e.g. install(this) -- see applyGlobalInvokedFunctionDeclarations. Deliberately
+   // single-argument/literal-global only; an alias or a call with other arguments is not matched.
+   private static final Pattern GLOBAL_ARG_CALL = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$.])(" + ID + ")\\s*\\(\\s*(" + ID + ")\\s*\\)");
 
    private static final Logger LOG = LoggerFactory.getLogger(ScriptExecuteService.class);
 
@@ -662,31 +672,43 @@ public class ScriptExecuteService {
     */
    private static Set<String> declaredLocals(String scriptText) {
       Set<String> names = new HashSet<>();
-      forEachDeclared(stripCommentsAndStrings(scriptText), (pos, name) -> names.add(name));
+      forEachDeclared(stripCommentsAndStrings(scriptText), (pos, name, keyword) -> names.add(name));
       return names;
    }
 
-   private record Declared(int pos, String name) {
+   /**
+    * @param blockScoped true for a {@code let}/{@code const} declarator -- bound to its own
+    *                    enclosing block, not merely to the nearest function -- or false for a
+    *                    {@code var} declarator or a function declaration (both function-scoped,
+    *                    the pre-#79346 treatment of every {@code Declared} entry).
+    */
+   private record Declared(int pos, String name, boolean blockScoped) {
+   }
+
+   private interface DeclaredSink {
+      void accept(int pos, String name, String keyword);
    }
 
    /** Every var/let/const declarator and function declaration, in source order. */
    private static List<Declared> declarations(String stripped) {
       List<Declared> found = new ArrayList<>();
-      forEachDeclared(stripped, (pos, name) -> found.add(new Declared(pos, name)));
+      forEachDeclared(stripped, (pos, name, keyword) ->
+         found.add(new Declared(pos, name, "let".equals(keyword) || "const".equals(keyword))));
       Matcher function = FUNCTION_DECLARATIONS.get(0).matcher(stripped);
 
       while(function.find()) {
-         found.add(new Declared(function.start(1), function.group(1)));
+         found.add(new Declared(function.start(1), function.group(1), false));
       }
 
       found.sort(Comparator.comparingInt(Declared::pos));
       return found;
    }
 
-   private static void forEachDeclared(String stripped, BiConsumer<Integer, String> sink) {
+   private static void forEachDeclared(String stripped, DeclaredSink sink) {
       Matcher keyword = DECLARATION_KEYWORD.matcher(stripped);
 
       while(keyword.find()) {
+         String keywordText = keyword.group();
          int pos = keyword.end();
          int depth = 0;
          boolean atDeclaratorStart = true;
@@ -709,7 +731,7 @@ public class ScriptExecuteService {
                   break;
                }
 
-               sink.accept(id.start(), id.group());
+               sink.accept(id.start(), id.group(), keywordText);
                pos = id.end();
                atDeclaratorStart = false;
                continue;
@@ -777,6 +799,12 @@ public class ScriptExecuteService {
          }
          else if(c == '\'' || c == '"' || c == '`') {
             char quote = c;
+            // Bug #79346 (SSL-014 gap D): a string literal written directly as a computed member
+            // key, e.g. Q["M"], is the one case where the key itself must survive stripping (as a
+            // bare identifier-like token) so BRACKET_ASSIGNMENT can find it; every other string
+            // literal is stripped exactly as before (deleted, with nothing substituted).
+            boolean bracketKey = quote != '`' && precededByOpenBracket(out);
+            int contentStart = i + 1;
             i++;
 
             while(i < n && text.charAt(i) != quote) {
@@ -808,6 +836,18 @@ public class ScriptExecuteService {
                i++;
             }
 
+            // Bug #79346 (review round 1, blocker 1): only splice the key's own content back when
+            // it is free of a literal [ or ] -- otherwise that character would be mistaken by
+            // scopeOwners's own bracket-matching pass (a plain push/pop stack over this same
+            // stripped text) for a real bracket boundary, desyncing it for everything scanned
+            // afterward in the same entry. A key containing one safely falls back to full deletion,
+            // the same as any other string BRACKET_ASSIGNMENT fails to recognize.
+            if(bracketKey && i < n && isFollowedByCloseBracket(text, i + 1) &&
+               !containsBracketCharacter(text, contentStart, i))
+            {
+               out.append(text, contentStart, i);
+            }
+
             i++;
          }
          else {
@@ -817,6 +857,41 @@ public class ScriptExecuteService {
       }
 
       return out.toString();
+   }
+
+   /** True when the last non-whitespace character already written to {@code out} is {@code [}. */
+   private static boolean precededByOpenBracket(StringBuilder out) {
+      int p = out.length() - 1;
+
+      while(p >= 0 && Character.isWhitespace(out.charAt(p))) {
+         p--;
+      }
+
+      return p >= 0 && out.charAt(p) == '[';
+   }
+
+   /** True when the next non-whitespace character of {@code text} starting at {@code p} is {@code ]}. */
+   private static boolean isFollowedByCloseBracket(String text, int p) {
+      p = skipWhitespaceForward(text, p);
+      return p < text.length() && text.charAt(p) == ']';
+   }
+
+   /**
+    * Bug #79346 (review round 1, blocker 1): true when {@code text[from, to)} contains a literal
+    * {@code [} or {@code ]} -- used to refuse splicing a bracket-key string's own content back into
+    * the stripped text when doing so would introduce a bracket character the downstream
+    * bracket-matching pass did not itself open or close.
+    */
+   private static boolean containsBracketCharacter(String text, int from, int to) {
+      for(int p = from; p < to; p++) {
+         char c = text.charAt(p);
+
+         if(c == '[' || c == ']') {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -972,7 +1047,9 @@ public class ScriptExecuteService {
 
    private static void collectRoots(String source, Set<String> roots) {
       String text = stripCommentsAndStrings(source, false);
-      ScopeFrame[] owners = scopeOwners(text);
+      ScopePositions positions = scopeOwners(text);
+      ScopeFrame[] owners = positions.owners();
+      ScopeFrame[] lexical = positions.lexical();
       Matcher m = ROOT_ASSIGNMENT.matcher(text);
 
       while(m.find()) {
@@ -983,6 +1060,17 @@ public class ScriptExecuteService {
          }
 
          String first = m.group(1);
+
+         // Bug #79346 (SSL-014 gap A): var/let/const X = this; (or a bare X = this;) makes X an
+         // alias of the global object in this frame, so a later X.Ns = ... resolves Ns the same
+         // way this.Ns = ... would -- instead of X itself being (wrongly) indexed as a root.
+         if(m.group(2).isEmpty() && !GLOBAL_OBJECTS.contains(first) &&
+            isBareGlobalAliasAssignment(text, m.end(), owner))
+         {
+            owner.aliases.add(first);
+            continue;
+         }
+
          String root = null;
 
          if(GLOBAL_OBJECTS.contains(first) || owner.aliases.contains(first)) {
@@ -991,7 +1079,37 @@ public class ScriptExecuteService {
                root = member.find() ? member.group() : null;
             }
          }
-         else if(owner.bindsBareGlobal(first)) {
+         else if(owner.bindsBareGlobal(first, lexical[m.start()])) {
+            root = first;
+         }
+
+         if(root != null && !GLOBAL_OBJECTS.contains(root)) {
+            roots.add(root);
+         }
+      }
+
+      // Bug #79346 (SSL-014 gap D): a computed-member assignment, Q["M"] = ... or Q[M] = ... --
+      // stripCommentsAndStrings has already reduced a bracket-key STRING to its bare content, so
+      // this matches the same way ROOT_ASSIGNMENT's dot-chain branch matches Q.M = ....
+      m = BRACKET_ASSIGNMENT.matcher(text);
+
+      while(m.find()) {
+         ScopeFrame owner = owners[m.start()];
+
+         if(owner == null) {
+            continue;
+         }
+
+         String first = m.group(1);
+         String member = m.group(2);
+         String root = null;
+
+         if(GLOBAL_OBJECTS.contains(first) || owner.aliases.contains(first)) {
+            if(owner.qualifiesAsGlobal(first)) {
+               root = member;
+            }
+         }
+         else if(owner.bindsBareGlobal(first, lexical[m.start()])) {
             root = first;
          }
 
@@ -1005,7 +1123,7 @@ public class ScriptExecuteService {
       while(m.find()) {
          ScopeFrame owner = owners[m.start()];
 
-         if(owner != null && owner.bindsBareGlobal(m.group(1)) &&
+         if(owner != null && owner.bindsBareGlobal(m.group(1), lexical[m.start()]) &&
             !GLOBAL_OBJECTS.contains(m.group(1)))
          {
             roots.add(m.group(1));
@@ -1014,12 +1132,53 @@ public class ScriptExecuteService {
    }
 
    /**
+    * Bug #79346 (SSL-014 gap A): true when the text starting right after an {@code =} is a bare
+    * reference to a name {@code owner} already recognizes as the global object (a literal
+    * {@code this}/{@code window}/{@code globalThis}/{@code self}, or an already-known alias),
+    * with no {@code .}/{@code [}/{@code (} suffix -- i.e. the identifier itself is being assigned,
+    * not a property read off it (which would make this an ordinary value extraction, not an
+    * alias).
+    */
+   private static boolean isBareGlobalAliasAssignment(String text, int afterEquals, ScopeFrame owner) {
+      int p = skipWhitespaceForward(text, afterEquals);
+      Matcher id = IDENTIFIER.matcher(text);
+      id.region(p, text.length());
+
+      if(!id.lookingAt()) {
+         return false;
+      }
+
+      String name = id.group();
+      int afterId = skipWhitespaceForward(text, id.end());
+
+      if(afterId < text.length()) {
+         char next = text.charAt(afterId);
+
+         if(next == '.' || next == '[' || next == '(') {
+            return false;
+         }
+      }
+
+      return owner.qualifiesAsGlobal(name);
+   }
+
+   /**
+    * {@link #scopeOwners}'s result: {@code owners[i]} is the function-level frame an assignment
+    * written at position {@code i} binds in (null when it binds nowhere indexable), and
+    * {@code lexical[i]} is the innermost block (plain block, function, or the owner itself) that
+    * position lexically sits in -- used only to find a block-scoped let/const/catch-parameter
+    * declared directly on an intermediate plain block (Bug #79346 / SSL-015).
+    */
+   private record ScopePositions(ScopeFrame[] owners, ScopeFrame[] lexical) {
+   }
+
+   /**
     * For every character of {@code text} (comments/strings already stripped), the function-level
     * frame that an assignment written there binds in, or null when it binds nowhere indexable (an
     * ordinary function body, an object literal, parentheses/brackets). Plain blocks resolve to the
     * frame of their enclosing scope.
     */
-   private static ScopeFrame[] scopeOwners(String text) {
+   private static ScopePositions scopeOwners(String text) {
       int n = text.length();
       int[] match = new int[n];
       Arrays.fill(match, -1);
@@ -1048,9 +1207,12 @@ public class ScriptExecuteService {
       top.thisGlobal = true;
       top.owner = top;
       top.fnFrame = top;
+      top.locals = new HashSet<>();
+      top.aliases = new HashSet<>();
       Deque<ScopeFrame> stack = new ArrayDeque<>();
       stack.push(top);
       ScopeFrame[] owners = new ScopeFrame[n];
+      ScopeFrame[] lexical = new ScopeFrame[n];
 
       for(int i = 0; i < n; i++) {
          char c = text.charAt(i);
@@ -1060,14 +1222,31 @@ public class ScriptExecuteService {
          }
 
          owners[i] = stack.peek().owner;
+         lexical[i] = stack.peek();
 
-         // a declaration belongs to the innermost function-level frame (var/let/const are
-         // treated as function-scoped, which only ever errs towards "local")
+         // Bug #79346 (SSL-015): a let/const declarator belongs to the innermost LEXICAL block it
+         // is written in -- it is genuinely block-scoped, never visible outside its own { } --
+         // while var/a function declaration still belongs to the nearest FUNCTION-level frame
+         // (pre-existing, unchanged), and only counts there when that function is itself an IIFE.
          while(nextDeclared < declared.size() && declared.get(nextDeclared).pos() <= i) {
-            ScopeFrame fn = stack.peek().fnFrame;
+            Declared d = declared.get(nextDeclared);
+            ScopeFrame frame = stack.peek();
 
-            if(fn.iife) {
-               fn.locals.add(declared.get(nextDeclared).name());
+            if(d.blockScoped()) {
+               // Bug #79346 (bot hand-off review, finding B1): a let/const written directly at a
+               // FUNCTION-level frame -- the top level, an ordinary function body, or an IIFE's own
+               // body, with no enclosing { } of its own -- is visible for the rest of that frame
+               // exactly like a var/function declaration is, so it needs the SAME gate: only
+               // locally bound when that frame is itself an IIFE (never true for the top level). A
+               // genuine nested block (if/for/switch/catch/a bare {}) still always binds the name
+               // to itself, unconditionally -- that is what keeps it truly invisible outside its
+               // own braces.
+               if(frame != frame.fnFrame || frame.iife) {
+                  frame.locals.add(d.name());
+               }
+            }
+            else if(frame.fnFrame.iife) {
+               frame.fnFrame.locals.add(d.name());
             }
 
             nextDeclared++;
@@ -1078,7 +1257,123 @@ public class ScriptExecuteService {
          }
       }
 
-      return owners;
+      // Bug #79346 (SSL-014 gap F): a function declared and only invoked later, by name, with a
+      // global-object reference, is itself load-time code even though nothing precedes or follows
+      // it in the IIFE idiom -- retarget the positions inside its body accordingly.
+      applyGlobalInvokedFunctionDeclarations(text, match, owners, lexical);
+
+      return new ScopePositions(owners, lexical);
+   }
+
+   /**
+    * Bug #79346 (SSL-014 gap F): {@code function install(g){ g.Ns = ...; } install(this);} --
+    * {@code install}'s own body is an ordinary (non-IIFE) function as far as {@link #openFrame} is
+    * concerned, since nothing in the classic IIFE idiom (a preceding operator, an adjacent call)
+    * appears anywhere near it; the call that actually makes it run at load time is a wholly
+    * separate, later statement. Finds every named function DECLARATION reachable from load-time
+    * code (its own {@code owners[]} position, before this override, is non-null) whose name is
+    * also called, elsewhere in a load-time-reachable statement, with exactly one argument that is
+    * itself a literal global-object reference -- and promotes its body the same way an IIFE's body
+    * would be: its own frame, its first parameter aliased to the global object, every position
+    * inside it that was previously unowned now resolves through this frame.
+    *
+    * <p>Deliberately narrow: only a single-argument call whose one argument is textually
+    * {@code this}/{@code window}/{@code globalThis}/{@code self} is recognized (not an arbitrary
+    * alias, and not a multi-argument call with the global reference in some other position) --
+    * this covers the reported shape without attempting general call-graph/alias reasoning.</p>
+    */
+   private static void applyGlobalInvokedFunctionDeclarations(
+      String text, int[] match, ScopeFrame[] owners, ScopeFrame[] lexical)
+   {
+      Set<String> calledWithGlobal = new HashSet<>();
+      Matcher call = GLOBAL_ARG_CALL.matcher(text);
+
+      while(call.find()) {
+         if(owners[call.start()] != null && GLOBAL_OBJECTS.contains(call.group(2))) {
+            calledWithGlobal.add(call.group(1));
+         }
+      }
+
+      if(calledWithGlobal.isEmpty()) {
+         return;
+      }
+
+      List<Declared> declared = declarations(text);
+      Matcher decl = FUNCTION_DECLARATIONS.get(0).matcher(text);
+
+      while(decl.find()) {
+         String name = decl.group(1);
+
+         if(!calledWithGlobal.contains(name) || owners[decl.start()] == null) {
+            continue;
+         }
+
+         int parenOpen = decl.end() - 1;
+         int parenClose = match[parenOpen];
+
+         if(parenClose < 0) {
+            continue;
+         }
+
+         int bodyOpen = skipWhitespaceForward(text, parenClose + 1);
+
+         if(bodyOpen >= text.length() || text.charAt(bodyOpen) != '{' || match[bodyOpen] < 0) {
+            continue;
+         }
+
+         int bodyClose = match[bodyOpen];
+
+         if(bodyOpen + 1 >= bodyClose) {
+            continue;
+         }
+
+         // Bug #79346 (review round 1, blocker 2): mutate the SAME ScopeFrame object openFrame
+         // already built for this function's own body, instead of retargeting every unowned
+         // position inside it to a brand-new, disconnected frame. A nested block -- most notably a
+         // catch (X) { ... } clause, whose own exception parameter openFrame records directly on
+         // its own frame independent of reachability (Bug #79346 / SSL-015) -- keeps its own,
+         // already correctly-populated frame and lexicalParent chain this way, so a later
+         // bindsBareGlobal lexical walk still finds it; a fresh, disconnected frame never appears
+         // in that chain at all. Only owners[] (which flattens through every block straight to the
+         // function-level frame, and is snapshotted per-position at scan time, so it cannot be
+         // fixed up any other way) is rewritten here -- lexical[] is left exactly as the original
+         // per-character scan built it.
+         ScopeFrame bodyFrame = lexical[bodyOpen + 1];
+         bodyFrame.iife = true;
+         bodyFrame.thisGlobal = true;
+         bodyFrame.owner = bodyFrame;
+
+         List<String> params = splitTopLevel(text, parenOpen + 1, parenClose).stream()
+            .map(ScriptExecuteService::parameterName).toList();
+
+         for(int i = 0; i < params.size(); i++) {
+            String param = params.get(i);
+
+            if(param == null) {
+               continue;
+            }
+
+            bodyFrame.locals.add(param);
+
+            if(i == 0) {
+               // the call's own single argument is the global reference itself (GLOBAL_ARG_CALL
+               // only ever matches exactly one argument)
+               bodyFrame.aliases.add(param);
+            }
+         }
+
+         for(Declared d : declared) {
+            if(d.pos() > bodyOpen && d.pos() < bodyClose) {
+               bodyFrame.locals.add(d.name());
+            }
+         }
+
+         for(int i = bodyOpen + 1; i < bodyClose; i++) {
+            if(owners[i] == null) {
+               owners[i] = bodyFrame;
+            }
+         }
+      }
    }
 
    private static ScopeFrame openFrame(String text, int open, int[] match,
@@ -1087,8 +1382,28 @@ public class ScriptExecuteService {
       ScopeFrame parent = stack.peek();
       ScopeFrame frame = new ScopeFrame();
       frame.fnFrame = parent.fnFrame;
+      // Bug #79346 (SSL-015): every frame -- plain block, (, [ or function -- keeps a pointer to
+      // its own immediate lexical parent (not the flattened/resolved owner), so a block-scoped
+      // let/const/catch-parameter can be found by walking lexical nesting, not just the owner.
+      frame.lexicalParent = parent;
+      // Every frame starts with its own mutable, empty locals set, so a plain block (if/catch/...)
+      // can record a block-scoped let/const/catch-parameter directly on itself, not only an IIFE's
+      // function-level frame (the one case the pre-existing code wired up).
+      frame.locals = new HashSet<>();
 
       if(text.charAt(open) != '{') {
+         // Bug #79346 (SSL-014 gap C): a ( or [ does not open a new scope for assignments written
+         // directly inside it (a function's own call-argument list, a computed-member key, ...) --
+         // it binds in whatever scope encloses it, the same as any other statement there. A
+         // function/arrow's OWN parameter list is the one exception (review round 1, important
+         // finding): a destructive default-parameter expression there only runs if that function is
+         // actually called (and only when the argument is omitted), so it must not inherit
+         // reachability merely from sitting in reachable code -- matching the pre-existing, correct
+         // treatment of a function body's own locals.
+         if(!isFunctionParameterListOpen(text, open, match)) {
+            frame.owner = parent.owner;
+         }
+
          return frame;
       }
 
@@ -1133,6 +1448,24 @@ public class ScriptExecuteService {
 
          if(word != null && PLAIN_BLOCK_HEADS.contains(word)) {
             frame.owner = parent.owner;
+
+            // Bug #79346 (SSL-015): a catch clause's own exception parameter is locally bound to
+            // its catch body in EVERY frame kind, IIFE or not -- recorded directly on this block's
+            // own frame (not routed through the var/let/const declaration scan, which never visits
+            // "catch (...)" at all).
+            if("catch".equals(word)) {
+               int paramStart = skipWhitespaceForward(text, match[p] + 1);
+
+               if(paramStart < p) {
+                  Matcher param = IDENTIFIER.matcher(text);
+                  param.region(paramStart, p);
+
+                  if(param.lookingAt()) {
+                     frame.locals.add(param.group());
+                  }
+               }
+            }
+
             return frame;
          }
 
@@ -1159,7 +1492,9 @@ public class ScriptExecuteService {
             }
          }
       }
-      else if(c == ';' || c == '{' || c == '}') {
+      // Bug #79346 (SSL-014 gap E): a { preceded by a bare : (a statement label, or a case N:) is
+      // just as transparent as one after ;/{/} -- it introduces no scope of its own.
+      else if(c == ';' || c == '{' || c == '}' || c == ':') {
          frame.owner = parent.owner;
          return frame;
       }
@@ -1194,10 +1529,14 @@ public class ScriptExecuteService {
          return frame;
       }
 
-      // IIFE: a function expression that is called where it is written
+      // IIFE: a function expression that is called where it is written. Bug #79346 (SSL-014 gap B):
+      // "=" (var _ = function(){}()) and the keyword "void" (void function(){}()) also force
+      // expression parsing, the same as a leading (!+-~.
       int before = skipWhitespaceBack(text, funcStart - 1);
+      boolean precededByOperator = before >= 0 && "(!+-~=".indexOf(text.charAt(before)) >= 0;
+      boolean precededByVoid = before >= 0 && "void".equals(wordEndingAt(text, before));
 
-      if(before < 0 || "(!+-~".indexOf(text.charAt(before)) < 0) {
+      if(before < 0 || !(precededByOperator || precededByVoid)) {
          return frame;
       }
 
@@ -1272,6 +1611,51 @@ public class ScriptExecuteService {
       }
 
       return frame;
+   }
+
+   /**
+    * Bug #79346 (review round 1, important finding): true when the {@code (} at {@code open} is a
+    * function or arrow's OWN parameter list (as opposed to a call's argument list, an {@code if}/
+    * {@code for}/{@code while}/{@code catch}/{@code switch} condition, or any other plain
+    * parenthesized expression) -- mirroring, forward from the open paren instead of backward from
+    * its close, the exact same word-based function/arrow recognition {@link #openFrame} itself uses
+    * further down for the body {@code {} that follows such a paren pair.
+    */
+   private static boolean isFunctionParameterListOpen(String text, int open, int[] match) {
+      int close = match[open];
+
+      if(close < 0) {
+         return false;
+      }
+
+      // arrow function: (params) => ...
+      int afterClose = skipWhitespaceForward(text, close + 1);
+
+      if(afterClose + 1 < text.length() && text.charAt(afterClose) == '=' &&
+         text.charAt(afterClose + 1) == '>')
+      {
+         return true;
+      }
+
+      // regular/named function expression or declaration: function [name] (params) {...}
+      int q = skipWhitespaceBack(text, open - 1);
+      String word = wordEndingAt(text, q);
+
+      if(word == null || PLAIN_BLOCK_HEADS.contains(word)) {
+         return false;
+      }
+
+      if(word.equals("function")) {
+         return true;
+      }
+
+      int r = skipWhitespaceBack(text, q - word.length());
+
+      if(r >= 0 && text.charAt(r) == '*') {
+         r = skipWhitespaceBack(text, r - 1);
+      }
+
+      return "function".equals(wordEndingAt(text, r));
    }
 
    /** Name of one declared parameter ({@code a}, {@code a = 1}, {@code ...a}), else null. */
@@ -1356,6 +1740,14 @@ public class ScriptExecuteService {
       ScopeFrame fnFrame;
       /** For an IIFE, the load-time frame it is nested in. */
       ScopeFrame outer;
+      /**
+       * Bug #79346 (SSL-015): the immediate lexical (brace/paren/bracket) parent, this frame's
+       * own enclosing {@code openFrame} call -- unlike {@link #owner}, which flattens through
+       * every transparent plain block straight to the function/IIFE/top frame that owns it. Used
+       * only to find a block-scoped let/const/catch-parameter declared directly on an
+       * intermediate plain block, which {@link #owner} alone cannot see.
+       */
+      ScopeFrame lexicalParent;
       /** Function nesting depth, the top level being 0. */
       int depth;
 
@@ -1368,9 +1760,35 @@ public class ScriptExecuteService {
          return qualifiesAsGlobal(arg.trim());
       }
 
-      /** True when a bare {@code name = ...} here creates/updates a global. */
-      boolean bindsBareGlobal(String name) {
-         for(ScopeFrame f = this; f != null && f.iife; f = f.outer) {
+      /**
+       * True when a bare {@code name = ...} written at {@code lexical} (the innermost block that
+       * position sits in -- this frame itself when there is no intervening plain block) creates
+       * or updates a global, i.e. {@code name} is not locally bound anywhere between there and
+       * here.
+       *
+       * <p>Bug #79346 (SSL-015): first walks the LEXICAL chain -- {@code lexical}, then each of
+       * its plain-block ancestors, up to and including this (the owning) frame -- checking each
+       * block's own {@code locals} for a {@code let}/{@code const}/{@code catch} parameter
+       * declared directly in it. This runs regardless of {@link #iife}, unlike the pre-existing
+       * walk below, because a plain block (including the top level) can now record its own
+       * block-scoped locals too, not only an IIFE's function-level frame.</p>
+       *
+       * <p>Beyond this frame, only a chain of IIFEs (load-time code) can still bind locally -- an
+       * IIFE's own declared {@code var}/parameters, added to its own function-level frame. This is
+       * the pre-existing behavior, unchanged.</p>
+       */
+      boolean bindsBareGlobal(String name, ScopeFrame lexical) {
+         for(ScopeFrame f = lexical; f != null; f = f.lexicalParent) {
+            if(f.locals.contains(name)) {
+               return false;
+            }
+
+            if(f == this) {
+               break;
+            }
+         }
+
+         for(ScopeFrame f = this.outer; f != null && f.iife; f = f.outer) {
             if(f.locals.contains(name)) {
                return false;
             }
