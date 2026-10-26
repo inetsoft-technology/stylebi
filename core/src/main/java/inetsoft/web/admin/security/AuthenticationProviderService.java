@@ -333,6 +333,12 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
             removedProvider.tearDown();
             chain.setProviders(providerList);
          }
+         else if(index >= 0) {
+            // the reloaded list is shorter than the admin's list: another admin removed
+            // entries meanwhile. Nothing is removed.
+            throw new MessageException(
+               Catalog.getCatalog(principal).getString("em.security.providerListChanged"));
+         }
          else {
             throw new IndexOutOfBoundsException("Provider index out of bounds");
          }

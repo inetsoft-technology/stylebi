@@ -131,6 +131,34 @@ class ProviderServiceClusterEditTest {
    }
 
    @Test
+   void authenticationRemoveBeyondTheReloadedListIsRejectedWithTheRefreshMessage()
+      throws Exception
+   {
+      // the admin's list had three providers, the file has two: index 2 is out of range
+      AuthenticationChain local = staleAuthc("Adm", "Z");
+      AuthenticationProviderService service = authcService(local);
+
+      MessageException e = assertThrows(
+         MessageException.class, () -> service.removeAuthenticationProvider(2, "X", principal));
+      assertTrue(e.getMessage().contains("changed by another administrator"), e.getMessage());
+
+      assertEquals(List.of("Adm", "Z"), authcFileNames());
+      assertEquals(List.of("Adm", "Z"), names(local.getProviders()));
+      // the locks were released
+      service.removeAuthenticationProvider(1, "Z", principal);
+      assertEquals(List.of("Adm"), authcFileNames());
+   }
+
+   @Test
+   void authenticationRemoveWithANegativeIndexStaysInvalid() throws Exception {
+      AuthenticationProviderService service = authcService(staleAuthc("Adm", "Z"));
+
+      assertThrows(IndexOutOfBoundsException.class,
+                   () -> service.removeAuthenticationProvider(-1, "Z", principal));
+      assertEquals(List.of("Adm", "Z"), authcFileNames());
+   }
+
+   @Test
    void authenticationReorderUsesTheListOfTheFile() throws Exception {
       AuthenticationChain local = staleAuthc("Adm", "X", "Z");
 
@@ -191,6 +219,32 @@ class ProviderServiceClusterEditTest {
 
       assertEquals(List.of("Adm", "Z"), authzFileNames());
       assertEquals(List.of("Adm", "Z"), names(local.getProviders()));
+   }
+
+   @Test
+   void authorizationRemoveBeyondTheReloadedListIsRejectedWithTheRefreshMessage()
+      throws Exception
+   {
+      AuthorizationChain local = staleAuthz("Adm", "Z");
+      AuthorizationProviderService service = authzService(local);
+
+      MessageException e = assertThrows(
+         MessageException.class, () -> service.removeAuthorizationProvider(2, "X", principal));
+      assertTrue(e.getMessage().contains("changed by another administrator"), e.getMessage());
+
+      assertEquals(List.of("Adm", "Z"), authzFileNames());
+      assertEquals(List.of("Adm", "Z"), names(local.getProviders()));
+      service.removeAuthorizationProvider(1, "Z", principal);
+      assertEquals(List.of("Adm"), authzFileNames());
+   }
+
+   @Test
+   void authorizationRemoveWithANegativeIndexStaysInvalid() throws Exception {
+      AuthorizationProviderService service = authzService(staleAuthz("Adm", "Z"));
+
+      assertThrows(IndexOutOfBoundsException.class,
+                   () -> service.removeAuthorizationProvider(-1, "Z", principal));
+      assertEquals(List.of("Adm", "Z"), authzFileNames());
    }
 
    @Test
