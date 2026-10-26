@@ -229,7 +229,7 @@ public class TimeCondition extends ScheduleCondition {
    @Min(-1L)
    @Max(23L)
    @Schema(
-      description = "The hour of the day at which the condition is satisfied. This must be between 0 and 23, inclusive. May be -1 if not used.",
+      description = "The hour of the day at which the condition is satisfied. This must be between 0 and 23, inclusive, except for the AT type, which does not use it and may have -1.",
       example = "0")
    public int getHour() {
       return hour;
@@ -253,7 +253,7 @@ public class TimeCondition extends ScheduleCondition {
    @Min(-1L)
    @Max(59L)
    @Schema(
-      description = "The minute of the hour at which the condition is satisfied. This must be between 0 and 59, inclusive. May be -1 if not used.",
+      description = "The minute of the hour at which the condition is satisfied. This must be between 0 and 59, inclusive, except for the AT type, which does not use it and may have -1.",
       example = "30")
    public int getMinute() {
       return minute;
@@ -277,7 +277,7 @@ public class TimeCondition extends ScheduleCondition {
    @Min(-1L)
    @Max(59L)
    @Schema(
-      description = "The second at which the condition is satisfied. This must be between 0 and 59, inclusive. May be -1 if not used.",
+      description = "The second at which the condition is satisfied. This must be between 0 and 59, inclusive, except for the AT type, which does not use it and may have -1.",
       example = "0")
    public int getSecond() {
       return second;
@@ -300,7 +300,7 @@ public class TimeCondition extends ScheduleCondition {
    @Min(-1L)
    @Max(23L)
    @Schema(
-      description = "The hour of the day at which the hourly interval period ends. This must be between 0 and 23, inclusive. May be -1 if not used.",
+      description = "The hour of the day at which the hourly interval period ends. This must be between 0 and 23, inclusive, except for the AT type, which does not use it and may have -1.",
       example = "0",
       extensions = @Extension(properties = @ExtensionProperty(name = "x-since", value = "1.0")))
    public int getHourEnd() {
@@ -324,7 +324,7 @@ public class TimeCondition extends ScheduleCondition {
    @Min(-1L)
    @Max(59L)
    @Schema(
-      description = "The minute of the hour at which the hourly interval period ends. This must be between 0 and 59, inclusive. May be -1 if not used.",
+      description = "The minute of the hour at which the hourly interval period ends. This must be between 0 and 59, inclusive, except for the AT type, which does not use it and may have -1.",
       example = "30",
       extensions = @Extension(properties = @ExtensionProperty(name = "x-since", value = "1.0")))
    public int getMinuteEnd() {
@@ -348,7 +348,7 @@ public class TimeCondition extends ScheduleCondition {
    @Min(-1L)
    @Max(59L)
    @Schema(
-      description = "The second at which the hourly interval period ends. This must be between 0 and 59, inclusive. May be -1 if not used.",
+      description = "The second at which the hourly interval period ends. This must be between 0 and 59, inclusive, except for the AT type, which does not use it and may have -1.",
       example = "0",
       extensions = @Extension(properties = @ExtensionProperty(name = "x-since", value = "1.0")))
    public int getSecondEnd() {
