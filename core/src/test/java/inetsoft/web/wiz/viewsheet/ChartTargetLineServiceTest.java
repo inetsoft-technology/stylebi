@@ -88,6 +88,30 @@ class ChartTargetLineServiceTest {
       assertEquals("{0}", written.getLabel(), "the default label interpolates the value");
    }
 
+   /** Only an absent label defaults to {0}; a blank one means "no label text" and is kept. */
+   @ParameterizedTest
+   @ValueSource(strings = {"", " ", "   "})
+   void aBlankLabelIsStoredAsASingleSpaceNotTheDefault(String blank) throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      Map<String, Object> result =
+         h.service.add("tok", principal(), "Chart1", null, "1", blank, null, null, "");
+
+      assertEquals(" ", writtenTargets(h)[0].getLabel());
+      assertEquals(" ", result.get("label"));
+   }
+
+   @Test
+   void aNullLabelDefaultsAndACustomLabelIsKeptVerbatim() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+      h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, "");
+      assertEquals("{0}", writtenTargets(h)[0].getLabel());
+
+      Harness h2 = harness(chart(GraphTypes.CHART_BAR), pane());
+      h2.service.add("tok", principal(), "Chart1", null, "1", "Goal {0}", null, null, "");
+      assertEquals("Goal {0}", writtenTargets(h2)[0].getLabel());
+   }
+
    /** One measure and no 'measure' argument is unambiguous, so it binds rather than refusing. */
    @Test
    void bindsTheOnlyMeasureWhenNoneIsNamed() throws Exception {
