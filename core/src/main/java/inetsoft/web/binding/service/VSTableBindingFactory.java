@@ -18,6 +18,7 @@
 package inetsoft.web.binding.service;
 
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.SortInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
@@ -95,6 +96,16 @@ public class VSTableBindingFactory extends VSBindingFactory<TableVSAssembly, Tab
       ColumnSelection hidden = info.getHiddenColumns();
 
       for(DataRef ref : refs) {
+         // a re-bound hidden column keeps the per-column settings its hidden ref carries
+         if(ref instanceof ColumnRef column) {
+            for(DataRef href : hidden.stream().toList()) {
+               if(href.equals(ref) && href instanceof ColumnRef hcolumn) {
+                  carryColumnSettings(hcolumn, column);
+                  break;
+               }
+            }
+         }
+
          hidden.removeAttribute(ref);
       }
 
@@ -106,6 +117,24 @@ public class VSTableBindingFactory extends VSBindingFactory<TableVSAssembly, Tab
       }
 
       return assembly;
+   }
+
+   private static void carryColumnSettings(ColumnRef from, ColumnRef to) {
+      if(to.getAlias() == null && from.getAlias() != null) {
+         to.setAlias(from.getAlias());
+      }
+
+      if(to.getWidth() <= 1 && from.getWidth() > 1) {
+         to.setWidth(from.getWidth());
+      }
+
+      if(to.getPixelWidth() < 1 && from.getPixelWidth() >= 1) {
+         to.setPixelWidth(from.getPixelWidth());
+      }
+
+      if(to.getDescription() == null && from.getDescription() != null) {
+         to.setDescription(from.getDescription());
+      }
    }
 
    private final DataRefModelFactoryService refModelService;
