@@ -113,7 +113,18 @@ public class ChartRegionPropertyService {
       AxisKind kind = "axis".equals(name)
          ? computeTrueAxisKind(sessionToken, user, assembly, key, field) : null;
       boolean time = kind != null && kind.time();
-      Map<String, String> inapplicable = kind != null ? inapplicableAxisKeys(kind) : Map.of();
+      Map<String, String> inapplicable = kind != null
+         ? new LinkedHashMap<>(inapplicableAxisKeys(kind)) : Map.of();
+
+      if(kind != null) {
+         String incrementReason =
+            incrementRefusalReason(sessionToken, user, assembly, key, field, kind);
+
+         if(incrementReason != null) {
+            inapplicable.put("increment", incrementReason);
+         }
+      }
+
       String primary = time ? otherPrimaryGanttField(sessionToken, user, assembly, kind) : null;
       Map<String, String> aliases = aliasesFor(name);
       List<Map<String, Object>> properties = new ArrayList<>();
@@ -783,9 +794,24 @@ public class ChartRegionPropertyService {
       }
 
       AxisKind kind = computeTrueAxisKind(sessionToken, user, assembly, axisTarget, field);
+      String reason = incrementRefusalReason(sessionToken, user, assembly, axisTarget, field, kind);
 
+      if(reason != null) {
+         throw new IllegalArgumentException(reason);
+      }
+   }
+
+   /**
+    * Why {@code increment} is refused on this axis, or null when it is accepted. Shared by the
+    * write guard and {@link #list} so the listing never offers a key the write refuses (bug
+    * #79343).
+    */
+   private String incrementRefusalReason(String sessionToken, Principal user, String assembly,
+                                         String axisTarget, String field, AxisKind kind)
+      throws Exception
+   {
       if(kind.linear()) {
-         return;
+         return null;
       }
 
       boolean timeSeries = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
@@ -808,20 +834,20 @@ public class ChartRegionPropertyService {
          });
 
       if(outer) {
-         throw new IllegalArgumentException(
-            "'increment' only applies to the innermost time-series axis; '" + axisTarget + "'" +
+         return "'increment' only applies to the innermost time-series axis; '" + axisTarget + "'" +
             (field != null && !field.isBlank() ? " ('" + field + "')" : "") +
             " is an outer axis here (it is not the axis the chart draws its measures against), so this would " +
-            "be silently ignored. Omit it.");
+            "be silently ignored. Omit it.";
       }
 
       if(!timeSeries) {
-         throw new IllegalArgumentException(
-            "'increment' only applies to a linear (measure) axis, or a non-linear time-series " +
+         return "'increment' only applies to a linear (measure) axis, or a non-linear time-series " +
             "date axis. '" + axisTarget + "'" +
             (field != null && !field.isBlank() ? " ('" + field + "')" : "") +
-            " on this chart is neither, so this would be silently ignored. Omit it.");
+            " on this chart is neither, so this would be silently ignored. Omit it.";
       }
+
+      return null;
    }
 
    /** An axis's true kind, re-derived off its actual binding rather than off the area-index-0
