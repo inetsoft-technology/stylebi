@@ -41,7 +41,8 @@ public final class ScriptAssemblyRenamer {
     *                       the dot form worksheet.T / parameter.T. Entity-qualified
     *                       field['Entity.col'] and any other quoted key are left untouched.
     * @param js true if the script is JavaScript. A new name that is not an identifier is then
-    *           written as worksheet['New Name'] (the dot form is replaced by ['New Name']);
+    *           written as worksheet['New Name'], or worksheet["New Name"] if it holds a '
+    *           (the dot form is replaced by the quoted key);
     *           SQL text is never given JavaScript quoting.
     */
    public static String rename(String exp, final String oname, final String nname,
@@ -69,7 +70,8 @@ public final class ScriptAssemblyRenamer {
 
             // a name after a dot is a property of some other object, except worksheet.T and
             // parameter.V which read the assembly itself
-            boolean afterDot = sb.toString().endsWith(".");
+            String tail = sb.toString().stripTrailing();
+            boolean afterDot = tail.endsWith(".");
             boolean dotForm = afterDot && js && token.type == Token.NORMAL_REF && assemblyParent;
 
             if(token.isRef() && (!afterDot || dotForm) && (fullMatch || entityMatch)) {
@@ -79,16 +81,20 @@ public final class ScriptAssemblyRenamer {
                   !Tool.isValidIdentifier(nval))
                {
                   if(afterDot) {
-                     sb.deleteCharAt(sb.length() - 1);
+                     sb.setLength(tail.length() - 1);
                   }
                   else {
                      sb.append("worksheet");
                   }
 
-                  sb.append(new Token(Token.SINGLE_REF, nval, token.length));
+                  // a single quote in the name needs the double-quoted key
+                  int quoted = keyType(nval, Token.SINGLE_REF);
+                  sb.append(new Token(quoted, nval, token.length));
                }
                else {
-                  sb.append(new Token(token.type, nval, token.length));
+                  int type = js && !entityMatch && token.type != Token.NORMAL_REF ?
+                     keyType(nval, token.type) : token.type;
+                  sb.append(new Token(type, nval, token.length));
                }
             }
             else {
@@ -101,5 +107,21 @@ public final class ScriptAssemblyRenamer {
       iterator.iterate();
 
       return sb.toString();
+   }
+
+   /**
+    * Pick the quote kind for a quoted key: the double-quoted form when the name holds a single
+    * quote and no double quote, the single-quoted form when it holds a double quote and no
+    * single quote, else the kind the key already had.
+    */
+   private static int keyType(String name, int current) {
+      boolean single = name.indexOf('\'') >= 0;
+      boolean dbl = name.indexOf('"') >= 0;
+
+      if(single && !dbl) {
+         return Token.DOUBLE_REF;
+      }
+
+      return dbl && !single ? Token.SINGLE_REF : current;
    }
 }

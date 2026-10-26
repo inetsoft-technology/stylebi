@@ -8769,7 +8769,7 @@ class WorksheetEditServiceMutatorsTest {
       assertNull(ws.getAssembly("bad]]>name"));
    }
 
-   /** A slash is legal CDATA content, so the guard must let it through. */
+   /** A slash and a quote are legal CDATA content, so the guard must let them through. */
    @Test
    void renameTableAllowsCharactersTheComposerRefusesButStorageAccepts() throws Exception {
       Worksheet ws = new Worksheet();
@@ -8777,14 +8777,14 @@ class WorksheetEditServiceMutatorsTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.renameTable("A", "a/b c"));
+      svc.apply("TOK", agent, ed -> ed.renameTable("A", "a/b\"c"));
 
-      assertNotNull(ws.getAssembly("a/b c"));
+      assertNotNull(ws.getAssembly("a/b\"c"));
    }
 
    /**
     * Bug #79340: a rename rewrites script references as worksheet['New Name'], which cannot hold
-    * a quote, backslash or square bracket, so the rename is refused naming the character.
+    * both quote kinds, a backslash or a square bracket, so the rename is refused.
     */
    @Test
    void renameTableRefusesANameThatCannotBeQuotedInAScript() throws Exception {
@@ -8794,11 +8794,11 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       PairingException ex = assertThrows(PairingException.class,
-         () -> svc.apply("TOK", agent, ed -> ed.renameTable("A", "Bob's")));
+         () -> svc.apply("TOK", agent, ed -> ed.renameTable("A", "a'b\"c")));
 
       assertTrue(ex.getMessage().contains("'"), ex.getMessage());
       assertNotNull(ws.getAssembly("A"), "the rename must not have happened");
-      assertNull(ws.getAssembly("Bob's"));
+      assertNull(ws.getAssembly("a'b\"c"));
    }
 
    /**

@@ -5374,6 +5374,8 @@ public class WorksheetAgentController {
    private static void forceRuntimeRead(AssetQuerySandbox box, String tableName)
       throws PairingException
    {
+      XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
+
       try {
          box.getTableLens(tableName, AssetQuerySandbox.RUNTIME_MODE);
       }
@@ -5389,6 +5391,9 @@ public class WorksheetAgentController {
 
          throw new PairingException(
             "Failed to execute worksheet query for '" + tableName + "': " + cause, e);
+      }
+      finally {
+         XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
       }
    }
 

@@ -5324,18 +5324,22 @@ public class WorksheetEditService {
 
       /**
        * Bug #79340: a rename rewrites script references to the assembly as worksheet['New Name']
-       * when the new name is not an identifier. A quote, backslash or bracket cannot be written
-       * inside that key without breaking the script, so such a rename is refused up front.
+       * (or worksheet["New Name"] when the name holds a single quote) when the new name is not an
+       * identifier. A name with both quote kinds, a backslash or a square bracket cannot be
+       * written inside that key without breaking the script, so such a rename is refused.
        */
       static void requireScriptQuotableName(String name, String what) throws PairingException {
          if(name == null) {
             return;
          }
 
+         boolean bothQuotes = name.indexOf('\'') >= 0 && name.indexOf('"') >= 0;
          StringBuilder bad = new StringBuilder();
 
          for(char c : name.toCharArray()) {
-            if("'\"\\[]".indexOf(c) >= 0 && bad.indexOf(String.valueOf(c)) < 0) {
+            boolean refused = "\\[]".indexOf(c) >= 0 || bothQuotes && (c == '\'' || c == '"');
+
+            if(refused && bad.indexOf(String.valueOf(c)) < 0) {
                bad.append(c);
             }
          }
@@ -5343,11 +5347,10 @@ public class WorksheetEditService {
          if(bad.length() > 0) {
             throw new PairingException(
                what + " cannot contain " + bad + " when renaming: scripts that read the old " +
-               "name are rewritten to worksheet['<name>'], which cannot hold a quote, " +
-               "backslash or square bracket. Choose a name without them.");
+               "name are rewritten to worksheet['<name>'], which cannot hold both a single and " +
+               "a double quote, a backslash or a square bracket. Choose a name without them.");
          }
       }
-
       /**
        * Bug #79328: a hidden (outer) assembly is the copy that backs a mirror. The native UI
        * cannot select it, so making it primary or editing its properties would leave a primary

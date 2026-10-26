@@ -210,6 +210,33 @@ class WorksheetRenameEntityCollisionTest {
       assertEquals("Cats", sql.getExpression());
    }
 
+   /**
+    * Bug #79340: a name holding a single quote is written as a double-quoted key, a further
+    * rename still finds it, and whitespace after the dot is handled.
+    */
+   @Test
+   void renamingTableToNameWithSingleQuoteUsesDoubleQuotedKey() {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly cats = boundTable(ws, "Cats");
+      BoundTableAssembly leaf = boundTable(ws, "Leaf");
+      ExpressionRef bare = addExpression(leaf, "Bare", "Cats['c'][0]");
+      ExpressionRef dot = addExpression(leaf, "Dot", "worksheet. Cats['c'][0]");
+      ExpressionRef key = addExpression(leaf, "Key", "worksheet['Cats']['c'][0]");
+      ws.addAssembly(cats);
+      ws.addAssembly(leaf);
+
+      assertTrue(ws.renameAssembly("Cats", "Bob's", true));
+
+      assertEquals("worksheet[\"Bob's\"]['c'][0]", bare.getExpression());
+      assertEquals("worksheet[\"Bob's\"]['c'][0]", dot.getExpression());
+      assertEquals("worksheet[\"Bob's\"]['c'][0]", key.getExpression());
+
+      assertTrue(ws.renameAssembly("Bob's", "Cat-Names", true));
+
+      assertEquals("worksheet[\"Cat-Names\"]['c'][0]", bare.getExpression());
+      assertEquals("worksheet[\"Cat-Names\"]['c'][0]", key.getExpression());
+   }
+
    private static BoundTableAssembly boundTable(Worksheet ws, String name) {
       BoundTableAssembly table = new BoundTableAssembly(ws, name);
       ColumnSelection columns = new ColumnSelection();
