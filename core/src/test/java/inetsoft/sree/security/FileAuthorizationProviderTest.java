@@ -28,7 +28,7 @@ package inetsoft.sree.security;
  * [Key: list-identity]   identity entry stored                 → list() includes tuple with correct type+org+perm
  * [Bulk: scope-match]    orgA+orgB stored + cleanOrg(orgA)     → orgA entry removed
  * [Bulk: scope-other]    orgA+orgB stored + cleanOrg(orgA)     → orgB entry untouched
- * [Lifecycle: close]     open storage + tearDown()             → storage closed, field nulled
+ * [Lifecycle: close]     open storage + tearDown()             → storage stays open (shared), field kept
  * [Lifecycle: close×2]   closed storage + tearDown()           → no exception
  * [Op: put→null→get/id]  identity entry + put(identity, null)  → get(identity) == null
  * [Event: rename]        grant with oldId + rename event       → grant rewritten to newId
@@ -171,17 +171,17 @@ class FileAuthorizationProviderTest {
       assertSame(orgBPermission, provider.getPermission(ResourceType.VIEWSHEET, "b", ORG_B));
    }
 
-   // [Lifecycle: close] tearDown closes the underlying storage and nulls the storage field
-   // Pre: open storage; Op: tearDown(); Post: storage.isClosed()==true, field==null
+   // [Lifecycle: close] tearDown leaves the shared storage open and keeps the provider field
+   // Pre: open storage; Op: tearDown(); Post: storage.isClosed()==false, field unchanged (Bug #79355)
    @Test
-   void tearDown_closesStorageAndClearsProviderField() throws Exception {
+   void tearDown_leavesSharedStorageOpen() throws Exception {
       FileAuthorizationProvider provider = newProvider();
       InMemoryKeyValueStorage<Permission> storage = extractStorage(provider);
 
       provider.tearDown();
 
-      assertTrue(storage.isClosed());
-      assertNull(extractStorageField(provider));
+      assertFalse(storage.isClosed());
+      assertSame(storage, extractStorageField(provider));
    }
 
    // [Lifecycle: close×2] tearDown when storage is already null is a safe no-op

@@ -500,7 +500,7 @@ public class AuthenticationChain
    private void refreshReloaded(List<DatabaseAuthenticationProvider> providers) {
       for(DatabaseAuthenticationProvider changed : providers) {
          // A later reload may have replaced it: refresh the current provider of that name. A
-         // reload in progress empties the list before it sets the new one, so wait for it.
+         // reload in progress has not set the new list yet, so wait for it.
          String waiter = "the cache refresh of security provider " + changed.getProviderName();
          DatabaseAuthenticationProvider db = getProvidersAfterReload(waiter).stream()
             .filter(p -> p instanceof DatabaseAuthenticationProvider &&
