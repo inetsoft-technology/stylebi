@@ -39,6 +39,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.WorksheetControllerService;
+import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
@@ -3671,7 +3672,6 @@ public final class WorksheetMutationSupport {
     *                       constructors below) keeps the original append-only behavior for a
     *                       caller not resubmitting a readback.
     */
-   @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
    public record ConditionValueSpec(String valueType, String field, String expression,
                                     String expressionType, String subQueryName,
                                     String inSubQueryColumn,
@@ -3780,6 +3780,18 @@ public final class WorksheetMutationSupport {
                throw new IllegalArgumentException(
                   "A 'subquery' valueSpec's subQueryName \"" + spec.subQueryName() +
                   "\" does not exist as a table in this worksheet.");
+            }
+
+            // Bug #79328: refused before anything is stored. A stored cycle (e.g. a mirror of
+            // this table used as its own subquery) makes every later update()/dependency walk
+            // recurse until StackOverflowError, so no read of the worksheet works any more.
+            if(WorksheetEventUtil.checkCyclicalDependency(ws, t, subqueryTable)) {
+               throw new IllegalArgumentException(
+                  "A 'subquery' valueSpec on table \"" + t.getName() + "\" cannot use \"" +
+                  spec.subQueryName() + "\" as its subquery table: \"" + spec.subQueryName() +
+                  "\" already depends on \"" + t.getName() + "\", so this would form a " +
+                  "dependency cycle. Build the subquery table from the underlying source " +
+                  "instead of from a mirror, join or condition of \"" + t.getName() + "\".");
             }
 
             // resolveFieldOrNull (not a bare ColumnSelection.getAttribute() call) so a
@@ -4190,6 +4202,8 @@ public final class WorksheetMutationSupport {
                         spec.field(), dtype, requireParsableNumericLiteral(spec.field(), dtype, s)));
                   }
                }
+
+               requireSubQueryShape(t, post, spec, op, resolvedValues);
 
                // Bug #78394: counted after the valueSpecs replace/append step, so a field
                // comparison that has only valueSpecs (A = B) counts its one value, and after the
@@ -5678,6 +5692,93 @@ public final class WorksheetMutationSupport {
       }
 
       return value;
+   }
+
+   /**
+    * Bug #79328: refuses a subquery value in a shape the engine cannot evaluate, instead of
+    * storing it and failing at preview with a raw database error. The engine
+    * ({@code AssetCondition.getSubQueryValue}, {@code PreAssetQuery.createCondNode}) runs a
+    * subquery only for =, &lt;, &lt;=, &gt;, &gt;= and ONE_OF (negation is applied outside), and
+    * only when it is the condition's single value; any other shape evaluates it as a literal or
+    * silently as {@code =}. The column types are compared only when both are actually known,
+    * since an untyped column reports {@code string}.
+    */
+   private static void requireSubQueryShape(TableAssembly t, boolean post, ConditionSpec spec,
+                                            int op, List<Object> values)
+   {
+      SubQueryValue sub = null;
+
+      for(Object value : values) {
+         if(value instanceof SubQueryValue sv) {
+            sub = sv;
+            break;
+         }
+      }
+
+      if(sub == null) {
+         return;
+      }
+
+      String field = spec.field();
+      String name = spec.operation() == null || spec.operation().isBlank() ? "=" :
+         spec.operation();
+
+      if(op != XCondition.EQUAL_TO && op != XCondition.LESS_THAN &&
+         op != XCondition.GREATER_THAN && op != XCondition.ONE_OF)
+      {
+         throw new IllegalArgumentException(
+            "A subquery valueSpec cannot be used with " + name + " on \"" + field + "\": the " +
+            "engine evaluates a subquery only for =, !=, <, <=, >, >=, ONE_OF and NOT_ONE_OF. " +
+            "Use one of those operations.");
+      }
+
+      if(values.size() != 1) {
+         throw new IllegalArgumentException(
+            "A subquery valueSpec must be the only value of the condition on \"" + field +
+            "\" (got " + values.size() + " values): it cannot be mixed with literals or with " +
+            "another subquery, because the engine would not evaluate it as a subquery.");
+      }
+
+      DataRef col = resolveField(t, field, post);
+      DataRef subCol = sub.getAttribute();
+
+      if(col == null || subCol == null || !isTypeKnown(col) || !isTypeKnown(subCol)) {
+         return;
+      }
+
+      String colType = inferColumnType(t, field, post);
+      String subType = subCol.getDataType();
+
+      if(!typeFamily(colType).equals(typeFamily(subType))) {
+         throw new IllegalArgumentException(
+            "A subquery valueSpec on \"" + field + "\" compares a " + colType + " column with " +
+            sub.getQuery() + "." + subCol.getName() + ", a " + subType + " column; the " +
+            "database cannot compare these types. Pick a subquery column of a comparable type " +
+            "(numeric with numeric, text with text, date with date).");
+      }
+   }
+
+   private static boolean isTypeKnown(DataRef col) {
+      String type = col.getDataType();
+
+      if(type == null || type.isBlank()) {
+         return false;
+      }
+
+      return col.isDataTypeSet() || !XSchema.STRING.equals(type) ||
+         col instanceof ColumnRef cr && cr.getDataRef() != null && cr.getDataRef().isDataTypeSet();
+   }
+
+   private static String typeFamily(String type) {
+      if(XSchema.isNumericType(type)) {
+         return "numeric";
+      }
+
+      if(XSchema.isDateType(type)) {
+         return "date";
+      }
+
+      return XSchema.BOOLEAN.equals(type) ? "boolean" : "string";
    }
 
    /**
