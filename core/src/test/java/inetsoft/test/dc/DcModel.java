@@ -41,8 +41,7 @@ import java.util.TreeSet;
  *
  * <p>Not modelled ({@link #expected} returns null): a unit coarser than a week that is shown by
  * week (Year / Quarter / Month to Date by Week, whose wording leaves open how the last partial
- * week is cut), the week of a Year context (Bug #79061, finding 3: week of year or week of
- * month), and a week that a month or quarter of the periods does not have (the End Date is in
+ * week is cut), the week of a Year context (the same week of the same month, #63990), and a week that a month or quarter of the periods does not have (the End Date is in
  * the 5th week and another month has four: the product takes another week there, the calendar
  * variation bucket of #76391, which the wording does not define).</p>
  */
