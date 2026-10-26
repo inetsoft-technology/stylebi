@@ -327,7 +327,7 @@ public class XEmbeddedTableTest {
 
    @Test
    public void lossyTextToBooleanOrCharacterIsRefusedUnlessForced() throws Exception {
-      for(String bad : new String[] { "abc", "yes", " true " }) {
+      for(String bad : new String[] { "abc", "yes", " true ", "N/A", "  " }) {
          XEmbeddedTable t = textColumn("true", bad);
          Assertions.assertThrows(java.text.ParseException.class, () ->
             t.setDataType(0, XSchema.BOOLEAN, null, null, false));
@@ -351,6 +351,27 @@ public class XEmbeddedTableTest {
       Assertions.assertThrows(java.text.ParseException.class, () ->
          chars.setDataType(0, XSchema.CHARACTER, null, null, false));
       Assertions.assertEquals("abc", chars.getObject(2, 0));
+      Assertions.assertEquals(XSchema.STRING, chars.getDataType(0));
+
+      for(String bad : new String[] { "N/A", "NA" }) {
+         XEmbeddedTable na = textColumn("a", bad);
+         Assertions.assertThrows(java.text.ParseException.class, () ->
+            na.setDataType(0, XSchema.CHARACTER, null, null, false));
+      }
+
+      XEmbeddedTable nullText = textColumn("null");
+      nullText.setDataType(0, XSchema.BOOLEAN, null, null, false);
+      Assertions.assertNull(nullText.getObject(1, 0));
+
+      XEmbeddedTable single = textColumn("a", " ", "");
+      single.setDataType(0, XSchema.CHARACTER, null, null, false);
+      Assertions.assertEquals('a', single.getObject(1, 0));
+
+      Object[][] numRows = { { "c" }, { 7 }, { 12 } };
+      XEmbeddedTable nums = new XEmbeddedTable(new String[] { XSchema.INTEGER }, numRows);
+      Assertions.assertThrows(java.text.ParseException.class, () ->
+         nums.setDataType(0, XSchema.CHARACTER, null, null, false));
+      Assertions.assertEquals(XSchema.INTEGER, nums.getDataType(0));
    }
 
    @Test
