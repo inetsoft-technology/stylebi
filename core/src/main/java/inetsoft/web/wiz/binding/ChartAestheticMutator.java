@@ -1369,24 +1369,8 @@ public final class ChartAestheticMutator {
       // Bug #79006: shape IS bound, but its frame belongs to the OTHER family (area/line charts
       // carry a line frame in the shape slot, bar/pie a texture frame), so this channel has no
       // field of its own to vary over. Telling the caller to bind shape first would be circular.
-      VisualFrameModel shapeFrame = shapeField == null ? null : shapeField.getFrame();
-      boolean otherFamily = isTexture
-         ? shapeFrame instanceof LineFrameModel : shapeFrame instanceof TextureFrameModel;
-
-      if(otherFamily) {
-         String other = isTexture ? "line" : "texture";
-         String otherPicker = isTexture ? "line picker" : "texture picker";
-         String thisPicker = isTexture ? "texture picker" : "line picker";
-
-         throw new IllegalArgumentException(
-            "The " + channel + " channel cannot vary by category on this chart: its shape field '" +
-            fieldNameOf(shapeField) + "' is bound, but this chart type's shape slot uses the " +
-            otherPicker + " (area/line charts use the line picker, bar/pie charts the texture " +
-            "picker), not the " + thisPicker + ", so the " + channel + " channel has no field of " +
-            "its own to vary over. To vary by category, call set_visual_frame with channel: \"" +
-            other + "\" and {type: \"categorical\"}; for one fixed " + channel + " value use " +
-            "{type: \"static\", " + channel + ": ...}; or use set_chart_type to switch to a chart " +
-            "type whose shape slot uses the " + thisPicker + ".");
+      if(shapeField != null) {
+         throw boundShapeFieldRefusal(channel, shapeField);
       }
 
       throw new IllegalArgumentException(
@@ -1398,6 +1382,34 @@ public final class ChartAestheticMutator {
          "which drives shape, line and texture together, then set this frame. (Storing it here does " +
          "not merely go unrendered — on a chart that renders " + channel + " per measure this stops " +
          "the chart rendering at all.)");
+   }
+
+   /**
+    * Bug #79343: the refusal for a line/texture frame that varies by category when shape IS bound.
+    * Cause axis: which frame family the bound shape field holds (line, texture, or plain shape) —
+    * the line/texture channel has no field of its own, so telling the caller to bind shape first
+    * would be circular. Shared by the per-measure, multi-style and chart-level (radar) paths.
+    */
+   private static IllegalArgumentException boundShapeFieldRefusal(String channel,
+                                                                  AestheticInfo shapeField)
+   {
+      VisualFrameModel shapeFrame = shapeField.getFrame();
+      String thisPicker = "line".equals(channel) ? "line picker" : "texture picker";
+      String slotPicker = shapeFrame instanceof LineFrameModel ? "line picker"
+         : shapeFrame instanceof TextureFrameModel ? "texture picker" : "shape picker";
+      String other = shapeFrame instanceof LineFrameModel ? "line"
+         : shapeFrame instanceof TextureFrameModel ? "texture" : "shape";
+      String shapeSlot = "its shape field '" + fieldNameOf(shapeField) + "' is bound, but this " +
+         "chart type's shape slot uses the " + slotPicker + ", not the " + thisPicker + ", so " +
+         "the " + channel + " channel has no field of its own to vary over. ";
+
+      return new IllegalArgumentException(
+         "The " + channel + " channel cannot vary by category on this chart: " + shapeSlot +
+         "To vary by category, call set_visual_frame with channel: \"" + other + "\" and " +
+         "{type: \"categorical\"}; for one fixed " + channel + " value use {type: \"static\", " +
+         channel + ": ...}; or use set_chart_type to switch to a chart type whose shape slot uses " +
+         "the " + thisPicker + " (area/line charts use the line picker, bar/pie charts the " +
+         "texture picker).");
    }
 
    /**
@@ -1595,6 +1607,8 @@ public final class ChartAestheticMutator {
                   ? e.getMessage() + " This is a Gantt chart: bind a field with " +
                     "set_aesthetic_field first (it goes onto the start and milestone measures), " +
                     "then set this frame. Measure: " + measureLabel(aggregate) + "."
+                  : aggregate.getShapeField() != null
+                  ? e.getMessage() + " Measure: " + measureLabel(aggregate) + "."
                   : e.getMessage() + " This chart is multi-style, where set_aesthetic_field is " +
                     "refused: turn multi-style off (set_chart_type multi:false), bind the field, " +
                     "then turn it back on. Measure: " + measureLabel(aggregate) + ".");
@@ -1649,6 +1663,11 @@ public final class ChartAestheticMutator {
       }
 
       boolean lineOrTexture = "line".equals(channel) || "texture".equals(channel);
+      AestheticInfo boundShape = lineOrTexture ? read(model, "shape") : null;
+
+      if(boundShape != null) {
+         throw boundShapeFieldRefusal(channel, boundShape);
+      }
 
       throw new IllegalArgumentException(
          "The " + channel + " channel has no field bound, so this chart type draws it as one " +

@@ -2516,7 +2516,7 @@ class ChartRegionPropertyServiceTest {
          h.service.list("tok", principal(), "Chart1", "axis", "x", null));
 
       assertEquals(java.util.Set.of("minimum", "maximum", "reverse", "logarithmicScale", "shared",
-                                    "minorIncrement"), flagged.keySet());
+                                    "minorIncrement", "increment"), flagged.keySet());
       assertTrue(flagged.get("minimum").toString().contains("whatever the value"));
    }
 
