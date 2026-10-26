@@ -63,6 +63,7 @@ public class ViewsheetAgentController {
                                    ScriptEditService editService,
                                    ScriptReadService readService,
                                    ScriptExecuteService executeService,
+                                   ScriptStateRefreshService stateRefreshService,
                                    ScriptContextService contextService,
                                    ScriptApiService apiService,
                                    ScriptImageService imageService,
@@ -75,6 +76,7 @@ public class ViewsheetAgentController {
       this.editService = editService;
       this.readService = readService;
       this.executeService = executeService;
+      this.stateRefreshService = stateRefreshService;
       this.contextService = contextService;
       this.apiService = apiService;
       this.imageService = imageService;
@@ -257,7 +259,8 @@ public class ViewsheetAgentController {
             ScriptTarget t =
                target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
             requirePaneScope(sessionToken, user, t);
-            return executeService.dryRun(rvs, t);
+            return stateRefreshService.runAndRefresh(
+               rvs, user, "", () -> executeService.dryRun(rvs, t));
          },
          result -> !result.requiresConfirmation());
    }
@@ -277,7 +280,8 @@ public class ViewsheetAgentController {
             ScriptTarget t =
                target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
             requirePaneScope(sessionToken, user, t);
-            return executeService.runLive(rvs, t, req.confirmed());
+            return stateRefreshService.runAndRefresh(
+               rvs, user, "", () -> executeService.runLive(rvs, t, req.confirmed()));
          });
    }
 
@@ -522,6 +526,7 @@ public class ViewsheetAgentController {
    private final ScriptEditService editService;
    private final ScriptReadService readService;
    private final ScriptExecuteService executeService;
+   private final ScriptStateRefreshService stateRefreshService;
    private final ScriptContextService contextService;
    private final ScriptApiService apiService;
    private final ScriptImageService imageService;
