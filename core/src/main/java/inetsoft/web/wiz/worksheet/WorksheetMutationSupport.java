@@ -510,7 +510,9 @@ public final class WorksheetMutationSupport {
                   return new NamedGroupRetargetConflict(table.getName(), ref.getAttribute());
                }
 
-               ColumnSelection cs = table.getColumnSelection(true);
+               // The private selection: a hidden column is absent from the public one, which would
+               // skip the table here although the group still maps through the hidden column.
+               ColumnSelection cs = table.getColumnSelection(false);
                DataRef column = cs == null ? null : cs.getAttribute(ref.getName());
 
                if(column instanceof ColumnRef columnRef &&
@@ -694,7 +696,7 @@ public final class WorksheetMutationSupport {
          }
 
          for(int i = 0; i < values.length; i++) {
-            Object value = conditionValue(dtype, values[i]);
+            Object value = parseConditionLiteral(t, dtype, values[i]);
 
             // Bug #78145 (WSC-008): the same leftover-literal guard buildConditionList runs.
             // add_filter/edit_condition take no valueSpecs, so only the column-name heuristic
@@ -4062,7 +4064,7 @@ public final class WorksheetMutationSupport {
                      // routes every value through convertType, whose UserVariable branch
                      // (Condition:2129-2149) sets the type node from the condition's own type, so
                      // the variable was typed from the column either way.
-                     Object value = conditionValue(dtype, v);
+                     Object value = parseConditionLiteral(t, dtype, v);
 
                      if(value instanceof UserVariable uv &&
                         spec.choiceQuery() != null && !spec.choiceQuery().isBlank())
@@ -5256,6 +5258,29 @@ public final class WorksheetMutationSupport {
    private static final java.util.regex.Pattern SUBQUERY_DISPLAY_TEXT =
       java.util.regex.Pattern.compile("^Query\\[(.+)\\]$");
 
+   private static boolean isSubQueryDisplayText(TableAssembly t, String value) {
+      return isSubQueryDisplayText(t, SUBQUERY_DISPLAY_TEXT.matcher(value));
+   }
+
+   private static boolean isSubQueryDisplayText(TableAssembly t, java.util.regex.Matcher m) {
+      return m.matches() && t.getWorksheet() != null &&
+         t.getWorksheet().getAssembly(m.group(1)) instanceof TableAssembly;
+   }
+
+   /**
+    * Parses a raw condition literal for its column type. A boolean column's strict true/false
+    * parse is skipped for sub query display text so a matching valueSpecs entry can replace it
+    * (the read_worksheet_model round trip) and an unreplaced one reaches
+    * {@link #requireNotSubQueryDisplayText} instead of the boolean message.
+    */
+   private static Object parseConditionLiteral(TableAssembly t, String dtype, String value) {
+      if(XSchema.BOOLEAN.equals(dtype) && isSubQueryDisplayText(t, value)) {
+         return value;
+      }
+
+      return conditionValue(dtype, value);
+   }
+
    /**
     * Refuses a literal of the form {@code Query[name]} when {@code name} is a table in the
     * worksheet: that is {@code SubQueryValue.toString()}, the text {@code read_worksheet_model}
@@ -5273,9 +5298,7 @@ public final class WorksheetMutationSupport {
    {
       java.util.regex.Matcher m = SUBQUERY_DISPLAY_TEXT.matcher(value);
 
-      if(m.matches() && t.getWorksheet() != null &&
-         t.getWorksheet().getAssembly(m.group(1)) instanceof TableAssembly)
-      {
+      if(isSubQueryDisplayText(t, m)) {
          String spec = "{index: " + i + ", valueType: \"subquery\", subQueryName: \"" +
             m.group(1) + "\", inSubQueryColumn: \"<column on " + m.group(1) + ">\", where?}";
          String remedy = specsAvailable

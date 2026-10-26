@@ -53,9 +53,10 @@ class WorksheetSubQueryConditionValue79221Test {
 
    private void fixture(String... otherTables) {
       ws = new Worksheet();
-      t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "STATE", "N", "D");
+      t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "STATE", "N", "D", "B");
       ((ColumnRef) t.getColumnSelection(false).getAttribute("N")).setDataType(XSchema.INTEGER);
       ((ColumnRef) t.getColumnSelection(false).getAttribute("D")).setDataType(XSchema.DATE);
+      ((ColumnRef) t.getColumnSelection(false).getAttribute("B")).setDataType(XSchema.BOOLEAN);
       ws.addAssembly(t);
 
       for(String name : otherTables) {
@@ -245,6 +246,47 @@ class WorksheetSubQueryConditionValue79221Test {
 
       set("STATE", List.of("Query[SUP] extra"));
       set("STATE", List.of("my Query[SUP]"));
+   }
+
+   // ----- boolean column: the strict true/false parse must not pre-empt the sub query handling
+
+   @Test
+   void booleanColumnAcceptsSubQueryReadbackWithItsValueSpec() {
+      fixture("SUP");
+      ConditionValueSpec spec = new ConditionValueSpec(
+         "subquery", null, null, null, "SUP", "STATE", null, 0);
+
+      set("B", List.of("Query[SUP]"), spec);
+
+      Condition c = (Condition) ((ConditionItem)
+         ((ConditionList) t.getPreConditionList()).getItem(0)).getXCondition();
+      assertEquals(1, c.getValueCount());
+      assertInstanceOf(SubQueryValue.class, c.getValue(0));
+      assertEquals("SUP", ((SubQueryValue) c.getValue(0)).getQuery());
+   }
+
+   @Test
+   void booleanColumnRefusesBareSubQueryTextWithSubQueryGuidance() {
+      fixture("SUP");
+
+      assertSubQueryRefusal(refusal(() -> set("B", List.of("Query[SUP]"))), "B", "SUP", true);
+      assertSubQueryRefusal(
+         refusal(() -> WorksheetMutationSupport.addFilter(t, "B", "=", "Query[SUP]")),
+         "B", "SUP", false);
+      assertSubQueryRefusal(
+         refusal(() -> WorksheetMutationSupport.replaceFilter(t, "B", "=", "Query[SUP]")),
+         "B", "SUP", false);
+   }
+
+   @Test
+   void booleanColumnStillRefusesNonBooleanText() {
+      fixture("SUP");
+
+      for(String value : List.of("yes", "Query[NoSuchTable]")) {
+         assertTrue(refusal(() -> set("B", List.of(value))).contains("is not a boolean value"));
+         assertTrue(refusal(() -> WorksheetMutationSupport.addFilter(t, "B", "=", value))
+                       .contains("is not a boolean value"));
+      }
    }
 
    // ----- write side: a resubmitted subquery valueSpec
