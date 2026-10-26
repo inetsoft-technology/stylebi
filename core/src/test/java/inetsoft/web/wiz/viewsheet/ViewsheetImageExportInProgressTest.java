@@ -197,6 +197,6 @@ class ViewsheetImageExportInProgressTest {
          mock(PrintDeviceLayoutPropertyService.class), mock(LayoutMutationService.class),
          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class),
          mock(SecurityEngine.class),
-         mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
+         mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
    }
 }
