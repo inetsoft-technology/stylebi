@@ -1741,6 +1741,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          VariableTable ovars = getVariableTable().clone();
 
          try {
+            // a saved selection is not applied to the tables until processSelections() below,
+            // apply it now so the onLoad script reads the filtered data (#79367)
+            applySelectionsToTables(Arrays.stream(arr)
+               .filter(a -> a instanceof SelectionVSAssembly)
+               .map(a -> (SelectionVSAssembly) a).collect(Collectors.toList()));
+
+            if(hasOnLoadScript()) {
+               resetScriptable();
+            }
+
             processOnLoad(clist, true);
 
             // if variable is changed in onLoad, the variable may impact the result of
@@ -2290,7 +2300,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // the onLoad script reads the data of the tables, which must already be filtered by the
       // changed selection, otherwise it sees the previous selection's data (#79367)
       if(vs.getAssembly(name) instanceof SelectionVSAssembly) {
-         applySelectionToTables((SelectionVSAssembly) vs.getAssembly(name));
+         applySelectionsToTables(Collections.singletonList((SelectionVSAssembly) vs.getAssembly(name)));
       }
 
       resetScriptable(type);
@@ -2300,18 +2310,25 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
-    * Apply the selection to the tables depending on it, and drop their cached data so it is
-    * queried again under the new conditions.
+    * Apply the selections to the tables depending on them, and drop the cached data of the
+    * assemblies on those tables so it is queried again under the new conditions. The onLoad
+    * script reads such data, so this is only done if there is an onLoad script to run.
+    * Dispatching and the processed state of the assemblies are left to processSelections().
     */
-   private void applySelectionToTables(SelectionVSAssembly assembly) throws Exception {
-      String onload = vs.getViewsheetInfo().getOnLoad();
-
-      if(!vs.getViewsheetInfo().isScriptEnabled() || onload == null || onload.trim().isEmpty()) {
+   private void applySelectionsToTables(Collection<SelectionVSAssembly> selections)
+      throws Exception
+   {
+      if(!hasOnLoadScript()) {
          return;
       }
 
-      applySelectionConditions(assembly);
-      Set<String> tables = getDependentTableNames(assembly);
+      Set<String> tables = new HashSet<>();
+
+      for(SelectionVSAssembly selection : selections) {
+         tables.addAll(getDependentTableNames(selection));
+      }
+
+      applySelectionConditions(tables);
 
       for(Assembly vassembly : vs.getAssemblies()) {
          if(vassembly instanceof VSAssembly &&
@@ -2321,6 +2338,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
    }
+
+   private boolean hasOnLoadScript() {
+      String onload = vs.getViewsheetInfo().getOnLoad();
+      return vs.getViewsheetInfo().isScriptEnabled() && onload != null &&
+         !onload.trim().isEmpty();
+   }
+
 
    /**
     * Reset scope.
@@ -2923,9 +2947,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       String onload = vs.getViewsheetInfo().getOnLoad();
       onLoadExeced = true;
 
-      if(!vs.getViewsheetInfo().isScriptEnabled() ||
-         onload == null || onload.trim().length() == 0)
-      {
+      if(!hasOnLoadScript()) {
          return;
       }
 
@@ -5510,7 +5532,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
 
-         final Set<SelectionVSAssembly> selections = applySelectionConditions(assembly);
+         final Set<SelectionVSAssembly> selections =
+            applySelectionConditions(getDependentTableNames(assembly));
 
          selections.forEach((s) -> clist.getSelectionList().remove(s.getAssemblyEntry()));
 
@@ -5565,15 +5588,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
-    * Install the selection's current state as runtime conditions on the tables depending on it.
+    * Install the current state of the selections as runtime conditions on the tables.
     * @return the selection assemblies sharing those tables.
     */
-   private Set<SelectionVSAssembly> applySelectionConditions(SelectionVSAssembly assembly)
+   private Set<SelectionVSAssembly> applySelectionConditions(Set<String> tables)
       throws Exception
    {
       final Set<SelectionVSAssembly> selections = new HashSet<>();
 
-      for(String tname : getDependentTableNames(assembly)) {
+      for(String tname : tables) {
          selections.addAll(refreshRuntimeConditionList(tname, false, new HashSet<>()));
       }
 

@@ -77,6 +77,60 @@ class ViewsheetSandboxOnLoadSelectionTest {
                  "fixture: the steps must filter differently");
    }
 
+   /**
+    * A viewsheet opened with a selection saved in it: the first onLoad run, in reset(), must
+    * already read the table filtered by the saved selection.
+    */
+   @Test
+   void onLoadReadsTheTableFilteredByTheSavedSelectionOnOpen() throws Exception {
+      ViewsheetSandbox box = vsResource.getRuntimeViewsheet().getViewsheetSandbox().orElseThrow();
+      Viewsheet vs = box.getViewsheet();
+      SourceInfo source =
+         (SourceInfo) ((TableVSAssembly) vs.getAssembly(TABLE)).getSourceInfo().clone();
+      SelectionListVSAssembly selection = selection(vs, source.getSource());
+      TextVSAssembly text = new TextVSAssembly(vs, TEXT);
+      vs.addAssembly(text);
+      vs.getViewsheetInfo().setScriptEnabled(true);
+      vs.getViewsheetInfo().setOnLoad(
+         TEXT + ".text = 'Rows:' + (" + TABLE + ".table.length - 1);");
+
+      int all = rows(box.getData(TABLE));
+      SelectionList list = new SelectionList();
+      SelectionValue value = new SelectionValue("NAMED", "NAMED");
+      value.setState(SelectionValue.STATE_SELECTED);
+      list.setSelectionValues(new SelectionValue[] { value });
+      selection.setStateSelectionList(list);
+
+      box.lockWrite();
+
+      try {
+         box.reset(null, vs.getAssemblies(), new ChangedAssemblyList(), true, true, null);
+      }
+      finally {
+         box.unlockWrite();
+      }
+
+      int filtered = rows(box.getData(TABLE));
+      assertTrue(filtered < all, "fixture: the saved selection must filter the table");
+      assertEquals("Rows:" + filtered, textOf(text), "onLoad when the viewsheet is opened");
+   }
+
+   /**
+    * Without an onLoad script the change is applied by processSelections only, as before.
+    */
+   @Test
+   void selectionChangeWithoutOnLoadStillFiltersTheTable() throws Exception {
+      ViewsheetSandbox box = vsResource.getRuntimeViewsheet().getViewsheetSandbox().orElseThrow();
+      Viewsheet vs = box.getViewsheet();
+      SourceInfo source =
+         (SourceInfo) ((TableVSAssembly) vs.getAssembly(TABLE)).getSourceInfo().clone();
+      SelectionListVSAssembly selection = selection(vs, source.getSource());
+      int all = rows(box.getData(TABLE));
+
+      select(box, selection, "NAMED");
+      assertTrue(rows(box.getData(TABLE)) < all);
+   }
+
    private static SelectionListVSAssembly selection(Viewsheet vs, String table) {
       SelectionListVSAssembly selection = new SelectionListVSAssembly(vs, "Type79367");
       SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) selection.getInfo();
