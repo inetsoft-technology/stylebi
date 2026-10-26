@@ -111,15 +111,29 @@ class ScriptStateRefreshServiceTest {
    }
 
    @Test
-   void clearsATreePinAfterTheRefresh() throws Exception {
+   void keepsATreePinThatWasNotApplied() throws Exception {
+      // a tree that still uses metadata (a design-mode runtime) never applies its pin
       SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly(vs, "Tree");
-      tree.setScriptSelectedValues(new Object[] { "East" });
+      Object[] pin = { "East" };
+      tree.setScriptSelectedValues(pin);
       vs.addAssembly(tree);
 
       service.runAndRefresh(rvs, user, "", () -> OK);
 
       verify(refreshService).refreshViewsheet(any(), any(), any(), any(), any());
-      assertNull(tree.getScriptSelectedValues());
+      assertSame(pin, tree.getScriptSelectedValues());
+   }
+
+   @Test
+   void keepsAListPinThatHasNoDataToApplyTo() throws Exception {
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "Filter");
+      Object[] pin = { "East" };
+      list.setScriptSelectedValues(pin);
+      vs.addAssembly(list);
+
+      service.runAndRefresh(rvs, user, "", () -> OK);
+
+      assertSame(pin, list.getScriptSelectedValues());
    }
 
    @Test
@@ -197,12 +211,11 @@ class ScriptStateRefreshServiceTest {
    }
 
    @Test
-   void aRefreshFailureAfterACleanRunIsReported() throws Exception {
+   void aRefreshFailureAfterACleanRunStillReturnsTheScriptResult() throws Exception {
       doThrow(new IllegalStateException("refresh failed")).when(refreshService)
          .refreshViewsheet(any(), any(), any(), any(), any());
 
-      assertThrows(IllegalStateException.class,
-         () -> service.runAndRefresh(rvs, user, "", () -> OK));
+      assertSame(OK, service.runAndRefresh(rvs, user, "", () -> OK));
    }
 
    private static SelectionListVSAssembly selectionList(String name, String... values) {

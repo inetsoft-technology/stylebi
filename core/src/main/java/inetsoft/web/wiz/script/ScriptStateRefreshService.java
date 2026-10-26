@@ -44,8 +44,13 @@ import java.util.List;
  * holds for other runtime-only effects the viewsheet XML does not carry. After every wiz script
  * run, whatever its target ({@code assemblyOnClick}, {@code assemblyMain}, {@code viewsheetOnInit}
  * or {@code viewsheetOnLoad}), this service therefore resolves each selection pin and performs
- * the same whole-sheet refresh as {@code edit(op:"refresh_viewsheet")}, then clears the pins so a
- * later click in the browser is not reverted by a stale pin.</p>
+ * the same whole-sheet refresh as {@code edit(op:"refresh_viewsheet")}, then clears the pins it
+ * has applied so a later click in the browser is not reverted by a stale pin.</p>
+ *
+ * <p>Only a pin that was really applied is cleared. A list pin is applied whenever the list has
+ * data. A tree pin is applied, and cleared by the tree itself, only once the tree no longer uses
+ * metadata; while it still does (a design-mode runtime) nothing applies it, so it is left for
+ * whatever later applies it rather than dropped.</p>
  *
  * <p>Both {@code execute} and {@code execute-live} are refreshed: neither runs against a clone,
  * so both have already changed the live runtime. The refresh re-runs the viewsheet's onLoad
@@ -103,26 +108,30 @@ public class ScriptStateRefreshService {
          refresh(rvs, user, linkUri);
       }
       catch(Exception ex) {
-         // an erroring script reports its own error; only a clean run has nothing else to say
-         if(result.ok()) {
-            throw ex;
-         }
-
-         LOG.warn("Could not refresh the viewsheet after a failed script run", ex);
+         // The script already ran and its writes stay applied, so its result is still reported
+         // (and the caller still broadcasts); failing here would invite a re-run of a script
+         // that may not be idempotent.
+         LOG.warn("Could not refresh the viewsheet after a script run", ex);
       }
 
       return result;
    }
 
    private void refresh(RuntimeViewsheet rvs, Principal user, String linkUri) throws Exception {
-      List<Assembly> pinned = pinnedSelections(rvs.getViewsheet());
+      List<SelectionListVSAssembly> applied = new ArrayList<>();
 
-      // Resolve each pin into the assembly's selection list before anything reads it.
-      for(Assembly assembly : pinned) {
+      // Resolve each pin into the assembly's selection state before anything reads it.
+      for(Assembly assembly : pinnedSelections(rvs.getViewsheet())) {
          if(assembly instanceof SelectionListVSAssembly list) {
+            // a list without data yet cannot apply its pin
+            if(list.getSelectionList() != null) {
+               applied.add(list);
+            }
+
             list.getSelectedObjects();
          }
          else if(assembly instanceof SelectionTreeVSAssembly tree) {
+            // clears its own pin when it applies it
             tree.getSelectedObjects();
          }
       }
@@ -136,13 +145,8 @@ public class ScriptStateRefreshService {
          });
       }
       finally {
-         for(Assembly assembly : pinned) {
-            if(assembly instanceof SelectionListVSAssembly list) {
-               list.setScriptSelectedValues(null);
-            }
-            else if(assembly instanceof SelectionTreeVSAssembly tree) {
-               tree.setScriptSelectedValues(null);
-            }
+         for(SelectionListVSAssembly list : applied) {
+            list.setScriptSelectedValues(null);
          }
       }
    }
