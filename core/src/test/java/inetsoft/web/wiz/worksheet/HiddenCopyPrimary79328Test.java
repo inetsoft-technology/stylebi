@@ -32,9 +32,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -58,6 +55,7 @@ class HiddenCopyPrimary79328Test {
          () -> service(ws).apply("TOK", agent, ed -> ed.setPrimaryAssembly("OUTER_src_0")));
 
       assertRefusal(ex, "OUTER_src_0");
+      assertTrue(ex.getMessage().contains("'M'"), ex.getMessage());
       assertEquals("M", ws.getPrimaryAssemblyName());
    }
 
@@ -125,12 +123,45 @@ class HiddenCopyPrimary79328Test {
       assertFalse(((TableAssemblyInfo) t.getTableInfo()).isVisibleTable());
    }
 
+   @Test
+   void orphanHiddenCopyFallsBackToGenericMirrorWording() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly hidden = table(ws, "OUTER_src_0");
+      hidden.setOuter(true);
+      ws.addAssembly(hidden);
+      ws.addAssembly(new MirrorTableAssembly(ws, "M", hidden));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service(ws).apply("TOK", agent, ed -> ed.setPrimaryAssembly("OUTER_src_0")));
+
+      assertRefusal(ex, "OUTER_src_0");
+      assertTrue(ex.getMessage().contains("a mirror"), ex.getMessage());
+   }
+
+   @Test
+   void nestedHiddenMirrorCopyIsNotNamedAsOwner() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly hidden = table(ws, "OUTER_src_0");
+      hidden.setOuter(true);
+      ws.addAssembly(hidden);
+      MirrorTableAssembly nested = new MirrorTableAssembly(ws, "OUTER_N_0", EXT, true, hidden);
+      nested.setOuter(true);
+      ws.addAssembly(nested);
+      ws.addAssembly(new MirrorTableAssembly(ws, "M", EXT, true, hidden));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service(ws).apply("TOK", agent, ed -> ed.setPrimaryAssembly("OUTER_src_0")));
+
+      assertTrue(ex.getMessage().contains("'M'"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("OUTER_N_0'"), ex.getMessage());
+   }
+
    private static Worksheet mirrorOverHiddenCopy() {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly hidden = table(ws, "OUTER_src_0");
       hidden.setOuter(true);
       ws.addAssembly(hidden);
-      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M", hidden);
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M", EXT, true, hidden);
       ws.addAssembly(mirror);
       ws.setPrimaryAssembly("M");
       return ws;
@@ -143,6 +174,9 @@ class HiddenCopyPrimary79328Test {
       assertTrue(msg.contains("hidden copy"), msg);
       assertFalse(msg.matches("(?is).*not found.*"), msg);
    }
+
+   private static final AssetEntry EXT = new AssetEntry(
+      AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "ext", null);
 
    private final Principal agent = TestPrincipals.user("alice", "host-org");
 
@@ -174,16 +208,5 @@ class HiddenCopyPrimary79328Test {
       cs.addAttribute(ref);
       t.setColumnSelection(cs, false);
       return t;
-   }
-
-   private static List<String> names(Worksheet ws) {
-      List<String> names = new ArrayList<>();
-
-      for(Assembly assembly : ws.getAssemblies()) {
-         names.add(assembly.getName());
-      }
-
-      Collections.sort(names);
-      return names;
    }
 }

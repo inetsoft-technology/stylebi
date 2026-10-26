@@ -5334,6 +5334,7 @@ public class WorksheetEditService {
 
          for(Assembly m : ws.getAssemblies()) {
             if(m instanceof MirrorAssembly ma && ma.isOuterMirror() &&
+               !((WSAssembly) m).isOuter() &&
                Arrays.asList(ws.getOuterCopies(ma)).contains(wsa))
             {
                mirror = "the mirror '" + m.getName() + "'";
