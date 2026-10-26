@@ -51,6 +51,11 @@ class ConnectionProvider implements AutoCloseable {
       lock.lock();
 
       try {
+         if(closed) {
+            // a torn down provider must not build a new pool that nothing closes (Bug #79352)
+            throw new SQLException("The connection provider is closed");
+         }
+
          ConnectionProperties connectionProperties = provider.getConnectionProperties();
 
          if(connectionValid == null || shouldRetryConnection()) {
@@ -314,6 +319,10 @@ class ConnectionProvider implements AutoCloseable {
       }
    }
 
+   /**
+    * Resets the connection state so that the next call tests the database again. This does not
+    * reopen a closed provider.
+    */
    public void resetConnection() {
       lock.lock();
 
@@ -331,15 +340,34 @@ class ConnectionProvider implements AutoCloseable {
       }
    }
 
+   /**
+    * Closes the pool and refuses any later {@link #getConnection()}.
+    */
    @Override
    public void close() {
       lock.lock();
 
       try {
+         closed = true;
+
          if(connectionPool != null) {
             connectionPool.close();
             connectionPool = null;
          }
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Checks if this provider was closed, which is final.
+    */
+   boolean isClosed() {
+      lock.lock();
+
+      try {
+         return closed;
       }
       finally {
          lock.unlock();
@@ -380,6 +408,8 @@ class ConnectionProvider implements AutoCloseable {
    // the connection properties of the last successful connection test
    private ConnectionProperties lastGoodProperties;
    private HikariDataSource connectionPool;
+   // set by close() and never cleared, guarded by lock
+   private boolean closed;
 
    // a probe that timed out and whose thread hasn't returned yet, and when it started
    private Future<?> pendingProbe;
