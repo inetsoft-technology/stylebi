@@ -748,15 +748,18 @@ public class WorksheetAgentController {
    }
 
    /**
-    * Names (lower-cased) of the variable assemblies declared in the worksheet.
+    * Names (lower-cased) of the variables declared in the worksheet. A runtime value is keyed by
+    * the variable's own name, which differs from the assembly name for a mirrored variable
+    * (mirror M_RATE / hidden copy OUTER1_0 both declare variable RATE), so the variable name
+    * identifies a declaration, whichever kind of variable assembly carries it.
     */
    private static java.util.Set<String> declaredVariableNames(Worksheet ws) {
       java.util.Set<String> names = new java.util.HashSet<>();
 
       if(ws != null) {
          for(Assembly a : ws.getAssemblies()) {
-            if(a instanceof DefaultVariableAssembly) {
-               names.add(a.getName().toLowerCase());
+            if(a instanceof VariableAssembly va && isNamedVariable(va)) {
+               names.add(va.getVariable().getName().toLowerCase());
             }
          }
       }
@@ -4298,13 +4301,23 @@ public class WorksheetAgentController {
                if(rawValue instanceof List<?> list) {
                   if(list.isEmpty()) {
                      throw new PairingException(
-                        "variableValues['" + vname + "'] is an empty list. Omit '" + vname +
-                        "' to leave it unset, or supply at least one value.");
+                        "variableValues['" + vname + "'] is an empty list. To clear the " +
+                        "variable back to 'no session value yet', pass null; to keep its " +
+                        "current value, omit it; otherwise supply at least one value.");
                   }
 
                   if(list.size() == 1) {
-                     vtable.put(vname, convertAndValidateSingleValue(
-                        vname, -1, declared, requireStringElement(vname, 0, list.get(0))));
+                     // A lone null or "__null__" is the clear request, like a top-level null.
+                     Object only = list.get(0) == null ? null : convertAndValidateSingleValue(
+                        vname, -1, declared, requireStringElement(vname, 0, list.get(0)));
+
+                     if(only == null) {
+                        toClear.add(vname);
+                     }
+                     else {
+                        vtable.put(vname, only);
+                     }
+
                      continue;
                   }
 
@@ -4323,8 +4336,17 @@ public class WorksheetAgentController {
                   Object[] values = new Object[list.size()];
 
                   for(int i = 0; i < list.size(); i++) {
-                     values[i] = convertAndValidateSingleValue(
+                     // Refused before anything reaches the variable table, so the previous
+                     // value stays in effect.
+                     values[i] = list.get(i) == null ? null : convertAndValidateSingleValue(
                         vname, i, declared, requireStringElement(vname, i, list.get(i)));
+
+                     if(values[i] == null) {
+                        throw new PairingException(
+                           "variableValues['" + vname + "'][" + i + "] is null (or the " +
+                           "\"__null__\" sentinel). A null cannot be mixed into a multi-value " +
+                           "list; pass null alone to clear the variable.");
+                     }
                   }
 
                   vtable.setAsIs(vname, true);
@@ -4339,7 +4361,16 @@ public class WorksheetAgentController {
                   continue;
                }
 
-               vtable.put(vname, convertAndValidateSingleValue(vname, -1, declared, stringValue));
+               // The "__null__" sentinel converts to null: it is the same clear request as a
+               // raw null, not a stored key -> null.
+               Object converted = convertAndValidateSingleValue(vname, -1, declared, stringValue);
+
+               if(converted == null) {
+                  toClear.add(vname);
+                  continue;
+               }
+
+               vtable.put(vname, converted);
             }
          }
 
@@ -4832,7 +4863,10 @@ public class WorksheetAgentController {
 
          MirrorResyncGuard.requireResyncKeepsDependents(
             ws, req.table(), mirror, assetRepository, user, Boolean.TRUE.equals(req.confirmed()));
+         java.util.Set<String> declaredBefore = declaredVariableNames(ws);
          mirror.updateMirror(assetRepository, user);
+         // The re-copy can drop or replace the hidden copies, and with them a declared variable.
+         purgeRemovedVariableValues(rws, declaredBefore);
          return null;
       });
    }
@@ -4894,6 +4928,7 @@ public class WorksheetAgentController {
          // Worksheet.addAssembly replaces a same-kind assembly of this name and refuses another
          // kind, so the name is checked here, before the source worksheet's copies are added.
          WorksheetEditService.Editor.requireNoNameCollision(name, ws);
+         java.util.Set<String> declaredBefore = declaredVariableNames(ws);
          WSAssembly[] created = AssetUtil.copyOuterAssemblies(
             assetRepository, entry, user, ws, new Point(25, 25));
 
@@ -4926,6 +4961,17 @@ public class WorksheetAgentController {
             }
 
             throw e;
+         }
+
+         // A variable this mirror newly declares starts unset: drop a value a removal path left
+         // under its name. Only after the add succeeded, and never for a name already declared
+         // before, whose live value belongs to that declaration.
+         for(WSAssembly copy : created) {
+            if(copy instanceof VariableAssembly va && isNamedVariable(va) &&
+               !declaredBefore.contains(va.getVariable().getName().toLowerCase()))
+            {
+               purgeStaleVariableValue(rws, va.getVariable().getName());
+            }
          }
 
          return null;
