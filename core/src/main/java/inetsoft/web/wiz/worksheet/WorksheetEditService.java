@@ -2673,7 +2673,8 @@ public class WorksheetEditService {
                            " with format \"" + pattern + "\" (check the format matches the data)" :
                            "") +
                         ". Nothing was changed. Pass confirmed=true to convert anyway, which " +
-                        "replaces every value that will not parse with null -- that discards " +
+                        "replaces every value that will not parse with null (false for " +
+                        "boolean, its first character for character) -- that discards " +
                         "data and cannot be undone by changing the type back.");
                   }
 

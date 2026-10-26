@@ -326,6 +326,34 @@ public class XEmbeddedTableTest {
    }
 
    @Test
+   public void lossyTextToBooleanOrCharacterIsRefusedUnlessForced() throws Exception {
+      for(String bad : new String[] { "abc", "yes", " true " }) {
+         XEmbeddedTable t = textColumn("true", bad);
+         Assertions.assertThrows(java.text.ParseException.class, () ->
+            t.setDataType(0, XSchema.BOOLEAN, null, null, false));
+         Assertions.assertEquals(XSchema.STRING, t.getDataType(0));
+         Assertions.assertEquals(bad, t.getObject(2, 0));
+      }
+
+      XEmbeddedTable ok = textColumn("TRUE", "false", "1", "0", "2.5", "");
+      ok.setDataType(0, XSchema.BOOLEAN, null, null, false);
+      Assertions.assertEquals(Boolean.TRUE, ok.getObject(1, 0));
+      Assertions.assertEquals(Boolean.FALSE, ok.getObject(2, 0));
+      Assertions.assertEquals(Boolean.TRUE, ok.getObject(3, 0));
+      Assertions.assertEquals(Boolean.FALSE, ok.getObject(4, 0));
+      Assertions.assertEquals(Boolean.TRUE, ok.getObject(5, 0));
+
+      XEmbeddedTable forced = textColumn("abc");
+      forced.setDataType(0, XSchema.BOOLEAN, null, null, true);
+      Assertions.assertEquals(Boolean.FALSE, forced.getObject(1, 0));
+
+      XEmbeddedTable chars = textColumn("a", "abc");
+      Assertions.assertThrows(java.text.ParseException.class, () ->
+         chars.setDataType(0, XSchema.CHARACTER, null, null, false));
+      Assertions.assertEquals("abc", chars.getObject(2, 0));
+   }
+
+   @Test
    public void unparseableDateWithoutFormatIsRefusedUnlessForced() throws Exception {
       XEmbeddedTable t = textColumn("2024-07-03", "07|03|2024x?", "2025-01-01");
       Assertions.assertThrows(java.text.ParseException.class, () ->
