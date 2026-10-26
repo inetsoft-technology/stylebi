@@ -135,10 +135,15 @@ public final class AdminIdentityRefs {
          id = parseCaret(field, trimmed, currentOrgId, kind, dir);
       }
       else {
-         return new IdentityID(trimmed, currentOrgId);
+         // a bare name is an identity in the current org for USER/GROUP/ROLE, but for
+         // ORGANIZATION the name itself names the organization -- it is its own org, not an
+         // identity nested under the caller's org (bug #79362)
+         id = kind == Kind.ORGANIZATION ? new IdentityID(trimmed, trimmed) :
+            new IdentityID(trimmed, currentOrgId);
       }
 
-      return requireOrgPolicy(field, trimmed, id, currentOrgId, allowCrossOrg, allowGlobal, dir);
+      return requireOrgPolicy(field, trimmed, id, currentOrgId, kind, allowCrossOrg, allowGlobal,
+                              dir);
    }
 
    /**
@@ -228,10 +233,30 @@ public final class AdminIdentityRefs {
    }
 
    private static IdentityID requireOrgPolicy(String field, String trimmed, IdentityID id,
-                                              String currentOrgId, boolean allowCrossOrg,
-                                              boolean allowGlobal, Directory dir)
+                                              String currentOrgId, Kind kind,
+                                              boolean allowCrossOrg, boolean allowGlobal,
+                                              Directory dir)
    {
       String orgId = id.getOrgID();
+
+      if(kind == Kind.ORGANIZATION) {
+         // an ORGANIZATION identity names itself: its "org" has no independent meaning -- the
+         // only legitimate value is its own name, never a different real org (bug #79362) and
+         // never global (an organization is never a sub-entity of another scope)
+         if(orgId == null) {
+            throw new IllegalArgumentException(
+               field + ": \"" + trimmed + "\" names a global organization reference, which " +
+               "does not exist -- an organization identity's org must be its own name");
+         }
+
+         if(!orgId.equals(id.getName())) {
+            throw new IllegalArgumentException(
+               field + ": an ORGANIZATION reference's org and name must agree; got name \"" +
+               id.getName() + "\", org \"" + orgId + "\"");
+         }
+
+         orgId = id.getName();
+      }
 
       if(orgId == null) {
          if(!allowGlobal) {
