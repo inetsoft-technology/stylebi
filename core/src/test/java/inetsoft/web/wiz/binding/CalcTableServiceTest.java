@@ -2439,4 +2439,86 @@ class CalcTableServiceTest {
       assertNull(formatNotes(rebind(harness(2, 2), decimal, summary("Product:Total", "Sum"))));
       assertEquals(XConstants.DECIMAL_FORMAT, decimal.getUserDefinedFormat().getFormat());
    }
+
+   // ── numeric binding under a whole-object date format is refused (bug 79342) ─────
+
+   /**
+    * Binds [0,1] to {@code Sum(PAID)} on a table whose whole-object format is a DateFormat, the
+    * cell's own format being {@code own} (null for none). The layout service is a mock, so a
+    * refused write is one that never reaches it.
+    */
+   private static Harness bindUnderObjectDateFormat(VSCompositeFormat own, DataRef column,
+                                                    String formula) throws Exception
+   {
+      Harness h = harness(2, 2);
+      FormatInfo formatInfo = new FormatInfo();
+      formatInfo.setFormat(inetsoft.uql.viewsheet.internal.VSAssemblyInfo.OBJECTPATH,
+                           dateFormat());
+
+      if(own != null) {
+         formatInfo.setFormat(CELL_01, own);
+      }
+
+      when(h.assemblyInfo().getFormatInfo()).thenReturn(formatInfo);
+      when(h.assemblyInfo().getCellDataPath(0, 1)).thenReturn(CELL_01);
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(column);
+      when(h.columnsHandler().getColumnSelection(any(), any(), any(), any(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean())).thenReturn(cols);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+         spec("content", "column", "grouping", "summary",
+              "field", spec("column", column.getName(), "type", "measure"),
+              "formula", formula));
+      return h;
+   }
+
+   @Test
+   void numericBindingOfAFormatlessCellUnderAnObjectDateFormatIsRefusedAndWritesNothing()
+      throws Exception
+   {
+      Harness h = harness(2, 2);
+      FormatInfo formatInfo = new FormatInfo();
+      formatInfo.setFormat(inetsoft.uql.viewsheet.internal.VSAssemblyInfo.OBJECTPATH,
+                           dateFormat());
+      when(h.assemblyInfo().getFormatInfo()).thenReturn(formatInfo);
+      when(h.assemblyInfo().getCellDataPath(0, 1)).thenReturn(CELL_01);
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(typedColumn("PAID", XSchema.DOUBLE));
+      when(h.columnsHandler().getColumnSelection(any(), any(), any(), any(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean())).thenReturn(cols);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+            spec("content", "column", "grouping", "summary",
+                 "field", spec("column", "PAID", "type", "measure"), "formula", "Sum")));
+
+      assertTrue(thrown.getMessage().contains("Calc1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains(XConstants.DATE_FORMAT), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Sum(PAID)"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("set_calc_cell_format"), thrown.getMessage());
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(),
+                                                      any(Principal.class), any());
+   }
+
+   @Test
+   void numericBindingOfACellWithItsOwnFormatUnderAnObjectDateFormatIsAccepted()
+      throws Exception
+   {
+      VSCompositeFormat decimal = new VSCompositeFormat();
+      decimal.getUserDefinedFormat().setFormatValue(XConstants.DECIMAL_FORMAT);
+
+      Harness h = bindUnderObjectDateFormat(decimal, typedColumn("PAID", XSchema.DOUBLE), "Sum");
+
+      verify(h.layoutService).setCellBinding(eq("rt1"), any(), any(Principal.class), any());
+   }
+
+   @Test
+   void dateOutputUnderAnObjectDateFormatIsAccepted() throws Exception {
+      Harness h = bindUnderObjectDateFormat(null, typedColumn("PAID", XSchema.DATE), "Max");
+
+      verify(h.layoutService).setCellBinding(eq("rt1"), any(), any(Principal.class), any());
+   }
 }
