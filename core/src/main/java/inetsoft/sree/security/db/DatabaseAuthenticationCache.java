@@ -35,6 +35,10 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    }
 
    private boolean initialize() {
+      if(closed) {
+         return false;
+      }
+
       if(service != null) {
          return true;
       }
@@ -48,7 +52,7 @@ class DatabaseAuthenticationCache implements AutoCloseable {
       try {
          // Exponential backoff: don't hammer the cluster when the security provider is unavailable
          // (e.g. immediately after a GKE node restart before SecurityEngine has loaded providers).
-         if(System.currentTimeMillis() < nextRetryTime) {
+         if(closed || System.currentTimeMillis() < nextRetryTime) {
             return false;
          }
 
@@ -98,6 +102,9 @@ class DatabaseAuthenticationCache implements AutoCloseable {
       serviceLock.lock();
 
       try {
+         // final: a closed client does not connect to the service again (Bug #79352)
+         closed = true;
+
          if(service != null) {
             try {
                service.disconnect();
@@ -403,6 +410,7 @@ class DatabaseAuthenticationCache implements AutoCloseable {
 
    private final DatabaseAuthenticationProvider provider;
    private volatile DatabaseAuthenticationCacheService service;
+   private volatile boolean closed;
    private final Lock serviceLock = new ReentrantLock();
    @SuppressWarnings("rawtypes")
    private DistributedMap<String, Set> lists;
