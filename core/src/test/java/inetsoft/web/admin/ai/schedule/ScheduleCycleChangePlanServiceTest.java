@@ -244,6 +244,48 @@ class ScheduleCycleChangePlanServiceTest {
       verify(cycleGateway, never()).dependentMvNames(anyString());
    }
 
+   /** Bug #79358: a rename preview's proposedValue must carry the new name inside the CycleInfo
+    * too, as {@code ScheduleCycleService#editCycle} stores it. */
+   @Test void resolveUpdateRenameProposedInfoCarriesNewName() throws Exception {
+      DataCycleManager.DataCycleAsset current = asset("Cycle1");
+      current.getInfo().setStartNotify(true);
+      current.getInfo().setStartEmail("a@b.com");
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.cycleExists("Cycle2", user)).thenReturn(false);
+      when(cycleGateway.currentAsset("Cycle1", "host-org")).thenReturn(current);
+
+      ResolvedPlan plan = service.resolve(
+         request("task", List.of(updateChange("Cycle1", "Cycle2", null))), user);
+
+      PlanChange pc = plan.changes().get(0);
+      assertTrue(pc.proposedValue().contains("Cycle2"));
+      assertFalse(pc.proposedValue().contains("Cycle1"), pc.proposedValue());
+      assertTrue(pc.currentValue().contains("Cycle1"));
+      assertTrue(pc.proposedValue().contains("a@b.com"));
+      assertEquals("Cycle1", current.getInfo().getName());
+   }
+
+   @Test void resolveUpdateRenameWithConditionsProposedInfoCarriesNewName() throws Exception {
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.cycleExists("Cycle2", user)).thenReturn(false);
+      when(cycleGateway.currentAsset("Cycle1", "host-org")).thenReturn(asset("Cycle1"));
+
+      ResolvedPlan plan = service.resolve(
+         request("task", List.of(updateChange("Cycle1", "Cycle2", List.of(everyDay())))), user);
+
+      assertFalse(plan.changes().get(0).proposedValue().contains("Cycle1"));
+   }
+
+   @Test void resolveUpdateConditionsOnlyKeepsInfoName() throws Exception {
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.currentAsset("Cycle1", "host-org")).thenReturn(asset("Cycle1"));
+
+      ResolvedPlan plan = service.resolve(
+         request("task", List.of(updateChange("Cycle1", null, List.of(everyDay())))), user);
+
+      assertTrue(plan.changes().get(0).proposedValue().contains("<CycleInfo name=\"Cycle1\""));
+   }
+
    // -------------------------------------------------------------------------
    // delete
    // -------------------------------------------------------------------------
