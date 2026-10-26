@@ -6305,19 +6305,235 @@ class WorksheetAgentControllerTest {
       assertEquals("", box.getVariableTable().get("pCity"));
    }
 
-   @Test
-   void setVariableValuesNullInsideListIsStillRejected() throws Exception {
+   // Bug #79307: the "__null__" sentinel, a lone [null] and a lone ["__null__"] are the same
+   // clear request as a top-level null.
+   @ParameterizedTest
+   @CsvSource({"SCALAR", "SENTINEL_LIST", "NULL_LIST"})
+   void setVariableValuesSentinelAndLoneNullClearLikeNull(String form) throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
       Worksheet ws = worksheetReferencing("pState", "pCity");
       variableAssemblyForValues(ws, "pState", XSchema.STRING);
       AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
-      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC4");
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC4A");
+      List<String> neverSet = unsetVariableNames(box);
+
+      ctrl.edit("TOK-SVC4A", setVariableValuesRequest(Map.of("pState", "x")), agent);
+      assertEquals("x", box.getVariableTable().get("pState"));
+
+      Object clearValue = switch(form) {
+         case "SCALAR" -> "__null__";
+         case "SENTINEL_LIST" -> List.of("__null__");
+         default -> Collections.singletonList(null);
+      };
+      Map<String, Object> clear = new java.util.HashMap<>();
+      clear.put("pState", clearValue);
+      ctrl.edit("TOK-SVC4A", setVariableValuesRequest(clear), agent);
+
+      assertFalse(box.getVariableTable().contains("pState"),
+         "the sentinel must remove the key, not leave key -> null");
+      assertEquals(neverSet, unsetVariableNames(box),
+         "a variable cleared with the sentinel must be reported like a never-set one");
+   }
+
+   @ParameterizedTest
+   @CsvSource(value = {"NY|__null__", "__null__|NY", "__null__|__null__"}, delimiter = '|')
+   void setVariableValuesNullInsideMultiValueListIsRefusedAndKeepsPreviousValue(
+      String first, String second) throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING)
+         .getVariable().setDisplayStyle(inetsoft.uql.schema.UserVariable.CHECKBOXES);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC4B");
+
+      ctrl.edit("TOK-SVC4B", setVariableValuesRequest(Map.of("pState", "NY")), agent);
 
       PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
-         "TOK-SVC4", setVariableValuesRequest(
-            Map.of("pState", java.util.Collections.singletonList((Object) null))), agent));
-      assertTrue(ex.getMessage().contains("pState"), ex.getMessage());
-      assertTrue(ex.getMessage().contains("null"), ex.getMessage());
+         "TOK-SVC4B", setVariableValuesRequest(Map.of("pState", List.of(first, second))), agent));
+      int badIndex = "__null__".equals(first) ? 0 : 1;
+      assertTrue(ex.getMessage().contains("variableValues['pState'][" + badIndex + "]"),
+         ex.getMessage());
+      assertTrue(ex.getMessage().contains("pass null alone"), ex.getMessage());
+      assertEquals("NY", box.getVariableTable().get("pState"),
+         "a refused call must leave the previous value in effect");
+   }
+
+   @Test
+   void setVariableValuesNullElementInsideMultiValueListIsRefused() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING)
+         .getVariable().setDisplayStyle(inetsoft.uql.schema.UserVariable.CHECKBOXES);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC4C");
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-SVC4C", setVariableValuesRequest(
+            Map.of("pState", java.util.Arrays.asList("NY", null))), agent));
+      assertTrue(ex.getMessage().contains("variableValues['pState'][1]"), ex.getMessage());
+      assertFalse(box.getVariableTable().contains("pState"));
+   }
+
+   // Bug #79307: the empty-list refusal must point at null as the clear and must not claim that
+   // omitting the variable unsets it (omitting keeps the current value).
+   @Test
+   void setVariableValuesEmptyListMessageNamesVariableAndPointsAtNull() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = worksheetReferencing("pState", "pCity");
+      variableAssemblyForValues(ws, "pState", XSchema.STRING);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVC4D");
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-SVC4D", setVariableValuesRequest(Map.of("pState", List.of())), agent));
+      assertTrue(ex.getMessage().contains("variableValues['pState']"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("pass null"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("leave it unset"), ex.getMessage());
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79307 -- a mirrored variable's value is keyed by the variable's own name
+   // ---------------------------------------------------------------------------
+
+   /** A saved worksheet declaring one variable assembly VAR_SRC whose variable is RATE. */
+   private static Worksheet rateSourceWorksheet() {
+      Worksheet sourceWs = new Worksheet();
+      addRateVariable(sourceWs, "VAR_SRC", "RATE");
+      return sourceWs;
+   }
+
+   private static void addRateVariable(Worksheet ws, String assemblyName, String variableName) {
+      DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, assemblyName);
+      AssetVariable var = new AssetVariable(variableName);
+      var.setTypeNode(XSchema.createPrimitiveType(XSchema.DOUBLE));
+      assembly.setVariable(var);
+      ws.addAssembly(assembly);
+   }
+
+   private AssetQuerySandbox mirrorBox;
+
+   /** Controller over {@code ws} whose repository serves {@code sourceWs} for any path. */
+   private WorksheetAgentController mirrorVariableController(
+      String token, Worksheet ws, Worksheet sourceWs) throws Exception
+   {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      mirrorBox = new AssetQuerySandbox(ws, null, new VariableTable());
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(mirrorBox);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq(token), any())).thenReturn(session(token));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      when(assetRepository.getSheet(any(AssetEntry.class), any(), eq(true), eq(AssetContent.ALL),
+         eq(false))).thenReturn(sourceWs);
+      when(assetRepository.getSheet(any(AssetEntry.class), any(), eq(false), eq(AssetContent.ALL)))
+         .thenReturn(sourceWs);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         mock(InnerJoinService.class));
+
+      return controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), editSvc,
+         mock(WorksheetService.class), assetRepository);
+   }
+
+   private static EditRequest updateMirrorRequest(String table) throws Exception {
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(
+         mapper.writeValueAsString(Map.of("op", "update_mirror", "table", table)),
+         EditRequest.class);
+   }
+
+   @Test
+   void deletingMirroredVariableDropsValueKeyedByVariableName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl =
+         mirrorVariableController("TOK-79307A", ws, rateSourceWorksheet());
+
+      ctrl.edit("TOK-79307A", addWorksheetMirrorRequest("M_RATE", "Src/VAR", null), agent);
+      assertTrue(ws.getAssembly("M_RATE") instanceof MirrorVariableAssembly);
+      mirrorBox.getVariableTable().put("RATE", "0.3");
+      mirrorBox.getVariableTable().put("other", "keep");
+
+      ctrl.edit("TOK-79307A", opRequest("delete_table", "M_RATE", null, null), agent);
+
+      assertFalse(mirrorBox.getVariableTable().contains("RATE"),
+         "the value keyed by the mirrored variable's own name must go with its last declarer");
+      assertEquals("keep", mirrorBox.getVariableTable().get("other"));
+   }
+
+   @Test
+   void deletingOneOfTwoMirrorsKeepsValueUntilTheLastDeclarerGoes() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl =
+         mirrorVariableController("TOK-79307B", ws, rateSourceWorksheet());
+
+      ctrl.edit("TOK-79307B", addWorksheetMirrorRequest("M1", "Src/VAR", null), agent);
+      mirrorBox.getVariableTable().put("RATE", "0.3");
+      ctrl.edit("TOK-79307B", addWorksheetMirrorRequest("M2", "Src/VAR", null), agent);
+      assertEquals("0.3", mirrorBox.getVariableTable().get("RATE"),
+         "adding a second declarer of an already declared variable must keep its value");
+
+      ctrl.edit("TOK-79307B", opRequest("delete_table", "M1", null, null), agent);
+      assertEquals("0.3", mirrorBox.getVariableTable().get("RATE"),
+         "M2 still declares RATE");
+
+      ctrl.edit("TOK-79307B", opRequest("delete_table", "M2", null, null), agent);
+      assertFalse(mirrorBox.getVariableTable().contains("RATE"));
+   }
+
+   @Test
+   void addMirrorDropsAStaleValueForTheVariableItNewlyDeclares() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl =
+         mirrorVariableController("TOK-79307C", ws, rateSourceWorksheet());
+      mirrorBox.getVariableTable().put("RATE", "0.3");
+
+      ctrl.edit("TOK-79307C", addWorksheetMirrorRequest("M_RATE", "Src/VAR", null), agent);
+
+      assertFalse(mirrorBox.getVariableTable().contains("RATE"),
+         "a freshly mirrored variable starts with no session value");
+   }
+
+   @Test
+   void refusedAddMirrorKeepsTheLiveValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl =
+         mirrorVariableController("TOK-79307D", ws, rateSourceWorksheet());
+      ctrl.edit("TOK-79307D", addWorksheetMirrorRequest("M_RATE", "Src/VAR", null), agent);
+      mirrorBox.getVariableTable().put("RATE", "0.3");
+
+      assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-79307D", addWorksheetMirrorRequest("M_RATE", "Src/VAR", null), agent));
+
+      assertEquals("0.3", mirrorBox.getVariableTable().get("RATE"));
+   }
+
+   @Test
+   void updateMirrorDropsValueOfVariableTheResyncRemoved() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      Worksheet sourceWs = rateSourceWorksheet();
+      WorksheetAgentController ctrl = mirrorVariableController("TOK-79307E", ws, sourceWs);
+      ctrl.edit("TOK-79307E", addWorksheetMirrorRequest("M_RATE", "Src/VAR", null), agent);
+      mirrorBox.getVariableTable().put("RATE", "0.3");
+
+      // The source now declares the variable under another name; the resync re-copies it.
+      sourceWs.removeAssembly("VAR_SRC");
+      addRateVariable(sourceWs, "VAR_SRC", "RATE2");
+      ctrl.edit("TOK-79307E", updateMirrorRequest("M_RATE"), agent);
+
+      assertFalse(mirrorBox.getVariableTable().contains("RATE"),
+         "a variable the resync no longer declares must lose its value");
    }
 
    @ParameterizedTest
