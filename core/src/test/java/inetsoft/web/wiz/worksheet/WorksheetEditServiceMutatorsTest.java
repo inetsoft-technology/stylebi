@@ -8783,6 +8783,25 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * Bug #79340: a rename rewrites script references as worksheet['New Name'], which cannot hold
+    * both quote kinds, a backslash or a square bracket, so the rename is refused.
+    */
+   @Test
+   void renameTableRefusesANameThatCannotBeQuotedInAScript() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("id", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.renameTable("A", "a'b\"c")));
+
+      assertTrue(ex.getMessage().contains("'"), ex.getMessage());
+      assertNotNull(ws.getAssembly("A"), "the rename must not have happened");
+      assertNull(ws.getAssembly("a'b\"c"));
+   }
+
+   /**
     * {@code requireStorableName} was wired into {@code placeAssembly}/{@code renameTable} only.
     * The multi-table {@code addJoin} overload cannot go through {@code placeAssembly} (it has to
     * register the join before wiring its edges via {@code InnerJoinService}), so it bypassed the

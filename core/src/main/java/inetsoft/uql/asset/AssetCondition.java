@@ -19,6 +19,7 @@ package inetsoft.uql.asset;
 
 import inetsoft.uql.*;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.asset.internal.ScriptAssemblyRenamer;
 import inetsoft.uql.schema.*;
 import inetsoft.util.Tool;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
@@ -111,6 +112,16 @@ public class AssetCondition extends Condition implements AssetObject {
 
             if(Tool.equals(var.getName(), oname)) {
                var.setName(nname);
+            }
+         }
+         else if(val instanceof ExpressionValue) {
+            ExpressionValue eval = (ExpressionValue) val;
+            String exp = eval.getExpression();
+
+            if(ExpressionValue.JAVASCRIPT.equals(eval.getType()) && exp != null &&
+               !exp.isEmpty())
+            {
+               eval.setExpression(ScriptAssemblyRenamer.rename(exp, oname, nname, true, true));
             }
          }
          else if(isVariable(val)) {

@@ -2384,6 +2384,7 @@ public class WorksheetEditService {
          }
 
          requireStorableName(newName, "A table name");
+         requireScriptQuotableName(newName, "A table name");
 
          if(!ws.renameAssembly(oldName, newName, true)) {
             throw new PairingException(
@@ -4714,6 +4715,7 @@ public class WorksheetEditService {
          }
 
          requireStorableName(newName, "A variable name");
+         requireScriptQuotableName(newName, "A variable name");
 
          if(!ws.renameAssembly(oldName, newName, true)) {
             throw new PairingException(
@@ -5321,6 +5323,35 @@ public class WorksheetEditService {
          }
       }
 
+      /**
+       * Bug #79340: a rename rewrites script references to the assembly as worksheet['New Name']
+       * (or worksheet["New Name"] when the name holds a single quote) when the new name is not an
+       * identifier. A name with both quote kinds, a backslash or a square bracket cannot be
+       * written inside that key without breaking the script, so such a rename is refused.
+       */
+      static void requireScriptQuotableName(String name, String what) throws PairingException {
+         if(name == null) {
+            return;
+         }
+
+         boolean bothQuotes = name.indexOf('\'') >= 0 && name.indexOf('"') >= 0;
+         StringBuilder bad = new StringBuilder();
+
+         for(char c : name.toCharArray()) {
+            boolean refused = "\\[]".indexOf(c) >= 0 || bothQuotes && (c == '\'' || c == '"');
+
+            if(refused && bad.indexOf(String.valueOf(c)) < 0) {
+               bad.append(c);
+            }
+         }
+
+         if(bad.length() > 0) {
+            throw new PairingException(
+               what + " cannot contain " + bad + " when renaming: scripts that read the old " +
+               "name are rewritten to worksheet['<name>'], which cannot hold both a single and " +
+               "a double quote, a backslash or a square bracket. Choose a name without them.");
+         }
+      }
       /**
        * Bug #79328: a hidden (outer) assembly is the copy that backs a mirror. The native UI
        * cannot select it, so making it primary or editing its properties would leave a primary
