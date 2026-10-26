@@ -1841,6 +1841,98 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
       return createDateRangeCondition(ref, range[0], range[1]);
    }
 
+   /**
+    * Get the end of a week-aligned to-date range. The range starts at the first week start of
+    * the interval period, so the end must be the same week of the period, on the same weekday,
+    * as the to date (as {@link WeekInfo} does for the standard to-date periods). A calendar day
+    * cutoff is wrong here: the start is moved forward to a week start, so a cutoff day earlier
+    * than that start inverts the range, and unequal week offsets give periods of unequal length.
+    * (#79347)
+    *
+    * @param startDate     the range start, the first week start of the interval period.
+    * @param level         Calendar.YEAR, QUARTER_FIELD or Calendar.MONTH, the interval period.
+    * @param periodLevel   the context (period) level of the range.
+    * @param toDate        the to date.
+    * @param calendarEnd   the calendar-day based end, returned when it can't be aligned.
+    */
+   private Date getWeekAlignedRangeEnd(Date startDate, int level, int periodLevel,
+                                       Date toDate, Date calendarEnd)
+   {
+      if(startDate == null) {
+         return calendarEnd;
+      }
+
+      Calendar toWeekCal = getCalendar();
+      toWeekCal.setTime(toDate);
+      DateComparisonUtil.moveToWeekStart(toWeekCal);
+      Calendar toDateCal = getCalendar();
+      toDateCal.setTime(toDate);
+      int weekday = Math.max(0, Math.min(6, daysBetween(toWeekCal, toDateCal)));
+
+      // when the target period is chosen from the to date itself (year context), measure the
+      // week position inside the to date's own period, otherwise inside the period of its week.
+      boolean useToDate = periodLevel == XConstants.YEAR_DATE_GROUP && level != Calendar.YEAR;
+      Calendar refCal = getCalendar();
+      refCal.setTime(useToDate ? toDate : toWeekCal.getTime());
+      Calendar refFirstWeek = getFirstWeekStart(refCal, level);
+      int weekIndex = Math.max(0, daysBetween(refFirstWeek, toWeekCal) / 7);
+
+      // clamp to the last full week of the target period.
+      Calendar startCal = getCalendar();
+      startCal.setTime(startDate);
+      Calendar nextFirstWeek = getFirstWeekStart(startCal, level, 1);
+      int lastIndex = Math.max(0, daysBetween(startCal, nextFirstWeek) / 7 - 1);
+      weekIndex = Math.min(weekIndex, lastIndex);
+
+      startCal.add(Calendar.DATE, weekIndex * 7 + weekday);
+      setTimeToEndOfDay(startCal);
+
+      return startCal.getTime();
+   }
+
+   // pseudo calendar field for the quarter interval period.
+   private static final int QUARTER_FIELD = -1;
+   private static final long DAY_MILLIS = 24L * 60 * 60 * 1000;
+
+   private Calendar getFirstWeekStart(Calendar cal, int level) {
+      return getFirstWeekStart(cal, level, 0);
+   }
+
+   /**
+    * Get the first week start of the interval period containing cal, or of the period
+    * {@code offset} periods after it.
+    */
+   private Calendar getFirstWeekStart(Calendar cal, int level, int offset) {
+      Calendar result = getCalendar();
+      result.setTime(cal.getTime());
+      result.set(Calendar.DAY_OF_MONTH, 1);
+
+      if(level == Calendar.YEAR) {
+         result.set(Calendar.MONTH, Calendar.JANUARY);
+         result.add(Calendar.YEAR, offset);
+      }
+      else if(level == QUARTER_FIELD) {
+         result.add(Calendar.MONTH, -result.get(Calendar.MONTH) % 3);
+         result.add(Calendar.MONTH, offset * 3);
+      }
+      else {
+         result.add(Calendar.MONTH, offset);
+      }
+
+      WeekInfo.advanceToFirstDayOfWeek(result);
+
+      return result;
+   }
+
+   private static int daysBetween(Calendar from, Calendar to) {
+      Calendar a = (Calendar) from.clone();
+      Calendar b = (Calendar) to.clone();
+      a.set(Calendar.HOUR_OF_DAY, 12);
+      b.set(Calendar.HOUR_OF_DAY, 12);
+
+      return (int) Math.round((b.getTimeInMillis() - a.getTimeInMillis()) / (double) DAY_MILLIS);
+   }
+
    private Date[] getIntervalDateRange(int periodLevel, int intervalLevel, int granularityLevel, Date periodStartDate,
                                        Date intervalToDate)
    {
@@ -1887,6 +1979,11 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
 
             setTimeToEndOfDay(periodStartCal);
             endDate = periodStartCal.getTime();
+
+            if(granularityLevel == WEEK && !isSameInterval) {
+               endDate = getWeekAlignedRangeEnd(startDate, Calendar.YEAR, periodLevel,
+                                                intervalToDate, endDate);
+            }
          }
       }
       else if((intervalLevel & QUARTER) == QUARTER) {
@@ -1922,6 +2019,11 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
 
          setTimeToEndOfDay(periodStartCal);
          endDate = periodStartCal.getTime();
+
+         if(granularityLevel == WEEK && !isSameInterval) {
+            endDate = getWeekAlignedRangeEnd(startDate, QUARTER_FIELD, periodLevel,
+                                             intervalToDate, endDate);
+         }
       }
       else if((intervalLevel & MONTH) == MONTH) {
          if(periodLevel == XConstants.YEAR_DATE_GROUP) {
@@ -1953,6 +2055,11 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
 
          setTimeToEndOfDay(periodStartCal);
          endDate = periodStartCal.getTime();
+
+         if(granularityLevel == WEEK && !isSameInterval) {
+            endDate = getWeekAlignedRangeEnd(startDate, Calendar.MONTH, periodLevel,
+                                             intervalToDate, endDate);
+         }
       }
       else if((intervalLevel & WEEK) == WEEK) {
          int toDateWeekOfMonth = intervalToDateCal.get(Calendar.WEEK_OF_MONTH);
