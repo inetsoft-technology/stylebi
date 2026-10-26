@@ -108,10 +108,23 @@ class ProviderServiceClusterEditTest {
    }
 
    @Test
-   void authenticationRemoveUsesTheIndexOfTheFile() throws Exception {
+   void authenticationRemoveChecksTheNameAtTheIndexOfTheFile() throws Exception {
       AuthenticationChain local = staleAuthc("Adm", "X", "Z");
 
       authcService(local).removeAuthenticationProvider(1, "X", principal);
+
+      assertEquals(List.of("Adm", "Z"), authcFileNames());
+      assertEquals(List.of("Adm", "Z"), names(local.getProviders()));
+   }
+
+   @Test
+   void authenticationRemoveWithAStaleIndexIsRejectedNotRedirected() throws Exception {
+      // the admin chose X at index 1, another admin removed X: index 1 of the file is now Z
+      AuthenticationChain local = staleAuthc("Adm", "Z");
+      AuthenticationProviderService service = authcService(local);
+
+      assertThrows(MessageException.class,
+                   () -> service.removeAuthenticationProvider(1, "X", principal));
 
       assertEquals(List.of("Adm", "Z"), authcFileNames());
       assertEquals(List.of("Adm", "Z"), names(local.getProviders()));
@@ -160,12 +173,24 @@ class ProviderServiceClusterEditTest {
    }
 
    @Test
-   void authorizationRemoveUsesTheIndexOfTheFile() throws Exception {
+   void authorizationRemoveChecksTheNameAtTheIndexOfTheFile() throws Exception {
       AuthorizationChain local = staleAuthz("Adm", "X", "Z");
 
       authzService(local).removeAuthorizationProvider(1, "X", principal);
 
       assertEquals(List.of("Adm", "Z"), authzFileNames());
+   }
+
+   @Test
+   void authorizationRemoveWithAStaleIndexIsRejectedNotRedirected() throws Exception {
+      AuthorizationChain local = staleAuthz("Adm", "Z");
+      AuthorizationProviderService service = authzService(local);
+
+      assertThrows(MessageException.class,
+                   () -> service.removeAuthorizationProvider(1, "X", principal));
+
+      assertEquals(List.of("Adm", "Z"), authzFileNames());
+      assertEquals(List.of("Adm", "Z"), names(local.getProviders()));
    }
 
    @Test

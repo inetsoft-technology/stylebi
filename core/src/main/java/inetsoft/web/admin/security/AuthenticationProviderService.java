@@ -169,6 +169,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       chain.editProviders(() -> {
          // checked again, another node may have added the name since the check above
          if(getProviderByName(model.providerName()) != null) {
+            newProvider.tearDown();
             throw new MessageException(
                Catalog.getCatalog().getString("security.authentication.exists"));
          }
@@ -310,6 +311,14 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
          List<AuthenticationProvider> providerList = chain.getProviders();
 
          if(index >= 0 && index < providerList.size()) {
+            // the index is the admin's view of the list: the list of the file may have
+            // changed since (another admin removed an entry), and the index must not then
+            // remove a different provider
+            if(!Objects.equals(providerName, providerList.get(index).getProviderName())) {
+               throw new MessageException(
+                  Catalog.getCatalog(principal).getString("em.security.providerListChanged"));
+            }
+
             AuthenticationProvider removedProvider = providerList.remove(index);
             providerList.stream()
                .filter(this::providerHasSysAdmins)
