@@ -52,8 +52,6 @@ import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
-import inetsoft.uql.viewsheet.VSCrosstabInfo;
-import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;

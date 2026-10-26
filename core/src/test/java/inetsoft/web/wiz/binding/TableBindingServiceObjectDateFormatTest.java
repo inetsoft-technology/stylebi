@@ -17,11 +17,14 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
@@ -41,6 +44,7 @@ import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.vs.dialog.HideColumnsDialogService;
+import inetsoft.web.composer.model.vs.HideColumnsDialogModel;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.junit.jupiter.api.Tag;
@@ -130,6 +134,13 @@ class TableBindingServiceObjectDateFormatTest {
    private static TableBindingService service(VSAssembly assembly, BindingModel model,
                                               VSBindingModelService bindings)
    {
+      return service(assembly, model, bindings, mock(HideColumnsDialogService.class));
+   }
+
+   private static TableBindingService service(VSAssembly assembly, BindingModel model,
+                                              VSBindingModelService bindings,
+                                              HideColumnsDialogService hideColumns)
+   {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
@@ -152,8 +163,7 @@ class TableBindingServiceObjectDateFormatTest {
       when(binding.createModel(any())).thenReturn(model);
       return new TableBindingService(sessions, binding, bindings,
                                      mock(DataRefModelFactoryService.class),
-                                     mock(HideColumnsDialogService.class),
-                                     mock(VSAssemblyInfoHandler.class));
+                                     hideColumns, mock(VSAssemblyInfoHandler.class));
    }
 
    private static Principal principal() {
@@ -267,5 +277,118 @@ class TableBindingServiceObjectDateFormatTest {
 
       verify(bindings).setBinding(eq("rt1"), any(ApplyVSAssemblyInfoEvent.class),
                                   any(Principal.class), any());
+   }
+
+   @Test
+   void aNewNumericTableColumnWithItsOwnDetailFormatIsAccepted() throws Exception {
+      TableVSAssembly assembly = table(XConstants.DATE_FORMAT);
+      VSCompositeFormat own = new VSCompositeFormat();
+      own.getUserDefinedFormat().setFormatValue(XConstants.DECIMAL_FORMAT);
+      assembly.getVSAssemblyInfo().getFormatInfo().setFormat(
+         new TableDataPath(-1, TableDataPath.DETAIL, XSchema.STRING, new String[]{ "Total" }),
+         own);
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      service(assembly, tableModel("Order Date"), bindings)
+         .addField("tok", principal(), "Table1", "details",
+                   field("Total", "dimension", null), null, null);
+
+      verify(bindings).setBinding(eq("rt1"), any(ApplyVSAssemblyInfoEvent.class),
+                                  any(Principal.class), any());
+   }
+
+   private static CrosstabBindingModel crosstabWithRows(String... rows) {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      withSource(model);
+      List<FieldRef> fields = new java.util.ArrayList<>();
+
+      for(String row : rows) {
+         fields.add(field(row, "dimension", null));
+      }
+
+      TableBindingMutator.setShelf(model, "rows", fields);
+      return model;
+   }
+
+   @Test
+   void movingANumericDimensionToAggregatesUnderAnObjectDateFormatIsRefused() throws Exception {
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service(crosstab(XConstants.DATE_FORMAT), crosstabWithRows("Region", "Total"),
+                       bindings)
+            .moveField("tok", principal(), "Crosstab1", "rows", "aggregates", "Total", null));
+
+      assertTrue(thrown.getMessage().contains("Sum(Total)"), thrown.getMessage());
+      verify(bindings, never()).setBinding(anyString(), any(ApplyVSAssemblyInfoEvent.class),
+                                           any(Principal.class), any());
+   }
+
+   @Test
+   void movingAStringDimensionBetweenShelvesUnderAnObjectDateFormatIsApplied() throws Exception {
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      service(crosstab(XConstants.DATE_FORMAT), crosstabWithRows("Region", "Total"), bindings)
+         .moveField("tok", principal(), "Crosstab1", "rows", "cols", "Region", null);
+
+      verify(bindings).setBinding(eq("rt1"), any(ApplyVSAssemblyInfoEvent.class),
+                                  any(Principal.class), any());
+   }
+
+   @Test
+   void settingACrosstabAggregateShelfUnderAnObjectDateFormatIsRefused() throws Exception {
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> service(crosstab(XConstants.DATE_FORMAT), crosstabWithRows("Region"), bindings)
+            .setShelf("tok", principal(), "Crosstab1", "aggregates",
+                      List.of(field("Total", "measure", "Sum")), null));
+
+      verify(bindings, never()).setBinding(anyString(), any(ApplyVSAssemblyInfoEvent.class),
+                                           any(Principal.class), any());
+   }
+
+   private static HideColumnsDialogService hiding(TableVSAssembly assembly)
+      throws Exception
+   {
+      ColumnRef total = new ColumnRef(new AttributeRef(null, "Total"));
+      total.setDataType(XSchema.DOUBLE);
+      ((TableVSAssemblyInfo) assembly.getVSAssemblyInfo()).getHiddenColumns()
+         .addAttribute(total);
+      HideColumnsDialogService hideColumns = mock(HideColumnsDialogService.class);
+      when(hideColumns.getColumnOptionDialogModel(anyString(), anyString(), any()))
+         .thenReturn(HideColumnsDialogModel.builder()
+                        .availableColumns(List.of("Order Date"))
+                        .hiddenColumns(List.of("Total")).build());
+      return hideColumns;
+   }
+
+   @Test
+   void showingAHiddenNumericTableColumnUnderAnObjectDateFormatIsRefusedAndNothingIsWritten()
+      throws Exception
+   {
+      TableVSAssembly assembly = table(XConstants.DATE_FORMAT);
+      HideColumnsDialogService hideColumns = hiding(assembly);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service(assembly, tableModel("Order Date"), mock(VSBindingModelService.class),
+                       hideColumns)
+            .setFieldVisibility("tok", principal(), "Table1", "Total", true, ""));
+
+      assertTrue(thrown.getMessage().contains("Total"), thrown.getMessage());
+      verify(hideColumns, never()).setColumnOptionDialogModel(
+         anyString(), anyString(), any(), any(Principal.class), any(), anyString());
+   }
+
+   @Test
+   void hidingAColumnUnderAnObjectDateFormatIsApplied() throws Exception {
+      TableVSAssembly assembly = table(XConstants.DATE_FORMAT);
+      HideColumnsDialogService hideColumns = hiding(assembly);
+
+      service(assembly, tableModel("Order Date"), mock(VSBindingModelService.class), hideColumns)
+         .setFieldVisibility("tok", principal(), "Table1", "Order Date", false, "");
+
+      verify(hideColumns).setColumnOptionDialogModel(
+         anyString(), anyString(), any(), any(Principal.class), any(), anyString());
    }
 }

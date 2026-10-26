@@ -911,6 +911,9 @@ public class TableBindingService {
                ". Add it with add_table_field or set_table_fields first.");
          }
 
+         refuseUnhidingNumericUnderObjectDateFormat((TableVSAssembly) liveAssembly,
+                                                    assemblyName, column, visible);
+
          List<String> newAvailable = new ArrayList<>(current.availableColumns());
          List<String> newHidden = new ArrayList<>(current.hiddenColumns());
          newAvailable.remove(column);
@@ -3098,6 +3101,35 @@ public class TableBindingService {
    }
 
    /**
+    * Showing a hidden numeric Table column renders a new numeric output, which a whole-object
+    * date format would turn into 1970-01-01 dates. Checked before the show is written.
+    */
+   private static void refuseUnhidingNumericUnderObjectDateFormat(TableVSAssembly table,
+                                                                  String assemblyName,
+                                                                  String column, boolean visible)
+   {
+      String dateFormat = WizDateFormatOverNumeric.objectDateFormat(table.getVSAssemblyInfo());
+
+      if(!visible || dateFormat == null) {
+         return;
+      }
+
+      Enumeration<DataRef> hidden =
+         ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns().getAttributes();
+
+      while(hidden.hasMoreElements()) {
+         DataRef ref = hidden.nextElement();
+
+         if(refKey(ref).equalsIgnoreCase(column) &&
+            WizDateFormatOverNumeric.isNumericWithoutOwnFormat(table, ref))
+         {
+            throw new IllegalArgumentException(WizDateFormatOverNumeric.refusalMessage(
+               assemblyName, dateFormat, List.of(column)));
+         }
+      }
+   }
+
+   /**
     * Refuses a binding write that would add a numeric output to an assembly whose whole-object
     * format is a date/time format. Judged on the planned binding model, before it is applied, so
     * a refused write changes nothing; only outputs the write adds are counted, so a numeric
@@ -3126,16 +3158,7 @@ public class TableBindingService {
       }
 
       throw new IllegalArgumentException(
-         "'" + assemblyName + "' has a whole-assembly " + dateFormat + " (set_format " +
-         "target:\"object\"), and this write would add numeric output that renders as a " +
-         "1970-01-01 date under it: " + WizDateFormatOverNumeric.summarize(added) +
-         ". The request was not applied. A column or aggregate that does not exist yet cannot be " +
-         "given its own format first, so change the whole-assembly format before this write: " +
-         "set_format target:\"object\" with reset:true (clears the whole-assembly formatting), " +
-         "or with a non-date format. Then repeat this write, and format the date fields alone " +
-         "with set_format target:\"data\" and 'field' naming the date column (Table) or " +
-         "date-valued measure (Crosstab), and target:\"header\" for Crosstab date dimension " +
-         "labels.");
+         WizDateFormatOverNumeric.refusalMessage(assemblyName, dateFormat, added));
    }
 
    /**

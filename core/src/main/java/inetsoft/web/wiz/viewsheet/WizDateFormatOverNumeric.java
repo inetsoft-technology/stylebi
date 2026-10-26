@@ -355,6 +355,30 @@ public final class WizDateFormatOverNumeric {
       return ref.getAttribute() != null ? ref.getAttribute() : ref.getName();
    }
 
+   /**
+    * Whether a Table column is numeric and has no {@code DETAIL} format of its own, i.e. would
+    * inherit a whole-object date format.
+    */
+   public static boolean isNumericWithoutOwnFormat(TableVSAssembly table, DataRef ref) {
+      return WizFormatChecks.isNumeric(ref) &&
+         candidateHeaders(ref).stream().noneMatch(ownDetailFormatHeaders(table)::contains);
+   }
+
+   /** The refusal text of a binding write that adds {@code added} under {@code dateFormat}. */
+   public static String refusalMessage(String assemblyName, String dateFormat,
+                                       List<String> added)
+   {
+      return "'" + assemblyName + "' has a whole-assembly " + dateFormat + " (set_format " +
+         "target:\"object\"), and this write would add numeric output that renders as a " +
+         "1970-01-01 date under it: " + summarize(added) + ". The request was not applied. A " +
+         "column or aggregate that does not exist yet cannot be given its own format first, so " +
+         "change the whole-assembly format before this write: set_format target:\"object\" " +
+         "with reset:true (clears the whole-assembly formatting), or with a non-date format. " +
+         "Then repeat this write, and format the date fields alone with set_format " +
+         "target:\"data\" and 'field' naming the date column (Table) or date-valued measure " +
+         "(Crosstab), and target:\"header\" for Crosstab date dimension labels.";
+   }
+
    /** Up to five distinct names, then a count of the rest. */
    public static String summarize(List<String> names) {
       List<String> distinct = new ArrayList<>(new LinkedHashSet<>(names));
