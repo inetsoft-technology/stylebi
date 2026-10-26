@@ -1613,6 +1613,10 @@ public class CalcTableService {
          // Same default the native TableCellBinding uses; without it OrderModel's raw
          // YEAR_DATE_GROUP leaked into the read-back as dateLevel "year" (bug #79251).
          info.getOrder().setOption(XConstants.NONE_DATE_GROUP);
+         // A formula group cell's list comes from its script, so a stored topn limits neither
+         // that list nor dependent summary cells; storing it would only be read back as an
+         // active ranking (bug #79330).
+         info.setTopn(new TopNModel());
       }
 
       return info;

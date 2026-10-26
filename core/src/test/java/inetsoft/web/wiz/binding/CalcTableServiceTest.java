@@ -1177,6 +1177,50 @@ class CalcTableServiceTest {
    }
 
    /**
+    * Bug #79330: a formula group cell's stored topn limits neither its script's list nor the
+    * summary cells that use it as their group, so the write stores none instead of a ranking
+    * that would read back as active. The sort and NONE_DATE_GROUP stay as before.
+    */
+   @Test
+   void aFormulaGroupCellDoesNotPersistATopn() throws Exception {
+      Harness h = harness(3, 3);
+      AggregateRef sum = aggregate("PAID", "Sum");
+      when(h.layoutHandler().getCalcAggregateFields(any(), any()))
+         .thenReturn(new inetsoft.uql.erm.CalcAggregate[]{ sum });
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "formula", "value", "toList(data['REGION'])", "grouping", "group",
+              "expand", "vertical", "sort", spec("direction", "desc"),
+              "topn", spec("mode", "top", "n", 1)));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      CellBindingInfo bound = captor.getValue().getBinding();
+      assertEquals(XCondition.NONE, bound.getTopn().getType());
+      assertEquals(XConstants.SORT_DESC, bound.getOrder().getType());
+      assertEquals(XConstants.NONE_DATE_GROUP, bound.getOrder().getOption());
+   }
+
+   /** Control for bug #79330: a column group cell still persists its topn. */
+   @Test
+   void aColumnGroupCellStillPersistsItsTopn() throws Exception {
+      Harness h = harness(3, 3);
+      AggregateRef sum = aggregate("PAID", "Sum");
+      when(h.layoutHandler().getCalcAggregateFields(any(), any()))
+         .thenReturn(new inetsoft.uql.erm.CalcAggregate[]{ sum });
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension"),
+              "topn", spec("mode", "top", "n", 1)));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      assertEquals(XCondition.TOP_N, captor.getValue().getBinding().getTopn().getType());
+      assertEquals(1, captor.getValue().getBinding().getTopn().getTopn());
+   }
+
+   /**
     * Unlike a chart/table dimension's dlevelValue, a calc-table cell's OrderModel.option is a
     * plain int with no DynamicValue counterpart -- DateLevels.normalize() now returns a
     * "$(ComponentName)" value unchanged (bug #76751) rather than throwing, so applyDateGroup has
