@@ -74,6 +74,7 @@ import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ConditionVocabulary;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
+import inetsoft.web.wiz.viewsheet.WizDateFormatOverNumeric;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -437,6 +438,9 @@ public class CalcTableService {
          // Every namedGroup write path (worksheet-local by-name, inline) has set order.info by
          // now; one check here covers them all.
          requireSimpleNamedGroup(cellBindingInfo.getOrder().getInfo(), namedGroup);
+
+         refuseNumericCellUnderObjectDateFormat(rvs, assembly, assemblyName, row, col,
+                                                cellBindingInfo);
 
          SetCellBindingEvent event = new SetCellBindingEvent();
          event.setName(assemblyName);
@@ -1848,8 +1852,16 @@ public class CalcTableService {
       TableLayout layout = layoutOf(assembly);
       requireInGrid(layout, row, col);
 
-      if(!(layout.getCellBinding(row, col) instanceof TableCellBinding cell) ||
-         cell.getType() != CellBinding.BIND_COLUMN || cell.getValue() == null ||
+      return outputTypeOf(rvs, assembly, assemblyName, row, col,
+                          layout.getCellBinding(row, col) instanceof TableCellBinding cell ?
+                          cell : null);
+   }
+
+   /** {@link #cellOutputType} for a binding given directly, e.g. one not written yet. */
+   private String outputTypeOf(RuntimeViewsheet rvs, CalcTableVSAssembly assembly,
+                               String assemblyName, int row, int col, TableCellBinding cell)
+   {
+      if(cell == null || cell.getType() != CellBinding.BIND_COLUMN || cell.getValue() == null ||
          cell.getExpression() != null)
       {
          return null;
@@ -1925,6 +1937,64 @@ public class CalcTableService {
       }
 
       return type;
+   }
+
+   /**
+    * Bug #79342: refuses binding a cell that has no format of its own to a numeric output while
+    * the table's whole-object format is a date/time format, because the cell would inherit it and
+    * render the number as a 1970-01-01 date. Typed from the PLANNED binding (a scratch copy of
+    * the cell, never the live layout), so a refused write has changed nothing. A cell with its own
+    * format is left to {@link #clearDateFormatOnNumericCell}; an unknown output type is allowed.
+    * The cell itself exists before it is bound, so the way out is a numeric format on it first
+    * ({@code set_calc_cell_format}); the whole-object format can also be changed.
+    */
+   private void refuseNumericCellUnderObjectDateFormat(RuntimeViewsheet rvs,
+                                                       CalcTableVSAssembly assembly,
+                                                       String assemblyName, int row, int col,
+                                                       CellBindingInfo planned)
+   {
+      CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getInfo();
+      String objectFormat = WizDateFormatOverNumeric.objectDateFormat(info);
+
+      if(objectFormat == null) {
+         return;
+      }
+
+      FormatInfo formatInfo = info.getFormatInfo();
+      VSCompositeFormat own =
+         formatInfo == null ? null : formatInfo.getFormat(info.getCellDataPath(row, col));
+      VSFormat user = own == null ? null : own.getUserDefinedFormat();
+
+      if(user != null && user.isFormatValueDefined()) {
+         return;
+      }
+
+      TableCellBinding scratch = new TableCellBinding();
+      scratch.setType(planned.getType());
+      scratch.setBType(planned.getBtype());
+      scratch.setValue(planned.getValue());
+      scratch.setFormula(planned.getFormula());
+      scratch.getOrderInfo(true).setInterval(planned.getOrder().getInterval(),
+                                             planned.getOrder().getOption());
+      String type = outputTypeOf(rvs, assembly, assemblyName, row, col, scratch);
+
+      if(!(XSchema.isNumericType(type) || XSchema.DECIMAL.equals(type))) {
+         return;
+      }
+
+      String output = scratch.getBType() == CellBinding.SUMMARY && scratch.getFormula() != null ?
+         scratch.getFormula() + "(" + scratch.getValue() + ")" : scratch.getValue();
+
+      throw new IllegalArgumentException(
+         "set_cell_binding: cell [" + row + "," + col + "] of '" + assemblyName + "' has no " +
+         "format of its own, and '" + assemblyName + "' has a whole-table " + objectFormat +
+         " (set_format target:\"object\"), so binding it to the numeric output " + output +
+         " would render it as a 1970-01-01 date. The request was not applied. Give the cell a " +
+         "numeric format first with set_calc_cell_format (for example DecimalFormat or " +
+         "CurrencyFormat; the cell exists already, so this works before it is bound), then " +
+         "repeat this write; or change the whole-table format with set_format " +
+         "target:\"object\" (reset:true, or a non-date format) and format the date cells alone " +
+         "with set_calc_cell_format.");
    }
 
    /**

@@ -66,6 +66,7 @@ import inetsoft.web.wiz.binding.model.ColumnVisibilityEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.TableLensGuard;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
+import inetsoft.web.wiz.viewsheet.WizDateFormatOverNumeric;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -127,7 +128,10 @@ public class TableBindingService {
                                     fields == null ? 0 : fields.size());
          String livePercentageBy = livePercentageByValue(assembly);
          TableBindingMutator.drainNotes();
+         Set<String> numericBefore = numericOutputsBefore(assembly, model, rvs, source);
          TableBindingMutator.setShelf(model, shelf, fields, rvs, source, refModelService);
+         refuseNewNumericUnderObjectDateFormat(assembly, assemblyName, numericBefore, model, rvs,
+                                              source);
          relayUnhiddenNotes(assemblyName, assembly, shelf, fields, dispatcher);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          relayNotes(assemblyName, dispatcher);
@@ -582,6 +586,8 @@ public class TableBindingService {
             List<String> full = table == null || position == null || field == null
                ? null : fullDetailsOrder(table, field.column());
 
+            Set<String> numericBefore = numericOutputsBefore(table, model, rvs, source);
+
             if(full == null) {
                TableBindingMutator.addField(model, shelf, field, position, rvs, source,
                                             refModelService);
@@ -609,6 +615,9 @@ public class TableBindingService {
 
             TableBindingMutator.addField(model, shelf, field, shownPosition, rvs, source,
                                          refModelService);
+            // Before restampHiddenPositions, the one write below that touches the live Table.
+            refuseNewNumericUnderObjectDateFormat(table, assemblyName, numericBefore, model, rvs,
+                                                  source);
             full.add(position, field.column());
             restampHiddenPositions(table, full);
          });
@@ -901,6 +910,9 @@ public class TableBindingService {
                (bound.isEmpty() ? "(nothing)" : String.join(", ", bound)) +
                ". Add it with add_table_field or set_table_fields first.");
          }
+
+         refuseUnhidingNumericUnderObjectDateFormat((TableVSAssembly) liveAssembly,
+                                                    assemblyName, column, visible);
 
          List<String> newAvailable = new ArrayList<>(current.availableColumns());
          List<String> newHidden = new ArrayList<>(current.hiddenColumns());
@@ -3051,6 +3063,105 @@ public class TableBindingService {
    }
 
    /**
+    * Bug #79342: a whole-assembly date/time format reaches every cell with no format of its own,
+    * so a numeric column or aggregate bound under it renders as an epoch-millisecond date
+    * (1970-01-01). The numeric outputs the binding model holds before the write, or null when
+    * the assembly has no such format and nothing needs checking.
+    */
+   static Set<String> numericOutputsBefore(VSAssembly assembly, BaseTableBindingModel model,
+                                           RuntimeViewsheet rvs,
+                                           inetsoft.uql.asset.SourceInfo source)
+   {
+      if(!(assembly instanceof TableDataVSAssembly) ||
+         WizDateFormatOverNumeric.objectDateFormat(assembly.getVSAssemblyInfo()) == null)
+      {
+         return null;
+      }
+
+      return plannedNumericOutputs(assembly, model, rvs, source);
+   }
+
+   private static Set<String> plannedNumericOutputs(VSAssembly assembly,
+                                                    BaseTableBindingModel model,
+                                                    RuntimeViewsheet rvs,
+                                                    inetsoft.uql.asset.SourceInfo source)
+   {
+      Set<String> ownFormat = assembly instanceof TableVSAssembly table
+         ? WizDateFormatOverNumeric.ownDetailFormatHeaders(table) : Set.of();
+
+      try {
+         return WizDateFormatOverNumeric.plannedNumericOutputs(
+            model, ownFormat,
+            column -> FieldRefFactory.dimensionDataType(model, rvs, source, column));
+      }
+      catch(RuntimeException e) {
+         // A model entry that cannot be typed here: unknown, so the check fails open.
+         return Set.of();
+      }
+   }
+
+   /**
+    * Showing a hidden numeric Table column renders a new numeric output, which a whole-object
+    * date format would turn into 1970-01-01 dates. Checked before the show is written.
+    */
+   private static void refuseUnhidingNumericUnderObjectDateFormat(TableVSAssembly table,
+                                                                  String assemblyName,
+                                                                  String column, boolean visible)
+   {
+      String dateFormat = WizDateFormatOverNumeric.objectDateFormat(table.getVSAssemblyInfo());
+
+      if(!visible || dateFormat == null) {
+         return;
+      }
+
+      Enumeration<DataRef> hidden =
+         ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns().getAttributes();
+
+      while(hidden.hasMoreElements()) {
+         DataRef ref = hidden.nextElement();
+
+         if(refKey(ref).equalsIgnoreCase(column) &&
+            WizDateFormatOverNumeric.isNumericWithoutOwnFormat(table, ref))
+         {
+            throw new IllegalArgumentException(WizDateFormatOverNumeric.refusalMessage(
+               assemblyName, dateFormat, List.of(column)));
+         }
+      }
+   }
+
+   /**
+    * Refuses a binding write that would add a numeric output to an assembly whose whole-object
+    * format is a date/time format. Judged on the planned binding model, before it is applied, so
+    * a refused write changes nothing; only outputs the write adds are counted, so a numeric
+    * column already under the format never blocks an unrelated write. A column that does not
+    * exist yet cannot be given its own format first, hence the advice to change the object
+    * format instead.
+    *
+    * @param numericBefore the result of {@link #numericOutputsBefore}, taken before the mutation
+    */
+   static void refuseNewNumericUnderObjectDateFormat(VSAssembly assembly, String assemblyName,
+                                                     Set<String> numericBefore,
+                                                     BaseTableBindingModel model,
+                                                     RuntimeViewsheet rvs,
+                                                     inetsoft.uql.asset.SourceInfo source)
+   {
+      if(numericBefore == null) {
+         return;
+      }
+
+      String dateFormat = WizDateFormatOverNumeric.objectDateFormat(assembly.getVSAssemblyInfo());
+      List<String> added = new ArrayList<>(plannedNumericOutputs(assembly, model, rvs, source));
+      added.removeAll(numericBefore);
+
+      if(dateFormat == null || added.isEmpty()) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         WizDateFormatOverNumeric.refusalMessage(assemblyName, dateFormat, added));
+   }
+
+   /**
     * Reports what the mutator reset on its own as WARNING messages, so the caller is told rather
     * than finding a sort or ranking gone (bug #77025 review F1).
     */
@@ -3109,7 +3220,10 @@ public class TableBindingService {
             ? data.getSourceInfo() : null;
          String livePercentageBy = livePercentageByValue(assembly);
          TableBindingMutator.drainNotes();
+         Set<String> numericBefore = numericOutputsBefore(assembly, model, rvs, source);
          mutation.accept(model, rvs, source);
+         refuseNewNumericUnderObjectDateFormat(assembly, assemblyName, numericBefore, model, rvs,
+                                              source);
          relayUnhiddenNotes(assemblyName, assembly, shelf, unhiddenCandidates, dispatcher);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          relayNotes(assemblyName, dispatcher);
