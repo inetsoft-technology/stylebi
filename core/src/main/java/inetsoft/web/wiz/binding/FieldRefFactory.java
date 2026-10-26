@@ -131,13 +131,13 @@ public final class FieldRefFactory {
     * it throws {@code IllegalArgumentException} and {@code echoOf} is given is the group
     * carried over from {@code echoOf}. Without {@code echoOf} the error is rethrown unchanged.
     *
-    * @param echoOf the previous dimension the field echoes (see {@link #findExpertPlaceholder}),
+    * @param echoOf the placeholder echo (see {@link #findExpertPlaceholder}),
     *               or {@code null} if the field does not echo one.
     */
    public static ChartRefModel toChartRef(FieldRef field, BindingModel model,
                                           RuntimeViewsheet rvs, SourceInfo source,
                                           DataRefModelFactoryService refModelService,
-                                          ChartDimensionRefModel echoOf)
+                                          PlaceholderEcho echoOf)
       throws Exception
    {
       requireType(field);
@@ -194,7 +194,7 @@ public final class FieldRefFactory {
 
       // An echoed stored group is not a new write; only a group the request itself defines or
       // names is refused on a date column.
-      if(echoOf == null) {
+      if(echoOf == null || echoOf.refusal() != null) {
          refuseNamedGroupOnDateDimension(field, dimensionType);
       }
 
@@ -209,11 +209,15 @@ public final class FieldRefFactory {
             throw e; // preserve the loud, field-named message as-is
          }
 
+         if(echoOf.refusal() != null) {
+            throw new IllegalArgumentException(echoOf.refusal());
+         }
+
          echoed = true;
       }
 
       if(echoed) {
-         carryEchoedGroup(echoOf, ref);
+         carryEchoedGroup(echoOf.previous(), ref);
       }
       else if(namedGroupInfo != null) {
          ref.setNamedGroupInfo(namedGroupInfo);
@@ -254,13 +258,13 @@ public final class FieldRefFactory {
     * read back as that name. Applies only to a {@code namedGroup} sent without
     * {@code namedGroupValues}.
     *
-    * @param candidates the unconsumed previous dimensions on the shelf or channel being written.
-    * @return the dimension to echo, or {@code null} if the field is not an echo.
-    * @throws IllegalArgumentException if two or more previous dimensions share the field's
-    *         column and date level and all read as the placeholder: they cannot be told apart,
-    *         so pairing by order could silently swap their groups.
+    * @param candidates the previous dimensions on the shelf or channel being written.
+    * @return the echo, or {@code null} if the field is not an echo. Two or more previous
+    *         dimensions sharing the field's column and date level that all read as the
+    *         placeholder cannot be told apart (pairing by order could silently swap their
+    *         groups), which is reported as a refusal on the result.
     */
-   static ChartDimensionRefModel findExpertPlaceholder(
+   static PlaceholderEcho findExpertPlaceholder(
       FieldRef field, List<? extends ChartRefModel> candidates)
    {
       if(field.namedGroup() == null || field.namedGroupValues() != null ||
@@ -286,13 +290,22 @@ public final class FieldRefFactory {
       }
 
       if(count > 1) {
-         throw new IllegalArgumentException(
+         return new PlaceholderEcho(null,
             "Several fields on '" + field.column() + "' read as '" + field.namedGroup() +
             "' (worksheet-local condition groups), so their identity cannot be told apart -- " +
             "resend each with 'namedGroup' set to its real group name from list_named_groups.");
       }
 
-      return found;
+      return found == null ? null : new PlaceholderEcho(found, null);
+   }
+
+   /**
+    * A recognised placeholder echo: the previous dimension to carry the group from, or a
+    * {@code refusal} when the previous shelf holds indistinguishable placeholders. The refusal is
+    * raised by {@code toChartRef} only after by-name resolution has failed, so a real group
+    * named like the placeholder still wins.
+    */
+   record PlaceholderEcho(ChartDimensionRefModel previous, String refusal) {
    }
 
    /**

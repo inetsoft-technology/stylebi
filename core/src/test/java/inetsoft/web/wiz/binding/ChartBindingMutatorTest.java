@@ -60,6 +60,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -813,7 +814,7 @@ class ChartBindingMutatorTest {
       throws Exception
    {
       ChartBindingModel model = new ChartBindingModel();
-      ChartBindingMutator.setShelf(model, "x", java.util.Collections.nCopies(fields, BY_NG1),
+      ChartBindingMutator.setShelf(model, "x", Collections.nCopies(fields, BY_NG1),
                                    rvs, source, refModels());
 
       for(Object ref : model.getXFields()) {
@@ -922,6 +923,25 @@ class ChartBindingMutatorTest {
                        xDimension(model).getNamedGroupInfo().getConditions());
       }
    }
+
+   @Test
+   void aRealGroupNamedCustomWinsEvenWhenTwoPreviousPlaceholdersAreAmbiguous() throws Exception {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      RuntimeViewsheet rvs = rvsWith(
+         worksheetGroup("Ng1", source, Condition.STARTING_WITH, "M"),
+         worksheetGroup("Custom", source, Condition.STARTING_WITH, "N"));
+
+      try(var ignored = noRepository()) {
+         ChartBindingModel model = modelReadingBackCustom(rvs, source, 2);
+         var before = xDimension(model).getNamedGroupInfo();
+
+         ChartBindingMutator.setShelf(model, "x", List.of(CUSTOM), rvs, source, refModels());
+
+         assertNotSame(before.getConditions(),
+                       xDimension(model).getNamedGroupInfo().getConditions());
+      }
+   }
+
    // ── measure calculateInfo/secondaryY survive a shelf rewrite (bug #76896) ────────────────
    //
    // toChartRef's MEASURE branch builds a fresh ChartAggregateRefModel on every setShelf call:

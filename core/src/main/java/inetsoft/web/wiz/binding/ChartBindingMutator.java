@@ -39,6 +39,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -635,7 +636,7 @@ public final class ChartBindingMutator {
       ChartRefModel ref = field == null ? null : FieldRefFactory.toChartRef(
          field, model, rvs, source, refModelService,
          FieldRefFactory.findExpertPlaceholder(
-            field, java.util.Collections.singletonList(readSingleShelf(model, name))));
+            field, Collections.singletonList(readSingleShelf(model, name))));
 
       // After toChartRef so a missing/invalid 'type' keeps the type error, and before
       // assignSingleShelf so a refusal leaves the shelf and any prior binding untouched.

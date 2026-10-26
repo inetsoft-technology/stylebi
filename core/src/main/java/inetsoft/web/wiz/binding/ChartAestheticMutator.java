@@ -38,6 +38,7 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -153,7 +154,7 @@ public final class ChartAestheticMutator {
       ChartRefModel dataInfo = FieldRefFactory.toChartRef(
          field, model, rvs, source, refModelService,
          FieldRefFactory.findExpertPlaceholder(
-            field, java.util.Collections.singletonList(previousData)));
+            field, Collections.singletonList(previousData)));
       info.setFullName(field.column());
       ChartBindingMutator.carryForwardSameField(previousData, dataInfo, field);
       info.setDataInfo(dataInfo);
