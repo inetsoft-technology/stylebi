@@ -64,6 +64,14 @@ class AdminIdentityRefsTest {
          .getMessage();
    }
 
+   private IdentityID parseOrg(String raw) {
+      return AdminIdentityRefs.parse("f", raw, "cur", Kind.ORGANIZATION, false, false, dir);
+   }
+
+   private String refusalOrg(String raw) {
+      return assertThrows(IllegalArgumentException.class, () -> parseOrg(raw)).getMessage();
+   }
+
    @ParameterizedTest
    @ValueSource(strings = { "", "  " })
    void blankIsNull(String raw) {
@@ -162,6 +170,58 @@ class AdminIdentityRefsTest {
 
    @Test void theColonNameIsNotResplitOnACaret() {
       assertEquals(new IdentityID("a^other", "cur"), parse("a^other:cur", false));
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #79362: an ORGANIZATION identity names itself -- its org has no independent
+   // meaning, so the only legitimate org is the identity's own name (or, for a bare name,
+   // the name itself, self-referentially). All four forms (bare, ":", "~;~", "^") must agree:
+   // own-org accepts, another real org (matching pair) is refused as cross-org, and a
+   // mismatched pair is refused outright, regardless of which delimiter supplied it.
+   // -------------------------------------------------------------------------
+
+   @ParameterizedTest
+   @ValueSource(strings = { "cur", "cur:cur", "cur~;~cur", "cur^cur" })
+   void organizationFormsNamingTheCallersOwnOrgAreAcceptedSelfReferentially(String raw) {
+      IdentityID id = parseOrg(raw);
+
+      assertEquals(new IdentityID("cur", "cur"), id);
+      assertEquals(id.getName(), id.getOrgID());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "other", "other:other", "other~;~other", "other^other" })
+   void organizationFormsNamingAnotherOrgWithAMatchingPairAreRefusedAsCrossOrg(String raw) {
+      String message = refusalOrg(raw);
+      assertTrue(message.contains("targets org \"other\""), message);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "other:cur", "other~;~cur", "other^cur" })
+   void organizationFormsWithAMismatchedNameAndOrgAreRefusedOutright(String raw) {
+      String message = refusalOrg(raw);
+      assertTrue(message.contains("org and name must agree"), message);
+      assertTrue(message.contains("\"other\""), message);
+      assertTrue(message.contains("\"cur\""), message);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "cur:__GLOBAL__", "cur~;~__GLOBAL__", "other:__GLOBAL__" })
+   void organizationFormsNamingAGlobalOrgAreRefusedEvenWhenGlobalIsAllowed(String raw) {
+      // organizations have no "global" reading in this data model -- unlike USER/GROUP/ROLE,
+      // there is no allowGlobal escape hatch for this kind
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> AdminIdentityRefs.parse("f", raw, "cur", Kind.ORGANIZATION, true, true, dir));
+      assertTrue(ex.getMessage().contains("global"), ex.getMessage());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "USER", "GROUP", "ROLE" })
+   void nonOrganizationKindsKeepTheBareNameAsAnIdentityInTheCurrentOrg(String kindName) {
+      Kind kind = Kind.valueOf(kindName);
+
+      assertEquals(new IdentityID("a", "cur"),
+                   AdminIdentityRefs.parse("f", "a", "cur", kind, false, false, dir));
    }
 
    @Test void directoryOverAProviderLooksUpLazilyAndFallsBackToAGlobalRole() {
