@@ -2287,10 +2287,39 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          vs.fireEvent(Viewsheet.BINDING_CHANGED, name);
       }
 
+      // the onLoad script reads the data of the tables, which must already be filtered by the
+      // changed selection, otherwise it sees the previous selection's data (#79367)
+      if(vs.getAssembly(name) instanceof SelectionVSAssembly) {
+         applySelectionToTables((SelectionVSAssembly) vs.getAssembly(name));
+      }
+
       resetScriptable(type);
       processOnInit();
       processOnLoad(clist, true);
       processChange0(name, hint, clist);
+   }
+
+   /**
+    * Apply the selection to the tables depending on it, and drop their cached data so it is
+    * queried again under the new conditions.
+    */
+   private void applySelectionToTables(SelectionVSAssembly assembly) throws Exception {
+      String onload = vs.getViewsheetInfo().getOnLoad();
+
+      if(!vs.getViewsheetInfo().isScriptEnabled() || onload == null || onload.trim().isEmpty()) {
+         return;
+      }
+
+      applySelectionConditions(assembly);
+      Set<String> tables = getDependentTableNames(assembly);
+
+      for(Assembly vassembly : vs.getAssemblies()) {
+         if(vassembly instanceof VSAssembly &&
+            tables.contains(((VSAssembly) vassembly).getTableName()))
+         {
+            resetDataMap(vassembly.getName());
+         }
+      }
    }
 
    /**
@@ -5481,27 +5510,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
 
-         final Set<SelectionVSAssembly> selections = new HashSet<>();
-         final Set<String> dependentTableNames;
-
-         if(isUnsupportedSelection(assembly)) {
-            dependentTableNames = new HashSet<>();
-         }
-         else if(assembly instanceof AssociatedSelectionVSAssembly) {
-            final SelectionVSAssembly[] sarr =
-               SelectionVSUtil.getRelatedSelectionAssemblies((AssociatedSelectionVSAssembly) assembly)
-                  .toArray(new SelectionVSAssembly[0]);
-            dependentTableNames = Arrays.stream(sarr)
-               .flatMap((s) -> s.getTableNames().stream())
-               .collect(Collectors.toSet());
-         }
-         else {
-            dependentTableNames = new HashSet<>(assembly.getTableNames());
-         }
-
-         for(String tname : dependentTableNames) {
-            selections.addAll(refreshRuntimeConditionList(tname, false, new HashSet<>()));
-         }
+         final Set<SelectionVSAssembly> selections = applySelectionConditions(assembly);
 
          selections.forEach((s) -> clist.getSelectionList().remove(s.getAssemblyEntry()));
 
@@ -5534,6 +5543,41 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          throw ex;
       }
+   }
+
+   /**
+    * Get the worksheet tables whose runtime conditions depend on the selection.
+    */
+   private Set<String> getDependentTableNames(SelectionVSAssembly assembly) {
+      if(isUnsupportedSelection(assembly)) {
+         return new HashSet<>();
+      }
+      else if(assembly instanceof AssociatedSelectionVSAssembly) {
+         final SelectionVSAssembly[] sarr =
+            SelectionVSUtil.getRelatedSelectionAssemblies((AssociatedSelectionVSAssembly) assembly)
+               .toArray(new SelectionVSAssembly[0]);
+         return Arrays.stream(sarr)
+            .flatMap((s) -> s.getTableNames().stream())
+            .collect(Collectors.toSet());
+      }
+
+      return new HashSet<>(assembly.getTableNames());
+   }
+
+   /**
+    * Install the selection's current state as runtime conditions on the tables depending on it.
+    * @return the selection assemblies sharing those tables.
+    */
+   private Set<SelectionVSAssembly> applySelectionConditions(SelectionVSAssembly assembly)
+      throws Exception
+   {
+      final Set<SelectionVSAssembly> selections = new HashSet<>();
+
+      for(String tname : getDependentTableNames(assembly)) {
+         selections.addAll(refreshRuntimeConditionList(tname, false, new HashSet<>()));
+      }
+
+      return selections;
    }
 
    private boolean isUnsupportedSelection(VSAssembly assembly) {
