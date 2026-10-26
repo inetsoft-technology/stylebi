@@ -205,7 +205,10 @@ public class VSBindingModelService {
       if(event.isClearVacatedAliases()) {
          assemblyInfoHandler.apply(rvs, ninfo, engine, false, false, false, false, dispatcher,
                                    null, null, null, null,
-                                   ClearTableHeaderAliasHandler::processClearAliasFormat);
+                                   assembly instanceof CrosstabVSAssembly crosstab
+                                      ? ClearTableHeaderAliasHandler
+                                         .clearVacatedKeepingBoundMeasures(crosstab)
+                                      : ClearTableHeaderAliasHandler::processClearAliasFormat);
       }
       else {
          assemblyInfoHandler.apply(rvs, ninfo, engine, false, false, false, false, dispatcher);

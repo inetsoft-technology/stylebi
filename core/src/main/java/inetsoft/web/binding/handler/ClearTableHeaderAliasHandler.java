@@ -22,8 +22,10 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 
-import java.util.Map;
+import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -105,6 +107,55 @@ public class ClearTableHeaderAliasHandler {
       format = format.clone();
       ClearTableHeaderAliasHandler.clearAlias(format);
       formatMap.put(oldDataPath, format);
+   }
+
+   /**
+    * {@link #processClearAliasFormat}, except that a vacated summary header path of a measure
+    * still bound on {@code crosstab} keeps its label (bug #79331). Adding a deeper row level
+    * re-keys the old detail path {@code [Year, Quarter, Sum(X)]} to the new detail, and that
+    * same path is now the new quarter subtotal; clearing it left those rows with the default
+    * name. Corner and dimension labels are cleared as before (bug #78530), and so is the path of
+    * a measure the write removed. Evaluated against the crosstab's info when the sync runs, which
+    * is the new binding.
+    */
+   public static BiConsumer<Map<TableDataPath, VSCompositeFormat>, TableDataPath>
+      clearVacatedKeepingBoundMeasures(CrosstabVSAssembly crosstab)
+   {
+      return (formatMap, oldDataPath) -> {
+         if(!isBoundMeasureHeader(crosstab.getVSCrosstabInfo(), oldDataPath)) {
+            processClearAliasFormat(formatMap, oldDataPath);
+         }
+      };
+   }
+
+   private static boolean isBoundMeasureHeader(VSCrosstabInfo cinfo, TableDataPath dataPath) {
+      String[] path = dataPath == null ? null : dataPath.getPath();
+
+      if(cinfo == null || path == null || path.length == 0 ||
+         dataPath.getType() != TableDataPath.HEADER || path[0].contains("Cell ["))
+      {
+         return false;
+      }
+
+      String last = path[path.length - 1];
+      DataRef[] aggs = cinfo.getRuntimeAggregates();
+
+      if(aggs == null || !Arrays.asList(VSUtil.buildName(aggs, true)).contains(last)) {
+         return false;
+      }
+
+      List<DataRef> dims = new ArrayList<>();
+
+      if(cinfo.getRuntimeRowHeaders() != null) {
+         dims.addAll(Arrays.asList(cinfo.getRuntimeRowHeaders()));
+      }
+
+      if(cinfo.getRuntimeColHeaders() != null) {
+         dims.addAll(Arrays.asList(cinfo.getRuntimeColHeaders()));
+      }
+
+      // syncSummaryHeader treats a last segment naming a dimension as a dimension header.
+      return !Arrays.asList(VSUtil.buildName(dims.toArray(new DataRef[0]), false)).contains(last);
    }
 
    public static void clearHeaderAliasByIndex(Map<TableDataPath, VSCompositeFormat> formatMap,
