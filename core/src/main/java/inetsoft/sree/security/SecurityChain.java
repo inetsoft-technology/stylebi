@@ -336,16 +336,21 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
 
                         // the first load on this node replaces nothing, so it is not a reload
                         boolean initial = !loaded;
-                        // what is recorded is the digest of the bytes loaded: a second edit that
-                        // lands while the providers are being created has another digest, so
-                        // the next dataChanged() reloads it (Bug #79267)
-                        markLoaded(contentDigest);
                         List<T> old = getProviderList();
                         Map<String, String> before =
                            initial ? null : describeProviders(old);
                         // publish the new list in one step, so a reader never sees an empty
                         // chain while the old providers are torn down (Bug #79355)
                         setProviderList(list);
+                        // What is recorded is the digest of the bytes loaded: a second edit that
+                        // lands while the providers are being created has another digest, so
+                        // the next dataChanged() reloads it (Bug #79267). It is recorded only
+                        // after the new list is published: the check that decides whether to
+                        // reload runs outside the reload lock, so a thread (an EM edit that
+                        // reloads first) that sees the digest as loaded would otherwise read the
+                        // empty or the old list and overwrite the file (Bug #79127). Until then it
+                        // waits for the reload lock and re-checks.
+                        markLoaded(contentDigest);
                         disposeAll(old);
 
                         if(!initial) {
