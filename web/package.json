@@ -16,8 +16,7 @@
     "verify": "ng lint && npm run test",
     "verify:prod": "npm run lint:prod && npm run test",
     "lint": "ng lint",
-    "lint:prod": "npm run-script --silent -- ng lint --project=portal --format=checkstyle >portal-lint-results.xml && npm run-script --silent -- ng lint --project=em --format=checkstyle >em-lint-results.xml",
-    "generate-sbom": "cyclonedx-npm --package-lock-only --omit dev --omit optional --omit peer --output-format XML --output-file target/bom.xml --mc-type application"
+    "lint:prod": "npm run-script --silent -- ng lint --project=portal --format=checkstyle >portal-lint-results.xml && npm run-script --silent -- ng lint --project=em --format=checkstyle >em-lint-results.xml"
   },
   "private": true,
   "dependencies": {
@@ -70,8 +69,6 @@
     "@angular/build": "^21.2.24",
     "@angular/cli": "~21.2.24",
     "@angular/compiler-cli": "^21.2.24",
-    "@cyclonedx/bom": "^3.10.6",
-    "@cyclonedx/cyclonedx-npm": "^6.0.1",
     "@eslint/js": "^10.0.1",
     "@material/notched-outline": "^14.0.0",
     "@material/textfield": "^14.0.0",
