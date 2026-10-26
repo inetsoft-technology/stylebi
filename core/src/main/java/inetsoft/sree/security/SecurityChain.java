@@ -277,10 +277,13 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
                            // second edit that lands while the providers are being created must still
                            // satisfy timestamp < now on the next dataChanged() (Bug #79267)
                            timestamp = now;
+                           List<T> old = getProviderList();
                            Map<String, String> before =
-                              initial ? null : describeProviders(getProviderList());
-                           clear();
+                              initial ? null : describeProviders(old);
+                           // publish the new list in one step, so a reader never sees an empty
+                           // chain while the old providers are torn down (Bug #79355)
                            setProviderList(list);
+                           disposeAll(old);
 
                            if(!initial) {
                               reloadedFrom = before;
@@ -309,13 +312,14 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
 
    /**
     * Gets the providers, waiting for an edit holding {@link #writeLock()} and for a reload of the
-    * configuration file that is replacing them to finish. During a reload the list is empty from
-    * {@link #clear()} until the new list is set. The read lock is taken before the reload lock,
+    * configuration file that is replacing them to finish. During a reload the list is the old one
+    * until the new list is set, and the reload holds its lock until the old providers are
+    * disposed. The read lock is taken before the reload lock,
     * the same order as an edit that saves the chain under the write lock. The caller must not
     * hold a provider's locks.
     * <p>
-    * A reload that takes long is logged, but this keeps waiting for it: the list may be empty
-    * until it ends, so not waiting would lose the caller's work. Waiting can't deadlock, because
+    * A reload that takes long is logged, but this keeps waiting for it: the list may be the
+    * replaced one until it ends, so not waiting would lose the caller's work. Waiting can't deadlock, because
     * no thread that holds the reload lock waits for the read lock.
     *
     * @param waiter what is waiting for the reload, for the log.
@@ -507,9 +511,23 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
    void clear() {
       List<T> list = providers;
       setProviderList(new ArrayList<>());
+      disposeAll(list);
+   }
 
+   /**
+    * Disposes the security providers that a new list has replaced. A provider that fails to
+    * dispose is logged and does not keep the ones after it from being disposed.
+    *
+    * @param list the replaced security providers.
+    */
+   void disposeAll(List<T> list) {
       for(T provider : list) {
-         dispose(provider);
+         try {
+            dispose(provider);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to dispose security provider: {}", provider.getProviderName(), e);
+         }
       }
    }
 

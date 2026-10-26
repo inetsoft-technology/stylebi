@@ -402,6 +402,11 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
    /**
     * {@inheritDoc}
+    * <p>
+    * The storages are cached and shared by {@code KeyValueStorageManager}, which closes them, so
+    * only this provider's own listeners are removed here. A chain reload tears the old providers
+    * down after the new ones are live, and closing a shared storage would empty the streams of
+    * the new provider (Bug #79355).
     */
    @Override
    public void tearDown() {
@@ -417,13 +422,6 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                   LOG.warn("Failed to remove user cache listener", e);
                }
 
-               try {
-                  userStorage.close();
-               }
-               catch(Exception e) {
-                  LOG.warn("Failed to close user storage", e);
-               }
-
                userStorage = null;
             }
 
@@ -433,13 +431,6 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                }
                catch(Exception e) {
                   LOG.warn("Failed to remove group cache listener", e);
-               }
-
-               try {
-                  groupStorage.close();
-               }
-               catch(Exception e) {
-                  LOG.warn("Failed to close group storage", e);
                }
 
                groupStorage = null;
@@ -453,26 +444,10 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                   LOG.warn("Failed to remove role cache listener", e);
                }
 
-               try {
-                  roleStorage.close();
-               }
-               catch(Exception e) {
-                  LOG.warn("Failed to close role storage", e);
-               }
-
                roleStorage = null;
             }
 
-            if(organizationStorage != null) {
-               try {
-                  organizationStorage.close();
-               }
-               catch(Exception e) {
-                  LOG.warn("Failed to close organization storage", e);
-               }
-
-               organizationStorage = null;
-            }
+            organizationStorage = null;
          }
       }
 
