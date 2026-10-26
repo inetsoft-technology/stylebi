@@ -759,6 +759,134 @@ class ScriptExecuteServiceTest {
                      "Ns.count()");
    }
 
+   // Bug #79346 (SSL-014, Problem 1): 10 further ways a Script Library entry can expose a
+   // namespace that the pre-fix scanner does not recognize as binding the global scope.
+   @Test
+   void topLevelAliasOfGlobalExposesItsNamespace() throws Exception {
+      // shape 1: var root = this; root.Ns = {...};
+      assertGatedViaNamespace(
+         "var root = this;\nroot.Ns = { count: function() { return runQuery('q'); } };",
+         "Ns.count()");
+   }
+
+   @Test
+   void aliasDeclaredInsideAnIifeExposesItsNamespace() throws Exception {
+      // shape 2: (function(){ var g = this; g.Ns = {...}; })();
+      assertGatedViaNamespace(
+         "(function() { var g = this; g.Ns = { count: function() { return runQuery('q'); } }; })();",
+         "Ns.count()");
+   }
+
+   @Test
+   void namespaceCreatedInTheIifeCallArgumentIsGated() throws Exception {
+      // shape 3: (function(ns){ ns.count = ...; })(this.Ns = this.Ns || {});
+      assertGatedViaNamespace(
+         "(function(ns) { ns.count = function() { return runQuery('q'); }; })" +
+         "(this.Ns = this.Ns || {});",
+         "Ns.count()");
+   }
+
+   @Test
+   void installerFunctionCalledAtLoadExposesItsNamespace() throws Exception {
+      // shape 4: function install(g){ g.Ns = {...}; } install(this);
+      assertGatedViaNamespace(
+         "function install(g) { g.Ns = { count: function() { return runQuery('q'); } }; }\n" +
+         "install(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void iifeAssignedToAVarIsGated() throws Exception {
+      // shape 5: var _ = function(g){ g.Ns = {...}; }(this);
+      assertGatedViaNamespace(
+         "var _ = function(g) { g.Ns = { count: function() { return runQuery('q'); } }; }(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void voidOperatorIifeIsGated() throws Exception {
+      // shape 6: void function(g){ g.Ns = {...}; }(this);
+      assertGatedViaNamespace(
+         "void function(g) { g.Ns = { count: function() { return runQuery('q'); } }; }(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void bracketAssignmentInsideAnIifeIsGated() throws Exception {
+      // shape 7: (function(g){ g["Ns"] = {...}; })(this);
+      assertGatedViaNamespace(
+         "(function(g) { g[\"Ns\"] = { count: function() { return runQuery('q'); } }; })(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void topLevelBracketAssignmentIsGated() throws Exception {
+      // shape 8: this["Ns"] = {...};
+      assertGatedViaNamespace(
+         "this[\"Ns\"] = { count: function() { return runQuery('q'); } };",
+         "Ns.count()");
+   }
+
+   @Test
+   void labeledBlockAssignmentIsGated() throws Exception {
+      // shape 9: lbl: { Ns = {...}; }
+      assertGatedViaNamespace(
+         "lbl: { Ns = { count: function() { return runQuery('q'); } }; }",
+         "Ns.count()");
+   }
+
+   @Test
+   void bracedSwitchCaseAssignmentIsGated() throws Exception {
+      // shape 10: switch (1) { case 1: { Ns = {...}; } }
+      assertGatedViaNamespace(
+         "switch (1) { case 1: { Ns = { count: function() { return runQuery('q'); } }; } }",
+         "Ns.count()");
+   }
+
+   @Test
+   void unbracedSwitchCaseAssignmentIsGated() throws Exception {
+      // control for shape 10: switch (1) { case 1: Ns = {...}; } (no extra { to misclassify)
+      assertGatedViaNamespace(
+         "switch (1) { case 1: Ns = { count: function() { return runQuery('q'); } }; }",
+         "Ns.count()");
+   }
+
+   // Bug #79346 (SSL-015, Problem 2): a let/const or a catch parameter declared inside a plain
+   // block must stay excluded from the gate -- a viewsheet script's own unrelated local of the
+   // same name must run normally, not be wrongly reported as calling the library entry.
+   @Test
+   void letDeclaredInsideAnIfBlockIsNotIndexedAsARoot() throws Exception {
+      assertNotGated("if (true) { let C1 = runQuery('q'); }", "var C1 = 2; C1");
+   }
+
+   @Test
+   void catchParameterReassignedInTheCatchBodyIsNotIndexedAsARoot() throws Exception {
+      assertNotGated("try { foo(); } catch (C2) { C2 = runQuery('q'); }", "var C2 = 2; C2");
+   }
+
+   /** Refutation correction: a catch parameter must be excluded in EVERY frame kind, IIFE too. */
+   @Test
+   void catchParameterInsideAnIifeIsNotIndexedAsARoot() throws Exception {
+      assertNotGated(
+         "(function(){ try { foo(); } catch (C3) { C3 = runQuery('q'); } })();",
+         "var C3 = 2; C3");
+   }
+
+   @Test
+   void iifeParameterReusedAsABareAssignmentTargetIsNotIndexedAsARoot() throws Exception {
+      // control: an IIFE's own parameter already correctly excludes a reused bare name
+      assertNotGated("(function(C4) { C4 = runQuery('q'); })(1);", "var C4 = 2; C4");
+   }
+
+   @Test
+   void bareUndeclaredAssignmentInsideAnIfBlockIsGated() throws Exception {
+      // control: a genuine bare (undeclared) assignment is real sloppy-mode implicit global --
+      // the one case in the matrix that is NOT a false positive and must keep gating.
+      assertGatedViaNamespace(
+         "if (true) { Ns = { count: function() { return runQuery('q'); } }; }",
+         "Ns.count()");
+   }
+
    @Test
    void nonDestructiveNamespaceIsNotGated() throws Exception {
       ViewsheetScope scope = mock(ViewsheetScope.class);
