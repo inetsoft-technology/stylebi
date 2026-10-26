@@ -765,6 +765,163 @@ class ChartBindingMutatorTest {
       assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
       assertNotNull(xDimension(model).getNamedGroupInfo());
    }
+
+   // -- bug #79342: a worksheet-local group read back as "Custom" is accepted as an echo ------
+
+   private static DefaultNamedGroupAssembly worksheetGroup(String name, SourceInfo source,
+                                                           int operation, String value)
+   {
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(operation);
+      when(condition.getValues()).thenReturn(List.of(value));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "STATE"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("M states", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn(name);
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(source);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "STATE"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+      return ngAssembly;
+   }
+
+   private static RuntimeViewsheet rvsWith(DefaultNamedGroupAssembly... groups) {
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(groups);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseWorksheet()).thenReturn(ws);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   private static DataRefModelFactoryService refModels() {
+      DataRefModelFactoryService refModelService = mock(DataRefModelFactoryService.class);
+      when(refModelService.createDataRefModel(any())).thenReturn(mock(DataRefModel.class));
+      return refModelService;
+   }
+
+   private static final FieldRef BY_NG1 = new FieldRef("STATE", "dimension", null, null, "Ng1");
+   private static final FieldRef CUSTOM = new FieldRef("STATE", "dimension", null, null, "Custom");
+
+   /** Stores Ng1 on x, then renames the stored group to the read-back placeholder. */
+   private static ChartBindingModel modelReadingBackCustom(
+      RuntimeViewsheet rvs, SourceInfo source, int fields)
+      throws Exception
+   {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", java.util.Collections.nCopies(fields, BY_NG1),
+                                   rvs, source, refModels());
+
+      for(Object ref : model.getXFields()) {
+         ((ChartDimensionRefModel) ref).getNamedGroupInfo().setName("Custom");
+      }
+
+      return model;
+   }
+
+   private static org.mockito.MockedStatic<inetsoft.uql.asset.internal.AssetUtil> noRepository() {
+      org.mockito.MockedStatic<inetsoft.uql.asset.internal.AssetUtil> assetUtil =
+         org.mockito.Mockito.mockStatic(inetsoft.uql.asset.internal.AssetUtil.class);
+      assetUtil.when(() -> inetsoft.uql.asset.internal.AssetUtil.getAssetRepository(false))
+         .thenReturn(null);
+      return assetUtil;
+   }
+
+   @Test
+   void aCustomEchoOnAChartShelfKeepsTheStoredGroupAndItsConditions() throws Exception {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      RuntimeViewsheet rvs =
+         rvsWith(worksheetGroup("Ng1", source, Condition.STARTING_WITH, "M"));
+
+      try(var ignored = noRepository()) {
+         ChartBindingModel model = modelReadingBackCustom(rvs, source, 1);
+         var before = xDimension(model).getNamedGroupInfo();
+         assertFalse(before.getConditions().isEmpty());
+
+         ChartBindingMutator.setShelf(model, "x", List.of(CUSTOM), rvs, source, refModels());
+
+         var after = xDimension(model).getNamedGroupInfo();
+         assertNotNull(after);
+         assertEquals(inetsoft.uql.util.XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO, after.getType());
+         // Carried whole: the per-group conditions survive, not a flattened membership list.
+         assertSame(before.getConditions(), after.getConditions());
+      }
+   }
+
+   @Test
+   void aCustomWithNoPreviousExpertGroupStillThrowsTheFieldNamedError() {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      RuntimeViewsheet rvs =
+         rvsWith(worksheetGroup("Ng1", source, Condition.STARTING_WITH, "M"));
+
+      try(var ignored = noRepository()) {
+         ChartBindingModel model = new ChartBindingModel();
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> ChartBindingMutator.setShelf(model, "x", List.of(CUSTOM), rvs, source,
+                                               refModels()));
+
+         assertTrue(
+            thrown.getMessage().contains("'Custom' is not a named group on column 'STATE'"));
+      }
+   }
+
+   @Test
+   void twoSameColumnCustomPlaceholdersAreRefusedWithAListNamedGroupsHint() throws Exception {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      RuntimeViewsheet rvs =
+         rvsWith(worksheetGroup("Ng1", source, Condition.STARTING_WITH, "M"));
+
+      try(var ignored = noRepository()) {
+         ChartBindingModel model = modelReadingBackCustom(rvs, source, 2);
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> ChartBindingMutator.setShelf(model, "x", List.of(CUSTOM, CUSTOM), rvs, source,
+                                               refModels()));
+
+         assertTrue(thrown.getMessage().contains("list_named_groups"));
+      }
+   }
+
+   @Test
+   void clearingTheGroupWithNullValuesIsNotResurrectedByTheEchoPath() throws Exception {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      RuntimeViewsheet rvs =
+         rvsWith(worksheetGroup("Ng1", source, Condition.STARTING_WITH, "M"));
+
+      try(var ignored = noRepository()) {
+         ChartBindingModel model = modelReadingBackCustom(rvs, source, 1);
+         FieldRef clear = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+            "{\"column\":\"STATE\",\"type\":\"dimension\",\"namedGroupValues\":null}",
+            FieldRef.class);
+
+         ChartBindingMutator.setShelf(model, "x", List.of(clear), rvs, source, refModels());
+
+         assertNull(xDimension(model).getNamedGroupInfo());
+      }
+   }
+
+   @Test
+   void aRealWorksheetGroupNamedCustomWinsOverTheEcho() throws Exception {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      RuntimeViewsheet rvs = rvsWith(
+         worksheetGroup("Ng1", source, Condition.STARTING_WITH, "M"),
+         worksheetGroup("Custom", source, Condition.STARTING_WITH, "N"));
+
+      try(var ignored = noRepository()) {
+         ChartBindingModel model = modelReadingBackCustom(rvs, source, 1);
+         var before = xDimension(model).getNamedGroupInfo();
+
+         ChartBindingMutator.setShelf(model, "x", List.of(CUSTOM), rvs, source, refModels());
+
+         assertNotSame(before.getConditions(),
+                       xDimension(model).getNamedGroupInfo().getConditions());
+      }
+   }
    // ── measure calculateInfo/secondaryY survive a shelf rewrite (bug #76896) ────────────────
    //
    // toChartRef's MEASURE branch builds a fresh ChartAggregateRefModel on every setShelf call:
