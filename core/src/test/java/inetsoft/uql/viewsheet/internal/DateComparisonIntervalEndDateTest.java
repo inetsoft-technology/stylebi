@@ -19,7 +19,6 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.test.*;
 import inetsoft.test.dc.DcDays;
-import inetsoft.test.dc.DcKnownGaps;
 import inetsoft.test.dc.DcModel;
 import inetsoft.test.dc.DcShape;
 import org.junit.jupiter.api.Tag;
@@ -40,8 +39,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * periods still count back from the periods' End Date.
  *
  * <p>The days are checked against {@link DcModel} (the dialog wording) for every Standard Periods
- * shape, and against a few hand-computed days. The known gaps
- * ({@link inetsoft.test.dc.DcKnownGaps}) are left out.</p>
+ * shape, and against a few hand-computed days.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -74,12 +72,7 @@ class DateComparisonIntervalEndDateTest {
             for(String intervalEnd : INTERVAL_ENDS) {
                for(boolean inclusive : new boolean[] { false, true }) {
                   for(boolean change : new boolean[] { false, true }) {
-                     // the periods' End Date is fixed here (the interval's End Date is what
-                     // varies), so only the clauses of the known gaps that do not depend on the
-                     // End Date can apply
-                     if(change && inclusive ||
-                        DcKnownGaps.knownGap(shape, weekStart, END, inclusive, change))
-                     {
+                     if(change && inclusive) {
                         continue;
                      }
 

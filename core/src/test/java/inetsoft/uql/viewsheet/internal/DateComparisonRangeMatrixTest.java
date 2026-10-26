@@ -22,7 +22,6 @@ import inetsoft.report.composition.graph.calc.ValueOfCalc;
 import inetsoft.report.filter.ConditionGroup;
 import inetsoft.test.*;
 import inetsoft.test.dc.DcDays;
-import inetsoft.test.dc.DcKnownGaps;
 import inetsoft.test.dc.DcModel;
 import inetsoft.test.dc.DcPeriods;
 import inetsoft.test.dc.DcShape;
@@ -33,7 +32,6 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -179,10 +177,6 @@ class DateComparisonRangeMatrixTest {
                         continue;
                      }
 
-                     if(DcKnownGaps.knownGap(shape, weekStart, end, inclusive, change)) {
-                        continue;
-                     }
-
                      String message = WeekStartUtil.withWeekStart(weekStart, () -> {
                         LocalDate endDay = LocalDate.parse(end);
                         Set<LocalDate> model = DcModel.expected(shape, endDay, inclusive, change, 2);
@@ -228,7 +222,6 @@ class DateComparisonRangeMatrixTest {
     * the Wednesday of its last week, as Compare All by Week takes the whole week.
     */
    @Test
-   @Disabled("Bug #79061 (finding 7): a week that starts in a period loses its days in the next period")
    void sameWeekdayOfAWeekThatStartsInThePeriodIsKept() {
       DcShape shape = DcShape.byId("Y-sameD-gD-cW");
       List<LocalDate> kept = WeekStartUtil.withWeekStart("sunday", () -> DcDays.kept(
@@ -331,16 +324,14 @@ class DateComparisonRangeMatrixTest {
 
    /**
     * "Week to Date for Same Week of Each Year As Of" a Wednesday in the week of 2021-11-07.
-    * By full weeks of the year that is week 45, so 2019-11-10..13 and 2020-11-08..11; the
-    * product matches the same week of the month instead (the 'wy' encoding): 2019-11-03..06 and
-    * 2020-11-01..04. Which one is intended?
+    * The same week of the same month is matched, not the week of the year (#63990): the week of
+    * 2021-11-10 is the first full week of November, so 2019-11-03..06 and 2020-11-01..04.
     */
    @Test
-   @Disabled("Bug #79061 (finding 3): Year / Week to Date / Week matches week of month, not week of year - dev to decide")
-   void yearWeekToDateMatchesTheSameWeekOfYear() {
+   void yearWeekToDateMatchesTheSameWeekOfMonth() {
       DcShape shape = DcShape.byId("Y-wtd-gW-cY");
 
-      assertEquals("2019=2019-11-10..2019-11-13/4d, 2020=2020-11-08..2020-11-11/4d",
+      assertEquals("2019=2019-11-03..2019-11-06/4d, 2020=2020-11-01..2020-11-04/4d",
                    WeekStartUtil.withWeekStart("sunday", () -> anchorPeriods(
                       shape, variant("2021-11-10", false, false))));
    }
@@ -351,7 +342,6 @@ class DateComparisonRangeMatrixTest {
     * the product returns the two previous weeks only.
     */
    @Test
-   @Disabled("Bug #79061 (finding 2): Same Day / Week misses the End Date's own week when it is a Saturday")
    void sameDayKeepsTheEndDatesOwnWeek() {
       DcShape shape = DcShape.byId("W-sameD-gD-cW");
 
@@ -583,7 +573,6 @@ class DateComparisonRangeMatrixTest {
     * every day of the data.
     */
    @Test
-   @Disabled("Bug #79061 (finding 1): a one-day Custom Period is dropped")
    void customOneDayPeriodKeepsThatDay() {
       String[][] ranges = { { "2021-05-05", "2021-05-05" } };
 

@@ -56,8 +56,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * crosstab's without its first. Each period's Value total is also checked against the days the
  * condition list keeps, so a lost row cannot hide behind a skipped Change.</p>
  *
- * <p>A part the earlier period lacks (day 366 after a common year, week 53) is not judged: it
- * is Bug #79061, finding 4, and the share of such rows is bounded.</p>
+ * <p>A part the earlier period lacks (day 366 after a common year, week 53) is not judged: its
+ * Change is the whole value (calc.change.missingAsZero), and the share of such rows is bounded.</p>
  *
  * <p>Combinations: every shape at the datatest End Date with Change, the shapes that use weeks
  * also with Monday weeks, and one shape of each kind with Percent, with toDate + inclusive and
@@ -96,8 +96,8 @@ class DateComparisonCrosstabChangeMatrixTest {
    private static final Set<String> WITH_TOTALS = Set.of("Y-all-gM", "Q-qtd-gM-cQ", "M-all-gD");
 
    /**
-    * The share of all the rows of the Change crosstabs that may be left unjudged (Bug #79061,
-    * finding 4), over the whole class. Measured: 158 of 8302 rows, 1.9 %.
+    * The share of all the rows of the Change crosstabs that may be left unjudged (a part the
+    * earlier period lacks), over the whole class. Measured: 158 of 8302 rows, 1.9 %.
     */
    private static final double MAX_UNJUDGED_TOTAL = 0.05;
    private static final AtomicInteger JUDGED_TOTAL = new AtomicInteger();

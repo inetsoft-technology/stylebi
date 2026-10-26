@@ -45,7 +45,8 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -66,8 +67,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * <p>Besides the Change it checks, from the days the condition list keeps, that each period's
  * Value total is the sum of that period's days and that the periods are consecutive, so a row
  * lost from a period cannot hide behind a skipped Change. Two kinds of result are not judged
- * and are in Bug #79061: a part the previous period lacks (finding 4) and the empty chart of
- * two early End Dates (finding 5), and one quarter missing between others (finding 6).
+ * here: a part the previous period lacks (its Change is the whole value, see
+ * changeOfAPartTheEarlierPeriodLacksIsTheValue()), and the empty chart and missing quarter of
+ * To Date by Week with an early End Date (Bug #79347).
  * Everything else must have rows, and the share of rows not judged is bounded.</p>
  *
  * <p>Combinations: every shape at the datatest End Date; the shapes that use weeks also at
@@ -110,13 +112,13 @@ class DateComparisonChangeMatrixTest {
             option == DateComparisonInfo.PERCENT_VALUE;
       }
 
-      /** Bug #79061 finding 5: these give a chart without a row. */
+      /** Bug #79347: these give a chart without a row. */
       boolean knownEmpty() {
          return "2021-01-02".equals(endDay) && !toDate &&
             ("Q-qtd-gW-cQ".equals(shape.id()) || "Q-mtd-gW-cQ".equals(shape.id()));
       }
 
-      /** Bug #79061 finding 6: a whole quarter between others has no row. */
+      /** Bug #79347: a whole quarter between others has no row. */
       boolean knownGap() {
          return "Q-mtd-gW-cM".equals(shape.id()) && "sunday".equals(weekStart) &&
             "2021-01-02".equals(endDay);
@@ -204,7 +206,7 @@ class DateComparisonChangeMatrixTest {
     * 2021-01-02) leaves the chart without a single row, for both first days of week.
     */
    @Test
-   @Disabled("Bug #79061 (finding 5): Quarter to Date / Month to Date by Week with an early End Date gives an empty chart")
+   @Disabled("Bug #79347: Quarter to Date / Month to Date by Week with an early End Date gives an empty chart")
    void weekToDateWithAnEndDateInTheFirstDaysHasData() {
       for(String shapeId : new String[] { "Q-qtd-gW-cQ", "Q-mtd-gW-cQ" }) {
          for(String ws : new String[] { "sunday", "monday" }) {
@@ -220,25 +222,28 @@ class DateComparisonChangeMatrixTest {
    /**
     * Compare All by day, Year periods: 2020 has a day 366 and 2019 has none. The product's
     * Change for that day is its whole value (the missing 2019 value counts as 0); the matrix
-    * does not judge such rows. Is empty intended there?
+    * does not judge such rows. This is the rule of every Change (calc.change.missingAsZero): a
+    * missing row of an existing earlier period counts as 0.
     */
    @Test
-   @Disabled("Bug #79061 (finding 4): Change of a part the earlier period lacks is the whole value, not empty - dev to decide")
-   void changeOfAPartTheEarlierPeriodLacksIsEmpty() {
+   void changeOfAPartTheEarlierPeriodLacksIsTheValue() {
       Case c = new Case(DcShape.byId("Y-all-gD"), "sunday", "2021-11-10", false, false,
                         DateComparisonInfo.CHANGE);
       DataSet data = withWeekStart(c, () -> data(c));
       int columns = data.getColCount();
+      Object value = null;
       Object change = "no row";
 
       for(int r = 0; r < data.getRowCount(); r++) {
          // day 366 of 2020, the only one with a value
          if(Integer.valueOf(366).equals(data.getData(0, r)) && data.getData(columns - 2, r) != null) {
+            value = data.getData(columns - 2, r);
             change = data.getData(columns - 1, r);
          }
       }
 
-      assertNull(change);
+      assertNotNull(value, "no value on day 366");
+      assertEquals(((Number) value).doubleValue(), ((Number) change).doubleValue(), 1e-9);
    }
 
    private <T> T withWeekStart(Case c, Callable<T> action) {
@@ -395,8 +400,8 @@ class DateComparisonChangeMatrixTest {
 
          // A part the previous period does not have (day 366 after a common year, day 31 after
          // a 30-day month, week 53): the product's Change is the whole value, as if the previous
-         // were 0. Whether that or empty is intended is open (Bug #79061, finding 4), so these
-         // rows are not judged; see changeOfAPartTheEarlierPeriodLacksIsEmpty().
+         // were 0 (calc.change.missingAsZero). These rows are not judged here; see
+         // changeOfAPartTheEarlierPeriodLacksIsTheValue().
          if(previous == null && totals.containsKey(periodOf[r] - 1)) {
             unjudged++;
             continue;
