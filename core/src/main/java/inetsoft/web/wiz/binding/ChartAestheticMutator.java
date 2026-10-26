@@ -150,7 +150,10 @@ public final class ChartAestheticMutator {
       String previousFullName = existing == null ? null : existing.getFullName();
       VisualFrameModel previousFrame = existing == null ? null : existing.getFrame();
       VisualFrameModel carriedFrame = existing != null ? existing.getFrame() : unboundFrame;
-      ChartRefModel dataInfo = FieldRefFactory.toChartRef(field, model, rvs, source, refModelService);
+      ChartRefModel dataInfo = FieldRefFactory.toChartRef(
+         field, model, rvs, source, refModelService,
+         FieldRefFactory.findExpertPlaceholder(
+            field, java.util.Collections.singletonList(previousData)));
       info.setFullName(field.column());
       ChartBindingMutator.carryForwardSameField(previousData, dataInfo, field);
       info.setDataInfo(dataInfo);

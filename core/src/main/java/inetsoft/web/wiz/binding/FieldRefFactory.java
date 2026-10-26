@@ -119,6 +119,27 @@ public final class FieldRefFactory {
                                           DataRefModelFactoryService refModelService)
       throws Exception
    {
+      return toChartRef(field, model, rvs, source, refModelService, null);
+   }
+
+   /**
+    * As {@link #toChartRef(FieldRef, BindingModel, RuntimeViewsheet, SourceInfo,
+    * DataRefModelFactoryService)}, accepting the read-back placeholder "Custom" (bug #79342).
+    * A worksheet-local group whose conditions are not a plain membership list reads back as
+    * "Custom", which names no group, so resending it fails by-name resolution. Resolution is
+    * still tried first (a real group literally named "Custom" wins, as in bug #78362); only when
+    * it throws {@code IllegalArgumentException} and {@code echoOf} is given is the group
+    * carried over from {@code echoOf}. Without {@code echoOf} the error is rethrown unchanged.
+    *
+    * @param echoOf the previous dimension the field echoes (see {@link #findExpertPlaceholder}),
+    *               or {@code null} if the field does not echo one.
+    */
+   public static ChartRefModel toChartRef(FieldRef field, BindingModel model,
+                                          RuntimeViewsheet rvs, SourceInfo source,
+                                          DataRefModelFactoryService refModelService,
+                                          ChartDimensionRefModel echoOf)
+      throws Exception
+   {
       requireType(field);
 
       if(MEASURE.equalsIgnoreCase(field.type())) {
@@ -170,11 +191,31 @@ public final class FieldRefFactory {
       }
 
       String dimensionType = dimensionDataType(model, rvs, source, field.column());
-      refuseNamedGroupOnDateDimension(field, dimensionType);
-      NamedGroupInfoModel namedGroupInfo =
-         resolveNamedGroupInfo(field, rvs, source, refModelService, dimensionType);
 
-      if(namedGroupInfo != null) {
+      // An echoed stored group is not a new write; only a group the request itself defines or
+      // names is refused on a date column.
+      if(echoOf == null) {
+         refuseNamedGroupOnDateDimension(field, dimensionType);
+      }
+
+      NamedGroupInfoModel namedGroupInfo = null;
+      boolean echoed = false;
+
+      try {
+         namedGroupInfo = resolveNamedGroupInfo(field, rvs, source, refModelService, dimensionType);
+      }
+      catch(IllegalArgumentException e) {
+         if(echoOf == null) {
+            throw e; // preserve the loud, field-named message as-is
+         }
+
+         echoed = true;
+      }
+
+      if(echoed) {
+         carryEchoedGroup(echoOf, ref);
+      }
+      else if(namedGroupInfo != null) {
          ref.setNamedGroupInfo(namedGroupInfo);
          ref.setOrder(XConstants.SORT_SPECIFIC);
       }
@@ -184,6 +225,74 @@ public final class FieldRefFactory {
       }
 
       return ref;
+   }
+
+   /**
+    * Whether {@code previous} holds a worksheet-local (expert) group that the read reports as
+    * {@code name} -- the placeholder "Custom" (bug #79342).
+    */
+   static boolean isExpertPlaceholder(BDimensionRefModel previous, String name) {
+      NamedGroupInfoModel group = previous.getNamedGroupInfo();
+      return group != null && group.getType() == XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO &&
+         name != null && name.equals(group.getName());
+   }
+
+   /**
+    * Copies the whole stored group (conditions included, never flattened into a membership
+    * list) from a previous dimension. Used only when a placeholder echo was recognised, so a
+    * group the caller deliberately cleared (bug #79017) is never resurrected.
+    */
+   static void carryEchoedGroup(BDimensionRefModel previous, BDimensionRefModel target) {
+      target.setNamedGroupInfo(previous.getNamedGroupInfo());
+      target.setCustomNamedGroupInfo(previous.getCustomNamedGroupInfo());
+      target.setDataRefModel(previous.getDataRefModel());
+   }
+
+   /**
+    * Finds the previous dimension a chart field's {@code namedGroup} placeholder echoes: the
+    * first candidate that matches the field's column and date level and holds an expert group
+    * read back as that name. Applies only to a {@code namedGroup} sent without
+    * {@code namedGroupValues}.
+    *
+    * @param candidates the unconsumed previous dimensions on the shelf or channel being written.
+    * @return the dimension to echo, or {@code null} if the field is not an echo.
+    * @throws IllegalArgumentException if two or more previous dimensions share the field's
+    *         column and date level and all read as the placeholder: they cannot be told apart,
+    *         so pairing by order could silently swap their groups.
+    */
+   static ChartDimensionRefModel findExpertPlaceholder(
+      FieldRef field, List<? extends ChartRefModel> candidates)
+   {
+      if(field.namedGroup() == null || field.namedGroupValues() != null ||
+         !DIMENSION.equalsIgnoreCase(field.type()))
+      {
+         return null;
+      }
+
+      ChartDimensionRefModel found = null;
+      int count = 0;
+
+      for(ChartRefModel candidate : candidates) {
+         if(candidate instanceof ChartDimensionRefModel dimension &&
+            ChartBindingMutator.matches(dimension, field) &&
+            isExpertPlaceholder(dimension, field.namedGroup()))
+         {
+            count++;
+
+            if(found == null) {
+               found = dimension;
+            }
+         }
+      }
+
+      if(count > 1) {
+         throw new IllegalArgumentException(
+            "Several fields on '" + field.column() + "' read as '" + field.namedGroup() +
+            "' (worksheet-local condition groups), so their identity cannot be told apart -- " +
+            "resend each with 'namedGroup' set to its real group name from list_named_groups.");
+      }
+
+      return found;
    }
 
    /**
