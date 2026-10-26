@@ -426,21 +426,26 @@ public class CalcTablePropertyDialogService {
             continue;
          }
 
+         int r = loc.y;
+         int type = getRowType(r, rowCnt, headerRows, trailerRows);
+         int oldType = getRowType(r, rowCnt, oldHeaderRows, oldTrailerRows);
+
          if(path.isCell()) {
             TableDataPath layoutPath = layout.getCellDataPath(loc.y, loc.x);
 
             // check if this path is valid for the current calc table and not leftover from
-            // the crosstab conversion
-            if(layoutPath == null || (layoutPath.getType() != path.getType() &&
-               path.getType() != TableDataPath.TRAILER && layoutPath.getType() != TableDataPath.DETAIL))
+            // the crosstab conversion. compare against oldType (derived from the live old
+            // header/trailer counts), not layoutPath's own type: the table layout's region
+            // split is frozen at calc table creation time (e.g. row 0 is always typed HEADER
+            // by the layout's default sample lens) and is never resynced when
+            // headerRowCount/trailerRowCount change afterward, so it can disagree with the
+            // live row type even for an ordinary, non-converted calc table (Bug #79336).
+            if(layoutPath == null || (oldType != path.getType() &&
+               path.getType() != TableDataPath.TRAILER && oldType != TableDataPath.DETAIL))
             {
                continue;
             }
          }
-
-         int r = loc.y;
-         int type = getRowType(r, rowCnt, headerRows, trailerRows);
-         int oldType = getRowType(r, rowCnt, oldHeaderRows, oldTrailerRows);
 
          if(type != path.getType() && path.getType() == oldType) {
             VSCompositeFormat fmt = calcTableAssemblyInfo.getFormatInfo().getFormat(path);
