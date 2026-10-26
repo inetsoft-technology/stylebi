@@ -141,7 +141,9 @@ public class ChartTargetLineService {
     *                  or null/blank to bind the chart's only measure.
     * @param value     the constant the line sits at.
     * @param label     the line's label; {@code {0}} interpolates the value. Defaults to
-    *                  {@code "{0}"}.
+    *                  {@code "{0}"} when null. A blank string ({@code ""} or whitespace) means
+    *                  no label text and is stored as a single space, which survives save and
+    *                  reload (an empty string reloads as null) and draws nothing.
     * @param lineStyle one of {@link #LINE_STYLES}, or null for the chart's default.
     * @param lineColor {@code #RRGGBB}, or null for the chart's default target colour.
     */
@@ -182,7 +184,7 @@ public class ChartTargetLineService {
          TargetInfo target = fromPrototype(prototype);
          target.setMeasure(bound);
          target.setValue(constant);
-         target.setLabel(label == null || label.isBlank() ? DEFAULT_LABEL : label);
+         target.setLabel(label == null ? DEFAULT_LABEL : label.isBlank() ? BLANK_LABEL : label);
 
          if(style != null) {
             target.setLineStyle(LINE_STYLES.get(style));
@@ -717,6 +719,7 @@ public class ChartTargetLineService {
    /** {@code measure:"all"} — the blank MeasureInfo the composer itself offers first. */
    static final String ALL_MEASURES = "all";
    private static final String DEFAULT_LABEL = "{0}";
+   private static final String BLANK_LABEL = " ";
    /** {@code ChartPropertyService.isFormulaSupported}'s literals. */
    private static final String[] FORMULA_NAMES = {"Average", "Min", "Max", "Median", "Sum"};
    private static final Pattern NUMERIC =
