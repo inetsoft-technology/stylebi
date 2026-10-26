@@ -658,14 +658,13 @@ public class FileAuthenticationProviderTest {
 
       // The storages are cached and shared by KeyValueStorageManager, which closes them. A chain
       // reload tears the old provider down while the new one is live on the same storages, so
-      // tearDown() must leave them open and only drop its own references (Bug #79355).
+      // tearDown() must leave them open and only remove its own listeners (Bug #79355).
       assertFalse(userStore.isClosed(),  "userStorage is shared and must stay open after tearDown");
       assertFalse(groupStore.isClosed(), "groupStorage is shared and must stay open after tearDown");
       assertFalse(roleStore.isClosed(),  "roleStorage is shared and must stay open after tearDown");
-      assertNull(captureStorage("userStorage"));
-      assertNull(captureStorage("groupStorage"));
-      assertNull(captureStorage("roleStorage"));
-      assertNull(captureStorage("organizationStorage"));
+      assertSame(userStore, captureStorage("userStorage"));
+      assertSame(groupStore, captureStorage("groupStorage"));
+      assertSame(roleStore, captureStorage("roleStorage"));
    }
 
    @Test

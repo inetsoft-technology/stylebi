@@ -312,15 +312,14 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
 
    /**
     * Gets the providers, waiting for an edit holding {@link #writeLock()} and for a reload of the
-    * configuration file that is replacing them to finish. During a reload the list is the old one
-    * until the new list is set, and the reload holds its lock until the old providers are
-    * disposed. The read lock is taken before the reload lock,
-    * the same order as an edit that saves the chain under the write lock. The caller must not
-    * hold a provider's locks.
+    * configuration file that is replacing them to finish. During a reload the list is the old
+    * one until the new list is set, and the reload holds its lock until the old providers are
+    * disposed. The read lock is taken before the reload lock, the same order as an edit that
+    * saves the chain under the write lock. The caller must not hold a provider's locks.
     * <p>
     * A reload that takes long is logged, but this keeps waiting for it: the list may be the
-    * replaced one until it ends, so not waiting would lose the caller's work. Waiting can't deadlock, because
-    * no thread that holds the reload lock waits for the read lock.
+    * replaced one until it ends, so not waiting would lose the caller's work. Waiting can't
+    * deadlock, because no thread that holds the reload lock waits for the read lock.
     *
     * @param waiter what is waiting for the reload, for the log.
     *
@@ -402,7 +401,7 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
       String configFile = getConfigFile();
 
       // The provider list is read under the lock that a reload holds while it replaces the list,
-      // so a save never serializes the empty list between a reload's clear() and its set, and
+      // so a save never serializes the list of a reload that is still replacing it, and
       // never writes a list that a completed reload has since replaced (Bug #79127).
       lock.lock();
 

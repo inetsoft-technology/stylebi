@@ -170,6 +170,37 @@ class FileProviderSharedStorageTest {
       }
    }
 
+   // a reader that still holds the replaced provider reads after its tearDown(): that must
+   // neither fail nor add the dead provider's listeners to the shared storages again
+
+   @Test
+   void readAfterTearDownOnTheOldProviderDoesNotFailOrReAddListeners() throws Exception {
+      CountingAuthn old = new CountingAuthn();
+      FileAuthenticationProvider writer = new FileAuthenticationProvider();
+      IdentityID id = new IdentityID("after-teardown-user", ORG);
+
+      try {
+         writer.addUser(new FSUser(id));
+         old.getUsers();
+         old.tearDown();
+
+         assertNotNull(old.getUser(id), "a read on the torn down provider must still work");
+         assertTrue(old.getUsers().length > 0);
+         int oldCleared = old.cleared.get();
+
+         writer.removeUser(id);
+         writer.addUser(new FSUser(id));
+         Thread.sleep(500L);
+
+         assertEquals(oldCleared, old.cleared.get(),
+                      "a read after tearDown must not register the old provider's listeners again");
+      }
+      finally {
+         writer.removeUser(id);
+         writer.tearDown();
+      }
+   }
+
    private void churn(Runnable round) {
       CountDownLatch started = new CountDownLatch(1);
       churner = new Thread(() -> {

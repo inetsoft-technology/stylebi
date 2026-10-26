@@ -404,9 +404,11 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
     * {@inheritDoc}
     * <p>
     * The storages are cached and shared by {@code KeyValueStorageManager}, which closes them, so
-    * only this provider's own listeners are removed here. A chain reload tears the old providers
-    * down after the new ones are live, and closing a shared storage would empty the streams of
-    * the new provider (Bug #79355).
+    * only this provider's own listeners are removed here, and the references are kept: a reader
+    * that still holds this replaced provider finds them open, where cleared references would
+    * fail it or make {@code init()} register the listeners of this dead provider again. A chain
+    * reload tears the old providers down after the new ones are live, and closing a shared
+    * storage would empty the streams of the new provider (Bug #79355).
     */
    @Override
    public void tearDown() {
@@ -421,8 +423,6 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                catch(Exception e) {
                   LOG.warn("Failed to remove user cache listener", e);
                }
-
-               userStorage = null;
             }
 
             if(groupStorage != null) {
@@ -432,8 +432,6 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                catch(Exception e) {
                   LOG.warn("Failed to remove group cache listener", e);
                }
-
-               groupStorage = null;
             }
 
             if(roleStorage != null) {
@@ -443,11 +441,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                catch(Exception e) {
                   LOG.warn("Failed to remove role cache listener", e);
                }
-
-               roleStorage = null;
             }
-
-            organizationStorage = null;
          }
       }
 
