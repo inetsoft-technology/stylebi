@@ -93,12 +93,13 @@ class ScriptContextServiceTest {
     * "scope the returned surface to a target's kind".
     *
     * <p>{@code event} resolves from {@code ViewsheetScope}'s vmap
-    * ({@code ViewsheetScope.java:368}) and is only ever populated while an onClick is executing.
-    * Listing it for onInit tells the caller a variable is available that is always null there —
-    * the same always-null-field defect #4618 fixed by removing {@code BindableField.role}.
+    * ({@code ViewsheetScope.java:368}) and is attached only while an interaction-triggered script
+    * runs. The viewsheet onLoad script re-runs in that window (null on the initial load), so it
+    * lists {@code event}; onInit runs only at load and listing it there promises an always-null
+    * variable, the same always-null-field defect #4618 fixed by removing {@code BindableField.role}.
     */
    @Test
-   void reportsEventOnlyForTheKindThatActuallyReceivesOne() throws Exception {
+   void reportsEventOnlyForTheKindsThatCanReceiveOne() throws Exception {
       ScriptContextService service = serviceReturning(FULL);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
 
@@ -106,14 +107,17 @@ class ScriptContextServiceTest {
          rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Table1"));
       assertTrue(onClick.contextVars().contains("event"));
 
-      for(ScriptTarget.Kind kind : List.of(ScriptTarget.Kind.VIEWSHEET_ON_INIT,
-                                           ScriptTarget.Kind.VIEWSHEET_ON_LOAD))
-      {
-         ScriptContext ctx = service.context(rvs, ScriptTarget.of(kind, null));
-         assertFalse(ctx.contextVars().contains("event"),
-                     kind + " never receives an event; listing it promises a null");
-         assertTrue(ctx.contextVars().contains("thisViewsheet"), kind.toString());
-      }
+      ScriptContext onLoad = service.context(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.VIEWSHEET_ON_LOAD, null));
+      assertTrue(onLoad.contextVars().contains("event"),
+                 "onLoad re-runs on interactions, which attach an event: " + onLoad.contextVars());
+      assertTrue(onLoad.contextVars().contains("thisViewsheet"));
+
+      ScriptContext onInit = service.context(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.VIEWSHEET_ON_INIT, null));
+      assertFalse(onInit.contextVars().contains("event"),
+                  "onInit runs only at load and never receives an event; listing it promises a null");
+      assertTrue(onInit.contextVars().contains("thisViewsheet"));
 
       ScriptContext main = service.context(
          rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Table1"));

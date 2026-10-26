@@ -138,8 +138,10 @@ public class ScriptContextService {
     *
     * <p>The API differs by context, so reporting one flat list makes the tool wrong for every kind
     * but one. {@code event} resolves from {@link ViewsheetScope}'s vmap
-    * ({@code ViewsheetScope.java:368}) and is populated only while an onClick is executing —
-    * offering it to an onInit script promises a variable that is always null there.
+    * ({@code ViewsheetScope.java:368}) and is attached only while a script runs in response to an
+    * interaction (input change, selection change, form-table edit). The viewsheet onLoad script
+    * re-runs inside that window, so it sees {@code event} there and null on the initial load. An
+    * onInit script runs only at load, so offering it {@code event} promises an always-null variable.
     *
     * <p>This is the seam Tier 2 kinds extend: a {@code calcField} runs per row with
     * {@code field['x']} and no assembly API at all, so it will add a case here rather than a
@@ -147,7 +149,7 @@ public class ScriptContextService {
     */
    private static List<String> contextVars(ScriptTarget.Kind kind) {
       return switch(kind) {
-         case ASSEMBLY_ON_CLICK -> CONTEXT_VARS;
+         case ASSEMBLY_ON_CLICK, VIEWSHEET_ON_LOAD -> CONTEXT_VARS;
          // A calc field evaluates per ROW. There is no assembly API and no thisViewsheet in scope,
          // so offering the viewsheet-level vars would advertise an API that is not there.
          case CALC_FIELD -> CALC_FIELD_VARS;
