@@ -222,8 +222,8 @@ class DateComparisonChangeMatrixTest {
    /**
     * Compare All by day, Year periods: 2020 has a day 366 and 2019 has none. The product's
     * Change for that day is its whole value (the missing 2019 value counts as 0); the matrix
-    * does not judge such rows. This is the rule of every Change (calc.change.missingAsZero): a
-    * missing row of an existing earlier period counts as 0.
+    * does not judge such rows. The earlier period has the row with an empty value, and
+    * ChangeColumn counts an empty earlier value as 0, as for any empty part.
     */
    @Test
    void changeOfAPartTheEarlierPeriodLacksIsTheValue() {
@@ -400,8 +400,8 @@ class DateComparisonChangeMatrixTest {
 
          // A part the previous period does not have (day 366 after a common year, day 31 after
          // a 30-day month, week 53): the product's Change is the whole value, as if the previous
-         // were 0 (calc.change.missingAsZero). These rows are not judged here; see
-         // changeOfAPartTheEarlierPeriodLacksIsTheValue().
+         // were 0 (ChangeColumn counts an empty earlier value as 0). These rows are not judged
+         // here; see changeOfAPartTheEarlierPeriodLacksIsTheValue().
          if(previous == null && totals.containsKey(periodOf[r] - 1)) {
             unjudged++;
             continue;

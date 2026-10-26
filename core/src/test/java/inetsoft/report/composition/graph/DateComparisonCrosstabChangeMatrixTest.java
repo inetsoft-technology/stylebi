@@ -57,7 +57,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * condition list keeps, so a lost row cannot hide behind a skipped Change.</p>
  *
  * <p>A part the earlier period lacks (day 366 after a common year, week 53) is not judged: its
- * Change is the whole value (calc.change.missingAsZero), and the share of such rows is bounded.</p>
+ * Change is the whole value (an empty earlier value counts as 0), and the share of such rows
+ * is bounded.</p>
  *
  * <p>Combinations: every shape at the datatest End Date with Change, the shapes that use weeks
  * also with Monday weeks, and one shape of each kind with Percent, with toDate + inclusive and
