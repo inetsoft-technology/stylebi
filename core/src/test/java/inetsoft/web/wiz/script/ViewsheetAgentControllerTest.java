@@ -121,12 +121,21 @@ class ViewsheetAgentControllerTest {
       assertNull(resp.editorContext());
    }
 
+   /** A refresh service that just runs the script, so controller tests see the script's own result. */
+   private static ScriptStateRefreshService passThroughRefresh() throws Exception {
+      ScriptStateRefreshService refresh = mock(ScriptStateRefreshService.class);
+      when(refresh.runAndRefresh(any(), any(), any(), any())).thenAnswer(
+         inv -> ((ScriptStateRefreshService.ScriptRun) inv.getArgument(3)).run());
+      return refresh;
+   }
+
    private static ViewsheetAgentController controllerWith(SheetAgentFeature feature,
                                                           SheetJoinService joinService)
    {
       return new ViewsheetAgentController(feature, joinService,
          mock(SheetSessionService.class), mock(ScriptEditService.class),
          mock(ScriptReadService.class), mock(ScriptExecuteService.class),
+         mock(ScriptStateRefreshService.class),
          mock(ScriptContextService.class), mock(ScriptApiService.class),
          mock(ScriptImageService.class), mock(ViewsheetService.class),
          mock(SheetAgentBroadcastService.class));
@@ -140,6 +149,7 @@ class ViewsheetAgentControllerTest {
       return new ViewsheetAgentController(feature, mock(SheetJoinService.class),
          sessionService, mock(ScriptEditService.class),
          mock(ScriptReadService.class), mock(ScriptExecuteService.class),
+         mock(ScriptStateRefreshService.class),
          mock(ScriptContextService.class), mock(ScriptApiService.class),
          mock(ScriptImageService.class), mock(ViewsheetService.class),
          broadcast);
@@ -231,6 +241,7 @@ class ViewsheetAgentControllerTest {
 
       return new ViewsheetAgentController(feature, mock(SheetJoinService.class), sessionService,
          editService, mock(ScriptReadService.class), mock(ScriptExecuteService.class),
+         mock(ScriptStateRefreshService.class),
          mock(ScriptContextService.class), mock(ScriptApiService.class),
          mock(ScriptImageService.class), mock(ViewsheetService.class),
          mock(SheetAgentBroadcastService.class));
@@ -311,7 +322,8 @@ class ViewsheetAgentControllerTest {
       ViewsheetAgentController controller = new ViewsheetAgentController(feature,
          mock(SheetJoinService.class), sessionService,
          new ScriptEditService(sessionService, runtimeAccess, broadcast),
-         mock(ScriptReadService.class), executeService, mock(ScriptContextService.class),
+         mock(ScriptReadService.class), executeService, passThroughRefresh(),
+         mock(ScriptContextService.class),
          mock(ScriptApiService.class), mock(ScriptImageService.class),
          mock(ViewsheetService.class), broadcast);
 
@@ -388,6 +400,7 @@ class ViewsheetAgentControllerTest {
       ViewsheetAgentController controller = new ViewsheetAgentController(feature,
          mock(SheetJoinService.class), sessionService, mock(ScriptEditService.class),
          mock(ScriptReadService.class), mock(ScriptExecuteService.class),
+         mock(ScriptStateRefreshService.class),
          mock(ScriptContextService.class), mock(ScriptApiService.class),
          mock(ScriptImageService.class), mock(ViewsheetService.class),
          mock(SheetAgentBroadcastService.class));
@@ -439,7 +452,8 @@ class ViewsheetAgentControllerTest {
 
       ViewsheetAgentController controller = new ViewsheetAgentController(feature,
          mock(SheetJoinService.class), sessionService, editService, mock(ScriptReadService.class),
-         mock(ScriptExecuteService.class), mock(ScriptContextService.class),
+         mock(ScriptExecuteService.class), mock(ScriptStateRefreshService.class),
+         mock(ScriptContextService.class),
          mock(ScriptApiService.class), mock(ScriptImageService.class), mock(ViewsheetService.class),
          mock(SheetAgentBroadcastService.class));
 
@@ -473,7 +487,8 @@ class ViewsheetAgentControllerTest {
       ViewsheetAgentController controller = new ViewsheetAgentController(feature,
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(ScriptEditService.class), mock(ScriptReadService.class),
-         mock(ScriptExecuteService.class), mock(ScriptContextService.class),
+         mock(ScriptExecuteService.class), mock(ScriptStateRefreshService.class),
+         mock(ScriptContextService.class),
          new ScriptApiService(), mock(ScriptImageService.class), mock(ViewsheetService.class),
          mock(SheetAgentBroadcastService.class));
 

@@ -72,6 +72,12 @@ import java.util.regex.Pattern;
  * SAME live {@link ViewsheetScope} — {@code dryRun} does not guarantee zero side effects if the
  * script itself mutates state (e.g. a chart's binding). This is a documented simplification for
  * this slice, not a security boundary.</p>
+ *
+ * <p><b>Runtime state:</b> this service only runs the script. The controller then wraps every run,
+ * whatever the target, in {@link ScriptStateRefreshService#runAndRefresh}, which resolves
+ * script-written selection state and refreshes the whole sheet so dependents follow. That
+ * refresh happens for both {@link #dryRun} and {@link #runLive} (both already mutate the live
+ * runtime) and re-runs the viewsheet's onLoad script.</p>
  */
 @Service
 public class ScriptExecuteService {
