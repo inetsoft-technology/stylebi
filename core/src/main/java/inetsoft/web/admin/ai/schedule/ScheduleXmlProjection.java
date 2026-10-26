@@ -21,6 +21,7 @@ import inetsoft.sree.schedule.ScheduleTask;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -38,9 +39,10 @@ import java.util.regex.Pattern;
  * what an operator approved.
  *
  * <p>This is deliberately NOT a general-purpose XML diff: stripping is attribute-name-based, on
- * the raw {@code writeXML} text, because the attribute names this excludes are specific to the
- * {@code <Task>} element's own scalar fields and do not recur as attribute names anywhere in a
- * condition or action sub-element.
+ * the raw {@code writeXML} text, and applies ONLY inside the root {@code <Task ...>} opening tag.
+ * The same names do recur in sub-elements -- {@code <ServerPath path>} (save-to-server location)
+ * and {@code <XAsset path>} (backup assets) -- and in free text such as an email message, and
+ * those must survive (bug #79363).
  */
 public final class ScheduleXmlProjection {
    private ScheduleXmlProjection() {
@@ -73,11 +75,21 @@ public final class ScheduleXmlProjection {
     * {@code writeXML} string.
     */
    static String normalize(String xml) {
-      String result = xml;
+      Matcher root = ROOT_TASK_TAG.matcher(xml);
+
+      if(!root.find()) {
+         throw new IllegalStateException(
+            "Schedule task XML does not start with a <Task> element: " +
+            xml.substring(0, Math.min(xml.length(), 80)));
+      }
+
+      String rootTag = root.group();
 
       for(Pattern p : EXCLUSION_PATTERNS) {
-         result = p.matcher(result).replaceAll("");
+         rootTag = p.matcher(rootTag).replaceAll("");
       }
+
+      String result = rootTag + xml.substring(root.end());
 
       for(Pattern p : NORMALIZATION_PATTERNS) {
          result = p.matcher(result).replaceAll("$1=\"" + NORMALIZED_VALUE + "\"");
@@ -86,9 +98,13 @@ public final class ScheduleXmlProjection {
       return result;
    }
 
+   /** The root {@code <Task ...>} opening tag, the only place {@link #EXCLUDED_ATTRIBUTES} apply. */
+   private static final Pattern ROOT_TASK_TAG = Pattern.compile("\\A\\s*<Task\\b[^>]*>");
+
    /**
     * Attributes recomputed by the persistence layer, and therefore excluded from both the plan
-    * hash and the apply-time verification -- see the class javadoc.
+    * hash and the apply-time verification -- see the class javadoc. Stripped from the root
+    * {@code <Task>} tag only.
     *
     * <p>{@code lastModified}: CONFIRMED unstable, by reading {@code ScheduleManager
     * #setScheduleTask}, which calls {@code task.setLastModified(System.currentTimeMillis())}
