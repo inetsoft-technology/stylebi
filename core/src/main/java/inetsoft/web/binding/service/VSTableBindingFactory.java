@@ -132,7 +132,7 @@ public class VSTableBindingFactory extends VSBindingFactory<TableVSAssembly, Tab
          to.setPixelWidth(from.getPixelWidth());
       }
 
-      if(to.getDescription() == null && from.getDescription() != null) {
+      if(to.getDescription().isEmpty() && !from.getDescription().isEmpty()) {
          to.setDescription(from.getDescription());
       }
    }

@@ -1231,8 +1231,9 @@ public class TableBindingService {
 
    /**
     * Resolves a column by attribute first (exact case, then case-insensitive), then by label. A
-    * request that names one column by attribute and another by label is refused as ambiguous
-    * instead of silently picking the first in column order.
+    * single exact-case attribute match wins; otherwise a request that names one column by
+    * attribute and another by label is refused as ambiguous instead of silently picking the
+    * first in column order.
     */
    private static DataRef resolveSortColumn(ColumnSelection shown, ColumnSelection hidden,
                                             String column)
@@ -1269,15 +1270,14 @@ public class TableBindingService {
          }
       }
 
-      if(byAttribute.size() > 1) {
-         List<DataRef> exact = byAttribute.stream()
-            .filter(r -> sortAttributeName(r).equals(column) ||
-               unqualified(sortAttributeName(r)).equals(column))
-            .toList();
+      // a single exact-case attribute match wins over any label or case-insensitive hit
+      List<DataRef> exact = byAttribute.stream()
+         .filter(r -> sortAttributeName(r).equals(column) ||
+            unqualified(sortAttributeName(r)).equals(column))
+         .toList();
 
-         if(exact.size() == 1) {
-            byAttribute = new ArrayList<>(exact);
-         }
+      if(exact.size() == 1) {
+         return exact.get(0);
       }
 
       if(byAttribute.size() == 1 && byLabel.isEmpty()) {
@@ -1297,7 +1297,8 @@ public class TableBindingService {
       byLabel.forEach(r -> candidates.add(describeSortColumn(r) + " by label"));
       throw new IllegalArgumentException(
          "'" + column + "' is ambiguous: it matches " + String.join("; ", candidates) +
-         ". Use the exact attribute name of the column to sort, or rename the label.");
+         ". Use the attribute name with its exact case to pick the column by attribute, " +
+         "or rename the label.");
    }
 
    private static String sortAttributeName(DataRef ref) {
