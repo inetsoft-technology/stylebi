@@ -26,9 +26,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -133,7 +136,11 @@ public class DateConditionWeekStartTest {
    }
 
    private static long daysBetween(Date start, Date end) {
-      return TimeUnit.MILLISECONDS.toDays(end.getTime() - start.getTime());
+      // count local calendar days, not 24h blocks: a window spanning a DST change is 23/25h longer
+      ZoneId zone = ZoneId.systemDefault();
+      LocalDate from = Instant.ofEpochMilli(start.getTime()).atZone(zone).toLocalDate();
+      LocalDate to = Instant.ofEpochMilli(end.getTime()).atZone(zone).toLocalDate();
+      return ChronoUnit.DAYS.between(from, to);
    }
 
    /**
