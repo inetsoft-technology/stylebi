@@ -1851,12 +1851,10 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
     *
     * @param startDate     the range start, the first week start of the interval period.
     * @param level         Calendar.YEAR, QUARTER_FIELD or Calendar.MONTH, the interval period.
-    * @param periodLevel   the context (period) level of the range.
     * @param toDate        the to date.
     * @param calendarEnd   the calendar-day based end, returned when it can't be aligned.
     */
-   private Date getWeekAlignedRangeEnd(Date startDate, int level, int periodLevel,
-                                       Date toDate, Date calendarEnd)
+   private Date getWeekAlignedRangeEnd(Date startDate, int level, Date toDate, Date calendarEnd)
    {
       if(startDate == null) {
          return calendarEnd;
@@ -1869,11 +1867,9 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
       toDateCal.setTime(toDate);
       int weekday = Math.max(0, Math.min(6, daysBetween(toWeekCal, toDateCal)));
 
-      // when the target period is chosen from the to date itself (year context), measure the
-      // week position inside the to date's own period, otherwise inside the period of its week.
-      boolean useToDate = periodLevel == XConstants.YEAR_DATE_GROUP && level != Calendar.YEAR;
+      // the target period is the one of the to date's week start (full-week convention).
       Calendar refCal = getCalendar();
-      refCal.setTime(useToDate ? toDate : toWeekCal.getTime());
+      refCal.setTime(toWeekCal.getTime());
       Calendar refFirstWeek = getFirstWeekStart(refCal, level);
       int weekIndex = Math.max(0, daysBetween(refFirstWeek, toWeekCal) / 7);
 
@@ -1949,6 +1945,16 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
       periodStartCal.setTime(periodStartDate);
       Calendar intervalToDateCal = getCalendar();
       intervalToDateCal.setTime(intervalToDate);
+      // a week belongs to the period it starts in (78454), so the month/quarter the to date
+      // is compared in is that of its week start, as for the week position. (#79347)
+      Calendar anchorCal = (Calendar) intervalToDateCal.clone();
+
+      if(granularityLevel == WEEK && (intervalLevel & SAME_DATE) != SAME_DATE &&
+         (intervalLevel & WEEK) == 0)
+      {
+         DateComparisonUtil.moveToWeekStart(anchorCal);
+      }
+
       boolean isSameInterval = (intervalLevel & SAME_DATE) == SAME_DATE;
       Date startDate = null;
       Date endDate = null;
@@ -1981,14 +1987,13 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
             endDate = periodStartCal.getTime();
 
             if(granularityLevel == WEEK && !isSameInterval) {
-               endDate = getWeekAlignedRangeEnd(startDate, Calendar.YEAR, periodLevel,
-                                                intervalToDate, endDate);
+               endDate = getWeekAlignedRangeEnd(startDate, Calendar.YEAR, intervalToDate, endDate);
             }
          }
       }
       else if((intervalLevel & QUARTER) == QUARTER) {
          if(periodLevel == XConstants.YEAR_DATE_GROUP) {
-            int quarterOfYear = intervalToDateCal.get(Calendar.MONTH) / 3;
+            int quarterOfYear = anchorCal.get(Calendar.MONTH) / 3;
             periodStartCal.set(Calendar.MONTH, quarterOfYear * 3);
          }
          else if(periodLevel == XConstants.QUARTER_DATE_GROUP) {
@@ -2003,7 +2008,7 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
 
          startDate = periodStartCal.getTime();
 
-         int monthOfQuarter = intervalToDateCal.get(Calendar.MONTH) % 3;
+         int monthOfQuarter = anchorCal.get(Calendar.MONTH) % 3;
          int dayOfMonth = intervalToDateCal.get(Calendar.DAY_OF_MONTH);
 
          if(isSameInterval) {
@@ -2021,16 +2026,15 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          endDate = periodStartCal.getTime();
 
          if(granularityLevel == WEEK && !isSameInterval) {
-            endDate = getWeekAlignedRangeEnd(startDate, QUARTER_FIELD, periodLevel,
-                                             intervalToDate, endDate);
+            endDate = getWeekAlignedRangeEnd(startDate, QUARTER_FIELD, intervalToDate, endDate);
          }
       }
       else if((intervalLevel & MONTH) == MONTH) {
          if(periodLevel == XConstants.YEAR_DATE_GROUP) {
-            periodStartCal.set(Calendar.MONTH, intervalToDateCal.get(Calendar.MONTH));
+            periodStartCal.set(Calendar.MONTH, anchorCal.get(Calendar.MONTH));
          }
          else if(periodLevel == XConstants.QUARTER_DATE_GROUP) {
-            int monthOfQuarter = intervalToDateCal.get(Calendar.MONTH) % 3;
+            int monthOfQuarter = anchorCal.get(Calendar.MONTH) % 3;
             int periodStartMonth = periodStartCal.get(Calendar.MONTH);
             periodStartCal.set(Calendar.MONTH, periodStartMonth / 3 * 3 + monthOfQuarter);
          }
@@ -2057,8 +2061,7 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          endDate = periodStartCal.getTime();
 
          if(granularityLevel == WEEK && !isSameInterval) {
-            endDate = getWeekAlignedRangeEnd(startDate, Calendar.MONTH, periodLevel,
-                                             intervalToDate, endDate);
+            endDate = getWeekAlignedRangeEnd(startDate, Calendar.MONTH, intervalToDate, endDate);
          }
       }
       else if((intervalLevel & WEEK) == WEEK) {

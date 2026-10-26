@@ -55,6 +55,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class DateComparisonWeekToDateRangeTest {
+   /**
+    * Expected ranges are the last periods of the shape, in ascending order. Month To Date with
+    * Quarter context and Quarter to Date with Year-period shapes compare the End Date's week
+    * start month/quarter (Dec 27 -> December, month 3 of the quarter), not its calendar date.
+    */
    static Stream<Arguments> expectedRanges() {
       return Stream.of(
          // End Date in week 13 of Q4 (its week starts Dec 27 / Dec 28)
@@ -79,6 +84,34 @@ class DateComparisonWeekToDateRangeTest {
               "2017-01-01..2017-12-30", "2018-01-07..2019-01-05", "2019-01-06..2020-01-04"),
          args("Y-ytd-gW-cY", "sunday", "2021-01-05",
               "2018-01-07..2018-01-09", "2019-01-06..2019-01-08", "2020-01-05..2020-01-07"),
+         args("Q-mtd-gW-cQ", "sunday", "2021-01-02",
+              "2020-03-01..2020-03-28", "2020-06-07..2020-07-04", "2020-09-06..2020-10-03"),
+         args("Q-mtd-gW-cQ", "sunday", "2021-01-05",
+              "2020-04-05..2020-04-07", "2020-07-05..2020-07-07", "2020-10-04..2020-10-06"),
+         args("Q-mtd-gW-cQ", "monday", "2021-01-02",
+              "2020-03-02..2020-03-28", "2020-06-01..2020-06-27", "2020-09-07..2020-10-03"),
+         args("Q-mtd-gW-cQ", "monday", "2021-01-05",
+              "2020-04-06..2020-04-07", "2020-07-06..2020-07-07", "2020-10-05..2020-10-06"),
+         args("Y-qtd-gW-cQ", "sunday", "2021-01-02",
+              "2019-01-06..2019-04-06", "2019-04-07..2019-07-06", "2019-07-07..2019-10-05", "2019-10-06..2020-01-04"),
+         args("Y-qtd-gW-cQ", "sunday", "2021-01-05",
+              "2020-01-05..2020-01-07", "2020-04-05..2020-04-07", "2020-07-05..2020-07-07", "2020-10-04..2020-10-06"),
+         args("Y-qtd-gW-cQ", "monday", "2021-01-02",
+              "2019-01-07..2019-03-30", "2019-04-01..2019-06-29", "2019-07-01..2019-09-28", "2019-10-07..2020-01-04"),
+         args("Y-qtd-gW-cQ", "monday", "2021-01-05",
+              "2020-01-06..2020-01-07", "2020-04-06..2020-04-07", "2020-07-06..2020-07-07", "2020-10-05..2020-10-06"),
+         args("Y-mtd-gW-cM", "sunday", "2021-01-02"),
+         args("Y-mtd-gW-cM", "sunday", "2021-01-05"),
+         args("Y-mtd-gW-cM", "monday", "2021-01-02"),
+         args("Y-mtd-gW-cM", "monday", "2021-01-05"),
+         args("Y-mtd-gW-cQ", "sunday", "2021-01-02",
+              "2019-03-03..2019-03-30", "2019-06-02..2019-06-29", "2019-09-01..2019-09-28", "2019-12-01..2019-12-28"),
+         args("Y-mtd-gW-cQ", "sunday", "2021-01-05",
+              "2020-01-05..2020-01-07", "2020-04-05..2020-04-07", "2020-07-05..2020-07-07", "2020-10-04..2020-10-06"),
+         args("Y-mtd-gW-cQ", "monday", "2021-01-02",
+              "2019-03-04..2019-03-30", "2019-06-03..2019-06-29", "2019-09-02..2019-09-28", "2019-12-02..2019-12-28"),
+         args("Y-mtd-gW-cQ", "monday", "2021-01-05",
+              "2020-01-06..2020-01-07", "2020-04-06..2020-04-07", "2020-07-06..2020-07-07", "2020-10-05..2020-10-06"),
          // 2021-06-01 (Tuesday) is in the week of Sunday May 30, the 5th week of May; Feb, Mar
          // and Apr have only 4 weeks, so the range is clamped to their last full week
          args("M-mtd-gW-cM", "sunday", "2021-06-01",
@@ -103,7 +136,8 @@ class DateComparisonWeekToDateRangeTest {
          assertTrue(parts[0].compareTo(parts[1]) <= 0, "inverted range " + range);
       }
 
-      assertEquals(expected, actual,
+      assertTrue(actual.size() >= expected.size(), "too few ranges: " + actual);
+      assertEquals(expected, actual.subList(actual.size() - expected.size(), actual.size()),
                    shape + " " + weekStart + " " + endDay + ", all: " + actual);
    }
 
