@@ -1181,12 +1181,11 @@ public class TableBindingService {
          // separate hidden-columns selection, so resolve over shown then hidden.
          ColumnSelection columns = table.getColumnSelection();
          ColumnSelection hidden = table.getHiddenColumns();
-         DataRef ref = resolveSortColumn(columns, column);
-         ref = ref != null ? ref : resolveSortColumn(hidden, column);
+         DataRef ref = resolveSortColumn(columns, hidden, column);
 
          if(ref == null) {
-            List<String> bound = boundColumnNames(columns);
-            bound.addAll(boundColumnNames(hidden).stream().map(n -> n + " (hidden)").toList());
+            List<String> bound = sortColumnDescriptions(columns);
+            bound.addAll(sortColumnDescriptions(hidden).stream().map(n -> n + " (hidden)").toList());
             throw new IllegalArgumentException(
                "'" + column + "' is not bound on '" + assemblyName + "'. It holds: " +
                (bound.isEmpty() ? "(nothing)" : String.join(", ", bound)) + ".");
@@ -1260,26 +1259,103 @@ public class TableBindingService {
       };
    }
 
-   /** Case-insensitive column-name lookup, matching this class's other by-name resolutions. */
-   private static DataRef resolveSortColumn(ColumnSelection columns, String column) {
-      if(columns == null) {
-         return null;
-      }
+   /**
+    * Resolves a column by attribute first (exact case, then case-insensitive), then by label. A
+    * single exact-case attribute match wins; otherwise a request that names one column by
+    * attribute and another by label is refused as ambiguous instead of silently picking the
+    * first in column order.
+    */
+   private static DataRef resolveSortColumn(ColumnSelection shown, ColumnSelection hidden,
+                                            String column)
+   {
+      List<DataRef> all = new ArrayList<>();
 
-      Enumeration<DataRef> refs = columns.getAttributes();
+      for(ColumnSelection columns : new ColumnSelection[] { shown, hidden }) {
+         if(columns != null) {
+            Enumeration<DataRef> refs = columns.getAttributes();
 
-      while(refs.hasMoreElements()) {
-         DataRef ref = refs.nextElement();
-         String name = ref.getName();
-
-         if(name != null &&
-            (name.equalsIgnoreCase(column) || unqualified(name).equalsIgnoreCase(column)))
-         {
-            return ref;
+            while(refs.hasMoreElements()) {
+               all.add(refs.nextElement());
+            }
          }
       }
 
-      return null;
+      List<DataRef> byAttribute = new ArrayList<>();
+      List<DataRef> byLabel = new ArrayList<>();
+
+      for(DataRef ref : all) {
+         String attribute = sortAttributeName(ref);
+
+         if(attribute != null && (attribute.equalsIgnoreCase(column) ||
+            unqualified(attribute).equalsIgnoreCase(column)))
+         {
+            byAttribute.add(ref);
+         }
+         else if(ref instanceof ColumnRef columnRef && columnRef.getAlias() != null &&
+            columnRef.isApplyingAlias() &&
+            (ref.getName().equalsIgnoreCase(column) ||
+               unqualified(ref.getName()).equalsIgnoreCase(column)))
+         {
+            byLabel.add(ref);
+         }
+      }
+
+      // a single exact-case attribute match wins over any label or case-insensitive hit
+      List<DataRef> exact = byAttribute.stream()
+         .filter(r -> sortAttributeName(r).equals(column) ||
+            unqualified(sortAttributeName(r)).equals(column))
+         .toList();
+
+      if(exact.size() == 1) {
+         return exact.get(0);
+      }
+
+      if(byAttribute.size() == 1 && byLabel.isEmpty()) {
+         return byAttribute.get(0);
+      }
+
+      if(byAttribute.isEmpty() && byLabel.size() == 1) {
+         return byLabel.get(0);
+      }
+
+      if(byAttribute.isEmpty() && byLabel.isEmpty()) {
+         return null;
+      }
+
+      List<String> candidates = new ArrayList<>();
+      byAttribute.forEach(r -> candidates.add(describeSortColumn(r) + " by attribute"));
+      byLabel.forEach(r -> candidates.add(describeSortColumn(r) + " by label"));
+      throw new IllegalArgumentException(
+         "'" + column + "' is ambiguous: it matches " + String.join("; ", candidates) +
+         ". Use the attribute name with its exact case to pick the column by attribute, " +
+         "or rename the label.");
+   }
+
+   private static String sortAttributeName(DataRef ref) {
+      return ref instanceof ColumnRef columnRef ? columnRef.getDataRef().getName() :
+         ref.getName();
+   }
+
+   /** The attribute, followed by its label in parentheses when the column carries one. */
+   private static String describeSortColumn(DataRef ref) {
+      String attribute = sortAttributeName(ref);
+
+      return attribute.equals(ref.getName()) ? attribute :
+         attribute + " (labelled '" + ref.getName() + "')";
+   }
+
+   private static List<String> sortColumnDescriptions(ColumnSelection columns) {
+      List<String> names = new ArrayList<>();
+
+      if(columns != null) {
+         Enumeration<DataRef> refs = columns.getAttributes();
+
+         while(refs.hasMoreElements()) {
+            names.add(describeSortColumn(refs.nextElement()));
+         }
+      }
+
+      return names;
    }
 
    private static List<String> boundColumnNames(ColumnSelection columns) {
