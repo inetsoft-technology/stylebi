@@ -2379,12 +2379,18 @@ public class VSInputService {
       spinnerAssemblyInfo.setMinValue(numericRangePaneModel.getMinimum());
       spinnerAssemblyInfo.setMaxValue(numericRangePaneModel.getMaximum());
 
-      if(spinnerAssemblyInfo.getSelectedObject() instanceof Number &&
+      // a script or variable bound written just above has no runtime value yet, and getMin()/
+      // getMax() then report the 0/100 fallback instead of the bound, so only a static side
+      // can be clamped against
+      boolean clampMin = !VSUtil.isDynamicValue(spinnerAssemblyInfo.getMinValue());
+      boolean clampMax = !VSUtil.isDynamicValue(spinnerAssemblyInfo.getMaxValue());
+
+      if(clampMin && spinnerAssemblyInfo.getSelectedObject() instanceof Number &&
          ((Number) spinnerAssemblyInfo.getSelectedObject()).doubleValue() < spinnerAssemblyInfo.getMin()){
          spinnerAssemblyInfo.setSelectedObject(spinnerAssemblyInfo.getMin());
       }
 
-      if(spinnerAssemblyInfo.getSelectedObject() instanceof Number &&
+      if(clampMax && spinnerAssemblyInfo.getSelectedObject() instanceof Number &&
          ((Number) spinnerAssemblyInfo.getSelectedObject()).doubleValue() > spinnerAssemblyInfo.getMax()){
          spinnerAssemblyInfo.setSelectedObject(spinnerAssemblyInfo.getMax());
       }
@@ -2407,10 +2413,18 @@ public class VSInputService {
          try {
             double dvalue = Double.valueOf(dataInputPaneModel.getDefaultValue());
             // a non-finite value is ignored like unparsable text; a finite one is clamped to
-            // the range just applied above, matching the selected-object clamp
+            // the static sides of the range just applied above, matching the selected-object
+            // clamp
             if(Double.isFinite(dvalue)) {
-               spinnerAssemblyInfo.setValue(Math.min(Math.max(dvalue, spinnerAssemblyInfo.getMin()),
-                                                     spinnerAssemblyInfo.getMax()));
+               if(clampMin) {
+                  dvalue = Math.max(dvalue, spinnerAssemblyInfo.getMin());
+               }
+
+               if(clampMax) {
+                  dvalue = Math.min(dvalue, spinnerAssemblyInfo.getMax());
+               }
+
+               spinnerAssemblyInfo.setValue(dvalue);
             }
          }
          catch(Exception e) {
