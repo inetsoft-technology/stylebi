@@ -169,17 +169,17 @@ public class SessionLicenseServiceProvider {
 
    @EventListener(SessionLoggedOutEvent.class)
    public void onSessionLoggedOut(SessionLoggedOutEvent event) {
-      lock.lock();
+      // Do not take the provider lock here. The event is published synchronously by
+      // SUtil.logout() from inside the synchronized newSession() methods of the managers
+      // (holding the manager monitor and, in the cluster, the distributed license lock), and
+      // loggedOut() takes the manager monitor again. Taking the provider lock between them
+      // inverts the provider lock -> manager monitor order used by resetServices() and
+      // deadlocks (bug #79351). The field is volatile; a manager that is disposed concurrently
+      // by resetServices() only has the entry removed from its own map.
+      SessionLicenseManager manager = sessionLicenseManager;
 
-      try {
-         SessionLicenseManager manager = sessionLicenseManager;
-
-         if(manager instanceof AbstractSessionService s) {
-            s.loggedOut(event);
-         }
-      }
-      finally {
-         lock.unlock();
+      if(manager instanceof AbstractSessionService s) {
+         s.loggedOut(event);
       }
    }
 
