@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
@@ -5236,7 +5237,7 @@ public class WorksheetAgentController {
                      // XSessionManager.dataCache entry is genuinely refreshed, not just the outer
                      // caches around it invalidated and left to some later caller's lazy reload.
                      if(mode >= 0 && mode != AssetQuerySandbox.RUNTIME_MODE) {
-                        box.getTableLens(req.table(), AssetQuerySandbox.RUNTIME_MODE);
+                        forceRuntimeRead(box, req.table());
                      }
                   }
                   finally {
@@ -5306,6 +5307,8 @@ public class WorksheetAgentController {
             TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
 
             try {
+               List<String> failures = new ArrayList<>();
+
                for(Assembly a : ws.getAssemblies()) {
                   if(a instanceof TableAssembly table) {
                      int mode = WorksheetEventUtil.getMode(table);
@@ -5336,12 +5339,21 @@ public class WorksheetAgentController {
                      box.getVariableTable().put("__refresh_report__", "true");
 
                      try {
-                        box.getTableLens(table.getName(), AssetQuerySandbox.RUNTIME_MODE);
+                        forceRuntimeRead(box, table.getName());
+                     }
+                     catch(PairingException e) {
+                        failures.add(e.getMessage());
                      }
                      finally {
                         box.getVariableTable().remove("__refresh_report__");
                      }
                   }
+               }
+
+               if(!failures.isEmpty()) {
+                  throw new PairingException("Refreshed the other tables, but " + failures.size() +
+                                             " could not be reloaded: " +
+                                             String.join("; ", failures));
                }
             }
             finally {
@@ -5351,6 +5363,33 @@ public class WorksheetAgentController {
 
          return null;
       });
+   }
+
+   /**
+    * Bug #79340: the forced RUNTIME_MODE read can throw a raw script error (e.g. a condition
+    * script naming a table that no longer exists). Name the table and the cause the way
+    * {@code WorksheetPreviewService.preview0} does instead of letting it surface as the generic
+    * unexpected-server-error text. {@link RenderNotReadyException} passes through unchanged.
+    */
+   private static void forceRuntimeRead(AssetQuerySandbox box, String tableName)
+      throws PairingException
+   {
+      try {
+         box.getTableLens(tableName, AssetQuerySandbox.RUNTIME_MODE);
+      }
+      catch(RenderNotReadyException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         String cause = XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get();
+
+         if(cause == null || cause.isBlank()) {
+            cause = e.getMessage();
+         }
+
+         throw new PairingException(
+            "Failed to execute worksheet query for '" + tableName + "': " + cause, e);
+      }
    }
 
    /**

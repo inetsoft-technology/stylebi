@@ -1640,7 +1640,7 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
     * @param oname the specified old name.
     * @param nname the specified new name.
     * @param tableReadsOnly true to rewrite only the references that name a worksheet assembly
-    *                       (see {@link #renameExpression}) and to skip SQL expression columns.
+    *                       (see {@link ScriptAssemblyRenamer#rename}) and to skip SQL expression columns.
     */
    private void renameExpressionDependeds(String oname, String nname, boolean tableReadsOnly) {
       ColumnSelection columns = getColumnSelection();
@@ -1658,70 +1658,12 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
 
             if(exp.isExpressionEditable()) {
                String val = exp.getExpression();
-               val = renameExpression(val, oname, nname, tableReadsOnly);
+               val = ScriptAssemblyRenamer.rename(
+                  val, oname, nname, tableReadsOnly, !column.isSQL() && !exp.isSQL());
                exp.setExpression(val);
             }
          }
       }
-   }
-
-   /**
-    * Rename the expression dependeds.
-    * @param exp the specified expression.
-    * @param oname the specified old name.
-    * @param nname the specified new name.
-    * @param tableReadsOnly true to match only the references that name a worksheet assembly: a
-    *                       bare identifier, or the quoted key of worksheet[...] / parameter[...].
-    *                       Entity-qualified field['Entity.col'] and any other quoted key (which
-    *                       may be a column that merely shares the name) are left untouched.
-    */
-   private String renameExpression(String exp, final String oname, final String nname,
-                                   final boolean tableReadsOnly)
-   {
-      ScriptIterator iterator = new ScriptIterator(exp);
-      final StringBuilder sb = new StringBuilder();
-
-      ScriptListener listener = new ScriptListener() {
-         @Override
-         public void nextElement(Token token, Token pref, Token cref) {
-            boolean fullMatch = !FIELD.equals(token.val) && oname.equals(token.val);
-            boolean entityMatch = false;
-            int idx = token.val != null ? token.val.lastIndexOf(".") : -1;
-
-            if(tableReadsOnly) {
-               boolean assemblyKey = token.type != Token.NORMAL_REF && pref != null &&
-                  pref.type == Token.NORMAL_REF &&
-                  ("worksheet".equals(pref.val) || "parameter".equals(pref.val));
-               fullMatch = fullMatch && (token.type == Token.NORMAL_REF || assemblyKey);
-            }
-            else if(pref != null && FIELD.equals(pref.val) && idx != -1) {
-               entityMatch = Tool.equals(oname, token.val.substring(0, idx));
-            }
-
-            if(token.isRef() && !sb.toString().endsWith(".") && (fullMatch || entityMatch)) {
-               String nval = entityMatch ? nname + token.val.substring(idx) : nname;
-
-               if(Tool.isValidIdentifier(nval)) {
-                  sb.append(new Token(token.type, nval, token.length));
-               }
-               else {
-                  if(sb.length() > 0 && sb.charAt(sb.length() - 1) == '.') {
-                     sb.deleteCharAt(sb.length() - 1);
-                  }
-
-                  sb.append(new Token(token.type, nval, token.length));
-               }
-            }
-            else {
-               sb.append(token);
-            }
-         }
-      };
-
-      iterator.addScriptListener(listener);
-      iterator.iterate();
-
-      return sb.toString();
    }
 
    /**
