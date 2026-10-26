@@ -39,6 +39,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -148,7 +149,12 @@ public final class ChartBindingMutator {
 
       for(int i = 0; i < fieldList.size(); i++) {
          FieldRef field = fieldList.get(i);
-         ChartRefModel ref = FieldRefFactory.toChartRef(field, model, rvs, source, refModelService);
+         // Bug #79342: a worksheet-local group read back as "Custom" is accepted as an echo of
+         // the previous dimension's stored group (judged over the whole previous shelf so two
+         // indistinguishable placeholders are refused).
+         ChartRefModel ref = FieldRefFactory.toChartRef(
+            field, model, rvs, source, refModelService,
+            FieldRefFactory.findExpertPlaceholder(field, oldRefs));
 
          if(ref instanceof ChartDimensionRefModel dimension) {
             ChartDimensionRefModel previous = null;
@@ -627,8 +633,10 @@ public final class ChartBindingMutator {
          requireShelfSupportedByChartType(chartInfo, name);
       }
 
-      ChartRefModel ref = field == null
-         ? null : FieldRefFactory.toChartRef(field, model, rvs, source, refModelService);
+      ChartRefModel ref = field == null ? null : FieldRefFactory.toChartRef(
+         field, model, rvs, source, refModelService,
+         FieldRefFactory.findExpertPlaceholder(
+            field, Collections.singletonList(readSingleShelf(model, name))));
 
       // After toChartRef so a missing/invalid 'type' keeps the type error, and before
       // assignSingleShelf so a refusal leaves the shelf and any prior binding untouched.

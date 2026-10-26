@@ -786,7 +786,8 @@ public final class TableBindingMutator {
             }
 
             for(int j = 0; j < previous.size(); j++) {
-               if(!consumed[j] && isExpertPlaceholder(previous.get(j), field.namedGroup()) &&
+               if(!consumed[j] &&
+                  FieldRefFactory.isExpertPlaceholder(previous.get(j), field.namedGroup()) &&
                   matches(previous.get(j), field))
                {
                   consumed[j] = true;
@@ -975,13 +976,6 @@ public final class TableBindingMutator {
       }
 
       return -1;
-   }
-
-   /** Whether {@code previous} holds an expert group that the read reports as {@code name}. */
-   private static boolean isExpertPlaceholder(BDimensionRefModel previous, String name) {
-      NamedGroupInfoModel group = previous.getNamedGroupInfo();
-      return group != null && group.getType() == XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO &&
-         name.equals(group.getName());
    }
 
    /** Whether {@code previous} is the same occurrence of the same column as {@code field}. */
