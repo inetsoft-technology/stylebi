@@ -147,6 +147,23 @@ public class RepositoryObjectService {
          }
       }
 
+      // Bug #77599, a dashboard (or folder of dashboards) a scheduled task uses is refused, checked
+      // for every node before deleting any, so a refused node doesn't leave the batch half done
+      for(TreeNodeInfo node : nodes) {
+         if(node.type() == RepositoryEntry.VIEWSHEET) {
+            RecycleUtils.checkScheduledTasks(new AssetEntry(
+               treeService.getAssetScope(node.path()), AssetEntry.Type.VIEWSHEET,
+               treeService.getUnscopedPath(node.path()), node.owner()));
+         }
+         else if(node.type() == RepositoryEntry.FOLDER ||
+            node.type() == (RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER))
+         {
+            if(!RecycleUtils.isInRecycleBin(node.path())) {
+               RecycleUtils.checkScheduledTasks(node.path(), node.owner());
+            }
+         }
+      }
+
       // Bug #77947, the owner of an auto-save file is in its name, not the client-supplied owner
       AutoSaveUtils.checkAutoSavePermission(
          autoSaveNodes.stream().map(TreeNodeInfo::path).toList(), principal);

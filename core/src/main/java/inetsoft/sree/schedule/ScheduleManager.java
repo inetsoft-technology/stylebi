@@ -3046,6 +3046,51 @@ public class ScheduleManager {
    }
 
    /**
+    * Gets the tasks with an action that {@link #viewsheetRemoved} would remove if the viewsheet,
+    * or every viewsheet under the repository folder, were removed. Only the tasks of the
+    * entry's organization are searched, as {@link #viewsheetRemoved} does.
+    *
+    * @param entry a viewsheet or a repository folder.
+    *
+    * @return the matching tasks, each listed once.
+    */
+   public synchronized List<ScheduleTask> getTasksUsingViewsheet(AssetEntry entry) {
+      List<ScheduleTask> result = new ArrayList<>();
+
+      for(ScheduleTask task : getOrgTaskMap(entry.getOrgID()).values()) {
+         if(task == null) {
+            continue;
+         }
+
+         for(int j = 0; j < task.getActionCount(); j++) {
+            if(task.getAction(j) instanceof ViewsheetSupport &&
+               isViewsheetIn(((ViewsheetSupport) task.getAction(j)).getViewsheetName(), entry))
+            {
+               result.add(task);
+               break;
+            }
+         }
+      }
+
+      return result;
+   }
+
+   private static boolean isViewsheetIn(String vsId, AssetEntry entry) {
+      if(vsId == null) {
+         return false;
+      }
+
+      if(!entry.isRepositoryFolder()) {
+         return entry.toIdentifier().equals(vsId);
+      }
+
+      AssetEntry vs = AssetEntry.createAssetEntry(vsId);
+      return vs != null && vs.isViewsheet() && vs.getScope() == entry.getScope() &&
+         Tool.equals(vs.getUser(), entry.getUser()) &&
+         (entry.isRoot() || vs.getPath().startsWith(entry.getPath() + "/"));
+   }
+
+   /**
     * Rename bookmark in schedule actions.
     */
    public void bookmarkRenamed(String oldName, String newName, String viewsheet, IdentityID user) {
