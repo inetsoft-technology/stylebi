@@ -887,6 +887,93 @@ class ScriptExecuteServiceTest {
          "Ns.count()");
    }
 
+   // --- Adversarial tests added during independent re-verification (Bug #79346 / 04-verify.md) ---
+   // None of these shapes are covered by the 16 tests above: they either combine two gaps at once
+   // (A+D) or are the refuter's own live-tried stress shapes (for/switch-case let|const
+   // declarations) that were never turned into a JUnit case.
+
+   @Test
+   void aliasThenBracketAssignmentExposesItsNamespace() throws Exception {
+      // combines gap A (var g = this; registers g as an alias) with gap D (g["Ns"] = ... is a
+      // BRACKET_ASSIGNMENT, resolved via owner.aliases.contains(first) -- neither the 16 new tests
+      // nor the pre-existing suite exercise an alias created by gap A being read by gap D's own
+      // separate matcher loop).
+      assertGatedViaNamespace(
+         "var g = this;\ng[\"Ns\"] = { count: function() { return runQuery('q'); } };",
+         "Ns.count()");
+   }
+
+   @Test
+   void constDeclaredInsideAForLoopBodyIsNotIndexedAsARoot() throws Exception {
+      // the refuter's own live-tried stress shape (02-refute-ssl015.md section 3):
+      // for (var i = 0; i < 1; i++) { const X = runQuery(...); }
+      assertNotGated(
+         "for (var i = 0; i < 1; i++) { const C5 = runQuery('q'); }",
+         "var C5 = 2; C5");
+   }
+
+   @Test
+   void letDeclaredInUnbracedSwitchCaseIsNotIndexedAsARoot() throws Exception {
+      // the refuter's own live-tried stress shape (02-refute-ssl015.md section 3):
+      // switch (1) { case 1: let X = runQuery(...); break; } -- a DECLARATION (not an assignment,
+      // unlike unbracedSwitchCaseAssignmentIsGated above) directly inside an unbraced case.
+      assertNotGated(
+         "switch (1) { case 1: let C6 = runQuery('q'); break; }",
+         "var C6 = 2; C6");
+   }
+
+   // --- Review round 1 (05-review-community-r1.md) follow-up tests ---
+
+   @Test
+   void bracketKeyStringContainingALiteralCloseBracketDoesNotCorruptLaterScanning() throws Exception {
+      // Blocker 1: a bracket-key string's own content that itself contains a literal ] must not be
+      // spliced back raw into the stripped text -- doing so (the pre-fix behavior) produces an
+      // extra bracket character scopeOwners's own bracket-matching pass cannot tell apart from a
+      // real one, desyncing the frame stack for everything scanned afterward in the same entry.
+      // Here it prematurely pops "unrelated"'s own (never-reachable) function-body frame one
+      // statement early, which would wrongly make the following Ns assignment -- still textually
+      // inside that same dead function -- look load-time-reachable.
+      assertNotGated(
+         "function unrelated() {\n" +
+         "   Q[\"a]b\"] = 1;\n" +
+         "   Ns = { count: function() { return runQuery('q'); } };\n" +
+         "}",
+         "Ns");
+   }
+
+   @Test
+   void catchParameterInsideAGapFPromotedInstallerFunctionIsNotIndexedAsARoot() throws Exception {
+      // Blocker 2: gap F's post-hoc promotion of an installer function's body used to flatten
+      // every previously-unowned position straight to one brand-new synthetic frame, discarding a
+      // nested catch (X) { ... } block's own frame -- the one openFrame already populated with X in
+      // its own locals, independent of reachability -- reopening exactly the catch-parameter
+      // over-gating bug Problem 2's fix closed, but through gap F's own promotion path.
+      String lib =
+         "function install(g) {\n" +
+         "   try { foo(); } catch (X) { X = runQuery('q'); }\n" +
+         "   g.Ns = { count: function() { return runQuery('q'); } };\n" +
+         "}\n" +
+         "install(this);";
+
+      // the installer's own body is still correctly promoted/gated -- confirms this exercises gap
+      // F's promotion at all, rather than an installer that was never recognized in the first place
+      assertGatedViaNamespace(lib, "Ns.count()");
+      // ... but the catch parameter nested inside it must stay excluded
+      assertNotGated(lib, "var X = 2; X");
+   }
+
+   @Test
+   void destructiveDefaultParameterExpressionOnANeverCalledFunctionIsNotIndexedAsARoot() throws Exception {
+      // Important finding: gap C's blanket "a ( or [ does not open a new scope" fix also applied
+      // to a function/arrow's OWN parameter-list parens, not just an IIFE's call-argument parens --
+      // so a destructive default-parameter expression was wrongly treated as load-time-reachable
+      // merely because the function declaration itself sits in reachable code, even though it only
+      // executes if the function is actually called AND that argument is omitted.
+      assertNotGated(
+         "function foo(x = window.Ns = { count: function() { return runQuery('q'); } }) {}",
+         "Ns");
+   }
+
    @Test
    void nonDestructiveNamespaceIsNotGated() throws Exception {
       ViewsheetScope scope = mock(ViewsheetScope.class);

@@ -836,7 +836,15 @@ public class ScriptExecuteService {
                i++;
             }
 
-            if(bracketKey && i < n && isFollowedByCloseBracket(text, i + 1)) {
+            // Bug #79346 (review round 1, blocker 1): only splice the key's own content back when
+            // it is free of a literal [ or ] -- otherwise that character would be mistaken by
+            // scopeOwners's own bracket-matching pass (a plain push/pop stack over this same
+            // stripped text) for a real bracket boundary, desyncing it for everything scanned
+            // afterward in the same entry. A key containing one safely falls back to full deletion,
+            // the same as any other string BRACKET_ASSIGNMENT fails to recognize.
+            if(bracketKey && i < n && isFollowedByCloseBracket(text, i + 1) &&
+               !containsBracketCharacter(text, contentStart, i))
+            {
                out.append(text, contentStart, i);
             }
 
@@ -866,6 +874,24 @@ public class ScriptExecuteService {
    private static boolean isFollowedByCloseBracket(String text, int p) {
       p = skipWhitespaceForward(text, p);
       return p < text.length() && text.charAt(p) == ']';
+   }
+
+   /**
+    * Bug #79346 (review round 1, blocker 1): true when {@code text[from, to)} contains a literal
+    * {@code [} or {@code ]} -- used to refuse splicing a bracket-key string's own content back into
+    * the stripped text when doing so would introduce a bracket character the downstream
+    * bracket-matching pass did not itself open or close.
+    */
+   private static boolean containsBracketCharacter(String text, int from, int to) {
+      for(int p = from; p < to; p++) {
+         char c = text.charAt(p);
+
+         if(c == '[' || c == ']') {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1289,15 +1315,26 @@ public class ScriptExecuteService {
          }
 
          int bodyClose = match[bodyOpen];
-         ScopeFrame synthetic = new ScopeFrame();
-         synthetic.function = true;
-         synthetic.iife = true;
-         synthetic.thisGlobal = true;
-         synthetic.fnFrame = synthetic;
-         synthetic.owner = synthetic;
-         synthetic.lexicalParent = lexical[decl.start()];
-         synthetic.locals = new HashSet<>();
-         synthetic.aliases = new HashSet<>();
+
+         if(bodyOpen + 1 >= bodyClose) {
+            continue;
+         }
+
+         // Bug #79346 (review round 1, blocker 2): mutate the SAME ScopeFrame object openFrame
+         // already built for this function's own body, instead of retargeting every unowned
+         // position inside it to a brand-new, disconnected frame. A nested block -- most notably a
+         // catch (X) { ... } clause, whose own exception parameter openFrame records directly on
+         // its own frame independent of reachability (Bug #79346 / SSL-015) -- keeps its own,
+         // already correctly-populated frame and lexicalParent chain this way, so a later
+         // bindsBareGlobal lexical walk still finds it; a fresh, disconnected frame never appears
+         // in that chain at all. Only owners[] (which flattens through every block straight to the
+         // function-level frame, and is snapshotted per-position at scan time, so it cannot be
+         // fixed up any other way) is rewritten here -- lexical[] is left exactly as the original
+         // per-character scan built it.
+         ScopeFrame bodyFrame = lexical[bodyOpen + 1];
+         bodyFrame.iife = true;
+         bodyFrame.thisGlobal = true;
+         bodyFrame.owner = bodyFrame;
 
          List<String> params = splitTopLevel(text, parenOpen + 1, parenClose).stream()
             .map(ScriptExecuteService::parameterName).toList();
@@ -1309,25 +1346,24 @@ public class ScriptExecuteService {
                continue;
             }
 
-            synthetic.locals.add(param);
+            bodyFrame.locals.add(param);
 
             if(i == 0) {
                // the call's own single argument is the global reference itself (GLOBAL_ARG_CALL
                // only ever matches exactly one argument)
-               synthetic.aliases.add(param);
+               bodyFrame.aliases.add(param);
             }
          }
 
          for(Declared d : declared) {
             if(d.pos() > bodyOpen && d.pos() < bodyClose) {
-               synthetic.locals.add(d.name());
+               bodyFrame.locals.add(d.name());
             }
          }
 
          for(int i = bodyOpen + 1; i < bodyClose; i++) {
             if(owners[i] == null) {
-               owners[i] = synthetic;
-               lexical[i] = synthetic;
+               owners[i] = bodyFrame;
             }
          }
       }
@@ -1351,8 +1387,16 @@ public class ScriptExecuteService {
       if(text.charAt(open) != '{') {
          // Bug #79346 (SSL-014 gap C): a ( or [ does not open a new scope for assignments written
          // directly inside it (a function's own call-argument list, a computed-member key, ...) --
-         // it binds in whatever scope encloses it, the same as any other statement there.
-         frame.owner = parent.owner;
+         // it binds in whatever scope encloses it, the same as any other statement there. A
+         // function/arrow's OWN parameter list is the one exception (review round 1, important
+         // finding): a destructive default-parameter expression there only runs if that function is
+         // actually called (and only when the argument is omitted), so it must not inherit
+         // reachability merely from sitting in reachable code -- matching the pre-existing, correct
+         // treatment of a function body's own locals.
+         if(!isFunctionParameterListOpen(text, open, match)) {
+            frame.owner = parent.owner;
+         }
+
          return frame;
       }
 
@@ -1560,6 +1604,51 @@ public class ScriptExecuteService {
       }
 
       return frame;
+   }
+
+   /**
+    * Bug #79346 (review round 1, important finding): true when the {@code (} at {@code open} is a
+    * function or arrow's OWN parameter list (as opposed to a call's argument list, an {@code if}/
+    * {@code for}/{@code while}/{@code catch}/{@code switch} condition, or any other plain
+    * parenthesized expression) -- mirroring, forward from the open paren instead of backward from
+    * its close, the exact same word-based function/arrow recognition {@link #openFrame} itself uses
+    * further down for the body {@code {} that follows such a paren pair.
+    */
+   private static boolean isFunctionParameterListOpen(String text, int open, int[] match) {
+      int close = match[open];
+
+      if(close < 0) {
+         return false;
+      }
+
+      // arrow function: (params) => ...
+      int afterClose = skipWhitespaceForward(text, close + 1);
+
+      if(afterClose + 1 < text.length() && text.charAt(afterClose) == '=' &&
+         text.charAt(afterClose + 1) == '>')
+      {
+         return true;
+      }
+
+      // regular/named function expression or declaration: function [name] (params) {...}
+      int q = skipWhitespaceBack(text, open - 1);
+      String word = wordEndingAt(text, q);
+
+      if(word == null || PLAIN_BLOCK_HEADS.contains(word)) {
+         return false;
+      }
+
+      if(word.equals("function")) {
+         return true;
+      }
+
+      int r = skipWhitespaceBack(text, q - word.length());
+
+      if(r >= 0 && text.charAt(r) == '*') {
+         r = skipWhitespaceBack(text, r - 1);
+      }
+
+      return "function".equals(wordEndingAt(text, r));
    }
 
    /** Name of one declared parameter ({@code a}, {@code a = 1}, {@code ...a}), else null. */
