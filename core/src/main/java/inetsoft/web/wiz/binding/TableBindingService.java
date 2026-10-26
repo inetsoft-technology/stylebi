@@ -288,10 +288,10 @@ public class TableBindingService {
          String resolved = resolveTable(rvs, model, table, assemblyName);
 
          if(!force) {
-            requireNoBoundFields(model, assemblyName, resolved);
+            requireNoBoundFields(rvs, model, assemblyName, resolved);
          }
          else {
-            discardBoundFields(rvs, model, resolved);
+            discardBoundFields(rvs, model, assemblyName, resolved);
          }
 
          // Only type, prefix and source survive the trip back: VSBindingService.updateSourceInfo
@@ -356,8 +356,8 @@ public class TableBindingService {
     * Refuses to discard bound fields. The columns on a shelf belong to the source that was set
     * when they were added, so repointing invalidates all of them.
     */
-   private static void requireNoBoundFields(BaseTableBindingModel model, String assemblyName,
-                                            String table)
+   private static void requireNoBoundFields(RuntimeViewsheet rvs, BaseTableBindingModel model,
+                                            String assemblyName, String table)
    {
       if(BindingSources.alreadyPointedAt(model, table)) {
          return;
@@ -377,6 +377,13 @@ public class TableBindingService {
          if(count > 0) {
             populated.add(count + " on " + shelf);
          }
+      }
+
+      // Bug #79331: a Table's hidden columns are bound too, but live outside the model.
+      int hidden = hiddenColumnsOf(rvs, assemblyName).getAttributeCount();
+
+      if(hidden > 0) {
+         populated.add(hidden + " hidden");
       }
 
       if(!populated.isEmpty()) {
@@ -408,7 +415,7 @@ public class TableBindingService {
     * {@code setShelf} overload already has everywhere else it is used).
     */
    private static void discardBoundFields(RuntimeViewsheet rvs, BaseTableBindingModel model,
-                                         String table)
+                                         String assemblyName, String table)
    {
       if(BindingSources.alreadyPointedAt(model, table)) {
          return;
@@ -445,6 +452,29 @@ public class TableBindingService {
       // A kept dimension's by-value sort/ranking now survives the discard (bug #77025 R1), so one
       // that named an aggregate this repoint discarded must not be left pointing at it.
       TableBindingMutator.clearDanglingAggregateReferences(model, aggregatesBefore);
+
+      // Bug #79331: a Table's hidden columns are not in the model, so the loop above never saw
+      // them. Drop the ones the new source lacks, matched by column (refKey), not by alias; the
+      // factory's removeUnboundSorts then drops their sorts. Like a shown field, a hidden calc
+      // field or expression column never resolves in the source's columns and is dropped too.
+      ColumnSelection hidden = hiddenColumnsOf(rvs, assemblyName);
+
+      for(int i = hidden.getAttributeCount() - 1; i >= 0; i--) {
+         String column = refKey(hidden.getAttribute(i));
+
+         if(availableColumns.stream().noneMatch(
+            c -> c.equalsIgnoreCase(column) || c.equalsIgnoreCase(unqualified(column))))
+         {
+            hidden.removeAttribute(i);
+         }
+      }
+   }
+
+   /** A Table's hidden columns, or an empty selection for any other assembly. */
+   private static ColumnSelection hiddenColumnsOf(RuntimeViewsheet rvs, String assemblyName) {
+      return rvs.getViewsheet().getAssembly(assemblyName) instanceof TableVSAssembly table
+         ? ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns()
+         : new ColumnSelection();
    }
 
    /**
