@@ -845,8 +845,11 @@ public final class CalcCellVocabulary {
 
          // A formula group cell is ordered only by the options inside its toList(...) script;
          // the stored sort is never read for that cell's own list, so reporting it would claim an
-         // order that has no effect (bug #79251). topn, dateLevel and namedGroup still feed
-         // dependent summary cells, so they stay.
+         // order that has no effect (bug #79251). The stored topn is omitted for the same reason
+         // (bug #79330): LayoutTool does copy it onto the cell's CalcGroup, but the dependent
+         // summary condition only tests membership in the script's own (unlimited) list, so it
+         // limits neither the list nor dependent summaries for any layout a plugin write
+         // produces. dateLevel and namedGroup stay.
          if(info.getType() != CellBinding.BIND_FORMULA) {
             out.put("sort", sort);
          }
@@ -867,7 +870,9 @@ public final class CalcCellVocabulary {
             topnOut.put("rankBy", rankByOf(aggregates, topn.getSumCol()));
          }
 
-         out.put("topn", topnOut);
+         if(info.getType() != CellBinding.BIND_FORMULA) {
+            out.put("topn", topnOut);
+         }
 
          Object namedGroup = namedGroupOf(order);
 
