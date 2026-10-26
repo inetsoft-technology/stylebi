@@ -21,7 +21,7 @@ import { UntypedFormGroup } from "@angular/forms";
 import { MatBottomSheet, MatBottomSheetRef } from "@angular/material/bottom-sheet";
 import { MatDialog } from "@angular/material/dialog";
 import { Router } from "@angular/router";
-import { Observable, of as observableOf } from "rxjs";
+import { EMPTY, Observable, of as observableOf } from "rxjs";
 import { catchError, filter, map, switchMap } from "rxjs/operators";
 import { MapModel } from "../../../../../../portal/src/app/common/data/map-model";
 import { ErrorHandlerService } from "../../../common/util/error/error-handler.service";
@@ -47,6 +47,7 @@ const EDIT_AUTHENTICATION_PROVIDER_URL = "../api/em/security/edit-authentication
 @Injectable()
 export class SecurityProviderService {
    defaultErrMsg = "_#(js:add.authorization.provider.error)";
+   previewErrMsg = "_#(js:em.security.provider.queryFailed)";
 
    constructor(private router: Router,
                private http: HttpClient,
@@ -151,24 +152,36 @@ export class SecurityProviderService {
       return this.http.post<ConnectionStatus>("../api/em/security/get-database-connection-status", model);
    }
 
+   // A failed preview (bad query or connection) comes back as an error response; show its
+   // message and emit nothing, so the preview does not open as an empty result list.
+   private previewError<T>(): (source: Observable<T>) => Observable<T> {
+      return source => source.pipe(
+         catchError((error: HttpErrorResponse) =>
+            this.errorService.showSnackBar(error, this.previewErrMsg, () => EMPTY)));
+   }
+
    getUsers(authenticationForm: UntypedFormGroup): Observable<IdentityListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
-      return this.http.post<IdentityListModel>("../api/em/security/get-users", model);
+      return this.http.post<IdentityListModel>("../api/em/security/get-users", model).pipe(
+         this.previewError());
    }
 
    getGroups(authenticationForm: UntypedFormGroup): Observable<IdentityListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
-      return this.http.post<IdentityListModel>("../api/em/security/get-groups", model);
+      return this.http.post<IdentityListModel>("../api/em/security/get-groups", model).pipe(
+         this.previewError());
    }
 
    getOrganizations(authenticationForm: UntypedFormGroup): Observable<IdentityListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
-      return this.http.post<IdentityListModel>("../api/em/security/get-organizations", model);
+      return this.http.post<IdentityListModel>("../api/em/security/get-organizations", model).pipe(
+         this.previewError());
    }
 
    getRoles(authenticationForm: UntypedFormGroup): Observable<IdentityListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
-      return this.http.post<IdentityListModel>("../api/em/security/get-roles", model);
+      return this.http.post<IdentityListModel>("../api/em/security/get-roles", model).pipe(
+         this.previewError());
    }
 
    getDefaultOrganization(): Observable<string> {
@@ -182,7 +195,9 @@ export class SecurityProviderService {
    getAdminRoles(currentRolesString: string, authenticationForm: UntypedFormGroup, isSysAdmin: boolean): Observable<any> {
       const model = this.getAuthenticationModel(authenticationForm);
       return this.http.post<IdentityListModel>("../api/em/security/get-roles", model).pipe(
-         catchError(() => observableOf(<IdentityListModel> {ids: []})),
+         // the roles list stays empty, but the reason is shown rather than hidden
+         catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(
+            error, this.previewErrMsg, () => observableOf(<IdentityListModel> {ids: []}))),
          switchMap(rolesModel => this.openSystemAdminDialog(this.parseAdminRoles(currentRolesString), rolesModel.ids, isSysAdmin)),
          map(rolesList => this.formatAdminRolesString(rolesList))
       );
@@ -232,25 +247,25 @@ export class SecurityProviderService {
    getUserEmails(authenticationForm: UntypedFormGroup, userName: IdentityId): Observable<IdentityListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
       return this.http.post<IdentityListModel>(
-         "../api/em/security/get-user-emails/" + encodeURIComponent(convertToKey(userName)), model);
+         "../api/em/security/get-user-emails/" + encodeURIComponent(convertToKey(userName)), model).pipe(this.previewError());
    }
 
    getUserRoles(authenticationForm: UntypedFormGroup, userName: IdentityId): Observable<IdentityListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
       return this.http.post<IdentityListModel>(
-         "../api/em/security/get-roles/" + encodeURIComponent(convertToKey(userName)), model);
+         "../api/em/security/get-roles/" + encodeURIComponent(convertToKey(userName)), model).pipe(this.previewError());
    }
 
    getAllUserRoles(authenticationForm: UntypedFormGroup): Observable<UserRoleListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
       return this.http.post<UserRoleListModel>(
-         "../api/em/security/get-user-roles", model);
+         "../api/em/security/get-user-roles", model).pipe(this.previewError());
    }
 
    getGroupUsers(authenticationForm: UntypedFormGroup, group: IdentityId): Observable<IdentityListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
       return this.http.post<IdentityListModel>(
-         "../api/em/security/group/users/" + encodeURIComponent(convertToKey(group)), model);
+         "../api/em/security/group/users/" + encodeURIComponent(convertToKey(group)), model).pipe(this.previewError());
    }
 
    getOrganizationName(authenticationForm: UntypedFormGroup, organization: string): Observable<string> {
@@ -260,7 +275,8 @@ export class SecurityProviderService {
 
    getOrganizationMembers(authenticationForm: UntypedFormGroup, organization: string): Observable<IdentityListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
-      return this.http.post<IdentityListModel>("../api/em/security/organization-members/" + organization, model);
+      return this.http.post<IdentityListModel>("../api/em/security/organization-members/" + organization, model)
+         .pipe(this.previewError());
    }
 
    private showInputQueryParmasDialog(paramName: string,

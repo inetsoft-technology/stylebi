@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.graph;
 
+import inetsoft.graph.EGraph;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphtDataSelector;
 import inetsoft.report.composition.graph.VGraphPair;
@@ -44,7 +45,8 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -65,14 +67,16 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * <p>Besides the Change it checks, from the days the condition list keeps, that each period's
  * Value total is the sum of that period's days and that the periods are consecutive, so a row
  * lost from a period cannot hide behind a skipped Change. Two kinds of result are not judged
- * and are in Bug #79061: a part the previous period lacks (finding 4) and the empty chart of
- * two early End Dates (finding 5), and one quarter missing between others (finding 6).
+ * here: a part the previous period lacks (its Change is the whole value, see
+ * changeOfAPartTheEarlierPeriodLacksIsTheValue()), and the empty chart and missing quarter of
+ * To Date by Week with an early End Date (Bug #79347).
  * Everything else must have rows, and the share of rows not judged is bounded.</p>
  *
  * <p>Combinations: every shape at the datatest End Date; the shapes that use weeks also at
  * 2021-01-02 and with Monday weeks; one shape of each kind with toDate + inclusive and Percent;
  * the Week-period shapes at the two daylight saving End Dates (they need the surefire zone
- * America/New_York).</p>
+ * America/New_York); the SAMPLE shapes also with Change + Value and Percent + Value, which plot
+ * the value as well as the Change from the same data set.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
@@ -80,18 +84,13 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
                                   DcInMemoryViewsheetFixture.Config.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class DateComparisonChangeMatrixTest {
    private static final String[] DST_END_DAYS = { "2021-03-14", "2021-11-07" };
    /** The largest share of rows whose part the previous period lacks (small charts have a few). */
    private static final double MAX_UNJUDGED = 0.5;
    private static final LocalDate FROM = LocalDate.of(2017, 1, 1);
    private static final LocalDate TO = LocalDate.of(2022, 1, 1);
-
-   /** One shape of each kind of period / interval / context, for the toDate + inclusive and Percent runs. */
-   private static final Set<String> SAMPLE = Set.of(
-      "Y-all-gM", "Y-ytd-gW-cY", "Y-sameW-gD-cQ", "Y-sameD-gD-cM", "Q-qtd-gM-cQ", "Q-mtd-gW-cM",
-      "M-wtd-gW-cM", "M-all-gD", "W-wtd-gD-cW", "D-all-gD");
 
    private record Case(DcShape shape, String weekStart, String endDay, boolean toDate,
                        boolean inclusive, int option)
@@ -100,16 +99,26 @@ class DateComparisonChangeMatrixTest {
       public String toString() {
          return shape.id() + " " + weekStart + " end=" + endDay +
             (toDate ? " toDate" : "") + (inclusive ? " incl" : "") +
-            (option == DateComparisonInfo.PERCENT ? " percent" : " change");
+            (percent() ? " percent" : " change") + (valuePlus() ? "+value" : "");
       }
 
-      /** Bug #79061 finding 5: these give a chart without a row. */
+      boolean percent() {
+         return option == DateComparisonInfo.PERCENT || option == DateComparisonInfo.PERCENT_VALUE;
+      }
+
+      /** Change and value together: the value is plotted too, the Change on top of it. */
+      boolean valuePlus() {
+         return option == DateComparisonInfo.CHANGE_VALUE ||
+            option == DateComparisonInfo.PERCENT_VALUE;
+      }
+
+      /** Bug #79347: these give a chart without a row. */
       boolean knownEmpty() {
          return "2021-01-02".equals(endDay) && !toDate &&
             ("Q-qtd-gW-cQ".equals(shape.id()) || "Q-mtd-gW-cQ".equals(shape.id()));
       }
 
-      /** Bug #79061 finding 6: a whole quarter between others has no row. */
+      /** Bug #79347: a whole quarter between others has no row. */
       boolean knownGap() {
          return "Q-mtd-gW-cM".equals(shape.id()) && "sunday".equals(weekStart) &&
             "2021-01-02".equals(endDay);
@@ -148,11 +157,17 @@ class DateComparisonChangeMatrixTest {
             }
          }
 
-         if(SAMPLE.contains(shape.id())) {
+         if(DcShape.SAMPLE.contains(shape.id())) {
             cases.add(new Case(shape, "sunday", "2021-11-10", true, true,
                                DateComparisonInfo.CHANGE));
             cases.add(new Case(shape, "sunday", "2021-11-10", false, false,
                                DateComparisonInfo.PERCENT));
+
+            // Change and Percent together with the value
+            cases.add(new Case(shape, "sunday", "2021-11-10", false, false,
+                               DateComparisonInfo.CHANGE_VALUE));
+            cases.add(new Case(shape, "sunday", "2021-11-10", false, false,
+                               DateComparisonInfo.PERCENT_VALUE));
          }
       }
 
@@ -191,7 +206,7 @@ class DateComparisonChangeMatrixTest {
     * 2021-01-02) leaves the chart without a single row, for both first days of week.
     */
    @Test
-   @Disabled("Bug #79061 (finding 5): Quarter to Date / Month to Date by Week with an early End Date gives an empty chart")
+   @Disabled("Bug #79347: Quarter to Date / Month to Date by Week with an early End Date gives an empty chart")
    void weekToDateWithAnEndDateInTheFirstDaysHasData() {
       for(String shapeId : new String[] { "Q-qtd-gW-cQ", "Q-mtd-gW-cQ" }) {
          for(String ws : new String[] { "sunday", "monday" }) {
@@ -207,25 +222,28 @@ class DateComparisonChangeMatrixTest {
    /**
     * Compare All by day, Year periods: 2020 has a day 366 and 2019 has none. The product's
     * Change for that day is its whole value (the missing 2019 value counts as 0); the matrix
-    * does not judge such rows. Is empty intended there?
+    * does not judge such rows. The earlier period has the row with an empty value, and
+    * ChangeColumn counts an empty earlier value as 0, as for any empty part.
     */
    @Test
-   @Disabled("Bug #79061 (finding 4): Change of a part the earlier period lacks is the whole value, not empty - dev to decide")
-   void changeOfAPartTheEarlierPeriodLacksIsEmpty() {
+   void changeOfAPartTheEarlierPeriodLacksIsTheValue() {
       Case c = new Case(DcShape.byId("Y-all-gD"), "sunday", "2021-11-10", false, false,
                         DateComparisonInfo.CHANGE);
       DataSet data = withWeekStart(c, () -> data(c));
       int columns = data.getColCount();
+      Object value = null;
       Object change = "no row";
 
       for(int r = 0; r < data.getRowCount(); r++) {
          // day 366 of 2020, the only one with a value
          if(Integer.valueOf(366).equals(data.getData(0, r)) && data.getData(columns - 2, r) != null) {
+            value = data.getData(columns - 2, r);
             change = data.getData(columns - 1, r);
          }
       }
 
-      assertNull(change);
+      assertNotNull(value, "no value on day 366");
+      assertEquals(((Number) value).doubleValue(), ((Number) change).doubleValue(), 1e-9);
    }
 
    private <T> T withWeekStart(Case c, Callable<T> action) {
@@ -247,6 +265,19 @@ class DateComparisonChangeMatrixTest {
    private VGraphPair pair(Case c) throws Exception {
       return fixture.chart(c.info(), XConstants.YEAR_DATE_GROUP, FROM, TO,
                            DcInMemoryViewsheetFixture::dayValue);
+   }
+
+   /** The variables the graph plots, element by element, in order. */
+   private static List<String> plottedVars(EGraph graph) {
+      List<String> vars = new ArrayList<>();
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         for(int v = 0; v < graph.getElement(i).getVarCount(); v++) {
+            vars.add(graph.getElement(i).getVar(v));
+         }
+      }
+
+      return vars;
    }
 
    /** What is wrong with the chart of a case; empty when it is as expected. */
@@ -293,6 +324,19 @@ class DateComparisonChangeMatrixTest {
       Map<String, Integer> rows = new HashMap<>();
       TreeMap<Long, Double> totals = new TreeMap<>();
       List<String> problems = new ArrayList<>();
+
+      // Change alone plots the Change; with the value, the value is plotted too and the Change
+      // on top of it, from the same data set
+      List<String> plotted = plottedVars(pair.getEGraph());
+      List<String> expectedPlotted = c.valuePlus() ?
+         List.of(data.getHeader(valueCol), data.getHeader(changeCol)) :
+         List.of(data.getHeader(changeCol));
+
+      if(!plotted.equals(expectedPlotted)) {
+         problems.add("plots " + plotted + ", expected " + expectedPlotted +
+                      " (the order matters: the value, then the Change)");
+      }
+
       long[] periodOf = new long[data.getRowCount()];
       String[] partOf = new String[data.getRowCount()];
 
@@ -343,7 +387,7 @@ class DateComparisonChangeMatrixTest {
          }
       }
 
-      boolean percent = c.option() == DateComparisonInfo.PERCENT;
+      boolean percent = c.percent();
       int judged = 0;
       int unjudged = 0;
 
@@ -356,8 +400,8 @@ class DateComparisonChangeMatrixTest {
 
          // A part the previous period does not have (day 366 after a common year, day 31 after
          // a 30-day month, week 53): the product's Change is the whole value, as if the previous
-         // were 0. Whether that or empty is intended is open (Bug #79061, finding 4), so these
-         // rows are not judged; see changeOfAPartTheEarlierPeriodLacksIsEmpty().
+         // were 0 (ChangeColumn counts an empty earlier value as 0). These rows are not judged
+         // here; see changeOfAPartTheEarlierPeriodLacksIsTheValue().
          if(previous == null && totals.containsKey(periodOf[r] - 1)) {
             unjudged++;
             continue;

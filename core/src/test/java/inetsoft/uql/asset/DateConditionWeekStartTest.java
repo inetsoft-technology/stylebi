@@ -135,13 +135,12 @@ public class DateConditionWeekStartTest {
       return cal.get(Calendar.DAY_OF_WEEK);
    }
 
-   // calendar days, not 24h blocks: a window crossing a DST change is 23h/25h long that day
    private static long daysBetween(Date start, Date end) {
-      return ChronoUnit.DAYS.between(toLocalDate(start), toLocalDate(end));
-   }
-
-   private static LocalDate toLocalDate(Date date) {
-      return Instant.ofEpochMilli(date.getTime()).atZone(ZoneId.systemDefault()).toLocalDate();
+      // count local calendar days, not 24h blocks: a window spanning a DST change is 23/25h longer
+      ZoneId zone = ZoneId.systemDefault();
+      LocalDate from = Instant.ofEpochMilli(start.getTime()).atZone(zone).toLocalDate();
+      LocalDate to = Instant.ofEpochMilli(end.getTime()).atZone(zone).toLocalDate();
+      return ChronoUnit.DAYS.between(from, to);
    }
 
    /**

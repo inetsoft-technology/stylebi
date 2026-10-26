@@ -32,7 +32,6 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -76,7 +75,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class DateComparisonRangeMatrixTest {
    private static final String SHAPES_SNAPSHOT = "inetsoft/uql/viewsheet/internal/dc-matrix/dc-shapes.txt";
    private static final String[] WEEK_STARTS = { "sunday", "monday" };
@@ -178,10 +177,6 @@ class DateComparisonRangeMatrixTest {
                         continue;
                      }
 
-                     if(knownGap(shape, weekStart, end, inclusive, change)) {
-                        continue;
-                     }
-
                      String message = WeekStartUtil.withWeekStart(weekStart, () -> {
                         LocalDate endDay = LocalDate.parse(end);
                         Set<LocalDate> model = DcModel.expected(shape, endDay, inclusive, change, 2);
@@ -198,16 +193,9 @@ class DateComparisonRangeMatrixTest {
                            return null;
                         }
 
-                        Set<LocalDate> missing = new TreeSet<>(model);
-                        missing.removeAll(kept);
-                        Set<LocalDate> extra = new TreeSet<>(kept);
-                        extra.removeAll(model);
-
-                        return shape + " " + weekStart + " end=" + end + (inclusive ? " incl" : "") +
-                           (change ? " change" : "") + ": missing " + missing.size() +
-                           (missing.isEmpty() ? "" : " from " + ((TreeSet<LocalDate>) missing).first()) +
-                           ", extra " + extra.size() +
-                           (extra.isEmpty() ? "" : " from " + ((TreeSet<LocalDate>) extra).first());
+                        return shape + " " + weekStart + " end=" + end +
+                           (inclusive ? " incl" : "") + (change ? " change" : "") + ": " +
+                           DcModel.difference(model, kept);
                      });
 
                      if(message == null) {
@@ -229,37 +217,11 @@ class DateComparisonRangeMatrixTest {
    }
 
    /**
-    * Combinations where the product differs from the wording of the dialog and the difference is
-    * a finding of Bug #79061, so the model test leaves them out until it is decided:
-    * <ul>
-    *   <li>finding 2: Same Day by Week, End Date Saturday 2021-01-02, current period included;</li>
-    *   <li>finding 7: a week that starts in a period and ends in the next one loses its days
-    *   there. Same Day by Week of a Year, Quarter or Month period drops the weekday when it
-    *   falls in the next period; Week to Date / Same Week of a quarter drops a whole week whose
-    *   to-date part crosses the quarter end (Change at 2021-01-02, Monday weeks).</li>
-    * </ul>
-    */
-   private static boolean knownGap(DcShape shape, String weekStart, String end, boolean inclusive,
-                                   boolean change)
-   {
-      boolean sameDayByWeek = shape.intervalUnit() == XConstants.DAY_DATE_GROUP &&
-         shape.contextLevel() == XConstants.WEEK_DATE_GROUP;
-
-      return sameDayByWeek && "2021-01-02".equals(end) && inclusive ||
-         sameDayByWeek && shape.periodLevel() != XConstants.WEEK_DATE_GROUP ||
-         shape.periodLevel() == XConstants.YEAR_DATE_GROUP &&
-            shape.intervalUnit() == XConstants.WEEK_DATE_GROUP &&
-            shape.contextLevel() == XConstants.QUARTER_DATE_GROUP &&
-            "monday".equals(weekStart) && "2021-01-02".equals(end) && change;
-   }
-
-   /**
     * The weekday of a week that starts in the period is kept even when it falls in the next
     * period: the week Sunday 2019-12-29 to 2020-01-04 is a 2019 week, so Wednesday 2020-01-01 is
     * the Wednesday of its last week, as Compare All by Week takes the whole week.
     */
    @Test
-   @Disabled("Bug #79061 (finding 7): a week that starts in a period loses its days in the next period")
    void sameWeekdayOfAWeekThatStartsInThePeriodIsKept() {
       DcShape shape = DcShape.byId("Y-sameD-gD-cW");
       List<LocalDate> kept = WeekStartUtil.withWeekStart("sunday", () -> DcDays.kept(
@@ -362,16 +324,14 @@ class DateComparisonRangeMatrixTest {
 
    /**
     * "Week to Date for Same Week of Each Year As Of" a Wednesday in the week of 2021-11-07.
-    * By full weeks of the year that is week 45, so 2019-11-10..13 and 2020-11-08..11; the
-    * product matches the same week of the month instead (the 'wy' encoding): 2019-11-03..06 and
-    * 2020-11-01..04. Which one is intended?
+    * The same week of the same month is matched, not the week of the year (#63990): the week of
+    * 2021-11-10 is the first full week of November, so 2019-11-03..06 and 2020-11-01..04.
     */
    @Test
-   @Disabled("Bug #79061 (finding 3): Year / Week to Date / Week matches week of month, not week of year - dev to decide")
-   void yearWeekToDateMatchesTheSameWeekOfYear() {
+   void yearWeekToDateMatchesTheSameWeekOfMonth() {
       DcShape shape = DcShape.byId("Y-wtd-gW-cY");
 
-      assertEquals("2019=2019-11-10..2019-11-13/4d, 2020=2020-11-08..2020-11-11/4d",
+      assertEquals("2019=2019-11-03..2019-11-06/4d, 2020=2020-11-01..2020-11-04/4d",
                    WeekStartUtil.withWeekStart("sunday", () -> anchorPeriods(
                       shape, variant("2021-11-10", false, false))));
    }
@@ -382,7 +342,6 @@ class DateComparisonRangeMatrixTest {
     * the product returns the two previous weeks only.
     */
    @Test
-   @Disabled("Bug #79061 (finding 2): Same Day / Week misses the End Date's own week when it is a Saturday")
    void sameDayKeepsTheEndDatesOwnWeek() {
       DcShape shape = DcShape.byId("W-sameD-gD-cW");
 
@@ -614,7 +573,6 @@ class DateComparisonRangeMatrixTest {
     * every day of the data.
     */
    @Test
-   @Disabled("Bug #79061 (finding 1): a one-day Custom Period is dropped")
    void customOneDayPeriodKeepsThatDay() {
       String[][] ranges = { { "2021-05-05", "2021-05-05" } };
 
