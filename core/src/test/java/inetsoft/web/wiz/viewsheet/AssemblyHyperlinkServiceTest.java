@@ -1283,6 +1283,8 @@ class AssemblyHyperlinkServiceTest {
                     thrown.getMessage());
          verify(h.links, never()).setHyperlinkDialogModel(anyString(), anyString(), any(),
                                                           anyString(), any(Principal.class), any());
+         // Bug #79324: refused before mutate, so no undo checkpoint is opened
+         verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
       }
    }
 

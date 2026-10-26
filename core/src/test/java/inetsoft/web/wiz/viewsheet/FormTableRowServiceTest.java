@@ -684,6 +684,16 @@ class FormTableRowServiceTest {
       verify(h.forms).deleteRows(eq("rt1"), any(), eq(""), any(), any());
    }
 
+   /** Bug #79324: a refused set_cell is decided before mutate, so it opens no undo checkpoint. */
+   @Test
+   void setCellRefusalOpensNoCheckpoint() throws Exception {
+      Harness h = threeRowHarness();
+
+      assertRefused(h, () -> h.service.setCell("tok", principal(), "Table1", 99, 0, "x", ""),
+                    "'row' 99");
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
    @Test
    void setCellRefusesOutOfRangeRowOrColumn() {
       Harness h = threeRowHarness();
@@ -795,7 +805,7 @@ class FormTableRowServiceTest {
    // ── fixtures ──────────────────────────────────────────────────────────────
 
    private record Harness(FormTableRowService service, VSFormTableService forms,
-                          CapturingCommandDispatcher dispatcher) {}
+                          CapturingCommandDispatcher dispatcher, ViewsheetSessionService sessions) {}
 
    private static TableVSAssembly tableWith(boolean form, boolean insert, boolean del,
                                             boolean writeBack)
@@ -878,6 +888,7 @@ class FormTableRowServiceTest {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
       try {
+         when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
             mutation.run(rvs, "rt1", dispatcher);
@@ -888,7 +899,7 @@ class FormTableRowServiceTest {
          throw new IllegalStateException(e);
       }
 
-      return new Harness(new FormTableRowService(sessions, forms), forms, dispatcher);
+      return new Harness(new FormTableRowService(sessions, forms), forms, dispatcher, sessions);
    }
 
    private static ViewsheetSandbox sandboxWith(FormTableLens lens) {

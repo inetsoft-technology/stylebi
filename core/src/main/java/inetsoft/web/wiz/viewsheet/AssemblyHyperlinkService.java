@@ -213,6 +213,12 @@ public class AssemblyHyperlinkService {
       // silently drop (wrong linkType, or a name matching no VSBookmarkInfo) is refused instead.
       requireValidBookmark(type, link, assetId, user);
 
+      // Refuse before mutate(): a refused call inside it still costs an undo step and a revision.
+      // Checked again inside the mutation in case the assembly changed in between.
+      if(!"none".equals(type)) {
+         requireHyperlinkable(sessions.resolve(sessionToken, user), assemblyName);
+      }
+
       CellLinkScope[] scope = new CellLinkScope[1];
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          if(!"none".equals(type)) {
