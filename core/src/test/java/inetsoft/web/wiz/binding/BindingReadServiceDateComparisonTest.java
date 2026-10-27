@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.calc.ChangeCalcInfo;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.AssemblyBinding;
 import inetsoft.web.wiz.binding.model.FieldRef;
@@ -93,7 +94,7 @@ class BindingReadServiceDateComparisonTest {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
 
-      AssemblyBinding result = new BindingReadService(binding).read(rvs, "Chart1");
+      AssemblyBinding result = new BindingReadService(binding, mock(DataRefModelFactoryService.class)).read(rvs, "Chart1");
 
       assertEquals(1, result.shelves().get("y").size(), "the design y shelf is unchanged");
       assertNotNull(result.dateComparisonSeries(), "the comparison series must be reported");
