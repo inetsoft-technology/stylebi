@@ -891,6 +891,12 @@ public class ValueOfColumn extends AbstractColumn {
          }
 
          if(ctype != ValueOfCalc.PREVIOUS_RANGE) {
+            // a non-date target (e.g. a part-date level) has no previous date; blank
+            // the cell as the chart branch does instead of throwing in getPreviousDate
+            if(value != null && !"".equals(value) && !(value instanceof Date)) {
+               return INVALID;
+            }
+
             return getPreviousDate(value);
          }
          else {
