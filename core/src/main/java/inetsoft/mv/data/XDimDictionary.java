@@ -1053,14 +1053,17 @@ public class XDimDictionary extends XSwappable implements Cloneable {
          String val = toString(getValue(i));
 
          if(val != null && matcher.apply(val, value)) {
-            vals.add(0, i);
+            vals.add(i);
          }
       }
 
-      Object[] rvals = new Object[vals.size()];
+      // matches are returned in descending index order; append then read backwards
+      // instead of inserting at the head, which is quadratic for many matches
+      int size = vals.size();
+      Object[] rvals = new Object[size];
 
-      for(int i = 0; i < vals.size(); i++) {
-         rvals[i] = "" + vals.get(i);
+      for(int i = 0; i < size; i++) {
+         rvals[i] = "" + vals.get(size - 1 - i);
       }
 
       return rvals;
