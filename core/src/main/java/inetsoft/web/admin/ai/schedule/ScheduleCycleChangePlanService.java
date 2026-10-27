@@ -153,7 +153,7 @@ public class ScheduleCycleChangePlanService {
             label + ".spec.name: a scheduled cycle named \"" + name + "\" already exists");
       }
 
-      ScheduleConditionConverter.requireKnownTimeRanges(
+      ScheduleConditionConverter.refuseTimeRanges(
          label + ".spec.conditions", change.spec().conditions());
       ScheduleConditionConverter.requireKnownTimeZones(
          label + ".spec.conditions", change.spec().conditions());
@@ -219,7 +219,7 @@ public class ScheduleCycleChangePlanService {
       }
 
       if(spec.conditions() != null) {
-         ScheduleConditionConverter.requireKnownTimeRanges(
+         ScheduleConditionConverter.refuseTimeRanges(
             label + ".spec.conditions", spec.conditions());
          ScheduleConditionConverter.requireKnownTimeZones(
             label + ".spec.conditions", spec.conditions());
