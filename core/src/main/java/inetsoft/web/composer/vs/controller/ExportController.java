@@ -197,16 +197,6 @@ public class ExportController {
       boolean exportEnabled = securityEngine.checkPermission(
          principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export", ResourceAction.READ);
 
-      if(!previewPrintLayout && !exportEnabled) {
-         LOG.error(
-            "Failed to export viewsheet since {} have no permission for viewsheet export.",
-            principal.getName());
-         IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
-         String user = identityID != null ? identityID.getName() : principal.getName();
-         throw new MessageException(Catalog.getCatalog().getString(
-            "viewer.viewsheet.exporting.failed", user), LogLevel.INFO, false);
-      }
-
       //if there is an outtype param, its value overrides the format value
       if(type != null) {
          format = VSExportService.getFormatNumberFromExtension(type);
@@ -214,6 +204,17 @@ public class ExportController {
          if(format == FileFormatInfo.EXPORT_TYPE_CSV) {
             match = false;
          }
+      }
+
+      // the print preview flag only exempts a PDF export from the Export action (Bug #79412)
+      if(!VSExportService.isExportAllowed(exportEnabled, previewPrintLayout, format)) {
+         LOG.error(
+            "Failed to export viewsheet since {} have no permission for viewsheet export.",
+            principal.getName());
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
+         String user = identityID != null ? identityID.getName() : principal.getName();
+         throw new MessageException(Catalog.getCatalog().getString(
+            "viewer.viewsheet.exporting.failed", user), LogLevel.INFO, false);
       }
 
       AssetEntry entry = exportService.getPathAssetEntry(path, principal);

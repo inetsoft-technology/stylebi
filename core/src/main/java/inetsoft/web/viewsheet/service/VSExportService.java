@@ -130,16 +130,6 @@ public class VSExportService {
       boolean exportEnabled = securityEngine.checkPermission(
          req.principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export", ResourceAction.READ);
 
-      if(!req.previewPrintLayout && !exportEnabled) {
-         LOG.error(
-            "Failed to export viewsheet since {} have no permission for viewsheet export.",
-            req.principal.getName());
-         IdentityID identityID = IdentityID.getIdentityIDFromKey(req.principal.getName());
-         String user = identityID != null ? identityID.getName() : req.principal.getName();
-         throw new MessageException(Catalog.getCatalog().getString(
-            "viewer.viewsheet.exporting.failed", user), LogLevel.INFO, false);
-      }
-
       //if there is an outtype param, its value overrides the format value
       if(req.type != null) {
          format = getFormatNumberFromExtension(req.type);
@@ -147,6 +137,16 @@ public class VSExportService {
          if(format == FileFormatInfo.EXPORT_TYPE_CSV) {
             match = false;
          }
+      }
+
+      if(!isExportAllowed(exportEnabled, req.previewPrintLayout, format)) {
+         LOG.error(
+            "Failed to export viewsheet since {} have no permission for viewsheet export.",
+            req.principal.getName());
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(req.principal.getName());
+         String user = identityID != null ? identityID.getName() : req.principal.getName();
+         throw new MessageException(Catalog.getCatalog().getString(
+            "viewer.viewsheet.exporting.failed", user), LogLevel.INFO, false);
       }
 
       RuntimeViewsheet rvs;
@@ -964,6 +964,18 @@ public class VSExportService {
       }
 
       return sandbox;
+   }
+
+   /**
+    * Whether a viewsheet export may proceed. The Export toolbar action is required, except
+    * that the print preview flag exempts a PDF export (the viewer Print button and the
+    * composer print layout preview send only the default PDF format). Any other effective
+    * format (after the outtype override) needs Export even when the flag is set.
+    */
+   public static boolean isExportAllowed(boolean exportEnabled, boolean previewPrintLayout,
+                                         int format)
+   {
+      return exportEnabled || previewPrintLayout && format == FileFormatInfo.EXPORT_TYPE_PDF;
    }
 
    public static int getFormatNumberFromExtension(String ext) {
