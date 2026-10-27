@@ -409,8 +409,13 @@ public class PageLayout implements Serializable, Cloneable {
          Color oc = g.getColor();
 
          g.setColor(getColor());
-         Common.drawLine(g, (float) (getX1() * xs), (float) (getY1() * ys),
-            (float) (getX2() * xs), (float) (getY2() * ys), getStyle());
+
+         // a zero-width stroke is a 1px hairline, so skip the line itself when
+         // the style is None (arrows are still drawn, as in the viewer)
+         if(getStyle() != StyleConstants.NO_BORDER) {
+            Common.drawLine(g, (float) (getX1() * xs), (float) (getY1() * ys),
+               (float) (getX2() * xs), (float) (getY2() * ys), getStyle());
+         }
 
          if(isArrow) {
             Graphics2D g2 = (Graphics2D) g.create();
@@ -1117,8 +1122,12 @@ public class PageLayout implements Serializable, Cloneable {
          }
 
          g.setColor(getColor());
-         g.drawOval((int) (getX() * xs), (int) (getY() * ys),
-            (int) (getWidth() * xs), (int) (getHeight() * ys));
+
+         // no outline when the style is None
+         if(getStyle() != StyleConstants.NO_BORDER) {
+            g.drawOval((int) (getX() * xs), (int) (getY() * ys),
+               (int) (getWidth() * xs), (int) (getHeight() * ys));
+         }
          g.setColor(oc);
       }
 
