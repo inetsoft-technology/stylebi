@@ -3785,10 +3785,12 @@ class TableBindingServiceTest {
    void relaysTheDegeneratePercentWarningFromAShapeChangingWrite() throws Exception {
       CrosstabBindingModel existing = new CrosstabBindingModel();
       TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region"), dim("Year")));
+      // built by the real read-back ctor, which pairs the legacy percentage with a PercentCalcInfo
+      inetsoft.uql.viewsheet.VSAggregateRef ref = new inetsoft.uql.viewsheet.VSAggregateRef();
+      ref.setColumnValue("Total");
+      ref.setPercentageOptionValue("1");
       inetsoft.web.binding.model.BAggregateRefModel agg =
-         new inetsoft.web.binding.model.BAggregateRefModel();
-      agg.setColumnValue("Total");
-      agg.setPercentage("1");
+         new inetsoft.web.binding.model.BAggregateRefModel(ref);
       existing.setAggregates(List.of(agg));
 
       Viewsheet vs = mock(Viewsheet.class);
