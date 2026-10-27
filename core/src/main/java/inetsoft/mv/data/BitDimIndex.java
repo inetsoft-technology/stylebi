@@ -154,11 +154,14 @@ public final class BitDimIndex extends XDimIndex {
 
       res = res == null ? new BitSet() : res;
       tinfo.result = res;
+      // publish only after the result is computed, so a concurrent identical range never
+      // sees an entry without a result and a failed computation leaves nothing behind
+      publish(tinfo);
       return res;
    }
 
    /**
-    * Find cached range info.
+    * Find cached range info. Only completed entries (with a result) are in the cache.
     */
    private RangeInfo find(RangeInfo info) {
       lock.lock();
@@ -170,9 +173,28 @@ public final class BitDimIndex extends XDimIndex {
             }
          }
 
+         return null;
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Add a completed range info to the cache, unless an identical one was added meanwhile.
+    */
+   private void publish(RangeInfo info) {
+      lock.lock();
+
+      try {
+         for(int i = 0; i < ranges.length; i++) {
+            if(info.equals(ranges[i])) {
+               return;
+            }
+         }
+
          rangepos = rangepos == ranges.length - 1 ? 0 : rangepos + 1;
          ranges[rangepos] = info;
-         return null;
       }
       finally {
          lock.unlock();
