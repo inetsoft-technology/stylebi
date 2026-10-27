@@ -1113,21 +1113,49 @@ public class PageLayout implements Serializable, Cloneable {
             (int) (getX() * xs), (int) (getY() * ys),
             (int) (getWidth() * xs), (int) (getHeight() * ys)));
 
+         int style = getStyle();
+         int x = (int) (getX() * xs);
+         int y = (int) (getY() * ys);
+         int w = (int) (getWidth() * xs);
+         int h = (int) (getHeight() * ys);
+         // a thick outline is inset so it stays inside the box, as in VSOval. the
+         // double line's outer ring is on the box edge, so it has no inset
+         int gap = style == StyleConstants.DOUBLE_LINE ?
+            0 : Math.max((int) GTool.getLineWidth(style) - 1, 0);
+
          if(fill != null) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.translate((int) (getX() + xs), (int) (getY() * ys));
             g2.setPaint(fill);
-            g2.fillOval(0, 0, (int) (getWidth() * xs), (int) (getHeight() * ys));
+            // fill the same ellipse the outline strokes, see VSOval.drawBackground()
+            g2.fillOval(gap, gap, w - 2 * gap, h - 2 * gap);
             g2.dispose();
          }
 
          g.setColor(getColor());
 
          // no outline when the style is None
-         if(getStyle() != StyleConstants.NO_BORDER) {
-            g.drawOval((int) (getX() * xs), (int) (getY() * ys),
-               (int) (getWidth() * xs), (int) (getHeight() * ys));
+         if(style != StyleConstants.NO_BORDER) {
+            // stroke a copy so the line style does not leak into later shapes
+            Graphics2D g2 = (Graphics2D) g.create();
+
+            try {
+               // same outline as VSOval.paintShape()
+               if(style == StyleConstants.DOUBLE_LINE) {
+                  g2.setStroke(GTool.getStroke(StyleConstants.THIN_LINE));
+                  g2.drawOval(x, y, w, h);
+                  g2.drawOval(x + 2, y + 2, w - 4, h - 4);
+               }
+               else {
+                  g2.setStroke(GTool.getStroke(style));
+                  g2.drawOval(x + gap, y + gap, w - 2 * gap, h - 2 * gap);
+               }
+            }
+            finally {
+               g2.dispose();
+            }
          }
+
          g.setColor(oc);
       }
 
