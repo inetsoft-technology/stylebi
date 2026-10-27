@@ -360,6 +360,27 @@ public abstract class TabularQuery extends XQuery {
    }
 
    /**
+    * How many seconds the connector's per-query timeout allowed before it cancelled this query's
+    * last execution, or 0 if that execution was not cut off by a timeout.
+    *
+    * <p>The same kind of slot as {@link #getResponseShape}, on the same terms: core defines it,
+    * only a connector fills it (the REST connectors, via {@code AbstractRestRuntime}), it describes
+    * ONE EXECUTION so {@link #clone()} clears it and {@code TabularHandler.execute} copies it back
+    * across the clone, and it is never written to XML. It is the EFFECTIVE limit, which for a REST
+    * query with lookup queries is the configured timeout multiplied by {@code lookups * 2 + 1}.
+    * A cancelled preview otherwise returns an empty table with only a thread-local user message to
+    * say why, which a caller cannot tell apart from other failures without matching localized
+    * text.</p>
+    */
+   public int getTimedOutSeconds() {
+      return timedOutSeconds;
+   }
+
+   public void setTimedOutSeconds(int timedOutSeconds) {
+      this.timedOutSeconds = timedOutSeconds;
+   }
+
+   /**
     * Whether {@link #getResponseShape} was cut off by a cap rather than completed.
     */
    public boolean isResponseShapeTruncated() {
@@ -460,6 +481,7 @@ public abstract class TabularQuery extends XQuery {
       // data, so a clone inheriting them would report one execution's data as another's.
       copy.sampleRows = null;
       copy.sampleRowsTruncated = false;
+      copy.timedOutSeconds = 0;
 
       return copy;
    }
@@ -482,6 +504,8 @@ public abstract class TabularQuery extends XQuery {
     */
    private List<?> sampleRows;
    private boolean sampleRowsTruncated;
+   /** See {@link #getTimedOutSeconds}. Cleared by {@link #clone()}. */
+   private int timedOutSeconds;
    /**
     * See {@link #getSampleRowLimit}. Deliberately NOT cleared by {@link #clone()} — it is the
     * caller's request rather than an execution's result, and the clone is what executes.
