@@ -212,6 +212,28 @@ class VSUtilSyncCrosstabAggregateCarryTest {
       assertFalse(map.containsKey(path("Discount")), "pruned: Discount is no longer bound");
    }
 
+   /** The rule is aggregate-only: a row dimension replaced in the same slot still carries. */
+   @Test
+   void replacingADimensionInTheSameSlotStillCarriesItsSetting() {
+      CrosstabVSAssembly old = crosstab(aggs(sum("Total")));
+      CrosstabVSAssembly next = crosstab(aggs(sum("Total")));
+      VSCrosstabInfo ninfo = next.getVSCrosstabInfo();
+      ninfo.setDesignRowHeaders(new DataRef[] { dim("Country") });
+      ninfo.setRuntimeRowHeaders(new DataRef[] { dim("Country") });
+      ((VSDimensionRef) ninfo.getRuntimeRowHeaders()[0]).setRuntimeID(1);
+
+      Map<TableDataPath, Object> map = new HashMap<>();
+      map.put(new TableDataPath(-1, TableDataPath.SUMMARY, XSchema.DOUBLE,
+                                new String[] { "Region", "Category", "Total" }), "T-FMT");
+      VSUtil.syncCrosstabPath(next, (CrosstabVSAssemblyInfo) old.getInfo(), false, map, false,
+                              false, null);
+
+      assertEquals("T-FMT",
+                   map.get(new TableDataPath(-1, TableDataPath.SUMMARY, XSchema.DOUBLE,
+                                             new String[] { "Country", "Category", "Total" })),
+                   "dimension carry is unchanged by the aggregate rule");
+   }
+
    // -- fixture --
 
    private Map<TableDataPath, Object> sync(DataRef[] oldAggs, DataRef[] newAggs,
