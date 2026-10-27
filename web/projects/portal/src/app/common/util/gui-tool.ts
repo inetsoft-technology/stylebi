@@ -862,7 +862,17 @@ export class GuiTool {
          }
       }
 
-      elem.innerHTML = labels.join("<br>");
+      // labels are names, not markup: use text nodes so they cannot inject HTML
+      elem.textContent = "";
+
+      labels.forEach((label, i) => {
+         if(i > 0) {
+            elem.appendChild(document.createElement("br"));
+         }
+
+         elem.appendChild(document.createTextNode(label ?? ""));
+      });
+
       return elem;
    }
 
