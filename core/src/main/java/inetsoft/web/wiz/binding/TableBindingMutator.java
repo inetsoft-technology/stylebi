@@ -1155,6 +1155,15 @@ public final class TableBindingMutator {
             }
          }
 
+         // The legacy percentage was copied from the match above; once the calculator is final,
+         // a nonzero value with no PercentCalcInfo is stale (the factory persists NONE for it) and
+         // would still make isPercent warn about a percent that is gone (bug #79453).
+         if(!(ref.getCalculateInfo() instanceof
+            inetsoft.web.binding.model.graph.calc.PercentCalcInfo))
+         {
+            ref.setPercentage("0");
+         }
+
          out.add(ref);
       }
 
