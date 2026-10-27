@@ -212,4 +212,25 @@ class DegeneratePercentWarningTest {
       assertNull(TableBindingMutator.degeneratePercentWarning(model));
       assertEquals("0", model.getAggregates().get(0).getPercentage());
    }
+
+   /** The read-back ctor pairs the legacy percentage with a PercentCalcInfo, so a write that
+    *  names no calculator keeps both and the Bug 78909 warning still fires. */
+   @ParameterizedTest
+   @ValueSource(strings = { "1", "2" })
+   void aRealReadBackPercentAggregateKeepsItsWarningThroughAnUntouchedWrite(String percentage) {
+      inetsoft.uql.viewsheet.VSAggregateRef ref = new inetsoft.uql.viewsheet.VSAggregateRef();
+      ref.setColumnValue("Total");
+      ref.setFormulaValue("Sum");
+      ref.setPercentageOptionValue(percentage);
+      BAggregateRefModel agg = new BAggregateRefModel(ref);
+      assertTrue(agg.getCalculateInfo() instanceof PercentCalcInfo);
+      CrosstabBindingModel model = crosstab(null, true, false, agg);
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null)));
+
+      assertEquals(percentage, model.getAggregates().get(0).getPercentage());
+      assertNotNull(TableBindingMutator.degeneratePercentWarning(model));
+      TableBindingMutator.drainNotes();
+   }
 }
