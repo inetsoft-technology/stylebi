@@ -6496,6 +6496,7 @@ public final class VSUtil {
       syncGroupHeader(ocinfo, cinfo, dimNameMap, removed, added, synMap);
 
       if(hasRuntimeRowHeader(ocinfo)) {
+         syncSoleAggregateHeader(ocinfo, cinfo, removed, added, synMap, fromSetInput);
          syncSummaryHeader(ocinfo, cinfo, aggNameMap, dimNameMap, removed, added, synMap, fromSetInput);
          syncSummaryCell(ocinfo, cinfo, aggNameMap, dimNameMap, removed, added, synMap,
             clearFormats, fromSetInput);
@@ -6738,6 +6739,77 @@ public final class VSUtil {
             remove.add(tp);
             V fmt = synMap.get(tp);
             add.put(ntp, fmt);
+         }
+      }
+   }
+
+   /**
+    * Carry a header setting (label format, highlight, hyperlink) of the only aggregate of a crosstab
+    * that has no column dimension to the header paths it has once a second aggregate is added.
+    * With one aggregate the header cell path is the one-segment [agg]; with two or more it is
+    * [row dims..., agg] (detail and each subtotal level) and [ROW_GRAND_TOTAL, agg], which
+    * syncSummaryHeader never produces from a one-segment path. Only the 1 to 2+ direction is
+    * handled. An aggregate is carried only if the same name is still bound (no runtime ID
+    * fallback, so a replaced measure does not inherit the old measure's setting).
+    */
+   private static <V> void syncSoleAggregateHeader(VSCrosstabInfo ocinfo, VSCrosstabInfo cinfo,
+                                                   Collection<TableDataPath> remove,
+                                                   Map<TableDataPath, V> add,
+                                                   Map<TableDataPath, V> synMap,
+                                                   boolean fromSetInput)
+   {
+      DataRef[] oaggs = ocinfo.getRuntimeAggregates();
+      DataRef[] aggs = cinfo.getRuntimeAggregates();
+      DataRef[] orows = ocinfo.getRuntimeRowHeaders();
+      DataRef[] rows = cinfo.getRuntimeRowHeaders();
+      DataRef[] ocols = ocinfo.getRuntimeColHeaders();
+      DataRef[] cols = cinfo.getRuntimeColHeaders();
+
+      if(oaggs == null || aggs == null || oaggs.length != 1 || aggs.length < 2 ||
+         rows == null || rows.length == 0 || orows == null ||
+         ocols != null && ocols.length > 0 || cols != null && cols.length > 0 ||
+         ocinfo.isSummarySideBySide() || cinfo.isSummarySideBySide())
+      {
+         return;
+      }
+
+      String[] dims = buildNames(cinfo, false);
+      List<String> names = Arrays.asList(buildNames(cinfo, true));
+      String oagg = buildNames(ocinfo, true)[0];
+
+      if(!names.contains(oagg)) {
+         return;
+      }
+
+      for(TableDataPath tp : new ArrayList<>(synMap.keySet())) {
+         String[] arr = tp.getPath();
+
+         if(arr == null || arr.length != 1 || !oagg.equals(arr[0]) ||
+            tp.getType() != TableDataPath.HEADER && tp.getType() != TableDataPath.GROUP_HEADER)
+         {
+            continue;
+         }
+
+         V obj = synMap.get(tp);
+         List<String[]> paths = new ArrayList<>();
+
+         // detail level and each subtotal level
+         for(int i = rows.length; i >= 1; i--) {
+            String[] path = Arrays.copyOf(dims, i + 1);
+            path[i] = oagg;
+            paths.add(path);
+         }
+
+         paths.add(new String[] { "ROW_GRAND_TOTAL", oagg });
+
+         for(String[] path : paths) {
+            TableDataPath ntp = (TableDataPath) tp.clone(path);
+
+            if(!fromSetInput || synMap.get(ntp) == null) {
+               // each key gets its own format object, as later edits are made in place
+               add.put(ntp, obj instanceof VSCompositeFormat ?
+                  (V) ((VSCompositeFormat) obj).clone() : obj);
+            }
          }
       }
    }
