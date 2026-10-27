@@ -2539,8 +2539,12 @@ public class AssemblyPropertyService {
    // Assembly classes whose name does not strip to their registry key. The Composer calls
    // CurrentSelectionVSAssembly a "Selection Container", and the registry and bindings key it that
    // way; stripping VSAssembly would yield "currentselection", which nothing registers.
+   // EmbeddedTableVSAssembly extends TableVSAssembly and is edited through the same Table
+   // property dialog, so it shares the Table vocabulary and bindings; stripping VSAssembly would
+   // yield "embeddedtable", which PropertyAliases does not cover.
    private static final Map<String, String> TYPE_OVERRIDES =
-      Map.of("CurrentSelectionVSAssembly", "SelectionContainer");
+      Map.of("CurrentSelectionVSAssembly", "SelectionContainer",
+             "EmbeddedTableVSAssembly", "Table");
 
    private String typeOf(RuntimeViewsheet rvs, String assemblyName) {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
