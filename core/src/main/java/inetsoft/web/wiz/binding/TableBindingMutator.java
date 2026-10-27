@@ -19,6 +19,12 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.web.composer.vs.dialog.HideColumnsDialogService;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.drm.AttributeRefModel;
@@ -1382,6 +1388,112 @@ public final class TableBindingMutator {
       }
 
       return formula + "(" + column + ")";
+   }
+
+   /**
+    * Marks each {@code details} shelf {@link FieldRef} with whether its column currently renders,
+    * per {@link TableVSAssemblyInfo#getHiddenColumns()} -- the read side of {@link
+    * #setFieldVisibility}. {@code get_table_binding} was blind to this state before (see
+    * bug-76807): {@link #read} only ever reads {@code
+    * TableBindingModel.getDetails()}, which has no visibility concept of its own.
+    *
+    * <p>A hidden column is <em>absent</em> from {@code details} to begin with -- {@link
+    * TableBindingModel}'s constructor builds it only from {@link
+    * TableVSAssembly#getColumnSelection()}, the shown side, disjoint by construction from {@code
+    * getHiddenColumns()}. So this does not just re-mark the existing list: it merges in every
+    * hidden column {@code details} is missing, at the position {@link
+    * HideColumnsDialogService#getOrderedColumns} recorded for it. Without this merge a hidden
+    * field vanishes from {@code get_table_binding} instead of reporting {@code visible: false}
+    * -- the exact silent-disappearance class of bug bug-76807 exists to close, just reopened on
+    * the read side.
+    *
+    * <p>The resulting {@code details} index is the column's slot in the <em>full</em> (shown and
+    * hidden) order, and {@code addField}'s {@code position} on a Table reads the same order, so
+    * an index read here and written back names the same slot. Hidden positions are absolute
+    * indexes into that order: they are re-stamped by {@code addField} and {@code removeField} but not
+    * when shown columns are reordered, inserted or removed by other writes, so a column shown again later may land beside a
+    * different neighbour than the one it was hidden next to.
+    */
+   static void enrichTableVisibility(TableVSAssembly table,
+                                     Map<String, List<FieldRef>> shelfFields,
+                                     DataRefModelFactoryService refModelService)
+   {
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      ColumnSelection hiddenCols = info.getHiddenColumns();
+      Set<String> hidden = new HashSet<>();
+      Enumeration<DataRef> refs = hiddenCols.getAttributes();
+
+      while(refs.hasMoreElements()) {
+         DataRef href = refs.nextElement();
+         hidden.add(refKey(href));
+      }
+
+      List<FieldRef> details = shelfFields.get("details");
+      List<FieldRef> enriched = details == null ? new ArrayList<>() : new ArrayList<>(details);
+      Set<String> present = new HashSet<>();
+
+      for(int i = 0; i < enriched.size(); i++) {
+         FieldRef field = enriched.get(i);
+         present.add(field.column());
+         enriched.set(i, field.withVisible(!hidden.contains(field.column())));
+      }
+
+      Map<String, FieldRef> hiddenFields = new LinkedHashMap<>();
+      Enumeration<DataRef> hiddenRefs = hiddenCols.getAttributes();
+
+      while(hiddenRefs.hasMoreElements()) {
+         DataRef ref = hiddenRefs.nextElement();
+
+         if(present.contains(refKey(ref))) {
+            continue;
+         }
+
+         ColumnRef col = (ColumnRef) ref.clone();
+         col.setApplyingAlias(false);
+         ColumnRefModel model = (ColumnRefModel) refModelService.createDataRefModel(col);
+         hiddenFields.put(refKey(ref),
+                          fieldOf(model, "details").withVisible(false));
+      }
+
+      // a hidden column reads back at the position it will return to when shown
+      List<FieldRef> ordered = new ArrayList<>();
+      Map<String, FieldRef> byName = new HashMap<>();
+
+      for(FieldRef field : enriched) {
+         byName.put(field.column(), field);
+      }
+
+      for(DataRef ref : HideColumnsDialogService.getOrderedColumns(info.getColumnSelection(),
+                                                                   hiddenCols))
+      {
+         FieldRef field = byName.remove(refKey(ref));
+
+         if(field == null) {
+            field = hiddenFields.remove(refKey(ref));
+         }
+
+         if(field != null) {
+            ordered.add(field);
+         }
+      }
+
+      for(FieldRef field : enriched) {
+         if(byName.containsKey(field.column())) {
+            ordered.add(field);
+         }
+      }
+
+      ordered.addAll(hiddenFields.values());
+      shelfFields.put("details", ordered);
+   }
+
+   /**
+    * The key {@link FieldRef#column()} reports a Table column under: the column's own name,
+    * entity-qualified when it has an entity, never its alias.
+    */
+   static String refKey(DataRef ref) {
+      return ref instanceof ColumnRef column && column.getDataRef() != null
+         ? column.getDataRef().getName() : ref.getName();
    }
 
    static FieldRef fieldOf(DataRefModel ref, String shelf) {
