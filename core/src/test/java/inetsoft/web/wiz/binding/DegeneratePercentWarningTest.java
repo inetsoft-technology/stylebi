@@ -199,4 +199,17 @@ class DegeneratePercentWarningTest {
 
       assertNotNull(TableBindingMutator.degeneratePercentWarning(model));
    }
+
+   /** A legacy percentage with no calculator at all is not a percent once the shelf is rewritten. */
+   @Test
+   void legacyPercentageWithoutACalculatorIsZeroedByAShelfWrite() {
+      CrosstabBindingModel model = crosstab(null, true, false, percentByOption("2"));
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null)));
+
+      assertNull(model.getAggregates().get(0).getCalculateInfo());
+      assertNull(TableBindingMutator.degeneratePercentWarning(model));
+      assertEquals("0", model.getAggregates().get(0).getPercentage());
+   }
 }
