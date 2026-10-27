@@ -192,4 +192,72 @@ class VSBookmarkServiceOwnerTest {
       verify(rvs, never()).setDefaultBookmark(any());
       verify(rvs, never()).editBookmark(anyString(), anyString(), anyInt(), anyBoolean());
    }
+
+   // ---- legit flows must still pass the owner check (glue between request and rule)
+
+   private VSEditBookmarkEvent request(IdentityID owner, int type) {
+      VSBookmarkInfoModel model = VSBookmarkInfoModel.builder()
+         .name("bm").owner(owner).type(type).readOnly(false).build();
+      return ImmutableVSEditBookmarkEvent.builder()
+         .vsBookmarkInfoModel(model).oldName("bm").confirmed(false).build();
+   }
+
+   /** Run the goto handler and tell whether the owner check rejected it. */
+   private boolean gotoRejected(VSBookmarkService svc, VSEditBookmarkEvent event) {
+      CommandDispatcher d = mock(CommandDispatcher.class);
+
+      try {
+         svc.gotoBookmark("rid", event, bob, d, null);
+      }
+      catch(Exception ignore) {
+         // the mocked runtime viewsheet is too thin to load the bookmark; only the check matters
+      }
+
+      String denied = inetsoft.util.Catalog.getCatalog().getString("common.noPermission");
+      return mockingDetails(d).getInvocations().stream().anyMatch(inv ->
+         inv.getArguments().length > 0 && inv.getArguments()[0] instanceof MessageCommand &&
+         denied.equals(((MessageCommand) inv.getArguments()[0]).getMessage()));
+   }
+
+   @Test
+   void sharedBookmarksAndOwnBookmarksPassTheCheck() {
+      when(rvs.getBookmarks(BOB)).thenReturn(java.util.List.of(
+         new VSBookmarkInfo("bm", VSBookmarkInfo.ALLSHARE, ALICE, false, 0L)));
+
+      assertFalse(gotoRejected(service, request(ALICE, VSBookmarkInfo.ALLSHARE)));
+      assertFalse(gotoRejected(service, request(BOB, VSBookmarkInfo.PRIVATE)));
+      assertFalse(gotoRejected(service, request(null, VSBookmarkInfo.PRIVATE)));
+      assertFalse(gotoRejected(service, request(new IdentityID("", ""), VSBookmarkInfo.PRIVATE)));
+   }
+
+   @Test
+   void groupShareDependsOnTheSameGroupAndTheOwnerOfTheListedBookmark() {
+      when(rvs.getBookmarks(BOB)).thenReturn(java.util.List.of(
+         new VSBookmarkInfo("bm", VSBookmarkInfo.GROUPSHARE, ALICE, false, 0L)));
+
+      when(rvs.isSameGroup(ALICE, BOB)).thenReturn(true);
+      assertFalse(gotoRejected(service, request(ALICE, VSBookmarkInfo.GROUPSHARE)));
+
+      when(rvs.isSameGroup(ALICE, BOB)).thenReturn(false);
+      assertTrue(gotoRejected(service, request(ALICE, VSBookmarkInfo.GROUPSHARE)));
+
+      // a bookmark of the same name owned by someone else does not unlock this owner's
+      assertTrue(gotoRejected(service, request(new IdentityID("carol", ORG),
+                                               VSBookmarkInfo.ALLSHARE)));
+   }
+
+   @Test
+   void securityOffAnonymousOwnerIsTheCaller() throws Exception {
+      SecurityEngine off = mock(SecurityEngine.class);
+      when(off.isSecurityEnabled()).thenReturn(false);
+      VSObjectService objectService = mock(VSObjectService.class);
+      when(objectService.getRuntimeViewsheet(anyString(), any())).thenReturn(rvs);
+      VSBookmarkService svc = new VSBookmarkService(
+         objectService, null, off, scheduleManager, null, null);
+      SRPrincipal anon = new SRPrincipal(new IdentityID("anonymous", "host-org"));
+      bob = anon;
+
+      assertFalse(gotoRejected(svc, request(new IdentityID("anonymous", null),
+                                            VSBookmarkInfo.PRIVATE)));
+   }
 }
