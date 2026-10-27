@@ -187,6 +187,26 @@ class TabularHandlerTest {
       assertNull(original.getResponseShape(), "the original must not see the clone's execution");
    }
 
+   /**
+    * Bug #79438: the timeout a REST runner reports lands on the executed clone and is copied back
+    * by {@link TabularHandler#execute}, so the same two-sided invariant as the response shape holds:
+    * a clone must not arrive reporting the original's earlier timeout, and recording one on the
+    * clone must not reach the original before the copy-back.
+    */
+   @Test
+   void cloneDoesNotInheritTheOriginalsTimeoutAndRecordsItsOwn() {
+      TestTabularQuery original = new TestTabularQuery();
+      original.setTimedOutSeconds(7);
+
+      TabularQuery copy = original.clone();
+
+      assertEquals(0, copy.getTimedOutSeconds(), "a clone must not report a timeout it did not hit");
+      assertEquals(7, original.getTimedOutSeconds());
+
+      copy.setTimedOutSeconds(2);
+      assertEquals(7, original.getTimedOutSeconds(), "the original must not see the clone's run");
+   }
+
    private static Principal principal(String name, String orgID) {
       return new SRPrincipal(
          new IdentityID(name, orgID), new IdentityID[0], new String[0], orgID, 0L);
