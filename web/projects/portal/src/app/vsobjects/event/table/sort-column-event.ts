@@ -19,60 +19,61 @@ import {
    BaseTableEvent, BaseTableEventBuilder,
 } from "./base-table-event";
 
-export namespace SortColumnEvent {
-   class SortColumnEvent extends BaseTableEvent { // eslint-disable-line @typescript-eslint/no-shadow
-      constructor(assemblyName: string,
-                  private row: number, private col: number,
-                  private colName: string, private multi: boolean,
-                  private detail: boolean = false)
-      {
-         super(assemblyName);
-      }
+// A plain class rather than a namespace: esbuild emits a namespace's inner class as a class
+// declaration, and Vitest's module runner evaluates the base class of an imported class
+// declaration once at module load, before the lazily initialized BaseTableEvent exists.
+export class SortColumnEvent extends BaseTableEvent {
+   constructor(assemblyName: string,
+               private row: number, private col: number,
+               private colName: string, private multi: boolean,
+               private detail: boolean = false)
+   {
+      super(assemblyName);
    }
 
-   class SortColumnEventBuilder extends BaseTableEventBuilder {
-      private _row: number;
-      private _col: number;
-      private _colName: string;
-      private _multi: boolean;
-      private _detail: boolean;
-
-      constructor(assemblyName: string) {
-         super(assemblyName);
-      }
-
-      public row(value: number): this {
-         this._row = value;
-         return this;
-      }
-
-      public col(value: number): this {
-         this._col = value;
-         return this;
-      }
-
-      public colName(value: string): this {
-         this._colName = value;
-         return this;
-      }
-
-      public multi(value: boolean): this {
-         this._multi = value;
-         return this;
-      }
-
-      public detail(value: boolean): this {
-         this._detail = value;
-         return this;
-      }
-
-      public build(): SortColumnEvent {
-         return new SortColumnEvent(
-            this.assemblyName, this._row, this._col, this._colName, this._multi, this._detail);
-      }
-   }
-
-   export function builder(assemblyName: string): SortColumnEventBuilder {
+   public static builder(assemblyName: string): SortColumnEventBuilder {
       return new SortColumnEventBuilder(assemblyName);
+   }
+}
+
+class SortColumnEventBuilder extends BaseTableEventBuilder {
+   private _row: number;
+   private _col: number;
+   private _colName: string;
+   private _multi: boolean;
+   private _detail: boolean;
+
+   constructor(assemblyName: string) {
+      super(assemblyName);
+   }
+
+   public row(value: number): this {
+      this._row = value;
+      return this;
+   }
+
+   public col(value: number): this {
+      this._col = value;
+      return this;
+   }
+
+   public colName(value: string): this {
+      this._colName = value;
+      return this;
+   }
+
+   public multi(value: boolean): this {
+      this._multi = value;
+      return this;
+   }
+
+   public detail(value: boolean): this {
+      this._detail = value;
+      return this;
+   }
+
+   public build(): SortColumnEvent {
+      return new SortColumnEvent(
+         this.assemblyName, this._row, this._col, this._colName, this._multi, this._detail);
    }
 }

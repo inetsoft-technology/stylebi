@@ -142,7 +142,7 @@
           "options": {
             "buildTarget": "portal:build:development",
             "runner": "vitest",
-            "runnerConfig": true,
+            "runnerConfig": "vitest-tl.config.ts",
             "tsConfig": "projects/portal/tsconfig.spec-tl.json",
             "include": [
               "**/*.tl.spec.ts",
@@ -320,7 +320,7 @@
           "options": {
             "buildTarget": "em:build:development",
             "runner": "vitest",
-            "runnerConfig": true,
+            "runnerConfig": "vitest-tl.config.ts",
             "tsConfig": "projects/em/tsconfig.spec.json",
             "include": [
               "**/*.tl.spec.ts",
