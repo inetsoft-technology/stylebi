@@ -9623,6 +9623,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    // run view during export it.
    public static final ThreadLocal<Boolean> exportRefresh =
       ThreadLocal.withInitial(() -> Boolean.FALSE);
+   // a refresh that must keep the runtime values scripts and events wrote (the refresh a wiz
+   // script run triggers), but still reruns onLoad and recomputes the dependents. (79395)
+   public static final ThreadLocal<Boolean> keepRuntimeValuesRefresh =
+      ThreadLocal.withInitial(() -> Boolean.FALSE);
    private boolean refreshing = false;
    private final AssetEntry entry; // asset entry
    private Viewsheet vs; // current viewsheet

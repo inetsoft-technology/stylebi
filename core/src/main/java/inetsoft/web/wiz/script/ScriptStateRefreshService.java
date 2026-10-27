@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
@@ -55,6 +56,11 @@ import java.util.List;
  * <p>Both {@code execute} and {@code execute-live} are refreshed: neither runs against a clone,
  * so both have already changed the live runtime. The refresh re-runs the viewsheet's onLoad
  * script, so an onLoad that has side effects of its own runs again after the script.</p>
+ *
+ * <p>The refresh keeps the runtime values the script, or the input event an event-driven onLoad
+ * reacted to, wrote ({@link ViewsheetSandbox#keepRuntimeValuesRefresh}): the rerun onLoad has no
+ * event to write them again, and a script's own runtime write is not in the design at all
+ * (Bug #79395). onLoad still reruns and every dependent is still recomputed.</p>
  *
  * <p>The refresh adds no undo checkpoint, so a run that only wrote selection state still adds
  * none (Bug #79051). It runs on a capturing dispatcher, which transmits nothing; the controller's
@@ -136,6 +142,9 @@ public class ScriptStateRefreshService {
          }
       }
 
+      Boolean previous = ViewsheetSandbox.keepRuntimeValuesRefresh.get();
+      ViewsheetSandbox.keepRuntimeValuesRefresh.set(true);
+
       try {
          CapturingCommandDispatcher.withCapturingDispatcher(user, dispatcher -> {
             refreshService.refreshViewsheet(
@@ -145,6 +154,8 @@ public class ScriptStateRefreshService {
          });
       }
       finally {
+         ViewsheetSandbox.keepRuntimeValuesRefresh.set(previous);
+
          for(SelectionListVSAssembly list : applied) {
             list.setScriptSelectedValues(null);
          }

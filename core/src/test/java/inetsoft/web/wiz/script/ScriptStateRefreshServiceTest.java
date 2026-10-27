@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
@@ -143,6 +144,20 @@ class ScriptStateRefreshServiceTest {
       service.runAndRefresh(rvs, user, "", () -> OK);
 
       verify(refreshService).refreshViewsheet(any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void keepsRuntimeValuesDuringTheRefreshAndRestoresTheFlag() throws Exception {
+      AtomicBoolean during = new AtomicBoolean();
+      doAnswer(inv -> {
+         during.set(ViewsheetSandbox.keepRuntimeValuesRefresh.get());
+         throw new IllegalStateException("refresh failed");
+      }).when(refreshService).refreshViewsheet(any(), any(), any(), any(), any());
+
+      service.runAndRefresh(rvs, user, "", () -> OK);
+
+      assertTrue(during.get(), "the refresh must keep the script-written runtime values");
+      assertFalse(ViewsheetSandbox.keepRuntimeValuesRefresh.get(), "flag left set");
    }
 
    @Test
