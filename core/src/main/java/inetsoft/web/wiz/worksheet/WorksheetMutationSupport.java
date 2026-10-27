@@ -4299,15 +4299,18 @@ public final class WorksheetMutationSupport {
 
    /**
     * Sets the table's whole ranking condition list from {@code specs}, in order — the plural
-    * counterpart to {@link #setRanking}, for establishing more than one independent ranked
-    * field (e.g. top 3 customers by revenue AND top 3 employees by order count) in a single
-    * call. {@code null} or empty clears all ranking, matching {@code setRanking(t, null)}.
+    * counterpart to {@link #setRanking}. {@code null} or empty clears all ranking, matching
+    * {@code setRanking(t, null)}. Two or more entries are accepted only in the shape the engine
+    * evaluates (see {@link #checkMultipleRankingsEvaluable}): a grouped table with a different
+    * group column per entry, applied as a nested per-parent top-N, not as an intersection.
     */
    public static void setRankings(TableAssembly t, List<RankingSpec> specs) {
       if(specs == null || specs.isEmpty()) {
          t.setRankingConditionList(new ConditionList());
          return;
       }
+
+      checkMultipleRankingsEvaluable(t, specs);
 
       ConditionList cl = new ConditionList();
       boolean first = true;
@@ -4328,6 +4331,77 @@ public final class WorksheetMutationSupport {
       }
 
       t.setRankingConditionList(cl);
+   }
+
+   /**
+    * Refuses a list of two or more rankings that the query engine would not evaluate as
+    * written, before anything is mutated. The engine never intersects independent ranking
+    * conditions and never reads the stored junction: on an ungrouped table, or for an entry on
+    * an aggregate, it applies only the first entry; for two entries on one group column it keeps
+    * only the last. The one multi-entry shape that works is a different group column per entry,
+    * each with an {@code of} aggregate, which the grouped path applies as a nested per-parent
+    * top-N following the table's group order. Anything else would be stored and silently
+    * ignored, so it is refused. A single entry, or an empty list, is not checked.
+    * <p>
+    * Each {@code field} is resolved with {@link #resolveAggregateOrGroupField} and each
+    * {@code of} with {@code resolveField(t, of, true)}, the calls
+    * {@link #buildRankingConditionItem} stores them with, so the check sees what the engine will.
+    * Consequences: the view form of an aliased aggregate (e.g. {@code Sum(Q)} for an aggregate
+    * with an alias) is not an accepted {@code of}, and a group column named like an aggregate's
+    * base column resolves to the aggregate and is refused.
+    */
+   private static void checkMultipleRankingsEvaluable(TableAssembly t, List<RankingSpec> specs) {
+      if(specs.size() < 2) {
+         return;
+      }
+
+      String why = null;
+      AggregateInfo ainfo = t.getAggregateInfo();
+
+      if(ainfo == null || ainfo.getGroupCount() == 0) {
+         why = "the table is not grouped";
+      }
+      else {
+         Set<String> groups = new HashSet<>();
+
+         for(RankingSpec spec : specs) {
+            if(spec == null) {
+               why = "an entry is empty";
+               break;
+            }
+
+            DataRef field = resolveAggregateOrGroupField(t, spec.field());
+
+            if(!(field instanceof GroupRef)) {
+               why = "'" + spec.field() + "' is not a group column of this table";
+               break;
+            }
+
+            if(!groups.add(field.getName())) {
+               why = "group column '" + spec.field() + "' is ranked more than once";
+               break;
+            }
+
+            if(spec.of() == null || spec.of().isBlank()) {
+               why = "the ranking on '" + spec.field() + "' has no 'of' aggregate";
+               break;
+            }
+
+            if(!(resolveField(t, spec.of(), true) instanceof AggregateRef)) {
+               why = "'of' \"" + spec.of() + "\" is not an aggregate of this table";
+               break;
+            }
+         }
+      }
+
+      if(why != null) {
+         throw new IllegalArgumentException(
+            "set_rankings: more than one ranking is only supported on a grouped table with each " +
+            "ranking on a different group column and an 'of' aggregate (" + why + "). Rankings " +
+            "on the same group column, on an aggregate, on an ungrouped table, or without 'of' " +
+            "are not applied together - only one of them would take effect. Use one ranking, " +
+            "or rank different group columns.");
+      }
    }
 
    /**
