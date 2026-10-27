@@ -569,7 +569,10 @@ public class CoreLifecycleService {
          // clear out values set in onLoad/onInit
          // @by stephenwebster, For Bug #7758, I moved resetRuntimeValues before
          // scale to screen operations so scaled column widths would not get reset.
-         if(!exportRefresh) {
+         // the refresh after a wiz script run keeps the runtime values that script or the input
+         // event wrote, otherwise the rerun onLoad (without the event) cannot restore them (79395)
+         if(!exportRefresh && !Boolean.TRUE.equals(ViewsheetSandbox.keepRuntimeValuesRefresh.get()))
+         {
             VSUtil.resetRuntimeValues(sheet, false);
          }
 

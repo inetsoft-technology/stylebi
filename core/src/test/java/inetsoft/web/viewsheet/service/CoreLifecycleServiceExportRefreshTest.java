@@ -49,8 +49,11 @@ import inetsoft.util.ThreadContext;
 import inetsoft.util.XPortalHelper;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.wiz.pairing.TestPrincipals;
+import inetsoft.web.wiz.script.ScriptStateRefreshService;
+import inetsoft.web.wiz.script.model.ScriptExecResult;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.ObjectProvider;
@@ -68,6 +71,8 @@ import java.util.*;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -213,6 +218,77 @@ class CoreLifecycleServiceExportRefreshTest {
       assertEquals("none yet", f.live());
    }
 
+   /**
+    * Bug #79395: the refresh a wiz execute_script / run_script_live run triggers reset the
+    * runtime values and reran onLoad without the event, wiping the value the event had set.
+    */
+   @Test
+   void eventGuardedValueSurvivesScriptRefresh() throws Exception {
+      Fixture f = new Fixture(BUG, false);
+      f.input();
+      String expected = "Last changed: MeasurePicker (checkbox)";
+
+      for(int i = 1; i <= 2; i++) {
+         f.scriptRefresh(() -> {});
+         assertEquals(expected, f.live(), "live value after script refresh #" + i);
+      }
+
+      assertFalse(ViewsheetSandbox.keepRuntimeValuesRefresh.get(), "flag left set");
+      assertEquals(expected, f.export().stream().filter(t -> t.startsWith("LastChangeLine="))
+                      .findFirst().orElseThrow().substring("LastChangeLine=".length()));
+   }
+
+   /** A runtime value the executed script itself wrote is not in the design and must stay. */
+   @Test
+   void scriptOwnWriteSurvivesScriptRefresh() throws Exception {
+      Fixture f = new Fixture(BUG, false);
+      f.scriptRefresh(() -> ((TextVSAssemblyInfo) f.vs.getAssembly("LastChangeLine")
+         .getVSAssemblyInfo()).setText("written by script"));
+      assertEquals("written by script", f.live());
+   }
+
+   /** onLoad still reruns (without the event) so selection-dependent output can update. */
+   @Test
+   void onLoadStillRerunsOnScriptRefresh() throws Exception {
+      Fixture f = new Fixture("LastChangeLine.text = LastChangeLine.text + '+';", false);
+      f.input();
+      assertEquals("none yet++", f.live());
+
+      f.scriptRefresh(() -> {});
+      assertEquals("none yet+++", f.live());
+   }
+
+   /**
+    * Documents the trade-off of keeping runtime values (Bug #79395): an onLoad that writes only
+    * under a condition (no else) leaves its earlier output in place when a script makes the
+    * condition false, because the refresh no longer resets it to the design value. An onLoad
+    * that writes in every branch recomputes, and the next real viewer refresh still resets.
+    */
+   @Test
+   void conditionalOnLoadOutputIsNotResetByScriptRefresh() throws Exception {
+      Fixture f = new Fixture(
+         "if(ControlText.text == 'on') { LastChangeLine.text = 'on-output'; }", false);
+      f.setText("ControlText", "on");
+      f.scriptRefresh(() -> {});
+      assertEquals("on-output", f.live());
+
+      f.scriptRefresh(() -> f.setText("ControlText", "off"));
+      assertEquals("on-output", f.live(), "stale: no else branch, and no reset");
+
+      f.refresh(false);
+      assertEquals("none yet", f.live(), "a user refresh still resets");
+   }
+
+   /** The pre-existing user refresh behaviour is unchanged when the keep flag is not set. */
+   @Test
+   void scriptRefreshFlagDoesNotLeakIntoUserRefresh() throws Exception {
+      Fixture f = new Fixture(BUG, false);
+      f.input();
+      f.scriptRefresh(() -> {});
+      f.refresh(false);
+      assertEquals("none yet", f.live());
+   }
+
    private final class Fixture {
       Fixture(String onLoad, boolean withTable) throws Exception {
          Worksheet ws = withTable ? worksheet() : new Worksheet();
@@ -278,6 +354,24 @@ class CoreLifecycleServiceExportRefreshTest {
             }
 
             return null;
+         });
+      }
+
+      void setText(String name, String text) {
+         ((TextVSAssemblyInfo) vs.getAssembly(name).getVSAssemblyInfo()).setText(text);
+      }
+
+      /** What execute_script does: run, then the real post-script refresh. */
+      void scriptRefresh(Runnable run) throws Exception {
+         VSRefreshService refreshService = mock(VSRefreshService.class);
+         doAnswer(inv -> {
+            lifecycle.refreshViewsheet(rvs, rvs.getID(), null, inv.getArgument(3), false, true,
+                                       true, new ChangedAssemblyList());
+            return null;
+         }).when(refreshService).refreshViewsheet(any(), any(), any(), any(), any());
+         new ScriptStateRefreshService(refreshService).runAndRefresh(rvs, principal, "", () -> {
+            run.run();
+            return new ScriptExecResult(true, null, null, null, false, null, null, null);
          });
       }
 
