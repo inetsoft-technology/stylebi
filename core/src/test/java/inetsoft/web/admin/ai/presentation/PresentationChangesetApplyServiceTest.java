@@ -816,4 +816,38 @@ class PresentationChangesetApplyServiceTest {
       Object restoredFormats = state.get(stateKey(PresentationSubModel.FORMATS, false));
       assertEquals("MM/dd/yyyy", ((PresentationFormatsSettingsModel) restoredFormats).dateFormat());
    }
+
+   // ---------------------------------------------------------------- Bug #79429: swapped file bytes
+
+   private static ObjectNode logoSpec(String content) {
+      ObjectNode spec = obj().put("defaultLogo", false);
+      spec.putObject("logoFile").put("name", "qa-logo.png")
+         .put("content", Base64.getEncoder().encodeToString(content.getBytes()));
+      return spec;
+   }
+
+   @Test
+   void applyRefusesLogoBytesSwappedAfterPreview() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
+
+      // Preview with bytes A, apply with bytes B under A's hash and token.
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", logoSpec("reviewed-bytes")));
+      req.setChanges(List.of(change("lookAndFeel", "global", logoSpec("swapped-bytes"))));
+
+      assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
+                   () -> service.apply(req, user));
+      verify(access, never()).write(any(), any(), any(), anyBoolean());
+   }
+
+   @Test
+   void applyAcceptsTheSameLogoBytesItWasPreviewedWith() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
+      mockLookAndFeelRealWrite();
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", logoSpec("reviewed-bytes")));
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, service.apply(req, user).status());
+   }
 }

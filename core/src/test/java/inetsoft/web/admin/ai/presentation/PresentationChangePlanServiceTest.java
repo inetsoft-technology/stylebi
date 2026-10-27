@@ -829,4 +829,151 @@ class PresentationChangePlanServiceTest {
                     subModel.key() + " declares a secret field it does not have: " + secrets);
       }
    }
+
+   // ---------------------------------------------------------------- Bug #79429: file bytes are hashed
+
+   private String lafHash(String scope, ObjectNode spec) throws Exception {
+      stub(PresentationSubModel.LOOK_AND_FEEL, currentFor(PresentationSubModel.LOOK_AND_FEEL));
+      return service.resolve(request("t", change("lookAndFeel", scope, spec)), PRINCIPAL).planHash();
+   }
+
+   private static ObjectNode lafFileSpec(String field, String defaultField, String name,
+                                         String content)
+   {
+      ObjectNode spec = obj().put(defaultField, false);
+      spec.putObject(field).put("name", name).put("content", content);
+      return spec;
+   }
+
+   @Test
+   void lookAndFeelPlanHashCoversLogoAndFaviconContentAtBothScopes() throws Exception {
+      for(String scope : List.of("global", "organization")) {
+         assertNotEquals(
+            lafHash(scope, lafFileSpec("logoFile", "defaultLogo", "a.png", "QUJD")),
+            lafHash(scope, lafFileSpec("logoFile", "defaultLogo", "a.png", "REVG")), scope + " logo");
+         assertNotEquals(
+            lafHash(scope, lafFileSpec("faviconFile", "defaultFavicon", "a.ico", "QUJD")),
+            lafHash(scope, lafFileSpec("faviconFile", "defaultFavicon", "a.ico", "REVG")),
+            scope + " favicon");
+      }
+   }
+
+   @Test
+   void lookAndFeelPlanHashCoversViewsheetFileContentAtBothScopes() throws Exception {
+      for(String scope : List.of("global", "organization")) {
+         assertNotEquals(
+            lafHash(scope, lafFileSpec("viewsheetFile", "defaultViewsheet", "a.css", "QUJD")),
+            lafHash(scope, lafFileSpec("viewsheetFile", "defaultViewsheet", "a.css", "REVG")),
+            scope + " viewsheet");
+      }
+   }
+
+   @Test
+   void lookAndFeelPlanHashCoversUserformatContentAtGlobalScope() throws Exception {
+      assertNotEquals(
+         lafHash("global", obj().set("userformatFile",
+            obj().put("name", "u.xml").put("content", "QUJD"))),
+         lafHash("global", obj().set("userformatFile",
+            obj().put("name", "u.xml").put("content", "REVG"))));
+   }
+
+   @Test
+   void lookAndFeelUserformatIsNotWrittenAtOrganizationScopeSoItIsNotHashed() throws Exception {
+      // Pinned decision (Bug #79429): the write gate is global-scope only, so at organization scope
+      // the digest is "none" and two contents hash alike -- nothing would be written for either.
+      assertEquals(
+         lafHash("organization", obj().set("userformatFile",
+            obj().put("name", "u.xml").put("content", "QUJD"))),
+         lafHash("organization", obj().set("userformatFile",
+            obj().put("name", "u.xml").put("content", "REVG"))));
+   }
+
+   @Test
+   void lookAndFeelSameFileContentHashesTheSameTwice() throws Exception {
+      for(String scope : List.of("global", "organization")) {
+         assertEquals(
+            lafHash(scope, lafFileSpec("logoFile", "defaultLogo", "a.png", "QUJD")),
+            lafHash(scope, lafFileSpec("logoFile", "defaultLogo", "a.png", "QUJD")));
+         assertEquals(
+            lafHash(scope, lafFileSpec("viewsheetFile", "defaultViewsheet", "a.css", "QUJD")),
+            lafHash(scope, lafFileSpec("viewsheetFile", "defaultViewsheet", "a.css", "QUJD")));
+      }
+   }
+
+   @Test
+   void lookAndFeelSwappedFileFieldsHashDifferently() throws Exception {
+      // Same two byte strings, same projection (both names derive "portal/logo.png" and
+      // "portal/favicon.png" either way); only the hidden digest tells them apart.
+      ObjectNode a = obj().put("defaultLogo", false).put("defaultFavicon", false);
+      a.putObject("logoFile").put("name", "x.png").put("content", "QUJD");
+      a.putObject("faviconFile").put("name", "x.png").put("content", "REVG");
+      ObjectNode b = obj().put("defaultLogo", false).put("defaultFavicon", false);
+      b.putObject("logoFile").put("name", "x.png").put("content", "REVG");
+      b.putObject("faviconFile").put("name", "x.png").put("content", "QUJD");
+
+      assertNotEquals(lafHash("global", a), lafHash("global", b));
+   }
+
+   @Test
+   void lookAndFeelEmptyContentHashesDifferentlyFromNoFile() throws Exception {
+      // The write gate is "content != null", so "" is a real (empty) file that gets written.
+      assertNotEquals(
+         lafHash("global", lafFileSpec("logoFile", "defaultLogo", "a.png", "")),
+         lafHash("global", obj().put("defaultLogo", false)));
+   }
+
+   @Test
+   void lookAndFeelIneffectiveFilesAddNothingToTheHash() throws Exception {
+      // defaultLogo:true makes the write ignore logoFile, so it must hash like the same plan without it.
+      ObjectNode withFile = obj().put("defaultLogo", true);
+      withFile.putObject("logoFile").put("name", "a.png").put("content", "QUJD");
+      assertEquals(lafHash("global", withFile), lafHash("global", obj().put("defaultLogo", true)));
+
+      // Viewsheet at global scope: only the content is written (fixed name), so the name is not hashed.
+      assertEquals(
+         lafHash("global", lafFileSpec("viewsheetFile", "defaultViewsheet", "a.css", "QUJD")),
+         lafHash("global", lafFileSpec("viewsheetFile", "defaultViewsheet", "b.css", "QUJD")));
+   }
+
+   @Test
+   void lookAndFeelFileWithoutANameDoesNotBreakThePlan() throws Exception {
+      // A missing name is refused while the model is bound, as before; the digest must not turn it
+      // into a different failure.
+      ObjectNode spec = obj().put("defaultLogo", false);
+      spec.putObject("logoFile").put("content", "QUJD");
+      stub(PresentationSubModel.LOOK_AND_FEEL, currentFor(PresentationSubModel.LOOK_AND_FEEL));
+
+      assertThrows(IllegalArgumentException.class, () -> service.resolve(
+         request("t", change("lookAndFeel", "global", spec)), PRINCIPAL));
+   }
+
+   @Test
+   void lookAndFeelNewFontFaceBytesAreAlreadyHashedViaTheProjection() throws Exception {
+      // Pin: newFontFaces is not nulled by the read-back simulation, so its bytes are in the
+      // projection. If a future change nulls it, this fails and reopens the Bug #79429 hole.
+      assertNotEquals(lafHash("global", fontSpec("QUJD")), lafHash("global", fontSpec("REVG")));
+   }
+
+   private static ObjectNode fontSpec(String ttfContent) {
+      ObjectNode spec = obj().put("defaultFont", false);
+      ObjectNode font = spec.putArray("newFontFaces").addObject();
+      font.put("name", "F").put("identifier", "f");
+      font.putObject("ttf").put("name", "f.ttf").put("content", ttfContent);
+      return spec;
+   }
+
+   @Test
+   void nonFilePlanHashesAreUnchanged() throws Exception {
+      // Control: golden values captured from the build before Bug #79429, so a plan with no
+      // effective file hashes byte-identically.
+      assertEquals(LAF_EXPAND_GLOBAL_HASH, lafHash("global", obj().put("expand", true)));
+      stub(PresentationSubModel.FORMATS, currentFor(PresentationSubModel.FORMATS));
+      assertEquals(FORMATS_ORG_HASH, service.resolve(request("t", change("formats", "organization",
+         specFor(PresentationSubModel.FORMATS))), PRINCIPAL).planHash());
+   }
+
+   private static final String LAF_EXPAND_GLOBAL_HASH =
+      "195df86f0835a3d4bde496f4529ce47b814a60588aaa386fef3382537c1a950c";
+   private static final String FORMATS_ORG_HASH =
+      "eff0bc0a6d3a7ff7c294aa2f0cc7fcba4b2d8e4ca0c415d742a8bb5d007b33d3";
 }

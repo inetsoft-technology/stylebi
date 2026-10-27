@@ -89,7 +89,8 @@ public class PresentationChangesetApplyService {
          }
 
          String task = req.getTask().trim();
-         String currentHash = PresentationChangePlanService.hash(planChanges);
+         String currentHash = PresentationChangePlanService.hash(
+            planChanges, PresentationChangePlanService.hiddenInputs(resolved));
 
          if(req.getPlanHash() == null || !currentHash.equals(req.getPlanHash())) {
             // A 409 conflict response must never hand back a taskToken (see
