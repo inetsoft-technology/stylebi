@@ -7306,6 +7306,12 @@ public final class VSUtil {
             }
 
             if(oidx == nidx) {
+               // do not carry a path-keyed setting (format, highlight, hyperlink) onto a
+               // different measure that merely took over the slot (bug #79449)
+               if(isAgg && !isSameMeasure((VSAggregateRef) orefs[i], (VSAggregateRef) nrefs[j])) {
+                  continue;
+               }
+
                nmap.put(onames[i], nnames[j]);
 
                if(imap != null) {
@@ -7343,6 +7349,22 @@ public final class VSUtil {
       return isAgg && aggEquals ||
          !isAgg && Tool.equals(((VSDimensionRef) ref0).getFullName(),
             ((VSDimensionRef) ref1).getFullName());
+   }
+
+   /**
+    * Check if two aggregates are the same measure, i.e. they share the design column
+    * (and the secondary column of a two-column formula). The formula, caption and
+    * calculator are not compared. The design value is used instead of the runtime name so
+    * that a variable or script driven column still matches.
+    */
+   private static boolean isSameMeasure(VSAggregateRef oref, VSAggregateRef nref) {
+      return equalsOrEmpty(oref.getColumnValue(), nref.getColumnValue()) &&
+         equalsOrEmpty(oref.getSecondaryColumnValue(), nref.getSecondaryColumnValue());
+   }
+
+   // null and empty are both 'no column', e.g. the secondary column of a one-column formula
+   private static boolean equalsOrEmpty(String a, String b) {
+      return Tool.equals(a == null ? "" : a, b == null ? "" : b);
    }
 
    /**
