@@ -169,6 +169,104 @@ public final class BitDimIndex extends XDimIndex {
    }
 
    /**
+    * Get the bit set for the specified operation and values. A NOT IN list of several values is
+    * evaluated as (all rows) minus (rows of the listed keys) instead of one prefix/suffix OR
+    * chain per listed value.
+    */
+   @Override
+   public BitSet getRows(String op, long[] val, boolean not, boolean cnull) {
+      if(not && "IN".equals(op) && val != null && val.length > 1) {
+         BitSet res = getNotInRows(val, cnull);
+
+         if(res != null) {
+            return res;
+         }
+      }
+
+      return super.getRows(op, val, not, cnull);
+   }
+
+   /**
+    * Rows whose key is none of vals, with exactly the result of AND-ing, per value, the rows
+    * before it (from the first position that cnull does not skip) and the rows after it.
+    * Positions skipped by cnull (key 0 and anything below it) are only reachable through the
+    * "after" side, so they are kept only if their key is above every listed value.
+    *
+    * @return the rows, or null if the values are not plain int keys and the generic path
+    * must be used.
+    */
+   private BitSet getNotInRows(long[] vals, boolean cnull) {
+      long max = Long.MIN_VALUE;
+
+      for(long v : vals) {
+         // MIN_VALUE is the open-end marker of the range api
+         if(v != (int) v || v == Integer.MIN_VALUE) {
+            return null;
+         }
+
+         max = Math.max(max, v);
+      }
+
+      KeyRowEntry entry = accessKeyRow();
+      int[] keys = entry.keys;
+      BitSet[] rows = entry.rows;
+
+      if(keys.length == 0) {
+         return new BitSet();
+      }
+
+      int start = 0;
+
+      if(cnull) {
+         start = Arrays.binarySearch(keys, 0);
+         start = start >= 0 ? start + 1 : -start - 1;
+      }
+
+      BitSet excluded = null;
+
+      for(long v : vals) {
+         int idx = Arrays.binarySearch(keys, (int) v);
+
+         if(idx >= start) {
+            excluded = excluded == null ? rows[idx] : excluded.or(rows[idx]);
+         }
+      }
+
+      BitSet res = getAllRowsFrom(keys, rows, start, cnull);
+      res = excluded == null ? res : res.andNot(excluded);
+
+      for(int i = 0; i < start; i++) {
+         if(keys[i] > max) {
+            res = res.or(rows[i]);
+         }
+      }
+
+      return res;
+   }
+
+   /**
+    * Union of the rows of all keys from position start, cached per cnull since it only depends
+    * on the keys and rows.
+    */
+   private BitSet getAllRowsFrom(int[] keys, BitSet[] rows, int start, boolean cnull) {
+      AllRows cached = allRows[cnull ? 1 : 0];
+
+      if(cached != null && cached.keys == keys && cached.start == start) {
+         return cached.rows;
+      }
+
+      BitSet res = null;
+
+      for(int i = start; i < keys.length; i++) {
+         res = res == null ? rows[i] : res.or(rows[i]);
+      }
+
+      res = res == null ? new BitSet() : res;
+      allRows[cnull ? 1 : 0] = new AllRows(keys, start, res);
+      return res;
+   }
+
+   /**
     * Find cached range info. Only completed entries (with a result) are in the cache.
     */
    private RangeInfo find(RangeInfo info) {
@@ -302,6 +400,8 @@ public final class BitDimIndex extends XDimIndex {
    protected void swapped() {
       keys = null;
       rows = null;
+      allRows[0] = null;
+      allRows[1] = null;
    }
 
    /**
@@ -396,6 +496,22 @@ public final class BitDimIndex extends XDimIndex {
       return new KeyRowEntry(keys, rows);
    }
 
+   /**
+    * The union of all rows from a start position, valid for one keys array. A swap replaces
+    * the keys array, so a mismatch recomputes it.
+    */
+   private static final class AllRows {
+      public AllRows(int[] keys, int start, BitSet rows) {
+         this.keys = keys;
+         this.start = start;
+         this.rows = rows;
+      }
+
+      private final int[] keys;
+      private final int start;
+      private final BitSet rows;
+   }
+
    private static final class KeyRowEntry {
       public KeyRowEntry(int[] keys, BitSet[] rows) {
          this.keys = keys;
@@ -442,6 +558,8 @@ public final class BitDimIndex extends XDimIndex {
    private final RangeInfo[] ranges = new RangeInfo[12];
    private final Lock lock = new ReentrantLock();
    private int rangepos = -1;
+   // [cnull false, cnull true]; a slot is replaced whole, so a racing reader sees a full entry
+   private final AllRows[] allRows = new AllRows[2];
    private final Int2ObjectSortedMap<BitSet> cache;
    private int len = 0;
    private int[] keys;
