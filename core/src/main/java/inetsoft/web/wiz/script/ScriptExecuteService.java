@@ -309,11 +309,12 @@ public class ScriptExecuteService {
             "Use worksheet-chat's edit_expression/edit_condition tools on it instead.");
       };
 
-      // ASSEMBLY/ASSEMBLY_ONCLICK touch exactly the one named assembly. VS_INIT/VS_LOAD run with
-      // assemblyName == null and can write to any assembly in the sheet by name, so every
-      // assembly's scriptable is tracked -- each was already eagerly created and cached in the
-      // scope's own propmap when the sandbox initialized (ViewsheetScope#addProperties0), so
-      // this is a lookup, not a fresh instantiation with its own side effects.
+      // Every script location can write to any assembly in the sheet by name (an assembly script
+      // as well as VS_INIT/VS_LOAD, which run with assemblyName == null), and a write is recorded
+      // on the scriptable of the assembly written to, so every assembly's scriptable is tracked
+      // -- each was already eagerly created and cached in the scope's own propmap when the
+      // sandbox initialized (ViewsheetScope#addProperties0), so this is a lookup, not a fresh
+      // instantiation with its own side effects.
       Map<String, VSAScriptable> trackedScriptables = trackedScriptables(target, assemblyName, rvs, scope);
 
       for(VSAScriptable scriptable : trackedScriptables.values()) {
@@ -343,36 +344,41 @@ public class ScriptExecuteService {
          List<String> unrecognized = new ArrayList<>();
          List<String> rejected = new ArrayList<>();
 
-         // Sound only when exactly one assembly is tracked (ASSEMBLY/ASSEMBLY_ONCLICK): the
-         // script text is that one execution context's complete source, so "declared as a
-         // local anywhere in it" reliably means "this write is that local, not a real
-         // property write." For VS_INIT/VS_LOAD, several assemblies are tracked from the same
-         // shared script text, and a name being a local somewhere in it says nothing about
-         // which assembly's dotted write it landed on -- applying the filter there could hide
-         // a genuinely wrong Other.assembly.prop write that merely shares a bare name with an
-         // unrelated local. Left unfiltered for that case, same as before this fix.
+         boolean ownOnly = true;
+
+         // Sound only for the script's OWN assembly (ASSEMBLY/ASSEMBLY_ONCLICK): a script-local
+         // var/let/const lands on the root scope of the execution (BindingRootProxy#putMember,
+         // root = the scope passed to GraalJavaScriptEngine#exec), which is the own assembly's
+         // scriptable, so "declared as a local in the script text" reliably means "this write is
+         // that local". For any other assembly, or for VS_INIT/VS_LOAD where several assemblies
+         // are tracked from the same shared script text, a name being a local says nothing about
+         // which assembly's dotted write it landed on -- applying the filter there could hide a
+         // genuinely wrong Other.prop write that merely shares a bare name with an unrelated
+         // local.
          Set<String> declaredLocals = assemblyName != null ? declaredLocals(text) : Set.of();
 
          for(Map.Entry<String, VSAScriptable> entry : trackedScriptables.entrySet()) {
+            // The own assembly's writes are unambiguous from the message below, so stay bare;
+            // any other assembly's are qualified to avoid conflating e.g. two assemblies' own
+            // unrecognized "label".
+            boolean own = entry.getKey().equals(assemblyName);
+
             for(String name : entry.getValue().getUnrecognizedWrites()) {
                // A name the script itself declares via var/let/const is an ordinary script-local,
                // not a real assembly-property write, even though it reached this tracking (see
                // the DECLARATION_KEYWORD field comment above for why) -- exclude it.
-               if(declaredLocals.contains(name)) {
+               if(own && declaredLocals.contains(name)) {
                   continue;
                }
 
-               // ASSEMBLY/ASSEMBLY_ONCLICK already name the one assembly in the message below,
-               // so the bare property name is unambiguous there. VS_INIT/VS_LOAD can touch
-               // several different assemblies, so qualify with which one to avoid conflating
-               // e.g. two different assemblies' own unrecognized "label".
-               unrecognized.add(assemblyName != null ? name : entry.getKey() + "." + name);
+               unrecognized.add(own ? name : entry.getKey() + "." + name);
+               ownOnly &= own;
             }
 
             // Recognized properties (e.g. position/size) whose setter declined to apply the
             // value -- distinct from "unrecognized" above, which never even matched propmap.
             for(String name : entry.getValue().getRejectedWrites()) {
-               rejected.add(assemblyName != null ? name : entry.getKey() + "." + name);
+               rejected.add(own ? name : entry.getKey() + "." + name);
             }
          }
 
@@ -393,7 +399,7 @@ public class ScriptExecuteService {
                clauses.add("assigned " + unrecognized + " which " +
                   (unrecognized.size() == 1 ? "is not a recognized scriptable property" :
                      "are not recognized scriptable properties") +
-                  (assemblyName != null ? " for this assembly type (" +
+                  (assemblyName != null && ownOnly ? " for this assembly type (" +
                      assemblyTypeName(rvs, assemblyName) + ")" : "") + " — the value " +
                   (unrecognized.size() == 1 ? "was" : "were") + " NOT applied; " +
                   (unrecognized.size() == 1 ? "it" : "they") + " only became an ad hoc script " +
@@ -410,7 +416,8 @@ public class ScriptExecuteService {
 
             summary = "Executed " + target + ", but " + String.join("; and ", clauses) +
                ". Call get_script_context for " +
-               (assemblyName != null ? assemblyName + "'s" : "the named assembly's") +
+               (assemblyName != null && ownOnly ? assemblyName + "'s" :
+                  "the named assembly's") +
                " real scriptable properties, or use get_assembly_properties/update_binding if " +
                "you meant a different, non-scripted property.";
          }
@@ -438,16 +445,20 @@ public class ScriptExecuteService {
       ScriptTarget target, String assemblyName, RuntimeViewsheet rvs, ViewsheetScope scope)
    {
       if(target.location() == ScriptTarget.Location.ASSEMBLY ||
-         target.location() == ScriptTarget.Location.ASSEMBLY_ONCLICK)
-      {
-         VSAScriptable scriptable = scope.getVSAScriptable(assemblyName);
-         return scriptable != null ? Map.of(assemblyName, scriptable) : Map.of();
-      }
-
-      if(target.location() == ScriptTarget.Location.VS_INIT ||
+         target.location() == ScriptTarget.Location.ASSEMBLY_ONCLICK ||
+         target.location() == ScriptTarget.Location.VS_INIT ||
          target.location() == ScriptTarget.Location.VS_LOAD)
       {
          Map<String, VSAScriptable> tracked = new LinkedHashMap<>();
+
+         // the own assembly is always tracked, even if getAssemblies() does not list it
+         if(assemblyName != null) {
+            VSAScriptable own = scope.getVSAScriptable(assemblyName);
+
+            if(own != null) {
+               tracked.put(assemblyName, own);
+            }
+         }
 
          for(Assembly assembly : rvs.getViewsheet().getAssemblies()) {
             VSAScriptable scriptable = scope.getVSAScriptable(assembly.getName());
