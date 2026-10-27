@@ -21,10 +21,15 @@ import inetsoft.mv.MVDef;
 import inetsoft.mv.MVManager;
 import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.util.ThreadContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.security.Principal;
 import java.time.Duration;
+import java.util.concurrent.Callable;
 
 public class MVRule {
    /**
@@ -75,19 +80,63 @@ public class MVRule {
       return 0;
    }
 
-   // remove expired MVs
+   /**
+    * Remove expired MVs of every organization. The current organization is cleaned in place;
+    * every other organization is cleaned in its own organization scope, since the MV listing,
+    * removal and file deletion all resolve the organization from the current context.
+    */
    public static void cleanup() {
       MVManager mgr = MVManager.getManager();
+      String current = OrganizationManager.getInstance().getCurrentOrgID();
 
       for(MVDef mv : mgr.list(false)) {
-         if(isExpired(mv.getLastUpdateTime())) {
-            ClusterUtil.deleteClusterMV(mv.getName());
-            mgr.remove(mv);
+         removeIfExpired(mgr, mv);
+      }
 
-            if(LOG.isDebugEnabled()) {
-               LOG.debug("MV expired and deleted: " + mv.getName());
-            }
+      String[] orgIDs = SecurityEngine.getSecurity().getOrganizations();
+
+      for(String orgID : orgIDs) {
+         if(orgID == null || orgID.equalsIgnoreCase(current)) {
+            continue;
          }
+
+         try {
+            runInOrg(orgID, () -> {
+               for(MVDef mv : mgr.list(new String[] { orgID })) {
+                  removeIfExpired(mgr, mv);
+               }
+
+               return null;
+            });
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to clean up expired MVs of organization: {}", orgID, ex);
+         }
+      }
+   }
+
+   private static void removeIfExpired(MVManager mgr, MVDef mv) {
+      if(mv != null && isExpired(mv.getLastUpdateTime())) {
+         ClusterUtil.deleteClusterMV(mv.getName());
+         mgr.remove(mv);
+
+         if(LOG.isDebugEnabled()) {
+            LOG.debug("MV expired and deleted: " + mv.getName());
+         }
+      }
+   }
+
+   // the principal's organization takes precedence over the context holder, so the principal
+   // of the triggering user is suspended while working in another organization
+   private static void runInOrg(String orgID, Callable<Void> task) throws Exception {
+      Principal principal = ThreadContext.getContextPrincipal();
+
+      try {
+         ThreadContext.setContextPrincipal(null);
+         OrganizationManager.runInOrgScope(orgID, task);
+      }
+      finally {
+         ThreadContext.setContextPrincipal(principal);
       }
    }
 
