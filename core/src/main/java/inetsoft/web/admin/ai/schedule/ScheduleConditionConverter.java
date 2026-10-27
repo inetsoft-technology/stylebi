@@ -86,13 +86,25 @@ final class ScheduleConditionConverter {
    }
 
    /**
-    * Applies {@link #requireKnownTimeRange} to every condition of a list.
+    * Refuses a time range on any condition of a list. Enterprise Manager disables time ranges for
+    * a scheduled cycle, so one set through the API would be a state the editor cannot produce. A
+    * null or blank name means "no time range" and is accepted, so the output of reading a cycle
+    * can be sent back unchanged. {@link #convertCondition(TimeCondition)} deliberately stays
+    * lenient (cycle rollback feeds it stored conditions), so user input must be checked here, at
+    * plan time.
     *
     * @param conditionsLabel the path of the list, e.g. {@code changes[0].spec.conditions}.
     */
-   static void requireKnownTimeRanges(String conditionsLabel, List<TimeCondition> conditions) {
+   static void refuseTimeRanges(String conditionsLabel, List<TimeCondition> conditions) {
       for(int i = 0; i < conditions.size(); i++) {
-         requireKnownTimeRange(conditionsLabel + "[" + i + "]", conditions.get(i).getTimeRange());
+         String timeRange = conditions.get(i).getTimeRange();
+
+         if(timeRange != null && !timeRange.isBlank()) {
+            throw new IllegalArgumentException(
+               conditionsLabel + "[" + i + "].timeRange: \"" + timeRange + "\" -- a time range " +
+               "is not supported on a scheduled cycle (Enterprise Manager disables time ranges " +
+               "for cycles); remove timeRange");
+         }
       }
    }
 

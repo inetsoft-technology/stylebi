@@ -360,77 +360,68 @@ class ScheduleCycleChangePlanServiceTest {
    }
 
    // -------------------------------------------------------------------------
-   // time range names (bug #78902)
+   // time range (bug #79388, Enterprise Manager disables time ranges for cycles)
    // -------------------------------------------------------------------------
 
-   @Test void resolveCreateThrowsOnUnknownTimeRange() {
-      try(MockedStatic<TimeRange> ranges = definedRanges("Morning")) {
+   @Test void resolveCreateRefusesTimeRange() {
+      for(String name : List.of("Morning", "Nope")) {
          TimeCondition second = everyDay();
-         second.setTimeRange("Nope");
+         second.setTimeRange(name);
          ScheduleCycleChangePlanRequest req =
             request("task", List.of(createChange("NewCycle", List.of(everyDay(), second))));
 
          IllegalArgumentException ex =
             assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
-         assertEquals("changes[0].spec.conditions[1].timeRange: \"Nope\" is not a defined " +
-                      "time range (available: Morning)", ex.getMessage());
+         assertTrue(ex.getMessage()
+            .startsWith("changes[0].spec.conditions[1].timeRange: "), ex.getMessage());
       }
    }
 
-   @Test void resolveCreateAcceptsDefinedBlankAndAbsentTimeRange() throws Exception {
-      try(MockedStatic<TimeRange> ranges = definedRanges("Morning")) {
-         TimeCondition defined = everyDay();
-         defined.setTimeRange("Morning");
-         TimeCondition blank = everyDay();
-         blank.setTimeRange("");
-         ScheduleCycleChangePlanRequest req = request("task",
-            List.of(createChange("NewCycle", List.of(defined, blank, everyDay()))));
+   @Test void resolveCreateAcceptsNullBlankAndAbsentTimeRange() throws Exception {
+      TimeCondition blank = everyDay();
+      blank.setTimeRange("");
+      TimeCondition nul = everyDay();
+      nul.setTimeRange(null);
+      ScheduleCycleChangePlanRequest req = request("task",
+         List.of(createChange("NewCycle", List.of(blank, nul, everyDay()))));
 
+      try(MockedStatic<TimeRange> ranges = noRanges()) {
          assertEquals(1, service.resolve(req, user).changes().size());
       }
    }
 
-   @Test void resolveCreateSaysNoneWhenNoTimeRangeIsDefined() {
-      try(MockedStatic<TimeRange> ranges = definedRanges()) {
-         TimeCondition condition = everyDay();
-         condition.setTimeRange("Morning");
-         ScheduleCycleChangePlanRequest req =
-            request("task", List.of(createChange("NewCycle", List.of(condition))));
-
-         IllegalArgumentException ex =
-            assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
-         assertTrue(ex.getMessage().endsWith("(available: none)"));
-      }
-   }
-
-   @Test void resolveUpdateThrowsOnUnknownTimeRange() throws Exception {
+   @Test void resolveUpdateRefusesTimeRange() throws Exception {
       when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
       when(cycleGateway.currentAsset("Cycle1", "host-org")).thenReturn(asset("Cycle1"));
 
-      try(MockedStatic<TimeRange> ranges = definedRanges("Morning")) {
+      for(String name : List.of("Morning", "Nope")) {
          TimeCondition condition = everyDay();
-         condition.setTimeRange("Nope");
+         condition.setTimeRange(name);
          ScheduleCycleChangePlanRequest req =
             request("task", List.of(updateChange("Cycle1", null, List.of(condition))));
 
          IllegalArgumentException ex =
             assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
          assertTrue(ex.getMessage()
-            .startsWith("changes[0].spec.conditions[0].timeRange: \"Nope\""));
+            .startsWith("changes[0].spec.conditions[0].timeRange: "), ex.getMessage());
       }
    }
 
-   @Test void resolveUpdateWithoutConditionsDoesNotCheckTimeRanges() throws Exception {
+   @Test void resolveUpdateAcceptsBlankTimeRangeAndWorksWithoutConditions() throws Exception {
       when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
       when(cycleGateway.cycleExists("Cycle2", user)).thenReturn(false);
       when(cycleGateway.currentAsset("Cycle1", "host-org")).thenReturn(asset("Cycle1"));
 
-      try(MockedStatic<TimeRange> ranges = definedRanges()) {
-         ScheduleCycleChangePlanRequest req =
-            request("task", List.of(updateChange("Cycle1", "Cycle2", null)));
+      TimeCondition blank = everyDay();
+      blank.setTimeRange("");
 
-         assertEquals(1, service.resolve(req, user).changes().size());
-         ranges.verifyNoInteractions();
+      try(MockedStatic<TimeRange> ranges = noRanges()) {
+         assertEquals(1, service.resolve(
+            request("task", List.of(updateChange("Cycle1", null, List.of(blank)))), user)
+            .changes().size());
+         assertEquals(1, service.resolve(
+            request("task", List.of(updateChange("Cycle1", "Cycle2", null))), user)
+            .changes().size());
       }
    }
 
@@ -461,12 +452,9 @@ class ScheduleCycleChangePlanServiceTest {
          .startsWith("changes[0].spec.conditions[0].timeZone: \"Mars/Olympus\""));
    }
 
-   private static MockedStatic<TimeRange> definedRanges(String... names) {
+   private static MockedStatic<TimeRange> noRanges() {
       MockedStatic<TimeRange> ranges = mockStatic(TimeRange.class);
-      ranges.when(TimeRange::getTimeRanges).thenReturn(
-         java.util.Arrays.stream(names)
-            .map(n -> new TimeRange(n, "06:00", "12:00", false))
-            .collect(java.util.stream.Collectors.toList()));
+      ranges.when(TimeRange::getTimeRanges).thenReturn(List.of());
       return ranges;
    }
 
