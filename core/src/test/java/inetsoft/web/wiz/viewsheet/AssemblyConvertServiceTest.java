@@ -423,6 +423,7 @@ class AssemblyConvertServiceTest {
    @Test
    void doesNotNameACrosstabHiddenColumn() throws Exception {
       CrosstabVSAssembly crosstab = boundCrosstab("Xt1", true);
+      when(crosstab.getCrosstabInfo().hasHiddenColumn()).thenReturn(true);
 
       List<String> cleared = clearedOf(crosstab, "Xt1", "freehand_table");
 
