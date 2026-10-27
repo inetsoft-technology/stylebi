@@ -617,47 +617,54 @@ public final class DefaultTableBlock implements XTableBlock, Cloneable {
       List<File> files = new ArrayList<>();
       XMVColumn[][] allcols = {dcols, mcols};
 
-      // write dimension/measure values to temp files
-      for(XMVColumn[] cols : allcols) {
-         for(int i = 0; i < cols.length; i++) {
-            File file = FileSystemService.getInstance().getCacheTempFile("mvcolswap", "dat");
-            RandomAccessFile rfile = new RandomAccessFile(file, "rw");
+      try {
+         // write dimension/measure values to temp files
+         for(XMVColumn[] cols : allcols) {
+            for(int i = 0; i < cols.length; i++) {
+               File file = FileSystemService.getInstance().getCacheTempFile("mvcolswap", "dat");
+               files.add(file);
+               RandomAccessFile rfile = new RandomAccessFile(file, "rw");
+
+               try {
+                  FileChannel channel2 = rfile.getChannel();
+                  sbuf = cols[i].write(channel2, sbuf);
+               }
+               finally {
+                  rfile.close();
+               }
+            }
+         }
+
+         // write column sizes
+         ByteBuffer buf = ByteBuffer.allocate((dcnt + mcnt) * 4);
+
+         for(File file : files) {
+            buf.putInt((int) file.length());
+         }
+
+         XSwapUtil.flip(buf);
+
+         while(buf.hasRemaining()) {
+            channel.write(buf);
+         }
+
+         // copy column data
+         for(File file : files) {
+            RandomAccessFile rfile = new RandomAccessFile(file, "r");
 
             try {
                FileChannel channel2 = rfile.getChannel();
-
-               files.add(file);
-               sbuf = cols[i].write(channel2, sbuf);
+               MVTool.copyChannel(channel2, channel);
             }
             finally {
                rfile.close();
+               file.delete();
             }
          }
       }
-
-      // write column sizes
-      ByteBuffer buf = ByteBuffer.allocate((dcnt + mcnt) * 4);
-
-      for(File file : files) {
-         buf.putInt((int) file.length());
-      }
-
-      XSwapUtil.flip(buf);
-
-      while(buf.hasRemaining()) {
-         channel.write(buf);
-      }
-
-      // copy column data
-      for(File file : files) {
-         RandomAccessFile rfile = new RandomAccessFile(file, "r");
-
-         try {
-            FileChannel channel2 = rfile.getChannel();
-            MVTool.copyChannel(channel2, channel);
-         }
-         finally {
-            rfile.close();
+      finally {
+         // remove temp files left behind when a column write or the copy fails
+         for(File file : files) {
             file.delete();
          }
       }
