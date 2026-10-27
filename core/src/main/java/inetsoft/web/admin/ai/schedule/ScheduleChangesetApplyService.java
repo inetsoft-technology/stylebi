@@ -89,7 +89,9 @@ public class ScheduleChangesetApplyService {
     *         never from this request's own (unverified) task field.
     * @throws Exception if the Tier-2 backup fails, in which case nothing was applied.
     */
-   public ApplyResult apply(ScheduleApplyRequest req, Principal user) throws Exception {
+   public ApplyResult apply(ScheduleApplyRequest req, Principal user, String linkURI)
+      throws Exception
+   {
       APPLY_LOCK.lock();
 
       try {
@@ -140,7 +142,8 @@ public class ScheduleChangesetApplyService {
             try {
                if(ScheduleChangeRequest.VERB_CREATE.equals(original.getVerb())) {
                   applyCreate(txId, reviewedTask, taskId, original.getSpec(), backupRef,
-                             req.getReviewOutcome(), user, results, undoable, mutationEntered);
+                             req.getReviewOutcome(), user, linkURI, results, undoable,
+                             mutationEntered);
                }
                else {
                   applyDelete(txId, reviewedTask, taskId, backupRef, req.getReviewOutcome(), user,
@@ -198,8 +201,9 @@ public class ScheduleChangesetApplyService {
 
    private void applyCreate(String txId, String task, String taskId,
                             CreateScheduleTaskRequest spec, String backupRef,
-                            String reviewOutcome, Principal user, List<ApplyOutcome> results,
-                            List<Undo> undoable, AtomicBoolean mutationEntered)
+                            String reviewOutcome, Principal user, String linkURI,
+                            List<ApplyOutcome> results, List<Undo> undoable,
+                            AtomicBoolean mutationEntered)
       throws Exception
    {
       ScheduleTaskMetaData meta = new ScheduleTaskMetaData(spec.getName(),
@@ -208,7 +212,7 @@ public class ScheduleChangesetApplyService {
       scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
          spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
          spec.getExecuteAsID(), spec.getConditions(), spec.getActions(), spec.getOwner().getOrgID(),
-         null, user);
+         linkURI == null ? null : Tool.replaceLocalhost(linkURI), user);
 
       String after = ScheduleXmlProjection.project(scheduleManager.getScheduleTask(taskId));
       boolean verified = after != null;

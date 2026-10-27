@@ -123,7 +123,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("create a task", createChange(spec));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertEquals("snap-ref", result.backupRef());
@@ -145,7 +145,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       verify(scheduleGateway).removeScheduleTask(eq("t1"), any(), eq(user));
@@ -167,7 +167,7 @@ class ScheduleChangesetApplyServiceTest {
       ScheduleApplyRequest req = requestWithDivergentApplyTask(
          "reviewed: create t1", "totally different apply-time text", createChange(spec));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
@@ -190,7 +190,7 @@ class ScheduleChangesetApplyServiceTest {
       ScheduleApplyRequest req = requestWithDivergentApplyTask(
          "reviewed: delete t1", "totally different apply-time text", deleteChange("t1"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
@@ -213,7 +213,7 @@ class ScheduleChangesetApplyServiceTest {
       req.setPlanHash("stale-hash");
 
       assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
-                  () -> service.apply(req, user));
+                  () -> service.apply(req, user, null));
       verify(scheduleGateway, never())
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
                           any(), any(), any(), any(), any(), eq(user));
@@ -229,7 +229,7 @@ class ScheduleChangesetApplyServiceTest {
       req.setReviewOutcome(null);
 
       IllegalArgumentException ex =
-         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user, null));
       assertTrue(ex.getMessage().contains("reviewOutcome"));
    }
 
@@ -244,7 +244,7 @@ class ScheduleChangesetApplyServiceTest {
 
       AdminChangesetApplyService.TaskTokenMismatchException ex = assertThrows(
          AdminChangesetApplyService.TaskTokenMismatchException.class,
-         () -> service.apply(req, user));
+         () -> service.apply(req, user, null));
       assertTrue(ex.getMessage().startsWith("taskToken:"));
       assertNotNull(ex.current());
       verify(scheduleGateway, never())
@@ -262,7 +262,7 @@ class ScheduleChangesetApplyServiceTest {
       req.setTaskToken("   ");
 
       assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
-         () -> service.apply(req, user));
+         () -> service.apply(req, user, null));
    }
 
    @Test void rejectsATaskTokenIssuedForADifferentPlan() throws Exception {
@@ -281,7 +281,7 @@ class ScheduleChangesetApplyServiceTest {
       req.setTaskToken(otherPlan.getTaskToken());
 
       assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
-         () -> service.apply(req, user));
+         () -> service.apply(req, user, null));
       verify(scheduleGateway, never())
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
                           any(), any(), any(), any(), any(), eq(user));
@@ -305,7 +305,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("create a task", createChange(spec));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
       assertNotNull(result.rollbackFailures());
@@ -330,7 +330,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(result.rollbackFailures());
@@ -354,7 +354,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(result.rollbackFailures());
@@ -381,7 +381,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(result.rollbackFailures());
@@ -416,7 +416,7 @@ class ScheduleChangesetApplyServiceTest {
          "reviewed: two changes", "totally different apply-time text",
          createChange(spec), deleteChange("t2"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       verify(scheduleGateway).removeScheduleTask(eq(createdId), any(), eq(user));
@@ -453,7 +453,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("two changes", createChange(spec), deleteChange("t2"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       verify(scheduleGateway).removeScheduleTask(eq(createdId), any(), eq(user));
@@ -479,7 +479,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("two changes", createChange(spec), deleteChange("t2"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
       assertEquals(1, result.rollbackFailures().size());

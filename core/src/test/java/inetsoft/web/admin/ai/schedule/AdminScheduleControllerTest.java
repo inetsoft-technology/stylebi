@@ -156,7 +156,7 @@ class AdminScheduleControllerTest {
       when(orgManager.isSiteAdmin(principal)).thenReturn(false);
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-         () -> controller.apply(new ScheduleApplyRequest(), principal));
+         () -> controller.apply(new ScheduleApplyRequest(), "http://host/", principal));
       assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
       verifyNoInteractions(applyService);
    }
@@ -165,9 +165,9 @@ class AdminScheduleControllerTest {
       ScheduleApplyRequest req = new ScheduleApplyRequest();
       ApplyResult applied = new ApplyResult("tx-1", AdminChangesetApplyService.STATUS_APPLIED,
                                             null, Collections.emptyList(), null);
-      when(applyService.apply(req, principal)).thenReturn(applied);
+      when(applyService.apply(req, principal, "http://host/")).thenReturn(applied);
 
-      ApplyResult result = controller.apply(req, principal);
+      ApplyResult result = controller.apply(req, "http://host/", principal);
 
       assertSame(applied, result);
    }
