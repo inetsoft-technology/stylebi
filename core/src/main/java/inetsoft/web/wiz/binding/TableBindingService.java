@@ -132,6 +132,7 @@ public class TableBindingService {
          TableBindingMutator.setShelf(model, shelf, fields, rvs, source, refModelService);
          refuseNewNumericUnderObjectDateFormat(assembly, assemblyName, numericBefore, model, rvs,
                                               source);
+         TableBindingMutator.refuseUnsupportedCalculatorTarget(model);
          relayUnhiddenNotes(assemblyName, assembly, shelf, fields, dispatcher);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          relayNotes(assemblyName, dispatcher);
@@ -3127,6 +3128,7 @@ public class TableBindingService {
          mutation.accept(model, rvs, source);
          refuseNewNumericUnderObjectDateFormat(assembly, assemblyName, numericBefore, model, rvs,
                                               source);
+         TableBindingMutator.refuseUnsupportedCalculatorTarget(model);
          relayUnhiddenNotes(assemblyName, assembly, shelf, unhiddenCandidates, dispatcher);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          relayNotes(assemblyName, dispatcher);
@@ -3183,6 +3185,7 @@ public class TableBindingService {
          String livePercentageBy = preservePercentageBy ? livePercentageByValue(assembly) : null;
          TableBindingMutator.drainNotes();
          mutation.accept(rvs, model);
+         TableBindingMutator.refuseUnsupportedCalculatorTarget(model);
          relayNotes(assemblyName, dispatcher);
 
          if(preservePercentageBy) {
