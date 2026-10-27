@@ -1816,4 +1816,162 @@ class ScriptExecuteServiceTest {
       f.setAccessible(true);
       return ((ThreadLocal<?>) f.get(null)).get();
    }
+
+   /**
+    * Bug #79369: an assembly script can write any assembly by name, so the own assembly
+    * ("Submit1", the script's host) plus every other named assembly must be tracked. Builds a
+    * sheet with one real Submit per name, wired as in {@link #viewsheetWithVsScript}, and puts
+    * the assembly script on "Submit1".
+    */
+   private RuntimeViewsheet viewsheetWithCrossAssemblyScript(String script, ViewsheetScope scope,
+                                                             Map<String, VSAScriptable> scriptables)
+   {
+      RuntimeViewsheet rvs = viewsheetWithVsScript(false, "", scope, scriptables);
+      SubmitVSAssemblyInfo own =
+         (SubmitVSAssemblyInfo) ((SubmitVSAssembly) rvs.getViewsheet().getAssembly("Submit1"))
+            .getVSAssemblyInfo();
+      own.setScript(script);
+      own.setOnClick(script);
+      own.setScriptEnabled(true);
+      return rvs;
+   }
+
+   private static VSAScriptable scriptableWith(List<String> unrecognized, List<String> rejected) {
+      VSAScriptable scriptable = mock(VSAScriptable.class);
+      when(scriptable.getUnrecognizedWrites()).thenReturn(unrecognized);
+      when(scriptable.getRejectedWrites()).thenReturn(rejected);
+      return scriptable;
+   }
+
+   @Test
+   void executeQualifiesAnUnrecognizedWriteToAnotherAssemblyFromAnAssemblyScript()
+      throws Exception
+   {
+      for(ScriptTarget.Kind kind :
+         List.of(ScriptTarget.Kind.ASSEMBLY_MAIN, ScriptTarget.Kind.ASSEMBLY_ON_CLICK))
+      {
+         String script = "Submit2.label = 'Notify Now';";
+         ViewsheetScope scope = mock(ViewsheetScope.class);
+         when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+         VSAScriptable own = scriptableWith(List.of(), List.of());
+         VSAScriptable other = scriptableWith(List.of("label"), List.of());
+         Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+         scriptables.put("Submit1", own);
+         scriptables.put("Submit2", other);
+         RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+         ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+         ScriptExecResult result = svc.runLive(rvs, ScriptTarget.of(kind, "Submit1"), false);
+
+         assertTrue(result.ok(), kind.toString());
+         assertEquals(List.of(), result.changed(), kind.toString());
+         assertEquals(List.of("Submit2.label"), result.unrecognizedProperties(), kind.toString());
+         assertTrue(result.summary().contains("Submit2.label"), result.summary());
+         assertFalse(result.summary().contains("for this assembly type"), result.summary());
+         verify(own).resetUnrecognizedWrites();
+         verify(other).resetUnrecognizedWrites();
+         verify(other).resetRejectedWrites();
+      }
+   }
+
+   @Test
+   void executeReportsOwnUnrecognizedWriteBareAndOtherQualifiedWhenMixed() throws Exception {
+      String script = "Submit1.label = 'a'; Submit2.label = 'b';";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of("label"), List.of()));
+      scriptables.put("Submit2", scriptableWith(List.of("label"), List.of()));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertEquals(List.of("label", "Submit2.label"), result.unrecognizedProperties());
+      assertEquals(List.of(), result.changed());
+   }
+
+   @Test
+   void executeKeepsTwoOtherAssembliesDistinguishableFromAnAssemblyScript() throws Exception {
+      String script = "Submit2.label = 'a'; Submit3.label = 'b';";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of(), List.of()));
+      scriptables.put("Submit2", scriptableWith(List.of("label"), List.of()));
+      scriptables.put("Submit3", scriptableWith(List.of("label"), List.of()));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Submit1"), false);
+
+      assertEquals(List.of("Submit2.label", "Submit3.label"), result.unrecognizedProperties());
+   }
+
+   /**
+    * Risk A: BindingRootProxy.putMember sends a script-local that collides with a Calc function
+    * name to the root scope of the execution, which for an assembly script is the OWN assembly's
+    * scriptable. So the declared-locals filter applies to the own entry only: a local on the own
+    * scriptable is hidden, while another assembly's same-named write is still reported.
+    */
+   @Test
+   void executeAppliesDeclaredLocalsFilterOnlyToTheOwnAssemblyEntry() throws Exception {
+      String script = "var maxDate = 1; var label = 2; Submit2.label = 'x';";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of("maxDate", "label"), List.of()));
+      scriptables.put("Submit2", scriptableWith(List.of("label"), List.of()));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertEquals(List.of("Submit2.label"), result.unrecognizedProperties());
+   }
+
+   @Test
+   void executeQualifiesARejectedWriteToAnotherAssemblyFromAnAssemblyScript() throws Exception {
+      String script = "Submit2.position = new Point(1, 2); Submit1.position = new Point(3, 4);";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of(), List.of("position")));
+      scriptables.put("Submit2", scriptableWith(List.of(), List.of("position")));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertEquals(List.of(), result.changed());
+      assertEquals(List.of("position", "Submit2.position"), result.unrecognizedProperties());
+   }
+
+   @Test
+   void executeStaysCleanWhenNoAssemblyDroppedAWriteFromAnAssemblyScript() throws Exception {
+      String script = "Submit2.enabled = false;";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of(), List.of()));
+      scriptables.put("Submit2", scriptableWith(List.of(), List.of()));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1");
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, target, false);
+
+      assertEquals(List.of(target.toString()), result.changed());
+      assertNull(result.unrecognizedProperties());
+   }
 }
