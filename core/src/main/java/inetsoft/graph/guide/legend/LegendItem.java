@@ -193,10 +193,12 @@ public abstract class LegendItem extends BoundedContainer {
     */
    @Override
    public void paint(Graphics2D g) {
-      double height = getSize().getHeight();
+      double bandH = getSize().getHeight() - topPadding - bottomPadding;
 
       // the padding left logic has moved to VLegend
-      paintSymbol(g, getPosition().getX(), getPosition().getY() + (height - symbolSize) / 2);
+      // center the symbol in the content band (between the paddings), same as the label
+      paintSymbol(g, getPosition().getX(),
+                  getPosition().getY() + bottomPadding + (bandH - symbolSize) / 2);
       // Pass false to suppress the VLabel's own background fill. The legend-level
       // background is already painted by Legend.paintBg() before items are drawn,
       // so re-painting it per-label would overdraw with potentially mismatched alpha.
@@ -208,26 +210,28 @@ public abstract class LegendItem extends BoundedContainer {
     */
    public void layout() {
       double width = getSize().getWidth();
-      double height = getSize().getHeight();
+      // the label fills the content band [y + bottomPadding, y + height - topPadding]
+      // (y-up) so it stays centered on the symbol for any top/bottom padding
+      double bandH = getSize().getHeight() - topPadding - bottomPadding;
       Point2D pos = getPosition();
 
       // the padding left logic has moved to VLegend
       if(frame instanceof LineFrame) {
          pos = new Point2D.Double(pos.getX() + LINESYMBOL_WIDTH + GAP,
-                                  pos.getY() + bottomPadding - topPadding);
+                                  pos.getY() + bottomPadding);
 
-         vlabel.setSize(new DimensionD(width - LINESYMBOL_WIDTH - GAP, height));
+         vlabel.setSize(new DimensionD(width - LINESYMBOL_WIDTH - GAP, bandH));
          vlabel.setPosition(pos);
       }
       else {
          pos = new Point2D.Double(pos.getX() + symbolSize + GAP,
-                                  pos.getY() + bottomPadding - topPadding);
+                                  pos.getY() + bottomPadding);
 
-         vlabel.setSize(new DimensionD(width - symbolSize - GAP, height));
+         vlabel.setSize(new DimensionD(width - symbolSize - GAP, bandH));
          vlabel.setPosition(pos);
       }
 
-      pos = new Point2D.Double(pos.getX(), pos.getY() + height / 2);
+      pos = new Point2D.Double(pos.getX(), pos.getY() + bandH / 2);
       Point2D offset = vlabel.getRotationOffset(pos, GraphConstants.RIGHT);
       vlabel.setOffset(offset);
    }
