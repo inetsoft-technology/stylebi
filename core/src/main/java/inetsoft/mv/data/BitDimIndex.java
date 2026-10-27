@@ -118,7 +118,15 @@ public final class BitDimIndex extends XDimIndex {
       int start, end;
 
       if(from == Integer.MIN_VALUE) {
-         start = cnull ? 1 : 0;
+         // keys are dictionary indices, not positions. cnull only says the dictionary has a
+         // null slot (key 0), the block may have no row for it, so skip key 0 rather than
+         // the first position
+         start = 0;
+
+         if(cnull) {
+            start = Arrays.binarySearch(keys, 0);
+            start = start >= 0 ? start + 1 : -start - 1;
+         }
       }
       else {
          start = Arrays.binarySearch(keys, (int) from);
