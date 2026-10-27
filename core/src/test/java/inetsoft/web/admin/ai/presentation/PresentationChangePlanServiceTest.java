@@ -191,7 +191,7 @@ class PresentationChangePlanServiceTest {
          options.addObject().put("id", "save").put("visible", false).put("enabled", true);
       }
       case LOOK_AND_FEEL -> spec.put("expand", true);
-      case WELCOME_PAGE -> spec.put("type", 1);
+      case WELCOME_PAGE -> spec.put("type", 1).put("source", "http://x");
       case LOGIN_BANNER -> spec.put("bannerType", "1");
       // not a button: the buttons are global-only and refused at organization scope (Bug #78867)
       case PORTAL_INTEGRATION -> spec.put("customLoadingText", "Loading");
@@ -970,6 +970,155 @@ class PresentationChangePlanServiceTest {
       stub(PresentationSubModel.FORMATS, currentFor(PresentationSubModel.FORMATS));
       assertEquals(FORMATS_ORG_HASH, service.resolve(request("t", change("formats", "organization",
          specFor(PresentationSubModel.FORMATS))), PRINCIPAL).planHash());
+   }
+
+   // ---------------------------------------------------------------- Bug #79430: merged value validation
+
+   private IllegalArgumentException refuseValue(PresentationSubModel subModel, String scope,
+                                                Object current, ObjectNode spec) throws Exception
+   {
+      stub(subModel, current);
+      return assertThrows(IllegalArgumentException.class, () -> service.resolve(
+         request("t", change(subModel.key(), scope, spec)), PRINCIPAL));
+   }
+
+   private void acceptValue(PresentationSubModel subModel, String scope, Object current,
+                            ObjectNode spec) throws Exception
+   {
+      stub(subModel, current);
+      assertEquals(1, service.resolve(
+         request("t", change(subModel.key(), scope, spec)), PRINCIPAL).changes().size());
+   }
+
+   private static WelcomePageSettingsModel welcome(int type, String source) {
+      return WelcomePageSettingsModel.builder().type(type).source(source).build();
+   }
+
+   private static PresentationTimeSettingsModel time(String weekStart) {
+      return PresentationTimeSettingsModel.builder().weekStart(weekStart)
+         .scheduleTime12Hours(true).build();
+   }
+
+   @Test
+   void welcomePageUriWithBlankSourceIsRefusedAtBothScopes() throws Exception {
+      for(String scope : new String[] {"global", "organization"}) {
+         IllegalArgumentException e = refuseValue(PresentationSubModel.WELCOME_PAGE, scope,
+            welcome(0, ""), obj().put("type", 1).put("source", ""));
+         assertTrue(e.getMessage().contains("changes[0].spec.source"), e.getMessage());
+      }
+   }
+
+   @Test
+   void welcomePageBlankSourceVariantsAreRefused() throws Exception {
+      IllegalArgumentException e = refuseValue(PresentationSubModel.WELCOME_PAGE, "global",
+         welcome(1, "http://x"), obj().put("source", "   "));
+      assertTrue(e.getMessage().contains("changes[0].spec.source"), e.getMessage());
+      refuseValue(PresentationSubModel.WELCOME_PAGE, "global", welcome(0, ""),
+                  obj().put("type", 1).putNull("source"));
+      refuseValue(PresentationSubModel.WELCOME_PAGE, "global", welcome(0, ""),
+                  obj().put("type", 2).put("source", " "));
+   }
+
+   @Test
+   void welcomePageTypeOnlyAgainstBlankLiveSourceNamesTheTypeAndTheLiveSource() throws Exception {
+      for(int type : new int[] {1, 2}) {
+         IllegalArgumentException e = refuseValue(PresentationSubModel.WELCOME_PAGE, "global",
+            welcome(0, ""), obj().put("type", type));
+         assertTrue(e.getMessage().contains("changes[0].spec.type"), e.getMessage());
+         assertTrue(e.getMessage().contains("source is blank"), e.getMessage());
+      }
+   }
+
+   @Test
+   void welcomePageOutOfRangeTypeIsRefusedOnlyWhenSent() throws Exception {
+      IllegalArgumentException e = refuseValue(PresentationSubModel.WELCOME_PAGE, "global",
+         welcome(0, ""), obj().put("type", 7).put("source", "http://x"));
+      assertTrue(e.getMessage().contains("changes[0].spec.type"), e.getMessage());
+      refuseValue(PresentationSubModel.WELCOME_PAGE, "global", welcome(0, ""), obj().put("type", -1));
+      // a stale invalid stored type does not block an unrelated source edit
+      acceptValue(PresentationSubModel.WELCOME_PAGE, "global", welcome(7, "a"),
+                  obj().put("source", "b"));
+   }
+
+   @Test
+   void welcomePageTypeCoercedFromStringIsJudgedOnTheTypedValue() throws Exception {
+      refuseValue(PresentationSubModel.WELCOME_PAGE, "global", welcome(0, ""),
+                  obj().put("type", "1").put("source", ""));
+   }
+
+   @Test
+   void welcomePageTypeNullIsRefused() throws Exception {
+      // type is a primitive int on the model; null must not silently become 0 (NONE).
+      refuseValue(PresentationSubModel.WELCOME_PAGE, "global", welcome(1, "http://x"),
+                  obj().putNull("type"));
+   }
+
+   @Test
+   void welcomePageValidValuesStayAccepted() throws Exception {
+      acceptValue(PresentationSubModel.WELCOME_PAGE, "global", welcome(0, ""),
+                  obj().put("type", 1).put("source", "http://x"));
+      acceptValue(PresentationSubModel.WELCOME_PAGE, "organization", welcome(0, ""),
+                  obj().put("type", 2).put("source", "res"));
+      acceptValue(PresentationSubModel.WELCOME_PAGE, "global", welcome(1, "http://x"),
+                  obj().put("type", 0).put("source", ""));
+      acceptValue(PresentationSubModel.WELCOME_PAGE, "global", welcome(0, "http://x"),
+                  obj().put("type", 1));
+      // type 0 with a null source is allowed
+      acceptValue(PresentationSubModel.WELCOME_PAGE, "global", welcome(1, "http://x"),
+                  obj().put("type", 0).putNull("source"));
+   }
+
+   @Test
+   void welcomePageRepairAndUnchangedEchoPass() throws Exception {
+      // repair path: {type:0} over a stored invalid (1, "")
+      acceptValue(PresentationSubModel.WELCOME_PAGE, "global", welcome(1, ""), obj().put("type", 0));
+      // an unchanged echo of the stored invalid pair is not a new edit (Bug #79430 O10)
+      acceptValue(PresentationSubModel.WELCOME_PAGE, "global", welcome(1, ""),
+                  obj().put("type", 1).put("source", ""));
+      acceptValue(PresentationSubModel.WELCOME_PAGE, "organization", welcome(1, ""),
+                  obj().put("type", 1).put("source", ""));
+   }
+
+   @Test
+   void timeUnknownWeekStartIsRefused() throws Exception {
+      for(String bad : new String[] {"Funday", " Monday", "Mon", "monday "}) {
+         IllegalArgumentException e = refuseValue(PresentationSubModel.TIME, "global",
+            time("Sunday"), obj().put("weekStart", bad));
+         assertTrue(e.getMessage().contains("changes[0].spec.weekStart"), e.getMessage());
+      }
+
+      refuseValue(PresentationSubModel.TIME, "organization", time("Sunday"),
+                  obj().put("weekStart", "Funday"));
+      // null is a change when the live value is non-null, and it is refused
+      refuseValue(PresentationSubModel.TIME, "global", time("Sunday"), obj().putNull("weekStart"));
+   }
+
+   @Test
+   void timeValidWeekStartStaysAccepted() throws Exception {
+      for(String ok : new String[] {"Monday", "monday", "SATURDAY", ""}) {
+         acceptValue(PresentationSubModel.TIME, "global", time("Sunday"), obj().put("weekStart", ok));
+      }
+   }
+
+   @Test
+   void timeUnchangedEchoPasses() throws Exception {
+      // live weekStart null (organization scope with no override), echoed with another change
+      acceptValue(PresentationSubModel.TIME, "organization", time(null),
+                  obj().putNull("weekStart").put("scheduleTime12Hours", false));
+      // live stored invalid value echoed unchanged
+      acceptValue(PresentationSubModel.TIME, "global", time("Funday"),
+                  obj().put("weekStart", "Funday").put("scheduleTime12Hours", false));
+      // an unrelated edit is not blocked by a stored invalid weekStart
+      acceptValue(PresentationSubModel.TIME, "global", time("Funday"),
+                  obj().put("scheduleTime12Hours", false));
+   }
+
+   @Test
+   void otherSubModelsAreNotAffectedByValueValidation() throws Exception {
+      acceptValue(PresentationSubModel.LOGIN_BANNER, "global",
+         currentFor(PresentationSubModel.LOGIN_BANNER), obj().put("bannerType", "9"));
+      acceptValue(PresentationSubModel.FORMATS, "global",
+         currentFor(PresentationSubModel.FORMATS), obj().put("dateFormat", ""));
    }
 
    private static final String LAF_EXPAND_GLOBAL_HASH =

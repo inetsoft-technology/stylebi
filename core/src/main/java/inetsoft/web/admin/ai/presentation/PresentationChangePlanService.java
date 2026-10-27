@@ -24,6 +24,8 @@ import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
+import inetsoft.web.admin.presentation.model.PresentationTimeSettingsModel;
+import inetsoft.web.admin.presentation.model.WelcomePageSettingsModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -157,6 +159,8 @@ public class PresentationChangePlanService {
                e.getMessage() + ")", e);
          }
 
+         requireValidMergedValue(label, subModel, spec, currentNode, proposedModel);
+
          if(subModel == PresentationSubModel.PORTAL_INTEGRATION && !global) {
             requireNoGlobalOnlyPortalChange(label, spec, currentNode,
                                             PresentationJson.toNode(proposedModel));
@@ -241,6 +245,74 @@ public class PresentationChangePlanService {
       }
 
       return global;
+   }
+
+   /** The seven weekday names the Enterprise Manager "week start" select offers. */
+   private static final List<String> WEEK_DAYS = List.of(
+      "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday");
+
+   /**
+    * Refuses the {@code welcomePage} and {@code time} values the Enterprise Manager editors forbid
+    * (Bug #79430): neither the services nor the legacy REST endpoints validate them, so without this a
+    * type-1 welcome page with a blank source or a week start of "Funday" would be previewed and
+    * written. Judged on the TYPED merged model, so a Jackson coercion is judged by its final value,
+    * and only when that value differs from the current one: an unchanged echo of a read-back value
+    * (null week start at organization scope, a stored invalid value) is not a new edit.
+    */
+   private static void requireValidMergedValue(String label, PresentationSubModel subModel,
+                                               JsonNode spec, JsonNode currentNode, Object proposed)
+   {
+      if(subModel == PresentationSubModel.WELCOME_PAGE) {
+         WelcomePageSettingsModel model = (WelcomePageSettingsModel) proposed;
+         int curType = currentNode.path("type").asInt(0);
+         JsonNode curSourceNode = currentNode.get("source");
+         String curSource = curSourceNode == null || curSourceNode.isNull() ? null :
+            curSourceNode.asText();
+
+         if(spec.has("type")) {
+            if(spec.get("type").isNull()) {
+               throw new IllegalArgumentException(
+                  label + ".spec.type: null is not allowed; use 0 for no welcome page");
+            }
+
+            if((model.type() < 0 || model.type() > 2) && model.type() != curType) {
+               throw new IllegalArgumentException(
+                  label + ".spec.type: must be 0 (none), 1 (URI) or 2 (resource), got " +
+                  model.type());
+            }
+         }
+
+         boolean changed = model.type() != curType || !Objects.equals(model.source(), curSource);
+         String source = model.source();
+
+         if(changed && (model.type() == 1 || model.type() == 2) &&
+            (source == null || source.trim().isEmpty()))
+         {
+            if(spec.has("source")) {
+               throw new IllegalArgumentException(
+                  label + ".spec.source: required (non-blank) for type " + model.type() +
+                  (model.type() == 1 ? " (URI)" : " (resource)"));
+            }
+
+            throw new IllegalArgumentException(
+               label + ".spec.type: type " + model.type() + (model.type() == 1 ? " (URI)" : " (resource)") +
+               " requires a non-blank source and the live source is blank; send spec.source too");
+         }
+      }
+      else if(subModel == PresentationSubModel.TIME && spec.has("weekStart")) {
+         String weekStart = ((PresentationTimeSettingsModel) proposed).weekStart();
+         JsonNode curNode = currentNode.get("weekStart");
+         String cur = curNode == null || curNode.isNull() ? null : curNode.asText();
+
+         if(!Objects.equals(weekStart, cur) &&
+            (weekStart == null || !weekStart.isEmpty() &&
+             !WEEK_DAYS.contains(weekStart.toLowerCase(Locale.ROOT))))
+         {
+            throw new IllegalArgumentException(
+               label + ".spec.weekStart: must be one of Sunday..Saturday (case-insensitive) or \"\" " +
+               "for the default, got " + (weekStart == null ? "null" : "\"" + weekStart + "\""));
+         }
+      }
    }
 
    private static void requireUnseen(String label, PresentationSubModel subModel, boolean global,

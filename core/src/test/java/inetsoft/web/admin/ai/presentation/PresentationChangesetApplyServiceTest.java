@@ -850,4 +850,22 @@ class PresentationChangesetApplyServiceTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, service.apply(req, user).status());
    }
+
+   @Test
+   void applyRefusesABlankWelcomePageSourceSwappedInAfterPreview() throws Exception {
+      // Bug #79430: apply re-resolves from its own request, so it must refuse the value on its own
+      // (before the plan hash and before any write), not only at preview.
+      seed(PresentationSubModel.WELCOME_PAGE, true,
+         inetsoft.web.admin.presentation.model.WelcomePageSettingsModel.builder()
+            .type(0).source("").build());
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("welcomePage", "global", obj().put("type", 1).put("source", "http://x")));
+      req.setChanges(List.of(change("welcomePage", "global", obj().put("type", 1).put("source", ""))));
+
+      IllegalArgumentException e =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+      assertTrue(e.getMessage().contains("changes[0].spec.source"), e.getMessage());
+      verify(access, never()).write(any(), any(), any(), anyBoolean());
+   }
 }
