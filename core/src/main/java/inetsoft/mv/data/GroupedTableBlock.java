@@ -304,13 +304,99 @@ public final class GroupedTableBlock extends SubTableBlock {
             Collections.sort(list, new MVRow2.RowComparator(orders));
          }
          else {
-            Collections.sort(list, new MVRow.RowComparator(orders));
+            sortRows(list, orders);
          }
       }
 
       this.rows = new XSwappableObjectList<>(cls);
       list.forEach(r -> this.rows.add(r));
       this.rows.complete();
+   }
+
+   /**
+    * Sort the rows by groups in the order of the comparator <code>MVRow.RowComparator</code>.
+    * The rows are unique by groups, so the group values (normalized to the value range of
+    * each dimension, flipped for descending dimensions) plus the row index are packed into
+    * one long per row and sorted as primitives, which is much faster than sorting objects
+    * through the comparator when the rows are in a random (hash) order. If the packed key
+    * does not fit in 62 bits, the comparator is used.
+    */
+   static void sortRows(List<MVRow> list, boolean[] orders) {
+      int n = list.size();
+
+      if(n < 2) {
+         return;
+      }
+
+      int d = list.get(0).getGroups().length;
+
+      if(orders == null || orders.length < d) {
+         Collections.sort(list, new MVRow.RowComparator(orders));
+         return;
+      }
+
+      long[] min = new long[d];
+      long[] max = new long[d];
+      Arrays.fill(min, Long.MAX_VALUE);
+      Arrays.fill(max, Long.MIN_VALUE);
+
+      for(MVRow row : list) {
+         long[] g = row.getGroups();
+
+         for(int i = 0; i < d; i++) {
+            min[i] = Math.min(min[i], g[i]);
+            max[i] = Math.max(max[i], g[i]);
+         }
+      }
+
+      int ibits = 64 - Long.numberOfLeadingZeros(n - 1);
+      int used = ibits;
+      int[] bits = new int[d];
+
+      for(int i = 0; i < d; i++) {
+         long range = max[i] - min[i];
+
+         // range overflowed long
+         if(range < 0) {
+            used = Integer.MAX_VALUE;
+            break;
+         }
+
+         bits[i] = 64 - Long.numberOfLeadingZeros(range);
+         used += bits[i];
+
+         if(used > 62) {
+            break;
+         }
+      }
+
+      if(used > 62) {
+         Collections.sort(list, new MVRow.RowComparator(orders));
+         return;
+      }
+
+      long[] keys = new long[n];
+
+      for(int r = 0; r < n; r++) {
+         long[] g = list.get(r).getGroups();
+         long key = 0;
+
+         for(int i = 0; i < d; i++) {
+            long v = g[i] - min[i];
+            v = orders[i] ? v : (max[i] - min[i]) - v;
+            key = (key << bits[i]) | v;
+         }
+
+         keys[r] = (key << ibits) | r;
+      }
+
+      Arrays.sort(keys);
+      MVRow[] src = list.toArray(new MVRow[0]);
+      long imask = (1L << ibits) - 1;
+
+      for(int r = 0; r < n; r++) {
+         list.set(r, src[(int) (keys[r] & imask)]);
+      }
    }
 
    @Override
