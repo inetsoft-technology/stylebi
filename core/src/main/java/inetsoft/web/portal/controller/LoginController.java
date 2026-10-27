@@ -28,6 +28,7 @@ import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.portal.model.LocaleModel;
 import inetsoft.web.portal.model.LoginBannerModel;
+import inetsoft.web.security.RequestedUrlValidator;
 import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.*;
 import org.slf4j.Logger;
@@ -70,6 +71,9 @@ public class LoginController {
       throws UnsupportedEncodingException
    {
       ModelAndView model = new ModelAndView("login");
+      // Bug #79433, the login page sends the credentials to, and redirects to, the requested
+      // URL, so only the application's own URLs may reach the page (and the Google state)
+      requestedUrl = RequestedUrlValidator.sanitize(requestedUrl, linkUri, null);
       model.addObject("requestedUrl", requestedUrl);
 
       PortalThemesManager manager = portalThemesManager;
