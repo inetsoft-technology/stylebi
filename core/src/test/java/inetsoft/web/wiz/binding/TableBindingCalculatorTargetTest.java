@@ -123,6 +123,19 @@ class TableBindingCalculatorTargetTest {
    }
 
    @Test
+   void refusalSteersToAFlatMonthLevelNotToFromOne() {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.refuseUnsupportedCalculatorTarget(crosstab(
+            List.of(date("Year", YEAR), date("MOY", MOY)), List.of(), 7, null, true)));
+
+      // names the fix the user can act on; from 1 gives a blank January, so it is not the advice
+      assertTrue(e.getMessage().contains("month level"), e.getMessage());
+      assertTrue(e.getMessage().contains("previous December"), e.getMessage());
+      assertTrue(e.getMessage().contains("remove the calculateInfo"), e.getMessage());
+      assertFalse(e.getMessage().contains("from 1"), e.getMessage());
+   }
+
+   @Test
    void shapesThatComputeAreAllowed() {
       // flat month level compares January with the previous December
       allowed(crosstab(List.of(date("Month", MONTH)), List.of(), 7, null, true));
