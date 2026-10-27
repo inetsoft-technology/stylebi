@@ -318,7 +318,7 @@ class ScheduleChangesetApplyServiceDeleteRollbackTest {
       req.setTaskToken(plan.taskToken());
       req.setReviewOutcome("approved");
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertFalse(deleted.get(), "t1 exists after the rollback");
