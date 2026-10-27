@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class InetsoftUserDocumentationTest {
 
    private static final String FALLBACK_BASE =
-      "https://www.inetsoft.com/docs/stylebi/InetSoftUserDocumentation/1.1.0/index.html";
+      "https://www.inetsoft.com/docs/stylebi/InetSoftUserDocumentation/2.0.0/index.html";
 
    @BeforeEach
    void resetCache() throws Exception {
@@ -57,6 +57,9 @@ class InetsoftUserDocumentationTest {
       "v1.1.0-beta-1,   1.1.0",
       "v1.0.0-beta-2,   1.0.0",
       "v1.1.0-RC1,      1.1.0",
+      "2.0.1,           2.0.0",
+      "2.0.2-SNAPSHOT,  2.0.0",
+      "2.1.0-SNAPSHOT,  2.1.0",
    })
    void stripPreReleaseSuffix(String input, String expected) {
       assertEquals(expected, InetsoftUserDocumentation.stripPreReleaseSuffix(input.trim()));
@@ -68,7 +71,7 @@ class InetsoftUserDocumentationTest {
 
    @Test
    void indexBaseUrlFallsBackToHardcodedVersion() {
-      // Test JVM has no Specification-Version in its manifest, so the hardcoded "1.1.0" is used.
+      // Test JVM has no Specification-Version in its manifest, so the hardcoded "2.0.0" is used.
       assertEquals(FALLBACK_BASE, InetsoftUserDocumentation.getUserDocumentationIndexBaseUrl());
    }
 
