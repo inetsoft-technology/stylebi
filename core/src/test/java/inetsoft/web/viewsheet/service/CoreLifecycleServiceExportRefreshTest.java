@@ -49,8 +49,8 @@ import inetsoft.util.ThreadContext;
 import inetsoft.util.XPortalHelper;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
-import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.controller.VSRefreshService;
+import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.wiz.pairing.TestPrincipals;
 import inetsoft.web.wiz.script.ScriptStateRefreshService;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
@@ -258,6 +258,27 @@ class CoreLifecycleServiceExportRefreshTest {
       assertEquals("none yet+++", f.live());
    }
 
+   /**
+    * Documents the trade-off of keeping runtime values (Bug #79395): an onLoad that writes only
+    * under a condition (no else) leaves its earlier output in place when a script makes the
+    * condition false, because the refresh no longer resets it to the design value. An onLoad
+    * that writes in every branch recomputes, and the next real viewer refresh still resets.
+    */
+   @Test
+   void conditionalOnLoadOutputIsNotResetByScriptRefresh() throws Exception {
+      Fixture f = new Fixture(
+         "if(ControlText.text == 'on') { LastChangeLine.text = 'on-output'; }", false);
+      f.setText("ControlText", "on");
+      f.scriptRefresh(() -> {});
+      assertEquals("on-output", f.live());
+
+      f.scriptRefresh(() -> f.setText("ControlText", "off"));
+      assertEquals("on-output", f.live(), "stale: no else branch, and no reset");
+
+      f.refresh(false);
+      assertEquals("none yet", f.live(), "a user refresh still resets");
+   }
+
    /** The pre-existing user refresh behaviour is unchanged when the keep flag is not set. */
    @Test
    void scriptRefreshFlagDoesNotLeakIntoUserRefresh() throws Exception {
@@ -334,6 +355,10 @@ class CoreLifecycleServiceExportRefreshTest {
 
             return null;
          });
+      }
+
+      void setText(String name, String text) {
+         ((TextVSAssemblyInfo) vs.getAssembly(name).getVSAssemblyInfo()).setText(text);
       }
 
       /** What execute_script does: run, then the real post-script refresh. */

@@ -62,6 +62,13 @@ import java.util.List;
  * event to write them again, and a script's own runtime write is not in the design at all
  * (Bug #79395). onLoad still reruns and every dependent is still recomputed.</p>
  *
+ * <p>Limits: the rerun onLoad has no event, so an onLoad that writes unconditionally, or in an
+ * {@code else} branch, still overwrites an event-driven value after a script run (the same as a
+ * viewer refresh); only an onLoad guarded by {@code event != null} keeps it. Because values are
+ * no longer reset, output written only under a condition (no else) stays as it was when a script
+ * makes the condition false. The flag is a ThreadLocal, so, as for the export refresh, it only
+ * reaches a refresh that runs on the calling node.</p>
+ *
  * <p>The refresh adds no undo checkpoint, so a run that only wrote selection state still adds
  * none (Bug #79051). It runs on a capturing dispatcher, which transmits nothing; the controller's
  * own broadcast after the run is what repaints the browser, so the browser is sent one refresh.</p>
