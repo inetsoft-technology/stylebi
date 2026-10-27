@@ -162,7 +162,7 @@ public class MVCreatorUtil {
                         Date min = null;
                         Date max = null;
 
-                        for(int r = 0; lens.moreRows(r) && r < end; r++) {
+                        for(int r = start; lens.moreRows(r) && r < end; r++) {
                            // optimization, avoid calling getObject() on the
                            // XDynamicTable since it causes DateRangeRef.convert
                            // which is expensive. We check the type and the
@@ -221,7 +221,7 @@ public class MVCreatorUtil {
                @Override
                public void run() {
                   try {
-                     for(int r = 0; lens.moreRows(r) && r < end; r++) {
+                     for(int r = start; lens.moreRows(r) && r < end; r++) {
                         Object val = lens.getObject(r, measures[mIdx]);
 
                         // check overflow every 1024 rows
