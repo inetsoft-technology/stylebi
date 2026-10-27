@@ -117,6 +117,9 @@ public abstract class AbstractMeasureColumn extends XDimIndex implements MVMeasu
     */
    protected BitSet getRows(double[] vals, boolean not, boolean cnull) {
       BitSet rows = new BitSet();
+      // the list length (not the row count) picks the lookup: a long IN list is hashed
+      // instead of being scanned linearly for every row
+      DoubleLookup lookup = vals.length >= HASH_THRESHOLD ? new DoubleLookup(vals) : null;
 
       for(int fidx = 0, i = 0; i < rcnt; fidx++) {
          double[] fragment = getFragment(fidx);
@@ -126,10 +129,15 @@ public abstract class AbstractMeasureColumn extends XDimIndex implements MVMeasu
             double dval = fragment[n];
             boolean found = false;
 
-            for(int k = 0; k < vals.length; k++) {
-               if(dval == vals[k]) {
-                  found = true;
-                  break;
+            if(lookup != null) {
+               found = lookup.contains(dval);
+            }
+            else {
+               for(int k = 0; k < vals.length; k++) {
+                  if(dval == vals[k]) {
+                     found = true;
+                     break;
+                  }
                }
             }
 
@@ -435,6 +443,78 @@ public abstract class AbstractMeasureColumn extends XDimIndex implements MVMeasu
    @Override
    protected void swapped() {
    }
+
+   /**
+    * Set of doubles with the membership semantics of {@code ==}: 0.0 and -0.0 are equal, and
+    * NaN (any bit pattern) is never a member and never matches.
+    */
+   static final class DoubleLookup {
+      DoubleLookup(double[] vals) {
+         int size = Integer.highestOneBit(Math.max(vals.length, 2) * 2 - 1) << 1;
+         table = new long[size];
+         used = new boolean[size];
+         mask = size - 1;
+         shift = 64 - Integer.numberOfTrailingZeros(size);
+
+         for(double val : vals) {
+            if(val == val) {
+               add(bits(val));
+            }
+         }
+      }
+
+      boolean contains(double val) {
+         if(val != val) {
+            return false;
+         }
+
+         long key = bits(val);
+
+         for(int pos = hash(key); used[pos]; pos = (pos + 1) & mask) {
+            if(table[pos] == key) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+
+      private void add(long key) {
+         int pos = hash(key);
+
+         while(used[pos]) {
+            if(table[pos] == key) {
+               return;
+            }
+
+            pos = (pos + 1) & mask;
+         }
+
+         used[pos] = true;
+         table[pos] = key;
+      }
+
+      // adding 0.0 turns -0.0 into 0.0 and leaves every other non-NaN value unchanged
+      private static long bits(double val) {
+         return Double.doubleToRawLongBits(val + 0.0);
+      }
+
+      // Fibonacci hashing: the top bits of the product depend on every key bit, which matters
+      // because small whole numbers differ only in the high bits of their double representation
+      private int hash(long key) {
+         return (int) ((key * 0x9E3779B97F4A7C15L) >>> shift);
+      }
+
+      private final long[] table;
+      private final boolean[] used;
+      private final int mask;
+      private final int shift;
+   }
+
+   /**
+    * Minimum IN list length from which the list is hashed.
+    */
+   private static final int HASH_THRESHOLD = 16;
 
    private static class CacheHolder {
       public CacheHolder(BitSetCache rowCache, long modTime) {
