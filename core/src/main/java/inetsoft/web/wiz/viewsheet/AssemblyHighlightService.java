@@ -17,9 +17,12 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.filter.HighlightGroup;
+import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
@@ -33,6 +36,7 @@ import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.wiz.binding.VisualFrameAliases;
@@ -507,6 +511,12 @@ public class AssemblyHighlightService {
    private static String existingNames(List<String> names, RuntimeViewsheet rvs,
                                        String assemblyName, Region region, String missing)
    {
+      Map<String, List<String>> columns = otherColumnGroups(rvs, assemblyName, region, names);
+
+      if(!columns.isEmpty()) {
+         return tableHint(names, columns);
+      }
+
       MeasureGroups all = measureGroups(rvs, assemblyName, region);
       Map<String, List<String>> groups = all.reachable();
       boolean holdsName = false;
@@ -539,6 +549,83 @@ public class AssemblyHighlightService {
       }
 
       return out.toString();
+   }
+
+   /**
+    * The cell-level highlights held by the columns of a plain table other than the one that was
+    * read, keyed by column name (bug #79397). A cell-level highlight lives on its own column's
+    * data path, while a call that names no row/col/colName reads only the first data cell (that
+    * column's group plus the shared row-level group), so a highlight on any other column is
+    * invisible to it. Names in {@code readNames} (already reported) are left out.
+    *
+    * <p>Empty for anything but a plain table, and for a call that names a colName, row, col, axis
+    * or text, which addresses one cell and is never widened. Read-only.
+    */
+   private static Map<String, List<String>> otherColumnGroups(RuntimeViewsheet rvs,
+                                                              String assemblyName, Region region,
+                                                              List<String> readNames)
+   {
+      boolean located = region != null &&
+         (hasColName(region) || region.cellSupplied() || region.axis() || region.text());
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(located || assembly == null ||
+         !(assembly.getVSAssemblyInfo() instanceof TableVSAssemblyInfo info))
+      {
+         return Map.of();
+      }
+
+      return columnGroups(info.getHighlightAttr(), readNames);
+   }
+
+   /** The non-row detail-cell groups of {@code attr}, minus {@code skip}, by column name. */
+   static Map<String, List<String>> columnGroups(TableHighlightAttr attr, Collection<String> skip) {
+      Map<String, List<String>> out = new LinkedHashMap<>();
+
+      if(attr == null) {
+         return out;
+      }
+
+      Enumeration<TableDataPath> paths = attr.getAllDataPaths();
+
+      while(paths.hasMoreElements()) {
+         TableDataPath path = paths.nextElement();
+         HighlightGroup group = path == null ? null : attr.getHighlight(path);
+
+         if(path == null || path.isRow() || path.getType() != TableDataPath.DETAIL ||
+            group == null || path.getPath() == null || path.getPath().length == 0)
+         {
+            continue;
+         }
+
+         List<String> held = new ArrayList<>();
+
+         for(String n : group.getNames()) {
+            if(skip.stream().noneMatch(n::equalsIgnoreCase)) {
+               held.add(n);
+            }
+         }
+
+         if(!held.isEmpty()) {
+            out.computeIfAbsent(path.getPath()[path.getPath().length - 1],
+                                k -> new ArrayList<>()).addAll(held);
+         }
+      }
+
+      return out;
+   }
+
+   /**
+    * The refusal text for a plain table whose first data cell lacks the name while other columns
+    * hold highlights. Keeps the "It has: ..." half, names the columns, and says to pass colName.
+    */
+   static String tableHint(List<String> names, Map<String, List<String>> columns) {
+      return (names.isEmpty() ? "The first data cell has no highlights of its own."
+                              : "It has: " + String.join(", ", names) + ".") +
+         " Other columns of the table hold highlights: " + describe(columns) +
+         ". A cell-level highlight lives on its column, so pass colName (or row/col) to address " +
+         "it; a call with no location reads only the first data cell.";
    }
 
    private static String describe(Map<String, List<String>> groups) {
