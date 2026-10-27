@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.tabular;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.uql.util.Config;
 import inetsoft.uql.XDataSource;
 import inetsoft.util.ConfigurationContext;
@@ -376,7 +377,7 @@ class TabularSchemaExtractorTest {
       ds.objects = new Object[] { new StringBuilder("OBJ-SECRET") };
 
       TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
-      String all = new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(config).toString();
+      String all = new ObjectMapper().valueToTree(config).toString();
 
       assertFalse(all.contains("@"), all);
 
@@ -487,6 +488,43 @@ class TabularSchemaExtractorTest {
    }
 
    @Test
+   void extractDataSourceConfigMasksUserEchoingAFlaggedPasswordApiKey() {
+      PasswordKeyDataSource ds = new PasswordKeyDataSource();
+      ds.apiKey = "FLAGGED-KEY-XY12";
+
+      TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
+
+      assertTrue(fieldNamed(config, "apiKey").isPassword());
+      assertMasked(fieldNamed(config, "user"));
+      assertFalse(json(config).contains("FLAGGED-KEY-XY12"), json(config));
+   }
+
+   @Test
+   void extractDataSourceConfigMasksAKeyHeldOnlyInTheCredential() {
+      CredentialOnlyDataSource ds = new CredentialOnlyDataSource();
+      LocalApiKeyCredential credential = new LocalApiKeyCredential();
+      credential.setApiKey("CRED-ONLY-KEY-5577");
+      ds.setCredential(credential);
+
+      TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
+
+      assertMasked(fieldNamed(config, "user"));
+      assertFalse(json(config).contains("CRED-ONLY-KEY-5577"), json(config));
+   }
+
+   @Test
+   void extractDataSourceConfigIgnoresNonStringPasswordValuesWhenMasking() {
+      NumericPasswordDataSource ds = new NumericPasswordDataSource();
+
+      TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
+
+      assertTrue(fieldNamed(config, "tokenExpiration").isPassword());
+      assertEquals("0", fieldNamed(config, "connectTimeout").getValue());
+      assertFalse(fieldNamed(config, "connectTimeout").isPassword());
+      assertEquals("0", fieldNamed(config, "readTimeout").getValue());
+   }
+
+   @Test
    void extractDataSourceConfigAcceptsADataSourceThatIsNotTabular() {
       XDataSource ds = mock(XDataSource.class);
       when(ds.getType()).thenReturn("Other");
@@ -513,7 +551,7 @@ class TabularSchemaExtractorTest {
    }
 
    private static String json(TabularDataSourceConfig config) {
-      return new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(config).toString();
+      return new ObjectMapper().valueToTree(config).toString();
    }
 
    /**
@@ -632,6 +670,74 @@ class TabularSchemaExtractorTest {
       private String apiToken;
       private String tokenUri;
       private String tokenExpiration;
+   }
+
+   /** AzureSearch-style: a flagged password key echoed by an unflagged user getter. */
+   public static class PasswordKeyDataSource extends TabularDataSource<PasswordKeyDataSource> {
+      public PasswordKeyDataSource() {
+         super("PasswordKey", PasswordKeyDataSource.class);
+      }
+
+      @Override
+      protected CredentialType getCredentialType() {
+         return null;
+      }
+
+      @Property(label = "API Key", password = true)
+      public String getApiKey() {
+         return apiKey;
+      }
+
+      @Property(label = "User")
+      public String getUser() {
+         return apiKey;
+      }
+
+      private String apiKey;
+   }
+
+   /** AdobeAnalytics-style: no key-named property; the user getter returns the credential key. */
+   public static class CredentialOnlyDataSource extends TabularDataSource<CredentialOnlyDataSource> {
+      public CredentialOnlyDataSource() {
+         super("CredentialOnly", CredentialOnlyDataSource.class);
+      }
+
+      @Override
+      protected CredentialType getCredentialType() {
+         return null;
+      }
+
+      @Property(label = "User")
+      public String getUser() {
+         return getCredential() instanceof LocalApiKeyCredential c ? c.getApiKey() : null;
+      }
+   }
+
+   /** GData-style: a numeric flagged password (0) next to unrelated numeric 0 properties. */
+   public static class NumericPasswordDataSource extends TabularDataSource<NumericPasswordDataSource> {
+      public NumericPasswordDataSource() {
+         super("NumericPassword", NumericPasswordDataSource.class);
+      }
+
+      @Override
+      protected CredentialType getCredentialType() {
+         return null;
+      }
+
+      @Property(label = "Token Expiration", password = true)
+      public long getTokenExpiration() {
+         return 0L;
+      }
+
+      @Property(label = "Connect Timeout")
+      public int getConnectTimeout() {
+         return 0;
+      }
+
+      @Property(label = "Read Timeout")
+      public int getReadTimeout() {
+         return 0;
+      }
    }
 
    public static class ArrayDataSource extends FixtureTabularDataSource {

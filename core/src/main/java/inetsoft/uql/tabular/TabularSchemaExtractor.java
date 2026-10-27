@@ -28,6 +28,7 @@ import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.regex.Pattern;
 
 /**
  * Derives a {@link TabularQuerySchema} — the parameters needed to build a query,
@@ -136,9 +137,13 @@ public class TabularSchemaExtractor {
     * a query class -- {@code TabularDataSource} subclasses declare their connection fields
     * (URL, host, tenant, whatever else) with the identical {@code @Property} annotation a query's
     * fields carry, so no per-connector code is needed here any more than in {@code extract}
-    * itself. A property carrying {@code @Property(password = true)} -- every credential field
-    * already declares this, since it is the same flag {@code TabularQueryContractSupport}'s own
-    * redaction relies on -- never has its value read into the response; only whether one is set.
+    * itself. A property carrying {@code @Property(password = true)} never has its value read
+    * into the response; only whether one is set. Credentials are also echoed through properties
+    * that are not flagged (an inherited {@code getUser()} returning the API key, an unflagged
+    * {@code apiKey}), so the secret values the data source holds -- flagged properties, secret
+    * composite items, the credential's own secret getters, and unflagged properties whose name
+    * ends in Key/Token/Secret/Password -- are collected first, and any other field or item
+    * equal to (or, for 8+ character secrets, containing) one of them is masked the same way.
     *
     * @param dataSource the data source instance to describe. {@code null} is not accepted --
     *                    the caller resolves the path to an instance first, the same as every
@@ -187,13 +192,15 @@ public class TabularSchemaExtractor {
                value, passwords[i] || isAuthenticationProperty(prop.getName()), secrets);
          }
          else if(passwords[i]) {
-            addSecret(secrets, String.valueOf(value));
+            if(value instanceof CharSequence) {
+               addSecret(secrets, value.toString());
+            }
          }
-         else if(SECRET_NAME.matcher(prop.getName()).matches() &&
-            !String.valueOf(value).isBlank())
+         else if(SECRET_NAME.matcher(prop.getName()).matches() && value instanceof CharSequence &&
+            !value.toString().isBlank())
          {
             backstops[i] = true;
-            addSecret(secrets, String.valueOf(value));
+            addSecret(secrets, value.toString());
          }
       }
 
@@ -345,22 +352,6 @@ public class TabularSchemaExtractor {
 
       return false;
    }
-
-   private static final int MIN_CONTAINED_SECRET_LENGTH = 8;
-
-   /**
-    * Names of unflagged scalar properties that hold a credential. Anchored on purpose: tokenUri,
-    * tokenExpiration and tokenPattern are not secrets.
-    */
-   private static final java.util.regex.Pattern SECRET_NAME = java.util.regex.Pattern.compile(
-      "^(?:.*(?:Key|Token|Secret|Password)|[pP]assword|[tT]oken|[sS]ecret)$");
-
-   private static final List<String> CREDENTIAL_SECRET_GETTERS = List.of(
-      "getApiKey", "getApiToken", "getApiSecret", "getSiteToken", "getAccountToken",
-      "getSecretKey", "getAuthorizationToken", "getClientKey", "getClientSecret",
-      "getAccessToken", "getRefreshToken", "getPassword", "getSecurityToken", "getToken",
-      "getOauthToken", "getTokenSecret", "getConsumerKey", "getConsumerSecret",
-      "getAccountKey", "getAuthorizationCode");
 
    private static boolean isCompositeValue(Object value) {
       return value != null && (value.getClass().isArray() || value instanceof Collection<?> ||
@@ -1238,6 +1229,22 @@ public class TabularSchemaExtractor {
 
    /** Setters that did not return, keyed by declaring class -- see {@link #poison}. */
    private static final Set<String> POISONED = ConcurrentHashMap.newKeySet();
+
+   private static final int MIN_CONTAINED_SECRET_LENGTH = 8;
+
+   /**
+    * Names of unflagged scalar properties that hold a credential. Anchored on purpose: tokenUri,
+    * tokenExpiration and tokenPattern are not secrets.
+    */
+   private static final Pattern SECRET_NAME = Pattern.compile(
+      "^(?:.*(?:Key|Token|Secret|Password)|[pP]assword|[tT]oken|[sS]ecret)$");
+
+   private static final List<String> CREDENTIAL_SECRET_GETTERS = List.of(
+      "getApiKey", "getApiToken", "getApiSecret", "getSiteToken", "getAccountToken",
+      "getSecretKey", "getAuthorizationToken", "getClientKey", "getClientSecret",
+      "getAccessToken", "getRefreshToken", "getPassword", "getSecurityToken", "getToken",
+      "getOauthToken", "getTokenSecret", "getConsumerKey", "getConsumerSecret",
+      "getAccountKey", "getAuthorizationCode");
 
    private static final Logger LOG = LoggerFactory.getLogger(TabularSchemaExtractor.class);
 }
