@@ -76,6 +76,18 @@ class TabularProbeCauseTest {
    }
 
    @Test
+   void severalRecoveredMessagesAreCollapsedToOneLine() {
+      // UserMessage.merge() joins them with a newline
+      CoreTool.addUserMessage("Error executing Rest query: first");
+      CoreTool.addUserMessage("Error executing Rest query: second");
+
+      String detail = TabularProbeCause.read(query(0), null).detail();
+
+      assertFalse(detail.contains("\n") || detail.contains("\r"), detail);
+      assertTrue(detail.contains("first") && detail.contains("second"), detail);
+   }
+
+   @Test
    void nothingKnownLeavesTheGenericAdviceUntouched() {
       TabularProbeCause cause = TabularProbeCause.read(query(0), null);
 

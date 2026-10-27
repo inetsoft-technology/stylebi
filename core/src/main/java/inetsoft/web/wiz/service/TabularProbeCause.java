@@ -63,7 +63,10 @@ public final class TabularProbeCause {
     */
    public static TabularProbeCause read(TabularQuery query, Object alreadyReported) {
       UserMessage msg = CoreTool.getUserMessage();
-      String text = msg == null || msg.getMessage() == null ? "" : msg.getMessage().trim();
+      // UserMessage.merge() joins recovered messages with a newline and the text is the connector's, so
+      // collapse it to one line for the one-line agent-facing refusals built from it
+      String text = msg == null || msg.getMessage() == null ? "" :
+         msg.getMessage().trim().replaceAll("\\s*[\\r\\n]+\\s*", " ");
 
       if(!text.isEmpty() && alreadyReported != null &&
          text.contains(String.valueOf(alreadyReported).trim()))
