@@ -152,31 +152,73 @@ public class TabularSchemaExtractor {
       config.setDataSourceType(dataSource.getType());
 
       List<TabularDataSourceConfig.Field> fields = new ArrayList<>();
+      List<PropertyMeta> props = TabularUtil.findProperties(dataSource.getClass());
+      Object[] values = new Object[props.size()];
+      boolean[] passwords = new boolean[props.size()];
+      boolean[] backstops = new boolean[props.size()];
+      Set<String> secrets = new LinkedHashSet<>();
 
-      for(PropertyMeta prop : TabularUtil.findProperties(dataSource.getClass())) {
-         TabularDataSourceConfig.Field field = new TabularDataSourceConfig.Field();
-         field.setName(prop.getName());
-         field.setLabel(prop.getDisplayLabel());
-
+      // Pass 1: read every property once and collect the secret values the datasource holds,
+      // wherever they are printed from. A credential is routinely echoed through a property that
+      // was not flagged as a password (an inherited getUser() returning the API key, an unflagged
+      // apiKey getter, an HttpParameter built without the secret flag), so masking only the flagged
+      // property leaves the same value readable elsewhere.
+      for(int i = 0; i < props.size(); i++) {
+         PropertyMeta prop = props.get(i);
          Property property = prop.getProperty();
-         boolean password = property != null && property.password();
-         field.setPassword(password);
-
-         Object value;
+         passwords[i] = property != null && property.password();
 
          try {
-            value = prop.getValue(dataSource);
+            values[i] = prop.getValue(dataSource);
          }
          catch(Exception ex) {
             LOG.debug("Could not read '{}' off {}", prop.getName(), dataSource.getClass(), ex);
-            value = null;
+            values[i] = null;
          }
 
-         if(password) {
+         Object value = values[i];
+
+         if(value == null) {
+            continue;
+         }
+
+         if(isCompositeValue(value)) {
+            collectCompositeSecrets(
+               value, passwords[i] || isAuthenticationProperty(prop.getName()), secrets);
+         }
+         else if(passwords[i]) {
+            addSecret(secrets, String.valueOf(value));
+         }
+         else if(SECRET_NAME.matcher(prop.getName()).matches() &&
+            !String.valueOf(value).isBlank())
+         {
+            backstops[i] = true;
+            addSecret(secrets, String.valueOf(value));
+         }
+      }
+
+      collectCredentialSecrets(dataSource, secrets);
+
+      // Pass 2: build the fields, masking anything that is, or contains, a collected secret.
+      for(int i = 0; i < props.size(); i++) {
+         PropertyMeta prop = props.get(i);
+         TabularDataSourceConfig.Field field = new TabularDataSourceConfig.Field();
+         field.setName(prop.getName());
+         field.setLabel(prop.getDisplayLabel());
+         field.setPassword(passwords[i]);
+
+         Object value = values[i];
+
+         if(passwords[i]) {
             field.setConfigured(value != null && !isEmptyValue(value));
          }
          else if(isCompositeValue(value)) {
-            applyComposite(field, value, prop.getName());
+            applyComposite(field, value, prop.getName(), secrets);
+         }
+         else if(backstops[i] || value != null && containsSecret(String.valueOf(value), secrets)) {
+            field.setPassword(true);
+            field.setValue(null);
+            field.setConfigured(true);
          }
          else {
             field.setValue(value == null ? null : String.valueOf(value));
@@ -189,6 +231,136 @@ public class TabularSchemaExtractor {
 
       return config;
    }
+
+   private static boolean isAuthenticationProperty(String name) {
+      return name != null && name.toLowerCase(Locale.ROOT).startsWith("authentication");
+   }
+
+   private static void addSecret(Set<String> secrets, String value) {
+      if(value != null && !value.isBlank()) {
+         secrets.add(value);
+      }
+   }
+
+   /**
+    * Adds the values held by a composite property. With {@code all} every element counts (a
+    * password or authentication property); otherwise only elements flagged secret do.
+    */
+   private static void collectCompositeSecrets(Object value, boolean all, Set<String> secrets) {
+      if(value instanceof char[] chars) {
+         if(all) {
+            addSecret(secrets, new String(chars));
+         }
+
+         return;
+      }
+
+      if(value instanceof Map<?, ?> map) {
+         if(all) {
+            for(Object v : map.values()) {
+               if(v instanceof CharSequence) {
+                  addSecret(secrets, v.toString());
+               }
+            }
+         }
+
+         return;
+      }
+
+      List<Object> elements = elementsOf(value);
+
+      if(elements == null) {
+         return;
+      }
+
+      for(Object element : elements) {
+         if(element instanceof HttpParameter param) {
+            if(all || param.isSecret()) {
+               addSecret(secrets, param.getValue());
+            }
+         }
+         else if(all && (element instanceof String || element instanceof Number)) {
+            addSecret(secrets, element.toString());
+         }
+      }
+   }
+
+   /**
+    * Adds the secret values of the data source's credential. An explicit list of getters, not a
+    * name pattern: a pattern over-collects (tokenUri, authorizationUri and the like are plain
+    * endpoints) and over-masking those hides what the caller needs to see.
+    */
+   private static void collectCredentialSecrets(XDataSource dataSource, Set<String> secrets) {
+      if(!(dataSource instanceof TabularDataSource<?> tabular)) {
+         return;
+      }
+
+      Object credential;
+
+      try {
+         credential = tabular.getCredential();
+      }
+      catch(Exception ex) {
+         LOG.debug("Could not read the credential off {}", dataSource.getClass(), ex);
+         return;
+      }
+
+      if(credential == null) {
+         return;
+      }
+
+      for(String getter : CREDENTIAL_SECRET_GETTERS) {
+         try {
+            Method method = credential.getClass().getMethod(getter);
+
+            if(method.getReturnType() == String.class) {
+               addSecret(secrets, (String) method.invoke(credential));
+            }
+         }
+         catch(NoSuchMethodException ex) {
+            // this credential type does not carry that field
+         }
+         catch(Exception ex) {
+            LOG.debug("Could not read '{}' off {}", getter, credential.getClass(), ex);
+         }
+      }
+   }
+
+   /**
+    * Equal to a secret (any length; over-masking on equality is harmless), or containing one of at
+    * least {@link #MIN_CONTAINED_SECRET_LENGTH} characters ("Bearer token" and the like).
+    */
+   private static boolean containsSecret(String text, Set<String> secrets) {
+      if(text == null || text.isBlank()) {
+         return false;
+      }
+
+      for(String secret : secrets) {
+         if(text.equals(secret) ||
+            secret.length() >= MIN_CONTAINED_SECRET_LENGTH && text.contains(secret))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static final int MIN_CONTAINED_SECRET_LENGTH = 8;
+
+   /**
+    * Names of unflagged scalar properties that hold a credential. Anchored on purpose: tokenUri,
+    * tokenExpiration and tokenPattern are not secrets.
+    */
+   private static final java.util.regex.Pattern SECRET_NAME = java.util.regex.Pattern.compile(
+      "^(?:.*(?:Key|Token|Secret|Password)|[pP]assword|[tT]oken|[sS]ecret)$");
+
+   private static final List<String> CREDENTIAL_SECRET_GETTERS = List.of(
+      "getApiKey", "getApiToken", "getApiSecret", "getSiteToken", "getAccountToken",
+      "getSecretKey", "getAuthorizationToken", "getClientKey", "getClientSecret",
+      "getAccessToken", "getRefreshToken", "getPassword", "getSecurityToken", "getToken",
+      "getOauthToken", "getTokenSecret", "getConsumerKey", "getConsumerSecret",
+      "getAccountKey", "getAuthorizationCode");
 
    private static boolean isCompositeValue(Object value) {
       return value != null && (value.getClass().isArray() || value instanceof Collection<?> ||
@@ -226,7 +398,7 @@ public class TabularSchemaExtractor {
     * even when the parameter is secret, and an unknown element type's is unknowable.
     */
    private static void applyComposite(TabularDataSourceConfig.Field field, Object value,
-                                      String propertyName)
+                                      String propertyName, Set<String> secrets)
    {
       if(value instanceof char[] chars) {
          field.setConfigured(chars.length > 0);
@@ -245,12 +417,11 @@ public class TabularSchemaExtractor {
       }
       else {
          List<Object> elements = elementsOf(value);
-         boolean authProperty = propertyName != null &&
-            propertyName.toLowerCase(Locale.ROOT).startsWith("authentication");
+         boolean authProperty = isAuthenticationProperty(propertyName);
 
          if(elements != null) {
             for(Object element : elements) {
-               items.add(toItem(element, authProperty));
+               items.add(toItem(element, authProperty, secrets));
             }
          }
       }
@@ -258,13 +429,16 @@ public class TabularSchemaExtractor {
       field.setItems(items);
    }
 
-   private static Map<String, Object> toItem(Object element, boolean authProperty) {
+   private static Map<String, Object> toItem(Object element, boolean authProperty,
+                                             Set<String> secrets)
+   {
       Map<String, Object> item = new LinkedHashMap<>();
 
       if(element instanceof HttpParameter param) {
          // Every element of an authentication property is masked regardless of its own flag:
          // a credential typed into such a property without ticking "secret" is still a credential.
-         boolean masked = param.isSecret() || authProperty;
+         boolean masked = param.isSecret() || authProperty ||
+            containsSecret(param.getValue(), secrets);
          item.put("name", param.getName());
          item.put("type", param.getType() == null ? null : param.getType().name());
          item.put("secret", param.isSecret());
@@ -283,7 +457,13 @@ public class TabularSchemaExtractor {
       else if(element instanceof String || element instanceof Number ||
          element instanceof Boolean || element instanceof Enum<?>)
       {
-         item.put("value", element.toString());
+         if(containsSecret(element.toString(), secrets)) {
+            item.put("value", null);
+            item.put("configured", true);
+         }
+         else {
+            item.put("value", element.toString());
+         }
       }
       else {
          // Unknown element type (including nested arrays): name only, never its value or toString.

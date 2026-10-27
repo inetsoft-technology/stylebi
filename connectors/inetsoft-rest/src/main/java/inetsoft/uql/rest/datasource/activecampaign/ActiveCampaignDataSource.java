@@ -51,6 +51,11 @@ public class ActiveCampaignDataSource extends EndpointJsonDataSource<ActiveCampa
 
    public void setApiToken(String apiToken) {
       setHttpParameter("Api-Token", apiToken, HttpParameter.ParameterType.HEADER);
+      HttpParameter param = getHttpParameter("Api-Token", HttpParameter.ParameterType.HEADER);
+
+      if(param != null) {
+         param.setSecret(true);
+      }
    }
 
    @Override
