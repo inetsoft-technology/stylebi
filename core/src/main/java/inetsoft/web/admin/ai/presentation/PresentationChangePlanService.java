@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.web.admin.ai.PlanChange;
+import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -88,7 +89,7 @@ public class PresentationChangePlanService {
 
       String task = req.getTask().trim();
       List<PlanChange> immutableChanges = Collections.unmodifiableList(changes);
-      String planHash = hash(immutableChanges);
+      String planHash = hash(immutableChanges, hiddenInputs(resolved));
       return new ResolvedPlan(task, immutableChanges, true, true,
                               planHash, TaskAuditToken.issue(planHash, task));
    }
@@ -170,12 +171,19 @@ public class PresentationChangePlanService {
          JsonNode readbackNode = subModel == PresentationSubModel.LOOK_AND_FEEL
             ? simulateLookAndFeelReadback(mergedNode, global, orgId) : mergedNode;
 
+         Map<String, String> hidden = new LinkedHashMap<>();
+
+         if(subModel == PresentationSubModel.LOOK_AND_FEEL) {
+            addLookAndFeelFileDigests(hidden, property, mergedNode, global);
+         }
+
          PlanChange planChange = new PlanChange(
             property, orgId, projectedValue(subModel, currentNode),
             projectedValue(subModel, readbackNode), subModel.risk(), subModel.scope(), true,
             "update " + subModel.key() + " (" + scopeLabel + " scope)");
 
-         result.add(new ResolvedChange(subModel, global, currentModel, proposedModel, planChange));
+         result.add(new ResolvedChange(subModel, global, currentModel, proposedModel, planChange,
+                                       hidden));
       }
 
       return result;
@@ -525,6 +533,71 @@ public class PresentationChangePlanService {
       node.putNull("viewsheetFile");
    }
 
+   /** Bug #79429: {@link #simulateLookAndFeelReadback} nulls the four {@code FileData} fields, so
+    * the projection (and the hash computed from it) is blind to the uploaded bytes -- and apply
+    * re-resolves from its own request, so the bytes could be swapped between preview and apply.
+    * Folds one hidden digest per field that the write would really apply into the plan hash,
+    * leaving the visible projection untouched (the #76729 read-back compare needs it content-free).
+    * Computed from the sanitized merged node, before the read-back simulation, in a fixed field
+    * order. Gates mirror {@code LookAndFeelService.setModel}: logo/favicon/viewsheet only when the
+    * {@code default*} flag is off, userformat only at global scope; the gate is {@code content != null}
+    * (an empty file is written). Per field, only what the write uses is hashed: the extension
+    * ({@code .gif} if none) for logo/favicon, the name for viewsheet at organization scope only,
+    * nothing but the content for userformat. A field that is not applied adds nothing, so a plan
+    * with no effective file hashes exactly as before. */
+   private static void addLookAndFeelFileDigests(Map<String, String> hidden, String key,
+                                                 JsonNode merged, boolean global)
+   {
+      for(String[] f : new String[][] {{"logo", "logoFile", "defaultLogo"},
+                                       {"favicon", "faviconFile", "defaultFavicon"}})
+      {
+         String content = fileContent(merged, f[1]);
+
+         if(content != null && !merged.path(f[2]).asBoolean(false)) {
+            String name = merged.path(f[1]).path("name").asText("");
+            int dot = name.lastIndexOf('.');
+            addFileDigest(hidden, key, f[0], dot >= 0 ? name.substring(dot) : ".gif", content);
+         }
+      }
+
+      String vsContent = fileContent(merged, "viewsheetFile");
+
+      if(vsContent != null && !merged.path("defaultViewsheet").asBoolean(false)) {
+         addFileDigest(hidden, key, "viewsheet",
+                       global ? "" : merged.path("viewsheetFile").path("name").asText(""), vsContent);
+      }
+
+      String formatContent = fileContent(merged, "userformatFile");
+
+      if(global && formatContent != null) {
+         addFileDigest(hidden, key, "userformat", "", formatContent);
+      }
+   }
+
+   private static String fileContent(JsonNode merged, String field) {
+      JsonNode file = merged.get(field);
+      return file != null && file.isObject() && file.hasNonNull("content")
+         ? file.get("content").asText() : null;
+   }
+
+   private static void addFileDigest(Map<String, String> hidden, String key, String field,
+                                     String name, String content)
+   {
+      PlanHashInputs.addHidden(hidden, key, field, PlanHashInputs.digest(
+         "presentation.lookAndFeel." + field + ".", name + SEP + content));
+   }
+
+   /** The hidden hash inputs of every resolved change, keyed by the change's property. */
+   static Map<String, String> hiddenInputs(List<ResolvedChange> resolved) {
+      Map<String, String> all = new LinkedHashMap<>();
+
+      for(ResolvedChange entry : resolved) {
+         all.putAll(entry.hidden());
+      }
+
+      return all;
+   }
+
    private static String sanitizeBaseName(String label, String raw) {
       String normalized = raw.replace('\\', '/');
       int idx = normalized.lastIndexOf('/');
@@ -588,8 +661,11 @@ public class PresentationChangePlanService {
     * and apply. {@code task} is write-only downstream -- it flows into
     * {@link PresentationChangesetApplyService#writeAudit} as
     * {@code AdminChangeRecord.setTaskDescription}, a plain audit label that is never read back or
-    * compared -- so excluding it from the hash does not weaken the gate against a changed plan. */
-   static String hash(List<PlanChange> changes) {
+    * compared -- so excluding it from the hash does not weaken the gate against a changed plan.
+    *
+    * <p>{@code hidden} (Bug #79429) holds per-change inputs that must bind the plan but never appear
+    * in a projection (lookAndFeel upload digests), keyed by {@link PlanChange#property()}. */
+   static String hash(List<PlanChange> changes, Map<String, String> hidden) {
       StringBuilder canonical = new StringBuilder();
 
       for(PlanChange change : changes) {
@@ -599,6 +675,7 @@ public class PresentationChangePlanService {
             .append(canonicalValue(change.proposedValue())).append(SEP)
             .append(change.risk()).append(SEP)
             .append(change.snapshotScope()).append(SEP);
+         PlanHashInputs.appendHidden(canonical, SEP, hidden, change.property());
       }
 
       try {
@@ -631,7 +708,8 @@ public class PresentationChangePlanService {
     * {@link #proposedModel()} (and, on rollback, write {@link #currentModel()} back) directly instead
     * of re-deriving either from JSON a second time. */
    record ResolvedChange(PresentationSubModel subModel, boolean global, Object currentModel,
-                         Object proposedModel, PlanChange planChange)
+                         Object proposedModel, PlanChange planChange,
+                         Map<String, String> hidden)
    {
    }
 }
