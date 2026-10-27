@@ -10263,22 +10263,51 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(ex.getMessage().contains("isPaid"));
    }
 
+   /**
+    * Bug #79447: two rankings are accepted only on distinct group columns of a grouped table,
+    * each with an 'of' aggregate, the one multi-entry shape the engine evaluates (nested
+    * per-parent top-N). They are stored as one list joined by an AND junction.
+    */
    @Test
-   void setRankingsEstablishesMultipleIndependentRankings() throws Exception {
+   void setRankingsAcceptsDistinctGroupColumnsWithOf() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "T", "customer", "employee", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", groups("customer", "employee"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "Sum", "Total")));
+         ed.setRankings("T", List.of(
+            new WorksheetMutationSupport.RankingSpec("customer", 3, "TOP_N", false, "Total"),
+            new WorksheetMutationSupport.RankingSpec("employee", 2, "BOTTOM_N", false, "Total")));
+      });
+
+      ConditionList cl = t.getRankingConditionList().getConditionList();
+      assertEquals(3, cl.getSize(), "two rankings joined by one AND junction");
+      assertEquals("customer", cl.getConditionItem(0).getAttribute().getAttribute());
+      assertEquals("employee", cl.getConditionItem(2).getAttribute().getAttribute());
+   }
+
+   /** Bug #79447: an ungrouped table cannot take two rankings; the list is left as it was. */
+   @Test
+   void setRankingsRejectsTwoRankingsOnAnUngroupedTable() throws Exception {
       Worksheet ws = new Worksheet();
       TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "customer", "employee");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.setRankings("T", List.of(
-         new WorksheetMutationSupport.RankingSpec("customer", 3, "TOP_N", false),
-         new WorksheetMutationSupport.RankingSpec("employee", 2, "BOTTOM_N", false))));
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setRankings("T", List.of(
+            new WorksheetMutationSupport.RankingSpec("customer", 3, "TOP_N", false),
+            new WorksheetMutationSupport.RankingSpec("employee", 2, "BOTTOM_N", false)))));
 
-      ConditionList cl = t.getRankingConditionList().getConditionList();
-      assertEquals(3, cl.getSize(), "two rankings joined by one AND junction");
-      assertEquals("customer", cl.getConditionItem(0).getAttribute().getAttribute());
-      assertEquals("employee", cl.getConditionItem(2).getAttribute().getAttribute());
+      assertTrue(ex.getMessage().contains("more than one ranking"), ex.getMessage());
+      assertTrue(t.getRankingConditionList() == null ||
+                 t.getRankingConditionList().getConditionList().getSize() == 0);
    }
 
    @Test
