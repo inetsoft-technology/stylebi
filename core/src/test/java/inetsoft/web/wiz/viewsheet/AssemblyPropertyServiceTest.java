@@ -3984,16 +3984,35 @@ class AssemblyPropertyServiceTest {
    }
 
    @Test
-   void bug79094PatternsTheRuntimeHonoursAreAcceptedVerbatim() throws Exception {
+   void bug79094PatternsTheDialogAcceptsAreAcceptedVerbatim() throws Exception {
       for(boolean qdf : new boolean[] { false, true }) {
-         for(String pattern : new String[] { "yyyy-MM", "yyyy_MM_dd", "dd.MM.yyyy", "'abc'",
-                                             "MMM d, yyyy", "yyyy-MM-dd 'HH:mm'" })
+         for(String pattern : new String[] { "yyyy-MM-dd", "dd.MM.yyyy", "MM/dd/yyyy",
+                                             "MMM d, yyyy", "yyyy.M.d" })
          {
             ComboboxPropertyDialogModel model = seededComboboxModel(qdf, "yyyy-MM-dd");
             setCombobox(model, patchOf(DFP, pattern));
             assertEquals(pattern, model.getDataInputPaneModel().getDateFormatPattern());
          }
       }
+   }
+
+   /**
+    * The runtime formats these, but the Composer dialog's validateDateFormat refuses them on
+    * open and disables OK/Apply, so they are refused here too.
+    */
+   @Test
+   void bug79094PatternsTheDialogRefusesAreRefused() {
+      for(boolean qdf : new boolean[] { false, true }) {
+         for(String pattern : new String[] { "yyyy-MM", "MM/dd", "yyyy_MM_dd", "'abc'",
+                                             "yyyy-MM-dd 'HH:mm'", "EEE, yyyy-MM-dd" })
+         {
+            assertComboboxRefused(seededComboboxModel(qdf, "yyyy-MM-dd"),
+                                  patchOf(DFP, pattern), pattern, "not a valid date format");
+         }
+      }
+
+      assertComboboxRefused(seededComboboxModel(false, "yyyy-MM"), patchOf(QDF, true),
+                            "yyyy-MM");
    }
 
    @Test

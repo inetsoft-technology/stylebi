@@ -1084,11 +1084,13 @@ public class AssemblyPropertyService {
     *       patch touches the pattern or turns the format on, regardless of
     *       {@code queryDateFormat}, because the setter replaces it either way;</li>
     *   <li>a null or blank pattern is refused only when {@code queryDateFormat} is on after the
-    *       patch (the setter would replace it); with the format off it is inactive.</li>
+    *       patch (the setter would replace it); with the format off it is inactive;</li>
+    *   <li>a pattern that formats fine must also pass the Composer dialog's
+    *       {@code validateDateFormat} rule ({@link #DIALOG_DATE_FORMAT}: only y, M, d and simple
+    *       separators, with y, M and d all present). The runtime honours {@code yyyy-MM} or
+    *       {@code yyyy_MM_dd}, but the dialog checks the stored pattern on open and disables
+    *       OK/Apply, so a pattern written here could not be saved from the dialog any more.</li>
     * </ul>
-    *
-    * <p>This follows the runtime on purpose, not the Angular dialog: the dialog also requires
-    * y, M and d and so refuses {@code yyyy-MM}, which the runtime honours.
     */
    private static void requireValidComboboxDateFormat(Object model,
                                                       Collection<String> resolvedPaths)
@@ -1131,7 +1133,20 @@ public class AssemblyPropertyService {
             "pattern such as yyyy-MM-dd or dd.MM.yyyy. StyleBI would otherwise silently " +
             "store yyyy-MM-dd instead.", ex);
       }
+
+      if(!DIALOG_DATE_FORMAT.matcher(pattern).matches()) {
+         throw new IllegalArgumentException(
+            "set_assembly_properties: '" + DATE_FORMAT_PATTERN_PATH + "' is not a valid date " +
+            "format for this option -- '" + pattern + "'. Like the ComboBox property dialog, " +
+            "it may contain only y, M, d, the separators - / . : , space and quotes, and must " +
+            "include all of y, M and d (e.g. yyyy-MM-dd, dd.MM.yyyy, MM/dd/yyyy); otherwise the " +
+            "dialog refuses to save the ComboBox.");
+      }
    }
+
+   // data-input-pane.component.ts validateDateFormat: allowed /^[yMd:\-/. ,']+$/ plus y, M and d
+   private static final java.util.regex.Pattern DIALOG_DATE_FORMAT =
+      java.util.regex.Pattern.compile("(?=.*y)(?=.*M)(?=.*d)[yMd:\\-/. ,']+");
 
    /**
     * A TextInput's Date/Integer/Float editor is built by {@code setTextInputPropertyDialogModel}
