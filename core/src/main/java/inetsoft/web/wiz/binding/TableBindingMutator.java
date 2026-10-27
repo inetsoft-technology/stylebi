@@ -18,6 +18,9 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.graph.calc.ValueOfCalc;
+import inetsoft.uql.viewsheet.graph.AbstractCalc;
+import inetsoft.web.binding.model.graph.calc.ValueOfCalcInfo;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.web.composer.vs.dialog.HideColumnsDialogService;
@@ -1871,6 +1874,161 @@ public final class TableBindingMutator {
       }
 
       return null;
+   }
+
+   /**
+    * Bug #79450: refuses a CHANGE / VALUE-OF calculator whose target dimension a crosstab cannot
+    * compute, instead of letting the engine throw "Error loading data" for it. Run on the final
+    * model of a write, so a write that repairs the shape passes. Only shapes demonstrated to fail
+    * are refused; a target that cannot be classified is never refused.
+    *
+    * <ul>
+    *   <li>from 4-7 (Previous Year/Quarter/Week/Month), target a date part level
+    *       (month_of_year, ...) or a non-date dimension, on rows or cols: the engine throws.
+    *   <li>rows only, from 4 on a year target followed by a month dimension: every cell is blank.
+    *   <li>rows only, from 7 on a year target: every cell is blank.
+    * </ul>
+    *
+    * @throws IllegalArgumentException naming the field, the calculator and the level
+    */
+   public static void refuseUnsupportedCalculatorTarget(BaseTableBindingModel model) {
+      if(!(model instanceof CrosstabBindingModel crosstab) || crosstab.getAggregates() == null) {
+         return;
+      }
+
+      List<BDimensionRefModel> rows = crosstab.getRows() == null ? List.of() : crosstab.getRows();
+      List<BDimensionRefModel> cols = crosstab.getCols() == null ? List.of() : crosstab.getCols();
+
+      for(BAggregateRefModel agg : crosstab.getAggregates()) {
+         if(!(agg.getCalculateInfo() instanceof ValueOfCalcInfo calc) ||
+            calc.getFrom() < ValueOfCalc.PREVIOUS_YEAR || calc.getFrom() > ValueOfCalc.PREVIOUS_MONTH)
+         {
+            continue;
+         }
+
+         List<BDimensionRefModel> axis = null;
+         int index = -1;
+         String target = calc.getColumnName();
+
+         if(target == null || target.isBlank()) {
+            axis = !rows.isEmpty() ? rows : cols;
+            index = axis.size() - 1;
+         }
+         else if(AbstractCalc.ROW_INNER.equals(target.trim())) {
+            axis = rows;
+            index = rows.size() - 1;
+         }
+         else if(AbstractCalc.COLUMN_INNER.equals(target.trim())) {
+            axis = cols;
+            index = cols.size() - 1;
+         }
+         else {
+            for(List<BDimensionRefModel> candidate : List.of(rows, cols)) {
+               for(int i = 0; i < candidate.size(); i++) {
+                  if(target.trim().equalsIgnoreCase(candidate.get(i).getFullName())) {
+                     axis = candidate;
+                     index = i;
+                  }
+               }
+            }
+         }
+
+         if(axis == null || index < 0) {
+            continue;
+         }
+
+         BDimensionRefModel dim = axis.get(index);
+         int level = calculatorTargetLevel(dim);
+
+         if(level == LEVEL_UNKNOWN) {
+            continue;
+         }
+
+         String name = agg.getFullName() != null ? agg.getFullName() : agg.getColumnValue();
+         String where = "'" + (dim.getFullName() != null ? dim.getFullName() : dim.getColumnValue()) + "'";
+         boolean onRows = axis == rows;
+         String reason = null;
+
+         if(level == LEVEL_NON_DATE) {
+            reason = where + " is not a date";
+         }
+         else if((level & XConstants.PART_DATE_GROUP) != 0) {
+            reason = where + " is bound at " + DateLevels.name(String.valueOf(level)) +
+               ", a date part";
+         }
+         else if(onRows && level == XConstants.YEAR_DATE_GROUP &&
+            calc.getFrom() == ValueOfCalc.PREVIOUS_MONTH)
+         {
+            reason = where + " is bound at year, so every cell would be blank";
+         }
+         else if(onRows && level == XConstants.YEAR_DATE_GROUP &&
+            calc.getFrom() == ValueOfCalc.PREVIOUS_YEAR && followedByMonth(axis, index))
+         {
+            reason = where + " is bound at year with a month dimension after it, so every " +
+               "cell would be blank";
+         }
+
+         if(reason != null) {
+            throw new IllegalArgumentException(
+               "calculateInfo.from " + calc.getFrom() + " (" + previousName(calc.getFrom()) +
+               ") on " + name + " cannot be computed: its calculator dimension " + reason +
+               ". Use a flat full-date level that matches the calculator (for Previous Month, " +
+               "rows = [the date field at month level], which compares January with the " +
+               "previous December) or remove the calculateInfo.");
+         }
+      }
+   }
+
+   private static final int LEVEL_UNKNOWN = Integer.MIN_VALUE;
+   private static final int LEVEL_NON_DATE = Integer.MIN_VALUE + 1;
+
+   /** The numeric date level of a calculator target, LEVEL_NON_DATE, or LEVEL_UNKNOWN. */
+   private static int calculatorTargetLevel(BDimensionRefModel dim) {
+      String level = dim.getDateLevel() == null ? null : dim.getDateLevel().trim();
+
+      if(level != null && !level.isEmpty() && !DateLevels.isDynamicValue(level)) {
+         try {
+            int value = Integer.parseInt(level);
+
+            if(value >= 0) {
+               return value;
+            }
+         }
+         catch(NumberFormatException ignored) {
+            return LEVEL_UNKNOWN;
+         }
+      }
+      else if(level != null && !level.isEmpty()) {
+         return LEVEL_UNKNOWN;
+      }
+
+      String type = dim.getDataType();
+
+      if(type == null || type.isEmpty()) {
+         return LEVEL_UNKNOWN;
+      }
+
+      // no level (or none): the raw value, a Date for a date column
+      return XSchema.isDateType(type) ? XConstants.NONE_DATE_GROUP : LEVEL_NON_DATE;
+   }
+
+   private static boolean followedByMonth(List<BDimensionRefModel> axis, int index) {
+      for(int i = index + 1; i < axis.size(); i++) {
+         if(calculatorTargetLevel(axis.get(i)) == XConstants.MONTH_DATE_GROUP) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static String previousName(int from) {
+      return switch(from) {
+         case ValueOfCalc.PREVIOUS_YEAR -> "Previous Year";
+         case ValueOfCalc.PREVIOUS_QUARTER -> "Previous Quarter";
+         case ValueOfCalc.PREVIOUS_WEEK -> "Previous Week";
+         default -> "Previous Month";
+      };
    }
 
    private static boolean isPercent(BAggregateRefModel agg) {
