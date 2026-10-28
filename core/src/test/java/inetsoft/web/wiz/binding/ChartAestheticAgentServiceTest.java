@@ -796,6 +796,38 @@ class ChartAestheticAgentServiceTest {
       return chart;
    }
 
+   // ── a "=script" colour column that fails is a refusal, not a 500 (bug #79503) ─────────────
+
+   @Test
+   void setFieldWithAScriptColumnThatFailsIsRefusedAndRolledBack() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(mock(ChartVSAssembly.class));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.restoreCurrentCheckpoint()).thenReturn(true);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ((ViewsheetSessionService.Mutation) invocation.getArgument(2)).run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+      ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
+      doThrow(new inetsoft.util.script.ScriptException("Syntax error in line 1"))
+         .when(aesthetics).changeChartAesthetic(any(), any(), any(), any(), any());
+      ChartAestheticAgentService service =
+         serviceWith(sessions, new ChartBindingModel(), aesthetics);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.setField("tok", principal(), "Chart1", "color",
+                                new FieldRef("=bad syntax(", "dimension", null, null, null),
+                                null, ""));
+
+      verify(rvs).restoreCurrentCheckpoint();
+      assertTrue(e.getMessage().contains("'=bad syntax('") &&
+                 e.getMessage().contains("Syntax error in line 1") &&
+                 e.getMessage().contains("Nothing was changed"), e.getMessage());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static ChangeChartRefEvent captureEvent(ChangeChartAestheticService aesthetics)

@@ -1726,6 +1726,144 @@ class ChartBindingServiceTest {
       assertTrue(message.contains("may be applied") && !message.contains("rolled back"), message);
    }
 
+
+   // ── a "=script" column that does not parse is a refusal, not a 500 (bug #79503) ─────────
+
+   private static ChartBindingService scriptFailureHarness(RuntimeViewsheet rvs,
+                                                           ChangeChartRefService refs,
+                                                           VSAssembly assembly)
+   {
+      return scriptFailureHarness(rvs, refs, assembly, new ChartBindingModel());
+   }
+
+   private static ChartBindingService scriptFailureHarness(RuntimeViewsheet rvs,
+                                                           ChangeChartRefService refs,
+                                                           VSAssembly assembly,
+                                                           ChartBindingModel model)
+   {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         doAnswer(invocation -> {
+            ((ViewsheetSessionService.Mutation) invocation.getArgument(2)).run(rvs, "rt1", null);
+            return null;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      VSBindingService binding = mock(VSBindingService.class);
+      when(binding.createModel(any())).thenReturn(model);
+      return new ChartBindingService(
+         sessions, binding, refs, mock(ChangeChartTypeService.class),
+         mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class),
+         mock(inetsoft.web.binding.service.DataRefModelFactoryService.class));
+   }
+
+   private static ChangeChartRefService throwingRefs(Throwable failure) throws Exception {
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+      doThrow(failure).when(refs).changeChartRef(any(), any(), any(), any(), any());
+      return refs;
+   }
+
+   @Test
+   void setShelfWithAScriptColumnThatFailsToParseIsRefusedAndRolledBack() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.restoreCurrentCheckpoint()).thenReturn(true);
+      ChartBindingService service = scriptFailureHarness(
+         rvs, throwingRefs(new inetsoft.util.script.ScriptException("Syntax error in line 1")),
+         mock(ChartVSAssembly.class));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.setShelf("tok", principal(), "Chart1", "x",
+            List.of(new FieldRef("=bad syntax(", "dimension", null, null, null)), null, ""));
+
+      verify(rvs).restoreCurrentCheckpoint();
+      assertTrue(e.getMessage().contains("'=bad syntax('") &&
+                 e.getMessage().contains("Syntax error in line 1") &&
+                 e.getMessage().contains("Nothing was changed"), e.getMessage());
+   }
+
+   @Test
+   void aRuntimeScriptFailureWrappedByTheRuntimeIsRefusedToo() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.restoreCurrentCheckpoint()).thenReturn(true);
+      ChartBindingService service = scriptFailureHarness(
+         rvs, throwingRefs(new RuntimeException(
+            new inetsoft.util.script.ScriptException("nosuchcol is not defined"))),
+         mock(ChartVSAssembly.class));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.setSingleShelf("tok", principal(), "Chart1", "open",
+            new FieldRef("=nosuchcol", "measure", "Sum", null, null), null, ""));
+
+      verify(rvs).restoreCurrentCheckpoint();
+      assertTrue(e.getMessage().contains("'=nosuchcol'") &&
+                 e.getMessage().contains("nosuchcol is not defined"), e.getMessage());
+   }
+
+   @Test
+   void aWriteWithNoScriptValueStillNamesTheChartWhenItsScriptFails() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.restoreCurrentCheckpoint()).thenReturn(true);
+      ChartBindingService service = scriptFailureHarness(
+         rvs, throwingRefs(new inetsoft.util.script.ScriptException("poisoned")),
+         mock(ChartVSAssembly.class), chartWithTables("Orders"));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.setSource("tok", principal(), "Chart1", "Orders", true, ""));
+
+      verify(rvs).restoreCurrentCheckpoint();
+      assertTrue(e.getMessage().contains("'Chart1'") && e.getMessage().contains("poisoned"),
+                 e.getMessage());
+   }
+
+   @Test
+   void aScriptRefusalWhoseRestoreFailsSaysTheWriteMayBeApplied() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.restoreCurrentCheckpoint()).thenThrow(new IllegalStateException("boom"));
+      ChartBindingService service = scriptFailureHarness(
+         rvs, throwingRefs(new inetsoft.util.script.ScriptException("bad")),
+         mock(ChartVSAssembly.class));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.setShelf("tok", principal(), "Chart1", "x",
+            List.of(new FieldRef("=bad(", "dimension", null, null, null)), null, ""));
+
+      assertTrue(e.getMessage().contains("may be applied") &&
+                 !e.getMessage().contains("Nothing was changed"), e.getMessage());
+   }
+
+   @Test
+   void aNonScriptFailureFromTheWritePropagatesUntouchedAndIsNotRolledBack() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ChartBindingService service = scriptFailureHarness(
+         rvs, throwingRefs(new IllegalStateException("something else")),
+         mock(ChartVSAssembly.class));
+
+      IllegalStateException e = assertThrows(IllegalStateException.class,
+         () -> service.setShelf("tok", principal(), "Chart1", "x",
+            List.of(new FieldRef("Region", "dimension", null, null, null)), null, ""));
+
+      assertEquals("something else", e.getMessage());
+      verify(rvs, never()).restoreCurrentCheckpoint();
+   }
+
+   @Test
+   void scriptExpressionsListsOnlyTheEqualsPrefixedValuesOnce() {
+      assertEquals(List.of("=a(", "=b"),
+         ChartBindingService.scriptExpressions(List.of(
+            new FieldRef("=a(", "dimension", null, null, null),
+            new FieldRef("Region", "dimension", null, null, null),
+            new FieldRef("=a(", "dimension", null, null, null),
+            new FieldRef("Sales", "measure", "=b", null, null))));
+      assertTrue(ChartBindingService.scriptExpressions((FieldRef) null).isEmpty());
+   }
    private static ChartBindingService harness(BindingModel model,
                                               ChangeChartRefService refs,
                                               ChangeChartTypeService types,

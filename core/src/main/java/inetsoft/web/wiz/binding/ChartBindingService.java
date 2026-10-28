@@ -100,7 +100,8 @@ public class ChartBindingService {
                         List<FieldRef> fields, String sourceTable, String linkUri) throws Exception
    {
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, scriptExpressions(fields),
+            (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
@@ -135,6 +136,37 @@ public class ChartBindingService {
             throw new IllegalArgumentException(refusalMessage(e.getMessage(), restored), e);
          }
       }));
+   }
+
+   /**
+    * The {@code "=script"} values a write carries (column, aggregate, date level), for the refusal
+    * that names the expression when one of them does not parse or fails to evaluate (bug #79503).
+    */
+   public static List<String> scriptExpressions(FieldRef... fields) {
+      return scriptExpressions(fields == null ? List.<FieldRef>of() : java.util.Arrays.asList(fields));
+   }
+
+   /** @see #scriptExpressions(FieldRef...) */
+   public static List<String> scriptExpressions(List<FieldRef> fields) {
+      List<String> expressions = new ArrayList<>();
+
+      if(fields != null) {
+         for(FieldRef field : fields) {
+            if(field == null) {
+               continue;
+            }
+
+            for(String value : new String[] { field.column(), field.aggregate(),
+                                              field.dateLevel() })
+            {
+               if(value != null && value.startsWith("=") && !expressions.contains(value)) {
+                  expressions.add(value);
+               }
+            }
+         }
+      }
+
+      return expressions;
    }
 
    /** Appends whether the refused write was undone -- "not applied" only when it really was. */
@@ -514,7 +546,8 @@ public class ChartBindingService {
       throws Exception
    {
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, scriptExpressions(field),
+            (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
