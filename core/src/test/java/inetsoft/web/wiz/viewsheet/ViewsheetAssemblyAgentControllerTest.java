@@ -29,6 +29,7 @@ import inetsoft.util.InvalidUserException;
 import inetsoft.util.MessageException;
 import inetsoft.sree.security.CheckPermissionStrategy;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.Permission;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -5555,21 +5556,20 @@ class ViewsheetAssemblyAgentControllerTest {
       }
 
       @Test
-      void noConfiguredDenyAndNoClaims_allowsSharing() throws Exception {
-         // a principal with no roles/groups unknown to the provider is denied by the real strategy
-         // before the allow-by-default rule, so the controller must not treat that as a deny
+      void principalTheDelegateRefuses_isRefusedLikeTheViewer() throws Exception {
+         // no fallback: a principal the real strategy refuses (no identity) is refused here too,
+         // the same answer the Viewer gets for the same check
          ViewsheetSessionService sessions = realMutatingSessions();
          wireMutate(sessions, mock(RuntimeViewsheet.class));
-         VSBookmarkService svc = okAddBookmarkService();
+         VSBookmarkService svc = mock(VSBookmarkService.class);
          ViewsheetAssemblyAgentController controller = controllerForBookmarks(
             sessions, svc, engine(denyEverything(), false));
 
-         controller.createBookmark("tok",
+         assertThrows(IllegalArgumentException.class, () -> controller.createBookmark("tok",
             new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", null),
-            wizUser(false));
-
-         verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.ALLSHARE),
-            anyBoolean(), anyBoolean(), any());
+            wizUser(false)));
+         verify(svc, never()).addBookmarkToViewSheet(
+            any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any());
       }
 
       @Test
@@ -5667,23 +5667,6 @@ class ViewsheetAssemblyAgentControllerTest {
       }
 
       @Test
-      void adminAllowedToShare() throws Exception {
-         // the delegate (the real grant evaluation) allows an administrator everything
-         ViewsheetSessionService sessions = realMutatingSessions();
-         wireMutate(sessions, mock(RuntimeViewsheet.class));
-         VSBookmarkService svc = okAddBookmarkService();
-         ViewsheetAssemblyAgentController controller = controllerForBookmarks(
-            sessions, svc, engine(deny(), true));
-
-         controller.createBookmark("tok",
-            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", null),
-            wizUser(true));
-
-         verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.ALLSHARE),
-            anyBoolean(), anyBoolean(), any());
-      }
-
-      @Test
       void otherPermissionsKeepTheWizBypass() throws Exception {
          CheckPermissionStrategy delegate = deny("ShareBookmark");
          WizDelegatingCheckPermissionStrategy strategy =
@@ -5732,6 +5715,191 @@ class ViewsheetAssemblyAgentControllerTest {
          when(provider.getUser(any())).thenReturn(providerKnowsUser ? mock(User.class) : null);
          when(engine.getSecurityProvider()).thenReturn(provider);
          return engine;
+      }
+   }
+
+   /**
+    * Bug #79486: the same share check evaluated by a real {@link DefaultCheckPermissionStrategy}
+    * (over a provider that knows the users) behind the real wiz-delegating wrapper, instead of a
+    * delegate that returns whatever the test dictates.
+    */
+   @Nested
+   class WizPrincipalSharePermissionRealStrategy {
+      private static final String ORG = "org0";
+      private org.mockito.MockedStatic<XSessionService> sessionService;
+      private org.mockito.MockedStatic<inetsoft.sree.internal.SUtil> sutil;
+      private org.mockito.MockedStatic<inetsoft.sree.security.OrganizationManager> orgManager;
+      private org.mockito.MockedStatic<inetsoft.web.admin.security.action.ActionPermissionService>
+         actions;
+      private org.mockito.MockedStatic<inetsoft.sree.SreeEnv> sreeEnv;
+      private SecurityProvider provider;
+      private SecurityEngine engine;
+
+      @BeforeEach
+      void setUp() throws Exception {
+         sessionService = mockStatic(XSessionService.class);
+         sessionService.when(XSessionService::getService).thenReturn(new XSessionService());
+         sutil = mockStatic(inetsoft.sree.internal.SUtil.class, CALLS_REAL_METHODS);
+         sutil.when(inetsoft.sree.internal.SUtil::isMultiTenant).thenReturn(false);
+         sutil.when(() -> inetsoft.sree.internal.SUtil.isInternalUser(any())).thenReturn(false);
+         sreeEnv = mockStatic(inetsoft.sree.SreeEnv.class);
+         // reads SreeEnv, which needs a Spring context; irrelevant outside multi-tenant mode
+         actions = mockStatic(inetsoft.web.admin.security.action.ActionPermissionService.class);
+         actions.when(() -> inetsoft.web.admin.security.action.ActionPermissionService
+            .isOrgAdminAction(any(), any())).thenReturn(true);
+         orgManager = mockStatic(inetsoft.sree.security.OrganizationManager.class,
+                                 CALLS_REAL_METHODS);
+         inetsoft.sree.security.OrganizationManager om =
+            mock(inetsoft.sree.security.OrganizationManager.class);
+         orgManager.when(inetsoft.sree.security.OrganizationManager::getInstance).thenReturn(om);
+         orgManager.when(inetsoft.sree.security.OrganizationManager::getCurrentOrgName)
+            .thenReturn(ORG);
+         when(om.getCurrentOrgID()).thenReturn(ORG);
+         when(om.getCurrentOrgID(any())).thenReturn(ORG);
+         when(om.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         provider = mock(SecurityProvider.class);
+         lenient().when(provider.getUser(any())).thenReturn(null);
+         lenient().when(provider.getRoles(any())).thenReturn(new IdentityID[0]);
+         lenient().when(provider.getUserGroups(any())).thenReturn(new String[0]);
+         lenient().when(provider.isSystemAdministratorRole(any())).thenReturn(false);
+         lenient().when(provider.isOrgAdministratorRole(any())).thenReturn(false);
+         lenient().when(provider.getAllRoles(any(IdentityID[].class)))
+            .thenAnswer(inv -> inv.getArgument(0));
+         lenient().when(provider.getAllGroups(any(IdentityID[].class)))
+            .thenAnswer(inv -> inv.getArgument(0));
+         lenient().when(provider.getOrgNameFromID(anyString())).thenReturn(ORG);
+         inetsoft.sree.security.Organization org =
+            mock(inetsoft.sree.security.Organization.class);
+         lenient().when(org.getOrganizationID()).thenReturn(ORG);
+         lenient().when(provider.getOrganization(anyString())).thenReturn(org);
+
+         WizDelegatingCheckPermissionStrategy strategy = new WizDelegatingCheckPermissionStrategy(
+            new inetsoft.sree.security.DefaultCheckPermissionStrategy(provider));
+         engine = mock(SecurityEngine.class);
+         when(engine.checkPermission(any(), any(), nullable(String.class), any()))
+            .thenAnswer(inv -> strategy.checkPermission(inv.getArgument(0), inv.getArgument(1),
+                                                        inv.getArgument(2), inv.getArgument(3)));
+      }
+
+      @AfterEach
+      void tearDown() {
+         orgManager.close();
+         actions.close();
+         sreeEnv.close();
+         sutil.close();
+         sessionService.close();
+      }
+
+      /** A provider-known user holding the given roles. */
+      private void knownUser(String name, String... roleNames) {
+         IdentityID id = new IdentityID(name, ORG);
+         IdentityID[] roles = java.util.Arrays.stream(roleNames)
+            .map(r -> new IdentityID(r, ORG)).toArray(IdentityID[]::new);
+         User user = mock(User.class);
+         lenient().when(user.getIdentityID()).thenReturn(id);
+         lenient().when(user.getName()).thenReturn(name);
+         lenient().when(user.getOrganizationID()).thenReturn(ORG);
+         lenient().when(user.getGroups()).thenReturn(new String[0]);
+         lenient().when(user.getRoles()).thenReturn(roles);
+         lenient().when(provider.getUser(eq(id))).thenReturn(user);
+         lenient().when(provider.getRoles(eq(id))).thenReturn(roles);
+      }
+
+      /** READ on the resource is granted only to {@code role}; everyone else is denied. */
+      private void restrictTo(String resource, String role) {
+         Permission perm = new Permission();
+         perm.setRoleGrantsForOrg(ResourceAction.READ, java.util.Set.of(role), ORG);
+         perm.setOrgEditedGrantAll(java.util.Map.of(ORG, true));
+         lenient().when(provider.getPermission(eq(ResourceType.VIEWSHEET_ACTION), eq(resource)))
+            .thenReturn(perm);
+         lenient().when(provider.getPermission(eq(ResourceType.VIEWSHEET_ACTION), eq(resource),
+                                               nullable(String.class))).thenReturn(perm);
+      }
+
+      private SRPrincipal wizToken(String name, IdentityID... roles) {
+         IdentityID id = new IdentityID(name, ORG);
+         SRPrincipal principal = new SRPrincipal(id, roles, new String[0], ORG, 1L);
+         principal.setProperty("wiz", "true");
+         return principal;
+      }
+
+      /** Creates a shared bookmark; returns the service so the caller can verify the outcome. */
+      private VSBookmarkService createShared(SRPrincipal user, boolean expectAllowed)
+         throws Exception
+      {
+         ViewsheetSessionService sessions = realMutatingSessions();
+         wireMutate(sessions, mock(RuntimeViewsheet.class));
+         VSBookmarkService svc = okAddBookmarkService();
+         ViewsheetAssemblyAgentController controller =
+            controllerForBookmarks(sessions, svc, engine);
+         ViewsheetAssemblyAgentController.SaveBookmarkRequest request =
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", null);
+
+         if(expectAllowed) {
+            controller.createBookmark("tok", request, user);
+         }
+         else {
+            IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+               () -> controller.createBookmark("tok", request, user));
+            assertTrue(thrown.getMessage().contains("Share to All permission"));
+         }
+
+         assertEquals("true", user.getProperty("wiz"), "caller principal lost its wiz tag");
+         return svc;
+      }
+
+      @Test
+      void configuredDeny_refusesProviderKnownUserWithEmptyClaims() throws Exception {
+         knownUser("alice", "Viewer");
+         restrictTo("ShareToAll", "Sharer");
+
+         VSBookmarkService svc = createShared(wizToken("alice"), false);
+
+         verify(svc, never()).addBookmarkToViewSheet(
+            any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any());
+      }
+
+      @Test
+      void configuredDeny_refusesUserWithClaimsOfAnotherRole() throws Exception {
+         knownUser("alice", "Viewer");
+         restrictTo("ShareToAll", "Sharer");
+
+         createShared(wizToken("alice", new IdentityID("Viewer", ORG)), false);
+      }
+
+      @Test
+      void configuredGrant_allowsHolderOfTheGrantedRole() throws Exception {
+         knownUser("bob", "Sharer");
+         restrictTo("ShareToAll", "Sharer");
+
+         VSBookmarkService svc = createShared(wizToken("bob"), true);
+
+         verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.ALLSHARE),
+            anyBoolean(), anyBoolean(), any());
+      }
+
+      @Test
+      void noConfiguredDeny_allowsProviderKnownUser() throws Exception {
+         knownUser("alice", "Viewer");
+
+         VSBookmarkService svc = createShared(wizToken("alice"), true);
+
+         verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.ALLSHARE),
+            anyBoolean(), anyBoolean(), any());
+      }
+
+      @Test
+      void administratorIsAllowedDespiteTheRestriction() throws Exception {
+         knownUser("root", "Administrator");
+         restrictTo("ShareToAll", "Sharer");
+         when(provider.isSystemAdministratorRole(eq(new IdentityID("Administrator", ORG))))
+            .thenReturn(true);
+
+         VSBookmarkService svc = createShared(wizToken("root"), true);
+
+         verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.ALLSHARE),
+            anyBoolean(), anyBoolean(), any());
       }
    }
 
