@@ -28,12 +28,16 @@ import inetsoft.storage.*;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.AdditionalAnswers;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -384,6 +388,53 @@ class RenameTransformQueueReplayTest {
       assertTrue(workerInterrupted.get(), "the transform threads are stopped");
 
       // the next full start replays and finishes it; the dependent has nothing to rewrite
+      doReturn(mock(IndexedStorage.class)).when(repository).getStorage(any());
+      restart();
+
+      assertEquals(1, renameSubmissions(), "replayed");
+      assertEquals(0, queueSize(), "dequeued once finished");
+      assertNotNull(dss.get(NEW_WS));
+   }
+
+   /**
+    * Bug #79519: a stopping server may close the Spring context and the storage without
+    * interrupting the renameTransform service thread. The dependent then fails fast and the
+    * transform returns normally; the unfinished task must still stay in the queue, because the
+    * context is closed, and be replayed at the next start.
+    */
+   @Test
+   void transformFailingOnAClosedContextStaysQueuedAndIsReplayed() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ApplicationContext running = context.getApplicationContext();
+      // closed, but its beans are still reachable, as they are through the bean cache of a
+      // stopping server
+      ConfigurableApplicationContext closed = mock(
+         ConfigurableApplicationContext.class, AdditionalAnswers.delegatesTo(running));
+      doReturn(true).when(closed).isClosed();
+      AssetRepository repository = mockRepository();
+      doAnswer(inv -> {
+         // the server starts stopping in the middle of the transform
+         context.setApplicationContext(closed);
+         throw new IllegalStateException("storage closed");
+      }).when(repository).getStorage(any());
+      RenameDependencyInfo task = newTaskWithDependent();
+      cluster().dropRenameTransform = true;
+      handler().addTransformTask(task, true);
+      cluster().dropRenameTransform = false;
+
+      try {
+         new RenameTransformTask.Rename(task).run();
+         assertFalse(Thread.currentThread().isInterrupted(), "no interrupt involved");
+      }
+      finally {
+         context.setApplicationContext(running);
+      }
+
+      verify(repository, atLeastOnce()).getStorage(any());
+      cluster().awaitTasks();
+      assertEquals(1, queueSize(), "the unfinished task stays in the queue");
+
+      // the next full start replays and finishes it
       doReturn(mock(IndexedStorage.class)).when(repository).getStorage(any());
       restart();
 
