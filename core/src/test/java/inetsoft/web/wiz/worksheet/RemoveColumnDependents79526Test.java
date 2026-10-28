@@ -100,9 +100,9 @@ class RemoveColumnDependents79526Test {
    void aColumnNoDependentUsesIsNotRefused() throws Exception {
       Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
 
-      f.controller().edit("TOK", request("CITY", false), agent);
+      f.controller().edit("TOK", request("ZIP", false), agent);
 
-      assertNull(f.table().getColumnSelection(false).getAttribute("CITY"));
+      assertNull(f.table().getColumnSelection(false).getAttribute("ZIP"));
       assertNotNull(f.table().getColumnSelection(false).getAttribute("STATE"));
    }
 
@@ -147,9 +147,9 @@ class RemoveColumnDependents79526Test {
       int n = ++count;
       AssetEntry src = new AssetEntry(scope, AssetEntry.Type.WORKSHEET, "rcd79526_ws" + n, null);
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "CITY", "STATE");
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "CITY", "STATE", "ZIP");
       ws.addAssembly(t);
-      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "U", "CITY", "STATE"));
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "U", "CITY", "STATE", "ZIP"));
 
       AssetEntry dep = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
                                       "rcd79526_vs" + n, null);
@@ -171,6 +171,10 @@ class RemoveColumnDependents79526Test {
          ((TableVSAssemblyInfo) table.getInfo()).setPreConditionList(list);
          vs.addAssembly(table);
          AssetUtil.getAssetRepository(false).setSheet(dep, vs, null, true);
+         // the context's DependencyHandler is a mock, so setSheet records no dependency; index
+         // the saved viewsheet the way a real save does, or the guard sees no dependents at all
+         new LocalDependencyHandler(mock(XRepository.class))
+            .updateSheetDependencies(vs, dep, true, false);
       }
 
       return new Fixture(controller(ws, src), t, dep);
