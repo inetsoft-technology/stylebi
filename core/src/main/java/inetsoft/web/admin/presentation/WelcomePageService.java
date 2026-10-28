@@ -73,13 +73,9 @@ public class WelcomePageService {
       else {
          String orgId = OrganizationManager.getInstance().getCurrentOrgID();
 
-         if(manager.getWelcomePage(orgId) == null) {
-            manager.setWelcomePage(orgId, new PortalWelcomePage(model.type(), model.source()));
-         }
-         else {
-            manager.getWelcomePage(orgId).setType(model.type());
-            manager.getWelcomePage(orgId).setData(model.source());
-         }
+         PortalWelcomePage orgPage = manager.getOrCreateOrgWelcomePage(orgId);
+         orgPage.setType(model.type());
+         orgPage.setData(model.source());
       }
 
       manager.save();
