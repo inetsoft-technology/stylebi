@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.presentation;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -125,6 +126,7 @@ public class PresentationChangePlanService {
          requireVerb(label, raw.getVerb());
          PresentationSubModel subModel = requireSubModel(label, raw.getSubModel());
          boolean global = requireScope(label, subModel, raw.getScope());
+         requireOrganizationScopeAvailable(label, global);
          requireUnseen(label, subModel, global, seen);
 
          JsonNode spec = requireSpecObject(label, raw.getSpec());
@@ -204,6 +206,21 @@ public class PresentationChangePlanService {
       }
    }
 
+   /**
+    * Bug 79440: Enterprise Manager edits only the global presentation layer when the deployment is
+    * not multi-tenant, but the runtime reads an org-qualified key ({@code inetsoft.org.<org>.*}) before
+    * the global one. An organization-scope write there would create a key the admin can neither see
+    * nor clear in EM, silently overriding every later global edit -- so it is refused at plan time.
+    */
+   private static void requireOrganizationScopeAvailable(String label, boolean global) {
+      if(!global && !SUtil.isMultiTenant()) {
+         throw new IllegalArgumentException(
+            label + ".scope: \"organization\" is not available on a single-tenant deployment -- " +
+            "Enterprise Manager edits only the global presentation settings there, so an " +
+            "organization-scoped write would create a hidden org-level key that overrides every " +
+            "later global edit. Use scope \"global\".");
+      }
+   }
    static boolean requireScope(String label, PresentationSubModel subModel, String scope) {
       if(scope == null) {
          throw new IllegalArgumentException(

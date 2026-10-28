@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.presentation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -58,6 +59,7 @@ class PresentationChangePlanServiceTest {
    private PresentationSettingsAccess access;
    private PresentationChangePlanService service;
    private MockedStatic<Tool> tool;
+   private MockedStatic<SUtil> sutil;
 
    private static final Principal PRINCIPAL = () -> "admin";
    private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -69,11 +71,17 @@ class PresentationChangePlanServiceTest {
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+      // organization scope needs a multi-tenant deployment (bug 79440); the single-tenant case is
+      // covered by its own tests below
+      sutil = mockStatic(SUtil.class, withSettings().strictness(Strictness.LENIENT)
+         .defaultAnswer(Answers.CALLS_REAL_METHODS));
+      sutil.when(SUtil::isMultiTenant).thenReturn(true);
    }
 
    @AfterEach
    void tearDown() {
       tool.close();
+      sutil.close();
    }
 
    // ---------------------------------------------------------------- request builders
@@ -829,4 +837,29 @@ class PresentationChangePlanServiceTest {
                     subModel.key() + " declares a secret field it does not have: " + secrets);
       }
    }
-}
+
+   // ---------------------------------------------------------------- bug 79440: single-tenant org scope
+
+   @Test
+   void organizationScopeIsRefusedOnSingleTenantDeployment() throws Exception {
+      sutil.when(SUtil::isMultiTenant).thenReturn(false);
+      stub(PresentationSubModel.FORMATS, currentFor(PresentationSubModel.FORMATS));
+      ObjectNode spec = obj();
+      spec.put("dateFormat", "yyyy-MM-dd");
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("t", change("formats", "organization", spec)), PRINCIPAL));
+
+      assertTrue(e.getMessage().startsWith("changes[0].scope: \"organization\" is not available on a "
+         + "single-tenant deployment"), e.getMessage());
+   }
+
+   @Test
+   void globalScopeStillResolvesOnSingleTenantDeployment() throws Exception {
+      sutil.when(SUtil::isMultiTenant).thenReturn(false);
+      stub(PresentationSubModel.FORMATS, currentFor(PresentationSubModel.FORMATS));
+      ObjectNode spec = obj();
+      spec.put("dateFormat", "yyyy-MM-dd");
+
+      assertNotNull(service.resolve(request("t", change("formats", "global", spec)), PRINCIPAL));
+   }}
