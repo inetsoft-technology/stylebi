@@ -449,6 +449,11 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    @Override
+   public void resetInitialized(String orgID) {
+      cachedOrgIDs.remove(orgID);
+   }
+
+   @Override
    public void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg) throws Exception  {
       migrateStorageData(oorg, norg, true, true);
    }

@@ -736,7 +736,7 @@ public class IdentityService {
                themesManager.save();
                removeStorages(orgID);
                favoritesService.removeFavorites(orgID);
-               dataSourceRegistry.clearCache(orgID);
+               dataSourceRegistry.orgDeleted(orgID);
                FSService.clearServerNodeCache(orgID);
                XJobPool.resetOrgCache(orgID);
                repletRegistryManager.clearOrgCache(orgID);

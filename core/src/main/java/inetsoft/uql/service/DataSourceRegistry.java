@@ -3797,7 +3797,27 @@ public class DataSourceRegistry implements MessageListener {
          return;
       }
 
+      ClearDataSourceCacheEvent cevent = (ClearDataSourceCacheEvent) event.getMessage();
+
+      if(cevent.isOrgDeleted() && cevent.getOrgID() != null) {
+         // the org was deleted on another node: drop only that org's cached state, and let the
+         // next login re-run init() so the re-created org gets its root
+         clearCache(cevent.getOrgID());
+         indexedStorage.resetInitialized(cevent.getOrgID());
+         return;
+      }
+
       clearCache();
+   }
+
+   /**
+    * Called when an organization is deleted. Clears the organization's cached state on this
+    * node and on every other node of the cluster.
+    */
+   public void orgDeleted(String orgID) throws Exception {
+      clearCache(orgID);
+      indexedStorage.resetInitialized(orgID);
+      Cluster.getInstance().sendMessage(new ClearDataSourceCacheEvent(orgID, true));
    }
 
    public void removeCacheEntry(Object key) {
@@ -4082,7 +4102,17 @@ public class DataSourceRegistry implements MessageListener {
       clearCache2(null);
    }
 
+   /**
+    * Clears everything cached on this node for one organization: the loaded objects, the
+    * last modified timestamp and the name indexes.
+    */
    public void clearCache(String orgId) {
+      if(orgId != null) {
+         cachemap.keySet().removeIf(
+            k -> k instanceof AssetEntry && orgId.equalsIgnoreCase(((AssetEntry) k).getOrgID()));
+         ts.keySet().removeIf(orgId::equalsIgnoreCase);
+      }
+
       clearCache2(orgId);
    }
 

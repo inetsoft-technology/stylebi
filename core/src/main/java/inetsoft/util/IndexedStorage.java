@@ -344,6 +344,13 @@ public interface IndexedStorage {
    void setInitialized(String orgID);
 
    /**
+    * Forgets that the storage of an organization was initialized, so that it is initialized
+    * again on next use. Called on every node when an organization is deleted.
+    */
+   default void resetInitialized(String orgID) {
+   }
+
+   /**
     * Copies data over from one store to another
     *
     * @param oorg the oorg organization
