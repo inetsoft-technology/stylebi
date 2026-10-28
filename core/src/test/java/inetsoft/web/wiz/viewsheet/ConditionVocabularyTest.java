@@ -1074,12 +1074,35 @@ class ConditionVocabularyTest {
       assertDateInRefused("date", Map.of("foo", 1));
    }
 
+   /** Bug #79568: date_in on a non-date field was stored instead of refused. */
    @Test
-   void dateInStillAcceptsAStringRangeNameOnANonDateField() {
-      assertEquals("Last month", ConditionVocabulary.toConditionList(
-         List.of(clause("F", "date_in", List.of("Last month"), null)),
-         new DataRefModel[] { field("F", "string") }) [0] instanceof ConditionModel c ?
-         c.getValues()[0].getValue() : null);
+   void dateInRefusesAValidRangeNameOnANonDateField() {
+      for(String type : new String[] { "string", "integer", "double", "boolean", "time" }) {
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+            ConditionVocabulary.toConditionList(
+               List.of(clause("F", "date_in", List.of("This Year"), null)),
+               new DataRefModel[] { field("F", type) }));
+         assertTrue(e.getMessage().contains("date_in") && e.getMessage().contains("'F'") &&
+                    e.getMessage().contains(type), e.getMessage());
+      }
+   }
+
+   @Test
+   void dateInAcceptsARangeNameOnDateAndTimeInstantFields() {
+      for(String type : new String[] { "date", "timeInstant" }) {
+         assertEquals("This Year", dateConditions(type, "date_in", "This Year")[0]
+            .getValues()[0].getValue());
+      }
+   }
+
+   @Test
+   void aDateInOnANonDateFieldRefusesTheWholeList() {
+      DataRefModel date = field("D", "date");
+      DataRefModel text = field("T", "string");
+      assertThrows(IllegalArgumentException.class, () -> ConditionVocabulary.toConditionList(
+         List.of(clause("D", "date_in", List.of("This Year"), "and"),
+                 clause("T", "date_in", List.of("This Year"), null)),
+         new DataRefModel[] { date, text }));
    }
 
    // ── Bug #78953: relabelled columns ────────────────────────────────────────

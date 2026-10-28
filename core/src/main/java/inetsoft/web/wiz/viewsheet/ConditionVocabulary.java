@@ -220,6 +220,17 @@ public final class ConditionVocabulary {
       List<Object> values = clause.values() == null ? List.of() : clause.values();
       requireValueArity(operator, operation, values, index);
 
+      if(operation == XCondition.DATE_IN) {
+         String fieldType = field.getDataType();
+
+         if(!XSchema.DATE.equals(fieldType) && !XSchema.TIME_INSTANT.equals(fieldType)) {
+            throw new IllegalArgumentException(
+               "Condition " + index + " uses date_in on field '" + field.getName() +
+               "', which is a " + fieldType + " field. date_in applies only to date and " +
+               "timeInstant fields; for a text field use equals, one_of, starts_with or contains.");
+         }
+      }
+
       ConditionModel condition = new ConditionModel();
       condition.setField(field);
       condition.setOperation(operation);

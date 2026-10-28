@@ -737,6 +737,27 @@ class AssemblyHighlightServiceTest {
    }
 
    @Test
+   void refusesADateInConditionOnANonDateField() throws Exception {
+      Harness h = harness(model());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Table1", null,
+                             new AssemblyHighlightService.Highlight(
+                                "Bad", null, "#fff", null,
+                                List.of(new ConditionVocabulary.Clause("Revenue", "date_in",
+                                                                       List.of("This Year"), null,
+                                                                       false, false, 0)),
+                                false),
+                             false, ""));
+
+      assertTrue(thrown.getMessage().contains("date_in"), thrown.getMessage());
+      verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
+                                                             anyString(), any(Principal.class),
+                                                             any());
+   }
+
+   @Test
    void refusesAnAssemblyWithNoHighlightDialog() {
       Harness h = harness(null);
 
