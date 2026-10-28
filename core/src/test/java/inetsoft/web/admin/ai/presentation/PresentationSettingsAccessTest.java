@@ -130,10 +130,9 @@ class PresentationSettingsAccessTest {
          return null;
       }).when(time).setModel(any(), eq(false));
 
-      return new PresentationSettingsAccess(formats, dashboard, toolbar, lookAndFeel, welcomePage,
-                                             loginBanner, portalIntegration, pdfGeneration,
-                                             exportMenu, fontMapping, share, composerMessage, time,
-                                             dataSourceVisibility, webMap, ai, store);
+      PresentationSettingsAccess access = access();
+      access.setOrgStore(store);
+      return access;
    }
 
    private static PresentationTimeSettingsModel timeModel(String weekStart, boolean hours12) {

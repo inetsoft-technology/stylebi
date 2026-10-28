@@ -63,31 +63,6 @@ public class PresentationSettingsAccess {
       WebMapSettingsService webMap,
       AISettingsService ai)
    {
-      this(formats, dashboard, toolbar, lookAndFeel, welcomePage, loginBanner, portalIntegration,
-           pdfGeneration, exportMenu, fontMapping, share, composerMessage, time,
-           dataSourceVisibility, webMap, ai, new SreeEnvOrgPropertyStore());
-   }
-
-   PresentationSettingsAccess(
-      PresentationFormatsSettingsService formats,
-      PresentationDashboardSettingsService dashboard,
-      PresentationToolbarSettingsService toolbar,
-      LookAndFeelService lookAndFeel,
-      WelcomePageService welcomePage,
-      PresentationLoginBannerSettingsService loginBanner,
-      PortalIntegrationViewSettingsService portalIntegration,
-      PresentationPdfGenerationSettingsService pdfGeneration,
-      ExportMenuSettingsService exportMenu,
-      PresentationFontMappingSettingsService fontMapping,
-      ShareSettingsService share,
-      PresentationComposerMessageSettingsService composerMessage,
-      PresentationTimeSettingsService time,
-      PresentationDataSourceVisibilitySettingsService dataSourceVisibility,
-      WebMapSettingsService webMap,
-      AISettingsService ai,
-      OrgPropertyStore orgStore)
-   {
-      this.orgStore = orgStore;
       adapters = new EnumMap<>(PresentationSubModel.class);
 
       adapters.put(PresentationSubModel.FORMATS, new Adapter(
@@ -169,6 +144,13 @@ public class PresentationSettingsAccess {
       adapters.put(PresentationSubModel.AI, new Adapter(
          (principal, global) -> global ? ai.getModel() : null,
          (model, principal, global) -> ai.setModel((PresentationAISettingsModel) model)));
+   }
+
+   /** Test seam: replaces the organization property store. A setter rather than a constructor
+    * parameter because every constructor parameter of a bean under inetsoft.web.admin.ai must itself
+    * be a resolvable bean (AdminAiBeanGraphTest). */
+   void setOrgStore(OrgPropertyStore orgStore) {
+      this.orgStore = orgStore;
    }
 
    /** Reads the current value of one sub-model, in whichever of the 16 real shapes it actually has. */
@@ -377,5 +359,5 @@ public class PresentationSettingsAccess {
    }
 
    private final EnumMap<PresentationSubModel, Adapter> adapters;
-   private final OrgPropertyStore orgStore;
+   private OrgPropertyStore orgStore = new SreeEnvOrgPropertyStore();
 }
