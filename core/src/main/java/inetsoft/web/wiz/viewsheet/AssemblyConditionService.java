@@ -266,7 +266,16 @@ public class AssemblyConditionService {
          catch(Exception e) {
             // the refresh failed after the new list was committed; put the old one back rather
             // than leave a condition the caller was told failed
-            restore(rvs, runtimeId, assemblyName, model, previous, linkUri, user, dispatcher, e);
+            String notRestored =
+               restore(rvs, runtimeId, assemblyName, previous, linkUri, user, dispatcher);
+
+            if(notRestored != null) {
+               throw new IllegalStateException(
+                  e.getMessage() + " The previous conditions could NOT be restored: " +
+                  notRestored + " The new condition is still stored on '" + assemblyName +
+                  "'; check get_condition.", e);
+            }
+
             throw e;
          }
 
@@ -278,15 +287,17 @@ public class AssemblyConditionService {
          String cause = guard && !failingBefore ? failedQueryCause(box, assemblyName) : null;
 
          if(cause != null) {
-            IllegalArgumentException refused = new IllegalArgumentException(
+            String notRestored =
+               restore(rvs, runtimeId, assemblyName, previous, linkUri, user, dispatcher);
+            throw new IllegalArgumentException(
                "The condition makes the query of '" + assemblyName + "' fail" +
                (cause.isBlank() ? "" : ": " + cause) + ". It uses variable operand(s) " +
                VariableOperandCheck.describeOperands(conditionList, variables) + ". " +
                String.join(" ", warnings) + (warnings.isEmpty() ? "" : " ") +
-               "Nothing was changed.");
-            restore(rvs, runtimeId, assemblyName, model, previous, linkUri, user, dispatcher,
-                    refused);
-            throw refused;
+               (notRestored == null ? "Nothing was changed." :
+                  "The previous conditions could NOT be restored: " + notRestored +
+                  " The new condition is still stored on '" + assemblyName + "'; fix or clear " +
+                  "it with set_condition."));
          }
 
          ChartRenderCheck.warnIfChartScriptFails(rvs, assemblyName, dispatcher);
@@ -343,17 +354,44 @@ public class AssemblyConditionService {
       }
    }
 
-   private void restore(RuntimeViewsheet rvs, String runtimeId, String assemblyName,
-                        VSConditionDialogModel model, Object[] previous, String linkUri,
-                        Principal user, CommandDispatcher dispatcher, Exception failure)
+   /**
+    * Puts the conditions that were stored before the write back, and checks that they are.
+    *
+    * <p>The write's own model cannot be reused: {@code setModel} refuses a model whose revision
+    * predates the last write (it only sends a write-conflict message and returns), and the first
+    * {@code setModel} had just bumped it, so a restore through that model silently did nothing
+    * (bug #79535). A freshly read model carries the current revision.
+    *
+    * @return null when the stored list now equals {@code previous}, otherwise why it does not
+    */
+   private String restore(RuntimeViewsheet rvs, String runtimeId, String assemblyName,
+                          Object[] previous, String linkUri, Principal user,
+                          CommandDispatcher dispatcher)
    {
+      Object[] wanted = previous == null ? new Object[0] : previous;
+
       try {
-         model.setConditionList(previous);
-         conditionService.setModel(runtimeId, assemblyName, model, linkUri, user, dispatcher);
+         VSConditionDialogModel fresh = conditionService.getModel(runtimeId, assemblyName, user);
+
+         if(fresh == null) {
+            return "the assembly no longer has a condition dialog.";
+         }
+
+         fresh.setConditionList(wanted);
+         conditionService.setModel(runtimeId, assemblyName, fresh, linkUri, user, dispatcher);
          reexecute(rvs, runtimeId, assemblyName, dispatcher, linkUri, user);
+         VSConditionDialogModel after = conditionService.getModel(runtimeId, assemblyName, user);
+
+         if(after == null || !ConditionVocabulary.describe(after.getConditionList())
+            .equals(ConditionVocabulary.describe(wanted)))
+         {
+            return "the stored conditions still differ from the previous ones.";
+         }
+
+         return null;
       }
-      catch(Exception restoreFailure) {
-         failure.addSuppressed(restoreFailure);
+      catch(Exception e) {
+         return "restoring failed with " + e + ".";
       }
    }
 

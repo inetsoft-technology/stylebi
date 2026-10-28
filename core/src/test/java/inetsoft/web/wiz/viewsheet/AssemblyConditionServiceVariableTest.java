@@ -258,7 +258,7 @@ class AssemblyConditionServiceVariableTest {
    @Test
    void undoesAWriteWhoseVariableMakesTheQueryFailAndSaysWhy() throws Exception {
       VSConditionDialogModel existing = model();
-      Object[] before = existing.getConditionList();
+
       Harness h = harness(existing, variables("QtySlider", 5));
       when(h.box.getData("T")).thenReturn(new DefaultTableLens(1, 1),
          new DefaultTableFilter(failedQuery("int into TIMESTAMP")));
@@ -273,9 +273,36 @@ class AssemblyConditionServiceVariableTest {
       assertTrue(message.contains("QtySlider = '5'"), message);
       assertTrue(message.contains(DATE + " greater_than"), message);
       assertTrue(message.contains("Nothing was changed"), message);
-      assertSame(before, existing.getConditionList());
+      assertEquals(0, existing.getConditionList().length);
       verify(h.conditions, times(2)).setModel(anyString(), anyString(), any(), anyString(),
                                               any(Principal.class), any());
+   }
+
+   /** A rollback that did not take effect must not be reported as "Nothing was changed". */
+   @Test
+   void saysSoWhenTheRollbackDidNotTakeEffect() throws Exception {
+      int[] writes = new int[1];
+      VSConditionDialogModel stuck = new VSConditionDialogModel() {
+         @Override
+         public void setConditionList(Object[] list) {
+            if(writes[0]++ == 0) {
+               super.setConditionList(list);
+            }
+         }
+      };
+      stuck.setTableName("Orders");
+      stuck.setFields(model().getFields());
+      Harness h = harness(stuck, variables("QtySlider", 5));
+      when(h.box.getData("T")).thenReturn(new DefaultTableLens(1, 1),
+         new DefaultTableFilter(failedQuery("int into TIMESTAMP")));
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "T", List.of(
+            variableClause(DATE, "greater_than", "QtySlider")), ""));
+
+      assertTrue(thrown.getMessage().contains("could NOT be restored"), thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("Nothing was changed"), thrown.getMessage());
    }
 
    @Test
