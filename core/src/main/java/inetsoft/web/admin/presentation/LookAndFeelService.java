@@ -111,6 +111,10 @@ public class LookAndFeelService {
          fontFaces = manager.getUserFontFaces();
       }
 
+      // an org-scoped read must not expose other organizations' entries
+      final Map<String, String> cssEntries = globalProperty ? manager.getCssEntries() :
+         defaultViewsheet ? Collections.emptyMap() : Collections.singletonMap(orgID, viewsheet);
+
       return LookAndFeelSettingsModel
          .builder()
          .ascending(asc)
@@ -126,7 +130,7 @@ public class LookAndFeelService {
          .userFonts(userfonts)
          .fontFaces(fontFaces)
          .viewsheetCSSEntries(
-            manager.getCssEntries().entrySet().stream()
+            cssEntries.entrySet().stream()
                .map(this::createViewsheetCSSEntry)
                .collect(Collectors.toList())
          )
