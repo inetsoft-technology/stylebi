@@ -220,6 +220,9 @@ public class ScheduleTaskTransferService {
 
          try {
             task.parseXML(element);
+            // Bug #79236, an hour or minute out of range can repeat a fire of the task; the EM
+            // import runs the same check
+            task.validateTimeConditions();
          }
          catch(Exception e) {
             String name = element.getAttribute("name");
