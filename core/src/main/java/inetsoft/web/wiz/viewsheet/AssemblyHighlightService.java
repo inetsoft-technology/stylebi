@@ -281,6 +281,7 @@ public class AssemblyHighlightService {
          }
 
          checkExpressions(rvs, highlight, model, warnings);
+         checkVariables(rvs, highlight, model, warnings);
          model.setHighlights(highlights.toArray(new HighlightModel[0]));
          model.setRejectDerivedMeasure(true);
          ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
@@ -293,6 +294,22 @@ public class AssemblyHighlightService {
       }
 
       return new SetResult(warnings);
+   }
+
+   /**
+    * Warns about a variable operand that cannot be compared with its column (bug #79535). A
+    * highlight that never matches is harmless and the variable may change, so nothing is refused.
+    */
+   private void checkVariables(RuntimeViewsheet rvs, Highlight highlight,
+                                HighlightDialogModel model, List<String> warnings)
+   {
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+      if(box != null) {
+         VariableOperandCheck.check(
+            build(highlight, model).getVsConditionDialogModel().getConditionList(),
+            box.getAllVariables(), false, warnings);
+      }
    }
 
    /**
