@@ -74,6 +74,9 @@ class SelectionPrintInsetTest {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly(vs, "Tree1");
       place(tree);
+      // a default-size box follows density and takes the full inset; an author-sized one takes
+      // none top and bottom (#79565)
+      tree.getVSAssemblyInfo().setPixelSize(new Dimension(100, 120));
       mark(tree.getVSAssemblyInfo());
 
       assertEquals(new Insets(16, 16, 16, 16), convertedBoxFor(tree).getPadding());
@@ -124,6 +127,9 @@ class SelectionPrintInsetTest {
       SreeEnv.setProperty("viewsheet.density", density);
       SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "List1");
       place(list);
+      // a default-size box follows density and takes the full inset; an author-sized one takes
+      // none top and bottom (#79565)
+      list.getVSAssemblyInfo().setPixelSize(new Dimension(100, 120));
       mark(list.getVSAssemblyInfo());
       return list;
    }
