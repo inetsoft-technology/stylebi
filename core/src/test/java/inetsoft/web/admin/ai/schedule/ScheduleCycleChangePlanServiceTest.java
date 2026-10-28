@@ -425,6 +425,34 @@ class ScheduleCycleChangePlanServiceTest {
       }
    }
 
+   // bug #79523, Enterprise Manager offers no run-once (AT) condition for a cycle
+
+   @Test void resolveCreateRefusesRunOnce() {
+      TimeCondition at = new TimeCondition();
+      at.setType(TimeCondition.Type.AT);
+      ScheduleCycleChangePlanRequest req =
+         request("task", List.of(createChange("NewCycle", List.of(everyDay(), at))));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().startsWith("changes[0].spec.conditions[1].type: "),
+                 ex.getMessage());
+   }
+
+   @Test void resolveUpdateRefusesRunOnce() throws Exception {
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.currentAsset("Cycle1", "host-org")).thenReturn(asset("Cycle1"));
+      TimeCondition at = new TimeCondition();
+      at.setType(TimeCondition.Type.AT);
+      ScheduleCycleChangePlanRequest req =
+         request("task", List.of(updateChange("Cycle1", null, List.of(at))));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().startsWith("changes[0].spec.conditions[0].type: "),
+                 ex.getMessage());
+   }
+
    // bug #79020, an unknown time zone would be stored as GMT
    @Test void resolveCreateThrowsOnUnknownTimeZone() {
       TimeCondition second = everyDay();
