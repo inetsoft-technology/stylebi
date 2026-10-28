@@ -691,8 +691,11 @@ class ConditionVocabularyTest {
    @Test
    void fieldTypedValueIsRefusedForOperatorsTheComposerDoesNotOffer() {
       for(String operator : List.of("starts_with", "contains", "like", "date_in")) {
+         // date_in on a non-date target is refused earlier by its own guard, so the date_in case
+         // uses a date-typed target to exercise the field-operand refusal.
+         String targetType = "date_in".equals(operator) ? "timeInstant" : "string";
          Exception thrown = assertThrows(IllegalArgumentException.class,
-            () -> fieldCondition("string", "string", operator, operandRef()), operator);
+            () -> fieldCondition(targetType, targetType, operator, operandRef()), operator);
 
          assertTrue(thrown.getMessage().contains(operator), thrown.getMessage());
          assertTrue(thrown.getMessage().contains("field"), thrown.getMessage());
