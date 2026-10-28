@@ -103,6 +103,32 @@ class VariableAssemblyDialogServiceDefaultTypeTest {
       assertEquals(Double.valueOf(1.5), node.getValue());
    }
 
+   @Test
+   void otherTypesKeepTheirNodeClass() throws Exception {
+      assertInstanceOf(FloatValue.class, roundTrip("float", "2.5"));
+      assertEquals(Boolean.TRUE, roundTrip("boolean", "true").getValue());
+      assertInstanceOf(BooleanValue.class, roundTrip("boolean", "true"));
+      assertInstanceOf(DateValue.class, roundTrip("date", "2024-03-05"));
+      assertInstanceOf(TimeValue.class, roundTrip("time", "10:20:30"));
+   }
+
+   @Test
+   void emptyAndNullDefaultsStillRoundTrip() throws Exception {
+      for(String type : new String[] { "long", "integer", "string", "double" }) {
+         for(String def : new String[] { "", null }) {
+            XValueNode node = roundTrip(type, def);
+
+            if("string".equals(type) && "".equals(def)) {
+               assertInstanceOf(StringValue.class, node);
+               assertEquals("", node.getValue());
+            }
+            else {
+               assertNull(node, type + " with default [" + def + "] should have no value node");
+            }
+         }
+      }
+   }
+
    /**
     * Converts a dialog model to a variable, writes it in a worksheet and reads the worksheet back.
     */
