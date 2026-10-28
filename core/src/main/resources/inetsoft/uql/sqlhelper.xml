@@ -194,8 +194,8 @@
 
    <aggregate type="db2" function="correl" name="correlation" />
    <aggregate type="db2" function="covar" name="covariance" />
-   <aggregate type="db2" function="stddev" name="stddev" />
-   <aggregate type="db2" function="var" name="variance" />
+   <aggregate type="db2" function="stddev" name="stddev_samp" />
+   <aggregate type="db2" function="var" name="variance_samp" />
 
    <aggregate type="mysql" function="stddev" name="stddev_samp" />
    <aggregate type="mysql" function="stddevp" name="stddev_pop" />
