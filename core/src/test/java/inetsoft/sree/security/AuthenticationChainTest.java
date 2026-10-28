@@ -180,6 +180,24 @@ class AuthenticationChainTest {
       return chain;
    }
 
+   // [Scenario: Bug #79419] getOrganizationIDs can be expensive, so each provider is asked once
+   @Test
+   void getOrganizationIDs_callsEachProviderOnce() {
+      AuthenticationProvider first = mock(AuthenticationProvider.class);
+      AuthenticationProvider second = mock(AuthenticationProvider.class);
+      AuthenticationProvider none = mock(AuthenticationProvider.class);
+      AuthenticationChain chain = chainOf(first, second, none);
+
+      when(first.getOrganizationIDs()).thenReturn(new String[] { "a", "b" });
+      when(second.getOrganizationIDs()).thenReturn(new String[] { "b", "c" });
+      when(none.getOrganizationIDs()).thenReturn(null);
+
+      assertArrayEquals(new String[] { "a", "b", "c" }, chain.getOrganizationIDs());
+      verify(first, times(1)).getOrganizationIDs();
+      verify(second, times(1)).getOrganizationIDs();
+      verify(none, times(1)).getOrganizationIDs();
+   }
+
    private static final class TestAuthenticationChain extends AuthenticationChain {
       @Override
       void initialize() {
