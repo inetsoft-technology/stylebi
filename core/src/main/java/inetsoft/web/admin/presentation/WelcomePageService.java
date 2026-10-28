@@ -44,7 +44,7 @@ public class WelcomePageService {
          welcomePage = manager.getWelcomePage(currentOrgID);
       }
 
-      source = welcomePage == null ? "" : welcomePage.getData();
+      source = welcomePage == null || welcomePage.getData() == null ? "" : welcomePage.getData();
       type = welcomePage == null ? PortalWelcomePage.NONE : welcomePage.getType();
 
       return WelcomePageSettingsModel.builder()

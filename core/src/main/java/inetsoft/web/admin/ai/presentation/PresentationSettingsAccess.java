@@ -17,14 +17,19 @@
  */
 package inetsoft.web.admin.ai.presentation;
 
+import inetsoft.sree.PropertiesEngine;
+import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.web.admin.general.WebMapSettingsService;
 import inetsoft.web.admin.presentation.*;
 import inetsoft.web.admin.presentation.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.security.Principal;
-import java.util.EnumMap;
+import java.util.*;
 
 /**
  * Bridges the 16-entry {@link PresentationSubModel} catalog to the real sub-services
@@ -58,6 +63,31 @@ public class PresentationSettingsAccess {
       WebMapSettingsService webMap,
       AISettingsService ai)
    {
+      this(formats, dashboard, toolbar, lookAndFeel, welcomePage, loginBanner, portalIntegration,
+           pdfGeneration, exportMenu, fontMapping, share, composerMessage, time,
+           dataSourceVisibility, webMap, ai, new SreeEnvOrgPropertyStore());
+   }
+
+   PresentationSettingsAccess(
+      PresentationFormatsSettingsService formats,
+      PresentationDashboardSettingsService dashboard,
+      PresentationToolbarSettingsService toolbar,
+      LookAndFeelService lookAndFeel,
+      WelcomePageService welcomePage,
+      PresentationLoginBannerSettingsService loginBanner,
+      PortalIntegrationViewSettingsService portalIntegration,
+      PresentationPdfGenerationSettingsService pdfGeneration,
+      ExportMenuSettingsService exportMenu,
+      PresentationFontMappingSettingsService fontMapping,
+      ShareSettingsService share,
+      PresentationComposerMessageSettingsService composerMessage,
+      PresentationTimeSettingsService time,
+      PresentationDataSourceVisibilitySettingsService dataSourceVisibility,
+      WebMapSettingsService webMap,
+      AISettingsService ai,
+      OrgPropertyStore orgStore)
+   {
+      this.orgStore = orgStore;
       adapters = new EnumMap<>(PresentationSubModel.class);
 
       adapters.put(PresentationSubModel.FORMATS, new Adapter(
@@ -154,7 +184,139 @@ public class PresentationSettingsAccess {
    public void write(PresentationSubModel subModel, Object model, Principal principal, boolean global)
       throws Exception
    {
+      Set<String> baseline = snapshotOrgKeys(global);
       adapters.get(subModel).writer.write(model, principal, global);
+      unpinOrgKeysSince(subModel, principal, global, baseline);
+   }
+
+   /** The organization-level property keys ({@code inetsoft.org.<org>.<name>}) that exist right now
+    * for the current organization; empty at global scope. Taken before an organization-scope write
+    * so {@link #unpinOrgKeysSince} can tell which keys the write created. */
+   public Set<String> snapshotOrgKeys(boolean global) {
+      return global ? Set.of() : new HashSet<>(orgStore.keys());
+   }
+
+   /**
+    * Bug #79434: every value-scope {@code setModel} writes ALL of its properties with
+    * {@code orgScope=true}, so a spec naming one field still creates an organization override for
+    * every other property of the sub-model, which then stops inheriting later global changes (and a
+    * rollback re-writes the pre-image through the same {@code setModel}, re-creating them).
+    *
+    * <p>Removes each organization key that did not exist in {@code baseline}, but only when
+    * removing it leaves the sub-model's read projection unchanged -- a key that actually carries the
+    * written change is kept (it is restored if its removal moves the projection). Does nothing at
+    * global scope. A key the spec itself named that merely equals the inherited value is dropped
+    * too, which is a semantic no-op: the organization reads the same value either way.
+    */
+   public void unpinOrgKeysSince(PresentationSubModel subModel, Principal principal, boolean global,
+                                 Set<String> baseline) throws Exception
+   {
+      if(global) {
+         return;
+      }
+
+      Set<String> created = new TreeSet<>(orgStore.keys());
+      created.removeAll(baseline);
+
+      if(created.isEmpty()) {
+         return;
+      }
+
+      String written = projection(subModel, principal, global);
+      boolean removedAny = false;
+
+      for(String key : created) {
+         String value = orgStore.get(key);
+         orgStore.remove(key);
+         boolean unchanged;
+
+         try {
+            unchanged = written.equals(projection(subModel, principal, global));
+         }
+         catch(Exception e) {
+            unchanged = false;
+         }
+
+         if(unchanged) {
+            removedAny = true;
+         }
+         else if(value != null) {
+            orgStore.put(key, value);
+         }
+      }
+
+      if(removedAny) {
+         orgStore.save();
+      }
+   }
+
+   private String projection(PresentationSubModel subModel, Principal principal, boolean global)
+      throws Exception
+   {
+      return PresentationChangePlanService.projectedValue(
+         subModel, PresentationJson.toNode(read(subModel, principal, global)));
+   }
+
+   /** Access to the current organization's property overrides, a seam so tests need no running
+    * {@code PropertiesEngine}. */
+   interface OrgPropertyStore {
+      /** Full names of the current organization's override keys. */
+      Set<String> keys();
+
+      String get(String key);
+
+      void put(String key, String value);
+
+      void remove(String key);
+
+      void save();
+   }
+
+   private static final class SreeEnvOrgPropertyStore implements OrgPropertyStore {
+      @Override
+      public Set<String> keys() {
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+         Set<String> result = new HashSet<>();
+
+         if(orgId == null) {
+            return result;
+         }
+
+         String prefix = PropertiesEngine.getOrgPropertyPrefix(orgId);
+
+         for(String name : SreeEnv.getProperties().stringPropertyNames()) {
+            if(name.startsWith(prefix)) {
+               result.add(name);
+            }
+         }
+
+         return result;
+      }
+
+      @Override
+      public String get(String key) {
+         return SreeEnv.getProperty(key, false, false);
+      }
+
+      @Override
+      public void put(String key, String value) {
+         SreeEnv.setProperty(key, value);
+      }
+
+      @Override
+      public void remove(String key) {
+         SreeEnv.remove(key);
+      }
+
+      @Override
+      public void save() {
+         try {
+            SreeEnv.save();
+         }
+         catch(IOException e) {
+            throw new UncheckedIOException(e);
+         }
+      }
    }
 
    @FunctionalInterface
@@ -171,4 +333,5 @@ public class PresentationSettingsAccess {
    }
 
    private final EnumMap<PresentationSubModel, Adapter> adapters;
+   private final OrgPropertyStore orgStore;
 }
