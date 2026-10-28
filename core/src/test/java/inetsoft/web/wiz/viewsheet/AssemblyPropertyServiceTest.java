@@ -5499,6 +5499,175 @@ class AssemblyPropertyServiceTest {
                  e.getMessage());
    }
 
+   // ── Gauge number range (bug #79539) ──────────────────────────────────────────
+
+   private static GaugePropertyDialogModel gaugeRange(String min, String max, String minor,
+                                                      String major)
+   {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      var pane = model.getGaugeGeneralPaneModel().getNumberRangePaneModel();
+      pane.setMin(min);
+      pane.setMax(max);
+      pane.setMinorIncrement(minor);
+      pane.setMajorIncrement(major);
+      return model;
+   }
+
+   private static Map<String, Object> gaugePatch(Object... keyValues) {
+      Map<String, Object> patch = new LinkedHashMap<>();
+
+      for(int i = 0; i < keyValues.length; i += 2) {
+         patch.put((String) keyValues[i], keyValues[i + 1]);
+      }
+
+      return patch;
+   }
+
+   private static void assertGaugeRangeRefused(GaugePropertyDialogModel model,
+                                               Map<String, Object> patch, String... fragments)
+      throws Exception
+   {
+      GaugePropertyDialogService gaugeService = mock(GaugePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithGauge(mock(GaugeVSAssembly.class), model, gaugeService, null);
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1", patch, ""), patch.toString());
+
+      for(String fragment : fragments) {
+         assertTrue(e.getMessage().contains(fragment), fragment + " missing: " + e.getMessage());
+      }
+
+      verify(gaugeService, never()).setGaugePropertyDialogModel(
+         anyString(), anyString(), any(), any(), any(), any());
+   }
+
+   private static void assertGaugeRangeAccepted(GaugePropertyDialogModel model,
+                                                Map<String, Object> patch)
+      throws Exception
+   {
+      GaugePropertyDialogService gaugeService = mock(GaugePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithGauge(mock(GaugeVSAssembly.class), model, gaugeService, null);
+      service.set("tok", principal(), "Gauge1", patch, "");
+      verify(gaugeService, times(1)).setGaugePropertyDialogModel(
+         anyString(), anyString(), any(), any(), any(), any());
+   }
+
+   @Test
+   void refusesAnInvertedOrEqualGaugeMinMax() throws Exception {
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("min", "100", "max", "50"), "min", "max", "min=100",
+                              "max=50");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("min", 7, "max", 7), "min=7", "max=7");
+   }
+
+   @Test
+   void refusesALoneGaugeBoundThatCrossesTheStoredOne() throws Exception {
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("min", "250"), "min", "min=250", "max=200");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("max", "-1"), "max", "max=-1", "min=0");
+   }
+
+   @Test
+   void refusesABlankOrNonNumericGaugeBound() throws Exception {
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("min", "abc"), "min:", "abc");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("max", "NaN"), "max:", "NaN");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("max", ""), "max:", "required");
+   }
+
+   @Test
+   void refusesANonPositiveOrNonNumericGaugeIncrement() throws Exception {
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("majorIncrement", "0"), "majorIncrement:");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("majorIncrement", -5), "majorIncrement:", "-5");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("majorIncrement", "abc"), "majorIncrement:", "abc");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("minorIncrement", "0"), "minorIncrement:");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("minorIncrement", "x"), "minorIncrement:", "x");
+   }
+
+   @Test
+   void refusesAGaugeMajorIncrementNotAboveTheMinor() throws Exception {
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("majorIncrement", "5", "minorIncrement", "10"),
+                              "majorIncrement", "minorIncrement", "5", "10");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("majorIncrement", "10", "minorIncrement", "10"),
+                              "majorIncrement", "minorIncrement");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("majorIncrement", "10"), "majorIncrement", "10");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("majorIncrement", "3"), "majorIncrement", "3");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("minorIncrement", "60"), "minorIncrement", "60",
+                              "50");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("minorIncrement", "50"), "minorIncrement");
+   }
+
+   @Test
+   void exemptsDynamicGaugeRangeValues() throws Exception {
+      assertGaugeRangeAccepted(gaugeRange("0", "200", "10", "50"),
+                               gaugePatch("min", "$(lo)", "max", "=hi()"));
+      assertGaugeRangeAccepted(gaugeRange("0", "200", "10", "50"),
+                               gaugePatch("max", "$(hi)"));
+      assertGaugeRangeAccepted(gaugeRange("0", "200", "10", "50"),
+                               gaugePatch("majorIncrement", "$(step)",
+                                          "minorIncrement", "=small()"));
+      assertGaugeRangeAccepted(gaugeRange("$(lo)", "=hi", "10", "50"),
+                               gaugePatch("min", "500"));
+   }
+
+   @Test
+   void acceptsAValidGaugeRange() throws Exception {
+      assertGaugeRangeAccepted(gaugeRange("0", "200", "10", "50"),
+                               gaugePatch("min", 0, "max", 100000000, "minorIncrement", "2.5",
+                                          "majorIncrement", "1.0E1"));
+      assertGaugeRangeAccepted(gaugeRange("0", "200", "10", "50"),
+                               gaugePatch("min", "-20", "max", "20"));
+      assertGaugeRangeAccepted(gaugeRange("0", "200", "10", "50"),
+                               gaugePatch("majorIncrement", "100"));
+   }
+
+   @Test
+   void allowsBlankGaugeIncrements() throws Exception {
+      assertGaugeRangeAccepted(gaugeRange("0", "200", "10", "50"),
+                               gaugePatch("minorIncrement", "", "majorIncrement", ""));
+      assertGaugeRangeAccepted(gaugeRange("0", "200", "10", "50"),
+                               gaugePatch("majorIncrement", ""));
+   }
+
+   @Test
+   void skipsTheGaugeOrderCheckAgainstAnUnsetCounterpart() throws Exception {
+      assertGaugeRangeAccepted(gaugeRange(null, null, null, null), gaugePatch("min", "5"));
+      assertGaugeRangeAccepted(gaugeRange(null, null, null, null), gaugePatch("max", "5"));
+      assertGaugeRangeAccepted(gaugeRange(null, null, null, null),
+                               gaugePatch("minorIncrement", "5"));
+      assertGaugeRangeAccepted(gaugeRange(null, null, null, null),
+                               gaugePatch("majorIncrement", "5"));
+   }
+
+   @Test
+   void unrelatedGaugeWritesAreNeverBlockedByAnInvalidStoredRange() throws Exception {
+      assertGaugeRangeAccepted(gaugeRange("100", "50", "0", "-5"),
+                               gaugePatch("showValue", false));
+   }
+
+   @Test
+   void refusesGaugeRangeWrittenThroughRawDottedPaths() throws Exception {
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+         gaugePatch("gaugeGeneralPaneModel.numberRangePaneModel.min", "100",
+                    "gaugeGeneralPaneModel.numberRangePaneModel.max", "50"), "min", "max");
+   }
+
    // ── #79259 / #79260: cross-field guards (PatchGuards) ──
 
    private static final String SCALE_PANE = "imageAdvancedPaneModel.imageScalePaneModel.";
