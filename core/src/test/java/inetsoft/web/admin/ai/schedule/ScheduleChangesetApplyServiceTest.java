@@ -21,6 +21,7 @@ import inetsoft.web.api.schedule.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -311,6 +312,26 @@ class ScheduleChangesetApplyServiceTest {
       assertNotNull(result.rollbackFailures());
       assertEquals(1, result.rollbackFailures().size());
       assertEquals(taskId, result.rollbackFailures().get(0).property());
+   }
+
+   // Bug #79426, addScheduleTask refuses an owner/execute-as it can't accept before it writes
+   // anything; that refusal wrote nothing, so it is rolled back, never rollback-failed.
+   @Test void createRefusedBeforeAnyWriteIsRolledBackNotRollbackFailed() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      doThrow(new MessageException("The execute-as user nouser does not exist"))
+         .when(scheduleGateway).checkAddScheduleTaskAllowed(any(), any(), eq(user));
+
+      ApplyResult result =
+         service.apply(applyRequest("create a task", createChange(spec)), user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(scheduleGateway, never()).addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(),
+         anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
    }
 
    // The before-state capture (the deep copy of the stored task and its permission, bug #78420)

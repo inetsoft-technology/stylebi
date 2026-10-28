@@ -21,6 +21,7 @@ import inetsoft.web.api.schedule.*;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.schedule.FTPUtil;
 import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.util.MessageException;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -166,6 +167,15 @@ public class ScheduleChangePlanService {
          throw new IllegalArgumentException(
             label + ": you do not hold DELETE on \"" + taskId + "\", which this create's rollback " +
             "would require -- refusing to plan a change whose own undo you could not perform");
+      }
+
+      // Bug #79426, an execute-as identity that doesn't resolve is refused by apply, so refuse it
+      // here instead of planning a change apply can only throw on.
+      try {
+         scheduleGateway.requireExecuteAsResolves(spec.getOwner(), spec.getExecuteAsID());
+      }
+      catch(MessageException e) {
+         throw new IllegalArgumentException(label + ".spec.executeAsID: " + e.getMessage());
       }
 
       String proposed = projectSpec(spec);

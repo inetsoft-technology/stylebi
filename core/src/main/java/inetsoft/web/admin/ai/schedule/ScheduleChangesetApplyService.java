@@ -208,6 +208,10 @@ public class ScheduleChangesetApplyService {
    {
       ScheduleTaskMetaData meta = new ScheduleTaskMetaData(spec.getName(),
                                                             spec.getOwner().convertToKey());
+      // Bug #79426, addScheduleTask refuses an owner/execute-as it can't accept before it writes
+      // anything, so run those checks first: a refusal here proves nothing was touched, and mustn't
+      // be reported as a rollback that failed.
+      scheduleGateway.checkAddScheduleTaskAllowed(spec.getOwner(), spec.getExecuteAsID(), user);
       mutationEntered.set(true);
       scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
          spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
