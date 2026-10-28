@@ -2824,9 +2824,13 @@ public class WorksheetEditService {
             }
          }
          catch(Exception ex) {
+            // Plain error keys (the ones AssetQuery uses at execution time), not the expression
+            // dialog's confirm keys: the agent has no dialog to answer a "continue?" prompt.
+            String cause = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+            Catalog catalog = Catalog.getCatalog();
             String message = sql
-               ? Catalog.getCatalog().getString("viewer.viewsheet.sqlFailed", ex.getMessage())
-               : Catalog.getCatalog().getString("viewer.worksheet.scriptFailed", name, table);
+               ? catalog.getString("viewer.worksheet.sqlFailed", table, cause)
+               : catalog.getString("viewer.worksheet.scriptError", name, table, cause);
             throw new PairingException(message);
          }
       }
