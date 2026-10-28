@@ -110,8 +110,9 @@ class ChartRegionPropertyServiceHiddenAxisTest {
       IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
          () -> c.service.list("tok", principal(), CHART, "axis", "x", null));
       assertRefusal(e, "x");
-      assertTrue(e.getMessage().contains("target: 'type'"), "names the column to show: " +
-         e.getMessage());
+      assertTrue(e.getMessage().contains("{element: 'axis', visible: true}"),
+         "advises the no-target show: " + e.getMessage());
+      assertFalse(e.getMessage().contains("target:"), "no targeted show: " + e.getMessage());
    }
 
    @Test
