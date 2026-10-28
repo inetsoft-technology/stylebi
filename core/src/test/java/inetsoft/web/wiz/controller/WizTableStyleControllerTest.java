@@ -34,6 +34,7 @@ import org.mockito.InOrder;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -686,6 +687,193 @@ class WizTableStyleControllerTest {
       }
    }
 
+   // ---- Bug #79529: style/folder share one full-name namespace; blank/edge-space folders ----
+
+   private static void assertNothingWritten(Fixture fixture) {
+      verify(fixture.lib, never()).setTableStyle(any(), any());
+      verify(fixture.lib, never()).renameTableStyle(any(), any(), any());
+      verify(fixture.lib, never()).addTableStyleFolder(anyString());
+   }
+
+   private WizTableStyleController.TableStyleDetail createNamed(Fixture fixture, String name,
+                                                                String folder, Boolean createFolders)
+      throws Exception
+   {
+      return fixture.controller.create(
+         new WizTableStyleController.CreateTableStyleRequest(name, folder, null, createFolders),
+         fixture.principal);
+   }
+
+   @Test
+   void create_refusesAStyleNamedLikeASiblingFolder() {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "P", "P~X");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> createNamed(fixture, "X", "P", null));
+
+      assertTrue(thrown.getMessage().contains("'X'") && thrown.getMessage().contains("folder"),
+                 thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("\n"));
+      assertNothingWritten(fixture);
+   }
+
+   @Test
+   void create_refusesAStyleNamedLikeAFolderAtTheRoot() {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "X");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> createNamed(fixture, "X", null, null));
+
+      assertTrue(thrown.getMessage().contains("'X'") && thrown.getMessage().contains("folder"),
+                 thrown.getMessage());
+      assertNothingWritten(fixture);
+   }
+
+   @Test
+   void create_createFoldersRefusesAFolderNamedLikeAnExistingStyle() {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "P");
+      when(fixture.tableStyleService.containsTableStyle("P~X")).thenReturn(true);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> createNamed(fixture, "Z", "P/X", true));
+
+      assertTrue(thrown.getMessage().contains("'X'") && thrown.getMessage().contains("table style"),
+                 thrown.getMessage());
+      assertNothingWritten(fixture);
+   }
+
+   @Test
+   void create_createFoldersRefusesAnIntermediateFolderNamedLikeAnExistingStyle() {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "P");
+      when(fixture.tableStyleService.containsTableStyle("P~S")).thenReturn(true);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> createNamed(fixture, "Z", "P/S/Q", true));
+
+      assertTrue(thrown.getMessage().contains("'S'"), thrown.getMessage());
+      assertNothingWritten(fixture);
+   }
+
+   @Test
+   void create_refusesBlankFolderVariantsWithAndWithoutCreateFolders() {
+      for(String folder : new String[] { "  ", "\t", "\u0001", " / ", "/ ", "  /", "\u3000",
+                                         "\u2003", "\u3000/", " \u3000 / " }) {
+         for(Boolean createFolders : new Boolean[] { null, true }) {
+            Fixture fixture = new Fixture();
+            assertFolderRefused(() -> createIn(fixture, folder, createFolders), fixture);
+         }
+      }
+   }
+
+   @Test
+   void create_refusesNewFolderSegmentsWithEdgeWhitespaceOrControlChars() {
+      for(String folder : new String[] { "Bands/ x /", "Bands/ x", "Bands/\u00a0x", "Bands/x\u00a0",
+                                         "Bands/\u3000x\u3000", "Bands/  /y", "Bands/a\u0001b" })
+      {
+         Fixture fixture = new Fixture();
+         registerFolders(fixture, "Bands");
+         assertFolderRefused(() -> createIn(fixture, folder, true), fixture);
+      }
+   }
+
+   @Test
+   void create_reusesAnExistingEdgeSpaceFolderWithoutRegisteringATwin() throws Exception {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "RUN", "RUN~t ", "RUN~t ~y");
+
+      createIn(fixture, "RUN/t /y", true);
+
+      verify(fixture.tableStyleService).getTableStyleLabel("RUN~t ~y", "X");
+      verify(fixture.lib, never()).addTableStyleFolder(anyString());
+      verify(fixture.lib).setTableStyle(any(), any());
+   }
+
+   @Test
+   void update_refusesRenamingToASiblingFoldersName() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+      registerFolders(fixture, "User Defined", "User Defined~Taken");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
+         "1001", new WizTableStyleController.UpdateTableStyleRequest("Taken", null, null, null),
+         fixture.principal));
+
+      assertTrue(thrown.getMessage().contains("'Taken'") && thrown.getMessage().contains("folder"),
+                 thrown.getMessage());
+      assertNothingWritten(fixture);
+   }
+
+   @Test
+   void update_refusesMovingIntoAFolderHoldingASameNamedFolder() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+      registerFolders(fixture, "Sales", "Sales~BorderedBands");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
+         "1001", new WizTableStyleController.UpdateTableStyleRequest(null, "Sales", null, null),
+         fixture.principal));
+
+      assertTrue(thrown.getMessage().contains("'BorderedBands'"), thrown.getMessage());
+      assertNothingWritten(fixture);
+   }
+
+   @Test
+   void update_createFoldersRefusesAFolderNamedLikeAnExistingStyle() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+      registerFolders(fixture, "Sales");
+      when(fixture.tableStyleService.containsTableStyle("Sales~New")).thenReturn(true);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
+         "1001", new WizTableStyleController.UpdateTableStyleRequest(null, "Sales/New", null, true),
+         fixture.principal));
+
+      assertTrue(thrown.getMessage().contains("'New'"), thrown.getMessage());
+      assertNothingWritten(fixture);
+   }
+
+   @Test
+   void update_movingAStyleIntoANewFolderWithItsOwnNameIsAllowed() throws Exception {
+      Fixture fixture = new Fixture();
+      XTableStyle moving = newStyle("1002", "RUN~S");
+      when(fixture.lib.getTableStyle("1002")).thenReturn(moving);
+      registerFolders(fixture, "RUN");
+      when(fixture.tableStyleService.containsTableStyle("RUN~S")).thenReturn(true);
+
+      fixture.controller.update(
+         "1002", new WizTableStyleController.UpdateTableStyleRequest(null, "RUN/S", null, true),
+         fixture.principal);
+
+      verify(fixture.lib).addTableStyleFolder("RUN~S");
+      verify(fixture.lib).renameTableStyle("RUN~S", "RUN~S~S", "1002");
+   }
+
+   @Test
+   void update_refusesBlankFolderVariants() {
+      for(String folder : new String[] { "  ", "\t", " / ", "\u0001", "\u3000", "\u2003", "\u3000/" }) {
+         Fixture fixture = new Fixture();
+         when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+         assertFolderRefused(() -> fixture.controller.update("1001",
+            new WizTableStyleController.UpdateTableStyleRequest(null, folder, null, null),
+            fixture.principal), fixture);
+      }
+   }
+
+   @Test
+   void update_refusesNewEdgeSpaceFolderSegments() {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+      registerFolders(fixture, "Bands");
+
+      assertFolderRefused(() -> fixture.controller.update("1001",
+         new WizTableStyleController.UpdateTableStyleRequest(null, "Bands/ x ", null, true),
+         fixture.principal), fixture);
+   }
+
    private static XTableStyle newStyle(String id, String name) {
       XTableStyle style = new XTableStyle(new DefaultTableLens());
       style.setID(id);
@@ -715,8 +903,10 @@ class WizTableStyleControllerTest {
          }
 
          when(libManagerProvider.getManager(any(Principal.class))).thenReturn(lib);
-         // Every folder is registered unless a test says otherwise.
-         when(lib.containsFolder(anyString())).thenReturn(true);
+         // Every folder is registered unless a test says otherwise -- except the full names the
+         // tests below give to styles, since a style and a folder cannot share a full name.
+         when(lib.containsFolder(anyString()))
+            .thenAnswer(inv -> !styleFullNames.contains(inv.<String>getArgument(0)));
          when(lib.getTableStyleFolders(nullable(String.class), anyBoolean())).thenReturn(new String[0]);
          when(tableStyleService.getTableStyleLabel(nullable(String.class), anyString()))
             .thenAnswer(inv -> inv.getArgument(0) == null ? inv.getArgument(1) :
@@ -734,6 +924,9 @@ class WizTableStyleControllerTest {
       final WizTableStylePreviewRenderer previewRenderer =
          mock(WizTableStylePreviewRenderer.class);
       final LibManager lib = mock(LibManager.class);
+      final Set<String> styleFullNames = Set.of(
+         "X", "BorderedBands", "Renamed", "User Defined~Renamed", "Sales~Renamed",
+         "Sales~BorderedBands", "Audit~Bands");
       final Principal principal = mock(Principal.class);
       final WizTableStyleController controller;
       final XTableStyle existingStyle = newStyle("1001", "User Defined~BorderedBands");
