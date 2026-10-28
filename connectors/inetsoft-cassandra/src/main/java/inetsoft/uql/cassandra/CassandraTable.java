@@ -21,6 +21,9 @@ import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.*;
 import com.datastax.oss.driver.api.core.data.TupleValue;
 import com.datastax.oss.driver.api.core.type.DataType;
+import com.datastax.oss.driver.api.core.type.ListType;
+import com.datastax.oss.driver.api.core.type.MapType;
+import com.datastax.oss.driver.api.core.type.SetType;
 import com.datastax.oss.protocol.internal.ProtocolConstants;
 import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XTableNode;
@@ -35,7 +38,15 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -164,8 +175,14 @@ public class CassandraTable extends XTableNode {
          return Long.class;
       case ProtocolConstants.DataType.INT:
          return Integer.class;
+      case ProtocolConstants.DataType.SMALLINT:
+         return Short.class;
+      case ProtocolConstants.DataType.TINYINT:
+         return Byte.class;
       case ProtocolConstants.DataType.VARINT:
-         return BigInteger.class;
+         // varint is arbitrary precision; BigInteger columns are narrowed to long by the core
+         // table lens, so it is exposed as text to stay exact.
+         return String.class;
       case ProtocolConstants.DataType.DECIMAL:
          return BigDecimal.class;
       case ProtocolConstants.DataType.DOUBLE:
@@ -176,6 +193,12 @@ public class CassandraTable extends XTableNode {
          return Boolean.class;
       case ProtocolConstants.DataType.TIMESTAMP:
          return java.util.Date.class;
+      case ProtocolConstants.DataType.DATE:
+         return java.sql.Date.class;
+      case ProtocolConstants.DataType.TIME:
+         return java.sql.Time.class;
+      case ProtocolConstants.DataType.DURATION:
+         return String.class;
       case ProtocolConstants.DataType.LIST:
          return java.util.List.class;
       case ProtocolConstants.DataType.MAP:
@@ -206,6 +229,12 @@ public class CassandraTable extends XTableNode {
     */
    @Override
    public synchronized Object getObject(int col) {
+      // The driver's primitive getters (getLong, getInt, getDouble, getFloat, getBoolean) map a
+      // CQL null to 0/false, which corrupts aggregates, so null must be detected up front.
+      if(curr.isNull(col)) {
+         return null;
+      }
+
       switch(types[col].getProtocolCode()) {
       case ProtocolConstants.DataType.BIGINT:
       case ProtocolConstants.DataType.COUNTER:
@@ -213,7 +242,8 @@ public class CassandraTable extends XTableNode {
       case ProtocolConstants.DataType.INT:
          return curr.getInt(col);
       case ProtocolConstants.DataType.VARINT:
-         return curr.getBigInteger(col);
+         BigInteger varint = curr.getBigInteger(col);
+         return varint == null ? null : varint.toString();
       case ProtocolConstants.DataType.DECIMAL:
          BigDecimal decimal = curr.getBigDecimal(col);
          return decimal == null ? null : decimal.doubleValue();
@@ -226,30 +256,15 @@ public class CassandraTable extends XTableNode {
       case ProtocolConstants.DataType.TIMESTAMP:
          Instant instant = curr.getInstant(col);
          return instant == null ? null : new Date(instant.toEpochMilli());
+      case ProtocolConstants.DataType.SMALLINT:
+      case ProtocolConstants.DataType.TINYINT:
+      case ProtocolConstants.DataType.DATE:
+      case ProtocolConstants.DataType.TIME:
+      case ProtocolConstants.DataType.DURATION:
       case ProtocolConstants.DataType.LIST:
-         try {
-            return curr.getList(col, String.class);
-         }
-         catch(Throwable ex) {
-            LOG.info("Failed to get value: (" + col + ")", ex);
-            return null;
-         }
       case ProtocolConstants.DataType.MAP:
-         try {
-            return curr.getMap(col, String.class, String.class);
-         }
-         catch(Throwable ex) {
-            LOG.info("Failed to get value: (" + col + ")", ex);
-            return null;
-         }
       case ProtocolConstants.DataType.SET:
-         try {
-            return curr.getSet(col, String.class);
-         }
-         catch(Throwable ex) {
-            LOG.info("Failed to get value: (" + col + ")", ex);
-            return null;
-         }
+         return convert(curr.getObject(col), types[col]);
       case ProtocolConstants.DataType.UUID:
       case ProtocolConstants.DataType.TIMEUUID:
          return curr.getUuid(col);
@@ -278,6 +293,60 @@ public class CassandraTable extends XTableNode {
             LOG.info("Failed to get value: (" + col + ")", ex);
             return null;
          }
+      }
+   }
+
+   /**
+    * Converts a value read with the driver's own codec for {@code type} to the class
+    * {@link #getType(DataType)} reports for it. Collections are converted element by element with
+    * the element's own type, so nested and frozen collections follow the same mapping as columns.
+    * Tuples and UDTs are returned as the driver values, as they are for a top-level column.
+    */
+   private static Object convert(Object value, DataType type) {
+      if(value == null) {
+         return null;
+      }
+
+      switch(type.getProtocolCode()) {
+      case ProtocolConstants.DataType.DATE:
+         return java.sql.Date.valueOf((LocalDate) value);
+      case ProtocolConstants.DataType.TIME:
+         // java.sql.Time has no sub-second precision
+         return java.sql.Time.valueOf((LocalTime) value);
+      case ProtocolConstants.DataType.TIMESTAMP:
+         return new Date(((Instant) value).toEpochMilli());
+      case ProtocolConstants.DataType.DURATION:
+         return value.toString();
+      case ProtocolConstants.DataType.LIST:
+         DataType listElement = ((ListType) type).getElementType();
+         List<Object> list = new ArrayList<>();
+
+         for(Object element : (List<?>) value) {
+            list.add(convert(element, listElement));
+         }
+
+         return list;
+      case ProtocolConstants.DataType.SET:
+         DataType setElement = ((SetType) type).getElementType();
+         Set<Object> set = new LinkedHashSet<>();
+
+         for(Object element : (Set<?>) value) {
+            set.add(convert(element, setElement));
+         }
+
+         return set;
+      case ProtocolConstants.DataType.MAP:
+         MapType mapType = (MapType) type;
+         Map<Object, Object> map = new LinkedHashMap<>();
+
+         for(Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+            map.put(convert(entry.getKey(), mapType.getKeyType()),
+                    convert(entry.getValue(), mapType.getValueType()));
+         }
+
+         return map;
+      default:
+         return value;
       }
    }
 

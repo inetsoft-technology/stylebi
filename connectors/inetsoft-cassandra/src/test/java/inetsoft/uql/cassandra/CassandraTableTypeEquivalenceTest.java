@@ -29,7 +29,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.awt.*;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.net.InetAddress;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -74,12 +73,17 @@ class CassandraTableTypeEquivalenceTest {
          Arguments.of(ProtocolConstants.DataType.BIGINT, Long.class),
          Arguments.of(ProtocolConstants.DataType.COUNTER, Long.class),
          Arguments.of(ProtocolConstants.DataType.INT, Integer.class),
-         Arguments.of(ProtocolConstants.DataType.VARINT, BigInteger.class),
+         Arguments.of(ProtocolConstants.DataType.VARINT, String.class),
          Arguments.of(ProtocolConstants.DataType.DECIMAL, BigDecimal.class),
          Arguments.of(ProtocolConstants.DataType.DOUBLE, Double.class),
          Arguments.of(ProtocolConstants.DataType.FLOAT, Float.class),
          Arguments.of(ProtocolConstants.DataType.BOOLEAN, Boolean.class),
          Arguments.of(ProtocolConstants.DataType.TIMESTAMP, java.util.Date.class),
+         Arguments.of(ProtocolConstants.DataType.SMALLINT, Short.class),
+         Arguments.of(ProtocolConstants.DataType.TINYINT, Byte.class),
+         Arguments.of(ProtocolConstants.DataType.DATE, java.sql.Date.class),
+         Arguments.of(ProtocolConstants.DataType.TIME, java.sql.Time.class),
+         Arguments.of(ProtocolConstants.DataType.DURATION, String.class),
          Arguments.of(ProtocolConstants.DataType.LIST, java.util.List.class),
          Arguments.of(ProtocolConstants.DataType.MAP, java.util.Map.class),
          Arguments.of(ProtocolConstants.DataType.SET, java.util.Set.class),

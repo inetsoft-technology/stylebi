@@ -3009,6 +3009,25 @@ public class WizVsService {
          return;
       }
 
+      String cause = findFailedQueryCause(lens);
+
+      if(cause != null) {
+         throw new IllegalArgumentException(
+            wrapExpressionError ? failedQueryError(cause)
+               : (cause.isBlank() ? "Worksheet query failed." : cause));
+      }
+   }
+
+   /**
+    * The cause of the first failed-query fallback table anywhere in the lens chain: null when
+    * none is found, an empty string when one is found but no cause was captured. Looks through
+    * table and crosstab filter wrappers.
+    */
+   public static String findFailedQueryCause(XTable lens) {
+      if(lens == null) {
+         return null;
+      }
+
       List<XTable> allTables = new ArrayList<>();
       Util.listNestedTable(lens, XTable.class, allTables);
 
@@ -3016,11 +3035,11 @@ public class WizVsService {
          String cause = failedQueryCause(t);
 
          if(cause != null) {
-            throw new IllegalArgumentException(
-               wrapExpressionError ? failedQueryError(cause)
-                  : (cause.isBlank() ? "Worksheet query failed." : cause));
+            return cause;
          }
       }
+
+      return null;
    }
 
    /**
