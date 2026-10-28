@@ -26,6 +26,7 @@ import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.jdbc.JDBCQuery;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionBaseVSAssemblyInfo;
@@ -733,6 +734,17 @@ public final class VSMVAnalyzer implements MVAnalyzer {
          return false;
       }
 
+      // a dynamic pre-condition on a named group column compares against the group
+      // labels in the MV, and matches nothing/everything (#79482)
+      if(containsDynamicConditionOnNamedGroup(tassembly)) {
+         UserInfo uinfo = new UserInfo(
+            getVsPath(), tname,
+            catalog.getString("mv.vs.namedgroup.condition.var", getVsPath()));
+         desc.addUserInfo(uinfo);
+         desc.addFault(TransformationFault.containsNamedGroup(tname));
+         return false;
+      }
+
       return true;
    }
 
@@ -979,6 +991,82 @@ public final class VSMVAnalyzer implements MVAnalyzer {
       if(table instanceof ComposedTableAssembly) {
          for(TableAssembly parent : ((ComposedTableAssembly) table).getTableAssemblies(false)) {
             if(containsNamedGroupVariable(parent)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the table has a group column with a named group, and a dynamic
+    * (variable or expression valued) pre-condition on that same column. The named
+    * group rewrites the column values to the group labels, so the MV can't apply the
+    * condition (which is on the original values) to it.
+    */
+   private boolean containsDynamicConditionOnNamedGroup(TableAssembly table) {
+      AggregateInfo ainfo = table.getAggregateInfo();
+      ConditionListWrapper wrapper = table.getPreConditionList();
+      ConditionList conds = wrapper == null ? null : wrapper.getConditionList();
+
+      if(ainfo != null && conds != null) {
+         for(GroupRef group : ainfo.getGroups()) {
+            if(group.getNamedGroupAssembly() == null && group.getNamedGroupInfo() == null) {
+               continue;
+            }
+
+            for(int i = 0; i < conds.getSize(); i += 2) {
+               ConditionItem item = conds.getConditionItem(i);
+               DataRef attr = item.getAttribute();
+
+               if(attr != null && isSameColumn(group, attr) &&
+                  isDynamicCondition(item.getXCondition()))
+               {
+                  return true;
+               }
+            }
+         }
+      }
+
+      if(table instanceof ComposedTableAssembly) {
+         for(TableAssembly parent : ((ComposedTableAssembly) table).getTableAssemblies(false)) {
+            if(containsDynamicConditionOnNamedGroup(parent)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean isSameColumn(DataRef group, DataRef attr) {
+      return Objects.equals(group.getName(), attr.getName()) ||
+         Objects.equals(group.getAttribute(), attr.getAttribute()) &&
+         Objects.equals(group.getEntity(), attr.getEntity());
+   }
+
+   /**
+    * Check if the condition value is a variable or an expression.
+    */
+   private static boolean isDynamicCondition(XCondition cond) {
+      if(cond == null) {
+         return false;
+      }
+
+      UserVariable[] vars = cond.getAllVariables();
+
+      if(vars != null && vars.length > 0) {
+         return true;
+      }
+
+      if(cond instanceof Condition) {
+         Condition c = (Condition) cond;
+
+         for(int i = 0; i < c.getValueCount(); i++) {
+            Object val = c.getValue(i);
+
+            if(val instanceof ExpressionValue || Condition.isSessionVariable(val)) {
                return true;
             }
          }
